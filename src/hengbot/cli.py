@@ -1477,11 +1477,19 @@ def _write_decision(
                         else None
                     ),
                     (
-                        getattr(
-                            getattr(policy, "_town_turn_arbiter", None),
-                            "telemetry",
-                            None,
-                        )
+                        {
+                            **(
+                                getattr(
+                                    getattr(policy, "_town_turn_arbiter", None),
+                                    "telemetry",
+                                    None,
+                                )
+                                or {}
+                            ),
+                            "decision_owner": getattr(
+                                policy, "decision_owner", "unregistered"
+                            ),
+                        }
                         if policy is not None
                         else None
                     ),

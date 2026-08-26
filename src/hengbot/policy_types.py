@@ -16,6 +16,16 @@ from hengbot.policy_constants import (
 # cost: a mistaken expectation may delay an owner, but cannot deadlock it.
 OWNER_EXPECTATION_MAX_TURNS = 10
 
+
+@dataclass(frozen=True)
+class DecisionContext:
+    """Immutable facts captured once at the public decision boundary."""
+
+    snapshot: Snapshot
+    owner: str
+    equipment_transaction_owned: bool
+
+
 @dataclass
 class TownTravelProgress:
     goal: Position

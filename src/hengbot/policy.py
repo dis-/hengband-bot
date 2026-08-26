@@ -73,6 +73,7 @@ from hengbot.home_visit import (
 )
 from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
 from hengbot.policy_types import (
+    DecisionContext,
     TownTravelProgress,
     StoreVisitPhase,
     StoreVisit,
@@ -1895,11 +1896,8 @@ class HengbotPolicy(TownArbiterMixin):
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
-        # Immutable for the duration of one choose_key decision.  Transaction
-        # code may retire or replace the mutable session before downstream
-        # town arbitration runs, but that same decision still belongs to the
-        # transaction that was installed when it began.
-        self._equipment_transaction_owned_decision = False
+        self._decision_context: DecisionContext | None = None
+        self.decision_owner = "unregistered"
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2533,9 +2531,20 @@ class HengbotPolicy(TownArbiterMixin):
         self._withdrawal_unfulfilled_defect = {}
         self._town_liveness_invariant_defect = {}
         self._town_liveness_claim_retired = False
-        self._equipment_transaction_owned_decision = (
-            self._equipment_transaction_session is not None
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is None:
+            # restore_checkpoint upgrades older captures with this explicit
+            # slot; reconstruct its advisory observer on first use.
+            arbiter = _new_town_turn_arbiter()
+            self._town_turn_arbiter = arbiter
+        self._decision_context = DecisionContext(
+            snapshot=snapshot,
+            owner=arbiter.decision_owner_for_reason(self.last_reason),
+            equipment_transaction_owned=(
+                self._equipment_transaction_session is not None
+            ),
         )
+        self.decision_owner = self._decision_context.owner
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
         if not hasattr(self, "_town_visit_sale_signatures"):
@@ -2551,12 +2560,6 @@ class HengbotPolicy(TownArbiterMixin):
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        if arbiter is None:
-            # restore_checkpoint upgrades older captures with this explicit
-            # slot; reconstruct its advisory observer on first use.
-            arbiter = _new_town_turn_arbiter()
-            self._town_turn_arbiter = arbiter
         refusal_probe = self._posting_refusal_probe
         if refusal_probe is not None:
             self._posting_refusal_probe = None
@@ -2590,6 +2593,9 @@ class HengbotPolicy(TownArbiterMixin):
                         snapshot, refusal_owner
                     ),
                     probe=True,
+                )
+                self.decision_owner = arbiter.decision_owner_for_reason(
+                    decided_reason
                 )
                 return key
         self._last_policy_progress_core = current_progress_core
@@ -2667,6 +2673,7 @@ class HengbotPolicy(TownArbiterMixin):
             terminal=terminal,
             close_visit=self._arbiter_close_store_visit,
         )
+        self.decision_owner = arbiter.decision_owner_for_reason(self.last_reason)
         if (
             self._equipment_transaction_session is None
             and STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -3292,7 +3299,11 @@ class HengbotPolicy(TownArbiterMixin):
         """Whether this decision began with equipment locomotion ownership."""
         return bool(
             snapshot.in_town
-            and getattr(self, "_equipment_transaction_owned_decision", False)
+            and (
+                getattr(self, "_decision_context", None) is not None
+                and self._decision_context.equipment_transaction_owned
+                or getattr(self, "_equipment_transaction_owned_decision", False)
+            )
         )
 
     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:

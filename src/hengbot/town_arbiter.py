@@ -83,6 +83,20 @@ class TownTurnArbiter:
                 return entry.name
         return "unregistered"
 
+    def decision_owner_for_reason(self, reason: str) -> str:
+        """Resolve compatibility families into measurable decision owners."""
+        owner = self.owner_for_reason(reason)
+        if owner not in {"misc", "unregistered"}:
+            return owner
+        normalized = reason or "policy:none"
+        if normalized.startswith("seek-downstairs"):
+            return "departure"
+        if normalized.startswith("melee"):
+            return "survival"
+        if normalized.startswith("periodic:"):
+            return "detectors"
+        return "town-plan"
+
     def observe(
         self,
         *,
