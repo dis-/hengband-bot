@@ -14,7 +14,11 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import parse_snapshot
-from hengbot.policy import HengbotPolicy, WAIT_KEY
+from hengbot.policy import (
+    HengbotPolicy,
+    TOWN_TRAVEL_STORE_SYMBOLS,
+    WAIT_KEY,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +71,19 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
                 if candidate.turn == snapshot.turn and candidate.store is not None
                 and candidate.store.store_type == here.store_number
             ]
+            if not matches:
+                matches = [
+                    replace(
+                        candidate,
+                        turn=snapshot.turn,
+                        player=snapshot.player,
+                        equipment=snapshot.equipment,
+                        inventory=snapshot.inventory,
+                    )
+                    for candidate in self.snapshots
+                    if candidate.store is not None
+                    and candidate.store.store_type == here.store_number
+                ]
             self.assertTrue(matches, (snapshot.turn, snapshot.player.position, key))
             return matches[0]
         if key == "\x1b" and snapshot.store is not None:
@@ -118,7 +135,9 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             "equipment-transaction:abandon-blocked",
             "equipment-transaction:owns-town-leave-store",
         ]
-        # Seed the captured pre-swap state so takeoff and equip both execute.
+        # Decision 408 was filed against the real turn-1172205 Home-door
+        # observation.  Its frozen body already contains the hard armour, so
+        # the requested rag takeoff is stale at the capture entry seam.
         actions = (
             EquipmentTransaction(PHASE_EQUIP, "takeoff", "rag", "body", RAG),
             EquipmentTransaction(PHASE_EQUIP, "equip", "hard", "body", HARD_ARMOUR),
@@ -128,14 +147,27 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
         policy._equipment_transaction_session = EquipmentTransactionSession(
             EquipmentTransactionPlan(actions, (), 0)
         )
-        policy._equipment_transaction_owned_items = [(RAG, "body")]
-        snapshot = self._surface(1172821, RAG)
+        snapshot = self._surface(1172205, HARD_ARMOUR)
         reasons = []
-        body_history = [RAG]
+        body_history = [HARD_ARMOUR]
+        foreign_relocations = []
 
-        for _ in range(8):
+        for _ in range(16):
+            session_was_live = policy._equipment_transaction_session is not None
             key = policy.choose_key(snapshot)
             reasons.append(policy.last_reason)
+            if (
+                session_was_live
+                and len(key) >= 5
+                and key.startswith("\x1b`n")
+                and key.endswith(".")
+                and key[3] in TOWN_TRAVEL_STORE_SYMBOLS
+            ):
+                store_type = TOWN_TRAVEL_STORE_SYMBOLS.index(key[3])
+                if store_type != 7:
+                    foreign_relocations.append(
+                        (key, store_type, policy.last_reason)
+                    )
             session = policy._equipment_transaction_session
             action = None if session is None else (
                 session.prepared_action or session.pending_action or session.current_action
@@ -153,9 +185,12 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             reasons[index:index + len(captured_cycle)] == captured_cycle
             for index in range(len(reasons) - len(captured_cycle) + 1)
         ), reasons)
-        self.assertIn("equipment-transaction:takeoff", reasons)
-        self.assertIn("equipment-transaction:equip", reasons)
-        self.assertEqual(body_history, [RAG, HARD_ARMOUR], (body_history, reasons))
+        self.assertFalse(foreign_relocations, foreign_relocations)
+        self.assertTrue(any(
+            "stale-identity-invalidated:takeoff" in reason
+            for reason in reasons
+        ), reasons)
+        self.assertLessEqual(len(body_history), 2, (body_history, reasons))
 
     def test_stale_takeoff_identity_is_invalidated_before_slot_letter_posts(self):
         snapshot = self._surface(1172858, HARD_ARMOUR)
@@ -276,6 +311,48 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             key = policy.choose_key(snapshot)
         self.assertEqual(key, WAIT_KEY)
         self.assertNotEqual(key, travel)
+
+    def test_unowned_equip_only_session_cannot_relocate_to_foreign_store(self):
+        snapshot = self._surface(1172205, HARD_ARMOUR)
+        action = EquipmentTransaction(PHASE_EQUIP, "equip", "hard", "body", HARD_ARMOUR)
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+        travel = "\x1b`n!."
+        with patch.object(
+            policy,
+            "_town_procurement_progress_key",
+            return_value=(travel, "town-progress-invariant:approach"),
+        ):
+            key = policy.choose_key(snapshot)
+        self.assertEqual(key, WAIT_KEY)
+        self.assertNotEqual(key, travel)
+
+    def test_retired_claim_abandons_before_foreign_store_fallback(self):
+        snapshot = self._surface(1172205, HARD_ARMOUR)
+        action = EquipmentTransaction(PHASE_EQUIP, "equip", "hard", "body", HARD_ARMOUR)
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+
+        def proposed(_snapshot):
+            policy.last_reason = "equipment-transaction:await-confirmation"
+            return WAIT_KEY
+
+        vector = policy._town_arbiter_progress_vector(
+            snapshot, "equipment-transaction:await-confirmation"
+        )
+        policy._town_turn_arbiter._retired = {"equipment-txn": vector}
+
+        with patch.object(policy, "_choose_key_with_latch_capture", proposed), \
+             patch.object(policy, "_departure_supplier_counterfactual", return_value=5), \
+             patch.object(policy, "_shopping_approach_step", return_value=snapshot.player.position):
+            key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, "\x1b`n&.")
+        self.assertEqual(policy.last_reason, "equipment-transaction:abandon-blocked")
+        self.assertIsNone(policy._equipment_transaction_session)
 
     def test_stale_invalidation_clears_pending_route_terminal(self):
         snapshot = self._surface(1172858, HARD_ARMOUR)

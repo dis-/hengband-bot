@@ -2629,6 +2629,35 @@ class HengbotPolicy(TownArbiterMixin):
                 else None
             )
             if step is not None:
+                if self._equipment_transaction_owns_town_relocation(snapshot):
+                    # A retired claim cannot carry its installed transaction
+                    # toward the counterfactual foreign supplier.  Abandon it
+                    # now; another owner may move on the following decision.
+                    session = self._equipment_transaction_session
+                    if session is not None:
+                        self._equipment_transaction_retired_plan = (
+                            EquipmentTransactionPlan(
+                                tuple(session.plan.actions[session.index:]),
+                                (),
+                                session.plan.peak_pack_items,
+                            )
+                        )
+                    self._block_equipment_transaction("town-owner-retired")
+                    self._abandon_blocked_equipment_transaction(snapshot)
+                    self.last_reason = "equipment-transaction:abandon-blocked"
+                    key = self._forbid_wait_on_town_entrance(snapshot, WAIT_KEY)
+                    vector = self._town_arbiter_progress_vector(
+                        snapshot, self.last_reason
+                    )
+                    terminal = self._town_arbiter_terminal_result(key)
+                    arbiter.observe(
+                        in_town=True,
+                        reason=self.last_reason,
+                        progress_vector=vector,
+                        terminal=terminal,
+                        close_visit=self._arbiter_close_store_visit,
+                    )
+                    return key
                 self.last_reason = "shop:approach"
                 key = self._shopping_approach_key(snapshot, step, "shop:travel")
             else:
@@ -3154,21 +3183,7 @@ class HengbotPolicy(TownArbiterMixin):
             return key
 
         # Durable session ownership survives reason relabelling and blockers.
-        # Another owner may relocate only after this executor has completed or
-        # abandoned work that owns an item or still needs Home.
-        equipment_session = self._equipment_transaction_session
-        if (
-            equipment_session is not None
-            and (
-                self._equipment_transaction_owned_items
-                or any(
-                    action.phase != PHASE_EQUIP
-                    for action in equipment_session.plan.actions[
-                        equipment_session.index:
-                    ]
-                )
-            )
-        ):
+        if self._equipment_transaction_owns_town_relocation(snapshot):
             return key
 
         # The outside half of an already-posted Home take owns the decision
@@ -3275,6 +3290,15 @@ class HengbotPolicy(TownArbiterMixin):
         )
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
+
+    def _equipment_transaction_owns_town_relocation(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Whether an installed equipment transaction still owns locomotion."""
+        return bool(
+            snapshot.in_town
+            and self._equipment_transaction_session is not None
+        )
 
     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
         """Travel to a distinct landmark when an entrance has no safe step-off."""
@@ -13001,6 +13025,10 @@ class HengbotPolicy(TownArbiterMixin):
             action is not None
             and "home-route-unavailable" in getattr(session, "blockers", ())
         )
+        owner_retired = bool(
+            action is not None
+            and "town-owner-retired" in getattr(session, "blockers", ())
+        )
         if not route_blocked:
             # A non-route abandonment disproves the pending assertion that an
             # identical Home route failed twice without an observed change.
@@ -13041,7 +13069,7 @@ class HengbotPolicy(TownArbiterMixin):
                     )
                 finally:
                     self._equipment_transaction_session = session
-            if not route_blocked and (
+            if not route_blocked and not owner_retired and (
                 action.item_id
                 in self._equipment_quarantine_second_chance_ids
             ):
@@ -13051,7 +13079,7 @@ class HengbotPolicy(TownArbiterMixin):
                 # last-source readmission, so every quarantine escape strictly
                 # shrinks the remaining candidate set (monotonic exit).
                 self._equipment_quarantine_burned_ids.add(action.item_id)
-            if not route_blocked:
+            if not route_blocked and not owner_retired:
                 self._equipment_transaction_failed_items.add(action.item_id)
         self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
@@ -13357,6 +13385,22 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         if self._release_stalled_equipment_transaction(snapshot):
             return WAIT_KEY
+        retired_plan = getattr(
+            self, "_equipment_transaction_retired_plan", None
+        )
+        if (
+            self._equipment_transaction_session is None
+            and retired_plan is not None
+        ):
+            self._equipment_transaction_retired_plan = None
+            self._set_equipment_transaction_session(
+                EquipmentTransactionSession(
+                    retired_plan,
+                    max_unconfirmed_observations=(
+                        EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
+                    ),
+                )
+            )
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
@@ -23058,6 +23102,17 @@ class HengbotPolicy(TownArbiterMixin):
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
+        if (
+            self._equipment_transaction_owns_town_relocation(snapshot)
+            and self._shopping_approach_store_type != STORE_HOME
+        ):
+            # Every store route, including its one-step fallback, converges at
+            # this seam.  A foreign owner must first abandon the installed
+            # transaction and may approach only on a later decision.
+            self._block_equipment_transaction("foreign-store-relocation")
+            self._abandon_blocked_equipment_transaction(snapshot)
+            self.last_reason = "equipment-transaction:abandon-blocked"
+            return self._forbid_wait_on_town_entrance(snapshot, WAIT_KEY)
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
