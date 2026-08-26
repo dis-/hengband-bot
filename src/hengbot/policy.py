@@ -3153,18 +3153,20 @@ class HengbotPolicy(TownArbiterMixin):
         if allow_members:
             return key
 
-        # Durable session ownership survives reason relabelling by earlier key
-        # guards.  Another owner may relocate only after this executor has
-        # completed or abandoned all unfinished Home-side work.
+        # Durable session ownership survives reason relabelling and blockers.
+        # Another owner may relocate only after this executor has completed or
+        # abandoned work that owns an item or still needs Home.
         equipment_session = self._equipment_transaction_session
         if (
             equipment_session is not None
-            and equipment_session.executable
-            and any(
-                action.phase != PHASE_EQUIP
-                for action in equipment_session.plan.actions[
-                    equipment_session.index:
-                ]
+            and (
+                self._equipment_transaction_owned_items
+                or any(
+                    action.phase != PHASE_EQUIP
+                    for action in equipment_session.plan.actions[
+                        equipment_session.index:
+                    ]
+                )
             )
         ):
             return key
@@ -12999,6 +13001,10 @@ class HengbotPolicy(TownArbiterMixin):
             action is not None
             and "home-route-unavailable" in getattr(session, "blockers", ())
         )
+        if not route_blocked:
+            # A non-route abandonment disproves the pending assertion that an
+            # identical Home route failed twice without an observed change.
+            self._equipment_transaction_route_terminal_pending = False
         if route_blocked and session is not None and snapshot is not None:
             route_abandonment = (
                 session.target_loadout_id,
@@ -13486,6 +13492,8 @@ class HengbotPolicy(TownArbiterMixin):
         observed_identity: str | None,
     ) -> None:
         """Re-derive a plan when its current letter no longer names its item."""
+        self._equipment_transaction_failed_items.add(action.item_id)
+        self._equipment_transaction_route_terminal_pending = False
         self._discard_unposted_equipment_transaction_command()
         self._set_equipment_transaction_session(None)
         self._equipment_optimization_signature = None
