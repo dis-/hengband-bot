@@ -1486,11 +1486,12 @@ def _write_decision(
                                 )
                                 or {}
                             ),
-                            "decision_owner": getattr(
-                                policy, "decision_owner", "unregistered"
+                            "decision_attribution": getattr(
+                                policy, "decision_attribution", "unregistered"
                             ),
                         }
                         if policy is not None
+                        and (snapshot.in_town or snapshot.store is not None)
                         else None
                     ),
                 ),

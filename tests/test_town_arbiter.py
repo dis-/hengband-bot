@@ -1,11 +1,13 @@
 import ast
+import copy
 from dataclasses import replace
 import gzip
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
-from hengbot.cli import _decision_record
+from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit
@@ -127,17 +129,16 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
     def test_pin_vacuity_postlevel_public_choose_key_consumes_retirement_budget(self):
         snapshot = self._postlevel_snapshot()
         policy = HengbotPolicy()
-        rows = []
         budget = policy._town_turn_arbiter.registry["home-scan"].budget
+        decisions = []
         for _ in range(budget + 1):
             key = policy.choose_key(snapshot)
-            rows.append(_decision_record(
-                snapshot,
-                key,
-                policy.last_reason,
-                decision_sequence=policy._decision_sequence,
-                arbiter=policy._town_turn_arbiter.telemetry,
-            ))
+            decisions.append((key, policy.last_reason, copy.deepcopy(policy)))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            for key, reason, decided_policy in decisions:
+                _write_decision(path, snapshot, key, reason, decided_policy)
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
 
         self.assertTrue(rows)
         for row in rows:
@@ -147,12 +148,22 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                     {
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
-                        "retired", "retirement_set",
+                        "retired", "retirement_set", "decision_attribution",
                     },
                     set(row["arbiter"]),
                 )
         self.assertFalse(rows[0]["arbiter"]["would_retire"])
         self.assertTrue(any(row["arbiter"]["would_retire"] for row in rows[:budget + 1]))
+
+    def test_completed_attribution_prefers_embedded_equipment_transaction(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        self.assertEqual(
+            arbiter.decision_owner_for_reason(
+                "town:entrance-step-off:equipment-transaction:"
+                "stale-identity-invalidated:takeoff:ba9b"
+            ),
+            "equipment-txn",
+        )
 
     def test_pin_vacuity_registered_owner_consumes_static_reason_census(self):
         policy = HengbotPolicy()

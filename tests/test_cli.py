@@ -2242,6 +2242,13 @@ class DecisionRecordTest(unittest.TestCase):
                 self.assertEqual(set(old["timing"]), set(new["timing"]))
                 old["timing"] = new["timing"] = "masked"
                 self.assertEqual(old, new)
+                if snapshot.in_town or snapshot.store is not None:
+                    self.assertEqual(
+                        old["arbiter"]["decision_attribution"],
+                        policy.decision_attribution,
+                    )
+                else:
+                    self.assertNotIn("arbiter", old)
 
     def test_home_procurement_fallthrough_is_consumed_after_one_row(self):
         snapshot = self._town_snapshot()

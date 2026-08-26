@@ -1,4 +1,4 @@
-"""Measure town decision-owner coverage on captures or the frozen live tail."""
+"""Verify completed town-decision attribution against a frozen reason map."""
 
 from __future__ import annotations
 
@@ -16,19 +16,20 @@ from replay_key_equality import CAPTURES
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_PATH = ROOT / "tests" / "fixtures" / "t1-reason-attribution.json"
 
 
 def _arbiter() -> TownTurnArbiter:
     return HengbotPolicy()._town_turn_arbiter
 
 
-def capture_owners(path: Path) -> Counter[str]:
+def capture_attributions(path: Path) -> list[tuple[str, str]]:
     definitions = find_monrace_definitions(path, None)
     if definitions is None:
         raise RuntimeError("MonraceDefinitions.jsonc was not found")
     knowledge = load_monrace_knowledge(definitions)
     policy = HengbotPolicy(monrace_knowledge=knowledge)
-    owners: Counter[str] = Counter()
+    attributions: list[tuple[str, str]] = []
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             if not line.strip():
@@ -36,23 +37,23 @@ def capture_owners(path: Path) -> Counter[str]:
             snapshot = parse_snapshot(json.loads(line), knowledge)
             policy.choose_key(snapshot)
             if snapshot.in_town or snapshot.store is not None:
-                owners[policy.decision_owner] += 1
-    return owners
+                attributions.append((policy.last_reason, policy.decision_attribution))
+    return attributions
 
 
-def live_tail_owners(limit: int) -> Counter[str]:
+def live_tail_attributions(limit: int) -> list[tuple[str, str]]:
     rows = []
     with (ROOT / "jsonlog" / "bot-decisions.jsonl").open(encoding="utf-8") as stream:
         for line in stream:
             if line.strip():
                 rows.append(json.loads(line))
     arbiter = _arbiter()
-    return Counter(
-        arbiter.decision_owner_for_reason(row.get("reason", ""))
+    return [
+        (row.get("reason", ""), arbiter.decision_owner_for_reason(row.get("reason", "")))
         for row in rows[-limit:]
         if row.get("floor", {}).get("dungeon_id") == 0
         or row.get("store_type") is not None
-    )
+    ]
 
 
 def main() -> int:
@@ -60,15 +61,27 @@ def main() -> int:
     parser.add_argument("capture", choices=(*CAPTURES, "live-tail"))
     parser.add_argument("--limit", type=int, default=2000)
     args = parser.parse_args()
-    owners = (
-        live_tail_owners(args.limit)
+    attributions = (
+        live_tail_attributions(args.limit)
         if args.capture == "live-tail"
-        else capture_owners(CAPTURES[args.capture])
+        else capture_attributions(CAPTURES[args.capture])
     )
+    expected = json.loads(EXPECTED_PATH.read_text(encoding="utf-8"))
+    mismatches = [
+        (reason, expected.get(reason), attribution)
+        for reason, attribution in attributions
+        if expected.get(reason) != attribution
+    ]
+    owners = Counter(attribution for _, attribution in attributions)
     print(" ".join(f"{owner}={owners[owner]}" for owner in sorted(owners)))
     uncovered = owners["unregistered"] + owners["misc"]
-    print(f"unregistered+misc={uncovered} total={sum(owners.values())}")
-    return 1 if uncovered else 0
+    print(
+        f"unregistered+misc={uncovered} mismatches={len(mismatches)} "
+        f"total={sum(owners.values())}"
+    )
+    for reason, wanted, got in mismatches[:10]:
+        print(f"attribution mismatch: {reason!r}: expected={wanted!r} actual={got!r}")
+    return 1 if uncovered or mismatches else 0
 
 
 if __name__ == "__main__":

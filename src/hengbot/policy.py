@@ -1897,7 +1897,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._escape_state = EscapeState()
         self._decision_sequence = 0
         self._decision_context: DecisionContext | None = None
-        self.decision_owner = "unregistered"
+        self.decision_attribution = "unregistered"
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2538,13 +2538,10 @@ class HengbotPolicy(TownArbiterMixin):
             arbiter = _new_town_turn_arbiter()
             self._town_turn_arbiter = arbiter
         self._decision_context = DecisionContext(
-            snapshot=snapshot,
-            owner=arbiter.decision_owner_for_reason(self.last_reason),
             equipment_transaction_owned=(
                 self._equipment_transaction_session is not None
             ),
         )
-        self.decision_owner = self._decision_context.owner
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
         if not hasattr(self, "_town_visit_sale_signatures"):
@@ -2594,7 +2591,7 @@ class HengbotPolicy(TownArbiterMixin):
                     ),
                     probe=True,
                 )
-                self.decision_owner = arbiter.decision_owner_for_reason(
+                self.decision_attribution = arbiter.decision_owner_for_reason(
                     decided_reason
                 )
                 return key
@@ -2673,7 +2670,7 @@ class HengbotPolicy(TownArbiterMixin):
             terminal=terminal,
             close_visit=self._arbiter_close_store_visit,
         )
-        self.decision_owner = arbiter.decision_owner_for_reason(self.last_reason)
+        self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
         if (
             self._equipment_transaction_session is None
             and STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -3302,7 +3299,6 @@ class HengbotPolicy(TownArbiterMixin):
             and (
                 getattr(self, "_decision_context", None) is not None
                 and self._decision_context.equipment_transaction_owned
-                or getattr(self, "_equipment_transaction_owned_decision", False)
             )
         )
 
