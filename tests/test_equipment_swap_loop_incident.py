@@ -13,7 +13,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.policy import (
     HengbotPolicy,
     TOWN_TRAVEL_STORE_SYMBOLS,
@@ -376,6 +376,47 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
         )
         self.assertIsNotNone(policy._equipment_transaction_session)
         self.assertEqual(policy._equipment_transaction_failed_items, failed_before)
+
+    def test_retired_claim_preserves_home_approach_but_stops_foreign_relocation(self):
+        snapshot = self._surface(1172205, HARD_ARMOUR)
+        action = EquipmentTransaction(PHASE_EQUIP, "equip", "hard", "body", HARD_ARMOUR)
+
+        for supplier, expected_key, expected_reason in (
+            (STORE_HOME, "6", "equipment-transaction:approach-home"),
+            (0, WAIT_KEY, "town:blocked:owner-retired"),
+        ):
+            with self.subTest(supplier=supplier):
+                policy = HengbotPolicy()
+                policy._equipment_transaction_session = EquipmentTransactionSession(
+                    EquipmentTransactionPlan((action,), (), 0)
+                )
+
+                def proposed(_snapshot):
+                    policy.last_reason = "equipment-transaction:approach-home"
+                    return "6"
+
+                vector = policy._town_arbiter_progress_vector(
+                    snapshot, "equipment-transaction:approach-home"
+                )
+                policy._town_turn_arbiter._retired = {"equipment-txn": vector}
+
+                with patch.object(
+                    policy, "_choose_key_with_latch_capture", proposed
+                ), patch.object(
+                    policy,
+                    "_departure_supplier_counterfactual",
+                    return_value=supplier,
+                ), patch.object(
+                    policy,
+                    "_shopping_approach_step",
+                    wraps=policy._shopping_approach_step,
+                ):
+                    key = policy.choose_key(snapshot)
+
+                self.assertEqual(key, expected_key)
+                self.assertEqual(policy.last_reason, expected_reason)
+                if supplier != STORE_HOME:
+                    self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
 
     def test_shared_foreign_store_probe_is_pure_for_every_store(self):
         snapshot = self._surface(1172205, HARD_ARMOUR)

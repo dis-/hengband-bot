@@ -2637,26 +2637,24 @@ class HengbotPolicy(TownArbiterMixin):
                 else None
             )
             if step is not None:
-                if self._equipment_transaction_owns_town_relocation(snapshot):
+                transaction_owns_relocation = (
+                    self._equipment_transaction_owns_town_relocation(snapshot)
+                )
+                foreign_relocation = (
+                    self._shopping_approach_store_type != STORE_HOME
+                )
+                if transaction_owns_relocation and foreign_relocation:
                     # Arbitration may retire the transaction's claim, but it
                     # cannot hand the remainder of this decision to a foreign
-                    # locomotion owner.  The transaction executor, if still
-                    # installed on a later decision, owns any abandonment.
-                    key = WAIT_KEY
-                    vector = self._town_arbiter_progress_vector(
-                        snapshot, self.last_reason
-                    )
-                    terminal = self._town_arbiter_terminal_result(key)
-                    arbiter.observe(
-                        in_town=True,
-                        reason=self.last_reason,
-                        progress_vector=vector,
-                        terminal=terminal,
-                        close_visit=self._arbiter_close_store_visit,
-                    )
-                    return key
-                self.last_reason = "shop:approach"
-                key = self._shopping_approach_key(snapshot, step, "shop:travel")
+                    # locomotion owner.  Preserve an executor WAIT unchanged;
+                    # a progressing key must instead converge on the existing
+                    # named terminal rather than becoming an unnamed WAIT.
+                    if key != WAIT_KEY:
+                        self.last_reason = "town:blocked:owner-retired"
+                        key = WAIT_KEY
+                elif not transaction_owns_relocation:
+                    self.last_reason = "shop:approach"
+                    key = self._shopping_approach_key(snapshot, step, "shop:travel")
             else:
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
