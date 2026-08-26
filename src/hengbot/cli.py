@@ -44,7 +44,10 @@ from hengbot.policy import (
     WAIT_KEY,
     required_depth_gates,
 )
-from hengbot.policy_constants import TERMINAL_NUDGE_LIMIT
+from hengbot.policy_constants import (
+    EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
+    TERMINAL_NUDGE_LIMIT,
+)
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
@@ -370,9 +373,8 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # them forever. A continuous town residence this long is faulty regardless of
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
-POLICY_FINAL_STOP_REASONS = frozenset(
+POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset(
     {
-        "equipment-transaction:restore-blocked-terminal",
         "dark:locomotion-exhausted",
         "town:blocked:departure-unsatisfiable",
         "town:blocked:owner-retired",
@@ -390,6 +392,7 @@ POLICY_FINAL_STOP_REASONS = frozenset(
 def _policy_final_stop_banner(reason: str) -> str:
     messages = {
         "equipment-transaction:restore-blocked-terminal": "recoverable gear restored; missing owned items remain",
+        "equipment-transaction:home-route-repeat-terminal": "the same Home route failure recurred without an observed state change",
         "dark:locomotion-exhausted": "dark movement probes and remembered routes are exhausted",
         "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",

@@ -26,3 +26,10 @@ STORE_STUCK_LIMIT = 8
 TOWN_TRAVEL_STALL_LIMIT = 8
 TOWN_TRAVEL_TURN_STALL_LIMIT = 12
 TOWN_STOP_PASS_LIMIT = 3
+
+EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
+    {
+        "equipment-transaction:restore-blocked-terminal",
+        "equipment-transaction:home-route-repeat-terminal",
+    }
+)

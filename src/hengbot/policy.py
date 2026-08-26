@@ -94,6 +94,7 @@ from hengbot.policy_types import (
 from hengbot.policy_constants import (
     BUY_KEY,
     DOWN_STAIRS_KEY,
+    EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
     LEAVE_STORE_KEY,
@@ -2334,6 +2335,11 @@ class HengbotPolicy(TownArbiterMixin):
         self._equipment_transaction_restoring = False
         self._equipment_transaction_restore_terminal: str | None = None
         self._equipment_transaction_restore_remainder: tuple[str, ...] = ()
+        self._equipment_transaction_route_abandonment: tuple[
+            str, str, object
+        ] | None = None
+        self._equipment_transaction_route_terminal_pending = False
+        self._equipment_transaction_route_terminal: str | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         # A structurally actionless failed transaction may retire for the
         # remainder of this town visit.  Pin the confirmed worn identities as
@@ -2528,6 +2534,12 @@ class HengbotPolicy(TownArbiterMixin):
             self._town_visit_sale_signatures = set()
         if not hasattr(self, "_calibration_entry_refusal"):
             self._calibration_entry_refusal = None
+        if not hasattr(self, "_equipment_transaction_route_abandonment"):
+            self._equipment_transaction_route_abandonment = None
+        if not hasattr(self, "_equipment_transaction_route_terminal_pending"):
+            self._equipment_transaction_route_terminal_pending = False
+        if not hasattr(self, "_equipment_transaction_route_terminal"):
+            self._equipment_transaction_route_terminal = None
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
@@ -3139,6 +3151,22 @@ class HengbotPolicy(TownArbiterMixin):
         movement_key = key in DIRECTION_KEYS.values()
         allow_members = self._town_progress_allow_members(snapshot)
         if allow_members:
+            return key
+
+        # Durable session ownership survives reason relabelling by earlier key
+        # guards.  Another owner may relocate only after this executor has
+        # completed or abandoned all unfinished Home-side work.
+        equipment_session = self._equipment_transaction_session
+        if (
+            equipment_session is not None
+            and equipment_session.executable
+            and any(
+                action.phase != PHASE_EQUIP
+                for action in equipment_session.plan.actions[
+                    equipment_session.index:
+                ]
+            )
+        ):
             return key
 
         # The outside half of an already-posted Home take owns the decision
@@ -4048,6 +4076,12 @@ class HengbotPolicy(TownArbiterMixin):
                     self._equipment_transaction_restore_terminal = None
                     self._equipment_transaction_restore_remainder = ()
                     self._equipment_optimization_signature = None
+                    if self._equipment_transaction_route_terminal_pending:
+                        self._equipment_transaction_route_terminal_pending = False
+                        self._equipment_transaction_route_terminal = (
+                            "equipment-transaction:home-route-repeat-terminal"
+                        )
+                        self._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self._calibration_observe(snapshot)
         self._observe(snapshot, observation=latest_snapshot)
         self._nav_ledger.begin_decision()
@@ -4706,16 +4740,17 @@ class HengbotPolicy(TownArbiterMixin):
 
         In the original keyset ``5`` maps to the stay command.  Hengband runs
         store/building entry effects even when that command keeps the player's
-        coordinates unchanged.  Only owners whose purpose is to pass time are
-        projected away from an entrance; a WAIT owned by a transaction or any
-        other active operation must retain its position and ownership.
+        coordinates unchanged.  Idle owners and the equipment executor are
+        therefore projected away from an entrance unless this is the explicitly
+        owned store-entry command.  Named terminals remain unchanged because
+        the CLI consumes them before posting a key.
         Only a disclosed, plain, safe floor cell is eligible.  If the emitter
         supplies no such exit, expose the CLI's named stop instead of guessing
         through an unknown, warning-refused, hazardous, occupied, or special
         grid.
         """
         reason = self.last_reason or ""
-        idle_wait_owner = (
+        guarded_wait_owner = (
             reason == "rest"
             or reason == "town:recover"
             or reason == "opening-q34:wait"
@@ -4730,12 +4765,12 @@ class HengbotPolicy(TownArbiterMixin):
                 "breeder-breakthrough:wait-recall",
             }
             or reason.startswith("town:blocked:")
+            or (
+                reason.startswith("equipment-transaction:")
+                and reason not in EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS
+            )
         )
-        if (
-            key != WAIT_KEY
-            or snapshot.store is not None
-            or not idle_wait_owner
-        ):
+        if key != WAIT_KEY or snapshot.store is not None or not guarded_wait_owner:
             return key
         if not hasattr(snapshot, "grid_at") or not hasattr(snapshot, "player"):
             return key
@@ -4796,11 +4831,20 @@ class HengbotPolicy(TownArbiterMixin):
                 continue
             candidates.append(candidate)
         if not candidates:
+            if prior_reason == "equipment-transaction:abandon-blocked":
+                # Escape is inert at the outside command loop and, unlike stay,
+                # cannot enter the store beneath the player.  Preserve the
+                # restoration owner's durable progress marker for harness/CLI
+                # visibility when the emitter discloses no safe step-off cell.
+                return LEAVE_STORE_KEY
             self.last_reason = "livelock:exhausted"
             return WAIT_KEY
         step = min(candidates, key=lambda position: self._visit_counts[position])
         key = self._step_toward(snapshot, step)
-        if not (prior_reason or "").startswith("town:blocked:"):
+        if not (
+            (prior_reason or "").startswith("town:blocked:")
+            or prior_reason == "equipment-transaction:abandon-blocked"
+        ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
         return key
 
@@ -5510,6 +5554,10 @@ class HengbotPolicy(TownArbiterMixin):
             and not self._opening_q34_active(snapshot)
         ):
             return self._equipment_transaction_town_owner_key(snapshot) or WAIT_KEY
+
+        if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
+            self.last_reason = self._equipment_transaction_route_terminal
+            return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
 
         if (
             snapshot.store is None
@@ -12947,10 +12995,34 @@ class HengbotPolicy(TownArbiterMixin):
             if session is None
             else session.pending_action or session.current_action
         )
-        if action is not None:
-            route_blocked = (
-                "home-route-unavailable" in getattr(session, "blockers", ())
+        route_blocked = bool(
+            action is not None
+            and "home-route-unavailable" in getattr(session, "blockers", ())
+        )
+        if route_blocked and session is not None and snapshot is not None:
+            route_abandonment = (
+                session.target_loadout_id,
+                "home-route-unavailable",
+                (
+                    snapshot.floor_key,
+                    None if snapshot.store is None else snapshot.store.store_type,
+                    snapshot.player.gold,
+                    tuple(sorted(
+                        (equipment_identity(item), item.count, item.slot)
+                        for item in snapshot.inventory
+                    )),
+                    tuple(sorted(
+                        (item.slot, equipment_identity(item))
+                        for item in snapshot.equipment
+                    )),
+                ),
             )
+            if route_abandonment == self._equipment_transaction_route_abandonment:
+                self._equipment_transaction_route_terminal_pending = True
+            else:
+                self._equipment_transaction_route_abandonment = route_abandonment
+                self._equipment_transaction_route_terminal_pending = False
+        if action is not None:
             if route_blocked and snapshot is not None:
                 # The ledger ceiling normally abandons an active Home session
                 # when its last pass is charged.  This call is already inside
@@ -13029,6 +13101,12 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_transaction_restore_terminal = None
             if not restore_actions:
                 self._equipment_transaction_session = None
+                if self._equipment_transaction_route_terminal_pending:
+                    self._equipment_transaction_route_terminal_pending = False
+                    self._equipment_transaction_route_terminal = (
+                        "equipment-transaction:home-route-repeat-terminal"
+                    )
+                    self._town_visit_ledger.blocked_stores.add(STORE_HOME)
                 if missing:
                     self._equipment_transaction_restore_terminal = (
                         "equipment-transaction:restore-blocked-terminal"
@@ -13041,6 +13119,12 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_transaction_restoring = True
             return
         self._equipment_transaction_session = None
+        if self._equipment_transaction_route_terminal_pending:
+            self._equipment_transaction_route_terminal_pending = False
+            self._equipment_transaction_route_terminal = (
+                "equipment-transaction:home-route-repeat-terminal"
+            )
+            self._town_visit_ledger.blocked_stores.add(STORE_HOME)
 
     def _equipment_transaction_owns_item(
         self, item: InventoryItem | StoreItem
@@ -13279,6 +13363,14 @@ class HengbotPolicy(TownArbiterMixin):
             self.last_reason = "equipment-transaction:await-confirmation"
             return WAIT_KEY
         if session.required_context == "home":
+            if (
+                self._store_visit is not None
+                and self._store_visit.store_type != STORE_HOME
+                and not self._store_visit.operation_posted
+            ):
+                # A foreign, non-progressing visit has no command to confirm and
+                # cannot veto the equipment owner's required Home approach.
+                self._close_store_visit("equipment-transaction-home-preempts-foreign")
             plan = self._town_errand_plan
             if (
                 plan is None
@@ -13320,6 +13412,12 @@ class HengbotPolicy(TownArbiterMixin):
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
                 return WAIT_KEY
+            observed_identity = observation.equipped_identity(action.target_slot)
+            if observed_identity != action.item_identity:
+                self._invalidate_stale_equipment_transaction(
+                    snapshot, action, observed_identity
+                )
+                return ""
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
                 if not self.last_reason.startswith("posting-contract:"):
@@ -13380,6 +13478,24 @@ class HengbotPolicy(TownArbiterMixin):
 
         self._block_equipment_transaction(f"invalid-equip-action:{action.kind}")
         return WAIT_KEY
+
+    def _invalidate_stale_equipment_transaction(
+        self,
+        snapshot: Snapshot,
+        action: EquipmentTransaction,
+        observed_identity: str | None,
+    ) -> None:
+        """Re-derive a plan when its current letter no longer names its item."""
+        self._discard_unposted_equipment_transaction_command()
+        self._set_equipment_transaction_session(None)
+        self._equipment_optimization_signature = None
+        self._equipment_optimization_preparation = None
+        self._equipment_optimization_pack_items = None
+        self._prepare_equipment_optimization(snapshot)
+        self.last_reason = (
+            "equipment-transaction:stale-identity-invalidated:"
+            f"{action.kind}:{observed_identity or 'missing'}"
+        )
 
     @staticmethod
     def _temporary_status_clear(snapshot: Snapshot) -> bool:
