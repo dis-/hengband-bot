@@ -1895,6 +1895,11 @@ class HengbotPolicy(TownArbiterMixin):
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
+        # Immutable for the duration of one choose_key decision.  Transaction
+        # code may retire or replace the mutable session before downstream
+        # town arbitration runs, but that same decision still belongs to the
+        # transaction that was installed when it began.
+        self._equipment_transaction_owned_decision = False
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2528,6 +2533,9 @@ class HengbotPolicy(TownArbiterMixin):
         self._withdrawal_unfulfilled_defect = {}
         self._town_liveness_invariant_defect = {}
         self._town_liveness_claim_retired = False
+        self._equipment_transaction_owned_decision = (
+            self._equipment_transaction_session is not None
+        )
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
         if not hasattr(self, "_town_visit_sale_signatures"):
@@ -2630,22 +2638,11 @@ class HengbotPolicy(TownArbiterMixin):
             )
             if step is not None:
                 if self._equipment_transaction_owns_town_relocation(snapshot):
-                    # A retired claim cannot carry its installed transaction
-                    # toward the counterfactual foreign supplier.  Abandon it
-                    # now; another owner may move on the following decision.
-                    session = self._equipment_transaction_session
-                    if session is not None:
-                        self._equipment_transaction_retired_plan = (
-                            EquipmentTransactionPlan(
-                                tuple(session.plan.actions[session.index:]),
-                                (),
-                                session.plan.peak_pack_items,
-                            )
-                        )
-                    self._block_equipment_transaction("town-owner-retired")
-                    self._abandon_blocked_equipment_transaction(snapshot)
-                    self.last_reason = "equipment-transaction:abandon-blocked"
-                    key = self._forbid_wait_on_town_entrance(snapshot, WAIT_KEY)
+                    # Arbitration may retire the transaction's claim, but it
+                    # cannot hand the remainder of this decision to a foreign
+                    # locomotion owner.  The transaction executor, if still
+                    # installed on a later decision, owns any abandonment.
+                    key = WAIT_KEY
                     vector = self._town_arbiter_progress_vector(
                         snapshot, self.last_reason
                     )
@@ -3294,10 +3291,10 @@ class HengbotPolicy(TownArbiterMixin):
     def _equipment_transaction_owns_town_relocation(
         self, snapshot: Snapshot
     ) -> bool:
-        """Whether an installed equipment transaction still owns locomotion."""
+        """Whether this decision began with equipment locomotion ownership."""
         return bool(
             snapshot.in_town
-            and self._equipment_transaction_session is not None
+            and getattr(self, "_equipment_transaction_owned_decision", False)
         )
 
     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
@@ -13385,22 +13382,6 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         if self._release_stalled_equipment_transaction(snapshot):
             return WAIT_KEY
-        retired_plan = getattr(
-            self, "_equipment_transaction_retired_plan", None
-        )
-        if (
-            self._equipment_transaction_session is None
-            and retired_plan is not None
-        ):
-            self._equipment_transaction_retired_plan = None
-            self._set_equipment_transaction_session(
-                EquipmentTransactionSession(
-                    retired_plan,
-                    max_unconfirmed_observations=(
-                        EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
-                    ),
-                )
-            )
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
@@ -23106,13 +23087,10 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_transaction_owns_town_relocation(snapshot)
             and self._shopping_approach_store_type != STORE_HOME
         ):
-            # Every store route, including its one-step fallback, converges at
-            # this seam.  A foreign owner must first abandon the installed
-            # transaction and may approach only on a later decision.
-            self._block_equipment_transaction("foreign-store-relocation")
-            self._abandon_blocked_equipment_transaction(snapshot)
-            self.last_reason = "equipment-transaction:abandon-blocked"
-            return self._forbid_wait_on_town_entrance(snapshot, WAIT_KEY)
+            # Every store route, including candidate probes and one-step
+            # fallbacks, converges here.  Refusal is deliberately pure: only
+            # the transaction executor may mutate or abandon its session.
+            return WAIT_KEY
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
