@@ -19,7 +19,6 @@ from hengbot.policy import (
     TOWN_TRAVEL_STORE_SYMBOLS,
     WAIT_KEY,
 )
-from hengbot.policy_types import DecisionContext
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -429,15 +428,19 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
                     EquipmentTransactionPlan((action,), (), 0)
                 )
                 policy._equipment_transaction_session = session
-                policy._decision_context = DecisionContext(
-                    equipment_transaction_owned=True
-                )
                 policy._shopping_approach_store_type = store_type
-                policy.last_reason = "candidate-probe"
                 failed_before = set(policy._equipment_transaction_failed_items)
-                key = policy._shopping_approach_key(
-                    snapshot, snapshot.player.position, "candidate-probe"
-                )
+
+                def candidate_probe(current):
+                    policy.last_reason = "candidate-probe"
+                    return policy._shopping_approach_key(
+                        current, current.player.position, "candidate-probe"
+                    )
+
+                with patch.object(
+                    policy, "_choose_key_with_latch_capture", candidate_probe
+                ):
+                    key = policy.choose_key(snapshot)
                 self.assertEqual(key, WAIT_KEY)
                 self.assertIs(policy._equipment_transaction_session, session)
                 self.assertEqual(policy.last_reason, "candidate-probe")
