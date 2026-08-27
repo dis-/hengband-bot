@@ -137,7 +137,7 @@ measurable.
 | stage | change | acceptance gate |
 |---|---|---|
 | **T1** | Frozen replay-equality harness + completed-decision attribution census; NO behaviour change. **CORRECTED 2026-08-27:** T1 does NOT deliver an arbiter-selected owner — see §3.1 | replay both frozen incidents: identical key sequence to today (bit-for-bit). Attribution coverage: `unregistered` + `misc` = 0, and `mismatches` = 0 against a committed expected-attribution fixture |
-| **T2** | `_store_visit` moves to the arbiter; the "first opened is authoritative" rule is deleted | new **visit-leak matrix** (open visit for store X x wanted store Y x owner Z): today's leak count -> **0**. Both frozen incidents replay without their stall |
+| **T2** | `_store_visit` moves to the arbiter; the "first opened is authoritative" rule is deleted | **LANDED 2026-08-28**, `735843e..30bc57f`. Visit-leak matrix 588 -> **0** (and 0 transfer violations); constructed reproduction refused=True at `735843e` / False at HEAD. Capture-replay acceptance was withdrawn mid-stage — see §3.2 |
 | **T3** | Town producers converted to pure functions; single `commit()` phase | **probe-purity matrix**: for every producer called in a candidate/probe position, `self._*` diff after the call must be empty. Today: measured non-empty for at least 2 producers |
 | **T4** | Single dispatch for the town path; the 8 `town:blocked:*` terminals collapse to one arbiter-emitted terminal | town-path exit count: from 158 -> the owner count (~12). Full suite green; both incidents replay clean |
 
@@ -173,6 +173,58 @@ yet; building it is T4's work.
 a naive pre-selected owner against the completed one at **71.9% disagreement (351/488
 town decisions; 128/192 equip-swap, 223/296 no-actionable)**. T4's own acceptance gate is
 to drive that to 0.
+
+### 3.2 T2 stage record (2026-08-28)
+
+**Landed:** `735843e..30bc57f` — `bca1f0f`, `59f07ab`, `a0e3be6`, `8f2537b`, `f3817d2`,
+`30bc57f`. Net `src/` change: `policy.py` 41 lines, `town_arbiter.py` +117, `cli.py` **0**
+(byte-identical to `735843e`).
+
+**What the acceptance gates actually proved**
+
+- Visit-leak matrix (18,144 cells; 2,268 live, 1,764 candidates, 1,176 protected):
+  `735843e` **588 leaks** -> `30bc57f` **0**, transfer violations **0**. Non-vacuous in both
+  directions: deleting the R4 protection branch yields **1,176 transfer violations**, i.e.
+  every protected cell.
+- Constructed reproduction (unit-level, built from the captures' own `store_visit`
+  telemetry): `refused=True` for both incidents at `735843e`, `refused=False` at HEAD.
+
+**Capture-replay acceptance was WITHDRAWN mid-stage.** Neither frozen capture reproduces its
+stall even at `735843e`, because `tests/replay_key_equality.py` starts a cold
+`HengbotPolicy()` and the accumulated claim/ledger/session state that produced each stall is
+never reconstructed. Seeding from the captures is impossible: they were recorded under the
+current record schema and `jsonlog/latch-onset.jsonl` predates both incidents. Ruling B2
+replaced that gate with the constructed reproduction above.
+
+**The strongest evidence is a byte accounting nobody set out to produce.** Emitting the
+no-actionable capture through `_write_decision` gives 5,552.07 B/record at `735843e` and
+4,653.54 B/record at `30bc57f`. Field-by-field, the −898.5 B/record is almost entirely
+`departure_block` (−893.3), and **nothing lost content** — bytes per record that carries the
+field went 1,656.9 -> 1,662.1. The drop is a presence change: records 49-208 (160 contiguous)
+carried `failed = (teleport_ready, organization_complete, equipment_departure_ready,
+home_candidate_resolved, home_catalog_ready)` at `735843e` and carry no departure block at
+all at `30bc57f`. Index 49 is also the only `town_stall_report` in the capture
+(`passes_since_progress: 48`, `store_visit {store: 0, opened_sequence: 49}`,
+`need_attempts {"oil": 12}`) — and it does not fire at `30bc57f`. **The store-visit leak that
+pinned the errand on store 0 for twelve attempts is gone, the departure block clears, and the
+stall stops.**
+
+Honest scope: the equip-swap capture is byte-identical under T2 (zero transfers occur in it).
+Its leak-class closure rests on the matrix and the constructed reproduction, not on a replay.
+
+**A seed-telemetry excursion was authorised and then withdrawn.** Ruling B2-c authorised
+additive telemetry so FUTURE incidents would be seedable. It grew the record 2.27x
+(14,821 -> 33,710 B/record on the no-actionable capture), and — decisively — corrupted the
+data it existed to record: a walk-wide cycle-detection set replaced non-cyclic shared
+references with `{"unserialisable": ...}` **12,041 times across 296 of 300 records**, all
+inside the progress vectors, and `equipment_transaction_session` was emptied in 11 of 11
+non-null rows. Ruling C1 withdrew it. Re-proposing it is separate work that must state a
+per-record byte budget first.
+
+**Process correction adopted (permanent).** Three of the stage's four late rounds presented
+*synthetic-scenario* numbers as evidence for claims about the frozen captures. Every
+measurement about the captures must now be measured ON the captures; a synthetic run must be
+labelled synthetic and accompanied by the capture measurement.
 
 ## 4. Risks
 
