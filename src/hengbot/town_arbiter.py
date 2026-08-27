@@ -75,6 +75,49 @@ class TownTurnArbiter:
         self._visit_vector: object | None = None
         self._last_pair: tuple[str, object] | None = None
         self.telemetry: dict[str, object] | None = None
+        self.store_visit: StoreVisit | None = None
+
+    def acquire_store_visit(
+        self,
+        *,
+        store_type: int,
+        owner: str,
+        purpose: str,
+        opened_sequence: int,
+        close_visit: Callable[[str], None],
+    ) -> StoreVisit | None:
+        """Grant one store target without letting an old visit outrank arbitration.
+
+        An issued operation keeps its command context until its result is
+        observed or explicitly released.  Every other foreign visit yields to
+        the owner requesting the new target.
+        """
+        visit = getattr(self, "store_visit", None)
+        if not hasattr(self, "store_visit"):
+            self.store_visit = visit
+        if visit is not None and visit.store_type != store_type:
+            # A producer probe cannot pre-empt a visit before this arbiter has
+            # observed an owner decision.  Once ownership is established, the
+            # arbiter (rather than visit-open order) decides the handoff.
+            if self._owner is None:
+                return None
+            if (
+                visit.operation_posted and not visit.operation_released
+            ) or (
+                visit.operation_released and not visit.operation_effect_observed
+            ):
+                return None
+            close_visit("arbiter-retired")
+            visit = self.store_visit
+        if visit is None:
+            visit = StoreVisit(
+                owner=owner,
+                purpose=purpose,
+                store_type=store_type,
+                opened_sequence=opened_sequence,
+            )
+            self.store_visit = visit
+        return visit
 
     def owner_for_reason(self, reason: str) -> str:
         normalized = reason or "policy:none"
@@ -248,6 +291,34 @@ class TownTurnArbiter:
 
 
 class TownArbiterMixin:
+    @property
+    def _store_visit(self) -> StoreVisit | None:
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is None:
+            return self.__dict__.get(
+                "_store_visit_before_arbiter", self.__dict__.get("_store_visit")
+            )
+        pending = (
+            "_store_visit_before_arbiter" in self.__dict__
+            or "_store_visit" in self.__dict__
+        )
+        if not hasattr(arbiter, "store_visit") or (
+            arbiter.store_visit is None and pending
+        ):
+            arbiter.store_visit = self.__dict__.pop(
+                "_store_visit_before_arbiter",
+                self.__dict__.pop("_store_visit", None),
+            )
+        return arbiter.store_visit
+
+    @_store_visit.setter
+    def _store_visit(self, value: StoreVisit | None) -> None:
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is None:
+            self.__dict__["_store_visit_before_arbiter"] = value
+            return
+        arbiter.store_visit = value
+
     @property
     def _town_blocked_reason(self) -> str | None:
         return getattr(self, "_town_blocked_reason_value", None)

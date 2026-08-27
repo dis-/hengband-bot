@@ -196,18 +196,14 @@
     "town:cycle-break"
   ],
   [
-    "2",
-    "breakout:seek-frontier"
+    "\u001b`n(.",
+    "shop:travel"
   ],
   [
     "\u001b",
     "town-progress-invariant:continue-observed-shop"
   ],
   [
-    "\u001b`n(.",
-    "shop:travel"
-  ],
-  [
     "3",
     "shop:approach"
   ],
@@ -222,6 +218,10 @@
   [
     "3",
     "shop:approach"
+  ],
+  [
+    "2",
+    "breakout"
   ],
   [
     "\u001b",
@@ -392,7 +392,15 @@
     "town:blocked:repetition"
   ],
   [
-    "1",
+    "\u001b`n&.",
+    "shop:travel"
+  ],
+  [
+    "\u001b`n&.",
+    "shop:travel"
+  ],
+  [
+    "\u001b",
     "town:blocked:repetition"
   ],
   [
@@ -400,20 +408,12 @@
     "town-progress-invariant:defect:town:blocked:repetition=>town-progress-invariant:approach"
   ],
   [
-    "\u001b",
-    "town:blocked:repetition"
-  ],
-  [
     "3",
-    "town-progress-invariant:defect:town:blocked:repetition=>shop:approach"
-  ],
-  [
-    "3",
-    "town-progress-invariant:defect:town:blocked:repetition=>town:blocked:repetition"
+    "shop:approach"
   ],
   [
     "9",
-    "town-progress-invariant:defect:town:blocked:repetition=>town:blocked:repetition"
+    "shop:approach"
   ],
   [
     "\u001b",
@@ -424,12 +424,12 @@
     "town:blocked:repetition"
   ],
   [
-    "9",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
+    "\u001b`n!.",
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>town-progress-invariant:approach"
   ],
   [
-    "3",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
+    "\u001b`n!.",
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>town-progress-invariant:approach"
   ],
   [
     "\u001b",
@@ -437,11 +437,11 @@
   ],
   [
     "3",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:approach"
   ],
   [
-    "",
-    "shop:one-shot-in-flight"
+    "3",
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
   ],
   [
     "",
@@ -728,18 +728,18 @@
     "home:request-knowledge-scan"
   ],
   [
-    "2",
-    "breakout:seek-frontier"
-  ],
-  [
-    "\u001b",
-    "town-progress-invariant:continue-observed-shop"
-  ],
-  [
     "\u001b`n(.",
     "shop:travel"
   ],
   [
+    "\u001b",
+    "town-progress-invariant:continue-observed-shop"
+  ],
+  [
+    "3",
+    "shop:approach"
+  ],
+  [
     "~9\u001b\u001b",
     "home:request-knowledge-scan"
   ],
@@ -820,8 +820,8 @@
     "shop:approach"
   ],
   [
-    "5",
-    "shop:travel:await-entry"
+    "\u001b`n!.",
+    "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach"
   ],
   [
     "\u001b",
@@ -1088,8 +1088,8 @@
     "shop:travel:await-entry"
   ],
   [
-    "9",
-    "shop:approach"
+    "\u001b`n(.",
+    "shop:travel"
   ],
   [
     "\u001b",
@@ -1116,12 +1116,12 @@
     "shop:one-shot-in-flight"
   ],
   [
-    "3",
-    "shop:approach"
+    "\u001b`n(.",
+    "shop:travel"
   ],
   [
     "",
-    "shop:one-shot-in-flight"
+    "store:entry-await-observation"
   ],
   [
     "",

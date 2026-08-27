@@ -10,7 +10,7 @@ import unittest
 from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_types import StoreVisit
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -379,6 +379,64 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                 break
         self.assertIsNotNone(retired_at)
         self.assertLessEqual(retired_at, limit * 2 + 1)
+
+    def test_foreign_visit_transfers_unless_operation_is_unreleased(self):
+        policy = HengbotPolicy()
+        old = StoreVisit(
+            owner="shop-buy", purpose="old", store_type=0,
+            operation_posted=False,
+        )
+        policy._store_visit = old
+        policy._town_turn_arbiter._owner = "equipment-txn"
+        acquired = policy._town_turn_arbiter.acquire_store_visit(
+            store_type=7,
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            opened_sequence=3,
+            close_visit=policy._close_store_visit,
+        )
+        self.assertEqual(old.phase, StoreVisitPhase.CLOSED)
+        self.assertEqual(old.outcome, "arbiter-retired")
+        self.assertIs(acquired, policy._store_visit)
+        self.assertEqual(acquired.store_type, 7)
+
+        protected = StoreVisit(
+            owner="shop-buy", purpose="posted", store_type=0,
+            operation_posted=True, operation_released=False,
+            posted_sequence=4,
+        )
+        policy._store_visit = protected
+        refused = policy._town_turn_arbiter.acquire_store_visit(
+            store_type=7,
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            opened_sequence=5,
+            close_visit=policy._close_store_visit,
+        )
+        self.assertIsNone(refused)
+        self.assertIs(policy._store_visit, protected)
+
+        protected.operation_released = True
+        acquired = policy._town_turn_arbiter.acquire_store_visit(
+            store_type=7,
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            opened_sequence=6,
+            close_visit=policy._close_store_visit,
+        )
+        self.assertIsNone(acquired)
+        self.assertIs(policy._store_visit, protected)
+
+        protected.operation_effect_observed = True
+        acquired = policy._town_turn_arbiter.acquire_store_visit(
+            store_type=7,
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            opened_sequence=7,
+            close_visit=policy._close_store_visit,
+        )
+        self.assertEqual(protected.outcome, "arbiter-retired")
+        self.assertEqual(acquired.store_type, 7)
 
     def test_terminal_is_never_scored_as_owner_progress(self):
         arbiter = HengbotPolicy()._town_turn_arbiter

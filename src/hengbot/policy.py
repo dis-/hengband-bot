@@ -1546,7 +1546,8 @@ class HengbotPolicy(TownArbiterMixin):
         # One deliberate store trip has one owner and lifecycle.  Compatibility
         # accessors below expose the old diagnostic names without retaining
         # independent ownership facts.
-        self._store_visit: StoreVisit | None = None
+        # The arbiter owns the store visit; the mixin exposes compatibility
+        # accessors for the policy's existing lifecycle producers.
         self._cross_decision_latches: dict[str, CrossDecisionLatch] = {
             "_store_visit": CrossDecisionLatch(
                 "store-router",
@@ -22926,22 +22927,23 @@ class HengbotPolicy(TownArbiterMixin):
                 self._shopping_approach_store_type = None
                 self._shopping_approach_goal = None
                 return None
-        visit = self._store_visit
-        if visit is not None and visit.store_type != store_type:
-            # The visit that opened first is authoritative.  A newly-derived
-            # need cannot steal the approach or an open command context.
-            return None
+        equipment_owner = (
+            store_type == STORE_HOME
+            and self._equipment_transaction_session is not None
+        )
+        arbiter = self._town_turn_arbiter
+        if arbiter is None:
+            arbiter = _new_town_turn_arbiter()
+            self._town_turn_arbiter = arbiter
+        visit = arbiter.acquire_store_visit(
+            store_type=store_type,
+            owner=("equipment-transaction" if equipment_owner else "town-errand"),
+            purpose=("equipment-work" if equipment_owner else "shopping"),
+            opened_sequence=self._decision_sequence,
+            close_visit=self._close_store_visit,
+        )
         if visit is None:
-            equipment_owner = (
-                store_type == STORE_HOME
-                and self._equipment_transaction_session is not None
-            )
-            self._store_visit = StoreVisit(
-                owner=("equipment-transaction" if equipment_owner else "town-errand"),
-                purpose=("equipment-work" if equipment_owner else "shopping"),
-                store_type=store_type,
-                opened_sequence=self._decision_sequence,
-            )
+            return None
         if (
             store_type == STORE_HOME
             and self._town_visit_ledger.approach_fails[store_type]
