@@ -138,7 +138,7 @@ measurable.
 |---|---|---|
 | **T1** | Frozen replay-equality harness + completed-decision attribution census; NO behaviour change. **CORRECTED 2026-08-27:** T1 does NOT deliver an arbiter-selected owner — see §3.1 | replay both frozen incidents: identical key sequence to today (bit-for-bit). Attribution coverage: `unregistered` + `misc` = 0, and `mismatches` = 0 against a committed expected-attribution fixture |
 | **T2** | `_store_visit` moves to the arbiter; the "first opened is authoritative" rule is deleted | **LANDED 2026-08-28**, `735843e..30bc57f`. Visit-leak matrix 588 -> **0** (and 0 transfer violations); constructed reproduction refused=True at `735843e` / False at HEAD. Capture-replay acceptance was withdrawn mid-stage — see §3.2 |
-| **T3** | Town producers converted to pure functions; single `commit()` phase | **probe-purity matrix**: for every producer called in a candidate/probe position, `self._*` diff after the call must be empty. Today: measured non-empty for at least 2 producers |
+| **T3** | Town producers converted to pure functions; single `commit()` phase | **LANDED 2026-08-28**, `e67b56f..4a34ed5`. Probe-purity matrix 2 impure -> **0**, with an empty exemption list and a differ that sees property-backed arbiter state. See §3.3 for what T3 did NOT achieve |
 | **T4** | Single dispatch for the town path; the 8 `town:blocked:*` terminals collapse to one arbiter-emitted terminal | town-path exit count: from 158 -> the owner count (~12). Full suite green; both incidents replay clean |
 
 Dungeon path is **out of scope** and needs separate approval.
@@ -225,6 +225,57 @@ per-record byte budget first.
 *synthetic-scenario* numbers as evidence for claims about the frozen captures. Every
 measurement about the captures must now be measured ON the captures; a synthetic run must be
 labelled synthetic and accompanied by the capture measurement.
+
+### 3.3 T3 stage record (2026-08-28)
+
+**Landed:** `e67b56f..4a34ed5` — `67a9894`, `0ceae8e`, `4a34ed5`. Net `src/` change:
+`policy.py` +76 lines. Nothing else in `src/`.
+
+**What was proved.** With a from-scratch differ, **no exemption list**, over all 371 in-town
+surface snapshots of both frozen captures:
+
+- probe purity: `_boxed_town_breakout_key` mutated 13 fields on every call at `e67b56f`
+  (plus four arbiter/transfer fields on 26 snapshots); at HEAD it mutates **nothing**.
+- key identity: the effective key is byte-identical to the old on **371/371**, and
+  **145/145 + 226/226 with a posted `STORE_GENERAL` visit pinned** — the population that
+  round 4 broke (34 and 93 General-escape rows) is exercised and matches.
+- no lost side effects: `mutations OLD made that NEW does not = {}` **and** `NEW-only = {}`.
+- producer B was **refactored, not exempted**: `DERIVED_CACHE_EXEMPTIONS = {}`, 0 mutations
+  across 371 x {cold, warm}, 0 return-value divergences.
+- both gates carry negative controls the supervisor reproduced by hand: re-narrowing the
+  store loop makes the purity unittest FAIL; re-adding a history-bearing field makes
+  `exemption_control=False` and the script exit 1.
+
+**What T3 did NOT achieve — carried to T4.** At the only production call site
+(`policy.py:3198`) `_boxed_town_breakout_key`'s return value is **discarded**; the key
+actually used still comes from the mutating commit path (`policy.py:3199`). So §S2's
+objective — a pure producer deciding the key that is actually used — is not met for producer
+A. What landed is behaviour preservation plus one extra pure call. Re-gating the commit on the
+probe is not the fix: it was measured suppressing a key the old loop produced on 11/145
+snapshots. The correct resolution is T4's single dispatch, where only the selected owner's
+producer runs.
+
+**Two acceptance criteria I wrote were wrong, and the fixer's stops caught both.**
+
+1. "T3 is behaviour-neutral" — wrong in principle. Two producers were measurably impure, so
+   removing a probe mutation *can* legitimately change which key wins. Ruling D1 replaced
+   bit-identity with per-decision attribution. (In the end the targeted refactor turned out
+   to be behaviour-preserving anyway, so the authorisation went unused.)
+2. "identical 400/300 replay" — vacuous here. `_boxed_town_breakout_key` is invoked **0
+   times** in both captures at both commits, so replay equality never executed the diff. The
+   evidence that counts is the direct 371-snapshot producer sweep.
+
+**Process rule extended (permanent).** §3.2's rule was "measure on the captures". T3 adds:
+**and the measurement must be about code that actually executes.** A green replay over a diff
+that never runs is not evidence.
+
+**Also withdrawn this stage.** A generic copy/rollback mechanism (`_evaluate_town_producer`
+with `copy.deepcopy(self)`) was implemented and then withdrawn by ruling D3: measured
+**131-390 ms/decision** against a 5 ms budget, because the policy pickles to ~2 MB. The
+targeted refactor costs ~0. Cheaper generic variants (copy-on-write, `__setattr__`
+interception, read-only views) were forbidden with it — all of them have to catch mutation
+through nested containers, which is the same trap that made the naive `__dict__` differ blind
+to `_store_visit` after T2.
 
 ## 4. Risks
 
