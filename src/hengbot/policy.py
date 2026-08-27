@@ -3044,7 +3044,7 @@ class HengbotPolicy(TownArbiterMixin):
         """Compose the next step of an available approach->enter->buy route."""
         home_scan_pending = (
             not self._equipment_catalog.home_scan_complete
-            and self._home_available(snapshot)
+            and self._home_available_for_probe(snapshot)
             and (
                 "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()
@@ -3195,12 +3195,11 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             return key
         if proposed_reason == "breakout:least-visited":
-            breakout = self._boxed_town_breakout_key(snapshot)
-            if breakout is not None:
-                committed = self._commit_boxed_town_breakout_key(snapshot)
-                if committed is not None:
-                    self.last_reason = "town-progress-invariant:boxed-breakout-travel"
-                    return committed
+            self._boxed_town_breakout_key(snapshot)
+            committed = self._commit_boxed_town_breakout_key(snapshot)
+            if committed is not None:
+                self.last_reason = "town-progress-invariant:boxed-breakout-travel"
+                return committed
 
         # Observing a wanted, affordable shelf is the entry phase of the
         # existing atomic contract.  Leaving is only its transport step: it is
@@ -3348,7 +3347,10 @@ class HengbotPolicy(TownArbiterMixin):
                         visible_goals,
                         key=lambda pos: snapshot.player.position.distance_to(pos),
                     )
-                    if snapshot.player.position.distance_to(goal) >= 3:
+                    if (
+                        snapshot.player.position.distance_to(goal)
+                        >= TOWN_TRAVEL_MIN_DISTANCE
+                    ):
                         route = (goal, goal)
             if route is None:
                 continue
@@ -3359,14 +3361,9 @@ class HengbotPolicy(TownArbiterMixin):
 
     def _commit_boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
         """Open and compose the store visit only after the breakout probe wins."""
-        route = self._boxed_town_breakout_route(snapshot)
         here = snapshot.grid_at(snapshot.player.position)
         current_store = here.store_number if here is not None else -1
-        stores = (
-            (route[0],) if route is not None
-            else (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL)
-        )
-        for store_type in stores:
+        for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
             if store_type == current_store:
                 continue
             step = self._shopping_approach_step(snapshot, store_type)
@@ -13986,6 +13983,16 @@ class HengbotPolicy(TownArbiterMixin):
             return True
         self._refresh_town_facts(snapshot)
         return bool(self._town_store_positions.get(STORE_HOME))
+
+    def _home_available_for_probe(self, snapshot: Snapshot) -> bool:
+        """Read Home availability without warming incremental town-fact state."""
+        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            return True
+        if self._town_store_positions.get(STORE_HOME):
+            return True
+        return any(
+            grid.store_number == STORE_HOME for grid in snapshot.grids.values()
+        )
 
     def _current_town_has_home(self, snapshot: Snapshot) -> bool:
         """Static Home classification; unknown towns fail closed."""
