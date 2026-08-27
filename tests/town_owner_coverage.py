@@ -48,19 +48,44 @@ def live_tail_attributions(limit: int) -> list[tuple[str, str]]:
             if line.strip():
                 rows.append(json.loads(line))
     arbiter = _arbiter()
+    selected = rows[-limit:] if limit else rows
     return [
         (row.get("reason", ""), arbiter.decision_owner_for_reason(row.get("reason", "")))
-        for row in rows[-limit:]
+        for row in selected
         if row.get("floor", {}).get("dungeon_id") == 0
         or row.get("store_type") is not None
     ]
+
+
+def all_attributions() -> list[tuple[str, str]]:
+    attributions = live_tail_attributions(0)
+    for path in CAPTURES.values():
+        attributions.extend(capture_attributions(path))
+    return attributions
+
+
+def generated_fixture() -> dict[str, str]:
+    mappings: dict[str, str] = {}
+    for reason, owner in all_attributions():
+        previous = mappings.setdefault(reason, owner)
+        if previous != owner:
+            raise RuntimeError(
+                f"inconsistent attribution for {reason!r}: {previous!r} != {owner!r}"
+            )
+    return dict(sorted(mappings.items()))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("capture", choices=(*CAPTURES, "live-tail"))
     parser.add_argument("--limit", type=int, default=2000)
+    parser.add_argument("--write-fixture", action="store_true")
     args = parser.parse_args()
+    if args.write_fixture:
+        EXPECTED_PATH.write_text(
+            json.dumps(generated_fixture(), indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
     attributions = (
         live_tail_attributions(args.limit)
         if args.capture == "live-tail"

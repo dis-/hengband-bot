@@ -155,15 +155,27 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertFalse(rows[0]["arbiter"]["would_retire"])
         self.assertTrue(any(row["arbiter"]["would_retire"] for row in rows[:budget + 1]))
 
-    def test_completed_attribution_prefers_embedded_equipment_transaction(self):
+    def test_completed_attribution_obeys_composed_reason_structure(self):
         arbiter = HengbotPolicy()._town_turn_arbiter
-        self.assertEqual(
-            arbiter.decision_owner_for_reason(
-                "town:entrance-step-off:equipment-transaction:"
-                "stale-identity-invalidated:takeoff:ba9b"
-            ),
-            "equipment-txn",
-        )
+        expected = {
+            (
+                "town-progress-invariant:defect:equipment-transaction:"
+                "await-confirmation=>town-progress-invariant:approach"
+            ): "detectors",
+            "town:blocked:equipment-transaction:home-route-unavailable": "town-plan",
+            (
+                "town:entrance-step-off:home:"
+                "atomic-withdraw-target-unobserved"
+            ): "home-visit",
+            "town:entrance-step-off:home:scan-step-off": "home-scan",
+        }
+        for reason, owner in expected.items():
+            with self.subTest(reason=reason):
+                self.assertEqual(arbiter.decision_owner_for_reason(reason), owner)
+
+    def test_empty_completed_reason_has_explicit_store_router_owner(self):
+        arbiter = HengbotPolicy()._town_turn_arbiter
+        self.assertEqual(arbiter.decision_owner_for_reason(""), "store-router")
 
     def test_pin_vacuity_registered_owner_consumes_static_reason_census(self):
         policy = HengbotPolicy()

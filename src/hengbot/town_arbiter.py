@@ -85,9 +85,18 @@ class TownTurnArbiter:
 
     def decision_owner_for_reason(self, reason: str) -> str:
         """Attribute a completed decision to its emitted reason family."""
+        if not reason:
+            # Frozen empty reasons are store-exit step-off moves between town visits.
+            return "store-router"
         normalized = reason or "policy:none"
-        if ":equipment-transaction:" in normalized:
-            return "equipment-txn"
+        defect_prefix = "town-progress-invariant:defect:"
+        if normalized.startswith(defect_prefix):
+            # The detector emits the composed defect key, so it owns the decision.
+            return "detectors"
+        step_off_prefix = "town:entrance-step-off:"
+        if normalized.startswith(step_off_prefix):
+            # Step-off wraps delegated work, so recursively attribute its inner reason.
+            return self.decision_owner_for_reason(normalized[len(step_off_prefix):])
         owner = self.owner_for_reason(reason)
         if owner not in {"misc", "unregistered"}:
             return owner
