@@ -3197,8 +3197,10 @@ class HengbotPolicy(TownArbiterMixin):
         if proposed_reason == "breakout:least-visited":
             breakout = self._boxed_town_breakout_key(snapshot)
             if breakout is not None:
-                self.last_reason = "town-progress-invariant:boxed-breakout-travel"
-                return breakout
+                committed = self._commit_boxed_town_breakout_key(snapshot)
+                if committed is not None:
+                    self.last_reason = "town-progress-invariant:boxed-breakout-travel"
+                    return committed
 
         # Observing a wanted, affordable shelf is the entry phase of the
         # existing atomic contract.  Leaving is only its transport step: it is
@@ -3304,10 +3306,67 @@ class HengbotPolicy(TownArbiterMixin):
         )
 
     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
-        """Travel to a distinct landmark when an entrance has no safe step-off."""
+        """Probe a distinct-landmark escape without opening a store visit."""
+        route = self._boxed_town_breakout_route(snapshot)
+        if route is None:
+            here = snapshot.grid_at(snapshot.player.position)
+            return WAIT_KEY if here is not None and here.store_number >= 0 else None
+        store_type, goal, step = route
+        if (
+            self._has_light_equipped(snapshot)
+            and goal in snapshot.grids
+            and snapshot.player.position.distance_to(goal) >= TOWN_TRAVEL_MIN_DISTANCE
+            and self._town_travel_fallback != goal
+        ):
+            return f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
+        return self._direction_key(snapshot.player.position, step)
+
+    def _boxed_town_breakout_route(
+        self, snapshot: Snapshot
+    ) -> tuple[int, Position, Position] | None:
+        """Return the first visible alternate-store route using derived map facts only."""
         here = snapshot.grid_at(snapshot.player.position)
         current_store = here.store_number if here is not None else -1
         for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
+            if store_type == current_store:
+                continue
+            route = self._nearest_goal_and_step(
+                snapshot, lambda grid, wanted=store_type: grid.store_number == wanted
+            )
+            if route is None and self._town_map_active(snapshot):
+                goal = self._town_map.store_position(store_type)
+                step = self._town_map_goal_step(snapshot, goal)
+                route = (goal, step) if step is not None else None
+            if route is None:
+                visible_goals = [
+                    grid.position
+                    for grid in snapshot.grids.values()
+                    if grid.store_number == store_type
+                ]
+                if visible_goals:
+                    goal = min(
+                        visible_goals,
+                        key=lambda pos: snapshot.player.position.distance_to(pos),
+                    )
+                    if snapshot.player.position.distance_to(goal) >= 3:
+                        route = (goal, goal)
+            if route is None:
+                continue
+            goal, step = route
+            if step != snapshot.player.position:
+                return store_type, goal, step
+        return None
+
+    def _commit_boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
+        """Open and compose the store visit only after the breakout probe wins."""
+        route = self._boxed_town_breakout_route(snapshot)
+        here = snapshot.grid_at(snapshot.player.position)
+        current_store = here.store_number if here is not None else -1
+        stores = (
+            (route[0],) if route is not None
+            else (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL)
+        )
+        for store_type in stores:
             if store_type == current_store:
                 continue
             step = self._shopping_approach_step(snapshot, store_type)
