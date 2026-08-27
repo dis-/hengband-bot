@@ -2115,41 +2115,6 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(row["prompt_owner_handoff"], "seek-loot")
 
-    def test_seed_telemetry_fails_soft_for_unsupported_and_cyclic_values(self):
-        from collections import deque
-        from hengbot.cli import _seed_json_value
-
-        self.assertEqual(_seed_json_value(deque([1])), {"unserialisable": "deque"})
-        cyclic = []
-        cyclic.append(cyclic)
-        self.assertEqual(_seed_json_value(cyclic), [{"unserialisable": "list"}])
-
-    def test_seed_telemetry_public_schema_and_top_level_keys_are_pinned(self):
-        policy = HengbotPolicy()
-        snapshot = self._town_snapshot()
-        policy.choose_key(snapshot)
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "decisions.jsonl"
-            _write_decision(path, snapshot, " ", policy.last_reason, policy)
-            row = json.loads(path.read_text(encoding="utf-8"))
-
-        expected_top_level = {
-            "store_visit_state", "equipment_transaction_session",
-            "equipment_transaction_owned_items", "town_visit_ledger",
-            "town_claim_categories", "town_errand_plan_state",
-        }
-        self.assertTrue(expected_top_level <= set(row))
-        self.assertEqual(set(row["arbiter"]) - {
-            "owner", "progress", "budget_remaining_estimate", "tenure",
-            "would_retire", "retired", "retirement_set", "decision_attribution",
-        }, {
-            "observed_owner", "no_progress_counts", "vectors", "owner_vectors",
-            "retired_owners", "recurrences", "visit_vector_id", "last_pair",
-            "visit_transfer_counts", "last_transfer_sequence", "last_transfer_pair",
-            "pending_transfer", "transfer_exhausted", "transferred_visit",
-        })
-        self.assertNotIn("zlib+base64", json.dumps(row["arbiter"]))
-
     def test_active_store_visit_is_visible_in_every_decision_record(self):
         policy = HengbotPolicy()
         policy._store_visit = SimpleNamespace(
@@ -2176,6 +2141,26 @@ class DecisionRecordTest(unittest.TestCase):
             "operation_posted": True,
             "operation_released": False,
             "posted_sequence": 19,
+        })
+
+    def test_decision_record_excludes_withdrawn_seed_telemetry(self):
+        policy = HengbotPolicy()
+        snapshot = self._town_snapshot()
+        policy.choose_key(snapshot)
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, snapshot, " ", policy.last_reason, policy)
+            row = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertTrue({
+            "store_visit_state", "equipment_transaction_session",
+            "equipment_transaction_owned_items", "town_visit_ledger",
+            "town_claim_categories", "town_errand_plan_state",
+        }.isdisjoint(row))
+        self.assertEqual(set(row["arbiter"]), {
+            "owner", "tenure", "progress", "budget_remaining_estimate",
+            "would_retire", "retired", "retirement_set",
+            "decision_attribution",
         })
 
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):

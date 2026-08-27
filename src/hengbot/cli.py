@@ -9,7 +9,6 @@ import re
 import sys
 import time
 from collections import deque
-from dataclasses import fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -821,13 +820,7 @@ def _decision_record(
     prompt_owner_handoff: str | None = None,
     home_procurement_fallthrough: dict | None = None,
     store_visit: dict | None = None,
-    store_visit_state: dict | None = None,
     arbiter: dict | None = None,
-    equipment_transaction_session: dict | None = None,
-    equipment_transaction_owned_items: list | None = None,
-    town_visit_ledger: dict | None = None,
-    town_claim_categories: list | None = None,
-    town_errand_plan_state: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -853,12 +846,6 @@ def _decision_record(
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
-        "store_visit_state": store_visit_state,
-        "equipment_transaction_session": equipment_transaction_session,
-        "equipment_transaction_owned_items": equipment_transaction_owned_items,
-        "town_visit_ledger": town_visit_ledger,
-        "town_claim_categories": town_claim_categories,
-        "town_errand_plan_state": town_errand_plan_state,
         **(
             {"grid_map_schema_error": True}
             if snapshot.grid_map_schema_error
@@ -1344,143 +1331,6 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     }
 
 
-def _seed_json_value(value, *, _depth=0, _seen=None):
-    """Encode existing policy state without deriving replacement state."""
-    if _depth >= 32:
-        return {"unserialisable": type(value).__name__}
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if hasattr(value, "value") and isinstance(value.value, (bool, int, str)):
-        return value.value
-    if _seen is None:
-        _seen = set()
-    identity = id(value)
-    if identity in _seen:
-        return {"unserialisable": type(value).__name__}
-    _seen.add(identity)
-
-    def walk(item):
-        return _seed_json_value(item, _depth=_depth + 1, _seen=_seen)
-
-    if is_dataclass(value):
-        return {
-            field.name: walk(getattr(value, field.name))
-            for field in fields(value)
-        }
-    if isinstance(value, Mapping):
-        return [
-            {"key": walk(key), "value": walk(item)}
-            for key, item in value.items()
-        ]
-    if isinstance(value, (set, frozenset)):
-        return sorted((walk(item) for item in value), key=repr)
-    if isinstance(value, (list, tuple)):
-        return [walk(item) for item in value]
-    return {"unserialisable": type(value).__name__}
-
-
-_ARBITER_HISTORY_LIMIT = 8
-
-
-def _arbiter_seed_state(arbiter) -> dict | None:
-    if arbiter is None:
-        return None
-    vectors = []
-    vector_ids = {}
-
-    def vector_id(value):
-        encoded = _seed_json_value(value)
-        identity = json.dumps(encoded, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        if identity not in vector_ids:
-            vector_ids[identity] = len(vectors)
-            vectors.append(encoded)
-        return vector_ids[identity]
-
-    by_owner = list(getattr(arbiter, "_vector_by_owner", {}).items())
-    recurrences = list(getattr(arbiter, "_recurrences", {}).items())
-    retired = list(getattr(arbiter, "_retired", {}).items())
-    last_pair = getattr(arbiter, "_last_pair", None)
-    visit_vector = getattr(arbiter, "_visit_vector", None)
-    return {
-        "observed_owner": getattr(arbiter, "_owner", None),
-        "tenure": getattr(arbiter, "_tenure", 0),
-        "no_progress_counts": _seed_json_value(getattr(arbiter, "_no_progress_by_owner", {})),
-        "vectors": vectors,
-        "owner_vectors": {
-            "total": len(by_owner),
-            "recent": [{"owner": owner, "vector_id": vector_id(vector)} for owner, vector in by_owner[-_ARBITER_HISTORY_LIMIT:]],
-        },
-        "retired_owners": {
-            "total": len(retired),
-            "recent": [{"owner": owner, "vector_id": vector_id(vector)} for owner, vector in retired[-_ARBITER_HISTORY_LIMIT:]],
-        },
-        "recurrences": {
-            "total": sum(recurrences_count for _, recurrences_count in recurrences),
-            "distinct": len(recurrences),
-            "recent": [{"owner": pair[0], "vector_id": vector_id(pair[1]), "count": count} for pair, count in recurrences[-_ARBITER_HISTORY_LIMIT:]],
-        },
-        "visit_vector_id": None if visit_vector is None else vector_id(visit_vector),
-        "last_pair": None if last_pair is None else {"owner": last_pair[0], "vector_id": vector_id(last_pair[1])},
-        "visit_transfer_counts": _seed_json_value(getattr(arbiter, "_visit_transfers", {})),
-        "last_transfer_sequence": getattr(arbiter, "_last_transfer_sequence", None),
-        "last_transfer_pair": _seed_json_value(getattr(arbiter, "_last_transfer_pair", None)),
-        "pending_transfer": _seed_json_value(getattr(arbiter, "_pending_transfer", None)),
-        "transfer_exhausted": getattr(arbiter, "_transfer_exhausted", False),
-        "transferred_visit": _seed_json_value(getattr(arbiter, "_transferred_visit", None)),
-    }
-
-
-def _decision_seed_state(policy, *, include_town_state=True) -> dict:
-    if policy is None:
-        return {
-            "equipment_transaction_session": None,
-            "equipment_transaction_owned_items": None,
-            "town_visit_ledger": None,
-            "town_claim_categories": None,
-            "town_errand_plan_state": None,
-            "town_arbiter_state": None,
-            "store_visit_state": None,
-        }
-    if not include_town_state:
-        return {
-            "equipment_transaction_session": None, "equipment_transaction_owned_items": None,
-            "town_visit_ledger": None, "town_claim_categories": None,
-            "town_errand_plan_state": None, "town_arbiter_state": None,
-            "store_visit_state": None,
-        }
-    arbiter_state = _arbiter_seed_state(getattr(policy, "_town_turn_arbiter", None))
-    ledger = getattr(policy, "_town_visit_ledger", None)
-    ledger_state = None if ledger is None else {
-        name: _seed_json_value(getattr(ledger, name))
-        for name in (
-            "store_visits", "need_attempts", "approach_fails",
-            "unsatisfied_passes", "blocked_stores", "blocked_store_limits",
-            "passes_since_progress", "drift_warnings", "satisfied_needs",
-            "pending_store_transaction", "pending_store_context_waits",
-            "pending_nonhome_effect_observation",
-        )
-    }
-    return {
-        "equipment_transaction_session": _seed_json_value(
-            getattr(policy, "_equipment_transaction_session", None)
-        ),
-        "equipment_transaction_owned_items": _seed_json_value(
-            getattr(policy, "_equipment_transaction_owned_items", None)
-        ),
-        "town_visit_ledger": ledger_state,
-        "town_claim_categories": _seed_json_value(
-            getattr(policy, "_town_claim_categories", None)
-        ),
-        "town_errand_plan_state": _seed_json_value(
-            getattr(policy, "_town_errand_plan", None)
-        ),
-        "town_arbiter_state": arbiter_state,
-        "store_visit_state": _seed_json_value(
-            getattr(policy, "_store_visit", None)
-        ),
-    }
-
-
 def _write_decision(
     path: Path | None,
     snapshot,
@@ -1509,24 +1359,6 @@ def _write_decision(
                 if decision_facts is not None
                 else _capture_decision_facts(snapshot, policy)
             )
-            include_town_state = snapshot.in_town or snapshot.store is not None
-            try:
-                seed_state = _decision_seed_state(
-                    policy, include_town_state=include_town_state
-                )
-            except Exception as exc:
-                # Future-seeding telemetry is diagnostic only.  A novel policy
-                # object must not be able to terminate the decision loop.
-                marker = {"unserialisable": type(exc).__name__}
-                seed_state = {
-                    "equipment_transaction_session": marker,
-                    "equipment_transaction_owned_items": marker,
-                    "town_visit_ledger": marker,
-                    "town_claim_categories": marker,
-                    "town_errand_plan_state": marker,
-                    "town_arbiter_state": marker,
-                    "store_visit_state": marker,
-                }
             json.dump(
                 _decision_record(
                     snapshot,
@@ -1644,7 +1476,6 @@ def _write_decision(
                         and getattr(policy, "_store_visit", None) is not None
                         else None
                     ),
-                    seed_state["store_visit_state"],
                     (
                         {
                             **(
@@ -1658,17 +1489,11 @@ def _write_decision(
                             "decision_attribution": getattr(
                                 policy, "decision_attribution", "unregistered"
                             ),
-                            **seed_state["town_arbiter_state"],
                         }
                         if policy is not None
                         and (snapshot.in_town or snapshot.store is not None)
                         else None
                     ),
-                    seed_state["equipment_transaction_session"],
-                    seed_state["equipment_transaction_owned_items"],
-                    seed_state["town_visit_ledger"],
-                    seed_state["town_claim_categories"],
-                    seed_state["town_errand_plan_state"],
                 ),
                 file,
                 ensure_ascii=False,

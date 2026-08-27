@@ -153,12 +153,6 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
                         "retired", "retirement_set", "decision_attribution",
-                        "observed_owner", "no_progress_counts", "vectors",
-                        "owner_vectors", "retired_owners", "recurrences",
-                        "visit_vector_id", "last_pair", "visit_transfer_counts",
-                        "last_transfer_sequence", "last_transfer_pair",
-                        "pending_transfer", "transfer_exhausted",
-                        "transferred_visit",
                     },
                     set(row["arbiter"]),
                 )
