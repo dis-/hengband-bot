@@ -17,7 +17,10 @@ def measure():
         vector = ("unchanged-town", wanted)
         reason = "shop:approach" if wanted == 7 else "equipment-transaction:approach"
         if not arbiter.may_select(reason, vector):
-            return TERMINAL, acquisitions, bound
+            terminal = TERMINAL if getattr(
+                arbiter, "_transfer_exhausted", False
+            ) else None
+            return terminal, acquisitions, bound
         visit = arbiter.acquire_store_visit(
             store_type=wanted,
             owner="store-router",
