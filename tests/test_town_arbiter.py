@@ -11,6 +11,7 @@ from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from store_visit_alternation_gate import measure as measure_visit_alternation
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -138,7 +139,10 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             path = Path(directory) / "decisions.jsonl"
             for key, reason, decided_policy in decisions:
                 _write_decision(path, snapshot, key, reason, decided_policy)
-            rows = [json.loads(line) for line in path.read_text().splitlines()]
+            rows = [
+                json.loads(line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+            ]
 
         self.assertTrue(rows)
         for row in rows:
@@ -149,6 +153,14 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
                         "retired", "retirement_set", "decision_attribution",
+                        "_owner", "_tenure", "_no_progress_by_owner",
+                        "_vector_by_owner", "_retired", "_recurrences",
+                        "_visit_vector", "_last_pair",
+                        "_visit_transfers",
+                        "_last_transfer_sequence",
+                        "_last_transfer_pair",
+                        "_pending_transfer", "_transfer_exhausted",
+                        "_transferred_visit",
                     },
                     set(row["arbiter"]),
                 )
@@ -437,6 +449,60 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         )
         self.assertEqual(protected.outcome, "arbiter-retired")
         self.assertEqual(acquired.store_type, 7)
+
+    def test_posted_entry_and_leave_contexts_cannot_transfer(self):
+        for phase, posted_sequence, posted_turn in (
+            (StoreVisitPhase.ENTERING, 4, None),
+            (StoreVisitPhase.LEAVING, 4, None),
+            (StoreVisitPhase.LEAVING, None, 100),
+        ):
+            with self.subTest(
+                phase=phase,
+                posted_sequence=posted_sequence,
+                posted_turn=posted_turn,
+            ):
+                policy = HengbotPolicy()
+                protected = StoreVisit(
+                    owner="shop-buy",
+                    purpose="posted-command",
+                    store_type=0,
+                    phase=phase,
+                    posted_sequence=posted_sequence,
+                    posted_turn=posted_turn,
+                )
+                policy._store_visit = protected
+                acquired = policy._town_turn_arbiter.acquire_store_visit(
+                    store_type=7,
+                    owner="equipment-transaction",
+                    purpose="equipment-work",
+                    opened_sequence=5,
+                    close_visit=policy._close_store_visit,
+                )
+                self.assertIsNone(acquired)
+                self.assertIs(policy._store_visit, protected)
+                self.assertEqual(protected.phase, phase)
+
+    def test_unobserved_owner_does_not_restore_first_opened_authority(self):
+        policy = HengbotPolicy()
+        old = StoreVisit(owner="shop-buy", purpose="old", store_type=0)
+        policy._store_visit = old
+        self.assertIsNone(policy._town_turn_arbiter._owner)
+
+        acquired = policy._town_turn_arbiter.acquire_store_visit(
+            store_type=7,
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            opened_sequence=3,
+            close_visit=policy._close_store_visit,
+        )
+
+        self.assertEqual(old.outcome, "arbiter-retired")
+        self.assertEqual(acquired.store_type, 7)
+
+    def test_store_visit_alternation_reaches_named_terminal_within_bound(self):
+        reason, acquisitions, bound = measure_visit_alternation()
+        self.assertEqual(reason, "town:blocked:owner-retired")
+        self.assertLessEqual(acquisitions, bound)
 
     def test_terminal_is_never_scored_as_owner_progress(self):
         arbiter = HengbotPolicy()._town_turn_arbiter

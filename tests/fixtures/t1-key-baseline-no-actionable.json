@@ -412,8 +412,8 @@
     "shop:approach"
   ],
   [
-    "9",
-    "shop:approach"
+    "\u001b`n!.",
+    "town-progress-invariant:defect:town:blocked:repetition=>town-progress-invariant:approach"
   ],
   [
     "\u001b",
@@ -424,12 +424,12 @@
     "town:blocked:repetition"
   ],
   [
-    "\u001b`n!.",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>town-progress-invariant:approach"
+    "9",
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:approach"
   ],
   [
-    "\u001b`n!.",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>town-progress-invariant:approach"
+    "3",
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
   ],
   [
     "\u001b",
@@ -437,7 +437,7 @@
   ],
   [
     "3",
-    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:approach"
+    "town-progress-invariant:defect:shop:one-shot-in-flight=>shop:one-shot-in-flight"
   ],
   [
     "3",

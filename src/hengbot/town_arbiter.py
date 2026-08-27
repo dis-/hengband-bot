@@ -74,6 +74,12 @@ class TownTurnArbiter:
         self._recurrences: Counter[tuple[str, object]] = Counter()
         self._visit_vector: object | None = None
         self._last_pair: tuple[str, object] | None = None
+        self._visit_transfers: Counter[tuple[int, int]] = Counter()
+        self._last_transfer_sequence: int | None = None
+        self._last_transfer_pair: tuple[int, int] | None = None
+        self._pending_transfer: tuple[int, int] | None = None
+        self._transfer_exhausted = False
+        self._transferred_visit: StoreVisit | None = None
         self.telemetry: dict[str, object] | None = None
         self.store_visit: StoreVisit | None = None
 
@@ -96,17 +102,25 @@ class TownTurnArbiter:
         if not hasattr(self, "store_visit"):
             self.store_visit = visit
         if visit is not None and visit.store_type != store_type:
-            # A producer probe cannot pre-empt a visit before this arbiter has
-            # observed an owner decision.  Once ownership is established, the
-            # arbiter (rather than visit-open order) decides the handoff.
-            if self._owner is None:
-                return None
             if (
                 visit.operation_posted and not visit.operation_released
             ) or (
                 visit.operation_released and not visit.operation_effect_observed
+            ) or (
+                visit.phase == StoreVisitPhase.ENTERING
+                and visit.posted_sequence is not None
+            ) or (
+                visit.phase == StoreVisitPhase.LEAVING
+                and (
+                    visit.posted_sequence is not None
+                    or visit.posted_turn is not None
+                )
             ):
                 return None
+            transfer = (visit.store_type, store_type)
+            self._pending_transfer = transfer
+            self._last_transfer_sequence = opened_sequence
+            self._transferred_visit = visit
             close_visit("arbiter-retired")
             visit = self.store_visit
         if visit is None:
@@ -192,6 +206,18 @@ class TownTurnArbiter:
             self._visit_vector = None
         if not hasattr(self, "_last_pair"):
             self._last_pair = None
+        if not hasattr(self, "_visit_transfers"):
+            self._visit_transfers = Counter()
+        if not hasattr(self, "_last_transfer_sequence"):
+            self._last_transfer_sequence = None
+        if not hasattr(self, "_last_transfer_pair"):
+            self._last_transfer_pair = None
+        if not hasattr(self, "_pending_transfer"):
+            self._pending_transfer = None
+        if not hasattr(self, "_transfer_exhausted"):
+            self._transfer_exhausted = False
+        if not hasattr(self, "_transferred_visit"):
+            self._transferred_visit = None
         if not in_town:
             self._owner = None
             self._tenure = 0
@@ -201,6 +227,12 @@ class TownTurnArbiter:
             self._recurrences.clear()
             self._visit_vector = None
             self._last_pair = None
+            self._visit_transfers.clear()
+            self._last_transfer_sequence = None
+            self._last_transfer_pair = None
+            self._pending_transfer = None
+            self._transfer_exhausted = False
+            self._transferred_visit = None
             self.telemetry = None
             return None
         if self._visit_vector is not None and self._visit_vector != progress_vector:
@@ -227,6 +259,23 @@ class TownTurnArbiter:
             and (previous_vector is None or previous_vector != progress_vector)
             and not recurrent
         )
+        if progress:
+            self._visit_transfers.clear()
+            self._last_transfer_sequence = None
+            self._last_transfer_pair = None
+            self._transfer_exhausted = False
+        elif (
+            self._pending_transfer is not None
+            and self._pending_transfer != self._last_transfer_pair
+        ):
+            self._visit_transfers[self._pending_transfer] += 1
+            self._last_transfer_pair = self._pending_transfer
+            self._transfer_exhausted = (
+                self._visit_transfers[self._pending_transfer]
+                >= self.registry["detectors"].budget
+            )
+        self._pending_transfer = None
+        self._transferred_visit = None
         self._tenure = self._tenure + 1 if same_owner else 1
         no_progress = 0 if progress else self._no_progress_by_owner.get(owner, 0) + 1
         self._no_progress_by_owner[owner] = no_progress
@@ -266,6 +315,8 @@ class TownTurnArbiter:
         if not hasattr(self, "_recurrences"):
             self._recurrences = Counter()
         owner = self.owner_for_reason(reason)
+        if self._transfer_exhausted:
+            return False
         if (
             self._recurrences[(owner, progress_vector)]
             >= self.registry["detectors"].budget

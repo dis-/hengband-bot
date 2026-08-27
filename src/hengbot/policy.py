@@ -20353,8 +20353,13 @@ class HengbotPolicy(TownArbiterMixin):
                     "town:blocked:procurement-home-unavailable"
                 )
                 return ProcurementHomeGate.BLOCKED
-            filed = self._ensure_home_visit_request(snapshot)
             visit = self._store_visit
+            transferred_visit = getattr(
+                self._town_turn_arbiter, "_transferred_visit", None
+            )
+            if transferred_visit is not None:
+                visit = transferred_visit
+            filed = self._ensure_home_visit_request(snapshot)
             if (
                 filed
                 and visit is not None

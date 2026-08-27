@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import base64
 import faulthandler
 import json
 import os
 import re
 import sys
 import time
+import zlib
 from collections import deque
+from dataclasses import fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -820,7 +823,13 @@ def _decision_record(
     prompt_owner_handoff: str | None = None,
     home_procurement_fallthrough: dict | None = None,
     store_visit: dict | None = None,
+    store_visit_state: dict | None = None,
     arbiter: dict | None = None,
+    equipment_transaction_session: dict | None = None,
+    equipment_transaction_owned_items: list | None = None,
+    town_visit_ledger: dict | None = None,
+    town_claim_categories: list | None = None,
+    town_errand_plan_state: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -846,6 +855,12 @@ def _decision_record(
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
+        "store_visit_state": store_visit_state,
+        "equipment_transaction_session": equipment_transaction_session,
+        "equipment_transaction_owned_items": equipment_transaction_owned_items,
+        "town_visit_ledger": town_visit_ledger,
+        "town_claim_categories": town_claim_categories,
+        "town_errand_plan_state": town_errand_plan_state,
         **(
             {"grid_map_schema_error": True}
             if snapshot.grid_map_schema_error
@@ -1331,6 +1346,101 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     }
 
 
+def _seed_json_value(value):
+    """Encode existing policy state without deriving replacement state."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if hasattr(value, "value") and isinstance(value.value, (bool, int, str)):
+        return value.value
+    if is_dataclass(value):
+        return {
+            field.name: _seed_json_value(getattr(value, field.name))
+            for field in fields(value)
+        }
+    if isinstance(value, Mapping):
+        return [
+            {"key": _seed_json_value(key), "value": _seed_json_value(item)}
+            for key, item in value.items()
+        ]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_seed_json_value(item) for item in value), key=repr)
+    if isinstance(value, (list, tuple)):
+        return [_seed_json_value(item) for item in value]
+    if hasattr(value, "__dict__"):
+        return {
+            key: _seed_json_value(item)
+            for key, item in value.__dict__.items()
+        }
+    raise TypeError(f"unsupported seed telemetry value: {type(value).__name__}")
+
+
+def _decision_seed_state(policy) -> dict:
+    if policy is None:
+        return {
+            "equipment_transaction_session": None,
+            "equipment_transaction_owned_items": None,
+            "town_visit_ledger": None,
+            "town_claim_categories": None,
+            "town_errand_plan_state": None,
+            "town_arbiter_state": None,
+            "store_visit_state": None,
+        }
+    arbiter = getattr(policy, "_town_turn_arbiter", None)
+    compressed_arbiter_fields = {
+        "_vector_by_owner", "_retired", "_recurrences", "_visit_vector",
+        "_last_pair",
+    }
+    arbiter_state = None if arbiter is None else {}
+    if arbiter is not None:
+        for name in (
+            "_owner", "_tenure", "_no_progress_by_owner", "_vector_by_owner",
+            "_retired", "_recurrences", "_visit_vector", "_last_pair",
+            "_visit_transfers", "_last_transfer_sequence", "_last_transfer_pair",
+            "_pending_transfer", "_transfer_exhausted",
+            "_transferred_visit",
+        ):
+            value = _seed_json_value(getattr(arbiter, name, None))
+            if name in compressed_arbiter_fields:
+                raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+                value = {
+                    "encoding": "zlib+base64+json",
+                    "data": base64.b64encode(
+                        zlib.compress(raw.encode("utf-8"), level=9)
+                    ).decode("ascii"),
+                }
+            arbiter_state[name] = value
+    ledger = getattr(policy, "_town_visit_ledger", None)
+    ledger_state = None if ledger is None else {
+        name: _seed_json_value(getattr(ledger, name))
+        for name in (
+            "store_visits", "need_attempts", "approach_fails",
+            "unsatisfied_passes", "blocked_stores", "blocked_store_limits",
+            "passes_since_progress", "drift_warnings", "satisfied_needs",
+            "pending_store_transaction", "pending_store_context_waits",
+            "pending_nonhome_effect_observation",
+        )
+    }
+    return {
+        "equipment_transaction_session": _seed_json_value(
+            getattr(policy, "_equipment_transaction_session", None)
+        ),
+        "equipment_transaction_owned_items": _seed_json_value(
+            getattr(policy, "_equipment_transaction_owned_items", None)
+        ),
+        "town_visit_ledger": ledger_state,
+        "town_claim_categories": _seed_json_value(
+            getattr(policy, "_town_claim_categories", None)
+        ),
+        "town_errand_plan_state": _seed_json_value(
+            getattr(policy, "_town_errand_plan", None)
+        ),
+        "town_arbiter_state": arbiter_state,
+        "store_visit_state": _seed_json_value(
+            getattr(policy, "_store_visit", None)
+        ),
+    }
+
+
 def _write_decision(
     path: Path | None,
     snapshot,
@@ -1359,6 +1469,7 @@ def _write_decision(
                 if decision_facts is not None
                 else _capture_decision_facts(snapshot, policy)
             )
+            seed_state = _decision_seed_state(policy)
             json.dump(
                 _decision_record(
                     snapshot,
@@ -1476,6 +1587,7 @@ def _write_decision(
                         and getattr(policy, "_store_visit", None) is not None
                         else None
                     ),
+                    seed_state["store_visit_state"],
                     (
                         {
                             **(
@@ -1489,11 +1601,17 @@ def _write_decision(
                             "decision_attribution": getattr(
                                 policy, "decision_attribution", "unregistered"
                             ),
+                            **seed_state["town_arbiter_state"],
                         }
                         if policy is not None
                         and (snapshot.in_town or snapshot.store is not None)
                         else None
                     ),
+                    seed_state["equipment_transaction_session"],
+                    seed_state["equipment_transaction_owned_items"],
+                    seed_state["town_visit_ledger"],
+                    seed_state["town_claim_categories"],
+                    seed_state["town_errand_plan_state"],
                 ),
                 file,
                 ensure_ascii=False,
