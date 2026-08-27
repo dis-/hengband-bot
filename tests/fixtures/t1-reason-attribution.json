@@ -1,5 +1,4 @@
 {
-  "": "store-router",
   "breakout": "detectors",
   "breakout:least-visited": "detectors",
   "breakout:seek-frontier": "detectors",

@@ -168,14 +168,26 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                 "atomic-withdraw-target-unobserved"
             ): "home-visit",
             "town:entrance-step-off:home:scan-step-off": "home-scan",
+            (
+                "town:entrance-step-off:town:entrance-step-off:"
+                "home:scan-step-off"
+            ): "home-scan",
+            (
+                "town-progress-invariant:defect:town:entrance-step-off:"
+                "home:scan-step-off=>next"
+            ): "detectors",
+            (
+                "town:entrance-step-off:town-progress-invariant:"
+                "defect:X=>Y"
+            ): "detectors",
         }
         for reason, owner in expected.items():
             with self.subTest(reason=reason):
                 self.assertEqual(arbiter.decision_owner_for_reason(reason), owner)
 
-    def test_empty_completed_reason_has_explicit_store_router_owner(self):
+    def test_empty_completed_reason_is_not_given_a_decision_owner(self):
         arbiter = HengbotPolicy()._town_turn_arbiter
-        self.assertEqual(arbiter.decision_owner_for_reason(""), "store-router")
+        self.assertEqual(arbiter.decision_owner_for_reason(""), "misc")
 
     def test_pin_vacuity_registered_owner_consumes_static_reason_census(self):
         policy = HengbotPolicy()

@@ -86,9 +86,30 @@ class TownTurnArbiter:
     def decision_owner_for_reason(self, reason: str) -> str:
         """Attribute a completed decision to its emitted reason family."""
         if not reason:
-            # Frozen empty reasons are store-exit step-off moves between town visits.
-            return "store-router"
+            # No decision reason means there is no attribution to infer.
+            return self.owner_for_reason(reason)
         normalized = reason or "policy:none"
+        # Composed-reason families constructed in policy.py are exhaustive here:
+        # - town-progress-invariant:defect: (3235, 3288) owns as detectors; it
+        #   records the detector's emitted key rather than delegated inner work.
+        # - town:entrance-step-off: (4876) recursively delegates to its inner
+        #   reason, including nested wrappers.
+        # - dark:no-recovery: (4749) owns as detectors through the registered
+        #   ``dark:`` prefix.  It is town-unreachable because _is_dark requires
+        #   dungeon_level >= 1 (policy.py:9784); the frozen town log has 0 rows.
+        # - town:blocked: (3254, 24348, 24365), including an inner
+        #   equipment-transaction: composed at 12837, is owned by town-plan via
+        #   the registered ``town:blocked`` prefix above.  owner_for_reason uses
+        #   anchored startswith matching, so an inner reason cannot hijack it.
+        # - calibration:abort: (11128), equipment-transaction: (12837),
+        #   quest:readiness: (10296), quest:blocked: (27292), and
+        #   home:morivant-ledger-drop- (19729) own through their registered
+        #   calibration, equipment-txn, town-plan, quest-request, and home-visit
+        #   prefixes respectively.
+        # - suffix wrappers at 23133 (:await-entry), 25215
+        #   (:abandon-unconfirmed-equip), 29903 (:step-off), and 29932
+        #   (:approach) self-delegate because anchored prefix matching preserves
+        #   the owner of the reason at the start of each composed string.
         defect_prefix = "town-progress-invariant:defect:"
         if normalized.startswith(defect_prefix):
             # The detector emits the composed defect key, so it owns the decision.
