@@ -30,7 +30,7 @@ CACHE_FIELD_OWNERS = {
     "_town_emitted_entrances": "producer B (formerly warmed through _home_available)",
     "_town_fact_snapshot": "producer B (formerly warmed through _home_available)",
     "_town_entrance_cache": "producer A routing cache, not producer B",
-    "_town_visit_entrances": "producer A routing history, not producer B; cumulative by construction",
+    "_town_visit_entrances": "producer B routing history; cumulative by construction",
 }
 
 
@@ -87,14 +87,14 @@ def _differ_detects_visit_mutation():
 
 
 def _exemption_control():
-    """Only X -> Y fields equal to a fresh producer on Y may be exempted."""
+    """Only X -> Y fields equal to a fresh town-fact refresh on Y may be exempted."""
     snapshots, monraces = _snapshots("equip-swap")
     x, y = snapshots[0], snapshots[-1]
     carried = HengbotPolicy(monrace_knowledge=monraces)
     fresh = HengbotPolicy(monrace_knowledge=monraces)
-    carried._town_procurement_progress_key(x)
-    carried._town_procurement_progress_key(y)
-    fresh._town_procurement_progress_key(y)
+    carried._refresh_town_facts(x)
+    carried._refresh_town_facts(y)
+    fresh._refresh_town_facts(y)
     proven = {
         field for field in CACHE_FIELD_OWNERS
         if _digest(getattr(carried, field)) == _digest(getattr(fresh, field))
