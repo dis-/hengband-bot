@@ -259,12 +259,7 @@ class TownTurnArbiter:
             and (previous_vector is None or previous_vector != progress_vector)
             and not recurrent
         )
-        if progress:
-            self._visit_transfers.clear()
-            self._last_transfer_sequence = None
-            self._last_transfer_pair = None
-            self._transfer_exhausted = False
-        elif (
+        if (
             self._pending_transfer is not None
             and self._pending_transfer != self._last_transfer_pair
         ):

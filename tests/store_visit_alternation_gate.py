@@ -14,7 +14,10 @@ def measure():
     acquisitions = 0
     wanted = 7
     while acquisitions < bound:
-        vector = ("unchanged-town", wanted)
+        # The ordinary per-owner vectors change on every pass, reproducing the
+        # case that evades owner recurrence accounting while the store pair
+        # itself alternates without making useful progress.
+        vector = ("alternating-target", wanted, acquisitions)
         reason = "shop:approach" if wanted == 7 else "equipment-transaction:approach"
         if not arbiter.may_select(reason, vector):
             terminal = TERMINAL if getattr(
