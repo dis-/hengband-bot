@@ -19,12 +19,11 @@ ADDITIVE_RECORD_KEYS = {
     "town_claim_categories", "town_errand_plan_state",
 }
 ADDITIVE_ARBITER_KEYS = {
-    "_owner", "_tenure", "_no_progress_by_owner", "_vector_by_owner",
-    "_retired", "_recurrences", "_visit_vector", "_last_pair",
-    "_visit_transfers", "_last_transfer_sequence",
-    "_last_transfer_pair",
-    "_pending_transfer", "_transfer_exhausted",
-    "_transferred_visit",
+    "observed_owner", "tenure", "no_progress_counts", "vectors",
+    "owner_vectors", "retired_owners", "recurrences", "visit_vector_id",
+    "last_pair", "visit_transfer_counts", "last_transfer_sequence",
+    "last_transfer_pair", "pending_transfer", "transfer_exhausted",
+    "transferred_visit",
 }
 ADDITIVE_VISIT_KEYS = set()
 

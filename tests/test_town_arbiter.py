@@ -153,14 +153,12 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
                         "retired", "retirement_set", "decision_attribution",
-                        "_owner", "_tenure", "_no_progress_by_owner",
-                        "_vector_by_owner", "_retired", "_recurrences",
-                        "_visit_vector", "_last_pair",
-                        "_visit_transfers",
-                        "_last_transfer_sequence",
-                        "_last_transfer_pair",
-                        "_pending_transfer", "_transfer_exhausted",
-                        "_transferred_visit",
+                        "observed_owner", "no_progress_counts", "vectors",
+                        "owner_vectors", "retired_owners", "recurrences",
+                        "visit_vector_id", "last_pair", "visit_transfer_counts",
+                        "last_transfer_sequence", "last_transfer_pair",
+                        "pending_transfer", "transfer_exhausted",
+                        "transferred_visit",
                     },
                     set(row["arbiter"]),
                 )
@@ -500,8 +498,9 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertEqual(acquired.store_type, 7)
 
     def test_store_visit_alternation_reaches_named_terminal_within_bound(self):
-        reason, acquisitions, bound = measure_visit_alternation()
+        reason, acquisitions, bound, key = measure_visit_alternation()
         self.assertEqual(reason, "town:blocked:owner-retired")
+        self.assertEqual(key, "5")
         self.assertLessEqual(acquisitions, bound)
 
     def test_terminal_is_never_scored_as_owner_progress(self):
