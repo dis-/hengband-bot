@@ -50,7 +50,7 @@ from hengbot.policy_constants import (
     TERMINAL_NUDGE_LIMIT,
 )
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
-from hengbot.emit_ownership import emit_ownership_verdict
+from hengbot.emit_ownership import emit_ownership_verdict, movement_destination
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
     DEFAULT_CHECKPOINT_INTERVAL,
@@ -1849,19 +1849,8 @@ def _look_barrier_timed_release(
 
 
 def _movement_destination(position, key: str):
-    """Return the exact adjacent cell requested by a direction command."""
-    offsets = {
-        "1": (1, -1),
-        "2": (1, 0),
-        "3": (1, 1),
-        "4": (0, -1),
-        "6": (0, 1),
-        "7": (-1, -1),
-        "8": (-1, 0),
-        "9": (-1, 1),
-    }
-    dy, dx = offsets[key]
-    return type(position)(position.y + dy, position.x + dx)
+    """Compatibility wrapper around the shared direction projection."""
+    return movement_destination(position, key)
 
 
 def _chest_movement_response_pending(

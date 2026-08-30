@@ -19,6 +19,7 @@ from types import MethodType, SimpleNamespace
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.emit_ownership import emit_ownership_verdict, in_flight_clause
+from hengbot.cli import PostingContract, _send_new_decision_key
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
@@ -46,6 +47,16 @@ COARSE_ATTRIBUTION = {
     "home-visit": "home-visit",
 }
 FORMS = ("A", "B", "C", "D")
+EMIT_PATHS = (
+    ("once-main-decision", "in", "One-shot policy decision; enforce the same posted-key gate."),
+    ("follow-main-decision", "in", "Normal policy decision and the principal E3 enforcement site."),
+    ("posting-contract-retry", "in", "A recomposed policy decision after refusal; same ownership contract."),
+    ("look-probe-desync-barrier", "out", "Transport resynchronization, not a policy store-target decision."),
+    ("floor-transition-escape", "out", "Prompt-clearing ESC required for transport progress."),
+    ("stall-recovery-nudge", "out", "Withholding recovery ESC can freeze a silent town/store modal."),
+    ("death-terminal-resync", "out", "Terminal process recovery is outside town ownership."),
+    ("stuck-prompt-probe", "out", "Bounded modal recovery must remain able to clear a prompt."),
+)
 
 
 def _instrument_acquires(policy: HengbotPolicy, calls: list[dict]) -> None:
@@ -88,12 +99,16 @@ def measure(path: Path) -> dict:
     _instrument_acquires(policy, acquire_calls)
     totals = Counter()
     rows = []
+    posted_line = None
+    posted_keys: set[str] = set()
+    posting_contract = PostingContract()
 
     with path.open(encoding="utf-8-sig") as stream:
         for row_index, line in enumerate(stream):
             if not line.strip():
                 continue
             totals["snapshot_rows"] += 1
+            snapshot_line = line.rstrip("\r\n")
             snapshot = parse_snapshot(json.loads(line), knowledge)
             visit = copy.copy(policy._store_visit)
             approach_store = policy._shopping_approach_store_type
@@ -101,21 +116,50 @@ def measure(path: Path) -> dict:
             key = policy.choose_key(snapshot)
             attribution = policy.decision_attribution
             reason = policy.last_reason
+            validated_key = policy.validate_read_key(snapshot, key)
 
-            if not (snapshot.in_town or snapshot.store is not None):
+            clause = in_flight_clause(visit)
+            chosen_verdict = emit_ownership_verdict(
+                visit, snapshot, key, approach_store
+            )
+            validated_verdict = emit_ownership_verdict(
+                visit, snapshot, validated_key, approach_store
+            )
+            in_town_population = snapshot.in_town or snapshot.store is not None
+            if in_town_population:
+                totals["unconditional_B_violations"] += int(validated_verdict.blocked)
+                totals["validate_target_changed"] += int(
+                    chosen_verdict.target_store != validated_verdict.target_store
+                )
+            sent, posted_line = _send_new_decision_key(
+                lambda *_args, **_kwargs: True,
+                snapshot_line, validated_key, posted_line, posted_keys,
+                in_store=snapshot.store is not None,
+                decision={"reason": reason, "prompt_owner_handoff": policy.prompt_owner_handoff},
+                snapshot=snapshot, posting_contract=posting_contract,
+            )
+            if in_town_population and clause is not None and key:
+                totals["chosen_key_population"] += 1
+                totals["chosen_key_B_violations"] += int(chosen_verdict.blocked)
+            if in_town_population and clause is not None and sent:
+                totals["posted_key_population"] += 1
+                totals["posted_key_B_violations"] += int(validated_verdict.blocked)
+                totals["path-follow-main-decision"] += 1
+
+            if not in_town_population:
                 continue
             totals["decisions"] += 1
             if key:
                 totals["keys"] += 1
             if visit is not None and visit.phase != StoreVisitPhase.CLOSED:
                 totals["open_visits"] += 1
-            if visit is not None and in_flight_clause(visit) is not None:
+            if visit is not None and clause is not None:
                 totals["in_flight_visits"] += 1
-            if not key or visit is None or in_flight_clause(visit) is None:
+            if not key or visit is None or clause is None:
                 continue
 
             owner = policy._store_visit_arbiter_owner(visit)
-            verdict = emit_ownership_verdict(visit, snapshot, key, approach_store)
+            verdict = chosen_verdict
             totals["production_predicate_calls"] += 1
             target_store, target_source = verdict.target_store, verdict.target_source
             forms = _predicates(
@@ -201,6 +245,21 @@ def _print_report(label: str, result: dict) -> None:
         f"B_undetermined={totals.get('B_undetermined', 0)} "
         f"B_target_sources={dict(Counter(r['target_source'] for r in rows))!r}"
     )
+    print(
+        "B_populations "
+        f"unconditional_logged={totals.get('unconditional_B_violations', 0)} "
+        f"chosen_key={totals.get('chosen_key_B_violations', 0)}"
+        f"/{totals.get('chosen_key_population', 0)} "
+        f"posted_key={totals.get('posted_key_B_violations', 0)}"
+        f"/{totals.get('posted_key_population', 0)} "
+        f"validate_read_key_target_changes={totals.get('validate_target_changed', 0)} "
+        "E3_population=posted_key"
+    )
+    for path, recommendation, reason in EMIT_PATHS:
+        print(
+            f"emit_path={path!r} in_flight_posts={totals.get('path-' + path, 0)} "
+            f"E3={recommendation!r} reason={reason!r}"
+        )
     quoted = QUOTED_B_SUBTRACTION[label]
     direct = totals.get("B_violations", 0)
     print(

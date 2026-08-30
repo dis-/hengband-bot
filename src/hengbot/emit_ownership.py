@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
-TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
 _MOVEMENT_DELTAS = {
     "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
     "4": (0, -1), "6": (0, 1),
     "1": (1, -1), "2": (1, 0), "3": (1, 1),
 }
+
+
+def movement_destination(position, key: str):
+    """Return the exact adjacent cell requested by a direction command."""
+    dy, dx = _MOVEMENT_DELTAS[key]
+    return type(position)(position.y + dy, position.x + dx)
 
 
 @dataclass(frozen=True)
@@ -60,9 +66,11 @@ def derive_target_store(snapshot, key: str, approach_store: int | None) -> tuple
     delta = _MOVEMENT_DELTAS.get(key)
     if delta is not None:
         position = snapshot.player.position
-        grid = snapshot.grid_at(type(position)(position.x + delta[0], position.y + delta[1]))
-        if grid is not None and grid.store_number is not None:
+        grid = snapshot.grid_at(movement_destination(position, key))
+        if grid is not None and grid.store_number >= 0:
             return grid.store_number, "stepped-onto-store-grid"
+    # An underivable target cannot safely be refused: doing so would deadlock
+    # ordinary town (and dungeon) movement.  The verdict therefore fails open.
     return None, "undetermined"
 
 

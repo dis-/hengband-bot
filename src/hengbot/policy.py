@@ -103,6 +103,7 @@ from hengbot.policy_constants import (
     SELL_KEY,
     STORE_STUCK_LIMIT,
     TERMINAL_NUDGE_LIMIT,
+    TOWN_TRAVEL_STORE_SYMBOLS,
     TOWN_STOP_PASS_LIMIT,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
@@ -305,7 +306,6 @@ def _persistent_grid_signature(grid: GridState) -> tuple:
 # ``-o`` forces Hengband's original command set. In its travel-point selector,
 # the displayed store landmarks 1-8 are selected with their shifted number-row
 # symbols (roguelike mode uses the bare digits instead).
-TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
 # Travel-selector macro for the surface walk to the dungeon entrance: ` opens
 # travel, n declines a possible "continue previous travel?" prompt (point
 # selection ignores it otherwise), > jumps the cursor to the nearest known

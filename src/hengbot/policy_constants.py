@@ -10,6 +10,10 @@
 # Mining mark bumps use the same derived retry budget.  Threat-free readiness
 # is a separate literal allowance in policy.py.
 TERMINAL_NUDGE_LIMIT = 8
+
+# Native travel symbols indexed by store number.  Kept here so policy and the
+# emit-time ownership check share one definition without an import cycle.
+TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")
 EQUIPMENT_MUTATION_RELEASE_LIMIT = TERMINAL_NUDGE_LIMIT
 
 WAIT_KEY = "5"

@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Callable, Mapping
 
 from hengbot.latch_onset_capture import assignment_provenance
+from hengbot.emit_ownership import in_flight_clause
 from hengbot.model import Position, Snapshot, STORE_HOME
 from hengbot.policy_constants import LEAVE_STORE_KEY
 from hengbot.policy_types import (
@@ -102,20 +103,7 @@ class TownTurnArbiter:
         if not hasattr(self, "store_visit"):
             self.store_visit = visit
         if visit is not None and visit.store_type != store_type:
-            if (
-                visit.operation_posted and not visit.operation_released
-            ) or (
-                visit.operation_released and not visit.operation_effect_observed
-            ) or (
-                visit.phase == StoreVisitPhase.ENTERING
-                and visit.posted_sequence is not None
-            ) or (
-                visit.phase == StoreVisitPhase.LEAVING
-                and (
-                    visit.posted_sequence is not None
-                    or visit.posted_turn is not None
-                )
-            ):
+            if in_flight_clause(visit) is not None:
                 return None
             transfer = (visit.store_type, store_type)
             self._pending_transfer = transfer
