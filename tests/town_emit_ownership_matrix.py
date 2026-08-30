@@ -19,7 +19,9 @@ from types import MethodType, SimpleNamespace
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.emit_ownership import emit_ownership_verdict, in_flight_clause
-from hengbot.cli import PostingContract, _send_new_decision_key
+from hengbot.cli import (
+    PostingContract, _duplicate_snapshot_ready, _send_new_decision_key,
+)
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
@@ -48,14 +50,23 @@ COARSE_ATTRIBUTION = {
 }
 FORMS = ("A", "B", "C", "D")
 EMIT_PATHS = (
-    ("once-main-decision", "in", "One-shot policy decision; enforce the same posted-key gate."),
-    ("follow-main-decision", "in", "Normal policy decision and the principal E3 enforcement site."),
-    ("posting-contract-retry", "in", "A recomposed policy decision after refusal; same ownership contract."),
-    ("look-probe-desync-barrier", "out", "Transport resynchronization, not a policy store-target decision."),
-    ("floor-transition-escape", "out", "Prompt-clearing ESC required for transport progress."),
-    ("stall-recovery-nudge", "out", "Withholding recovery ESC can freeze a silent town/store modal."),
-    ("death-terminal-resync", "out", "Terminal process recovery is outside town ownership."),
-    ("stuck-prompt-probe", "out", "Bounded modal recovery must remain able to clear a prompt."),
+    ("once-main-decision", "in", "not exercised", "One-shot policy decision; enforce the same posted-key gate."),
+    ("follow-main-decision", "in", "exercised", "Normal policy decision and the principal E3 enforcement site."),
+    ("posting-contract-retry", "in", "exercised", "A recomposed policy decision after refusal; same ownership contract."),
+    ("look-probe-desync-barrier", "out", "not exercisable by snapshot replay", "Transport resynchronization, not a policy store-target decision."),
+    ("floor-transition-escape", "out", "not exercisable by snapshot replay", "Prompt-clearing ESC required for transport progress."),
+    ("stall-recovery-nudge", "out", "not exercisable by snapshot replay", "Withholding recovery ESC can freeze a silent town/store modal."),
+    ("death-terminal-resync", "out", "not exercisable by snapshot replay", "Terminal process recovery is outside town ownership."),
+    ("stuck-prompt-probe", "out", "not exercisable by snapshot replay", "Bounded modal recovery must remain able to clear a prompt."),
+)
+
+MODEL_VARIANTS = (
+    ("committed-harness", False, False, False, False),
+    ("suppress-only", True, False, False, False),
+    ("confirm-only", False, True, False, False),
+    ("suppress+confirm", True, True, False, False),
+    ("+duplicate-gate", True, True, True, False),
+    ("+contract-retry", True, True, True, True),
 )
 
 
@@ -89,7 +100,10 @@ def _predicates(
     }
 
 
-def measure(path: Path) -> dict:
+def measure(
+    path: Path, *, model_suppress: bool = True, model_confirm: bool = True,
+    model_duplicate: bool = True, model_retry: bool = True,
+) -> dict:
     definitions = find_monrace_definitions(path, None)
     if definitions is None:
         raise RuntimeError(f"MonraceDefinitions.jsonc was not found for {path}")
@@ -102,6 +116,8 @@ def measure(path: Path) -> dict:
     posted_line = None
     posted_keys: set[str] = set()
     posting_contract = PostingContract()
+    previous_decision_line = None
+    previous_decision_reason = None
 
     with path.open(encoding="utf-8-sig") as stream:
         for row_index, line in enumerate(stream):
@@ -110,13 +126,26 @@ def measure(path: Path) -> dict:
             totals["snapshot_rows"] += 1
             snapshot_line = line.rstrip("\r\n")
             snapshot = parse_snapshot(json.loads(line), knowledge)
+            if model_duplicate and not _duplicate_snapshot_ready(
+                snapshot_line, previous_decision_line, previous_decision_reason,
+            ):
+                totals["duplicate_gate_drops"] += 1
+                continue
+            previous_decision_line = snapshot_line
+            store_leave_was_inflight = policy._store_leave_inflight is not None
             visit = copy.copy(policy._store_visit)
             approach_store = policy._shopping_approach_store_type
             acquire_calls.clear()
             key = policy.choose_key(snapshot)
             attribution = policy.decision_attribution
             reason = policy.last_reason
+            previous_decision_reason = reason
             validated_key = policy.validate_read_key(snapshot, key)
+            suppress = bool(
+                model_suppress
+                and store_leave_was_inflight
+                and policy._store_leave_inflight is not None
+            )
 
             clause = in_flight_clause(visit)
             chosen_verdict = emit_ownership_verdict(
@@ -135,16 +164,52 @@ def measure(path: Path) -> dict:
                 lambda *_args, **_kwargs: True,
                 snapshot_line, validated_key, posted_line, posted_keys,
                 in_store=snapshot.store is not None,
+                suppress=suppress,
                 decision={"reason": reason, "prompt_owner_handoff": policy.prompt_owner_handoff},
                 snapshot=snapshot, posting_contract=posting_contract,
             )
+            posted_verdict = validated_verdict
+            posted_visit = visit
+            posted_clause = clause
+            posted_path = "follow-main-decision"
+            if model_retry and posting_contract.last_incident is not None:
+                incident = posting_contract.last_incident
+                policy.refuse_key_posting(
+                    str(incident.get("owner", incident.get("answer_owner", reason))),
+                    str(incident.get("key", validated_key)),
+                )
+                posted_visit = copy.copy(policy._store_visit)
+                retry_approach = policy._shopping_approach_store_type
+                retry_key = policy.choose_key(snapshot)
+                reason = policy.last_reason
+                previous_decision_reason = reason
+                retry_key = policy.validate_read_key(snapshot, retry_key)
+                posted_verdict = emit_ownership_verdict(
+                    posted_visit, snapshot, retry_key, retry_approach,
+                )
+                posted_clause = in_flight_clause(posted_visit)
+                sent, posted_line = _send_new_decision_key(
+                    lambda *_args, **_kwargs: True,
+                    snapshot_line, retry_key, posted_line, posted_keys,
+                    in_store=snapshot.store is not None,
+                    decision={
+                        "reason": reason,
+                        "prompt_owner_handoff": policy.prompt_owner_handoff,
+                    },
+                    snapshot=snapshot, posting_contract=posting_contract,
+                )
+                validated_key = retry_key
+                posted_path = "posting-contract-retry"
+                totals["contract_retries"] += 1
+            if model_confirm and sent:
+                policy.confirm_key_posted(validated_key)
             if in_town_population and clause is not None and key:
                 totals["chosen_key_population"] += 1
                 totals["chosen_key_B_violations"] += int(chosen_verdict.blocked)
-            if in_town_population and clause is not None and sent:
+            if in_town_population and posted_clause is not None and sent:
                 totals["posted_key_population"] += 1
-                totals["posted_key_B_violations"] += int(validated_verdict.blocked)
-                totals["path-follow-main-decision"] += 1
+                totals["posted_key_B_violations"] += int(posted_verdict.blocked)
+                totals["path-" + posted_path] += 1
 
             if not in_town_population:
                 continue
@@ -191,7 +256,7 @@ def measure(path: Path) -> dict:
         emit_ownership_verdict(
             StoreVisit(
                 owner="control", purpose="control", store_type=r["visit_store"],
-                phase=StoreVisitPhase.CLOSED,
+                phase=StoreVisitPhase.LEAVING, posted_sequence=1,
             ), SimpleNamespace(store=SimpleNamespace(
                 store_type=(r["visit_store"] + 1) % 8,
             )), "", None,
@@ -255,10 +320,14 @@ def _print_report(label: str, result: dict) -> None:
         f"validate_read_key_target_changes={totals.get('validate_target_changed', 0)} "
         "E3_population=posted_key"
     )
-    for path, recommendation, reason in EMIT_PATHS:
+    for path, recommendation, exercise, reason in EMIT_PATHS:
+        measured = (
+            str(totals.get("path-" + path, 0))
+            if exercise == "exercised" else exercise
+        )
         print(
-            f"emit_path={path!r} in_flight_posts={totals.get('path-' + path, 0)} "
-            f"E3={recommendation!r} reason={reason!r}"
+            f"emit_path={path!r} in_flight_posts={measured!r} "
+            f"instrument={exercise!r} E3={recommendation!r} reason={reason!r}"
         )
     quoted = QUOTED_B_SUBTRACTION[label]
     direct = totals.get("B_violations", 0)
@@ -325,7 +394,27 @@ def main() -> int:
     failed = False
     all_rows = []
     for label, path in selected.items():
-        result = measure(path)
+        variants = []
+        for model, suppress, confirm, duplicate, retry in MODEL_VARIANTS:
+            measured = measure(
+                path, model_suppress=suppress, model_confirm=confirm,
+                model_duplicate=duplicate, model_retry=retry,
+            )
+            variants.append((model, measured))
+        print(f"posted_model_increments population={label!r}")
+        previous = None
+        for model, measured in variants:
+            model_totals = measured["totals"]
+            pair = (
+                model_totals.get("posted_key_B_violations", 0),
+                model_totals.get("posted_key_population", 0),
+            )
+            delta = "baseline" if previous is None else (
+                f"delta={pair[0] - previous[0]:+d}/{pair[1] - previous[1]:+d}"
+            )
+            print(f"posted_model={model!r} B={pair[0]}/{pair[1]} {delta}")
+            previous = pair
+        result = variants[-1][1]
         _print_report(label, result)
         _print_b_runs(label, result["rows"])
         all_rows.extend(result["rows"])
@@ -333,7 +422,7 @@ def main() -> int:
         failed |= totals.get("A_control", -1) != 0
         failed |= totals.get("C_control", -1) != 0
         failed |= totals.get("D_control", -1) != 0
-        failed |= totals.get("B_control", -1) != 0
+        failed |= totals.get("B_control", -1) != len(result["rows"])
         for form in FORMS:
             if totals.get(f"{form}_violations", 0) == totals.get(f"{form}_control", 0):
                 print(f"CONTROL FAILURE: {form} count did not move")

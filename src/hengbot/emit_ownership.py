@@ -56,19 +56,25 @@ def in_flight_clause(visit: StoreVisit | None) -> str | None:
 
 def derive_target_store(snapshot, key: str, approach_store: int | None) -> tuple[int | None, str]:
     """Derive a key's store target from its pre-emission town context."""
-    if snapshot.store is not None:
-        return snapshot.store.store_type, "snapshot.store.store_type"
-    if approach_store is not None:
-        return approach_store, "_shopping_approach_store_type"
+    # Key-specific evidence takes precedence over ambient state.  In
+    # particular, a native travel macro can name a different landmark while a
+    # stale approach target remains set, and bare Escape exits the current
+    # store rather than targeting it.
     for store_type, symbol in enumerate(TOWN_TRAVEL_STORE_SYMBOLS):
         if key == f"\x1b`n{symbol}.":
             return store_type, "native-travel-key"
     delta = _MOVEMENT_DELTAS.get(key)
-    if delta is not None:
+    if delta is not None and getattr(snapshot, "player", None) is not None:
         position = snapshot.player.position
         grid = snapshot.grid_at(movement_destination(position, key))
         if grid is not None and grid.store_number >= 0:
             return grid.store_number, "stepped-onto-store-grid"
+    if key == "\x1b":
+        return None, "store-exit-key"
+    if snapshot.store is not None:
+        return snapshot.store.store_type, "snapshot.store.store_type"
+    if approach_store is not None:
+        return approach_store, "_shopping_approach_store_type"
     # An underivable target cannot safely be refused: doing so would deadlock
     # ordinary town (and dungeon) movement.  The verdict therefore fails open.
     return None, "undetermined"
