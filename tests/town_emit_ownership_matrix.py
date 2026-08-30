@@ -14,11 +14,12 @@ from collections import Counter, defaultdict
 import copy
 import json
 from pathlib import Path
-from types import MethodType
+from types import MethodType, SimpleNamespace
 
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
-from hengbot.policy import HengbotPolicy, TOWN_TRAVEL_STORE_SYMBOLS
+from hengbot.emit_ownership import emit_ownership_verdict, in_flight_clause
+from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
@@ -47,45 +48,6 @@ COARSE_ATTRIBUTION = {
 FORMS = ("A", "B", "C", "D")
 
 
-def _in_flight(visit: StoreVisit) -> bool:
-    """Match town_arbiter.acquire_store_visit's four clauses exactly."""
-    return bool(
-        (visit.operation_posted and not visit.operation_released)
-        or (visit.operation_released and not visit.operation_effect_observed)
-        or (visit.phase == StoreVisitPhase.ENTERING and visit.posted_sequence is not None)
-        or (
-            visit.phase == StoreVisitPhase.LEAVING
-            and (visit.posted_sequence is not None or visit.posted_turn is not None)
-        )
-    )
-
-
-def _stepped_store(snapshot, key: str) -> int | None:
-    if len(key) != 1:
-        return None
-    delta = HengbotPolicy._movement_delta_for_key(key)
-    if delta is None:
-        return None
-    position = snapshot.player.position
-    grid = snapshot.grid_at(type(position)(position.x + delta[0], position.y + delta[1]))
-    return None if grid is None else grid.store_number
-
-
-def _target_store(snapshot, key: str, approach_store: int | None) -> tuple[int | None, str]:
-    """Derive the emitted key's target store from its pre-emission context."""
-    if snapshot.store is not None:
-        return snapshot.store.store_type, "snapshot.store.store_type"
-    if approach_store is not None:
-        return approach_store, "_shopping_approach_store_type"
-    for store_type, symbol in enumerate(TOWN_TRAVEL_STORE_SYMBOLS):
-        if key == f"\x1b`n{symbol}.":
-            return store_type, "native-travel-key"
-    stepped = _stepped_store(snapshot, key)
-    if stepped is not None:
-        return stepped, "stepped-onto-store-grid"
-    return None, "undetermined"
-
-
 def _instrument_acquires(policy: HengbotPolicy, calls: list[dict]) -> None:
     arbiter = policy._town_turn_arbiter
     original = arbiter.acquire_store_visit
@@ -103,14 +65,14 @@ def _instrument_acquires(policy: HengbotPolicy, calls: list[dict]) -> None:
 
 
 def _predicates(
-    *, attribution: str, owner: str, visit_store: int,
-    target_store: int | None, acquire_calls: list[dict],
+    *, attribution: str, owner: str, b_violated: bool,
+    acquire_calls: list[dict],
 ) -> dict[str, bool]:
     """Evaluate each candidate directly; none is subtraction-derived."""
     coarse = COARSE_ATTRIBUTION.get(attribution)
     return {
         "A": attribution != owner,
-        "B": target_store is not None and target_store != visit_store,
+        "B": b_violated,
         "C": coarse is not None and coarse != owner,
         "D": not any(call["granted"] for call in acquire_calls),
     }
@@ -147,22 +109,28 @@ def measure(path: Path) -> dict:
                 totals["keys"] += 1
             if visit is not None and visit.phase != StoreVisitPhase.CLOSED:
                 totals["open_visits"] += 1
-            if visit is not None and _in_flight(visit):
+            if visit is not None and in_flight_clause(visit) is not None:
                 totals["in_flight_visits"] += 1
-            if not key or visit is None or not _in_flight(visit):
+            if not key or visit is None or in_flight_clause(visit) is None:
                 continue
 
             owner = policy._store_visit_arbiter_owner(visit)
-            target_store, target_source = _target_store(snapshot, key, approach_store)
+            verdict = emit_ownership_verdict(visit, snapshot, key, approach_store)
+            totals["production_predicate_calls"] += 1
+            target_store, target_source = verdict.target_store, verdict.target_source
             forms = _predicates(
-                attribution=attribution, owner=owner, visit_store=visit.store_type,
-                target_store=target_store, acquire_calls=acquire_calls,
+                attribution=attribution, owner=owner,
+                b_violated=verdict.blocked, acquire_calls=acquire_calls,
             )
             row = {
                 "row": row_index, "attribution": attribution, "visit_owner": owner,
+                "visit_identity": [
+                    visit.owner, visit.purpose, visit.store_type, visit.opened_sequence,
+                ],
                 "phase": visit.phase.value, "reason": reason,
                 "visit_store": visit.store_type, "target_store": target_store,
                 "target_source": target_source, "acquires": copy.deepcopy(acquire_calls),
+                "emit_ownership": verdict.as_dict(),
                 "forms": forms,
             }
             rows.append(row)
@@ -176,12 +144,16 @@ def measure(path: Path) -> dict:
     # known B target across stores, and force D's acquisition fact true.
     totals["A_control"] = sum(owner != owner for owner in (r["visit_owner"] for r in rows))
     totals["B_control"] = sum(
-        _predicates(
-            attribution=r["attribution"], owner=r["visit_owner"],
-            visit_store=r["visit_store"], target_store=(r["visit_store"] + 1) % 8,
-            acquire_calls=r["acquires"],
-        )["B"] for r in rows if r["target_store"] is not None
+        emit_ownership_verdict(
+            StoreVisit(
+                owner="control", purpose="control", store_type=r["visit_store"],
+                phase=StoreVisitPhase.CLOSED,
+            ), SimpleNamespace(store=SimpleNamespace(
+                store_type=(r["visit_store"] + 1) % 8,
+            )), "", None,
+        ).blocked for r in rows
     )
+    totals["production_predicate_calls"] += len(rows)
     totals["C_control"] = sum(
         r["visit_owner"] != r["visit_owner"] for r in rows
         if r["attribution"] in COARSE_ATTRIBUTION
@@ -250,8 +222,40 @@ def _print_report(label: str, result: dict) -> None:
             for form in FORMS
         )
     )
+    print(
+        "harness_form_B_predicate=hengbot.emit_ownership.emit_ownership_verdict "
+        f"production_predicate_calls={totals.get('production_predicate_calls', 0)}"
+    )
     for form in FORMS:
         _print_form_rows(form, rows)
+
+
+def _b_run_lengths(rows: list[dict]) -> list[int]:
+    runs: list[int] = []
+    current_identity = None
+    current_length = 0
+    for row in rows:
+        identity = tuple(row["visit_identity"])
+        if row["forms"]["B"] and identity == current_identity:
+            current_length += 1
+        else:
+            if current_length:
+                runs.append(current_length)
+            current_identity = identity if row["forms"]["B"] else None
+            current_length = int(row["forms"]["B"])
+    if current_length:
+        runs.append(current_length)
+    return runs
+
+
+def _print_b_runs(label: str, rows: list[dict]) -> None:
+    runs = _b_run_lengths(rows)
+    histogram = dict(sorted(Counter(runs).items()))
+    mean = sum(runs) / len(runs) if runs else 0.0
+    print(
+        f"B_same_visit_runs population={label!r} max={max(runs, default=0)} "
+        f"mean={mean:.6f} histogram={histogram!r} runs={len(runs)}"
+    )
 
 
 def main() -> int:
@@ -260,19 +264,23 @@ def main() -> int:
     args = parser.parse_args()
     selected = POPULATIONS if args.population == "all" else {args.population: POPULATIONS[args.population]}
     failed = False
+    all_rows = []
     for label, path in selected.items():
         result = measure(path)
         _print_report(label, result)
+        _print_b_runs(label, result["rows"])
+        all_rows.extend(result["rows"])
         totals = result["totals"]
         failed |= totals.get("A_control", -1) != 0
         failed |= totals.get("C_control", -1) != 0
         failed |= totals.get("D_control", -1) != 0
-        determinate = totals.get("in_flight_emitting_decisions", 0) - totals.get("B_undetermined", 0)
-        failed |= totals.get("B_control", -1) != determinate
+        failed |= totals.get("B_control", -1) != 0
         for form in FORMS:
             if totals.get(f"{form}_violations", 0) == totals.get(f"{form}_control", 0):
                 print(f"CONTROL FAILURE: {form} count did not move")
                 failed = True
+    if len(selected) > 1:
+        _print_b_runs("all-three-populations", all_rows)
     return int(failed)
 
 

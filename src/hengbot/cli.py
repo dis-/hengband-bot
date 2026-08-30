@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import copy
 import faulthandler
 import json
 import os
@@ -49,6 +50,7 @@ from hengbot.policy_constants import (
     TERMINAL_NUDGE_LIMIT,
 )
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
+from hengbot.emit_ownership import emit_ownership_verdict
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
     DEFAULT_CHECKPOINT_INTERVAL,
@@ -821,6 +823,7 @@ def _decision_record(
     home_procurement_fallthrough: dict | None = None,
     store_visit: dict | None = None,
     arbiter: dict | None = None,
+    town_emit_ownership: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -852,6 +855,11 @@ def _decision_record(
             else {}
         ),
         **({"arbiter": arbiter} if arbiter is not None else {}),
+        **(
+            {"town_emit_ownership": town_emit_ownership}
+            if town_emit_ownership is not None
+            else {}
+        ),
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in
         # the message line let an incident review distinguish a newly rejected
@@ -1342,6 +1350,7 @@ def _write_decision(
     town_stall_report: dict | None | object = _AUTO_TOWN_STALL_REPORT,
     timing: dict | None = None,
     decision_facts: dict | None = None,
+    town_emit_ownership: dict | None = None,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1494,6 +1503,7 @@ def _write_decision(
                         and (snapshot.in_town or snapshot.store is not None)
                         else None
                     ),
+                    town_emit_ownership,
                 ),
                 file,
                 ensure_ascii=False,
@@ -2357,12 +2367,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"invalid snapshot: {exc}", file=sys.stderr)
                 return 2
             policy.prime(snapshot)
+            emit_visit = copy.copy(policy._store_visit)
+            emit_approach_store = policy._shopping_approach_store_type
             key = policy.choose_key(snapshot)
             key = policy.validate_read_key(snapshot, key)
+            emit_ownership = emit_ownership_verdict(
+                emit_visit, snapshot, key, emit_approach_store
+            ).as_dict()
             decision_facts = _capture_decision_facts(snapshot, policy)
             _write_decision(
                 args.decision_log, snapshot, key, policy.last_reason, policy,
                 decision_facts=decision_facts,
+                town_emit_ownership=emit_ownership,
             )
             print(key, flush=True)
             decision = {
@@ -2743,6 +2759,8 @@ def _run_follow(
                         policy._store_leave_inflight is not None
                     )
                     phase_started_at = time.perf_counter()
+                    emit_visit = copy.copy(policy._store_visit)
+                    emit_approach_store = policy._shopping_approach_store_type
                     chosen_key = policy.choose_key(snapshot)
                     _record_atomic_home_page(
                         policy, snapshot, observed_store=last_observed_home_page
@@ -2751,6 +2769,9 @@ def _run_follow(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
                     key = policy.validate_read_key(snapshot, chosen_key)
+                    emit_ownership = emit_ownership_verdict(
+                        emit_visit, snapshot, key, emit_approach_store
+                    ).as_dict()
                     # JSONL has already supplied the policy input and chosen
                     # command. TCP observations remain structurally downstream.
                     pending_batch_row["decided"] = True
@@ -3001,6 +3022,7 @@ def _run_follow(
                         policy, economy_ledger, repeating_reason_count,
                         town_stall_report, timing=decision_timing,
                         decision_facts=decision_facts,
+                        town_emit_ownership=emit_ownership,
                     )
                     if posting_contract.last_incident is not None:
                         incident = posting_contract.last_incident
@@ -3025,11 +3047,16 @@ def _run_follow(
                             str(incident.get("key", key)),
                         )
                         phase_started_at = time.perf_counter()
+                        emit_visit = copy.copy(policy._store_visit)
+                        emit_approach_store = policy._shopping_approach_store_type
                         key = policy.choose_key(snapshot)
                         decision_timing["choose_key_ms"] += round(
                             (time.perf_counter() - phase_started_at) * 1000, 3
                         )
                         key = policy.validate_read_key(snapshot, key)
+                        emit_ownership = emit_ownership_verdict(
+                            emit_visit, snapshot, key, emit_approach_store
+                        ).as_dict()
                         phase_started_at = time.perf_counter()
                         sent, posted_decision_line = _send_new_decision_key(
                             send, snapshot_line, key, posted_decision_line,
@@ -3060,6 +3087,7 @@ def _run_follow(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,
                             decision_facts=decision_facts,
+                            town_emit_ownership=emit_ownership,
                         )
                     if sent:
                         policy.confirm_key_posted(key)
