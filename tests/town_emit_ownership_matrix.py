@@ -141,7 +141,7 @@ def measure(
     path: Path, *, model_suppress: bool = True, model_confirm: bool = True,
     model_duplicate: bool = True, model_retry: bool = True,
     derivation: str = "new", production_filter: bool = True,
-    production_reachable: bool = False,
+    replay_terminated: bool = False,
 ) -> dict:
     definitions = find_monrace_definitions(path, None)
     if definitions is None:
@@ -261,7 +261,7 @@ def measure(
                 if "production_stop_row" not in totals:
                     totals["production_stop_row"] = row_index
                     totals["production_stop_reason"] = stop_reason
-                if production_reachable:
+                if replay_terminated:
                     totals["posted_pop_at_stop"] = totals.get("posted_key_population", 0)
                     totals["replay_terminated_B"] = totals.get("posted_key_B_violations", 0)
                     break
@@ -568,7 +568,7 @@ def main() -> int:
             f"derivation_source_divergences={source_totals.get('derivation_source_divergences', 0)} "
             f"pairs={{{', '.join(repr(k.removeprefix('derivation_source:')) + ': ' + str(v) for k, v in sorted(source_totals.items()) if k.startswith('derivation_source:'))}}}"
         )
-        reachable = measure(path, production_reachable=True)
+        reachable = measure(path, replay_terminated=True)
         legacy = measure(path, production_filter=False)
         print(f"R13_R15_combined_effect population={label!r}")
         for scope, measured in (
@@ -595,7 +595,7 @@ def main() -> int:
         print("E2_claim_corrections fifth_drop_class='bounded exactly by read-batches.jsonl' observed_stop='zero production occurrences; later rows reachable' equip_ESC='all recorded and replay all-ESC keys have length 1; the count change came from target precedence, not ESC shape'")
         print("model_variants_retired=5 remaining_variants=1 purpose='regression detector, not production measurement'")
         _print_report(label, result)
-        print("production_reachable_detail")
+        print("replay_terminated_detail")
         _print_report(label, reachable)
         _print_b_runs(label, result["rows"])
         all_rows.extend(result["rows"])

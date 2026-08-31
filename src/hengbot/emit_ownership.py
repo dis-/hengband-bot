@@ -58,8 +58,10 @@ def derive_target_store(snapshot, key: str, approach_store: int | None) -> tuple
     """Derive a key's store target from its pre-emission town context."""
     # Key-specific evidence takes precedence over ambient state.  In
     # particular, a native travel macro can name a different landmark while a
-    # stale approach target remains set, and bare Escape exits the current
-    # store rather than targeting it.
+    # stale approach target remains set.  An all-ESC key is a deliberate design
+    # exception: it only exits the current store and can never be a form-B
+    # violation.  Treating ambient state as its target previously risked
+    # freezing the only exit from a store under a stale foreign visit.
     for store_type, symbol in enumerate(TOWN_TRAVEL_STORE_SYMBOLS):
         if key == f"\x1b`n{symbol}.":
             return store_type, "native-travel-key"

@@ -2129,6 +2129,7 @@ class DecisionRecordTest(unittest.TestCase):
             posted_sequence=19,
             posted_turn=23,
         )
+        policy._shopping_approach_store_type = 6
         with TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
             _write_decision(path, self._town_snapshot(), " ", "shop:test", policy)
@@ -2146,6 +2147,9 @@ class DecisionRecordTest(unittest.TestCase):
             "posted_sequence": 19,
             "posted_turn": 23,
         })
+        # The arbiter keeps an active visit's store authoritative over a stale
+        # attempted assignment, and that exact ambient value is serialized.
+        self.assertEqual(row["shopping_approach_store_type"], 4)
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):
         policy = HengbotPolicy()

@@ -821,6 +821,7 @@ def _decision_record(
     hunt_report: str | None = None,
     prompt_owner_handoff: str | None = None,
     home_procurement_fallthrough: dict | None = None,
+    shopping_approach_store_type: int | None = None,
     store_visit: dict | None = None,
     arbiter: dict | None = None,
     town_emit_ownership: dict | None = None,
@@ -849,6 +850,7 @@ def _decision_record(
         "key": key,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
+        "shopping_approach_store_type": shopping_approach_store_type,
         **(
             {"grid_map_schema_error": True}
             if snapshot.grid_map_schema_error
@@ -1467,6 +1469,11 @@ def _write_decision(
                     ),
                     (
                         policy.consume_pending_home_procurement_fallthrough_report()
+                        if policy is not None
+                        else None
+                    ),
+                    (
+                        getattr(policy, "_shopping_approach_store_type", None)
                         if policy is not None
                         else None
                     ),
