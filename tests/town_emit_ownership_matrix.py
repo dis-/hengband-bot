@@ -18,11 +18,18 @@ from types import MethodType, SimpleNamespace
 
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
-from hengbot.emit_ownership import emit_ownership_verdict, in_flight_clause
+from hengbot.emit_ownership import (
+    EmitOwnershipVerdict, emit_ownership_verdict, in_flight_clause,
+    movement_destination,
+)
 from hengbot.cli import (
-    PostingContract, _duplicate_snapshot_ready, _send_new_decision_key,
+    POLICY_FINAL_STOP_REASONS, STARVING_STOP_LIMIT, STALLED_COMMAND_STATE_LIMIT,
+    TOWN_RESIDENCE_STOP_LIMIT, PostingContract, _advance_stalled_command_count,
+    _advance_starving_streak, _advance_town_residence_streak,
+    _command_state_signature, _duplicate_snapshot_ready, _send_new_decision_key,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
@@ -69,6 +76,39 @@ MODEL_VARIANTS = (
     ("+contract-retry", True, True, True, True),
 )
 
+REPLAY_IGNORED_TYPES = frozenset({"knowledge", "look", "character"})
+MOVEMENT_KEYS = frozenset("12346789")
+
+
+def _old_target_store(snapshot, key: str, approach_store: int | None):
+    """The exact f79ad2e precedence, retained only as a measurement control."""
+    if snapshot.store is not None:
+        return snapshot.store.store_type, "snapshot.store.store_type"
+    if approach_store is not None:
+        return approach_store, "_shopping_approach_store_type"
+    for store_type, symbol in enumerate(TOWN_TRAVEL_STORE_SYMBOLS):
+        if key == f"\x1b`n{symbol}.":
+            return store_type, "native-travel-key"
+    if key in MOVEMENT_KEYS:
+        grid = snapshot.grid_at(movement_destination(snapshot.player.position, key))
+        if grid is not None and grid.store_number >= 0:
+            return grid.store_number, "stepped-onto-store-grid"
+    return None, "undetermined"
+
+
+def _verdict(visit, snapshot, key, approach_store, derivation):
+    if derivation == "new":
+        return emit_ownership_verdict(visit, snapshot, key, approach_store)
+    clause = in_flight_clause(visit)
+    target, source = _old_target_store(snapshot, key, approach_store)
+    visit_store = None if visit is None else visit.store_type
+    return EmitOwnershipVerdict(
+        blocked=bool(clause is not None and target is not None and target != visit_store),
+        target_store=target, visit_store=visit_store,
+        phase=None if visit is None else visit.phase.value,
+        in_flight_clause=clause, target_source=source,
+    )
+
 
 def _instrument_acquires(policy: HengbotPolicy, calls: list[dict]) -> None:
     arbiter = policy._town_turn_arbiter
@@ -103,6 +143,8 @@ def _predicates(
 def measure(
     path: Path, *, model_suppress: bool = True, model_confirm: bool = True,
     model_duplicate: bool = True, model_retry: bool = True,
+    derivation: str = "new", production_filter: bool = True,
+    production_reachable: bool = False,
 ) -> dict:
     definitions = find_monrace_definitions(path, None)
     if definitions is None:
@@ -118,14 +160,24 @@ def measure(
     posting_contract = PostingContract()
     previous_decision_line = None
     previous_decision_reason = None
+    last_command_signature = None
+    stalled_command_count = 0
+    starving_last_position = None
+    starving_streak = 0
+    residence_floor_key = None
+    town_residence_streak = 0
 
     with path.open(encoding="utf-8-sig") as stream:
         for row_index, line in enumerate(stream):
             if not line.strip():
                 continue
             totals["snapshot_rows"] += 1
+            decoded = json.loads(line)
+            if production_filter and decoded.get("type") in REPLAY_IGNORED_TYPES:
+                totals["production_type_filter_drops"] += 1
+                continue
             snapshot_line = line.rstrip("\r\n")
-            snapshot = parse_snapshot(json.loads(line), knowledge)
+            snapshot = parse_snapshot(decoded, knowledge)
             if model_duplicate and not _duplicate_snapshot_ready(
                 snapshot_line, previous_decision_line, previous_decision_reason,
             ):
@@ -148,18 +200,74 @@ def measure(
             )
 
             clause = in_flight_clause(visit)
-            chosen_verdict = emit_ownership_verdict(
-                visit, snapshot, key, approach_store
+            chosen_verdict = _verdict(
+                visit, snapshot, key, approach_store, derivation,
             )
-            validated_verdict = emit_ownership_verdict(
-                visit, snapshot, validated_key, approach_store
+            validated_verdict = _verdict(
+                visit, snapshot, validated_key, approach_store, derivation,
             )
+            comparison_derivation = "old" if derivation == "new" else "new"
+            comparison_chosen_verdict = _verdict(
+                visit, snapshot, key, approach_store, comparison_derivation,
+            )
+            comparison_validated_verdict = _verdict(
+                visit, snapshot, validated_key, approach_store,
+                comparison_derivation,
+            )
+            if chosen_verdict.target_source != comparison_chosen_verdict.target_source:
+                totals["derivation_source_divergences"] += 1
+                totals[
+                    "derivation_source:" + comparison_chosen_verdict.target_source
+                    + "->" + chosen_verdict.target_source
+                ] += 1
             in_town_population = snapshot.in_town or snapshot.store is not None
             if in_town_population:
-                totals["unconditional_B_violations"] += int(validated_verdict.blocked)
+                totals["in_town_blocked_verdicts"] += int(validated_verdict.blocked)
                 totals["validate_target_changed"] += int(
                     chosen_verdict.target_store != validated_verdict.target_store
                 )
+            signature = _command_state_signature(snapshot, reason, key)
+            stalled_command_count = _advance_stalled_command_count(
+                stalled_command_count, signature=signature,
+                previous_signature=last_command_signature,
+            )
+            last_command_signature = signature
+            position_changed = (
+                starving_last_position is not None
+                and snapshot.player.position != starving_last_position
+            )
+            starving_last_position = snapshot.player.position
+            starving_streak = _advance_starving_streak(
+                starving_streak, food_state=snapshot.player.food_state,
+                has_edible=policy.has_edible(snapshot), reason=reason,
+                position_changed=position_changed,
+            )
+            town_residence_streak = _advance_town_residence_streak(
+                town_residence_streak, residence_floor_key, snapshot.floor_key,
+            )
+            residence_floor_key = snapshot.floor_key
+            stop_reason = None
+            if stalled_command_count >= STALLED_COMMAND_STATE_LIMIT:
+                stop_reason = "loop-detected:stalled-command"
+            elif reason in POLICY_FINAL_STOP_REASONS:
+                stop_reason = reason
+            elif starving_streak >= STARVING_STOP_LIMIT:
+                stop_reason = "loop-detected:starvation"
+            elif reason == "livelock:exhausted":
+                stop_reason = "livelock-exhausted"
+            elif reason == "combat:fruitless":
+                stop_reason = "loop-detected:combat-fruitless"
+            elif town_residence_streak >= TOWN_RESIDENCE_STOP_LIMIT:
+                stop_reason = "loop-detected:town-residence"
+            if stop_reason is not None:
+                totals["production_stop_rows"] += 1
+                if "production_stop_row" not in totals:
+                    totals["production_stop_row"] = row_index
+                    totals["production_stop_reason"] = stop_reason
+                if production_reachable:
+                    totals["production_reachable_pop"] = totals.get("posted_key_population", 0)
+                    totals["production_reachable_B"] = totals.get("posted_key_B_violations", 0)
+                    break
             sent, posted_line = _send_new_decision_key(
                 lambda *_args, **_kwargs: True,
                 snapshot_line, validated_key, posted_line, posted_keys,
@@ -169,6 +277,7 @@ def measure(
                 snapshot=snapshot, posting_contract=posting_contract,
             )
             posted_verdict = validated_verdict
+            comparison_posted_verdict = comparison_validated_verdict
             posted_visit = visit
             posted_clause = clause
             posted_path = "follow-main-decision"
@@ -184,8 +293,13 @@ def measure(
                 reason = policy.last_reason
                 previous_decision_reason = reason
                 retry_key = policy.validate_read_key(snapshot, retry_key)
-                posted_verdict = emit_ownership_verdict(
+                posted_verdict = _verdict(
                     posted_visit, snapshot, retry_key, retry_approach,
+                    derivation,
+                )
+                comparison_posted_verdict = _verdict(
+                    posted_visit, snapshot, retry_key, retry_approach,
+                    comparison_derivation,
                 )
                 posted_clause = in_flight_clause(posted_visit)
                 sent, posted_line = _send_new_decision_key(
@@ -206,9 +320,15 @@ def measure(
             if in_town_population and clause is not None and key:
                 totals["chosen_key_population"] += 1
                 totals["chosen_key_B_violations"] += int(chosen_verdict.blocked)
+                totals["comparison_chosen_key_B_violations"] += int(
+                    comparison_chosen_verdict.blocked
+                )
             if in_town_population and posted_clause is not None and sent:
                 totals["posted_key_population"] += 1
                 totals["posted_key_B_violations"] += int(posted_verdict.blocked)
+                totals["comparison_posted_key_B_violations"] += int(
+                    comparison_posted_verdict.blocked
+                )
                 totals["path-" + posted_path] += 1
 
             if not in_town_population:
@@ -245,6 +365,7 @@ def measure(
             rows.append(row)
             for form, violated in forms.items():
                 totals[f"{form}_violations"] += int(violated)
+            totals["comparison_B_violations"] += int(comparison_chosen_verdict.blocked)
             totals["B_undetermined"] += int(target_store is None)
             totals["C_unmapped"] += int(attribution not in COARSE_ATTRIBUTION)
 
@@ -268,6 +389,8 @@ def measure(
         if r["attribution"] in COARSE_ATTRIBUTION
     )
     totals["D_control"] = sum(not [True] for _ in rows)
+    totals.setdefault("production_reachable_pop", totals.get("posted_key_population", 0))
+    totals.setdefault("production_reachable_B", totals.get("posted_key_B_violations", 0))
     return {"totals": dict(totals), "rows": rows}
 
 
@@ -312,13 +435,21 @@ def _print_report(label: str, result: dict) -> None:
     )
     print(
         "B_populations "
-        f"unconditional_logged={totals.get('unconditional_B_violations', 0)} "
+        f"in_town_blocked_verdicts={totals.get('in_town_blocked_verdicts', 0)} "
         f"chosen_key={totals.get('chosen_key_B_violations', 0)}"
         f"/{totals.get('chosen_key_population', 0)} "
         f"posted_key={totals.get('posted_key_B_violations', 0)}"
         f"/{totals.get('posted_key_population', 0)} "
         f"validate_read_key_target_changes={totals.get('validate_target_changed', 0)} "
-        "E3_population=posted_key"
+        f"contract_retries={totals.get('contract_retries', 0)} "
+        "posted_definition='what a bot that decided on every serialized snapshot would post; not production posted set'"
+    )
+    print(
+        f"production_reachable_pop={totals.get('production_reachable_B', 0)}"
+        f"/{totals.get('production_reachable_pop', 0)} "
+        f"production_stop_row={totals.get('production_stop_row', None)!r} "
+        f"production_stop_reason={totals.get('production_stop_reason', None)!r} "
+        f"production_type_filter_drops={totals.get('production_type_filter_drops', 0)}"
     )
     for path, recommendation, exercise, reason in EMIT_PATHS:
         measured = (
@@ -401,6 +532,28 @@ def main() -> int:
                 model_duplicate=duplicate, model_retry=retry,
             )
             variants.append((model, measured))
+        print(f"derivation_posted_model_matrix population={label!r}")
+        for index in (0, 2, len(variants) - 1):
+            model, measured = variants[index]
+            t = measured["totals"]
+            for derivation, prefix in (("old", "comparison_"), ("new", "")):
+                print(
+                    f"derivation={derivation!r} posted_model={model!r} "
+                    f"A={t.get('A_violations', 0)} "
+                    f"B={t.get(prefix + 'B_violations', 0)} "
+                    f"C={t.get('C_violations', 0)} D={t.get('D_violations', 0)} "
+                    f"chosen_B={t.get(prefix + 'chosen_key_B_violations', 0)}"
+                    f"/{t.get('chosen_key_population', 0)} "
+                    f"posted_B={t.get(prefix + 'posted_key_B_violations', 0)}"
+                    f"/{t.get('posted_key_population', 0)}"
+                )
+            print(
+                f"derivation_attribution posted_model={model!r} "
+                "A_delta=0 C_delta=0 D_delta=0 "
+                f"B_derivation_delta={t.get('B_violations', 0) - t.get('comparison_B_violations', 0):+d} "
+                f"posted_B_derivation_delta={t.get('posted_key_B_violations', 0) - t.get('comparison_posted_key_B_violations', 0):+d} "
+                "posted_model_delta_requires_within-derivation_adjacent-model_comparison"
+            )
         print(f"posted_model_increments population={label!r}")
         previous = None
         for model, measured in variants:
@@ -415,7 +568,39 @@ def main() -> int:
             print(f"posted_model={model!r} B={pair[0]}/{pair[1]} {delta}")
             previous = pair
         result = variants[-1][1]
+        source_totals = result["totals"]
+        print(
+            f"derivation_source_divergences={source_totals.get('derivation_source_divergences', 0)} "
+            f"pairs={{{', '.join(repr(k.removeprefix('derivation_source:')) + ': ' + str(v) for k, v in sorted(source_totals.items()) if k.startswith('derivation_source:'))}}}"
+        )
+        reachable = measure(path, production_reachable=True)
+        legacy = measure(path, production_filter=False)
+        print(f"R13_R15_combined_effect population={label!r}")
+        for scope, measured in (
+            ("unfiltered_full", legacy),
+            ("filtered_full", result),
+            ("filtered_production_reachable", reachable),
+        ):
+            t = measured["totals"]
+            print(
+                f"scope={scope!r} "
+                + " ".join(f"{name}={t.get(name, 0)}" for name in (
+                    "decisions", "keys", "in_flight_emitting_decisions",
+                    "A_violations", "B_violations", "C_violations", "D_violations",
+                    "chosen_key_B_violations", "chosen_key_population",
+                    "posted_key_B_violations", "posted_key_population",
+                ))
+                + f" stop_row={t.get('production_stop_row', None)!r}"
+                f" stop_reason={t.get('production_stop_reason', None)!r}"
+            )
+        print(
+            "termination_window_conditions="
+            "'stalled-command, policy-final, starvation, livelock-exhausted, "
+            "combat-fruitless, town-residence; replay observed policy-final only'"
+        )
         _print_report(label, result)
+        print("production_reachable_detail")
+        _print_report(label, reachable)
         _print_b_runs(label, result["rows"])
         all_rows.extend(result["rows"])
         totals = result["totals"]

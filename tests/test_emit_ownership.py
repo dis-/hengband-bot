@@ -94,13 +94,26 @@ class EmitOwnershipTest(unittest.TestCase):
 
     def test_escape_inside_store_has_no_store_target_and_fails_open(self):
         snapshot = SimpleNamespace(store=SimpleNamespace(store_type=0))
-        self.assertEqual(
-            (None, "store-exit-key"),
-            derive_target_store(snapshot, "\x1b", 3),
+        for key in ("\x1b", "\x1b\x1b", "\x1b" * 8):
+            with self.subTest(length=len(key)):
+                self.assertEqual(
+                    (None, "store-exit-key"),
+                    derive_target_store(snapshot, key, 3),
+                )
+                verdict = emit_ownership_verdict(self._visit(), snapshot, key, 3)
+                self.assertFalse(verdict.blocked)
+                self.assertIsNone(verdict.target_store)
+
+    def test_direction_inside_store_is_not_treated_as_town_movement(self):
+        snapshot = SimpleNamespace(
+            store=SimpleNamespace(store_type=0),
+            player=SimpleNamespace(position=Position(y=10, x=20)),
+            grid_at=lambda _position: SimpleNamespace(store_number=3),
         )
-        verdict = emit_ownership_verdict(self._visit(), snapshot, "\x1b", 3)
-        self.assertFalse(verdict.blocked)
-        self.assertIsNone(verdict.target_store)
+        self.assertEqual(
+            (0, "snapshot.store.store_type"),
+            derive_target_store(snapshot, "8", 7),
+        )
 
     def test_different_store_is_shadow_blocked_and_control_disarms_clause(self):
         inside_store = SimpleNamespace(store=SimpleNamespace(store_type=3))

@@ -64,12 +64,12 @@ def derive_target_store(snapshot, key: str, approach_store: int | None) -> tuple
         if key == f"\x1b`n{symbol}.":
             return store_type, "native-travel-key"
     delta = _MOVEMENT_DELTAS.get(key)
-    if delta is not None and getattr(snapshot, "player", None) is not None:
+    if delta is not None and snapshot.store is None:
         position = snapshot.player.position
         grid = snapshot.grid_at(movement_destination(position, key))
         if grid is not None and grid.store_number >= 0:
             return grid.store_number, "stepped-onto-store-grid"
-    if key == "\x1b":
+    if key and not key.strip("\x1b"):
         return None, "store-exit-key"
     if snapshot.store is not None:
         return snapshot.store.store_type, "snapshot.store.store_type"
