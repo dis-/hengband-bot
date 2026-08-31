@@ -1479,7 +1479,9 @@ def _write_decision(
                             "phase": policy._store_visit.phase.value,
                             "operation_posted": policy._store_visit.operation_posted,
                             "operation_released": policy._store_visit.operation_released,
+                            "operation_effect_observed": policy._store_visit.operation_effect_observed,
                             "posted_sequence": policy._store_visit.posted_sequence,
+                            "posted_turn": policy._store_visit.posted_turn,
                         }
                         if policy is not None
                         and getattr(policy, "_store_visit", None) is not None

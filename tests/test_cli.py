@@ -2125,7 +2125,9 @@ class DecisionRecordTest(unittest.TestCase):
             phase=SimpleNamespace(value="operating"),
             operation_posted=True,
             operation_released=False,
+            operation_effect_observed=True,
             posted_sequence=19,
+            posted_turn=23,
         )
         with TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
@@ -2140,7 +2142,9 @@ class DecisionRecordTest(unittest.TestCase):
             "phase": "operating",
             "operation_posted": True,
             "operation_released": False,
+            "operation_effect_observed": True,
             "posted_sequence": 19,
+            "posted_turn": 23,
         })
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):

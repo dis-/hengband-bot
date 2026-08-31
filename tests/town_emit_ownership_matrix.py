@@ -68,12 +68,9 @@ EMIT_PATHS = (
 )
 
 MODEL_VARIANTS = (
-    ("committed-harness", False, False, False, False),
-    ("suppress-only", True, False, False, False),
-    ("confirm-only", False, True, False, False),
-    ("suppress+confirm", True, True, False, False),
-    ("+duplicate-gate", True, True, True, False),
-    ("+contract-retry", True, True, True, True),
+    # The read-batch ledger now supplies the production posted set verbatim.
+    # Retain one replay model only as a mutation/regression detector.
+    ("committed-regression-detector", False, False, False, False),
 )
 
 REPLAY_IGNORED_TYPES = frozenset({"knowledge", "look", "character"})
@@ -265,8 +262,8 @@ def measure(
                     totals["production_stop_row"] = row_index
                     totals["production_stop_reason"] = stop_reason
                 if production_reachable:
-                    totals["production_reachable_pop"] = totals.get("posted_key_population", 0)
-                    totals["production_reachable_B"] = totals.get("posted_key_B_violations", 0)
+                    totals["posted_pop_at_stop"] = totals.get("posted_key_population", 0)
+                    totals["replay_terminated_B"] = totals.get("posted_key_B_violations", 0)
                     break
             sent, posted_line = _send_new_decision_key(
                 lambda *_args, **_kwargs: True,
@@ -389,8 +386,6 @@ def measure(
         if r["attribution"] in COARSE_ATTRIBUTION
     )
     totals["D_control"] = sum(not [True] for _ in rows)
-    totals.setdefault("production_reachable_pop", totals.get("posted_key_population", 0))
-    totals.setdefault("production_reachable_B", totals.get("posted_key_B_violations", 0))
     return {"totals": dict(totals), "rows": rows}
 
 
@@ -445,8 +440,8 @@ def _print_report(label: str, result: dict) -> None:
         "posted_definition='what a bot that decided on every serialized snapshot would post; not production posted set'"
     )
     print(
-        f"production_reachable_pop={totals.get('production_reachable_B', 0)}"
-        f"/{totals.get('production_reachable_pop', 0)} "
+        f"replay_terminated_scope="
+        f"{(str(totals.get('replay_terminated_B', 0)) + '/' + str(totals.get('posted_pop_at_stop', 0))) if 'production_stop_row' in totals else 'n/a'} "
         f"production_stop_row={totals.get('production_stop_row', None)!r} "
         f"production_stop_reason={totals.get('production_stop_reason', None)!r} "
         f"production_type_filter_drops={totals.get('production_type_filter_drops', 0)}"
@@ -533,7 +528,7 @@ def main() -> int:
             )
             variants.append((model, measured))
         print(f"derivation_posted_model_matrix population={label!r}")
-        for index in (0, 2, len(variants) - 1):
+        for index in (0,):
             model, measured = variants[index]
             t = measured["totals"]
             for derivation, prefix in (("old", "comparison_"), ("new", "")):
@@ -549,7 +544,7 @@ def main() -> int:
                 )
             print(
                 f"derivation_attribution posted_model={model!r} "
-                "A_delta=0 C_delta=0 D_delta=0 "
+                "A_C_D_derivation_effect='structural: derivation changes only target_store/blocked' "
                 f"B_derivation_delta={t.get('B_violations', 0) - t.get('comparison_B_violations', 0):+d} "
                 f"posted_B_derivation_delta={t.get('posted_key_B_violations', 0) - t.get('comparison_posted_key_B_violations', 0):+d} "
                 "posted_model_delta_requires_within-derivation_adjacent-model_comparison"
@@ -579,7 +574,7 @@ def main() -> int:
         for scope, measured in (
             ("unfiltered_full", legacy),
             ("filtered_full", result),
-            ("filtered_production_reachable", reachable),
+            ("replay_terminated_scope", reachable),
         ):
             t = measured["totals"]
             print(
@@ -593,11 +588,12 @@ def main() -> int:
                 + f" stop_row={t.get('production_stop_row', None)!r}"
                 f" stop_reason={t.get('production_stop_reason', None)!r}"
             )
-        print(
-            "termination_window_conditions="
-            "'stalled-command, policy-final, starvation, livelock-exhausted, "
-            "combat-fruitless, town-residence; replay observed policy-final only'"
-        )
+        print("recorded_key_divergence='no-actionable decision 1; equip decision 40; live decision 3'")
+        print("recorded_truncation_reason_occurrences town:blocked:owner-retired=0")
+        print("replay_type_filter_disclosure='knowledge/look/character are dropped by this harness, but production consumes each before skipping it for decision; omitted home knowledge plausibly drives home:request-knowledge-scan divergence'")
+        print("termination_window_disclosure='replay stop set is not closed: town-blocked fuse and cell-confinement fire after posting; the no-actionable fuse at row 104 is after the modelled row-75 stop'")
+        print("E2_claim_corrections fifth_drop_class='bounded exactly by read-batches.jsonl' observed_stop='zero production occurrences; later rows reachable' equip_ESC='all recorded and replay all-ESC keys have length 1; the count change came from target precedence, not ESC shape'")
+        print("model_variants_retired=5 remaining_variants=1 purpose='regression detector, not production measurement'")
         _print_report(label, result)
         print("production_reachable_detail")
         _print_report(label, reachable)
