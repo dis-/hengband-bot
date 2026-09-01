@@ -8,7 +8,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from hengbot.cli import _build_argument_parser, _run_follow, _write_decision, main
+from hengbot.cli import _build_argument_parser, _write_decision, main
+from tests.run_follow_hygiene import run_follow as _run_follow
 from hengbot.emit_ownership import derive_target_store, emit_ownership_verdict
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy

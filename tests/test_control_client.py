@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from tests.run_follow_hygiene import run_follow as _run_follow
 
 from hengbot.control_client import (
     ControlClient,
@@ -488,7 +489,7 @@ class DisabledCliPinTest(unittest.TestCase):
                     ),
                 ):
                     self.assertEqual(
-                        cli._run_follow(
+                        _run_follow(
                             parsed, policy, lambda *_a, **_k: True, {}
                         ),
                         0,
@@ -552,7 +553,7 @@ class DisabledCliPinTest(unittest.TestCase):
                         side_effect=shadow,
                     ),
                 ):
-                    self.assertEqual(cli._run_follow(
+                    self.assertEqual(_run_follow(
                         args, policy,
                         lambda *_a, **_k: events.append(("send", 1)) or True, {},
                     ), 0)

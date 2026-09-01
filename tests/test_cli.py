@@ -40,7 +40,6 @@ from hengbot.cli import (
     _add_input_delay_arguments,
     _advance_town_blocked_iteration,
     _advance_repeating_reason_iteration,
-    _run_follow,
     _advance_stalled_command_count,
     _arm_decision_watchdog,
     _cell_loop_guard_applies,
@@ -78,7 +77,6 @@ from hengbot.cli import (
     _read_last_line,
     _record_atomic_home_page,
     _retained_home_page,
-    _run_follow,
     _request_due_dump,
     _rewind_if_truncated,
     _send_new_decision_key,
@@ -102,6 +100,8 @@ from hengbot.policy import (
     HengbotPolicy,
     TOWN_TRAVEL_STALL_LIMIT,
 )
+from hengbot.town_arbiter import TownArbiterMixin
+from tests.run_follow_hygiene import run_follow as _run_follow, run_follow_with_ledger
 from hengbot.equipment_mutation import progress_core
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -820,8 +820,8 @@ class DecisionTimingTest(unittest.TestCase):
                     patch("hengbot.cli.READ_BATCH_LEDGER_PATH", batch_path),
                     patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", knowledge_path),
                 ):
-                    result = _run_follow(
-                        args, policy,
+                    result = run_follow_with_ledger(
+                        batch_path, args, policy,
                         lambda key, **_kwargs: sent.append(key) or True,
                         {},
                     )
@@ -2215,6 +2215,8 @@ class DecisionRecordTest(unittest.TestCase):
         self.assertIn('visit_origin="shop-one-shot"', choose_source)
         staging_source = inspect.getsource(HengbotPolicy._stage_home_operation)
         self.assertIn('visit_origin="home-operation-staging"', staging_source)
+        arbiter_source = inspect.getsource(TownArbiterMixin._store_leave_inflight.fset)
+        self.assertIn('visit_origin="recovered-store-context"', arbiter_source)
 
         policy = HengbotPolicy()
         snapshot = self._town_snapshot()

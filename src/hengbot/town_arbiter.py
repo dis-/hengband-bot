@@ -502,7 +502,8 @@ class TownArbiterMixin:
         if visit is None:
             visit = StoreVisit(
                 owner="recovered-store-context", purpose="leave",
-                store_type=store_type, opened_sequence=sequence,
+                store_type=store_type, visit_origin="recovered-store-context",
+                opened_sequence=sequence,
             )
             self._store_visit = visit
         visit.transition(StoreVisitPhase.LEAVING, LEAVE_STORE_KEY)
