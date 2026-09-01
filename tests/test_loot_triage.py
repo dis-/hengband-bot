@@ -1,8 +1,9 @@
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from hengbot.baseitem_knowledge import item_base_cost, load_baseitem_costs
 from hengbot.cli import _dispatch_response_lines
@@ -23,6 +24,21 @@ from hengbot.model import (
     GridState,
     StoreState,
 )
+
+
+def setUpModule():
+    global _knowledge_tmp, _knowledge_patch
+    _knowledge_tmp = TemporaryDirectory()
+    _knowledge_patch = patch(
+        "hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH",
+        Path(_knowledge_tmp.name) / "knowledge-responses.jsonl",
+    )
+    _knowledge_patch.start()
+
+
+def tearDownModule():
+    _knowledge_patch.stop()
+    _knowledge_tmp.cleanup()
 from hengbot.policy import HengbotPolicy, PACK_CAPACITY
 
 

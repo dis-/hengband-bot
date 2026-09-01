@@ -331,7 +331,7 @@ def main() -> int:
                         "classify_origins": ({"acquire": 1910, "direct": 443, "pre-telemetry/unknown": 465},
                                              {"acquire": 1910, "direct": 908})}
     print("production derive_target_store calls:", t["non_opener_posts_proxy"])
-    print("tests_touched: tests/run_follow_hygiene.py tests/test_cli.py tests/town_acquire_bypass_recorded.py tests/test_town_acquire_bypass_recorded.py")
+    print("tests_touched: tests/run_follow_hygiene.py tests/test_cli.py tests/test_loot_triage.py tests/town_acquire_bypass_recorded.py tests/test_town_acquire_bypass_recorded.py")
     return 0
 
 

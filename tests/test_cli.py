@@ -109,6 +109,21 @@ from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 
 
+def setUpModule():
+    global _knowledge_tmp, _knowledge_patch
+    _knowledge_tmp = TemporaryDirectory()
+    _knowledge_patch = patch(
+        "hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH",
+        Path(_knowledge_tmp.name) / "knowledge-responses.jsonl",
+    )
+    _knowledge_patch.start()
+
+
+def tearDownModule():
+    _knowledge_patch.stop()
+    _knowledge_tmp.cleanup()
+
+
 class PolicyFinalStopBannerTest(unittest.TestCase):
     def test_every_final_reason_has_its_own_truthful_banner(self):
         restore = "equipment-transaction:restore-blocked-terminal"
