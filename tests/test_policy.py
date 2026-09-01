@@ -50033,6 +50033,29 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(policy._digger_buy_fallback_available(entrance))
         self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
 
+    def test_calibration_deposit_phase_does_not_file_restore_visit(self):
+        already_deposited = store_item(
+            "a", TVAL_POTION, 901, name="already deposited calibration supply"
+        )
+        next_deposit = item(
+            "b", TVAL_POTION, 902, name="next calibration supply", known=True
+        )
+        policy = HengbotPolicy()
+        policy._calibration_phase = "deposit"
+        policy._calibration_restore_signatures = [
+            policy._item_signature(already_deposited)
+        ]
+        entrance = self._entrance_snapshot([next_deposit])
+
+        request = policy._derived_home_visit_request(entrance)
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.requester, "calibration-deposit")
+        self.assertEqual(request.item_identity, policy._item_signature(next_deposit))
+        self.assertNotEqual(
+            request.item_identity, policy._calibration_restore_signatures[0]
+        )
+
     def test_gate1_captured_restore_shrink_reproduces_target_unobserved(self):
         """Gate 1: replay the legacy same-turn failure from captured facts."""
         wares = [

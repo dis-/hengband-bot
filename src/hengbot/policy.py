@@ -3469,6 +3469,19 @@ class HengbotPolicy(TownArbiterMixin):
                 keep_set=keep_set,
                 batch=tuple(self._home_pending_batch),
             )
+        if self._calibration_phase == "deposit":
+            deposit = self._find_home_deposit(snapshot)
+            if deposit is not None:
+                identity = self._item_signature(deposit)
+                return PhysicalHomeVisitRequest(
+                    HomeVisitKind.CALIBRATION_RESTORE,
+                    "calibration-deposit",
+                    identity,
+                    quantity=deposit.count,
+                    keep_set=keep_set,
+                    shelving_plan=(identity,),
+                    batch=tuple(self._calibration_restore_signatures),
+                )
         if self._calibration_restore_signatures:
             identity = self._calibration_restore_signatures[0]
             return PhysicalHomeVisitRequest(
@@ -3488,19 +3501,6 @@ class HengbotPolicy(TownArbiterMixin):
                 quantity=errand.quantity,
                 keep_set=keep_set,
             )
-        if self._calibration_phase == "deposit":
-            deposit = self._find_home_deposit(snapshot)
-            if deposit is not None:
-                identity = self._item_signature(deposit)
-                return PhysicalHomeVisitRequest(
-                    HomeVisitKind.CALIBRATION_RESTORE,
-                    "calibration-deposit",
-                    identity,
-                    quantity=deposit.count,
-                    keep_set=keep_set,
-                    shelving_plan=(identity,),
-                    batch=tuple(self._calibration_restore_signatures),
-                )
         deposit = self._find_home_deposit(snapshot)
         if deposit is not None:
             identity = self._item_signature(deposit)

@@ -969,91 +969,43 @@
   ],
   [
     "5",
-    "shop:travel:await-entry"
+    "home:atomic-deposit"
   ],
   [
-    "\u001b",
-    "home:store-context-exit"
-  ],
-  [
-    "9",
-    "home-visit:deposit-not-authorized"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "5",
-    "shop:travel:await-entry"
-  ],
-  [
-    "\u001b",
-    "home:store-context-exit"
+    "db10\r\u001b",
+    "home:atomic-deposit"
   ],
   [
     "9",
-    "home-visit:deposit-not-authorized"
+    "town:blocked:equipment-calibration-required"
   ],
   [
-    "5",
-    "shop:travel:await-entry"
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
   ],
   [
-    "\u001b",
-    "home:store-context-exit"
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
   ],
   [
-    "\r",
-    "shop:await-leave-confirmation"
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
   ],
   [
     "9",
-    "home-visit:deposit-not-authorized"
-  ],
-  [
-    "5",
-    "shop:travel:await-entry"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "~9\u001b\u001b",
-    "home:request-knowledge-scan"
-  ],
-  [
-    "5",
-    "shop:travel:await-entry"
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "\u001b",
-    "home:store-context-exit"
+    "home:leave-after-one-operation"
   ],
   [
     "9",
-    "home-visit:deposit-not-authorized"
+    "town:blocked:equipment-calibration-required"
   ],
   [
-    "5",
-    "shop:travel:await-entry"
+    "9",
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "\u001b",
@@ -1065,27 +1017,71 @@
   ],
   [
     "9",
-    "home-visit:deposit-not-authorized"
-  ],
-  [
-    "5",
-    "shop:travel:await-entry"
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "9",
-    "home-visit:deposit-not-authorized"
+    "town:blocked:equipment-calibration-required"
   ],
   [
-    "5",
-    "shop:travel:await-entry"
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
   ],
   [
-    "3",
-    "shop:approach"
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
+  ],
+  [
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
+  ],
+  [
+    "~9\u001b\u001b",
+    "home:request-knowledge-scan"
+  ],
+  [
+    "9",
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "\u001b",
-    "town-progress-invariant:continue-observed-shop"
+    "home:store-context-exit"
+  ],
+  [
+    "5",
+    "home:atomic-deposit"
+  ],
+  [
+    "",
+    "store:entry-await-observation"
+  ],
+  [
+    "dc3\r\u001b",
+    "home:atomic-deposit"
+  ],
+  [
+    "\u001b",
+    "home:leave-after-one-operation"
+  ],
+  [
+    "9",
+    "town:blocked:equipment-calibration-required"
+  ],
+  [
+    "9",
+    "town:blocked:equipment-calibration-required"
+  ],
+  [
+    "9",
+    "town:blocked:equipment-calibration-required"
+  ],
+  [
+    "9",
+    "town:blocked:equipment-calibration-required"
+  ],
+  [
+    "1",
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "\u001b",
@@ -1096,12 +1092,16 @@
     "shop:await-leave-confirmation"
   ],
   [
-    "3",
-    "shop:approach"
+    "\u001b",
+    "shop:await-leave-confirmation"
   ],
   [
-    "3",
-    "shop:approach"
+    "1",
+    "town:blocked:equipment-calibration-required"
+  ],
+  [
+    "1",
+    "town:blocked:equipment-calibration-required"
   ],
   [
     "3",
