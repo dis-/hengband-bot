@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime
 
 import town_acquire_bypass_recorded as recorded
 
@@ -36,6 +37,12 @@ class TownAcquireBypassRecordedTest(unittest.TestCase):
             "non_opener_target_same", "non_opener_target_different")))
         self.assertEqual((1910, 443, 465), tuple(self.result["origins"][key] for key in (
             "acquire", "direct", "pre-telemetry/unknown")))
+
+    def test_frozen_ledger_is_strictly_before_extraction_cutoff(self):
+        cutoff = datetime.fromisoformat("2026-09-01T17:30")
+        times = [recorded._time(row["time"]) for row in self.raw_ledger]
+        self.assertEqual(193857, len(times))
+        self.assertLess(max(times), cutoff)
 
     def test_pollution_discriminator_and_magnitude_controls_are_exact(self):
         pollution = recorded.ledger_pollution(self.decisions, self.raw_ledger)

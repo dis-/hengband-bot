@@ -2246,32 +2246,13 @@ class DecisionRecordTest(unittest.TestCase):
         })
 
     def test_every_production_visit_constructor_has_exact_origin(self):
-        calls = []
+        from store_visit_constructor_census import (
+            EXPECTED_ORIGINS, production_constructor_sites,
+        )
+
         source_root = Path(__file__).resolve().parents[1] / "src"
-        for path in source_root.rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                name = node.func.id if isinstance(node.func, ast.Name) else None
-                if name != "StoreVisit":
-                    continue
-                values = {keyword.arg: keyword.value for keyword in node.keywords}
-                origin = values.get("visit_origin")
-                self.assertIsInstance(
-                    origin, ast.Constant, f"{path}:{node.lineno} lacks exact visit_origin"
-                )
-                self.assertIsInstance(origin.value, str)
-                calls.append(origin.value)
-        self.assertEqual(Counter(calls), Counter({
-            "acquire": 1,
-            "store-router": 2,
-            "home-one-shot": 1,
-            "recovered-store-context": 1,
-            "equipment-transaction-recovery": 1,
-            "shop-handler-recovery": 1,
-            "home-operation-staging": 1,
-        }))
+        sites = production_constructor_sites(source_root)
+        self.assertEqual(Counter(sites.values()), EXPECTED_ORIGINS)
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):
         policy = HengbotPolicy()

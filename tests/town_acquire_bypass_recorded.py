@@ -19,6 +19,7 @@ from historical_emit_fixture import DECISIONS as FROZEN_DECISIONS
 from historical_emit_fixture import LEDGER as FROZEN_LEDGER
 from historical_emit_fixture import POSTED as FROZEN_POSTED
 from historical_emit_fixture import rows as fixture_rows
+from store_visit_constructor_census import EXPECTED_ORIGINS, production_constructor_sites
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -313,9 +314,9 @@ def main() -> int:
     print("non-opener proxy/store targeting:", {"proxy": t["non_opener_posts_proxy"], "derivable": t["non_opener_target_derivable"],
           "same": t["non_opener_target_same"], "different": t["non_opener_target_different"]})
     direct = report["origins"]["direct"]
-    print("direct-construction sites:", {"policy.py:4314": "equipment-transaction-recovery", "policy.py:4321": "shop-handler-recovery",
-          "policy.py:4411": "shop-one-shot", "policy.py:15198": "home-operation-staging", "town_arbiter.py:391/424": "store-router",
-          "town_arbiter.py:475": "home-one-shot", "town_arbiter.py:506": "recovered-store-context"})
+    constructor_sites = production_constructor_sites(ROOT / "src")
+    assert Counter(constructor_sites.values()) == EXPECTED_ORIGINS
+    print("production StoreVisit constructor AST census:", constructor_sites)
     print("matched visit-open split by origin:", dict(report["origins"]), "direct-total:", direct)
     print("identified posts carrying decisions with no ledger row:", report["posted_without_ledger"])
     gaps = sorted(report["decisionless_visit_gaps"])
@@ -328,7 +329,7 @@ def main() -> int:
                             "bare_ESC_p90": round(percentile(bare_gaps, .9), 3),
                             "bare_ESC_max": round(bare_gaps[-1], 3)})
     print("decision-less attribution bound:", gap_summary)
-    print("scope: routing emits through acquire_store_visit (E6 as scoped) does not close this; routing visit creation would")
+    print("scope: E6 one-shot routing now appears only through acquire_store_visit; its prior direct constructor is absent from the asserted AST census")
     print("closed send-site observability (decision log / read-batches / posted-characters):")
     for row in SEND_SITES: print(" ", row)
     print("magnitude controls (all re-run measure):", controls)

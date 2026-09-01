@@ -3213,12 +3213,6 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "town-progress-invariant:boxed-breakout-travel"
                 return committed
 
-        if proposed_reason == "shop:one-shot-acquire-refused":
-            # The arbiter's protected foreign visit owns progress.  This
-            # decision only consumes the rejected recorded-page request; do
-            # not let procurement synthesize a replacement request for it.
-            return key
-
         # Observing a wanted, affordable shelf is the entry phase of the
         # existing atomic contract.  Leaving is only its transport step: it is
         # a defect until the saved page is composed on the adjacent outside
@@ -4414,11 +4408,14 @@ class HengbotPolicy(TownArbiterMixin):
                     and self._shop_observation is not None
                     and self._shop_observation[0].store_type == leave_store
                 ):
+                    # _store_leave_inflight is a derived view of _store_visit.
+                    # Clearing it above closes that visit, so the arbiter slot
+                    # is provably empty and this acquire always grants a new
+                    # visit.
                     arbiter = self._town_turn_arbiter
                     if arbiter is None:
                         arbiter = _new_town_turn_arbiter()
                         self._town_turn_arbiter = arbiter
-                    existing_visit = arbiter.store_visit
                     visit = arbiter.acquire_store_visit(
                         owner="shop-one-shot",
                         purpose="observed-transaction",
@@ -4426,30 +4423,20 @@ class HengbotPolicy(TownArbiterMixin):
                         opened_sequence=self._decision_sequence,
                         close_visit=self._close_store_visit,
                     )
+                    assert visit is not None, (
+                        "clearing derived _store_leave_inflight must empty "
+                        "the arbiter slot before one-shot acquire"
+                    )
                     self._acquire_store_visit_attempt = {
                         "acquire_store_visit_called": True,
                         "requested_owner": "shop-one-shot",
                         "requested_store": leave_store,
-                        "acquire_result": (
-                            "refused"
-                            if visit is None
-                            else "granted-existing"
-                            if visit is existing_visit
-                            else "granted-new"
-                        ),
+                        "acquire_result": "granted-new",
                     }
-                    if visit is None:
-                        # Consume the observed page once: the protected foreign
-                        # command keeps its visit, while this one-shot has a
-                        # named bounded refusal instead of being re-requested.
-                        self._shop_observation = None
-                        self.last_reason = "shop:one-shot-acquire-refused"
-                        return ""
-                    else:
-                        key = self._atomic_shop_transaction_key(snapshot)
-                        if key is None:
-                            self._close_store_visit("one-shot-no-operation")
-                            key = self._decide(snapshot)
+                    key = self._atomic_shop_transaction_key(snapshot)
+                    if key is None:
+                        self._close_store_visit("one-shot-no-operation")
+                        key = self._decide(snapshot)
                 else:
                     key = self._decide(snapshot)
             elif snapshot.store.store_type != leave_store:

@@ -348,7 +348,7 @@ def _report(label: str, result: dict) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("population", choices=(*WINDOWS, "historical", "whole", "all"), nargs="?", default="historical")
+    parser.add_argument("population", choices=(*WINDOWS, "historical", "whole", "all"), nargs="?", default="all")
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
     decisions_path = DECISIONS if args.live else FROZEN_DECISIONS
