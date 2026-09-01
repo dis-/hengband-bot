@@ -14,13 +14,15 @@ from pathlib import Path
 
 from historical_emit_fixture import (
     DECISIONS, EQUIP_DECISIONS, EQUIP_SNAPSHOTS, FIXTURE_DIR, LEDGER,
-    E6_PRELANDING_DECISIONS, NO_ACTION_DECISIONS, NO_ACTION_SNAPSHOTS, POSTED,
-    ROOT,
+    CAL3_VISIT_BUDGET_DECISIONS, E6_PRELANDING_DECISIONS, NO_ACTION_DECISIONS,
+    NO_ACTION_SNAPSHOTS, POSTED, ROOT,
 )
 
 
 CUTOFF = datetime.fromisoformat("2026-09-01T17:30")
 E6_PRELANDING_END = datetime.fromisoformat("2026-09-01T17:47:46.999999")
+CAL3_VISIT_BUDGET_START = datetime.fromisoformat("2026-09-02T04:15")
+CAL3_VISIT_BUDGET_END = datetime.fromisoformat("2026-09-02T04:20:36.999999")
 DECISION_FIELDS = (
     "time", "decision_sequence", "turn", "reason", "key", "store_visit",
     "store_type", "position", "shopping_approach_store_type", "floor",
@@ -75,6 +77,13 @@ def main() -> None:
         row for row in all_decisions
         if row.get("time") and CUTOFF <= datetime.fromisoformat(row["time"]).replace(tzinfo=None) <= E6_PRELANDING_END
     ]
+    cal3_visit_budget = [
+        row for row in all_decisions
+        if row.get("time")
+        and CAL3_VISIT_BUDGET_START
+        <= datetime.fromisoformat(row["time"]).replace(tzinfo=None)
+        <= CAL3_VISIT_BUDGET_END
+    ]
     first = min(datetime.fromisoformat(row["time"]).replace(tzinfo=None) for row in decisions if row.get("time"))
     last = max(datetime.fromisoformat(row["time"]).replace(tzinfo=None) for row in decisions if row.get("time"))
     ledger = _before_cutoff(_read(ROOT / "capture-ledger" / "read-batches.jsonl"))
@@ -94,10 +103,16 @@ def main() -> None:
         "acquire_store_visit_called", "requested_owner", "requested_store",
         "acquire_result",
     ))
+    _write(CAL3_VISIT_BUDGET_DECISIONS, cal3_visit_budget, DECISION_FIELDS + (
+        "acquire_store_visit_called", "requested_owner", "requested_store",
+        "acquire_result", "inventory", "equipment_optimization",
+        "departure_block", "shop_selector", "town_stall_report",
+    ))
     print(f"decisions={len(decisions)} first={first.isoformat()} last={last.isoformat()}")
     fixture_paths = tuple(FIXTURE_DIR.iterdir())
     print(f"ledger={len(ledger)} posted={len(posted)} bytes={sum(p.stat().st_size for p in fixture_paths)}")
     print(f"e6_prelanding={len(e6_prelanding)} first={e6_prelanding[0]['time']} last={e6_prelanding[-1]['time']}")
+    print(f"cal3_visit_budget={len(cal3_visit_budget)} first={cal3_visit_budget[0]['time']} last={cal3_visit_budget[-1]['time']} bytes={CAL3_VISIT_BUDGET_DECISIONS.stat().st_size}")
 
 
 if __name__ == "__main__":

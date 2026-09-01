@@ -17,6 +17,7 @@ EQUIP_SNAPSHOTS = FIXTURE_DIR / "equip-swap-snapshots.jsonl.gz"
 NO_ACTION_DECISIONS = FIXTURE_DIR / "no-actionable-decisions.jsonl.gz"
 NO_ACTION_SNAPSHOTS = FIXTURE_DIR / "no-actionable-snapshots.jsonl.gz"
 E6_PRELANDING_DECISIONS = FIXTURE_DIR / "e6-prelanding-decisions.jsonl.gz"
+CAL3_VISIT_BUDGET_DECISIONS = FIXTURE_DIR / "cal3-visit-budget-decisions.jsonl.gz"
 
 
 def rows(path: Path):

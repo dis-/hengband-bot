@@ -57010,6 +57010,31 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             "town:blocked:equipment-work-home-route-exhausted",
         )
 
+    def test_calibration_restore_claim_retires_at_physical_visit_budget(self):
+        """CAL-3: an unrouteable restore claim cannot authorize town wandering."""
+        policy, snapshot = self._fixture()
+        policy._town_was_in_town = True
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [("restore", 1, 1)]
+        policy._home_visit.attempts_used = CALIBRATION_HOME_VISIT_LIMIT - 1
+        claim = TownNeed(STORE_HOME, "calibration-restore", "home-first")
+
+        with patch.object(
+            policy, "_enumerate_live_store_claims", return_value=[claim]
+        ):
+            self.assertTrue(policy._town_claims_active(snapshot))
+            self.assertFalse(
+                getattr(policy, "_town_liveness_claim_retired", False)
+            )
+
+            policy._home_visit.attempts_used = CALIBRATION_HOME_VISIT_LIMIT
+            self.assertFalse(policy._town_claims_active(snapshot))
+            self.assertTrue(policy._town_liveness_claim_retired)
+        self.assertEqual(policy._calibration_phase, "restore-supplies")
+        self.assertEqual(
+            policy._calibration_restore_signatures, [("restore", 1, 1)]
+        )
+
     def test_installing_checkpoint_oscillation_preserves_calibration_claim(self):
         """Turn 2942063: the oscillation branch must not install the latch."""
         policy, snapshot = self._fixture()

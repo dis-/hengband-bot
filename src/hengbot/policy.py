@@ -18098,13 +18098,20 @@ class HengbotPolicy(TownArbiterMixin):
             equipment_owner = need.category in {
                 "equipment-work", "equipment-transaction"
             }
+            home_visit_budget_exhausted = (
+                need.store_type == STORE_HOME
+                and getattr(self, "_home_visit", None) is not None
+                and self._home_visit.attempts_used
+                >= self._home_visit.attempt_limit
+            )
             if (
                 need.store_type
                 in self._town_visit_ledger.nonhome_attempted_without_effect
                 or (
                     need.store_type == STORE_HOME
                     and (
-                        self._town_store_blocked_under_applicable_bound(
+                        home_visit_budget_exhausted
+                        or self._town_store_blocked_under_applicable_bound(
                             need.store_type
                         )
                         or self._town_visit_ledger.approach_fails[need.store_type]
@@ -18120,6 +18127,11 @@ class HengbotPolicy(TownArbiterMixin):
                     )
                 )
             ):
+                if (
+                    home_visit_budget_exhausted
+                    and need.category == "calibration-restore"
+                ):
+                    self._town_liveness_claim_retired = True
                 continue
             if spec is not None and not spec.departure_blocking:
                 if departure_ready is None:
