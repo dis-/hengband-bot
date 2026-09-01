@@ -28,7 +28,7 @@ class TownAcquireBypassRecordedTest(unittest.TestCase):
         self.assertEqual((14727, 14725, 2, 0), tuple(totals[key] for key in (
             "ledger_posts", "ledger_posts_with_decision", "ledger_posts_without_decision",
             "ledger_posts_without_decision_while_visit_open")))
-        self.assertEqual((16068, 14740, 1328, 1343, 13), (
+        self.assertEqual((16068, 14740, 1328, 1343, 14), (
             totals["decisions_in_forward_denominator"], totals["posts_with_decision"],
             totals["decisions_in_forward_denominator"] - totals["posts_with_decision"],
             totals["decisions_without_ledger_match"], totals["posts_with_decision_without_ledger_row"]))
@@ -39,15 +39,15 @@ class TownAcquireBypassRecordedTest(unittest.TestCase):
         self.assertEqual((1870, 222, 222, 0), tuple(totals[key] for key in (
             "non_opener_posts_proxy", "non_opener_target_derivable",
             "non_opener_target_same", "non_opener_target_different")))
-        self.assertEqual((227, 149, 46), tuple(self.result["origins"][key] for key in (
-            "shop-one-shot", "shop-handler-recovery", "recovered-store-context")))
+        self.assertEqual((1910, 443, 465), tuple(self.result["origins"][key] for key in (
+            "acquire", "direct", "pre-telemetry/unknown")))
 
     def test_pollution_discriminator_and_magnitude_controls_are_exact(self):
         pollution = recorded.ledger_pollution(self.decisions, self.raw_ledger)
-        self.assertEqual(3044, pollution["rows"])
+        self.assertEqual(3047, pollution["rows"])
         self.assertEqual(933, pollution["with_posted_key"])
         self.assertEqual("2026-08-15T05:36:04.979046", pollution["first"])
-        self.assertEqual("2026-09-01T08:43:32.186235", pollution["last"])
+        self.assertEqual("2026-09-01T13:44:04.083741", pollution["last"])
         self.assertEqual((436, 2), (self.raw["totals"]["ledger_posts_without_decision"],
                                     self.result["totals"]["ledger_posts_without_decision"]))
         self.assertEqual((248, 0), (self.raw["totals"]["ledger_posts_without_decision_while_visit_open"],
@@ -59,7 +59,11 @@ class TownAcquireBypassRecordedTest(unittest.TestCase):
         self.assertEqual({"filter_reverse": (436, 2), "filter_open_visit": (248, 0),
                           "remove_decisionless": (15101, 14740, 361, 0),
                           "remove_decision_posts": (14740, 0), "clear_visits": (119, 0, 7, 0, 2818, 0),
-                          "equalize_openers": (1870, 0), "force_different": (0, 222)}, controls)
+                          "equalize_openers": (1870, 0), "force_different": (0, 222),
+                          "halve_decisions": (16068, 8035, 1343, 493),
+                          "halve_ledger": (14, 7377),
+                          "classify_origins": ({"acquire": 1910, "direct": 443, "pre-telemetry/unknown": 465},
+                                               {"acquire": 1910, "direct": 908})}, controls)
 
 
 if __name__ == "__main__":

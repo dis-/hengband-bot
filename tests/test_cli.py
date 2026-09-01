@@ -1067,9 +1067,9 @@ class DecisionTimingTest(unittest.TestCase):
             initial_page = dict(page)
             initial_page["turn"] = 1
             initial = json.dumps(initial_page) + "\n"
-            page_line = _snap_line(2, 5, 5)
-            decision_line = _snap_line(3, 5, 5)
-            stop_line = _snap_line(4, 5, 5)
+            page_line = _snap_line(2, 5, 6)
+            decision_line = _snap_line(3, 5, 7)
+            stop_line = _snap_line(4, 5, 8)
             state_path.write_text(initial, encoding="utf-8")
             args = _build_argument_parser().parse_args([
                 "--state-file", str(state_path), "--decision-log", str(decision_path),
@@ -1104,8 +1104,13 @@ class DecisionTimingTest(unittest.TestCase):
             writer = threading.Thread(target=append_snapshots)
             writer.start()
             try:
-                with patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", ledger_path):
-                    self.assertEqual(_run_follow(args, policy, lambda *_a, **_k: True, {}), 0)
+                self.assertEqual(
+                    run_follow_with_ledger(
+                        ledger_path.with_name("read-batches.jsonl"),
+                        args, policy, lambda *_a, **_k: True, {},
+                    ),
+                    0,
+                )
             finally:
                 writer.join()
 

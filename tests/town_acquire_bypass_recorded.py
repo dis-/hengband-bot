@@ -49,6 +49,13 @@ def _in_flight_clause(visit: dict | None) -> str | None:
         return None
     adapted = SimpleNamespace(**visit)
     adapted.phase = StoreVisitPhase(visit["phase"])
+    for name, default in (
+        ("operation_posted", False), ("operation_released", False),
+        ("operation_effect_observed", False), ("posted_sequence", None),
+        ("posted_turn", None),
+    ):
+        if not hasattr(adapted, name):
+            setattr(adapted, name, default)
     return in_flight_clause(adapted)
 
 
@@ -84,8 +91,12 @@ def measure(decisions: list[dict], ledger: list[dict], posted: list[dict] | None
             for turn in set(batch.get("line_turns") or []):
                 candidates.setdefault((turn, key), []).append((ledger_index, _time(batch["time"])))
     used_decisions, used_ledger = set(), set()
-    decision_times = [_time(row["time"]) for row in decisions if row.get("time")]
-    timed_decisions = [row for row in decisions if row.get("time")]
+    timed = sorted(
+        ((_time(row["time"]), row) for row in decisions if row.get("time")),
+        key=lambda pair: pair[0],
+    )
+    decision_times = [pair[0] for pair in timed]
+    timed_decisions = [pair[1] for pair in timed]
     first_time, last_time = min(decision_times), max(decision_times)
     for decision_index, decision in enumerate(decisions):
         key, turn = decision.get("key"), decision.get("turn")
@@ -129,8 +140,12 @@ def measure(decisions: list[dict], ledger: list[dict], posted: list[dict] | None
             continue
         totals["decision_posts_while_visit_open"] += 1
         origin = visit.get("visit_origin")
-        if origin is None and visit.get("owner") in {"shop-one-shot", "shop-handler", "recovered-store-context"}:
-            origin = {"shop-handler": "shop-handler-recovery"}.get(visit.get("owner"), visit.get("owner"))
+        if origin is None:
+            owner = visit.get("owner")
+            if owner == "town-errand":
+                origin = "acquire"
+            elif owner in {"shop-one-shot", "shop-handler", "recovered-store-context", "store-router", "home-one-shot"}:
+                origin = "direct"
         origins[origin or "pre-telemetry/unknown"] += 1
         if decision.get("decision_sequence") == visit.get("opened_sequence"):
             continue
@@ -143,27 +158,52 @@ def measure(decisions: list[dict], ledger: list[dict], posted: list[dict] | None
             totals[f"non_opener_target_{relation}"] += 1
             target_relation[(relation, source)] += 1
     post_breakdown = Counter()
+    decisionless_visit_gaps = []
+    decisionless_bare_visit_gaps = []
     if posted is not None:
+        remaining_ledger_identities = Counter({
+            identity: len(options) for identity, options in candidates.items()
+        })
         sends = [row for row in posted if row.get("character_index") == 0 and row.get("time") and first_time <= _time(row["time"]) <= last_time]
         totals["posts_in_window"] = len(sends)
         totals["posts_with_decision"] = sum(row.get("decision") is not None for row in sends)
         totals["posts_without_decision"] = sum(row.get("decision") is None for row in sends)
-        totals["posts_with_decision_without_ledger_row"] = totals["posts_with_decision"] - totals["ledger_posts"]
+        posted_without_ledger = []
         for row in sends:
-            if row.get("decision") is not None:
+            attached = row.get("decision")
+            if attached is not None:
+                identity = (attached.get("turn"), attached.get("key"))
+                if remaining_ledger_identities[identity]:
+                    remaining_ledger_identities[identity] -= 1
+                else:
+                    posted_without_ledger.append({
+                        "time": row["time"], "turn": attached.get("turn"),
+                        "key": attached.get("key"), "reason": attached.get("reason"),
+                    })
                 continue
             totals[f"decisionless_key:{row.get('composed_key')}"] += 1
             preceding_at = bisect_right(decision_times, _time(row["time"])) - 1
             preceding = timed_decisions[preceding_at] if preceding_at >= 0 else None
-            visit = None if preceding is None else preceding.get("store_visit")
-            if visit and row.get("composed_key") == "\x1b":
+            gap = None if preceding is None else (
+                _time(row["time"]) - decision_times[preceding_at]
+            ).total_seconds()
+            visit = None if preceding is None or gap > 5.0 else preceding.get("store_visit")
+            if visit and row.get("composed_key") in {"\x1b", "l\x1b"}:
                 totals["decisionless_while_visit_open"] += 1
+                decisionless_visit_gaps.append(gap)
+                if row.get("composed_key") == "\x1b":
+                    decisionless_bare_visit_gaps.append(gap)
+                totals["decisionless_attribution_gap_ms_total"] += round(gap * 1000)
                 if visit.get("phase") == "operating":
                     totals["decisionless_while_store_page_open"] += 1
                 post_breakdown[(row.get("composed_key"), visit.get("owner"), visit.get("store_type"), visit.get("phase"), _in_flight_clause(visit))] += 1
+        totals["posts_with_decision_without_ledger_row"] = len(posted_without_ledger)
     totals["decisions_in_forward_denominator"] = len(decisions) - totals["forward_unmatched_missing_time"]
     totals["decisions_without_ledger_match"] = totals["decisions_in_forward_denominator"] - len(used_decisions)
     return {"totals": totals, "used_decisions": used_decisions, "unmatched_posts": unmatched_posts,
+            "posted_without_ledger": posted_without_ledger if posted is not None else [],
+            "decisionless_visit_gaps": decisionless_visit_gaps,
+            "decisionless_bare_visit_gaps": decisionless_bare_visit_gaps,
             "breakdown": breakdown, "target_relation": target_relation, "post_breakdown": post_breakdown,
             "origins": origins}
 
@@ -196,6 +236,14 @@ def magnitude_controls(decisions: list[dict], raw_ledger: list[dict], clean_ledg
         if target is not None:
             visit["store_type"] = target + 1000
     different = measure(forced, clean_ledger, posted)
+    half = measure(decisions[::2], clean_ledger, posted)
+    half_ledger = measure(decisions, clean_ledger[::2], posted)
+    classified = deepcopy(decisions)
+    for row in classified:
+        visit = row.get("store_visit")
+        if visit and not visit.get("visit_origin"):
+            visit["visit_origin"] = "acquire" if visit.get("owner") == "town-errand" else "direct"
+    classified_result = measure(classified, clean_ledger, posted)
     return {
         "filter_reverse": (raw["totals"]["ledger_posts_without_decision"], baseline["totals"]["ledger_posts_without_decision"]),
         "filter_open_visit": (raw["totals"]["ledger_posts_without_decision_while_visit_open"], baseline["totals"]["ledger_posts_without_decision_while_visit_open"]),
@@ -207,16 +255,24 @@ def magnitude_controls(decisions: list[dict], raw_ledger: list[dict], clean_ledg
                          baseline["totals"]["decision_posts_while_visit_open"], cleared["totals"]["decision_posts_while_visit_open"]),
         "equalize_openers": (baseline["totals"]["non_opener_posts_proxy"], all_openers["totals"]["non_opener_posts_proxy"]),
         "force_different": (baseline["totals"]["non_opener_target_different"], different["totals"]["non_opener_target_different"]),
+        "halve_decisions": tuple(
+            (baseline if name == "before" else half)["totals"][metric]
+            for metric in ("decisions_in_forward_denominator", "decisions_without_ledger_match")
+            for name in ("before", "after")
+        ),
+        "halve_ledger": (baseline["totals"]["posts_with_decision_without_ledger_row"],
+                          half_ledger["totals"]["posts_with_decision_without_ledger_row"]),
+        "classify_origins": (dict(baseline["origins"]), dict(classified_result["origins"])),
     }
 
 
 SEND_SITES = (
     ("decision path", "observable", "observable", "decision attached"),
     ("stall-recovery nudge", "absent", "posted_key overwritten/combined", "bare ESC; not call-site attributable"),
-    ("look probe cli.py:2712", "absent", "posted_key overwritten/combined", "l\\x1b; call-site attributable"),
-    ("floor-transition ESC", "absent", "posted_key overwritten/combined", "bare ESC; not call-site attributable"),
-    ("death-exit ESC", "absent", "posted_key overwritten/combined", "bare ESC; not call-site attributable"),
-    ("stuck-prompt ESC", "absent", "posted_key overwritten/combined", "bare ESC; not call-site attributable"),
+    ("look probe cli.py:2741/2743", "absent", "posted_key overwritten/combined", "l\\x1b; call-site attributable"),
+    ("floor-transition ESC cli.py:2760", "absent", "posted_key overwritten/combined", "bare ESC; not call-site attributable"),
+    ("terminal-resync cli.py:3310", "observable", "posted_key overwritten/combined", "decision attached; recovery did not fire in window"),
+    ("stuck-prompt cli.py:3343", "observable", "posted_key overwritten/combined", "decision attached; recovery did not fire in window"),
 )
 
 
@@ -230,7 +286,7 @@ def main() -> int:
     report = measure(decisions, clean_ledger, posted)
     controls = magnitude_controls(decisions, raw_ledger, clean_ledger, posted, report)
     t = report["totals"]
-    print("R37-R42 corrected recorded acquire-bypass measurement (no policy replay)")
+    print("R48-R53 corrected recorded acquire-bypass measurement (no policy replay)")
     print("ledger synthetic pollution (retained on disk):", ledger_pollution(decisions, raw_ledger))
     print("ledger-derived with/without synthetic filter:", {
         "without_filter": {k: raw["totals"][k] for k in ("ledger_posts", "ledger_posts_with_decision", "ledger_posts_without_decision", "ledger_posts_without_decision_while_visit_open")},
@@ -246,13 +302,22 @@ def main() -> int:
           "without_decision": t["posts_without_decision"], "keys": {"ESC": t["decisionless_key:\x1b"], "lESC": t["decisionless_key:l\x1b"]},
           "while_visit_open": t["decisionless_while_visit_open"], "while_store_page_open": t["decisionless_while_store_page_open"]})
     print("decision-less post breakdown key/owner/store/phase/clause:", dict(sorted(report["post_breakdown"].items(), key=str)))
-    print("recovery attribution: lESC is uniquely _look_probe_key; bare ESC can be any of stall-nudge, floor-transition, death-exit, or stuck-prompt and needs a call-site tag")
+    print("recovery attribution: lESC is uniquely _look_probe_key; bare decision-less ESC can only be stall-nudge or floor-transition in this window; terminal-resync and stuck-prompt attach decisions and did not fire")
     print("non-opener proxy/store targeting:", {"proxy": t["non_opener_posts_proxy"], "derivable": t["non_opener_target_derivable"],
           "same": t["non_opener_target_same"], "different": t["non_opener_target_different"]})
-    direct = {key: report["origins"][key] for key in ("shop-one-shot", "shop-handler-recovery", "recovered-store-context")}
-    print("five direct-construction sites:", {"policy.py:4316": "equipment-transaction-recovery", "policy.py:4324": "shop-handler-recovery",
-          "policy.py:4415": "shop-one-shot", "policy.py:15202": "home-operation-staging", "town_arbiter.py:503": "recovered-store-context"})
-    print("matched visit-open split by origin:", dict(report["origins"]), "direct-only:", direct, "direct-only-total:", sum(direct.values()))
+    direct = report["origins"]["direct"]
+    print("direct-construction sites:", {"policy.py:4314": "equipment-transaction-recovery", "policy.py:4321": "shop-handler-recovery",
+          "policy.py:4411": "shop-one-shot", "policy.py:15198": "home-operation-staging", "town_arbiter.py:391/424": "store-router",
+          "town_arbiter.py:475": "home-one-shot", "town_arbiter.py:506": "recovered-store-context"})
+    print("matched visit-open split by origin:", dict(report["origins"]), "direct-total:", direct)
+    print("identified posts carrying decisions with no ledger row:", report["posted_without_ledger"])
+    gaps = sorted(report["decisionless_visit_gaps"])
+    bare_gaps = sorted(report["decisionless_bare_visit_gaps"])
+    percentile = lambda values, fraction: values[round((len(values) - 1) * fraction)]
+    print("decision-less attribution bound:", {"bound_seconds": 5.0, "all_keys_count": len(gaps),
+          "bare_ESC_count": len(bare_gaps), "bare_ESC_min": round(bare_gaps[0], 3),
+          "bare_ESC_p50": round(percentile(bare_gaps, .5), 3),
+          "bare_ESC_p90": round(percentile(bare_gaps, .9), 3), "bare_ESC_max": round(bare_gaps[-1], 3)})
     print("scope: routing emits through acquire_store_visit (E6 as scoped) does not close this; routing visit creation would")
     print("closed send-site observability (decision log / read-batches / posted-characters):")
     for row in SEND_SITES: print(" ", row)
@@ -260,9 +325,13 @@ def main() -> int:
     assert controls == {"filter_reverse": (436, 2), "filter_open_visit": (248, 0),
                         "remove_decisionless": (15101, 14740, 361, 0),
                         "remove_decision_posts": (14740, 0), "clear_visits": (119, 0, 7, 0, 2818, 0),
-                        "equalize_openers": (1870, 0), "force_different": (0, 222)}
+                        "equalize_openers": (1870, 0), "force_different": (0, 222),
+                        "halve_decisions": (16068, 8035, 1343, 493),
+                        "halve_ledger": (14, 7377),
+                        "classify_origins": ({"acquire": 1910, "direct": 443, "pre-telemetry/unknown": 465},
+                                             {"acquire": 1910, "direct": 908})}
     print("production derive_target_store calls:", t["non_opener_posts_proxy"])
-    print("tests_touched: tests/run_follow_hygiene.py tests/test_cli.py tests/test_control_client.py tests/test_emit_ownership.py tests/town_acquire_bypass_recorded.py tests/test_town_acquire_bypass_recorded.py")
+    print("tests_touched: tests/run_follow_hygiene.py tests/test_cli.py tests/town_acquire_bypass_recorded.py tests/test_town_acquire_bypass_recorded.py")
     return 0
 
 

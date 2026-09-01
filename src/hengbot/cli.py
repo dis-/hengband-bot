@@ -2464,6 +2464,8 @@ def main(argv: list[str] | None = None) -> int:
 def _run_follow(
     args, policy, send, monrace_knowledge, home_entry_capture=None,
     posting_contract: PostingContract | None = None,
+    *, read_batch_ledger_path: Path | None = None,
+    knowledge_ledger_path: Path | None = None,
 ) -> int:
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
@@ -2487,12 +2489,14 @@ def _run_follow(
     batch_seq = 0
     pending_batch_row = None
     last_observed_home_page = None
+    read_batch_ledger_path = read_batch_ledger_path or READ_BATCH_LEDGER_PATH
+    knowledge_ledger_path = knowledge_ledger_path or KNOWLEDGE_RESPONSE_LEDGER_PATH
 
     def finish_pending_batch() -> None:
         nonlocal pending_batch_row
         if pending_batch_row is not None:
             _append_capture_ledger(
-                READ_BATCH_LEDGER_PATH,
+                read_batch_ledger_path,
                 pending_batch_row,
                 args.recorder_log_rotate_bytes,
                 args.recorder_log_generations,
@@ -2646,6 +2650,7 @@ def _run_follow(
                         complete_lines, policy, send, monrace_knowledge,
                         decoded_lines=decoded_lines,
                         parse_snapshots=needs_ordered_snapshots,
+                        knowledge_ledger_path=knowledge_ledger_path,
                     )
                 )
                 ordered_snapshot_entries = (
@@ -2787,7 +2792,8 @@ def _run_follow(
                     emit_approach_store = policy._shopping_approach_store_type
                     chosen_key = policy.choose_key(snapshot)
                     _record_atomic_home_page(
-                        policy, snapshot, observed_store=last_observed_home_page
+                        policy, snapshot, observed_store=last_observed_home_page,
+                        path=knowledge_ledger_path,
                     )
                     decision_timing["choose_key_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3

@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from hengbot import cli
 
@@ -24,11 +23,12 @@ def run_follow_with_ledger(ledger_path: Path, *args, **kwargs):
     """Run follow with an injected ledger and fail if production was touched."""
     before = fingerprint_capture_ledgers()
     knowledge_path = ledger_path.with_name("knowledge-responses.jsonl")
-    with (
-        patch("hengbot.cli.READ_BATCH_LEDGER_PATH", ledger_path),
-        patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", knowledge_path),
-    ):
-        result = cli._run_follow(*args, **kwargs)
+    result = cli._run_follow(
+        *args,
+        read_batch_ledger_path=ledger_path,
+        knowledge_ledger_path=knowledge_path,
+        **kwargs,
+    )
     after = fingerprint_capture_ledgers()
     if after != before:
         raise AssertionError(
