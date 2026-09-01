@@ -1897,6 +1897,12 @@ class HengbotPolicy(TownArbiterMixin):
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
+        self._acquire_store_visit_attempt: dict[str, object] = {
+            "acquire_store_visit_called": False,
+            "requested_owner": None,
+            "requested_store": None,
+            "acquire_result": None,
+        }
         self._decision_context: DecisionContext | None = None
         self.decision_attribution = "unregistered"
         self._owner_expectations = OwnerExpectationRegistry()
@@ -3760,6 +3766,14 @@ class HengbotPolicy(TownArbiterMixin):
     def _choose_key(self, snapshot: Snapshot) -> str:
         self._read_binding = None
         self.read_telemetry = {}
+        # This is the first boundary inside every decision. Reset here so an
+        # early return cannot serialize the preceding decision's acquisition.
+        self._acquire_store_visit_attempt = {
+            "acquire_store_visit_called": False,
+            "requested_owner": None,
+            "requested_store": None,
+            "acquire_result": None,
+        }
         self._store_entry_wait_owner = None
         self._store_entry_wait_key = None
         self._store_entry_failed_owner = None
@@ -4302,6 +4316,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._store_visit = StoreVisit(
                 owner="equipment-transaction", purpose="equipment-work",
                 store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
+                visit_origin="equipment-transaction-recovery",
                 opened_sequence=self._decision_sequence,
             )
         elif snapshot.store is not None and self._store_visit is None:
@@ -4309,6 +4324,7 @@ class HengbotPolicy(TownArbiterMixin):
                 owner="shop-handler", purpose="recovered-shopping",
                 store_type=snapshot.store.store_type,
                 phase=StoreVisitPhase.OPERATING,
+                visit_origin="shop-handler-recovery",
                 opened_sequence=self._decision_sequence,
             )
         unintended_store_context = (
@@ -4399,6 +4415,7 @@ class HengbotPolicy(TownArbiterMixin):
                         purpose="observed-transaction",
                         store_type=leave_store,
                         phase=StoreVisitPhase.APPROACHING,
+                        visit_origin="shop-one-shot",
                         opened_sequence=self._decision_sequence,
                     )
                     key = self._atomic_shop_transaction_key(snapshot)
@@ -15192,6 +15209,7 @@ class HengbotPolicy(TownArbiterMixin):
                     else "shopping"
                 ),
                 store_type=STORE_HOME,
+                visit_origin="home-operation-staging",
                 opened_sequence=self._decision_sequence,
             )
         visit = self._store_visit
@@ -23006,13 +23024,29 @@ class HengbotPolicy(TownArbiterMixin):
         if arbiter is None:
             arbiter = _new_town_turn_arbiter()
             self._town_turn_arbiter = arbiter
+        requested_owner = (
+            "equipment-transaction" if equipment_owner else "town-errand"
+        )
+        existing_visit = arbiter.store_visit
         visit = arbiter.acquire_store_visit(
             store_type=store_type,
-            owner=("equipment-transaction" if equipment_owner else "town-errand"),
+            owner=requested_owner,
             purpose=("equipment-work" if equipment_owner else "shopping"),
             opened_sequence=self._decision_sequence,
             close_visit=self._close_store_visit,
         )
+        self._acquire_store_visit_attempt = {
+            "acquire_store_visit_called": True,
+            "requested_owner": requested_owner,
+            "requested_store": store_type,
+            "acquire_result": (
+                "refused"
+                if visit is None
+                else "granted-existing"
+                if visit is existing_visit
+                else "granted-new"
+            ),
+        }
         if visit is None:
             return None
         if (

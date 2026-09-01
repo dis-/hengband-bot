@@ -1,5 +1,6 @@
 import json
 import inspect
+import inspect
 import os
 import argparse
 import threading
@@ -2121,6 +2122,7 @@ class DecisionRecordTest(unittest.TestCase):
             owner="town-errand",
             purpose="identification-source",
             store_type=4,
+            visit_origin="acquire",
             opened_sequence=17,
             phase=SimpleNamespace(value="operating"),
             operation_posted=True,
@@ -2139,6 +2141,7 @@ class DecisionRecordTest(unittest.TestCase):
             "owner": "town-errand",
             "purpose": "identification-source",
             "store_type": 4,
+            "visit_origin": "acquire",
             "opened_sequence": 17,
             "phase": "operating",
             "operation_posted": True,
@@ -2150,6 +2153,73 @@ class DecisionRecordTest(unittest.TestCase):
         # The arbiter keeps an active visit's store authoritative over a stale
         # attempted assignment, and that exact ambient value is serialized.
         self.assertEqual(row["shopping_approach_store_type"], 4)
+
+    def test_acquire_attempt_values_reset_and_writer_is_observational(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+
+        policy._shopping_approach_step(snapshot, 0)
+        self.assertEqual(policy._acquire_store_visit_attempt, {
+            "acquire_store_visit_called": True,
+            "requested_owner": "town-errand",
+            "requested_store": 0,
+            "acquire_result": "granted-new",
+        })
+        policy._shopping_approach_step(snapshot, 0)
+        self.assertEqual(
+            policy._acquire_store_visit_attempt["acquire_result"],
+            "granted-existing",
+        )
+
+        visit = policy._store_visit
+        visit.operation_posted = True
+        visit.operation_released = False
+        policy._shopping_approach_step(snapshot, 1)
+        self.assertEqual(policy._acquire_store_visit_attempt, {
+            "acquire_store_visit_called": True,
+            "requested_owner": "town-errand",
+            "requested_store": 1,
+            "acquire_result": "refused",
+        })
+
+        before = dict(vars(visit))
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, snapshot, "6", "shop:approach", policy)
+            row = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(dict(vars(visit)), before)
+        self.assertEqual(row["key"], "6")
+        self.assertEqual(
+            {name: row[name] for name in (
+                "acquire_store_visit_called", "requested_owner",
+                "requested_store", "acquire_result",
+            )},
+            policy._acquire_store_visit_attempt,
+        )
+        self.assertEqual(row["store_visit"]["visit_origin"], "acquire")
+
+        policy.choose_key(snapshot)
+        self.assertEqual(policy._acquire_store_visit_attempt, {
+            "acquire_store_visit_called": False,
+            "requested_owner": None,
+            "requested_store": None,
+            "acquire_result": None,
+        })
+
+    def test_every_production_visit_constructor_has_exact_origin(self):
+        choose_source = inspect.getsource(HengbotPolicy._choose_key)
+        self.assertIn(
+            'visit_origin="equipment-transaction-recovery"', choose_source
+        )
+        self.assertIn('visit_origin="shop-handler-recovery"', choose_source)
+        self.assertIn('visit_origin="shop-one-shot"', choose_source)
+        staging_source = inspect.getsource(HengbotPolicy._stage_home_operation)
+        self.assertIn('visit_origin="home-operation-staging"', staging_source)
+
+        policy = HengbotPolicy()
+        snapshot = self._town_snapshot()
+        policy._shopping_approach_step(snapshot, 0)
+        self.assertEqual(policy._store_visit.visit_origin, "acquire")
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):
         policy = HengbotPolicy()

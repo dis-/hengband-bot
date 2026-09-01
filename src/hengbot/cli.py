@@ -823,6 +823,10 @@ def _decision_record(
     home_procurement_fallthrough: dict | None = None,
     shopping_approach_store_type: int | None = None,
     store_visit: dict | None = None,
+    acquire_store_visit_called: bool = False,
+    requested_owner: str | None = None,
+    requested_store: int | None = None,
+    acquire_result: str | None = None,
     arbiter: dict | None = None,
     town_emit_ownership: dict | None = None,
 ) -> dict:
@@ -848,6 +852,10 @@ def _decision_record(
         "objective": _objective_for_reason(reason),
         "reason": reason,
         "key": key,
+        "acquire_store_visit_called": acquire_store_visit_called,
+        "requested_owner": requested_owner,
+        "requested_store": requested_store,
+        "acquire_result": acquire_result,
         "prompt_owner_handoff": prompt_owner_handoff,
         "store_visit": store_visit,
         "shopping_approach_store_type": shopping_approach_store_type,
@@ -1482,6 +1490,9 @@ def _write_decision(
                             "owner": policy._store_visit.owner,
                             "purpose": policy._store_visit.purpose,
                             "store_type": policy._store_visit.store_type,
+                            "visit_origin": getattr(
+                                policy._store_visit, "visit_origin", None
+                            ),
                             "opened_sequence": policy._store_visit.opened_sequence,
                             "phase": policy._store_visit.phase.value,
                             "operation_posted": policy._store_visit.operation_posted,
@@ -1493,6 +1504,21 @@ def _write_decision(
                         if policy is not None
                         and getattr(policy, "_store_visit", None) is not None
                         else None
+                    ),
+                    *(
+                        (
+                            bool(attempt.get("acquire_store_visit_called")),
+                            attempt.get("requested_owner"),
+                            attempt.get("requested_store"),
+                            attempt.get("acquire_result"),
+                        )
+                        if policy is not None
+                        and (
+                            attempt := getattr(
+                                policy, "_acquire_store_visit_attempt", {}
+                            )
+                        )
+                        else (False, None, None, None)
                     ),
                     (
                         {

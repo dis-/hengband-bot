@@ -276,7 +276,7 @@ def main() -> int:
     print("artifact-supported counts:", {"decision+ledger": totals["ledger_posts_with_decision"],
           "reverse-unmatched-but-ledger-decided": totals["ledger_posts_without_decision"],
           "ledger-posted-without-decision-path": totals["ledger_only_decided:False"]})
-    print("telemetry proposal (NOT IMPLEMENTED): per decision acquire_store_visit_called plus requested owner/store and result")
+    print("telemetry implemented for future logs: per decision acquire_store_visit_called plus requested owner/store and result")
     print("controls:", control)
     assert control["reverse_join"][1] > control["reverse_join"][0]
     assert control["non_opener_proxy"][1] < control["non_opener_proxy"][0]

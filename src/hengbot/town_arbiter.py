@@ -116,6 +116,7 @@ class TownTurnArbiter:
                 owner=owner,
                 purpose=purpose,
                 store_type=store_type,
+                visit_origin="acquire",
                 opened_sequence=opened_sequence,
             )
             self.store_visit = visit

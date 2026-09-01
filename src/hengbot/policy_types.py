@@ -89,6 +89,7 @@ class StoreVisit:
     operation_released: bool = False
     operation_effect_observed: bool = False
     outcome: str | None = None
+    visit_origin: str | None = None
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
         if self.phase == StoreVisitPhase.CLOSED:
