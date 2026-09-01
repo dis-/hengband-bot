@@ -2533,6 +2533,12 @@ class HengbotPolicy(TownArbiterMixin):
         # the carried catalogue authoritative here so a freshly observed
         # strip cannot be recorded (or reasoned about) beside the preceding
         # decision's worn set.
+        self._acquire_store_visit_attempt = {
+            "acquire_store_visit_called": False,
+            "requested_owner": None,
+            "requested_store": None,
+            "acquire_result": None,
+        }
         self.prompt_owner_handoff = None
         self._town_progress_invariant_defect = {}
         self._withdrawal_unfulfilled_defect = {}
@@ -3766,14 +3772,6 @@ class HengbotPolicy(TownArbiterMixin):
     def _choose_key(self, snapshot: Snapshot) -> str:
         self._read_binding = None
         self.read_telemetry = {}
-        # This is the first boundary inside every decision. Reset here so an
-        # early return cannot serialize the preceding decision's acquisition.
-        self._acquire_store_visit_attempt = {
-            "acquire_store_visit_called": False,
-            "requested_owner": None,
-            "requested_store": None,
-            "acquire_result": None,
-        }
         self._store_entry_wait_owner = None
         self._store_entry_wait_key = None
         self._store_entry_failed_owner = None
@@ -23027,7 +23025,9 @@ class HengbotPolicy(TownArbiterMixin):
         requested_owner = (
             "equipment-transaction" if equipment_owner else "town-errand"
         )
-        existing_visit = arbiter.store_visit
+        existing_visit = (
+            arbiter.store_visit if hasattr(arbiter, "store_visit") else None
+        )
         visit = arbiter.acquire_store_visit(
             store_type=store_type,
             owner=requested_owner,

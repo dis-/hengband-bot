@@ -11,9 +11,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from hengbot.emit_ownership import derive_target_store
+from hengbot.emit_ownership import derive_target_store, in_flight_clause
 from hengbot.model import Position
 from hengbot.policy import _new_town_turn_arbiter
+from hengbot.policy_types import StoreVisitPhase
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,13 +47,9 @@ def _snapshot(decision: dict):
 def _in_flight_clause(visit: dict | None) -> str | None:
     if not visit:
         return None
-    if visit.get("operation_posted") and not visit.get("operation_released"):
-        return "operation-posted-not-released"
-    if visit.get("operation_released") and not visit.get("operation_effect_observed", True):
-        return "operation-released-effect-unobserved"
-    if visit.get("phase") in {"entering", "leaving"} and visit.get("posted_sequence") is not None:
-        return f"{visit['phase']}-with-posted-sequence"
-    return None
+    adapted = SimpleNamespace(**visit)
+    adapted.phase = StoreVisitPhase(visit["phase"])
+    return in_flight_clause(adapted)
 
 
 def is_synthetic_ledger_row(row: dict, minimum_trajectory_turn: int) -> bool:

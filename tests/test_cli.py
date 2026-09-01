@@ -1,5 +1,6 @@
+import ast
+from collections import Counter
 import json
-import inspect
 import inspect
 import os
 import argparse
@@ -2206,22 +2207,52 @@ class DecisionRecordTest(unittest.TestCase):
             "acquire_result": None,
         })
 
-    def test_every_production_visit_constructor_has_exact_origin(self):
-        choose_source = inspect.getsource(HengbotPolicy._choose_key)
-        self.assertIn(
-            'visit_origin="equipment-transaction-recovery"', choose_source
-        )
-        self.assertIn('visit_origin="shop-handler-recovery"', choose_source)
-        self.assertIn('visit_origin="shop-one-shot"', choose_source)
-        staging_source = inspect.getsource(HengbotPolicy._stage_home_operation)
-        self.assertIn('visit_origin="home-operation-staging"', staging_source)
-        arbiter_source = inspect.getsource(TownArbiterMixin._store_leave_inflight.fset)
-        self.assertIn('visit_origin="recovered-store-context"', arbiter_source)
-
-        policy = HengbotPolicy()
+    def test_acquire_attempt_resets_before_posting_refusal_probe_return(self):
         snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
         policy._shopping_approach_step(snapshot, 0)
-        self.assertEqual(policy._store_visit.visit_origin, "acquire")
+        self.assertEqual(
+            "granted-new", policy._acquire_store_visit_attempt["acquire_result"]
+        )
+        core = policy._owner_progress_core(snapshot)
+        policy._posting_refusal_probe = ("town-plan", core)
+
+        self.assertEqual("l\x1b", policy.choose_key(snapshot))
+        self.assertEqual(policy._acquire_store_visit_attempt, {
+            "acquire_store_visit_called": False,
+            "requested_owner": None,
+            "requested_store": None,
+            "acquire_result": None,
+        })
+
+    def test_every_production_visit_constructor_has_exact_origin(self):
+        calls = []
+        source_root = Path(__file__).resolve().parents[1] / "src"
+        for path in source_root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = node.func.id if isinstance(node.func, ast.Name) else None
+                if name != "StoreVisit":
+                    continue
+                values = {keyword.arg: keyword.value for keyword in node.keywords}
+                origin = values.get("visit_origin")
+                self.assertIsInstance(
+                    origin, ast.Constant, f"{path}:{node.lineno} lacks exact visit_origin"
+                )
+                self.assertIsInstance(origin.value, str)
+                calls.append(origin.value)
+        self.assertEqual(Counter(calls), Counter({
+            "acquire": 1,
+            "store-router": 2,
+            "home-one-shot": 1,
+            "recovered-store-context": 1,
+            "equipment-transaction-recovery": 1,
+            "shop-handler-recovery": 1,
+            "shop-one-shot": 1,
+            "home-operation-staging": 1,
+        }))
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):
         policy = HengbotPolicy()

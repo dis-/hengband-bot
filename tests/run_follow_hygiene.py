@@ -1,4 +1,4 @@
-"""Test-only isolation for the production read-batch capture ledger."""
+"""Test-only isolation for every production capture ledger."""
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,23 +7,32 @@ from unittest.mock import patch
 from hengbot import cli
 
 
-PRODUCTION_LEDGER = cli.READ_BATCH_LEDGER_PATH.resolve()
+PRODUCTION_LEDGER_ROOT = cli.CAPTURE_LEDGER_ROOT.resolve()
 
 
-def _fingerprint():
-    stat = PRODUCTION_LEDGER.stat()
-    return stat.st_size, stat.st_mtime_ns
+def fingerprint_capture_ledgers(root: Path = PRODUCTION_LEDGER_ROOT):
+    """Fingerprint the complete ledger directory, including absent files."""
+    if not root.exists():
+        return False, ()
+    return True, tuple(
+        (path.relative_to(root).as_posix(), path.stat().st_size, path.stat().st_mtime_ns)
+        for path in sorted(root.rglob("*")) if path.is_file()
+    )
 
 
 def run_follow_with_ledger(ledger_path: Path, *args, **kwargs):
     """Run follow with an injected ledger and fail if production was touched."""
-    before = _fingerprint()
-    with patch("hengbot.cli.READ_BATCH_LEDGER_PATH", ledger_path):
+    before = fingerprint_capture_ledgers()
+    knowledge_path = ledger_path.with_name("knowledge-responses.jsonl")
+    with (
+        patch("hengbot.cli.READ_BATCH_LEDGER_PATH", ledger_path),
+        patch("hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH", knowledge_path),
+    ):
         result = cli._run_follow(*args, **kwargs)
-    after = _fingerprint()
+    after = fingerprint_capture_ledgers()
     if after != before:
         raise AssertionError(
-            f"test wrote repository capture ledger {PRODUCTION_LEDGER}: "
+            f"test wrote repository capture ledger directory {PRODUCTION_LEDGER_ROOT}: "
             f"{before!r} -> {after!r}"
         )
     return result

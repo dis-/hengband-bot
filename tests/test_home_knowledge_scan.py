@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from hengbot.cli import (
     _consume_response_sequence,
@@ -18,6 +18,21 @@ from hengbot.model import (
     GridState, InventoryItem, PlayerState, Position, Snapshot, parse_snapshot,
 )
 from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
+
+
+def setUpModule():
+    global _knowledge_tmp, _knowledge_patch
+    _knowledge_tmp = TemporaryDirectory()
+    _knowledge_patch = patch(
+        "hengbot.cli.KNOWLEDGE_RESPONSE_LEDGER_PATH",
+        Path(_knowledge_tmp.name) / "knowledge-responses.jsonl",
+    )
+    _knowledge_patch.start()
+
+
+def tearDownModule():
+    _knowledge_patch.stop()
+    _knowledge_tmp.cleanup()
 
 
 def town_with_home() -> Snapshot:

@@ -391,6 +391,7 @@ class TownArbiterMixin:
             self._store_visit = StoreVisit(
                 owner="store-router", purpose="town-need", store_type=value,
                 goal=self._store_visit_pending_goal,
+                visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
             )
             self._store_visit_pending_goal = None
@@ -422,6 +423,7 @@ class TownArbiterMixin:
         if visit is None:
             self._store_visit = StoreVisit(
                 owner="store-router", purpose="store-entry", store_type=value,
+                visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
             )
             visit = self._store_visit
@@ -473,6 +475,7 @@ class TownArbiterMixin:
             visit = StoreVisit(
                 owner="home-one-shot", purpose="bound-operation",
                 store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
+                visit_origin="home-one-shot",
                 opened_sequence=self._decision_sequence,
             )
             self._store_visit = visit

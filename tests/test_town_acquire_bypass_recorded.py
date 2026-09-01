@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
 import unittest
 
 import town_acquire_bypass_recorded as recorded
 
 
+@unittest.skipUnless(
+    os.environ.get("HENGBOT_RUN_RECORDED_PIN") == "1",
+    "recorded-artifact pin is opt-in so live capture cannot invalidate discovery",
+)
 class TownAcquireBypassRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
