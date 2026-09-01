@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import os
 import unittest
 
 import town_acquire_bypass_recorded as recorded
 
 
-@unittest.skipUnless(
-    os.environ.get("HENGBOT_RUN_RECORDED_PIN") == "1",
-    "recorded-artifact pin is opt-in so live capture cannot invalidate discovery",
-)
 class TownAcquireBypassRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -64,6 +59,15 @@ class TownAcquireBypassRecordedTest(unittest.TestCase):
                           "halve_ledger": (14, 7377),
                           "classify_origins": ({"acquire": 1910, "direct": 443, "pre-telemetry/unknown": 465},
                                                {"acquire": 1910, "direct": 908})}, controls)
+
+    def test_empty_bare_escape_population_is_reportable(self):
+        result = recorded.measure(
+            [{"time": "2026-08-23T00:00:00", "turn": 1, "key": "5"}],
+            [],
+            [{"time": "2026-08-23T00:00:00", "character_index": 0,
+              "composed_key": "l\x1b", "decision": None}],
+        )
+        self.assertEqual([], result["decisionless_bare_visit_gaps"])
 
 
 if __name__ == "__main__":

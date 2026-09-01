@@ -14,6 +14,12 @@ from hengbot.emit_ownership import derive_target_store, emit_ownership_verdict
 from hengbot.model import Position
 from hengbot.policy import _new_town_turn_arbiter
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from historical_emit_fixture import DECISIONS as FROZEN_DECISIONS
+from historical_emit_fixture import LEDGER as FROZEN_LEDGER
+from historical_emit_fixture import (
+    EQUIP_DECISIONS, EQUIP_SNAPSHOTS, NO_ACTION_DECISIONS, NO_ACTION_SNAPSHOTS,
+)
+from historical_emit_fixture import rows as fixture_rows
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,13 +36,15 @@ WINDOWS = {
     ),
     "live capture (recorded)": (DECISIONS, ROOT / "jsonlog" / "bot-state-fixed.jsonl"),
 }
+FROZEN_WINDOWS = {
+    "equip-swap (recorded)": (EQUIP_DECISIONS, EQUIP_SNAPSHOTS),
+    "no-actionable (recorded)": (NO_ACTION_DECISIONS, NO_ACTION_SNAPSHOTS),
+    "live capture (recorded)": (FROZEN_DECISIONS, None),
+}
 
 
 def _json_rows(path: Path):
-    with path.open(encoding="utf-8-sig") as stream:
-        for line in stream:
-            if line.strip():
-                yield json.loads(line)
+    yield from fixture_rows(path)
 
 
 def _snapshot_from_json(decoded: dict):
@@ -84,10 +92,10 @@ def _local_time(value: str) -> datetime:
     return parsed.replace(tzinfo=None)
 
 
-def _ledger_posts() -> dict[tuple[int, str], list[tuple[int, datetime]]]:
+def _ledger_posts(path: Path = FROZEN_LEDGER) -> dict[tuple[int, str], list[tuple[int, datetime]]]:
     posts = defaultdict(list)
     sequence = 0
-    for batch in _json_rows(LEDGER):
+    for batch in _json_rows(path):
         sequence += 1
         key = batch.get("posted_key")
         if key is None:
@@ -340,22 +348,28 @@ def _report(label: str, result: dict) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("population", choices=(*WINDOWS, "whole", "all"), nargs="?", default="all")
+    parser.add_argument("population", choices=(*WINDOWS, "historical", "whole", "all"), nargs="?", default="historical")
+    parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
-    ledger = _ledger_posts()
-    selected = WINDOWS if args.population == "all" else ({args.population: WINDOWS[args.population]} if args.population != "whole" else {})
+    decisions_path = DECISIONS if args.live else FROZEN_DECISIONS
+    ledger = _ledger_posts(LEDGER if args.live else FROZEN_LEDGER)
+    windows = WINDOWS if args.live else FROZEN_WINDOWS
+    selected = windows if args.population == "all" else (
+        {args.population: windows[args.population]}
+        if args.population in windows else {}
+    )
     failed = False
     for label, (decisions, snapshots) in selected.items():
         result = measure(decisions, snapshots, ledger)
         failed |= _report(label, result)
-    if args.population in {"whole", "all"}:
+    if args.population in {"historical", "whole", "all"}:
         result = measure(
-            DECISIONS, WINDOWS["live capture (recorded)"][1], ledger,
+            decisions_path, None, ledger,
             restrict_to_snapshots=False,
         )
-        failed |= _report("bot-decisions.jsonl (whole recorded log)", result)
+        failed |= _report("frozen historical decisions" if not args.live else "bot-decisions.jsonl (whole live log)", result)
     whole = measure(
-        DECISIONS, WINDOWS["live capture (recorded)"][1], ledger,
+        decisions_path, None, ledger,
         restrict_to_snapshots=False,
     )
     t = whole["totals"]

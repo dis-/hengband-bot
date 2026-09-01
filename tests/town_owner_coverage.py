@@ -19,6 +19,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.town_arbiter import TownTurnArbiter
 
 from replay_key_equality import CAPTURES
+from historical_emit_fixture import DECISIONS as FROZEN_DECISIONS
+from historical_emit_fixture import rows as fixture_rows
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,12 +49,9 @@ def capture_attributions(path: Path) -> list[tuple[str, str]]:
     return attributions
 
 
-def live_tail_attributions(limit: int) -> list[tuple[str, str]]:
-    rows = []
-    with (ROOT / "jsonlog" / "bot-decisions.jsonl").open(encoding="utf-8") as stream:
-        for line in stream:
-            if line.strip():
-                rows.append(json.loads(line))
+def live_tail_attributions(limit: int, *, live: bool = False) -> list[tuple[str, str]]:
+    path = ROOT / "jsonlog" / "bot-decisions.jsonl" if live else FROZEN_DECISIONS
+    rows = list(fixture_rows(path))
     arbiter = _arbiter()
     selected = rows[-limit:] if limit else rows
     return [
@@ -63,16 +62,16 @@ def live_tail_attributions(limit: int) -> list[tuple[str, str]]:
     ]
 
 
-def all_attributions() -> list[tuple[str, str]]:
-    attributions = live_tail_attributions(0)
+def all_attributions(*, live: bool = False) -> list[tuple[str, str]]:
+    attributions = live_tail_attributions(0, live=live)
     for path in CAPTURES.values():
         attributions.extend(capture_attributions(path))
     return attributions
 
 
-def generated_fixture() -> dict[str, str]:
+def generated_fixture(*, live: bool = False) -> dict[str, str]:
     mappings: dict[str, str] = {}
-    for reason, owner in all_attributions():
+    for reason, owner in all_attributions(live=live):
         if not reason:
             continue
         previous = mappings.setdefault(reason, owner)
@@ -88,14 +87,15 @@ def main() -> int:
     parser.add_argument("capture", choices=(*CAPTURES, "live-tail"))
     parser.add_argument("--limit", type=int, default=2000)
     parser.add_argument("--write-fixture", action="store_true")
+    parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
     if args.write_fixture:
         EXPECTED_PATH.write_text(
-            json.dumps(generated_fixture(), indent=2, ensure_ascii=False) + "\n",
+            json.dumps(generated_fixture(live=args.live), indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
     attributions = (
-        live_tail_attributions(args.limit)
+        live_tail_attributions(args.limit, live=args.live)
         if args.capture == "live-tail"
         else capture_attributions(CAPTURES[args.capture])
     )
@@ -120,7 +120,7 @@ def main() -> int:
         print(f"attribution mismatch: {reason!r}: expected={wanted!r} actual={got!r}")
     for reason in unseen_reasons:
         print(f"unseen reason: {reason!r}")
-    expected_empty_rows = 4 if args.capture == "live-tail" and args.limit == 0 else 0
+    expected_empty_rows = 4 if args.capture == "live-tail" and args.limit == 0 and not args.live else 0
     return 1 if (
         uncovered or mismatches or empty_reason_rows != expected_empty_rows
     ) else 0

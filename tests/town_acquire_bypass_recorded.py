@@ -15,19 +15,20 @@ from hengbot.emit_ownership import derive_target_store, in_flight_clause
 from hengbot.model import Position
 from hengbot.policy import _new_town_turn_arbiter
 from hengbot.policy_types import StoreVisitPhase
+from historical_emit_fixture import DECISIONS as FROZEN_DECISIONS
+from historical_emit_fixture import LEDGER as FROZEN_LEDGER
+from historical_emit_fixture import POSTED as FROZEN_POSTED
+from historical_emit_fixture import rows as fixture_rows
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DECISIONS = ROOT / "jsonlog" / "bot-decisions.jsonl"
-LEDGER = ROOT / "capture-ledger" / "read-batches.jsonl"
-POSTED = ROOT / "jsonlog" / "bot-posted-characters.jsonl"
+DECISIONS = FROZEN_DECISIONS
+LEDGER = FROZEN_LEDGER
+POSTED = FROZEN_POSTED
 
 
 def _rows(path: Path):
-    with path.open(encoding="utf-8-sig") as stream:
-        for line in stream:
-            if line.strip():
-                yield json.loads(line)
+    yield from fixture_rows(path)
 
 
 def _time(value: str) -> datetime:
@@ -279,8 +280,14 @@ SEND_SITES = (
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("all",), nargs="?", default="all")
-    parser.parse_args()
-    decisions, raw_ledger, posted = list(_rows(DECISIONS)), list(_rows(LEDGER)), list(_rows(POSTED))
+    parser.add_argument("--live", action="store_true")
+    args = parser.parse_args()
+    decisions_path, ledger_path, posted_path = DECISIONS, LEDGER, POSTED
+    if args.live:
+        decisions_path = ROOT / "jsonlog" / "bot-decisions.jsonl"
+        ledger_path = ROOT / "capture-ledger" / "read-batches.jsonl"
+        posted_path = ROOT / "jsonlog" / "bot-posted-characters.jsonl"
+    decisions, raw_ledger, posted = list(_rows(decisions_path)), list(_rows(ledger_path)), list(_rows(posted_path))
     clean_ledger = filter_synthetic_ledger(decisions, raw_ledger)
     raw = measure(decisions, raw_ledger, posted)
     report = measure(decisions, clean_ledger, posted)
@@ -314,10 +321,13 @@ def main() -> int:
     gaps = sorted(report["decisionless_visit_gaps"])
     bare_gaps = sorted(report["decisionless_bare_visit_gaps"])
     percentile = lambda values, fraction: values[round((len(values) - 1) * fraction)]
-    print("decision-less attribution bound:", {"bound_seconds": 5.0, "all_keys_count": len(gaps),
-          "bare_ESC_count": len(bare_gaps), "bare_ESC_min": round(bare_gaps[0], 3),
-          "bare_ESC_p50": round(percentile(bare_gaps, .5), 3),
-          "bare_ESC_p90": round(percentile(bare_gaps, .9), 3), "bare_ESC_max": round(bare_gaps[-1], 3)})
+    gap_summary = {"bound_seconds": 5.0, "all_keys_count": len(gaps), "bare_ESC_count": len(bare_gaps)}
+    if bare_gaps:
+        gap_summary.update({"bare_ESC_min": round(bare_gaps[0], 3),
+                            "bare_ESC_p50": round(percentile(bare_gaps, .5), 3),
+                            "bare_ESC_p90": round(percentile(bare_gaps, .9), 3),
+                            "bare_ESC_max": round(bare_gaps[-1], 3)})
+    print("decision-less attribution bound:", gap_summary)
     print("scope: routing emits through acquire_store_visit (E6 as scoped) does not close this; routing visit creation would")
     print("closed send-site observability (decision log / read-batches / posted-characters):")
     for row in SEND_SITES: print(" ", row)

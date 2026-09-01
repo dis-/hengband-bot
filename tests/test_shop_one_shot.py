@@ -37,7 +37,8 @@ from hengbot.model import (
 from hengbot.policy import (
     FOOD_MIN_SVAL, FOOD_TYPE_MANA, OIL_TARGET, HengbotPolicy,
     LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
-    STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate, StoreVisitPhase,
+    STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate, StoreVisit,
+    StoreVisitPhase,
 )
 from hengbot.cli import _snapshot_entries_in_order
 from tests.test_policy import grid, hostile, item, player, store_item
@@ -652,6 +653,40 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(
             policy._store_visit_last_closed.outcome, "one-shot-no-operation"
         )
+
+    def test_foreign_inflight_visit_refuses_one_shot_once_with_named_wait(self):
+        inside = self._inside(STORE_MAGIC, [], [])
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
+        outside = self._outside(policy, inside)
+        protected = StoreVisit(
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            store_type=STORE_TEMPLE,
+            phase=StoreVisitPhase.LEAVING,
+            posted_turn=inside.turn,
+            visit_origin="acquire",
+        )
+        acquire = policy._town_turn_arbiter.acquire_store_visit
+
+        def acquire_with_foreign_visit(**kwargs):
+            policy._store_visit = protected
+            return acquire(**kwargs)
+
+        with mock.patch.object(
+            policy._town_turn_arbiter,
+            "acquire_store_visit",
+            side_effect=acquire_with_foreign_visit,
+        ):
+            refused = policy.choose_key(outside)
+
+        self.assertEqual(refused, "")
+        self.assertEqual(policy.last_reason, "shop:one-shot-acquire-refused")
+        self.assertEqual(
+            policy._acquire_store_visit_attempt["acquire_result"], "refused"
+        )
+        self.assertIs(policy._store_visit, protected)
+        self.assertIsNone(policy._shop_observation)
 
     def test_entry_flush_ledger_requires_two_stage_release(self):
         """70dcabc failure: one store iteration followed ``5d0y ESC``;

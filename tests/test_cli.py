@@ -2270,7 +2270,6 @@ class DecisionRecordTest(unittest.TestCase):
             "recovered-store-context": 1,
             "equipment-transaction-recovery": 1,
             "shop-handler-recovery": 1,
-            "shop-one-shot": 1,
             "home-operation-staging": 1,
         }))
 
