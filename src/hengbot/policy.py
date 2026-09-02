@@ -377,9 +377,9 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
 )
 
 
-# それならば一旦多少の非効率は許容する。訪問回数の最大値を54回まで緩和することを許可するのでまずは処理を
+# それならば一旦多少の非効率は許容する。訪問回数の最大値を300回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
-CALIBRATION_HOME_VISIT_LIMIT = 54
+CALIBRATION_HOME_VISIT_LIMIT = 300
 # Cash retained after buying every departure-blocking shortage on a cross-town
 # shopping expedition, covering the user-specified round trip.
 CROSS_TOWN_SHOPPING_RESERVE = 1000
@@ -13513,8 +13513,8 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "equipment-transaction:home-route-unavailable"
                 return WAIT_KEY
             # Every issued approach is one attempt by this Home-owned work.
-            # Charge it to the existing 54-pass ceiling before preserving the
-            # route step. If movement never arrives, the 54th attempt blocks
+            # Charge it to the existing 300-pass ceiling before preserving the
+            # route step. If movement never arrives, the 300th attempt blocks
             # Home and abandons the transaction, so the next public decision
             # reaches the named exhausted-route terminal. A normal arriving
             # route uses only its finite movement steps and remains unblocked.
@@ -19151,10 +19151,10 @@ class HengbotPolicy(TownArbiterMixin):
             self._withdrawal_unsatisfied_for = None
             return
         passes += 1
-        # Six completed unsatisfied visits leave 48 of the authorised 54-pass
-        # ceiling for recovery, while exceeding any one-shot/page confirmation
-        # chain (which completes before another stop pass is reported).
-        threshold = CALIBRATION_HOME_VISIT_LIMIT // 9
+        # Six completed unsatisfied visits exceed any one-shot/page confirmation
+        # chain (which completes before another stop pass is reported).  Keep
+        # this diagnostic threshold independent of the looser calibration budget.
+        threshold = 6
         if passes >= threshold and not forced:
             defect = {
                 "marker": "WITHDRAWAL_UNFULFILLED_DEFECT",
@@ -19220,7 +19220,7 @@ class HengbotPolicy(TownArbiterMixin):
     def _town_store_visit_limit(self, store_type: int) -> int:
         """Return the user-authorised visit-local terminal ceiling for Home.
 
-        The authorised 54 Home visits cover outstanding equipment work,
+        The authorised 300 Home visits cover outstanding equipment work,
         including applying an optimizer result after the optimizer succeeds.
         Mixed Home work within that interval is part of completing the work;
         Later Home work retains the ordinary hard terminal. Non-Home routing is

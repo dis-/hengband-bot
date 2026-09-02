@@ -47547,6 +47547,14 @@ class DungeonConquestTest(unittest.TestCase):
 
 
 class TownErrandPlanTest(unittest.TestCase):
+    def test_calibration_home_budget_admits_measured_full_calibration(self):
+        measured_full_calibration_visits = 98
+        self.assertEqual(CALIBRATION_HOME_VISIT_LIMIT, 300)
+        self.assertGreaterEqual(
+            CALIBRATION_HOME_VISIT_LIMIT,
+            measured_full_calibration_visits,
+        )
+
     def _snapshot(self, *, turn=100, width=20, height=20):
         return Snapshot(
             player(
@@ -48653,7 +48661,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_GENERAL)
         self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
-    def test_calibration_prerequisite_home_scan_uses_fifty_four_visit_bound(self):
+    def test_calibration_prerequisite_home_scan_uses_calibration_visit_bound(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
@@ -48787,7 +48795,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
 
-    def test_calibration_home_completed_entries_block_at_fifty_four(self):
+    def test_calibration_home_completed_entries_block_at_visit_limit(self):
         needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot()
@@ -48819,7 +48827,7 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
-    def test_calibration_home_approach_bound_is_fifty_four(self):
+    def test_calibration_home_approach_bound_is_visit_limit(self):
         policy = HengbotPolicy()
         policy._calibration_phase = "deposit"
         policy._equipment_optimization_preparation = SimpleNamespace(
@@ -48834,7 +48842,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shopping_approach_step(self._snapshot(), STORE_HOME)
         self.assertIn(STORE_HOME, policy._town_store_attempted)
 
-    def test_calibration_home_oscillation_yields_to_fifty_four_entry_bound(self):
+    def test_calibration_home_oscillation_yields_to_entry_bound(self):
         needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
         policy = self._policy(needs)
         snapshot = self._snapshot(width=80, height=40)
@@ -48989,7 +48997,7 @@ class TownErrandPlanTest(unittest.TestCase):
         original_invalidate = policy._invalidate_home_observation
         policy._invalidate_home_observation = Mock(wraps=original_invalidate)
 
-        for _ in range(CALIBRATION_HOME_VISIT_LIMIT // 9):
+        for _ in range(6):
             policy.last_reason = "home:route-claim-unfulfilled"
             policy._report_town_stop_pass(
                 snapshot, STORE_HOME, goal_satisfied=False
@@ -49017,7 +49025,7 @@ class TownErrandPlanTest(unittest.TestCase):
         second = ("second armour", 36, 15)
         policy._home_pending_item = first
         policy._next_required_store_type(snapshot)
-        for _ in range((CALIBRATION_HOME_VISIT_LIMIT // 9) - 1):
+        for _ in range(5):
             policy._report_town_stop_pass(
                 snapshot, STORE_HOME, goal_satisfied=False
             )
@@ -49043,7 +49051,7 @@ class TownErrandPlanTest(unittest.TestCase):
         target = ("flag-only armour", 36, 14)
         policy._home_pending_item = target
         policy._withdrawal_unsatisfied_for = (
-            target, 0, (CALIBRATION_HOME_VISIT_LIMIT // 9) - 1, False
+            target, 0, 5, False
         )
 
         def normal_policy(candidate):
@@ -49332,7 +49340,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertIn(STORE_HOME, policy._town_store_attempted)
 
     def test_transaction_home_override_is_blocked_by_same_three_pass_owner(self):
-        """Historical name retained; the same owner now has the 54 hard ceiling."""
+        """Historical name retained; the same owner has the calibration ceiling."""
         self.test_transaction_home_override_uses_equipment_work_hard_ceiling()
 
     def test_transaction_deposit_then_withdraw_keeps_home_owner_between_visits(self):
@@ -56533,7 +56541,10 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
 
         self.assertEqual(policy._deepest_level, 31)
-        self.assertEqual(policy._town_store_visit_limit(STORE_HOME), 54)
+        self.assertEqual(
+            policy._town_store_visit_limit(STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
+        )
         self.assertNotEqual(key, WAIT_KEY)
         self.assertIs(policy._equipment_transaction_session, session)
         self.assertTrue(session.executable)
@@ -56608,7 +56619,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertNotEqual(key, WAIT_KEY)
 
     def test_live_identify_staff_block_uses_equipment_work_authority(self):
-        """Replay the measured 3-pass block/54-pass owner through choose_key."""
+        """Replay the measured 3-pass block/300-pass owner through choose_key."""
         policy, snapshot = self._fixture()
         policy.choose_key(snapshot)
         policy._town_errand_plan = None
@@ -56657,7 +56668,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
              "equipment-transaction:abandon-blocked"},
         )
 
-    def test_fifty_four_authority_block_still_denies_equipment_route(self):
+    def test_calibration_authority_block_still_denies_equipment_route(self):
         policy, _snapshot = self._fixture()
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=("optimization-timeout",), result=None,

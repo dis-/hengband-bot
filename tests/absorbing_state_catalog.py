@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import hengbot.policy as policy_module
+from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
@@ -1590,7 +1591,12 @@ SEEDED_STATES = (
         _approach_refused_optimizer_transaction,
     ),
     AbsorbingState(
-        "frozen-approach-optimizer-transaction", 200,
+        "frozen-approach-optimizer-transaction",
+        (
+            policy_module.CALIBRATION_HOME_VISIT_LIMIT
+            + TOWN_BLOCKED_STOP_LIMIT
+            + 2
+        ),
         _frozen_approach_optimizer_transaction,
     ),
     AbsorbingState(

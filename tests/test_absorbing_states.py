@@ -7,6 +7,7 @@ import absorbing_state_catalog as cat
 from absorbing_state_catalog import SEEDED_STATES, TownWorld
 from absorbing_state_harness import AbsorbingState, drive
 from hengbot.model import TVAL_POTION
+from hengbot.policy import CALIBRATION_HOME_VISIT_LIMIT
 import test_policy as fixture
 
 
@@ -171,7 +172,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         ])
 
     def test_frozen_owned_home_approach_reaches_existing_ceiling_publicly(self):
-        """Review probe: 1248168 approached 200 times without accounting."""
+        """A frozen owned approach reaches the authorized calibration ceiling."""
         policy, world = cat._approach_refused_optimizer_transaction()
         base_apply = type(world).apply
 
@@ -182,7 +183,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 
         type(world).apply = frozen_apply
         terminal_decision = None
-        for i in range(200):
+        for i in range(CALIBRATION_HOME_VISIT_LIMIT + 1):
             world.apply(policy.choose_key(world.snapshot(i)))
             if policy._town_blocked_reason is not None:
                 terminal_decision = i + 1
@@ -191,15 +192,17 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertEqual(
             policy._town_blocked_reason,
             "equipment-work-home-route-exhausted",
-            "1248168 exhausted 200 decisions without a named terminal; historical "
-            "Counter({'equipment-transaction:approach-home': 200})",
+            "the frozen approach exhausted the authorized calibration budget",
         )
         self.assertIn(cat.STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(
             policy._town_visit_ledger.unsatisfied_passes[cat.STORE_HOME],
             policy._town_store_visit_limit(cat.STORE_HOME),
         )
-        self.assertLessEqual(terminal_decision, 200)
+        self.assertLessEqual(
+            terminal_decision,
+            CALIBRATION_HOME_VISIT_LIMIT + 1,
+        )
 
     def test_progress_limb_distinguishes_progress_from_freeze(self):
         def state(progressing):
