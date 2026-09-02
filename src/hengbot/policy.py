@@ -15611,7 +15611,7 @@ class HengbotPolicy(TownArbiterMixin):
         return (
             cls._identification_flow_candidate(item) and not item.known
         ) or (
-            item.tval in {TVAL_WAND, TVAL_STAFF} and not item.known
+            item.tval in {TVAL_WAND, TVAL_STAFF, TVAL_ROD} and not item.known
         )
 
     def _identification_flow_owns(
@@ -16179,7 +16179,8 @@ class HengbotPolicy(TownArbiterMixin):
         unknown_devices = sum(
             1
             for it in snapshot.inventory
-            if it.tval in {TVAL_WAND, TVAL_STAFF} and not it.known
+            if self._normal_identification_flow_candidate(it)
+            and not it.is_equipment
         )
         watch = (self._item_signature(target), unknown_devices)
         if watch == self._device_identify_watch:

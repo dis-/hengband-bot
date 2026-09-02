@@ -29925,6 +29925,31 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snap), "ria")
         self.assertEqual(policy.last_reason, "identify:device")
 
+    def test_identifies_the_recorded_unknown_rod_as_a_device(self):
+        rod = item(
+            "a", TVAL_ROD, -1, aware=False, known=False,
+            name="unknown rod carried since turn 1267045",
+        )
+        scroll = item("i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify")
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            inventory=[rod, scroll],
+            town_flag=True,
+        )
+        policy = HengbotPolicy()
+
+        key = policy._town_device_processing_key(snap)
+
+        self.assertIsNotNone(key)
+        self.assertEqual(key, "ria")
+        self.assertEqual(policy.last_reason, "identify:device")
+        self.assertEqual(
+            policy._device_identify_watch,
+            (policy._item_signature(rod), 1),
+        )
+
     def test_unknown_jewelry_with_only_staff_routes_to_buy_identify_scroll(self):
         ring = item(
             "a",
@@ -38079,12 +38104,12 @@ class IdentifyPurchaseBatchingTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        # Stage C's three-flow union is ring + two wands + staff.  Rod ownership
-        # is deliberately Stage D, so it is not injected into this expectation.
+        # Stage D assigns the formerly orphaned rod to the device flow, so the
+        # final three-flow union contains all five recorded unknown items.
         self.assertEqual(
-            policy._outstanding_identification_count(town, full=False), 4
+            policy._outstanding_identification_count(town, full=False), 5
         )
-        self.assertEqual(policy._purchase_quantity(town, identify), 4)
+        self.assertEqual(policy._purchase_quantity(town, identify), 5)
         self.assertEqual(
             policy._outstanding_identification_count(town, full=True), 0
         )
