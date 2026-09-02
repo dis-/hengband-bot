@@ -24067,6 +24067,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._identification_need = "full"
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+            policy._effective_town_id(snap), snap.turn
+        )
         policy._conquest_target = lambda snapshot: 1
 
         policy._town_terminal_transitions(snap)
@@ -30200,6 +30206,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.choose_key(snap)
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+            policy._effective_town_id(snap), snap.turn
+        )
 
         policy.choose_key(snap)
         self.assertIn(policy._item_signature(wand), policy._deferred_device_items)
@@ -47628,6 +47640,12 @@ class DungeonConquestTest(unittest.TestCase):
         policy._identification_need = "full"
         policy._identification_candidate = signature
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+            policy._effective_town_id(snapshot), snapshot.turn
+        )
 
         # Exercise the terminal identification branch directly: the top-level
         # router's new poverty source otherwise activates fundraising before
