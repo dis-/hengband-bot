@@ -14323,6 +14323,30 @@ class HengbotPolicy(TownArbiterMixin):
         )
         return self._inventory_weight(snapshot) + added_weight <= limit
 
+    def _purchase_satisfies_departure_blocking_need(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> bool:
+        """Whether refusing this ware would preserve a live departure block."""
+        category = self._purchase_diagnostic_category(item)
+        aliases = {category}
+        if category in {"lantern", "torch"}:
+            aliases.update({"light", "fundraising-light", "quest-throwing-items"})
+        elif category == "treasure-detection":
+            aliases.update({"fundraising-detection", "mining-detection"})
+        elif category == "digging-tool":
+            aliases.update({"fundraising-digger", "mining-digger"})
+        elif category in {"identify", "star-identify"}:
+            aliases.add("identification-source")
+        elif category == "speed":
+            aliases.add("quest-speed")
+        elif category == "healing":
+            aliases.add("quest-healing")
+        return any(
+            need.store_type == snapshot.store.store_type
+            and need.category in aliases
+            for need in self._departure_blocking_town_needs(snapshot)
+        )
+
     def _overweight_home_deposit(
         self, snapshot: Snapshot
     ) -> InventoryItem | None:
@@ -22830,6 +22854,9 @@ class HengbotPolicy(TownArbiterMixin):
 
         item = self._next_purchase(snapshot)
         if item is not None:
+            if self._shopping_abandoned:
+                self.last_reason = "shop:leave"
+                return LEAVE_STORE_KEY
             if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
@@ -22866,9 +22893,14 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "shop:stuck-leave"
                 return LEAVE_STORE_KEY
             remaining = self._purchase_quantity(snapshot, item)
-            if not self._can_add_item_without_overweight(
-                snapshot, item, quantity=remaining
+            if (
+                not self._purchase_satisfies_departure_blocking_need(snapshot, item)
+                and not self._can_add_item_without_overweight(
+                    snapshot, item, quantity=remaining
+                )
             ):
+                self._shopping_abandoned = True
+                self._town_store_attempted[store.store_type] = snapshot.turn
                 self.last_reason = "shop:purchase-overweight-leave"
                 return LEAVE_STORE_KEY
             progress_sig = (item.letter, remaining, snapshot.player.gold)

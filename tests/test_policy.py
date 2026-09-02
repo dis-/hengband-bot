@@ -38461,6 +38461,60 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
         self.assertEqual(snapshot.inventory[7].count, 27)
 
+    def test_overweight_refusal_latches_and_retires_the_want(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
+        self.assertTrue(policy._shopping_abandoned)
+        self.assertEqual(
+            policy._town_store_attempted[snapshot.store.store_type], snapshot.turn
+        )
+
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:leave")
+        self.assertEqual(policy._store_stuck_count, 0)
+
+    def test_departure_blocking_recall_purchase_survives_existing_overweight(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        recall = replace(
+            store_item(
+                "n", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=99, price=100
+            ),
+            weight=5,
+        )
+        inventory = list(snapshot.inventory)
+        inventory[7] = replace(inventory[7], count=0)
+        equipment = list(snapshot.equipment)
+        equipment[0] = replace(equipment[0], weight=344)
+        snapshot = replace(
+            snapshot,
+            inventory=inventory,
+            equipment=equipment,
+            grids={
+                snapshot.player.position: replace(
+                    snapshot.grids[snapshot.player.position],
+                    store_number=STORE_ALCHEMIST,
+                )
+            },
+            store=StoreState(STORE_ALCHEMIST, [recall]),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._inventory_weight(snapshot), 1705)
+        self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
+        self.assertFalse(
+            policy._can_add_item_without_overweight(snapshot, recall, quantity=1)
+        )
+        with (
+            patch.object(policy, "_batch_sell_key", return_value=None),
+            patch.object(policy, "_find_low_level_sale", return_value=None),
+        ):
+            key = policy._shop(snapshot)
+        self.assertNotEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:buy-recall")
+
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)
         actor = replace(
