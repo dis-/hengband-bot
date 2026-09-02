@@ -18,7 +18,6 @@ from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import hengbot.policy as policy_module
-from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
