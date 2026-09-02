@@ -280,6 +280,7 @@ def warrior_optimizer_input_key(
     preserve_pack_item_ids: frozenset[str],
     search_excluded_item_ids: frozenset[str],
     calibration: CharacterCalibration | None,
+    identification_exempt_item_ids: frozenset[str] = frozenset(),
     knowledge_key: str | None = None,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
@@ -296,6 +297,7 @@ def warrior_optimizer_input_key(
         "has_destruction": has_destruction,
         "preserve_pack_item_ids": preserve_pack_item_ids,
         "search_excluded_item_ids": search_excluded_item_ids,
+        "identification_exempt_item_ids": identification_exempt_item_ids,
         "calibration": calibration,
         "current_pack_items": len(snapshot.inventory),
         "player": {
@@ -593,6 +595,7 @@ def prepare_warrior_optimization(
     has_destruction: bool = False,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
     search_excluded_item_ids: frozenset[str] = frozenset(),
+    identification_exempt_item_ids: frozenset[str] = frozenset(),
     timeout_seconds: float = 25.0,
     loadout_report_path: Path | None = None,
     evaluator_cache: WarriorEvaluatorCache | None = None,
@@ -759,6 +762,7 @@ def prepare_warrior_optimization(
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
         require_light=require_light,
+        identification_exempt_item_ids=identification_exempt_item_ids,
     )
     if loadout_report_path is not None:
         _append_loadout_report(

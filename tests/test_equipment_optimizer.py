@@ -763,6 +763,20 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertNotIn("unknown", result.best.loadout.item_ids)
 
+    def test_written_off_unknown_is_excluded_without_marking_catalog_incomplete(self):
+        terrible = gear(
+            "terrible", 36, known=False, fully_known=False,
+            pseudo_feeling="terrible",
+        )
+        result = optimize_loadout(
+            [self.light, terrible], lambda loadout: metrics(1), depth=1,
+            identification_exempt_item_ids=frozenset({"terrible"}),
+        )
+        self.assertEqual(result.incomplete_item_ids, frozenset())
+        self.assertGreater(result.combinations_considered, 0)
+        self.assertIsNotNone(result.best)
+        self.assertNotIn("terrible", result.best.loadout.item_ids)
+
     def test_unidentified_average_item_is_ignored_without_blocking(self):
         average = gear(
             "average",

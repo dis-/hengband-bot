@@ -12221,6 +12221,12 @@ class HengbotPolicy(TownArbiterMixin):
             else item
             for item in catalog
         )
+        identification_exempt = frozenset(
+            item.id
+            for item in search_catalog
+            if self._item_signature(item.item)
+            in self._town_unidentifiable_carried_sigs
+        )
         # The selector memo is the owned equipment multiset plus knowledge
         # completeness. Origin and worn slot are transport state, so strip them
         # from the normal projection; gold, pack occupancy, recall progress and
@@ -12234,6 +12240,7 @@ class HengbotPolicy(TownArbiterMixin):
                 ),
                 key=lambda projection: projection[0],
             )),
+            tuple(sorted(identification_exempt)),
             self._equipment_catalog.home_scan_complete,
             # Worn state is an optimizer input even though moving an item
             # between equipment and pack does not change the owned multiset.
@@ -12344,6 +12351,7 @@ class HengbotPolicy(TownArbiterMixin):
                 has_destruction=has_destruction,
                 preserve_pack_item_ids=preserve,
                 search_excluded_item_ids=search_excluded,
+                identification_exempt_item_ids=identification_exempt,
                 calibration=calibration,
                 knowledge_key=self._equipment_optimizer_knowledge_key,
             )
@@ -12361,6 +12369,7 @@ class HengbotPolicy(TownArbiterMixin):
             has_destruction=has_destruction,
             preserve_pack_item_ids=preserve,
             search_excluded_item_ids=search_excluded,
+            identification_exempt_item_ids=identification_exempt,
             calibration=calibration,
             knowledge_key=self._equipment_optimizer_knowledge_key,
         )
@@ -12438,6 +12447,7 @@ class HengbotPolicy(TownArbiterMixin):
             has_destruction=has_destruction,
             preserve_pack_item_ids=preserve,
             search_excluded_item_ids=search_excluded,
+            identification_exempt_item_ids=identification_exempt,
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
@@ -20137,6 +20147,8 @@ class HengbotPolicy(TownArbiterMixin):
             }
             if candidate is not None and candidate_origins & {"pack", "equipped"}:
                 self._town_unidentifiable_carried_sigs.add(candidate)
+                self._equipment_optimization_signature = None
+                self._equipment_optimization_preparation = None
             elif candidate is not None and "home" in candidate_origins:
                 self._deferred_home_items.add(candidate)
             elif self._device_identification_candidate is not None:

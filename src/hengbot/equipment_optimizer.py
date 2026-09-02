@@ -1158,6 +1158,7 @@ def optimize_loadout(
     timeout_seconds: float = 5.0,
     candidate_loadouts: Iterable[Loadout] | None = None,
     require_light: bool | None = None,
+    identification_exempt_item_ids: frozenset[str] = frozenset(),
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
@@ -1166,7 +1167,9 @@ def optimize_loadout(
     incomplete = frozenset(
         item.id
         for item in catalog
-        if item.identification_incomplete and not item.evaluable
+        if item.identification_incomplete
+        and not item.evaluable
+        and item.id not in identification_exempt_item_ids
     )
     started = monotonic()
     # Unevaluable items are already excluded by the loadout enumerators.  Keep
