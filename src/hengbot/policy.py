@@ -14370,6 +14370,45 @@ class HengbotPolicy(TownArbiterMixin):
         if not self._inventory_overweight(snapshot):
             return None
 
+        blocking_categories = {
+            spec.category
+            for spec in self._town_need_registry()
+            if spec.departure_blocking
+        }
+
+        def required_supply(item: InventoryItem) -> bool:
+            categories = set(self._cross_town_item_categories(item))
+            strategy = (
+                self._carry_procurement_strategy(snapshot)
+                or self._quest_strategy_for_errand_or_floor(snapshot)
+            )
+            if (
+                strategy is not None
+                and self._quest_carry_target_for_item(
+                    snapshot, item, strategy.required_force
+                ) is not None
+            ):
+                categories.update(
+                    category
+                    for category in blocking_categories
+                    if category.startswith("quest-")
+                )
+            mining_planned = self._fundraising_mode in {
+                "prepare", "mine", "scavenge"
+            } or (
+                snapshot.in_town
+                and snapshot.player.class_id >= 0
+                and snapshot.player.gold < FUNDRAISING_START_GOLD
+            )
+            if mining_planned:
+                if item.is_treasure_detection_scroll:
+                    categories.add("fundraising-detection")
+                if item.is_digging_tool:
+                    categories.add("fundraising-digger")
+                if item.is_light:
+                    categories.add("fundraising-light")
+            return bool(categories & blocking_categories)
+
         def priority(item: InventoryItem) -> tuple[int, int, str]:
             noncombat_bulk = not (
                 item.is_equipment
@@ -14408,6 +14447,23 @@ class HengbotPolicy(TownArbiterMixin):
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot
         ]
+        required = [item for item in candidates if required_supply(item)]
+        if required:
+            excess = (
+                self._inventory_weight(snapshot)
+                - (self._inventory_weight_limit(snapshot) or 0)
+            )
+            # A Home put ends the visit.  First prefer a surplus which clears the
+            # excess by itself; otherwise take the largest removable weight so
+            # the greedy sequence uses the fewest such full visits it can.
+            return min(
+                required,
+                key=lambda item: (
+                    item.weight * self._retention_surplus(snapshot, item) < excess,
+                    -item.weight * self._retention_surplus(snapshot, item),
+                    item.slot,
+                ),
+            )
         return min(candidates, key=priority, default=None)
 
     def _home_deposit_candidate(

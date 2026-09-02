@@ -38810,6 +38810,55 @@ class WeightOverloadTownTest(unittest.TestCase):
             )
         )
 
+    def test_recorded_overweight_deposits_required_surplus_in_one_visit(self):
+        actor = replace(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=5000),
+            stat_index=(25, 0, 0, 0, 0, 0),
+        )
+        teleport = replace(
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=45), weight=5
+        )
+        recall = replace(
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=27), weight=5
+        )
+        rod = replace(item("d", TVAL_ROD, 1, name="unidentified rod"), weight=15)
+        ballast = replace(
+            item("body", 33, 1, is_equipment=True), weight=1330
+        )
+        snapshot = Snapshot(
+            actor,
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[teleport, recall, rod],
+            equipment=[ballast],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._inventory_weight(snapshot), 1705)
+        self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
+        self.assertEqual(policy._planned_depth(), 1)
+        self.assertEqual(policy._retention_surplus(snapshot, teleport), 44)
+        self.assertEqual(policy._retention_surplus(snapshot, recall), 24)
+
+        selected = policy._overweight_home_deposit(snapshot)
+        self.assertEqual(selected, teleport)  # Wrong-value pin: never the 15-weight rod.
+        quantity = policy._retention_surplus(snapshot, selected)
+        self.assertEqual(quantity, 44)
+        operation = policy._home_deposit_key(snapshot, selected)
+        self.assertEqual(operation, "dt44\r")
+        deposited_quantity = int(operation[2:-1])
+        self.assertLessEqual(
+            deposited_quantity, policy._retention_surplus(snapshot, selected)
+        )
+        self.assertEqual(selected.count - deposited_quantity, 1)
+        resulting_weight = (
+            policy._inventory_weight(snapshot) - selected.weight * deposited_quantity
+        )
+        self.assertEqual(resulting_weight, 1485)
+        self.assertLessEqual(resulting_weight, policy._inventory_weight_limit(snapshot))
+
     def test_home_attempt_latch_suppresses_overweight_convenience_deposit(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()
