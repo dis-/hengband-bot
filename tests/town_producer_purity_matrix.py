@@ -160,7 +160,11 @@ def producer_equivalence():
 
 def measure():
     snapshot = _surface_snapshot()
-    producers = ("_boxed_town_breakout_key", "_town_procurement_progress_key")
+    producers = (
+        "_boxed_town_breakout_key",
+        "_town_procurement_progress_key",
+        "departure_block_state",
+    )
     impure = []
     results = {}
     for name in producers:

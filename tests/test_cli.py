@@ -2444,10 +2444,26 @@ class DecisionRecordTest(unittest.TestCase):
 
     def test_departure_block_recording_is_state_pure_and_cannot_publish(self):
         from town_producer_purity_matrix import observable_policy_fields
+        from hengbot.monrace_knowledge import (
+            find_monrace_definitions, load_monrace_knowledge,
+        )
 
-        snapshot = self._town_snapshot()
-        policy = HengbotPolicy()
-        policy._departure_block = policy._departure_block_state(snapshot)
+        path = Path(__file__).resolve().parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        definitions = find_monrace_definitions(path, None)
+        monraces = load_monrace_knowledge(definitions) if definitions else {}
+        rows = path.read_text(encoding="utf-8-sig").splitlines()
+        row_index, line = next(
+            (index, line) for index, line in enumerate(rows)
+            if json.loads(line).get("turn") == 1367059
+        )
+        self.assertEqual(row_index, 6398)
+        raw = json.loads(line)
+        snapshot = parse_snapshot(raw, monraces)
+        policy = HengbotPolicy(monrace_knowledge=monraces)
+        policy.prime(snapshot)
+        # This row followed a real live decision.  Recreate its observed latch
+        # without calling the producer under test during fixture setup.
+        policy._departure_block = {"observed": True}
         policy._departure_block_sequence = policy._decision_sequence
         before = observable_policy_fields(policy)
 
@@ -2457,8 +2473,21 @@ class DecisionRecordTest(unittest.TestCase):
         ):
             observed = policy.departure_block_state(snapshot)
 
-        self.assertIs(observed, policy._departure_block)
+        self.assertEqual(observed, policy._departure_block)
         self.assertEqual(before, observable_policy_fields(policy))
+
+    def test_missing_departure_block_means_not_evaluated_this_decision(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy._departure_block = policy._departure_block_state(snapshot)
+        policy._departure_block_sequence = policy._decision_sequence - 1
+
+        facts = _capture_decision_facts(snapshot, policy)
+        record = _decision_record(
+            snapshot, "5", "test", departure_block=facts["departure_block"]
+        )
+
+        self.assertNotIn("departure_block", record)
 
     def test_writer_treats_only_none_as_missing_decision_facts(self):
         class FalsyFacts(dict):
