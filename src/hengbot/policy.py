@@ -14355,15 +14355,6 @@ class HengbotPolicy(TownArbiterMixin):
         )
         return current_weight + added_weight <= limit
 
-    def _purchase_serves_departure_blocking_work(
-        self, snapshot: Snapshot, item: StoreItem, need: NeedSpec | None,
-    ) -> bool:
-        """Whether *item* is the ware selected for this live mandatory need."""
-        if need is None or not need.departure_blocking or not need.produces(snapshot):
-            return False
-        selected, selected_need = self._mandatory_purchase_with_need(snapshot)
-        return selected == item and selected_need is need
-
     def _overweight_home_deposit(
         self, snapshot: Snapshot
     ) -> InventoryItem | None:
@@ -21203,25 +21194,16 @@ class HengbotPolicy(TownArbiterMixin):
             None,
         )
 
-    def _mandatory_purchase_with_need(
-        self, snapshot: Snapshot,
-    ) -> tuple[StoreItem | None, NeedSpec | None]:
-        """Select a mandatory ware together with the need that selected it."""
+    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """Select an affordable ware that closes a departure requirement."""
         store = snapshot.store
         if store is None:
-            return None, None
+            return None
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             carry = self._quest_carry_purchase(snapshot, strategy)
             if carry is not None:
-                return carry, next(
-                    (
-                        need for need in self._town_need_registry()
-                        if need.departure_blocking and need.produces(snapshot)
-                        and need.category.startswith("quest-")
-                    ),
-                    None,
-                )
+                return carry
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         if (
             snapshot.player.food_type == FOOD_TYPE_MANA
@@ -21229,7 +21211,7 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             mana_food = self._mana_food_purchase(snapshot)
             if mana_food is not None:
-                return mana_food, self._live_purchase_need(snapshot, "food")
+                return mana_food
         predicates = (
             ("recall", lambda item: item.is_recall_scroll),
             (
@@ -21266,13 +21248,8 @@ class HengbotPolicy(TownArbiterMixin):
                 None,
             )
             if candidate is not None:
-                category = "cure-critical" if kind == "cure" else kind
-                return candidate, self._live_purchase_need(snapshot, category)
-        return None, None
-
-    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
-        """Select an affordable ware that closes a departure requirement."""
-        return self._mandatory_purchase_with_need(snapshot)[0]
+                return candidate
+        return None
 
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
@@ -23033,9 +23010,6 @@ class HengbotPolicy(TownArbiterMixin):
 
         item = self._next_purchase(snapshot)
         if item is not None:
-            mandatory_item, purchase_need = self._mandatory_purchase_with_need(snapshot)
-            if mandatory_item != item:
-                purchase_need = None
             if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
@@ -23072,17 +23046,6 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "shop:stuck-leave"
                 return LEAVE_STORE_KEY
             remaining = self._purchase_quantity(snapshot, item)
-            if (
-                not self._purchase_serves_departure_blocking_work(
-                    snapshot, item, purchase_need
-                )
-                and not self._can_add_item_without_overweight(
-                    snapshot, item, quantity=remaining
-                )
-            ):
-                self._town_store_attempted[store.store_type] = snapshot.turn
-                self.last_reason = "shop:purchase-overweight-leave"
-                return LEAVE_STORE_KEY
             progress_sig = (item.letter, remaining, snapshot.player.gold)
             if self._last_buy_progress_sig is not None:
                 old_letter, old_remaining, old_gold = self._last_buy_progress_sig
