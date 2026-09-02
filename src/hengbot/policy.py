@@ -16551,7 +16551,6 @@ class HengbotPolicy(TownArbiterMixin):
     def _retain_identification_source_owner(self) -> None:
         """Re-open the bounded Alchemist owner for obtainable/unknown stock."""
         self._rearm_town_store_for_new_work(STORE_ALCHEMIST)
-        self._town_errand_plan = None
 
     def _activate_home_batch_item(self) -> None:
         if self._home_pending_item is None and self._home_pending_batch:

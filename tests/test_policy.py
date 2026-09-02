@@ -30137,6 +30137,50 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
+    def test_unknown_identify_stock_preserves_owner_until_observation_resolves(self):
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring", aware=False,
+            known=False, is_equipment=True,
+        )
+        outside = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[ring],
+            equipment=[self._lantern()], town_flag=True, town_id=1, turn=40,
+        )
+        policy = HengbotPolicy()
+        policy._refresh_carried_equipment_catalog(outside)
+        self.assertIsNone(policy._town_item_processing_key(outside))
+        policy._town_store_attempted[STORE_ALCHEMIST] = outside.turn
+        plan = TownErrandPlan(
+            stops=[STORE_ALCHEMIST], completed_this_visit=[STORE_ALCHEMIST]
+        )
+        policy._town_errand_plan = plan
+
+        policy._town_terminal_transitions(outside)
+
+        self.assertIs(policy._town_errand_plan, plan)
+        self.assertEqual(plan.completed_this_visit, [])
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+        inside = replace(
+            outside,
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+            turn=41,
+        )
+        policy._floor_key = outside.floor_key
+        policy.choose_key(inside)
+        self.assertEqual(
+            policy._identification_source_obtainability(inside, full=False),
+            "unavailable",
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = inside.turn
+        policy._town_terminal_transitions(inside)
+        self.assertIsNone(policy._identification_need)
+        self.assertIn(
+            policy._item_signature(ring), policy._town_unidentifiable_carried_sigs
+        )
+
     def test_affordable_identify_stock_rearms_owner_then_purchase_resolves(self):
         ring = item(
             "a", TVAL_RING, -1, name="unknown ring", aware=False,
