@@ -29249,6 +29249,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             fully_known=False, is_equipment=True, is_ego=True,
         )
         policy = HengbotPolicy()
+        seed_character_calibration(policy, town)
         policy._equipment_catalog.refresh_carried(town.inventory, town.equipment)
         policy._equipment_catalog.observe_home_page([incomplete_ego])
         policy._equipment_catalog.observe_home_page([])
@@ -30179,6 +30180,30 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIsNone(policy._identification_need)
         self.assertIn(
             policy._item_signature(ring), policy._town_unidentifiable_carried_sigs
+        )
+
+    def test_alchemist_observation_writer_drives_identify_obtainability(self):
+        outside = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            town_flag=True, town_id=1, turn=40,
+        )
+        inside = replace(
+            outside,
+            store=StoreState(store_type=STORE_ALCHEMIST, items=[]),
+            turn=41,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = outside.floor_key
+
+        self.assertEqual(
+            policy._identification_source_obtainability(outside, full=False),
+            "unknown",
+        )
+        policy.choose_key(inside)
+        self.assertEqual(
+            policy._identification_source_obtainability(inside, full=False),
+            "unavailable",
         )
 
     def test_affordable_identify_stock_rearms_owner_then_purchase_resolves(self):
@@ -46640,6 +46665,49 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
 
         self.assertTrue(any(policy._identification_flow_candidate(item) for item in items))
         self.assertEqual(policy._home_pending_batch, [])
+
+    def test_carried_identification_writeoff_flows_into_optimizer_preparation(self):
+        unknown = item(
+            "z", TVAL_RING, -1, name="terrible unknown ring", aware=False,
+            known=False, fully_known=False, is_equipment=True,
+        )
+        snapshot = self._town(inventory=(unknown,))
+        snapshot = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                stat_cur=(18, 10, 10, 10, 10, 10),
+                stat_max=(18, 10, 10, 10, 10, 10),
+                stat_use=(18, 10, 10, 10, 10, 10),
+                stat_index=(15, 3, 3, 3, 3, 3),
+            ),
+        )
+        policy = HengbotPolicy(monrace_knowledge={
+            1: MonraceKnowledge(
+                1, 110, False, False, level=1, max_melee_damage=1,
+                average_hp=1, armor_class=1, rarity=1,
+            )
+        })
+        seed_character_calibration(policy, snapshot)
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        policy._equipment_catalog.observe_home_page([])
+        policy._equipment_catalog.observe_home_page([])
+
+        blocked = policy._prepare_equipment_optimization(snapshot)
+        self.assertIn("incomplete-equipment-catalog", blocked.blockers)
+        self.assertEqual(len(blocked.result.incomplete_item_ids), 1)
+
+        policy._town_unidentifiable_carried_sigs.add(
+            policy._item_signature(unknown)
+        )
+        policy._equipment_optimization_signature = None
+        policy._equipment_optimization_preparation = None
+        written_off = policy._prepare_equipment_optimization(snapshot)
+
+        self.assertNotIn("incomplete-equipment-catalog", written_off.blockers)
+        self.assertEqual(written_off.result.incomplete_item_ids, frozenset())
 
     def test_optimizer_preserves_identification_owned_pack_item(self):
         pending = item(
