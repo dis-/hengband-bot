@@ -17676,7 +17676,6 @@ class HengbotPolicy(TownArbiterMixin):
             add(STORE_HOME, "deposit", "home-first")
         if (
             self._home_available(snapshot)
-            and STORE_HOME not in self._town_store_attempted
             and self._inventory_overweight(snapshot)
             and self._find_home_deposit(snapshot) is not None
         ):

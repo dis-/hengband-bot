@@ -38769,7 +38769,7 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy._retention_reservation(overloaded, source), 0)
         self.assertNotEqual(policy._overweight_home_deposit(overloaded), source)
 
-    def test_home_attempt_latch_suppresses_overweight_convenience_deposit(self):
+    def test_home_attempt_latch_does_not_suppress_reducible_overweight(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_HOME] = snapshot.turn
@@ -38777,13 +38777,61 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertTrue(policy._home_available(snapshot))
         self.assertTrue(policy._inventory_overweight(snapshot))
         self.assertIsNotNone(policy._find_home_deposit(snapshot))
-        self.assertFalse(
+        self.assertTrue(
             any(
                 need.store_type == STORE_HOME
-                and need.category in {"weight-overload", "deposit"}
+                and need.category == "weight-overload"
                 for need in policy._enumerate_town_needs(snapshot)
             )
         )
+
+        while (candidate := policy._overweight_home_deposit(snapshot)) is not None:
+            policy._home_rejected_deposits.add(policy._item_signature(candidate))
+
+        self.assertFalse(
+            any(
+                need.store_type == STORE_HOME
+                and need.category == "weight-overload"
+                for need in policy._enumerate_town_needs(snapshot)
+            )
+        )
+
+    def test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn
+        passes = 0
+
+        while policy._inventory_overweight(snapshot):
+            needs = policy._enumerate_town_needs(snapshot)
+            self.assertTrue(any(
+                need.store_type == STORE_HOME
+                and need.category == "weight-overload"
+                for need in needs
+            ))
+            candidate = policy._overweight_home_deposit(snapshot)
+            self.assertIsNotNone(candidate)
+            count = policy._retention_surplus(snapshot, candidate)
+            inventory = [
+                replace(item, count=item.count - count)
+                if item.slot == candidate.slot and item.count > count
+                else item
+                for item in snapshot.inventory
+                if item.slot != candidate.slot or item.count > count
+            ]
+            progressed = replace(snapshot, inventory=inventory)
+            self.assertLess(
+                policy._inventory_weight(progressed),
+                policy._inventory_weight(snapshot),
+            )
+            snapshot = progressed
+            passes += 1
+
+        self.assertEqual(passes, 4)
+        self.assertFalse(any(
+            need.category == "weight-overload"
+            for need in policy._enumerate_town_needs(snapshot)
+        ))
 
 
     def test_overweight_blocks_fixed_quest_town_travel(self):
