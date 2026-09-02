@@ -30100,6 +30100,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._observe(arrival)
         policy._observe(snap)
         self.assertNotIn(signature, policy._town_unidentifiable_carried_sigs)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        self.assertEqual(policy._identification_candidate, signature)
+        self.assertEqual(policy._identification_need, "normal")
 
     def test_identify_give_up_requires_current_town_shelf_evidence(self):
         ring = item(
