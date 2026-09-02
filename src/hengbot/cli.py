@@ -925,8 +925,9 @@ def _decision_record(
         "fundraising": fundraising or {},
         **({"town_plan": town_plan} if town_plan else {}),
         **({"fixedquest_readiness": fixedquest_readiness} if fixedquest_readiness else {}),
-        # Missing means the departure gate was not evaluated in this decision;
-        # an evaluated gate always carries its non-empty structured payload.
+        # A missing key can mean either that the departure gate was not
+        # evaluated this decision or that it evaluated ready and returned {}.
+        # Consumers must not distinguish those byte-identical cases.
         **({"departure_block": departure_block} if departure_block else {}),
         **(
             {"cross_town_shopping": cross_town_shopping}

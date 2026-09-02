@@ -46666,6 +46666,17 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertTrue(any(policy._identification_flow_candidate(item) for item in items))
         self.assertEqual(policy._home_pending_batch, [])
 
+    def test_unidentified_scroll_belongs_to_use_flow_not_identification_flow(self):
+        scroll = item(
+            "a", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="unidentified scroll", aware=False, known=False,
+        )
+        policy = HengbotPolicy()
+
+        self.assertFalse(policy._identification_flow_candidate(scroll))
+        self.assertFalse(policy._normal_identification_flow_candidate(scroll))
+        self.assertFalse(policy._identification_flow_owns(scroll))
+
     def test_carried_identification_writeoff_flows_into_optimizer_preparation(self):
         unknown = item(
             "z", TVAL_RING, -1, name="terrible unknown ring", aware=False,

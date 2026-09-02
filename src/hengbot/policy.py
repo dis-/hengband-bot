@@ -15692,7 +15692,11 @@ class HengbotPolicy(TownArbiterMixin):
     def _normal_identification_flow_candidate(
         cls, item: InventoryItem | StoreItem,
     ) -> bool:
-        """Union of carried/worn gear and device plain-Identify consumers."""
+        """Union of carried/worn gear and device plain-Identify consumers.
+
+        Scrolls (tval 70) deliberately have no town-identification owner:
+        reading a scroll identifies its flavor through its normal use flow.
+        """
         return (
             cls._identification_flow_candidate(item) and not item.known
         ) or (
