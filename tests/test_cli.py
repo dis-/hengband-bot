@@ -2448,16 +2448,11 @@ class DecisionRecordTest(unittest.TestCase):
             find_monrace_definitions, load_monrace_knowledge,
         )
 
-        path = Path(__file__).resolve().parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        path = Path(__file__).with_name("fixtures") / "optimizer-purity-turn2459793.json"
         definitions = find_monrace_definitions(path, None)
         monraces = load_monrace_knowledge(definitions) if definitions else {}
-        rows = path.read_text(encoding="utf-8-sig").splitlines()
-        row_index, line = next(
-            (index, line) for index, line in enumerate(rows)
-            if json.loads(line).get("turn") == 1367059
-        )
-        self.assertEqual(row_index, 6398)
-        raw = json.loads(line)
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        self.assertEqual(raw["turn"], 2459793)
         snapshot = parse_snapshot(raw, monraces)
         policy = HengbotPolicy(monrace_knowledge=monraces)
         policy.prime(snapshot)
