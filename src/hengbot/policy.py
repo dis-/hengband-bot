@@ -1897,6 +1897,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
         self._decision_sequence = 0
+        self._departure_block_sequence: int | None = None
         self._acquire_store_visit_attempt: dict[str, object] = {
             "acquire_store_visit_called": False,
             "requested_owner": None,
@@ -10359,6 +10360,7 @@ class HengbotPolicy(TownArbiterMixin):
             and not self._equipment_departure_ready(snapshot)
         ):
             self._departure_block = self._departure_block_state(snapshot)
+            self._departure_block_sequence = self._decision_sequence
             if not self._departure_block.get("failed"):
                 self._departure_block["failed"] = ["equipment_departure_ready"]
             if self._town_blocked_reason is None:
@@ -10387,6 +10389,7 @@ class HengbotPolicy(TownArbiterMixin):
         if self._equipment_departure_ready(snapshot):
             return True
         self._departure_block = self._departure_block_state(snapshot)
+        self._departure_block_sequence = self._decision_sequence
         if not self._departure_block.get("failed"):
             self._departure_block["failed"] = ["equipment_departure_ready"]
         if self._town_blocked_reason is None:
@@ -24935,6 +24938,7 @@ class HengbotPolicy(TownArbiterMixin):
             )
         else:
             self._departure_block = {}
+        self._departure_block_sequence = self._decision_sequence
         if (
             recall_dest is not None
             and not snapshot.player.recalling
@@ -25105,14 +25109,15 @@ class HengbotPolicy(TownArbiterMixin):
     def departure_block_state(
         self, snapshot: Snapshot | None = None
     ) -> dict[str, object]:
-        """Return a fresh row observation, or the last decision-local latch.
+        """Return only the departure block observed by the current decision.
 
-        Decision recording always supplies ``snapshot``.  The optional form is
-        retained for decision-path diagnostics and tests that inspect the exact
-        block which caused a refusal.
+        ``snapshot`` identifies the recorder call but is deliberately not
+        evaluated here: departure evaluation can prepare the optimizer and
+        publish a confirmed loadout.  A latch from an earlier decision is not
+        an observation for this row.
         """
-        if snapshot is not None:
-            return self._departure_block_state(snapshot)
+        if self._departure_block_sequence != self._decision_sequence:
+            return {}
         return self._departure_block
 
     def _equipped_digging_tool(self, snapshot: Snapshot) -> InventoryItem | None:

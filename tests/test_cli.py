@@ -2432,18 +2432,33 @@ class DecisionRecordTest(unittest.TestCase):
                     mocked.stop()
             self.assertTrue((Path(directory) / "decision.jsonl").is_file())
 
-    def test_decision_facts_recompute_departure_block_from_current_snapshot(self):
+    def test_decision_facts_reject_stale_departure_block_without_recomputation(self):
         snapshot = self._town_snapshot()
         policy = HengbotPolicy()
         policy._departure_block = policy._departure_block_state(snapshot)
-        policy._departure_block["diagnostics"]["free_pack_slots"] = 10
-        stale_free = policy._departure_block["diagnostics"]["free_pack_slots"]
+        policy._departure_block_sequence = policy._decision_sequence - 1
 
         facts = _capture_decision_facts(snapshot, policy)
 
-        current_free = facts["departure_block"]["diagnostics"]["free_pack_slots"]
-        self.assertNotEqual(stale_free, current_free)
-        self.assertEqual(current_free, 23 - len(snapshot.inventory))
+        self.assertEqual(facts["departure_block"], {})
+
+    def test_departure_block_recording_is_state_pure_and_cannot_publish(self):
+        from town_producer_purity_matrix import observable_policy_fields
+
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy._departure_block = policy._departure_block_state(snapshot)
+        policy._departure_block_sequence = policy._decision_sequence
+        before = observable_policy_fields(policy)
+
+        with patch.object(
+            policy, "_record_confirmed_loadout",
+            side_effect=AssertionError("recording published a loadout"),
+        ):
+            observed = policy.departure_block_state(snapshot)
+
+        self.assertIs(observed, policy._departure_block)
+        self.assertEqual(before, observable_policy_fields(policy))
 
     def test_writer_treats_only_none_as_missing_decision_facts(self):
         class FalsyFacts(dict):
