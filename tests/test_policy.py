@@ -38606,6 +38606,9 @@ class WeightOverloadTownTest(unittest.TestCase):
     def test_ammo_purchase_cannot_create_recorded_55_weight_excess(self):
         snapshot = self._recorded_pre_ammo_purchase()
         policy = HengbotPolicy()
+        # Non-Home StoreItem weights are absent in production JSON today.  This
+        # injected weight pins guard behaviour for a condition the emitter cannot
+        # currently produce; it is not evidence that the live guard can fire.
         target = policy._next_purchase(snapshot)
 
         self.assertIsNotNone(target)
@@ -38632,6 +38635,8 @@ class WeightOverloadTownTest(unittest.TestCase):
         ))
 
     def test_weight_exemption_is_bound_to_the_selected_mandatory_ware(self):
+        # Non-Home StoreItem weights are absent in production JSON today.  These
+        # injected weights pin a currently unproducible guard condition.
         bolts = replace(
             store_item("n", TVAL_BOLT, 1, count=99, price=3), weight=3
         )
@@ -38858,6 +38863,49 @@ class WeightOverloadTownTest(unittest.TestCase):
         )
         self.assertEqual(resulting_weight, 1485)
         self.assertLessEqual(resulting_weight, policy._inventory_weight_limit(snapshot))
+
+    def test_overweight_never_deposits_unreserved_blocking_supply(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        snapshot = replace(
+            snapshot,
+            inventory=[
+                *snapshot.inventory,
+                replace(item("z", 9, 0, name="heavy statue"), weight=100),
+            ],
+        )
+        policy = HengbotPolicy()
+        identify_staff = snapshot.inventory[12]
+
+        self.assertEqual(
+            policy._cross_town_item_categories(identify_staff),
+            ("identify-staff",),
+        )
+        self.assertEqual(policy._retention_reservation(snapshot, identify_staff), 0)
+        self.assertTrue(
+            next(
+                spec for spec in policy._town_need_registry()
+                if spec.category == "identify-staff"
+            ).departure_blocking
+        )
+        selected = policy._overweight_home_deposit(snapshot)
+        self.assertIsNotNone(selected)
+        self.assertNotEqual(selected.slot, identify_staff.slot)
+        self.assertEqual(selected.slot, "g")
+
+    def test_suffixed_blocking_supply_categories_are_protected(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        policy = HengbotPolicy()
+        source = replace(
+            item("x", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"), weight=5
+        )
+        overloaded = replace(snapshot, inventory=[source, *snapshot.inventory])
+
+        self.assertEqual(
+            policy._cross_town_item_categories(source),
+            ("identification-source:normal",),
+        )
+        self.assertEqual(policy._retention_reservation(overloaded, source), 0)
+        self.assertNotEqual(policy._overweight_home_deposit(overloaded), source)
 
     def test_home_attempt_latch_suppresses_overweight_convenience_deposit(self):
         snapshot = self._snapshot()
