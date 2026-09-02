@@ -38059,6 +38059,36 @@ class IdentifyPurchaseBatchingTest(unittest.TestCase):
 
         self.assertEqual(policy._outstanding_identification_count(town, full=False), 2)
 
+    def test_recorded_1286548_plain_count_matches_all_three_consumers(self):
+        unknown = [
+            item("a", TVAL_ROD, 0, name="unknown rod", known=False),
+            item("b", TVAL_WAND, 0, name="unknown wand one", known=False),
+            item("c", TVAL_WAND, 1, name="unknown wand two", known=False),
+            item("d", TVAL_STAFF, 0, name="unknown staff", known=False),
+            item(
+                "e", TVAL_RING, 0, name="unknown ring", is_equipment=True,
+                known=False, pseudo_feeling="good",
+            ),
+        ]
+        identify = store_item(
+            "i", TVAL_SCROLL, SV_SCROLL_IDENTIFY, price=20, count=99
+        )
+        town = self._town(
+            inventory=unknown,
+            store=StoreState(STORE_ALCHEMIST, [identify]),
+        )
+        policy = HengbotPolicy()
+
+        # Stage C's three-flow union is ring + two wands + staff.  Rod ownership
+        # is deliberately Stage D, so it is not injected into this expectation.
+        self.assertEqual(
+            policy._outstanding_identification_count(town, full=False), 4
+        )
+        self.assertEqual(policy._purchase_quantity(town, identify), 4)
+        self.assertEqual(
+            policy._outstanding_identification_count(town, full=True), 0
+        )
+
 
 class WeaponSaleTest(unittest.TestCase):
     """Once an excellent+ (ego/artifact) weapon is wielded, good/average spare

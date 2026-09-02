@@ -15603,6 +15603,17 @@ class HengbotPolicy(TownArbiterMixin):
             )
         )
 
+    @classmethod
+    def _normal_identification_flow_candidate(
+        cls, item: InventoryItem | StoreItem,
+    ) -> bool:
+        """Union of carried/worn gear and device plain-Identify consumers."""
+        return (
+            cls._identification_flow_candidate(item) and not item.known
+        ) or (
+            item.tval in {TVAL_WAND, TVAL_STAFF} and not item.known
+        )
+
     def _identification_flow_owns(
         self, item: InventoryItem | StoreItem
     ) -> bool:
@@ -16149,8 +16160,8 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         target = self._first_item(
             snapshot,
-            lambda item: item.tval in {TVAL_WAND, TVAL_STAFF}
-            and not item.known
+            lambda item: self._normal_identification_flow_candidate(item)
+            and not item.is_equipment
             and self._item_signature(item) not in self._deferred_device_items,
         )
         if target is None:
@@ -21475,12 +21486,14 @@ class HengbotPolicy(TownArbiterMixin):
         """
         count = sum(
             1
-            for item in snapshot.inventory
-            if item.is_equipment
-            and (
-                (item.known and item_requires_full_identification(item) and not item.fully_known)
+            for item in (*snapshot.inventory, *snapshot.equipment)
+            if (
+                item.is_equipment
+                and item.known
+                and item_requires_full_identification(item)
+                and not item.fully_known
                 if full
-                else (not item.known and item.pseudo_feeling != "average")
+                else self._normal_identification_flow_candidate(item)
             )
         )
         for owned in self._equipment_catalog.items:
