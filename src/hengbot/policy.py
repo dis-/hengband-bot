@@ -25070,7 +25070,17 @@ class HengbotPolicy(TownArbiterMixin):
             "town_ledger": town_ledger,
         }
 
-    def departure_block_state(self) -> dict[str, object]:
+    def departure_block_state(
+        self, snapshot: Snapshot | None = None
+    ) -> dict[str, object]:
+        """Return a fresh row observation, or the last decision-local latch.
+
+        Decision recording always supplies ``snapshot``.  The optional form is
+        retained for decision-path diagnostics and tests that inspect the exact
+        block which caused a refusal.
+        """
+        if snapshot is not None:
+            return self._departure_block_state(snapshot)
         return self._departure_block
 
     def _equipped_digging_tool(self, snapshot: Snapshot) -> InventoryItem | None:

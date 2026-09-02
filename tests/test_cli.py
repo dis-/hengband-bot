@@ -2432,6 +2432,19 @@ class DecisionRecordTest(unittest.TestCase):
                     mocked.stop()
             self.assertTrue((Path(directory) / "decision.jsonl").is_file())
 
+    def test_decision_facts_recompute_departure_block_from_current_snapshot(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy._departure_block = policy._departure_block_state(snapshot)
+        policy._departure_block["diagnostics"]["free_pack_slots"] = 10
+        stale_free = policy._departure_block["diagnostics"]["free_pack_slots"]
+
+        facts = _capture_decision_facts(snapshot, policy)
+
+        current_free = facts["departure_block"]["diagnostics"]["free_pack_slots"]
+        self.assertNotEqual(stale_free, current_free)
+        self.assertEqual(current_free, 23 - len(snapshot.inventory))
+
     def test_writer_treats_only_none_as_missing_decision_facts(self):
         class FalsyFacts(dict):
             def __bool__(self):

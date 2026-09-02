@@ -1336,7 +1336,7 @@ def _capture_decision_facts(snapshot, policy) -> dict:
         "fundraising": _fundraising_state(snapshot, policy),
         "town_plan": _town_plan_state(policy),
         "fixedquest_readiness": fixedquest_readiness,
-        "departure_block": policy.departure_block_state(),
+        "departure_block": policy.departure_block_state(snapshot),
         "cross_town_shopping": policy.cross_town_shopping_state(),
         "quest_strategy": (
             {
