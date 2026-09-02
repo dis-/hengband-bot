@@ -38461,6 +38461,43 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
         self.assertEqual(snapshot.inventory[7].count, 27)
 
+    def _recorded_weight_with_live_recall_need(self, ware):
+        snapshot = self._recorded_pre_ammo_purchase()
+        inventory = list(snapshot.inventory)
+        inventory[7] = replace(
+            item("h", TVAL_SCROLL, 1, count=27), weight=5
+        )
+        return replace(snapshot, inventory=inventory, store=StoreState(
+            snapshot.store.store_type, [ware]
+        ))
+
+    def test_weight_exemption_is_bound_to_the_selected_mandatory_ware(self):
+        bolts = replace(
+            store_item("n", TVAL_BOLT, 1, count=99, price=3), weight=3
+        )
+        recall = replace(store_item(
+            "n", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=99, price=3
+        ), weight=3)
+        no_need = self._recorded_pre_ammo_purchase()
+        live_bolts = self._recorded_weight_with_live_recall_need(bolts)
+        live_recall = self._recorded_weight_with_live_recall_need(recall)
+
+        for snapshot in (no_need, live_bolts, live_recall):
+            policy = HengbotPolicy()
+            target = policy._next_purchase(snapshot)
+            self.assertEqual(policy._inventory_weight(snapshot), 1621)
+            self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
+            self.assertEqual(1621 + 28 * target.weight, 1705)
+            with patch.object(policy, "_purchase_quantity", return_value=28):
+                self.assertEqual(policy._purchase_quantity(snapshot, target), 28)
+                key = policy._shop(snapshot)
+            if snapshot is live_recall:
+                self.assertNotEqual(key, LEAVE_STORE_KEY)
+                self.assertEqual(policy.last_reason, "shop:buy-recall")
+            else:
+                self.assertEqual(key, LEAVE_STORE_KEY)
+                self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
+
     def test_overweight_refusal_latches_only_the_store_and_router_retires_it(self):
         snapshot = self._recorded_pre_ammo_purchase()
         policy = HengbotPolicy()
@@ -38522,17 +38559,22 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertNotEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:buy-recall")
 
-    def test_every_registered_departure_need_is_weight_refusal_exempt(self):
+    def test_overweight_refusal_remains_visible_inside_the_store_cycle(self):
+        snapshot = self._recorded_pre_ammo_purchase()
         policy = HengbotPolicy()
-        blocking = [
-            need for need in policy._town_need_registry()
-            if need.departure_blocking
-        ]
 
-        self.assertTrue(blocking)
-        self.assertTrue(all(
-            policy._weight_refusal_exempts_need(need) for need in blocking
-        ))
+        reasons = []
+        for _ in range(STORE_STUCK_LIMIT + 1):
+            self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(
+            reasons,
+            ["shop:purchase-overweight-leave"] * STORE_STUCK_LIMIT
+            + ["shop:stuck-leave"],
+        )
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
 
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)

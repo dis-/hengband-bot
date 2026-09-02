@@ -14331,23 +14331,14 @@ class HengbotPolicy(TownArbiterMixin):
         )
         return current_weight + added_weight <= limit
 
-    @staticmethod
-    def _weight_refusal_exempts_need(need: NeedSpec) -> bool:
-        """Bind the exemption directly to the authoritative registry flag."""
-        return need.departure_blocking
-
-    def _purchase_serves_departure_blocking_work(self, snapshot: Snapshot) -> bool:
-        """Whether the ordered selector is currently consuming mandatory work.
-
-        ``_next_purchase`` already selected the first available ware while the
-        registry exposes the live mandatory work.  Do not infer that work back
-        from the ware or require its supplier to equal the registry's preferred
-        store: equivalent stock may legitimately come from another store.
-        """
-        return any(
-            self._weight_refusal_exempts_need(need) and need.produces(snapshot)
-            for need in self._town_need_registry()
-        )
+    def _purchase_serves_departure_blocking_work(
+        self, snapshot: Snapshot, item: StoreItem, need: NeedSpec | None,
+    ) -> bool:
+        """Whether *item* is the ware selected for this live mandatory need."""
+        if need is None or not need.departure_blocking or not need.produces(snapshot):
+            return False
+        selected, selected_need = self._mandatory_purchase_with_need(snapshot)
+        return selected == item and selected_need is need
 
     def _overweight_home_deposit(
         self, snapshot: Snapshot
@@ -21042,16 +21033,36 @@ class HengbotPolicy(TownArbiterMixin):
 
         return min(optional, key=lambda item: (held(item), kind_rank(item)))
 
-    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
-        """Select an affordable ware that closes a departure requirement."""
+    def _live_purchase_need(
+        self, snapshot: Snapshot, category: str,
+    ) -> NeedSpec | None:
+        return next(
+            (
+                need for need in self._town_need_registry()
+                if need.category == category and need.produces(snapshot)
+            ),
+            None,
+        )
+
+    def _mandatory_purchase_with_need(
+        self, snapshot: Snapshot,
+    ) -> tuple[StoreItem | None, NeedSpec | None]:
+        """Select a mandatory ware together with the need that selected it."""
         store = snapshot.store
         if store is None:
-            return None
+            return None, None
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             carry = self._quest_carry_purchase(snapshot, strategy)
             if carry is not None:
-                return carry
+                return carry, next(
+                    (
+                        need for need in self._town_need_registry()
+                        if need.departure_blocking and need.produces(snapshot)
+                        and need.category.startswith("quest-")
+                    ),
+                    None,
+                )
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         if (
             snapshot.player.food_type == FOOD_TYPE_MANA
@@ -21059,7 +21070,7 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             mana_food = self._mana_food_purchase(snapshot)
             if mana_food is not None:
-                return mana_food
+                return mana_food, self._live_purchase_need(snapshot, "food")
         predicates = (
             ("recall", lambda item: item.is_recall_scroll),
             (
@@ -21096,8 +21107,13 @@ class HengbotPolicy(TownArbiterMixin):
                 None,
             )
             if candidate is not None:
-                return candidate
-        return None
+                category = "cure-critical" if kind == "cure" else kind
+                return candidate, self._live_purchase_need(snapshot, category)
+        return None, None
+
+    def _mandatory_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """Select an affordable ware that closes a departure requirement."""
+        return self._mandatory_purchase_with_need(snapshot)[0]
 
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
@@ -22856,6 +22872,9 @@ class HengbotPolicy(TownArbiterMixin):
 
         item = self._next_purchase(snapshot)
         if item is not None:
+            mandatory_item, purchase_need = self._mandatory_purchase_with_need(snapshot)
+            if mandatory_item != item:
+                purchase_need = None
             if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
@@ -22893,7 +22912,9 @@ class HengbotPolicy(TownArbiterMixin):
                 return LEAVE_STORE_KEY
             remaining = self._purchase_quantity(snapshot, item)
             if (
-                not self._purchase_serves_departure_blocking_work(snapshot)
+                not self._purchase_serves_departure_blocking_work(
+                    snapshot, item, purchase_need
+                )
                 and not self._can_add_item_without_overweight(
                     snapshot, item, quantity=remaining
                 )
