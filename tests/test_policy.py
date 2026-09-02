@@ -38461,20 +38461,25 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
         self.assertEqual(snapshot.inventory[7].count, 27)
 
-    def test_overweight_refusal_latches_and_retires_the_want(self):
+    def test_overweight_refusal_latches_only_the_store_and_router_retires_it(self):
         snapshot = self._recorded_pre_ammo_purchase()
         policy = HengbotPolicy()
 
         self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
-        self.assertTrue(policy._shopping_abandoned)
+        self.assertFalse(policy._shopping_abandoned)
         self.assertEqual(
             policy._town_store_attempted[snapshot.store.store_type], snapshot.turn
         )
 
-        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "shop:leave")
-        self.assertEqual(policy._store_stuck_count, 0)
+        outside = replace(snapshot, store=None)
+        for later_turn in range(snapshot.turn + 1, snapshot.turn + 5):
+            self.assertNotEqual(
+                policy._next_required_store_type(
+                    replace(outside, turn=later_turn)
+                ),
+                snapshot.store.store_type,
+            )
 
     def test_departure_blocking_recall_purchase_survives_existing_overweight(self):
         snapshot = self._recorded_pre_ammo_purchase()
@@ -38484,14 +38489,18 @@ class WeightOverloadTownTest(unittest.TestCase):
             ),
             weight=5,
         )
+        policy = HengbotPolicy()
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
+
         inventory = list(snapshot.inventory)
         inventory[7] = replace(inventory[7], count=0)
-        equipment = list(snapshot.equipment)
-        equipment[0] = replace(equipment[0], weight=344)
+        inventory.append(
+            replace(item("r", 9, 0, name="heavy statue"), weight=200)
+        )
         snapshot = replace(
             snapshot,
             inventory=inventory,
-            equipment=equipment,
             grids={
                 snapshot.player.position: replace(
                     snapshot.grids[snapshot.player.position],
@@ -38500,11 +38509,9 @@ class WeightOverloadTownTest(unittest.TestCase):
             },
             store=StoreState(STORE_ALCHEMIST, [recall]),
         )
-        policy = HengbotPolicy()
-
-        self.assertEqual(policy._inventory_weight(snapshot), 1705)
+        self.assertEqual(policy._inventory_weight(snapshot), 1691)
         self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
-        self.assertFalse(
+        self.assertTrue(
             policy._can_add_item_without_overweight(snapshot, recall, quantity=1)
         )
         with (
@@ -38514,6 +38521,18 @@ class WeightOverloadTownTest(unittest.TestCase):
             key = policy._shop(snapshot)
         self.assertNotEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:buy-recall")
+
+    def test_every_registered_departure_need_is_weight_refusal_exempt(self):
+        policy = HengbotPolicy()
+        blocking = [
+            need for need in policy._town_need_registry()
+            if need.departure_blocking
+        ]
+
+        self.assertTrue(blocking)
+        self.assertTrue(all(
+            policy._weight_refusal_exempts_need(need) for need in blocking
+        ))
 
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)

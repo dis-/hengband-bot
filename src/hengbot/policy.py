@@ -14321,33 +14321,32 @@ class HengbotPolicy(TownArbiterMixin):
         limit = self._inventory_weight_limit(snapshot)
         if limit is None:
             return True
+        current_weight = self._inventory_weight(snapshot)
+        if current_weight > limit:
+            # This purchase cannot create an overload which already exists.
+            # The town shedding owner, not an unrelated shop, owns recovery.
+            return True
         added_weight = max(0, item.weight) * max(
             1, item.count if quantity is None else quantity
         )
-        return self._inventory_weight(snapshot) + added_weight <= limit
+        return current_weight + added_weight <= limit
 
-    def _purchase_satisfies_departure_blocking_need(
-        self, snapshot: Snapshot, item: StoreItem
-    ) -> bool:
-        """Whether refusing this ware would preserve a live departure block."""
-        category = self._purchase_diagnostic_category(item)
-        aliases = {category}
-        if category in {"lantern", "torch"}:
-            aliases.update({"light", "fundraising-light", "quest-throwing-items"})
-        elif category == "treasure-detection":
-            aliases.update({"fundraising-detection", "mining-detection"})
-        elif category == "digging-tool":
-            aliases.update({"fundraising-digger", "mining-digger"})
-        elif category in {"identify", "star-identify"}:
-            aliases.add("identification-source")
-        elif category == "speed":
-            aliases.add("quest-speed")
-        elif category == "healing":
-            aliases.add("quest-healing")
+    @staticmethod
+    def _weight_refusal_exempts_need(need: NeedSpec) -> bool:
+        """Bind the exemption directly to the authoritative registry flag."""
+        return need.departure_blocking
+
+    def _purchase_serves_departure_blocking_work(self, snapshot: Snapshot) -> bool:
+        """Whether the ordered selector is currently consuming mandatory work.
+
+        ``_next_purchase`` already selected the first available ware while the
+        registry exposes the live mandatory work.  Do not infer that work back
+        from the ware or require its supplier to equal the registry's preferred
+        store: equivalent stock may legitimately come from another store.
+        """
         return any(
-            need.store_type == snapshot.store.store_type
-            and need.category in aliases
-            for need in self._departure_blocking_town_needs(snapshot)
+            self._weight_refusal_exempts_need(need) and need.produces(snapshot)
+            for need in self._town_need_registry()
         )
 
     def _overweight_home_deposit(
@@ -22857,9 +22856,6 @@ class HengbotPolicy(TownArbiterMixin):
 
         item = self._next_purchase(snapshot)
         if item is not None:
-            if self._shopping_abandoned:
-                self.last_reason = "shop:leave"
-                return LEAVE_STORE_KEY
             if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
@@ -22897,12 +22893,11 @@ class HengbotPolicy(TownArbiterMixin):
                 return LEAVE_STORE_KEY
             remaining = self._purchase_quantity(snapshot, item)
             if (
-                not self._purchase_satisfies_departure_blocking_need(snapshot, item)
+                not self._purchase_serves_departure_blocking_work(snapshot)
                 and not self._can_add_item_without_overweight(
                     snapshot, item, quantity=remaining
                 )
             ):
-                self._shopping_abandoned = True
                 self._town_store_attempted[store.store_type] = snapshot.turn
                 self.last_reason = "shop:purchase-overweight-leave"
                 return LEAVE_STORE_KEY
@@ -25116,7 +25111,10 @@ class HengbotPolicy(TownArbiterMixin):
         publish a confirmed loadout.  A latch from an earlier decision is not
         an observation for this row.
         """
-        if self._departure_block_sequence != self._decision_sequence:
+        if (
+            snapshot is not None
+            and self._departure_block_sequence != self._decision_sequence
+        ):
             return {}
         return self._departure_block
 
