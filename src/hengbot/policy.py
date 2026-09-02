@@ -1724,6 +1724,11 @@ class HengbotPolicy(TownArbiterMixin):
         )
         self._town_progress_last_fingerprint: tuple[object, ...] | None = None
         self._town_supplier_stock: dict[int, StoreState] = {}
+        # Provenance for general-store shelf snapshots.  Shelf contents are kept
+        # in the long-standing mapping above for its existing consumers, while
+        # decisions that require negative stock evidence must prove that the
+        # page was observed during this town visit and in this town.
+        self._town_supplier_stock_observations: dict[int, tuple[int, int]] = {}
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
@@ -2558,6 +2563,8 @@ class HengbotPolicy(TownArbiterMixin):
         )
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
+        if not hasattr(self, "_town_supplier_stock_observations"):
+            self._town_supplier_stock_observations = {}
         if not hasattr(self, "_town_visit_sale_signatures"):
             self._town_visit_sale_signatures = set()
         if not hasattr(self, "_calibration_entry_refusal"):
@@ -5736,6 +5743,10 @@ class HengbotPolicy(TownArbiterMixin):
         if snapshot.store is not None:
             if snapshot.store.store_type != STORE_HOME:
                 self._town_supplier_stock[snapshot.store.store_type] = snapshot.store
+                self._town_supplier_stock_observations[snapshot.store.store_type] = (
+                    self._effective_town_id(snapshot),
+                    snapshot.turn,
+                )
                 self._observe_restock_supplier_page(snapshot)
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
@@ -7270,6 +7281,8 @@ class HengbotPolicy(TownArbiterMixin):
             and self._observed_town_id is not None
             and current_town_id != self._observed_town_id
         )
+        if town_changed:
+            self._town_supplier_stock_observations.clear()
         self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot, observation=observation)
         if not snapshot.in_town and snapshot.player.recalling:
@@ -7763,6 +7776,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
                 self._town_unidentifiable_carried_sigs.clear()
+                self._town_supplier_stock_observations.clear()
                 self._deferred_device_items.clear()
                 self._retried_home_identification_items.clear()
 
@@ -16426,6 +16440,48 @@ class HengbotPolicy(TownArbiterMixin):
             self._rearm_town_store_for_new_work(STORE_ALCHEMIST)
         self._identification_need = kind
 
+    def _identification_source_obtainability(
+        self, snapshot: Snapshot, *, full: bool
+    ) -> str:
+        """Return ``available``, ``unavailable``, or ``unknown`` for this visit.
+
+        A carried usable source is authoritative.  Negative shelf evidence is
+        usable only when the Alchemist page was observed in the current town
+        visit, for the current town, and no later than this snapshot.  Older
+        checkpoints and pages retained across travel are therefore unknown.
+        """
+        if self._find_identification_source(
+            snapshot,
+            full=full,
+            reliable_only=self._identification_requires_reliable_source(snapshot),
+        ) is not None:
+            return "available"
+        observation = self._town_supplier_stock_observations.get(STORE_ALCHEMIST)
+        page = self._town_supplier_stock.get(STORE_ALCHEMIST)
+        if (
+            observation is None
+            or page is None
+            or observation[0] != self._effective_town_id(snapshot)
+            or observation[1] > snapshot.turn
+        ):
+            return "unknown"
+        wanted_sval = SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY
+        return (
+            "available"
+            if any(
+                item.tval == TVAL_SCROLL
+                and item.sval == wanted_sval
+                and item.price <= snapshot.player.gold
+                for item in page.items
+            )
+            else "unavailable"
+        )
+
+    def _retain_identification_source_owner(self) -> None:
+        """Re-open the bounded Alchemist owner for obtainable/unknown stock."""
+        self._rearm_town_store_for_new_work(STORE_ALCHEMIST)
+        self._town_errand_plan = None
+
     def _activate_home_batch_item(self) -> None:
         if self._home_pending_item is None and self._home_pending_batch:
             self._home_pending_item = self._home_pending_batch.pop(0)
@@ -20041,9 +20097,18 @@ class HengbotPolicy(TownArbiterMixin):
             exhausted = set(plan.completed_this_visit) | set(plan.blocked_this_visit) if plan is not None else set()
             if STORE_ALCHEMIST not in self._town_store_attempted and STORE_ALCHEMIST not in exhausted:
                 return
+            source_obtainability = self._identification_source_obtainability(
+                snapshot, full=self._identification_need == "full"
+            )
+            if source_obtainability != "unavailable":
+                if self._find_identification_source(
+                    snapshot,
+                    full=self._identification_need == "full",
+                    reliable_only=self._identification_requires_reliable_source(snapshot),
+                ) is None:
+                    self._retain_identification_source_owner()
+                return
             if self._identification_need == "full":
-                if self._find_identification_source(snapshot, full=True) is not None:
-                    return
                 if self._conquest_target(snapshot) is not None:
                     self._defer_identification_for_conquest(snapshot)
                     if snapshot.player.gold < FUNDRAISING_START_GOLD:

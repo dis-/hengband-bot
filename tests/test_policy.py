@@ -30065,6 +30065,12 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         policy._refresh_carried_equipment_catalog(snap)
         self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+            policy._effective_town_id(snap), snap.turn
+        )
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
         self.assertNotEqual(
             policy._next_required_store_type(snap), STORE_ALCHEMIST
@@ -30094,6 +30100,90 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy._observe(arrival)
         policy._observe(snap)
         self.assertNotIn(signature, policy._town_unidentifiable_carried_sigs)
+
+    def test_identify_give_up_requires_current_town_shelf_evidence(self):
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring", aware=False,
+            known=False, is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[ring],
+            equipment=[self._lantern()], town_flag=True, town_id=1, turn=40,
+        )
+        policy = HengbotPolicy()
+        policy._refresh_carried_equipment_catalog(snap)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (0, 39)
+
+        policy._town_terminal_transitions(snap)
+
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertNotIn(
+            policy._item_signature(ring), policy._town_unidentifiable_carried_sigs
+        )
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+    def test_affordable_identify_stock_rearms_owner_then_purchase_resolves(self):
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring", aware=False,
+            known=False, is_equipment=True,
+        )
+        scroll = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="Scroll of Identify", price=81, count=4,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=100),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[ring],
+            equipment=[self._lantern()], town_flag=True, town_id=1, turn=40,
+        )
+        policy = HengbotPolicy()
+        policy._refresh_carried_equipment_catalog(snap)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[scroll]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (1, 40)
+
+        policy._town_terminal_transitions(snap)
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        inside = replace(
+            snap, store=policy._town_supplier_stock[STORE_ALCHEMIST], turn=41
+        )
+        self.assertEqual(policy._next_purchase_unreserved(inside), scroll)
+
+    def test_current_empty_identify_shelf_gives_up_in_first_transition_pass(self):
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring", aware=False,
+            known=False, is_equipment=True,
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[ring],
+            equipment=[self._lantern()], town_flag=True, town_id=1, turn=40,
+        )
+        policy = HengbotPolicy()
+        policy._refresh_carried_equipment_catalog(snap)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (1, 40)
+
+        policy._town_terminal_transitions(snap)
+
+        self.assertIsNone(policy._identification_need)
+        self.assertIn(
+            policy._item_signature(ring), policy._town_unidentifiable_carried_sigs
+        )
 
     def test_defers_unknown_device_when_identification_is_unavailable(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")
