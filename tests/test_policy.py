@@ -38379,6 +38379,88 @@ class MiningGearHomeStorageTest(unittest.TestCase):
 
 
 class WeightOverloadTownTest(unittest.TestCase):
+    def _recorded_pre_ammo_purchase(self):
+        actor = replace(
+            player(31, 119, class_id=PLAYER_CLASS_WARRIOR, gold=15039),
+            stat_index=(26, 0, 0, 0, 0, 0),
+        )
+        equipment = [
+            replace(item("main_hand", 23, 17, is_equipment=True), weight=130),
+            replace(item("bow", TVAL_BOW, 23, is_equipment=True), weight=110),
+            replace(item("main_ring", 45, 8, is_equipment=True), weight=2),
+            replace(item("sub_ring", 45, 38, is_equipment=True), weight=2),
+            replace(item("light", 39, 1, is_equipment=True), weight=50),
+            replace(item("body", 37, 4, is_equipment=True), weight=220),
+            replace(item("outer", 35, 1, is_equipment=True), weight=10),
+        ]
+        inventory = [
+            replace(item("a", 77, 0, count=12), weight=10),
+            replace(item("b", 75, 29, count=6), weight=4),
+            replace(item("c", 75, 30), weight=4),
+            replace(item("d", 75, 36, count=10), weight=4),
+            replace(item("e", 75, 37, count=4), weight=4),
+            replace(item("f", TVAL_SCROLL, 8), weight=5),
+            replace(
+                item("g", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=45), weight=5
+            ),
+            replace(
+                item("h", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=27),
+                weight=5,
+            ),
+            replace(item("i", TVAL_SCROLL, 24, count=6), weight=5),
+            replace(
+                item("j", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=6),
+                weight=5,
+            ),
+            replace(item("k", TVAL_ROD, 0, known=False), weight=15),
+            replace(item("l", TVAL_WAND, 7), weight=10),
+            replace(item("m", TVAL_STAFF, 5), weight=50),
+            replace(item("n", TVAL_STAFF, 5), weight=50),
+            replace(
+                item("o", TVAL_SOFT_ARMOR, 0, is_equipment=True, known=False),
+                weight=10,
+            ),
+            replace(
+                item(
+                    "p", TVAL_DIGGING, SV_DIGGING_SHOVEL, count=2,
+                    is_equipment=True,
+                ),
+                weight=60,
+            ),
+            replace(item("q", TVAL_BOLT, 1, count=71), weight=3),
+        ]
+        bolts = replace(
+            store_item("n", TVAL_BOLT, 1, count=99, price=3), weight=3
+        )
+        return Snapshot(
+            actor,
+            {Position(31, 119): replace(grid(31, 119), store_number=STORE_GENERAL)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=inventory,
+            equipment=equipment,
+            store=StoreState(STORE_GENERAL, [bolts]),
+        )
+
+    def test_ammo_purchase_cannot_create_recorded_55_weight_excess(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        policy = HengbotPolicy()
+        target = policy._next_purchase(snapshot)
+
+        self.assertIsNotNone(target)
+        self.assertEqual(policy._inventory_weight(snapshot), 1621)
+        self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
+        self.assertEqual(policy._purchase_quantity(snapshot, target), 28)
+        self.assertEqual(1621 + 28 * target.weight, 1705)
+        self.assertEqual(
+            policy._retention_surplus(snapshot, snapshot.inventory[16]), 0
+        )
+        self.assertTrue(policy._identification_flow_owns(snapshot.inventory[14]))
+        self.assertEqual(policy._shop(snapshot), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:purchase-overweight-leave")
+        self.assertEqual(snapshot.inventory[7].count, 27)
+
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)
         actor = replace(

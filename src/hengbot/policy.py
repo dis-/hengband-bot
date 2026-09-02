@@ -14312,12 +14312,15 @@ class HengbotPolicy(TownArbiterMixin):
         return limit is not None and self._inventory_weight(snapshot) > limit
 
     def _can_add_item_without_overweight(
-        self, snapshot: Snapshot, item: InventoryItem | StoreItem
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem,
+        *, quantity: int | None = None,
     ) -> bool:
         limit = self._inventory_weight_limit(snapshot)
         if limit is None:
             return True
-        added_weight = max(0, item.weight) * max(1, item.count)
+        added_weight = max(0, item.weight) * max(
+            1, item.count if quantity is None else quantity
+        )
         return self._inventory_weight(snapshot) + added_weight <= limit
 
     def _overweight_home_deposit(
@@ -22863,6 +22866,11 @@ class HengbotPolicy(TownArbiterMixin):
                 self.last_reason = "shop:stuck-leave"
                 return LEAVE_STORE_KEY
             remaining = self._purchase_quantity(snapshot, item)
+            if not self._can_add_item_without_overweight(
+                snapshot, item, quantity=remaining
+            ):
+                self.last_reason = "shop:purchase-overweight-leave"
+                return LEAVE_STORE_KEY
             progress_sig = (item.letter, remaining, snapshot.player.gold)
             if self._last_buy_progress_sig is not None:
                 old_letter, old_remaining, old_gold = self._last_buy_progress_sig
