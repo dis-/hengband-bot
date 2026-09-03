@@ -19,6 +19,7 @@ NO_ACTION_SNAPSHOTS = FIXTURE_DIR / "no-actionable-snapshots.jsonl.gz"
 E6_PRELANDING_DECISIONS = FIXTURE_DIR / "e6-prelanding-decisions.jsonl.gz"
 CAL3_VISIT_BUDGET_DECISIONS = FIXTURE_DIR / "cal3-visit-budget-decisions.jsonl.gz"
 IDW_BLOCK_DECISIONS = FIXTURE_DIR / "idw-block-decisions.jsonl.gz"
+RESTORE_STALL_DECISIONS = FIXTURE_DIR / "restore-stall-decisions.jsonl.gz"
 
 
 def rows(path: Path):

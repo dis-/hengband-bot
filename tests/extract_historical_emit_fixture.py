@@ -16,6 +16,7 @@ from historical_emit_fixture import (
     DECISIONS, EQUIP_DECISIONS, EQUIP_SNAPSHOTS, FIXTURE_DIR, LEDGER,
     CAL3_VISIT_BUDGET_DECISIONS, E6_PRELANDING_DECISIONS, IDW_BLOCK_DECISIONS,
     NO_ACTION_DECISIONS, NO_ACTION_SNAPSHOTS, POSTED, ROOT,
+    RESTORE_STALL_DECISIONS,
 )
 
 
@@ -25,6 +26,8 @@ CAL3_VISIT_BUDGET_START = datetime.fromisoformat("2026-09-02T04:15")
 CAL3_VISIT_BUDGET_END = datetime.fromisoformat("2026-09-02T04:20:36.999999")
 IDW_BLOCK_START = datetime.fromisoformat("2026-09-02T09:47")
 IDW_BLOCK_END = datetime.fromisoformat("2026-09-02T09:59:06.999999")
+RESTORE_STALL_START = datetime.fromisoformat("2026-09-03T19:03:30")
+RESTORE_STALL_END = datetime.fromisoformat("2026-09-03T19:19:38.999999")
 DECISION_FIELDS = (
     "time", "decision_sequence", "turn", "reason", "key", "store_visit",
     "store_type", "position", "shopping_approach_store_type", "floor",
@@ -93,6 +96,13 @@ def main() -> None:
         <= datetime.fromisoformat(row["time"]).replace(tzinfo=None)
         <= IDW_BLOCK_END
     ]
+    restore_stall = [
+        row for row in all_decisions
+        if row.get("time")
+        and RESTORE_STALL_START
+        <= datetime.fromisoformat(row["time"]).replace(tzinfo=None)
+        <= RESTORE_STALL_END
+    ]
     first = min(datetime.fromisoformat(row["time"]).replace(tzinfo=None) for row in decisions if row.get("time"))
     last = max(datetime.fromisoformat(row["time"]).replace(tzinfo=None) for row in decisions if row.get("time"))
     ledger = _before_cutoff(_read(ROOT / "capture-ledger" / "read-batches.jsonl"))
@@ -120,12 +130,19 @@ def main() -> None:
     _write(IDW_BLOCK_DECISIONS, idw_block, DECISION_FIELDS + (
         "inventory", "equipment_optimization", "departure_block",
     ))
+    _write(RESTORE_STALL_DECISIONS, restore_stall, DECISION_FIELDS + (
+        "acquire_store_visit_called", "requested_owner", "requested_store",
+        "acquire_result", "inventory", "procurement_requirements",
+        "equipment_optimization", "departure_block", "shop_selector",
+        "town_stall_report", "home_scan",
+    ))
     print(f"decisions={len(decisions)} first={first.isoformat()} last={last.isoformat()}")
     fixture_paths = tuple(FIXTURE_DIR.iterdir())
     print(f"ledger={len(ledger)} posted={len(posted)} bytes={sum(p.stat().st_size for p in fixture_paths)}")
     print(f"e6_prelanding={len(e6_prelanding)} first={e6_prelanding[0]['time']} last={e6_prelanding[-1]['time']}")
     print(f"cal3_visit_budget={len(cal3_visit_budget)} first={cal3_visit_budget[0]['time']} last={cal3_visit_budget[-1]['time']} bytes={CAL3_VISIT_BUDGET_DECISIONS.stat().st_size}")
     print(f"idw_block={len(idw_block)} first={idw_block[0]['time']} last={idw_block[-1]['time']} bytes={IDW_BLOCK_DECISIONS.stat().st_size}")
+    print(f"restore_stall={len(restore_stall)} first={restore_stall[0]['time']} last={restore_stall[-1]['time']} bytes={RESTORE_STALL_DECISIONS.stat().st_size}")
 
 
 if __name__ == "__main__":
