@@ -2144,6 +2144,7 @@ class HengbotPolicy(TownArbiterMixin):
                 "departure-unsatisfiable",
                 "no-safe-recall-destination",
                 "equipment-work-home-route-exhausted",
+                "overweight-home-unreachable",
                 "restock-wait-exhausted",
             ),
             retained_values=("repetition",),
@@ -2539,6 +2540,13 @@ class HengbotPolicy(TownArbiterMixin):
         # the carried catalogue authoritative here so a freshly observed
         # strip cannot be recorded (or reasoned about) beside the preceding
         # decision's worn set.
+        # The entrance detector measures one continuous approach.  Combat and
+        # every other winning rung end that episode; reset on the following
+        # public decision before a resumed route can add to the old count.
+        if self._shop_approach_stuck_count and "approach" not in (
+            self.last_reason or ""
+        ):
+            self._shop_approach_stuck_count = 0
         self._acquire_store_visit_attempt = {
             "acquire_store_visit_called": False,
             "requested_owner": None,
@@ -18281,6 +18289,17 @@ class HengbotPolicy(TownArbiterMixin):
                     )
                 )
             ):
+                if (
+                    need.store_type == STORE_HOME
+                    and need.category == "weight-overload"
+                    and self._inventory_overweight(snapshot)
+                    and self._town_visit_ledger.approach_fails[STORE_HOME]
+                    >= self._town_store_visit_limit(STORE_HOME)
+                ):
+                    # Claim retirement is still the town-liveness outcome, but
+                    # an overweight character has no alternate supplier.  Hand
+                    # the exhausted route directly to a diagnostic terminal.
+                    self._town_blocked_reason = "overweight-home-unreachable"
                 if (
                     home_visit_budget_exhausted
                     and need.category == "calibration-restore"

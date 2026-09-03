@@ -38933,6 +38933,46 @@ class WeightOverloadTownTest(unittest.TestCase):
             for need in policy._enumerate_town_needs(snapshot)
         ))
 
+    def test_overweight_home_approach_exhaustion_names_visible_terminal(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=(), result=None
+        )
+        limit = policy._town_store_visit_limit(STORE_HOME)
+        observations = []
+
+        with patch.object(policy, "_outstanding_equipment_work", return_value=False):
+            for fails in range(limit + 1):
+                policy._town_visit_ledger.approach_fails[STORE_HOME] = fails
+                policy._town_claims_active(snapshot)
+                observations.append(
+                    (fails, "weight-overload" in policy._town_claim_categories,
+                     policy._town_blocked_reason)
+                )
+
+        self.assertEqual(limit, 3)
+        self.assertEqual(
+            observations,
+            [
+                (0, True, None),
+                (1, True, None),
+                (2, True, None),
+                (3, False, "overweight-home-unreachable"),
+            ],
+        )
+
+    def test_combat_breaks_continuous_home_approach_stuck_count(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+        policy.last_reason = "melee"
+
+        policy.choose_key(snapshot)
+
+        self.assertEqual(policy._shop_approach_stuck_count, 0)
+        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
+
 
     def test_overweight_blocks_fixed_quest_town_travel(self):
         snapshot = self._snapshot()

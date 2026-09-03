@@ -379,6 +379,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
     {
         "dark:locomotion-exhausted",
         "town:blocked:departure-unsatisfiable",
+        "town:blocked:overweight-home-unreachable",
         "town:blocked:owner-retired",
         "town:blocked:home-known-empty-withdrawal",
         "town:blocked:procurement-home-unavailable",
@@ -397,6 +398,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "equipment-transaction:home-route-repeat-terminal": "the same Home route failure recurred without an observed state change",
         "dark:locomotion-exhausted": "dark movement probes and remembered routes are exhausted",
         "town:blocked:departure-unsatisfiable": "no state-changing owner can satisfy the remaining departure conjunct",
+        "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
