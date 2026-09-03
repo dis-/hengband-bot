@@ -38880,6 +38880,42 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(resulting_weight, 1485)
         self.assertLessEqual(resulting_weight, policy._inventory_weight_limit(snapshot))
 
+    def test_live_pack_rejections_never_select_unreserved_blocking_supply(self):
+        """Turn 1367066, live row 6399: reject exactly g, h, then a."""
+        snapshot = self._recorded_pre_ammo_purchase()
+        snapshot = replace(
+            snapshot,
+            inventory=[
+                replace(item, count=99) if item.slot == "q" else item
+                for item in snapshot.inventory
+            ],
+        )
+        policy = HengbotPolicy()
+        by_slot = {item.slot: item for item in snapshot.inventory}
+        policy._home_rejected_deposits.update(
+            policy._item_signature(by_slot[slot]) for slot in ("g", "h", "a")
+        )
+        blocking_categories = {
+            spec.category
+            for spec in policy._town_need_registry()
+            if spec.departure_blocking
+        }
+
+        selected_slots = []
+        while (selected := policy._overweight_home_deposit(snapshot)) is not None:
+            selected_slots.append(selected.slot)
+            selected_categories = set(
+                policy._cross_town_item_categories(selected)
+            )
+            self.assertFalse(
+                selected_categories & blocking_categories
+                and policy._retention_reservation(snapshot, selected) == 0,
+                (selected.slot, selected_categories),
+            )
+            policy._home_rejected_deposits.add(policy._item_signature(selected))
+
+        self.assertEqual(selected_slots[0], "d")
+
     def test_home_attempt_latch_does_not_suppress_reducible_overweight(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()

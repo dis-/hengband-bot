@@ -14407,6 +14407,12 @@ class HengbotPolicy(TownArbiterMixin):
                     categories.add("fundraising-light")
             return bool(categories & blocking_categories)
 
+        def unreserved_required_supply(item: InventoryItem) -> bool:
+            return (
+                required_supply(item)
+                and self._retention_reservation(snapshot, item) == 0
+            )
+
         def priority(item: InventoryItem) -> tuple[int, int, str]:
             noncombat_bulk = not (
                 item.is_equipment
@@ -14438,6 +14444,9 @@ class HengbotPolicy(TownArbiterMixin):
             for item in snapshot.inventory
             if item.weight > 0
             and self._retention_surplus(snapshot, item) > 0
+            # A blocking supply without a retention target is not surplus merely
+            # because the retention table does not yet quantify its need.
+            and not unreserved_required_supply(item)
             and not item.is_bounty
             and not self._is_wanted_jewelry(snapshot, item)
             and self._item_signature(item) not in self._home_rejected_deposits
