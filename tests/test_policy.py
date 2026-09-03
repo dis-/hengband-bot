@@ -38973,6 +38973,25 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy._shop_approach_stuck_count, 0)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
+    def test_retired_weight_claim_hands_off_without_an_ownerless_pass(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
+            policy_module.TOWN_STOP_PASS_LIMIT
+        )
+
+        with patch.object(policy, "_outstanding_equipment_work", return_value=False):
+            claims_active = policy._town_claims_active(snapshot)
+            key = policy._town_blocked_key(snapshot)
+
+        self.assertFalse(claims_active)
+        self.assertNotIn("weight-overload", policy._town_claim_categories)
+        self.assertEqual(policy._town_blocked_reason, "overweight-home-unreachable")
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:overweight-home-unreachable"
+        )
+
 
     def test_overweight_blocks_fixed_quest_town_travel(self):
         snapshot = self._snapshot()
