@@ -38820,6 +38820,17 @@ class WeightOverloadTownTest(unittest.TestCase):
             )
         )
 
+    def test_dead_home_full_capture_value_cannot_drain_overweight_work(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        # Older checkpoints may still deserialize this dead historical field.
+        policy._home_full = True
+
+        selected = policy._find_home_deposit(snapshot)
+
+        self.assertEqual(selected.slot, "a")
+        self.assertEqual(selected.name, "heavy statue")
+
     def test_recorded_overweight_deposits_required_surplus_in_one_visit(self):
         actor = replace(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR, gold=5000),
@@ -45832,8 +45843,7 @@ class RetentionAuthorityTest(unittest.TestCase):
 
 
 class HomeFullLatchTest(unittest.TestCase):
-    """A full Home must not latch a sticky town block: the deposit just stops for
-    the visit and other errands proceed (mirrors the bounty-office fix)."""
+    """Home rejection is represented only by observed operation outcomes."""
 
     def _town_snap(self, inventory):
         return Snapshot(
@@ -45844,34 +45854,6 @@ class HomeFullLatchTest(unittest.TestCase):
             town_flag=True,
             inventory=inventory,
         )
-
-    def test_full_home_latch_stops_deposits_without_sticky_block(self):
-        gear = item("a", TVAL_RING, 0, is_equipment=True, known=True, name="ring")
-        pol = HengbotPolicy()
-        pol._equipment_optimization_preparation = SimpleNamespace(
-            # TEST_FAKERY_LINT_ALLOW: pipeline-result-injected: focused optimizer unit supplies a collaborator result whose downstream handling is the subject
-            result=SimpleNamespace(
-                best=SimpleNamespace(loadout=SimpleNamespace(item_ids=frozenset()))
-            )
-        )
-        snap = self._town_snap([gear])
-        self.assertIsNotNone(pol._find_home_deposit(snap))  # normally depositable
-        pol._home_full = True
-        self.assertIsNone(pol._find_home_deposit(snap))     # latch stops it
-        self.assertIsNone(pol._town_blocked_reason)          # never a sticky block
-
-    def test_dungeon_clears_home_full_latch(self):
-        pol = HengbotPolicy()
-        pol._home_full = True
-        pol._observe(
-            Snapshot(
-                player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
-                {Position(10, 10): grid(10, 10)},
-                [],
-                floor_key=(1, 5, 0),
-            )
-        )
-        self.assertFalse(pol._home_full)
 
     def test_rejected_deposit_stops_all_deposits_for_the_town_visit(self):
         ring = item("k", TVAL_RING, 39, is_equipment=True, known=True)

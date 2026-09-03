@@ -2077,7 +2077,6 @@ class HengbotPolicy(TownArbiterMixin):
         self._batch_sell_pending: dict[str, object] | None = None
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
-        self._home_full = False
         # Exhausted input retries mean only that deposits should be abandoned
         # for this visit; they do not prove that the Home is at capacity.
         self._home_deposit_abandoned = False
@@ -7481,7 +7480,6 @@ class HengbotPolicy(TownArbiterMixin):
         if not snapshot.in_town:
             # Away from town, clear the "Home is full" latch so the next visit
             # re-checks (the bot may have withdrawn items or a later Home differs).
-            self._home_full = False
             self._home_deposit_abandoned = False
             self._home_rejected_deposits.clear()
             self._device_identify_watch = None
@@ -15355,7 +15353,7 @@ class HengbotPolicy(TownArbiterMixin):
         return visit.operation_key
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
-        if self._home_full or self._home_deposit_abandoned:
+        if self._home_deposit_abandoned:
             return None
         if self._calibration_phase == "deposit":
             # The unequipped calibration phase deposits the whole pack (the
@@ -21905,7 +21903,6 @@ class HengbotPolicy(TownArbiterMixin):
         at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         return (
             self._home_available(snapshot)
-            and not self._home_full
             and not self._home_deposit_abandoned
             and self._item_signature(item) not in self._home_rejected_deposits
             and (
