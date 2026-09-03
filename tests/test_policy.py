@@ -39098,6 +39098,18 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertEqual(policy._shop_approach_stuck_count, 0)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
+    def test_noncombat_interruption_preserves_approach_count(self):
+        snapshot = self._snapshot()
+        policy = HengbotPolicy()
+        policy._shop_approach_stuck_count = 7
+        policy.last_reason = "home:request-knowledge-scan"
+
+        with patch.object(policy, "_choose_key", return_value=WAIT_KEY):
+            key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy._shop_approach_stuck_count, 7)
+
     def test_retired_weight_claim_hands_off_without_an_ownerless_pass(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()
