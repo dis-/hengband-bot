@@ -38916,6 +38916,43 @@ class WeightOverloadTownTest(unittest.TestCase):
 
         self.assertEqual(selected_slots[0], "d")
 
+    def test_suffixed_categories_are_required_by_overweight_predicate(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        identify = replace(
+            item("a", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"), weight=5
+        )
+        restore = replace(
+            item(
+                "b", TVAL_POTION, SV_POTION_RESTORE_STR,
+                count=4, name="Restore Str",
+            ),
+            weight=4,
+        )
+        snapshot = replace(
+            snapshot,
+            inventory=[identify, restore],
+            equipment=[
+                replace(
+                    item("body", 37, 4, is_equipment=True), weight=1700
+                )
+            ],
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(
+            policy._cross_town_item_categories(identify),
+            ("identification-source:normal",),
+        )
+        self.assertEqual(
+            policy._cross_town_item_categories(restore),
+            ("stat-restore:str",),
+        )
+        self.assertEqual(policy._retention_reservation(snapshot, identify), 0)
+        self.assertEqual(policy._retention_reservation(snapshot, restore), 0)
+        self.assertEqual(policy._retention_surplus(snapshot, identify), 1)
+        self.assertEqual(policy._retention_surplus(snapshot, restore), 4)
+        self.assertIsNone(policy._overweight_home_deposit(snapshot))
+
     def test_home_attempt_latch_does_not_suppress_reducible_overweight(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy()

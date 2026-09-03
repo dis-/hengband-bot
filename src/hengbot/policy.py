@@ -14376,6 +14376,11 @@ class HengbotPolicy(TownArbiterMixin):
 
         def required_supply(item: InventoryItem) -> bool:
             categories = set(self._cross_town_item_categories(item))
+            categories.update(
+                category.split(":", 1)[0]
+                for category in tuple(categories)
+                if category.startswith(("identification-source:", "stat-restore:"))
+            )
             strategy = (
                 self._carry_procurement_strategy(snapshot)
                 or self._quest_strategy_for_errand_or_floor(snapshot)
