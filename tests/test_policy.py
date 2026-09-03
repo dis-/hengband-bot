@@ -46704,6 +46704,11 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
+        self.assertEqual(TVAL_SCROLL, 70)
+        self.assertEqual(scroll.tval, 70)
+        self.assertTrue(scroll.is_scroll)
+        snapshot = self._town(inventory=(scroll,))
+        self.assertEqual(policy._read_key(snapshot, scroll), "ra")
         self.assertFalse(policy._identification_flow_candidate(scroll))
         self.assertFalse(policy._normal_identification_flow_candidate(scroll))
         self.assertFalse(policy._identification_flow_owns(scroll))

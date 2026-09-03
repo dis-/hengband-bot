@@ -2484,6 +2484,20 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertNotIn("departure_block", record)
 
+    def test_evaluated_ready_departure_block_is_also_omitted(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        policy._departure_block = {}
+        policy._departure_block_sequence = policy._decision_sequence
+
+        facts = _capture_decision_facts(snapshot, policy)
+        record = _decision_record(
+            snapshot, "5", "test", departure_block=facts["departure_block"]
+        )
+
+        self.assertEqual(facts["departure_block"], {})
+        self.assertNotIn("departure_block", record)
+
     def test_writer_treats_only_none_as_missing_decision_facts(self):
         class FalsyFacts(dict):
             def __bool__(self):

@@ -25249,9 +25249,10 @@ class HengbotPolicy(TownArbiterMixin):
         ``snapshot`` identifies the recorder call but is deliberately not
         evaluated here: departure evaluation can prepare the optimizer and
         publish a confirmed loadout.  A latch from an earlier decision is not
-        an observation for this row.  The empty result is an explicit recorder
-        contract: the writer omits the key, and a missing ``departure_block``
-        means "not evaluated this decision", never "evaluated and ready".
+        an observation for this row.  The writer omits an empty result, so a
+        missing ``departure_block`` can mean either "not evaluated this
+        decision" or "evaluated and ready".  Consumers must not distinguish
+        those byte-identical cases.
         """
         if (
             snapshot is not None
