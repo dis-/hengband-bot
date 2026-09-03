@@ -2539,11 +2539,12 @@ class HengbotPolicy(TownArbiterMixin):
         # the carried catalogue authoritative here so a freshly observed
         # strip cannot be recorded (or reasoned about) beside the preceding
         # decision's worn set.
-        # The entrance detector measures one continuous approach.  Combat and
-        # every other winning rung end that episode; reset on the following
-        # public decision before a resumed route can add to the old count.
-        if self._shop_approach_stuck_count and "approach" not in (
-            self.last_reason or ""
+        # Combat ends the current entrance-approach episode.  Reset on the
+        # following public decision before a resumed route can add to the old
+        # count; ordinary route relabelling keeps existing replay behaviour.
+        if self._shop_approach_stuck_count and (
+            self.last_reason == "melee"
+            or (self.last_reason or "").startswith("ranged:")
         ):
             self._shop_approach_stuck_count = 0
         self._acquire_store_visit_attempt = {
