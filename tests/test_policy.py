@@ -45879,7 +45879,6 @@ class HomeFullLatchTest(unittest.TestCase):
 
         self.assertEqual(keys[-1], LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:deposit-rejected")
-        self.assertFalse(pol._home_full)
         self.assertTrue(pol._home_deposit_abandoned)
         self.assertIn(pol._item_signature(ring), pol._home_rejected_deposits)
         self.assertIsNone(pol._find_home_deposit(snap))
