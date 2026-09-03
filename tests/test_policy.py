@@ -38744,7 +38744,48 @@ class WeightOverloadTownTest(unittest.TestCase):
 
         self.assertEqual(key, "pn3\r\r")
         self.assertEqual(policy.last_reason, "shop:buy-recall")
-        self.assertNotIn("weight", policy.last_reason)
+
+    def test_required_recall_purchase_may_newly_create_overload(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        recall = replace(
+            store_item(
+                "n", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                count=99, price=100,
+            ),
+            weight=10,
+        )
+        inventory = [
+            replace(item, count=0) if item.slot == "h" else item
+            for item in snapshot.inventory
+        ]
+        inventory.append(
+            replace(item("r", 9, 0, name="recorded ballast"), weight=130)
+        )
+        snapshot = replace(
+            snapshot,
+            inventory=inventory,
+            grids={
+                snapshot.player.position: replace(
+                    snapshot.grids[snapshot.player.position],
+                    store_number=STORE_ALCHEMIST,
+                )
+            },
+            store=StoreState(STORE_ALCHEMIST, [recall]),
+        )
+        policy = HengbotPolicy()
+
+        current_weight = policy._inventory_weight(snapshot)
+        limit = policy._inventory_weight_limit(snapshot)
+        self.assertEqual((current_weight, limit), (1621, 1650))
+        self.assertEqual(current_weight + recall.weight * 3, 1651)
+        with (
+            patch.object(policy, "_batch_sell_key", return_value=None),
+            patch.object(policy, "_find_low_level_sale", return_value=None),
+        ):
+            key = policy._shop(snapshot)
+
+        self.assertEqual(key, "pn3\r\r")
+        self.assertEqual(policy.last_reason, "shop:buy-recall")
 
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)
