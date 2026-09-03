@@ -114,7 +114,10 @@ class HomeVisitExecutor:
         if self.semantic_churn_cooldown:
             self._report(request, "semantic-churn-cooldown")
             return "rejected"
-        if self.attempts_used >= self.attempt_limit:
+        if (
+            self.attempts_used >= self.attempt_limit
+            and not self._composes_equipment_withdrawal(request)
+        ):
             self._report(request, "attempt-budget-exhausted")
             return "rejected"
         self.request = request
@@ -128,7 +131,13 @@ class HomeVisitExecutor:
     def begin_approach(self, outside_generation: int) -> bool:
         if self.state not in {HomeVisitState.FILED, HomeVisitState.APPROACHING}:
             return False
-        if self.attempts_used >= self.attempt_limit:
+        if (
+            self.attempts_used >= self.attempt_limit
+            and not (
+                self.request is not None
+                and self._composes_equipment_withdrawal(self.request)
+            )
+        ):
             assert self.request is not None
             self._report(self.request, "attempt-budget-exhausted")
             return False
@@ -138,6 +147,20 @@ class HomeVisitExecutor:
         self.context_token = ("outside", outside_generation)
         self.state = HomeVisitState.APPROACHING
         return True
+
+    def _composes_equipment_withdrawal(self, request: HomeVisitRequest) -> bool:
+        """Let an already-started equipment swap shelve its displaced item."""
+        previous = self.previous_completed_delta
+        return (
+            previous is not None
+            and previous[0] > 0
+            and previous[2] == HomeVisitKind.EQUIPMENT_MUTATION
+            and previous[3] == "equipment-transaction"
+            and request.kind == HomeVisitKind.EQUIPMENT_MUTATION
+            and request.requester == "equipment-transaction"
+            and request.address is None
+            and bool(request.shelving_plan)
+        )
 
     def post_entry(self, outside_generation: int) -> bool:
         if self.state != HomeVisitState.APPROACHING:

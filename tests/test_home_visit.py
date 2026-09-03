@@ -17,6 +17,36 @@ def request(kind=HomeVisitKind.WITHDRAW, identity=("shovel", 3, 8), **kwargs):
 
 
 class HomeVisitExecutorTest(unittest.TestCase):
+    def test_equipment_withdrawal_at_budget_composes_final_deposit(self):
+        """Turn 1411422: the 300th visit must not strand its final shelving."""
+        withdrawn = "9141dc0b22af47b4"
+        displaced = ("ライト・クロスボウ (x3) (0.86turn) (+3,+1)", 19, 23)
+        executor = HomeVisitExecutor(1)
+        withdrawal = HomeVisitRequest(
+            HomeVisitKind.EQUIPMENT_MUTATION,
+            "equipment-transaction",
+            withdrawn,
+            address=("recorded-home-address",),
+        )
+        self.assertEqual(executor.file(withdrawal), "filed")
+        self.assertTrue(executor.begin_approach(24))
+        executor.observe_outside_ready(("recorded-address-evidence",), 26)
+        self.assertTrue(executor.record_operation("take", withdrawn, 26))
+        self.assertTrue(executor.post_exit())
+        executor.observe_outside(effect_observed=True)
+        self.assertEqual(executor.consume_report().outcome, "completed")
+        self.assertEqual(executor.attempts_used, executor.attempt_limit)
+
+        deposit = HomeVisitRequest(
+            HomeVisitKind.EQUIPMENT_MUTATION,
+            "equipment-transaction",
+            displaced,
+            shelving_plan=(displaced,),
+        )
+        self.assertEqual(executor.file(deposit), "filed")
+        self.assertTrue(executor.begin_approach(32))
+        self.assertEqual(executor.request, deposit)
+
     def test_one_operation_per_entry_and_explicit_report(self):
         executor = HomeVisitExecutor(3)
         self.assertEqual(executor.file(request()), "filed")
