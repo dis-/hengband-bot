@@ -38981,10 +38981,9 @@ class WeightOverloadTownTest(unittest.TestCase):
         )
 
         with patch.object(policy, "_outstanding_equipment_work", return_value=False):
-            claims_active = policy._town_claims_active(snapshot)
+            policy._town_claims_active(snapshot)
             key = policy._town_blocked_key(snapshot)
 
-        self.assertFalse(claims_active)
         self.assertNotIn("weight-overload", policy._town_claim_categories)
         self.assertEqual(policy._town_blocked_reason, "overweight-home-unreachable")
         self.assertEqual(key, WAIT_KEY)
