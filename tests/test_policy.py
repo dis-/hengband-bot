@@ -49,6 +49,7 @@ def tearDownModule():
     _knowledge_patch.stop()
     _knowledge_tmp.cleanup()
 from hengbot.home_errand import HomeErrandRequest
+from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
@@ -40666,6 +40667,86 @@ class HomeVisitOwnershipTest(unittest.TestCase):
             "home-visit:atomic-home-composer:attempt-budget-exhausted",
             policy.consume_pending_home_visit_report(),
         )
+
+    def test_promoted_restore_request_composes_recorded_identify_staff(self):
+        policy = HengbotPolicy()
+        fillers = [
+            store_item(chr(ord("a") + index), TVAL_SCROLL, index + 100,
+                       name=f"stored filler {index}")
+            for index in range(13)
+        ]
+        identify_staffs = [
+            store_item(letter, TVAL_STAFF, SV_STAFF_IDENTIFY,
+                       name=f"Identify staff {charges}", charges=charges)
+            for letter, charges in zip("nopq", (19, 13, 9, 8))
+        ]
+        tail = [
+            store_item(chr(ord("r") + index), TVAL_SCROLL, index + 200,
+                       name=f"stored tail {index}")
+            for index in range(22)
+        ]
+        home_items = [*fillers, *identify_staffs, *tail]
+        self.assertEqual(len(home_items), 39)
+        target = policy._item_signature(identify_staffs[0])
+        stale = ("prior restore", TVAL_SCROLL, 99)
+        executor = policy._home_visit
+        executor.file(HomeVisitRequest(
+            HomeVisitKind.CALIBRATION_RESTORE, "calibration-restore", stale,
+        ))
+        self.assertTrue(executor.begin_approach(4168))
+        self.assertEqual(
+            executor.file(HomeVisitRequest(
+                HomeVisitKind.CALIBRATION_RESTORE,
+                "calibration-restore",
+                ("intervening restore", TVAL_SCROLL, 98),
+            )),
+            "queued",
+        )
+        self.assertEqual(
+            executor.file(HomeVisitRequest(
+                HomeVisitKind.CALIBRATION_RESTORE,
+                "calibration-restore",
+                target,
+                batch=(target,),
+            )),
+            "queued",
+        )
+
+        policy._decision_sequence = 4169
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [target]
+        policy._home_knowledge_items = [
+            policy._inventory_item_from_store_item(candidate)
+            for candidate in home_items
+        ]
+        policy._home_knowledge_current = True
+        policy._home_knowledge_valid_before = 39
+        policy._home_page_size = 52
+        wanted_purchase = store_item(
+            "j", TVAL_STAFF, SV_STAFF_IDENTIFY, price=936,
+            count=14, charges=18, name="shop Identify staff",
+        )
+        entrance = Snapshot(
+            player(45, 123, gold=12452),
+            {Position(45, 123): replace(
+                grid(45, 123), store_number=STORE_HOME,
+            )},
+            [], floor_key=(0, 0, 0),
+            inventory=[item("a", TVAL_FLASK, SV_FLASK_OIL, count=11)],
+            equipment=[], turn=1410895,
+        )
+
+        self.assertEqual(wanted_purchase.price, 936)
+        self.assertEqual(wanted_purchase.count, 14)
+        self.assertEqual(wanted_purchase.charges, 18)
+        self.assertEqual(entrance.player.gold, 12452)
+        self.assertEqual(policy._atomic_home_withdraw_key(
+            entrance, entrance.player.position,
+        ), WAIT_KEY)
+        self.assertEqual(executor.operation, ("take", target))
+        self.assertEqual(policy._store_visit.operation_key, "pn\x1b")
+        self.assertNotEqual(policy.last_reason, "home-visit:withdraw-not-authorized")
 
     def test_home_rearm_is_noop_after_visit_budget_exhaustion(self):
         policy = HengbotPolicy()

@@ -3601,7 +3601,7 @@ class HengbotPolicy(TownArbiterMixin):
         request = visit.request
         if visit.entry_pending:
             return False
-        if (
+        while (
             request is not None
             and request.item_identity != identity
             and visit.report_unoperated("superseded-before-operation")
@@ -3611,7 +3611,10 @@ class HengbotPolicy(TownArbiterMixin):
                 self._pending_home_visit_report = (
                     f"home-visit:{report.request.requester}:{report.outcome}"
                 )
-            request = None
+            # consume_report() may promote a queued request.  Reconcile that
+            # value too; otherwise the desired request is queued behind the
+            # promoted stale request and authorization uses the wrong identity.
+            request = visit.request
         if request is None:
             kind = (
                 HomeVisitKind.WITHDRAW if action == "take"
