@@ -38691,6 +38691,9 @@ class WeightOverloadTownTest(unittest.TestCase):
             replace(item("q", TVAL_BOLT, 1, count=71), weight=3),
         ]
         bolts = replace(
+            # Non-Home StoreItem weight is absent from production JSON.  This
+            # fixture value is inert now that purchase-side weight refusal has
+            # been removed; it remains only to preserve the recorded magnitude.
             store_item("n", TVAL_BOLT, 1, count=99, price=3), weight=3
         )
         return Snapshot(
@@ -38703,6 +38706,45 @@ class WeightOverloadTownTest(unittest.TestCase):
             equipment=equipment,
             store=StoreState(STORE_GENERAL, [bolts]),
         )
+
+    def test_overweight_still_buys_departure_blocking_recall(self):
+        snapshot = self._recorded_pre_ammo_purchase()
+        recall = replace(
+            store_item(
+                "n", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
+                count=99, price=100,
+            ),
+            weight=5,
+        )
+        inventory = list(snapshot.inventory)
+        inventory[7] = replace(inventory[7], count=0)
+        inventory.append(
+            replace(item("r", 9, 0, name="heavy statue"), weight=200)
+        )
+        snapshot = replace(
+            snapshot,
+            inventory=inventory,
+            grids={
+                snapshot.player.position: replace(
+                    snapshot.grids[snapshot.player.position],
+                    store_number=STORE_ALCHEMIST,
+                )
+            },
+            store=StoreState(STORE_ALCHEMIST, [recall]),
+        )
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._inventory_weight(snapshot), 1691)
+        self.assertEqual(policy._inventory_weight_limit(snapshot), 1650)
+        with (
+            patch.object(policy, "_batch_sell_key", return_value=None),
+            patch.object(policy, "_find_low_level_sale", return_value=None),
+        ):
+            key = policy._shop(snapshot)
+
+        self.assertEqual(key, "pn3\r\r")
+        self.assertEqual(policy.last_reason, "shop:buy-recall")
+        self.assertNotIn("weight", policy.last_reason)
 
     def _snapshot(self):
         strength_18_180 = (33, 0, 0, 0, 0, 0)
