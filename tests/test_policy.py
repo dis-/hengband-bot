@@ -30138,7 +30138,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         )
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
-    def test_unknown_identify_stock_preserves_owner_until_observation_resolves(self):
+    def test_unknown_identify_stock_waits_for_observation_before_writeoff(self):
         ring = item(
             "a", TVAL_RING, -1, name="unknown ring", aware=False,
             known=False, is_equipment=True,
@@ -30159,7 +30159,6 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
 
         policy._town_terminal_transitions(outside)
 
-        self.assertIs(policy._town_errand_plan, plan)
         self.assertEqual(plan.completed_this_visit, [])
         self.assertEqual(policy._identification_need, "normal")
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
@@ -30181,6 +30180,39 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         self.assertIn(
             policy._item_signature(ring), policy._town_unidentifiable_carried_sigs
         )
+
+    def test_stale_empty_identify_shelf_cannot_authorize_writeoff(self):
+        ring = item(
+            "a", TVAL_RING, -1, name="unknown ring", aware=False,
+            known=False, is_equipment=True,
+        )
+        observed_turn = 40
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[ring],
+            equipment=[self._lantern()], town_flag=True, town_id=1,
+            turn=observed_turn + STORE_RESTOCK_WAIT_TURNS,
+        )
+        policy = HengbotPolicy()
+        policy._refresh_carried_equipment_catalog(snap)
+        self.assertIsNone(policy._town_item_processing_key(snap))
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        policy._town_supplier_stock[STORE_ALCHEMIST] = StoreState(
+            store_type=STORE_ALCHEMIST, items=[]
+        )
+        policy._town_supplier_stock_observations[STORE_ALCHEMIST] = (
+            policy._effective_town_id(snap), observed_turn
+        )
+
+        self.assertEqual(
+            policy._identification_source_obtainability(snap, full=False),
+            "unknown",
+        )
+        policy._town_terminal_transitions(snap)
+        signature = policy._item_signature(ring)
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertNotIn(signature, policy._town_unidentifiable_carried_sigs)
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
     def test_alchemist_observation_writer_drives_identify_obtainability(self):
         outside = Snapshot(

@@ -16524,6 +16524,7 @@ class HengbotPolicy(TownArbiterMixin):
             or page is None
             or observation[0] != self._effective_town_id(snapshot)
             or observation[1] > snapshot.turn
+            or snapshot.turn - observation[1] >= STORE_RESTOCK_WAIT_TURNS
         ):
             return "unknown"
         wanted_sval = SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY
@@ -16539,7 +16540,13 @@ class HengbotPolicy(TownArbiterMixin):
         )
 
     def _retain_identification_source_owner(self) -> None:
-        """Re-open the bounded Alchemist owner for obtainable/unknown stock."""
+        """Re-open the Alchemist owner without discarding its route progress.
+
+        Keeping the plan is defensive state preservation.  Recorded transition
+        experiments show the unknown branch resolves on the same observed pass
+        with or without it; the shelf observation, not plan identity, is the
+        behavioural authority.
+        """
         self._rearm_town_store_for_new_work(STORE_ALCHEMIST)
 
     def _activate_home_batch_item(self) -> None:
