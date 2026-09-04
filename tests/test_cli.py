@@ -104,6 +104,7 @@ from hengbot.policy import (
 from hengbot.town_arbiter import TownArbiterMixin
 from tests.run_follow_hygiene import run_follow as _run_follow, run_follow_with_ledger
 from hengbot.equipment_mutation import progress_core
+from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
@@ -2470,6 +2471,78 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(observed, policy._departure_block)
         self.assertEqual(before, observable_policy_fields(policy))
+
+    def test_home_route_refusal_is_value_pinned_emitted_and_state_pure(self):
+        from town_producer_purity_matrix import observable_policy_fields
+
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        request = HomeVisitRequest(HomeVisitKind.SCAN, "rerun-probe")
+        policy._home_visit.semantic_churn_cooldown = True
+        before_executor = dict(policy._home_visit.__dict__)
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=request
+        ):
+            self.assertFalse(policy._ensure_home_visit_request(snapshot))
+
+        refusal = policy.home_route_refusal_state()
+        self.assertEqual(refusal, {
+            "derived": "scan:rerun-probe",
+            "filing": "rejected",
+            "rejection": "semantic-churn-cooldown",
+            "begin_approach": None,
+            "executor_state": "IDLE",
+            "attempts_used": 0,
+            "queued": 0,
+        })
+        # Filing/report consumption are the pre-existing execution path; the
+        # telemetry recorder merely reads the resulting executor snapshot.
+        after_executor = dict(policy._home_visit.__dict__)
+        self.assertEqual(before_executor, after_executor)
+        before = observable_policy_fields(policy)
+        recorded_again = policy._record_home_route_refusal(
+            derived="scan:rerun-probe",
+            filing="rejected",
+            rejection="semantic-churn-cooldown",
+            begin_approach=None,
+        )
+        self.assertEqual(recorded_again, refusal)
+        self.assertEqual(before, observable_policy_fields(policy))
+
+        record = _decision_record(
+            snapshot, "5", "home-route-refused", home_route_refusal=refusal
+        )
+        self.assertEqual(record["home_route_refusal"], refusal)
+
+        policy._decision_sequence += 1
+        self.assertIsNone(policy.home_route_refusal_state())
+        self.assertNotIn(
+            "home_route_refusal",
+            _decision_record(snapshot, "5", "later-decision"),
+        )
+
+    def test_home_route_refusal_discriminates_queued_active_state(self):
+        snapshot = self._town_snapshot()
+        policy = HengbotPolicy()
+        active = HomeVisitRequest(HomeVisitKind.SCAN, "active-owner")
+        queued = HomeVisitRequest(HomeVisitKind.SCAN, "queued-owner")
+        policy._home_visit.request = active
+        policy._home_visit.state = HomeVisitState.OPERATING
+
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=queued
+        ):
+            self.assertFalse(policy._ensure_home_visit_request(snapshot))
+
+        self.assertEqual(policy.home_route_refusal_state(), {
+            "derived": "scan:queued-owner",
+            "filing": "queued",
+            "rejection": None,
+            "begin_approach": False,
+            "executor_state": "OPERATING",
+            "attempts_used": 0,
+            "queued": 1,
+        })
 
     def test_missing_departure_block_means_not_evaluated_this_decision(self):
         snapshot = self._town_snapshot()

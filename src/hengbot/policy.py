@@ -1807,6 +1807,8 @@ class HengbotPolicy(TownArbiterMixin):
         # can replenish this physical-visit budget.
         self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
         self._pending_home_visit_report: str | None = None
+        self._home_route_refusal: dict[str, object] | None = None
+        self._home_route_refusal_sequence: int | None = None
         self._town_was_in_town = False
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
@@ -3549,17 +3551,71 @@ class HengbotPolicy(TownArbiterMixin):
             )
         request = self._derived_home_visit_request(snapshot)
         if request is None:
+            self._home_route_refusal = self._record_home_route_refusal(
+                derived=None,
+                filing=None,
+                rejection=None,
+                begin_approach=None,
+            )
+            self._home_route_refusal_sequence = self._decision_sequence
             return False
         filing = self._home_visit.file(request)
         if filing == "rejected" or self._home_visit.request is None:
+            rejection = None
             report = self._home_visit.consume_report()
             if report is not None:
                 marker = report.defect or report.outcome
+                rejection = marker
                 self._pending_home_visit_report = (
                     f"home-visit:{report.request.requester}:{marker}"
                 )
+            self._home_route_refusal = self._record_home_route_refusal(
+                derived=f"{request.kind.value}:{request.requester}",
+                filing=filing,
+                rejection=rejection,
+                begin_approach=None,
+            )
+            self._home_route_refusal_sequence = self._decision_sequence
             return False
-        return self._home_visit.begin_approach(self._decision_sequence)
+        began = self._home_visit.begin_approach(self._decision_sequence)
+        if not began:
+            self._home_route_refusal = self._record_home_route_refusal(
+                derived=f"{request.kind.value}:{request.requester}",
+                filing=filing,
+                rejection=None,
+                begin_approach=False,
+            )
+            self._home_route_refusal_sequence = self._decision_sequence
+        return began
+
+    def _record_home_route_refusal(
+        self,
+        *,
+        derived: str | None,
+        filing: str | None,
+        rejection: str | None,
+        begin_approach: bool | None,
+    ) -> dict[str, object]:
+        """Describe an observed Home-route refusal without changing its executor."""
+        visit = self._home_visit
+        return {
+            "derived": derived,
+            "filing": filing,
+            "rejection": rejection,
+            "begin_approach": begin_approach,
+            "executor_state": visit.state.name,
+            "attempts_used": visit.attempts_used,
+            "queued": len(visit.queued),
+        }
+
+    def home_route_refusal_state(self) -> dict[str, object] | None:
+        """Return only a refusal observed during the current decision."""
+        if (
+            getattr(self, "_home_route_refusal_sequence", None)
+            != self._decision_sequence
+        ):
+            return None
+        return getattr(self, "_home_route_refusal", None)
 
     def _prepare_home_visit_operation(
         self, action: str, identity: tuple, evidence: tuple

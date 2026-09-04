@@ -831,6 +831,7 @@ def _decision_record(
     acquire_result: str | None = None,
     arbiter: dict | None = None,
     town_emit_ownership: dict | None = None,
+    home_route_refusal: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -964,6 +965,11 @@ def _decision_record(
         **(
             {"home_visit_report": home_visit_report}
             if home_visit_report is not None
+            else {}
+        ),
+        **(
+            {"home_route_refusal": home_route_refusal}
+            if home_route_refusal is not None
             else {}
         ),
         **({"hunt_report": hunt_report} if hunt_report is not None else {}),
@@ -1544,6 +1550,11 @@ def _write_decision(
                         else None
                     ),
                     town_emit_ownership,
+                    (
+                        policy.home_route_refusal_state()
+                        if policy is not None
+                        else None
+                    ),
                 ),
                 file,
                 ensure_ascii=False,
