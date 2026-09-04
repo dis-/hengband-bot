@@ -21,6 +21,9 @@ CAL3_VISIT_BUDGET_DECISIONS = FIXTURE_DIR / "cal3-visit-budget-decisions.jsonl.g
 IDW_BLOCK_DECISIONS = FIXTURE_DIR / "idw-block-decisions.jsonl.gz"
 RESTORE_STALL_DECISIONS = FIXTURE_DIR / "restore-stall-decisions.jsonl.gz"
 HOME_ROUTE_STALL_DECISIONS = FIXTURE_DIR / "home-route-stall-decisions.jsonl.gz"
+PATTERN_A_OWNER_RETIRED_DECISIONS = (
+    FIXTURE_DIR / "pattern-a-owner-retired-decisions.jsonl.gz"
+)
 
 
 def rows(path: Path):
