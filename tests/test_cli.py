@@ -2958,6 +2958,19 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(record["shop_selector"], evidence)
 
+    def test_decision_record_carries_home_gate_evidence(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+        evidence = {
+            "result": "allow",
+            "branch": "wrapper-fresh-catalogue-absence",
+        }
+
+        record = _decision_record(
+            snapshot, "pa1\r\r\x1b", "shop:one-shot-buy", home_gate=evidence
+        )
+
+        self.assertEqual(record["home_gate"], evidence)
+
     def test_decision_record_carries_identification_source_reservation(self):
         snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
         reservation = {

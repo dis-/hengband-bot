@@ -2054,6 +2054,9 @@ class HengbotPolicy(TownArbiterMixin):
         self._town_travel_rumor_pending: int | None = None
         # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
         self._town_store_attempted: dict[int, int] = {}
+        self._home_latch_active: dict[str, object] | None = None
+        self._home_latch_history: list[dict[str, object]] = []
+        self._home_gate_telemetry: dict[str, object] = {}
         self._town_restock_wait_until: int | None = None
         self._town_restock_waiting_for: tuple[int, ...] = ()
         self._town_restock_rechecked: set[int] = set()
@@ -2276,6 +2279,7 @@ class HengbotPolicy(TownArbiterMixin):
         ) = None
         self._equipment_optimization_timed_out_this_visit = False
         self._equipment_optimization_telemetry: dict[str, object] = {}
+        self._equipment_fresh_search_target_ids: frozenset[str] = frozenset()
         self._town_plan_projection_telemetry: dict[str, object] = {
             "evaluated": False,
             "plan_rebuilt": False,
@@ -2585,6 +2589,14 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_transaction_route_terminal_pending = False
         if not hasattr(self, "_equipment_transaction_route_terminal"):
             self._equipment_transaction_route_terminal = None
+        if not hasattr(self, "_home_gate_telemetry"):
+            self._home_gate_telemetry = {}
+        if not hasattr(self, "_home_latch_active"):
+            self._home_latch_active = None
+        if not hasattr(self, "_home_latch_history"):
+            self._home_latch_history = []
+        if not hasattr(self, "_equipment_fresh_search_target_ids"):
+            self._equipment_fresh_search_target_ids = frozenset()
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
@@ -3175,7 +3187,7 @@ class HengbotPolicy(TownArbiterMixin):
             }
         finally:
             if attempted_at is not None:
-                self._town_store_attempted[store.store_type] = attempted_at
+                self._set_town_store_attempted(store.store_type, attempted_at, "shop-exit-attempt")
         purchase = self._next_purchase(snapshot)
         purchase_families = {
             category.split(":", 1)[0]
@@ -4671,7 +4683,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=False
                 )
-                self._town_store_attempted[STORE_HOME] = snapshot.turn
+                self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-capture-complete")
                 self.last_reason = "home:route-claim-unfulfilled"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
@@ -7564,6 +7576,8 @@ class HengbotPolicy(TownArbiterMixin):
             ]
             for store_type in expired_stores:
                 del self._town_store_attempted[store_type]
+                if store_type == STORE_HOME:
+                    self._home_latch_active = None
         if (
             snapshot.in_town
             and snapshot.player.class_id >= 0
@@ -12619,6 +12633,19 @@ class HengbotPolicy(TownArbiterMixin):
         self._set_equipment_transaction_session(
             self._equipment_transaction_session_for_preparation(preparation)
         )
+        previous_target_ids = self._equipment_fresh_search_target_ids
+        current_target_ids = frozenset(selected_ids)
+        session = self._equipment_transaction_session
+        self._equipment_optimization_telemetry["fresh_search_transition"] = {
+            "target_loadout_id": (
+                session.target_loadout_id if session is not None else None
+            ),
+            "item_ids": sorted(current_target_ids)[:10],
+            "added_ids": sorted(current_target_ids - previous_target_ids)[:10],
+            "removed_ids": sorted(previous_target_ids - current_target_ids)[:10],
+            "trigger_reason": self.last_reason,
+        }
+        self._equipment_fresh_search_target_ids = current_target_ids
         return preparation
 
     def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
@@ -19419,7 +19446,7 @@ class HengbotPolicy(TownArbiterMixin):
             plan.blocked_this_visit.append(store_type)
             plan.current_stop_passes = 0
             plan.index += 1
-            self._town_store_attempted[store_type] = snapshot.turn
+            self._set_town_store_attempted(store_type, snapshot.turn, "plan-stop-satisfied")
             return
         limit = self._town_store_visit_limit(store_type)
         # During calibration, one completed Home entry is the unit of work:
@@ -19445,7 +19472,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._release_blocked_store_latches(store_type)
         plan.current_stop_passes = 0
         plan.index += 1
-        self._town_store_attempted[store_type] = snapshot.turn
+        self._set_town_store_attempted(store_type, snapshot.turn, "plan-stop-advanced")
         if (
             store_type == STORE_HOME
             and self._equipment_transaction_session is not None
@@ -20764,6 +20791,80 @@ class HengbotPolicy(TownArbiterMixin):
             None,
         )
 
+    def _set_town_store_attempted(
+        self, store_type: int, turn: int, site_label: str
+    ) -> None:
+        """Set the existing latch and retain observation-only Home provenance."""
+        self._town_store_attempted[store_type] = turn
+        if store_type == STORE_HOME:
+            entry = {"turn": turn, "site": site_label}
+            self._home_latch_active = entry
+            self._home_latch_history = [*self._home_latch_history, entry][-8:]
+
+    def _record_home_gate(
+        self,
+        snapshot: Snapshot,
+        item: StoreItem,
+        result: ProcurementHomeGate,
+        branch: str,
+        *,
+        wrapper_fallthrough: str | None = None,
+    ) -> ProcurementHomeGate:
+        """Record a gate return without participating in its decision."""
+        item_class = self._procurement_class(item)
+        matches = [
+            known for known in self._home_knowledge_items
+            if self._procurement_class_matches(known, item_class)
+        ]
+        candidate = self._home_procurement_candidate(item_class)
+        fails = self._town_visit_ledger.approach_fails[STORE_HOME]
+        limit = self._town_store_visit_limit(STORE_HOME)
+        self._home_gate_telemetry = {
+            "result": (
+                "allow" if result is ProcurementHomeGate.ALLOW_PURCHASE
+                else result.value
+            ),
+            "branch": branch,
+            "item": {
+                "tval": item.tval, "sval": item.sval, "letter": item.letter,
+                "price": item.price,
+                "category": self._purchase_diagnostic_category(item),
+            },
+            "candidate": (
+                {"identity": self._item_signature(candidate)}
+                if candidate is not None else None
+            ),
+            "candidate_absence_census": {
+                "class_matches": len(matches),
+                "excluded_as_deferred": sum(
+                    self._item_signature(known) in self._deferred_home_items
+                    for known in matches
+                ),
+                "zero_count": sum(known.count <= 0 for known in matches),
+                "torch_no_fuel": sum(
+                    known.is_torch and known.fuel <= 0 for known in matches
+                ),
+            } if candidate is None else None,
+            "inputs": {
+                "knowledge_current": self._home_knowledge_current,
+                "knowledge_invalidated": self._home_knowledge_invalidated,
+                "attempted": STORE_HOME in self._town_store_attempted,
+                "blocked_store": STORE_HOME in self._town_visit_ledger.blocked_stores,
+                "fails_at_limit": fails >= limit,
+                "approach_fails": fails,
+                "unsatisfied_passes": self._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+                "visit_limit": limit,
+            },
+            "wrapper_fallthrough": wrapper_fallthrough,
+            "home_latch": {
+                "active": self._home_latch_active,
+                "history": list(self._home_latch_history),
+            },
+            "decision_sequence": self._decision_sequence,
+            "turn": snapshot.turn,
+        }
+        return result
+
     def _purchase_has_fresh_home_absence(
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
@@ -20779,19 +20880,19 @@ class HengbotPolicy(TownArbiterMixin):
             # Two observed Home-withdrawal failures authorize the existing
             # one-per-visit fallback purchase even though Home still records a
             # consumer-equivalent digger.
-            return ProcurementHomeGate.ALLOW_PURCHASE
+            return self._record_home_gate(snapshot, item, evaluated, "wrapper-digger-fallback")
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
             if not self._current_town_has_home(snapshot):
                 self._home_procurement_probe = None
                 self._home_procurement_fallthrough = "town-without-home"
-                return ProcurementHomeGate.ALLOW_PURCHASE
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "wrapper-town-without-home", wrapper_fallthrough="town-without-home")
             if not self._home_available(snapshot):
                 self._home_procurement_probe = None
                 self._record_purchase_home_refusal(
                     "town:blocked:procurement-home-unavailable"
                 )
-                return ProcurementHomeGate.BLOCKED
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "wrapper-home-unavailable")
             visit = self._store_visit
             transferred_visit = getattr(
                 self._town_turn_arbiter, "_transferred_visit", None
@@ -20808,7 +20909,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._record_purchase_home_refusal(
                     "shop:home-first-yields-to-current-visit"
                 )
-                return ProcurementHomeGate.HOME_FIRST
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-yield-current-visit")
             approach = (
                 self._shopping_approach_step(snapshot, STORE_HOME) if filed else None
             )
@@ -20817,8 +20918,8 @@ class HengbotPolicy(TownArbiterMixin):
                 self._record_purchase_home_refusal(
                     "town:blocked:procurement-home-unroutable"
                 )
-                return ProcurementHomeGate.BLOCKED
-            return ProcurementHomeGate.HOME_FIRST
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "wrapper-home-unroutable")
+            return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-stale-knowledge-route-home")
         candidate = self._home_procurement_candidate(item_class)
         if (
             candidate is not None
@@ -20826,7 +20927,7 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             self._home_procurement_probe = None
             self._home_procurement_fallthrough = "home-unreachable"
-            return ProcurementHomeGate.ALLOW_PURCHASE
+            return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "wrapper-home-unreachable", wrapper_fallthrough="home-unreachable")
         if candidate is not None:
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
@@ -20838,10 +20939,10 @@ class HengbotPolicy(TownArbiterMixin):
             self._home_pending_quantity = (
                 max(1, target[2] - target[1]) if target is not None else 1
             )
-            return ProcurementHomeGate.HOME_FIRST
+            return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-candidate-home-first")
         self._home_procurement_probe = None
         self._home_procurement_fallthrough = "fresh-catalogue-absence"
-        return ProcurementHomeGate.ALLOW_PURCHASE
+        return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "wrapper-fresh-catalogue-absence", wrapper_fallthrough="fresh-catalogue-absence")
 
     def _record_purchase_home_refusal(self, reason: str) -> None:
         """Retain a probe result without publishing it as a decided stop."""
@@ -20867,7 +20968,7 @@ class HengbotPolicy(TownArbiterMixin):
     ) -> ProcurementHomeGate:
         """Evaluate Home-first purchase policy without changing policy state."""
         if item.is_digging_tool and self._digger_buy_fallback_available(snapshot):
-            return ProcurementHomeGate.ALLOW_PURCHASE
+            return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-digger-fallback")
         if not self._home_knowledge_current:
             if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
                 town_has_home = True
@@ -20885,23 +20986,23 @@ class HengbotPolicy(TownArbiterMixin):
                     visible_home or self._town_store_positions.get(STORE_HOME)
                 )
             if not town_has_home:
-                return ProcurementHomeGate.ALLOW_PURCHASE
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-stale-town-without-home")
             if not home_available:
-                return ProcurementHomeGate.BLOCKED
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "evaluate-stale-home-unavailable")
             visit = self._store_visit
             if visit is not None and visit.store_type != STORE_HOME:
-                return ProcurementHomeGate.HOME_FIRST
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-stale-current-visit")
             if self._town_blocked_reason is not None and (
                 self._town_blocked_reason != "repetition"
             ):
-                return ProcurementHomeGate.BLOCKED
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "evaluate-stale-town-blocked")
             if (
                 STORE_HOME in self._town_store_attempted
                 or STORE_HOME in self._town_visit_ledger.blocked_stores
                 or self._town_visit_ledger.approach_fails[STORE_HOME]
                 >= self._town_store_visit_limit(STORE_HOME)
             ):
-                return ProcurementHomeGate.BLOCKED
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "evaluate-stale-home-latched")
             step = self._nearest_goal_step(
                 snapshot, lambda grid: grid.store_number == STORE_HOME
             )
@@ -20926,11 +21027,8 @@ class HengbotPolicy(TownArbiterMixin):
                 and snapshot.player.position.distance_to(goal) >= 3
             ):
                 step = goal
-            return (
-                ProcurementHomeGate.HOME_FIRST
-                if step is not None
-                else ProcurementHomeGate.BLOCKED
-            )
+            result = ProcurementHomeGate.HOME_FIRST if step is not None else ProcurementHomeGate.BLOCKED
+            return self._record_home_gate(snapshot, item, result, "evaluate-stale-route-found" if step is not None else "evaluate-stale-route-missing")
         item_class = self._procurement_class(item)
         if self._home_procurement_candidate(item_class) is not None:
             if (
@@ -20939,9 +21037,9 @@ class HengbotPolicy(TownArbiterMixin):
                 or self._town_visit_ledger.approach_fails[STORE_HOME]
                 >= self._town_store_visit_limit(STORE_HOME)
             ):
-                return ProcurementHomeGate.ALLOW_PURCHASE
-            return ProcurementHomeGate.HOME_FIRST
-        return ProcurementHomeGate.ALLOW_PURCHASE
+                return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-candidate-latched")
+            return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-candidate-home-first")
+        return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-no-candidate")
 
     def _wanted_purchase_is_home_first_refused(
         self, snapshot: Snapshot, store_type: int
@@ -22121,7 +22219,7 @@ class HengbotPolicy(TownArbiterMixin):
             # exists; otherwise those keys execute raw in the store command loop.
             self._unsellable_items.add(self._item_signature(item))
             if store is not None:
-                self._town_store_attempted[store.store_type] = snapshot.turn
+                self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-no-item")
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
             self.last_reason = rejected_reason
@@ -22171,7 +22269,7 @@ class HengbotPolicy(TownArbiterMixin):
         # 店の中では使えません"), the desync the user observed.
         if self._store_sell_stuck_count >= 1:
             self._unsellable_items.add(self._item_signature(item))
-            self._town_store_attempted[store.store_type] = snapshot.turn
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-stuck")
             # The store accepts this item's type (it passed _store_accepts_sale)
             # yet rejected the sale: it is FULL. Latch it so the withdraw/route
             # logic stops feeding more spares to a store with no room.
@@ -22184,7 +22282,7 @@ class HengbotPolicy(TownArbiterMixin):
         # chain is not completing; continuing risks leaking tail keys.
         if attempts >= SELL_ATTEMPT_LIMIT:
             self._unsellable_items.add(item_signature)
-            self._town_store_attempted[store.store_type] = snapshot.turn
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-attempt-limit")
             self._store_sale_refused.add(store.store_type)
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
@@ -22603,7 +22701,7 @@ class HengbotPolicy(TownArbiterMixin):
                 )
                 self.last_reason = "survival:buy-food"
                 return BUY_KEY + food_item.letter + suffix
-            self._town_store_attempted[store.store_type] = snapshot.turn
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "survival-food-unavailable")
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 prices = [
                     item.price for item in store.items
@@ -22883,7 +22981,7 @@ class HengbotPolicy(TownArbiterMixin):
                         return " "
                     self._home_digger_seen_pages.clear()
                     self._home_digger_withdraw_pending = False
-                    self._town_store_attempted[STORE_HOME] = snapshot.turn
+                    self._set_town_store_attempted(STORE_HOME, snapshot.turn, "digger-withdraw-complete")
                     self.last_reason = (
                         "home:no-treasure-detection"
                         if required_scrolls_missing
@@ -22916,7 +23014,7 @@ class HengbotPolicy(TownArbiterMixin):
                     self._report_town_stop_pass(
                         snapshot, STORE_HOME, goal_satisfied=True
                     )
-                    self._town_store_attempted[STORE_HOME] = snapshot.turn
+                    self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-stop-complete")
                     self.last_reason = "home:leave-with-mining-supplies"
                     return LEAVE_STORE_KEY
 
@@ -23197,7 +23295,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._store_stuck_count = 0
             if self._store_stuck_count >= STORE_STUCK_LIMIT:
                 self._shopping_abandoned = True
-                self._town_store_attempted[store.store_type] = snapshot.turn
+                self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-stuck-leave")
                 self._store_stuck_count = 0
                 self._last_buy_sig = None
                 self.last_reason = "shop:stuck-leave"
@@ -23217,7 +23315,7 @@ class HengbotPolicy(TownArbiterMixin):
             self._last_buy_progress_sig = progress_sig
             if self._store_buy_no_progress_count >= STORE_STUCK_LIMIT:
                 self._shopping_abandoned = True
-                self._town_store_attempted[store.store_type] = snapshot.turn
+                self._set_town_store_attempted(store.store_type, snapshot.turn, "buy-no-progress")
                 self._store_buy_no_progress_count = 0
                 self._last_buy_progress_sig = None
                 self.last_reason = "shop:defective-target-leave"
@@ -23310,7 +23408,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._last_sell_sig = None
         self._store_stuck_count = 0
         self._store_sell_stuck_count = 0
-        self._town_store_attempted[store.store_type] = snapshot.turn
+        self._set_town_store_attempted(store.store_type, snapshot.turn, "shop-observed-complete")
         if store.store_type == STORE_ALCHEMIST and self._find_low_level_sale(snapshot) is None:
             self._sell_scavenged_consumables = False
             if self._fundraising_mode == "scavenge" and snapshot.in_town:
@@ -23379,7 +23477,7 @@ class HengbotPolicy(TownArbiterMixin):
             return None
         if store_type == STORE_HOME:
             if not self._ensure_home_visit_request(snapshot):
-                self._town_store_attempted[STORE_HOME] = snapshot.turn
+                self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-request-unavailable")
                 self._shopping_approach_store_type = None
                 self._shopping_approach_goal = None
                 return None
@@ -23423,7 +23521,7 @@ class HengbotPolicy(TownArbiterMixin):
             and self._town_visit_ledger.approach_fails[store_type]
             >= self._town_store_visit_limit(store_type)
         ):
-            self._town_store_attempted[store_type] = snapshot.turn
+            self._set_town_store_attempted(store_type, snapshot.turn, "approach-fails-limit")
             self._shop_approach_stuck_count = 0
             return None
         self._shopping_approach_store_type = store_type
@@ -23546,7 +23644,7 @@ class HengbotPolicy(TownArbiterMixin):
                 # routing found no step at all.
                 return step
             self._shopping_stuck = True
-            self._town_store_attempted[store_type] = snapshot.turn
+            self._set_town_store_attempted(store_type, snapshot.turn, "shopping-stuck")
             self._town_visit_ledger.approach_fails[store_type] += 1
             return None
         return step
@@ -23702,7 +23800,7 @@ class HengbotPolicy(TownArbiterMixin):
         plan.blocked_this_visit.append(store_type)
         plan.current_stop_passes = 0
         plan.index += 1
-        self._town_store_attempted[store_type] = snapshot.turn
+        self._set_town_store_attempted(store_type, snapshot.turn, "observed-operation-uncomposable")
         if store_type == STORE_HOME:
             self._release_blocked_store_latches(store_type)
         else:

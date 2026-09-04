@@ -834,6 +834,7 @@ def _decision_record(
     home_route_refusal: dict | None = None,
     retention_reservations: list[dict] | None = None,
     deposit_keep_conflict: dict | None = None,
+    home_gate: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -942,6 +943,7 @@ def _decision_record(
         **({"quest_strategy": quest_strategy} if quest_strategy is not None else {}),
         **({"escape_ladder": escape_ladder} if escape_ladder else {}),
         **({"shop_selector": shop_selector} if shop_selector else {}),
+        **({"home_gate": home_gate} if home_gate else {}),
         **(
             {"identification_source_reservation": identification_source_reservation}
             if identification_source_reservation
@@ -1569,6 +1571,14 @@ def _write_decision(
                     ),
                     facts["retention_reservations"],
                     facts["deposit_keep_conflict"],
+                    (
+                        getattr(policy, "_home_gate_telemetry", {})
+                        if policy is not None
+                        and getattr(policy, "_home_gate_telemetry", {}).get(
+                            "decision_sequence"
+                        ) == getattr(policy, "_decision_sequence", None)
+                        else {}
+                    ),
                 ),
                 file,
                 ensure_ascii=False,

@@ -48470,6 +48470,46 @@ class TownErrandPlanTest(unittest.TestCase):
             (STORE_MAGIC, policy._decision_sequence),
         )
 
+    def test_home_gate_candidate_attempted_latch_allow_records_provenance(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        policy._set_town_store_attempted(STORE_HOME, entrance.turn, "test-home-stop")
+
+        key = policy.choose_key(entrance)
+
+        self.assertEqual(key, WAIT_KEY)
+        gate = policy._home_gate_telemetry
+        self.assertEqual(gate["result"], "allow")
+        self.assertEqual(gate["branch"], "wrapper-home-unreachable")
+        self.assertTrue(gate["inputs"]["attempted"])
+        self.assertEqual(gate["home_latch"]["active"]["site"], "test-home-stop")
+
+    def test_home_gate_candidate_without_latch_records_home_first(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+
+        key = policy.choose_key(entrance)
+        self.assertFalse(key.startswith(BUY_KEY))
+
+        gate = policy._home_gate_telemetry
+        self.assertEqual(gate["result"], "home-first")
+        self.assertEqual(gate["branch"], "evaluate-candidate-home-first")
+        self.assertFalse(gate["inputs"]["attempted"])
+
+    def test_home_gate_fresh_absence_records_class_census(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        policy._home_knowledge_items = []
+
+        key = policy.choose_key(entrance)
+
+        self.assertEqual(key, WAIT_KEY)
+        gate = policy._home_gate_telemetry
+        self.assertEqual(gate["branch"], "wrapper-fresh-catalogue-absence")
+        self.assertEqual(gate["wrapper_fallthrough"], "fresh-catalogue-absence")
+        self.assertEqual(gate["candidate_absence_census"]["class_matches"], 0)
+
     def test_retrievable_home_staff_still_preempts_incident_magic_buy(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
             deferred=False
@@ -54293,6 +54333,32 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             ],
             "stale-republished",
         )
+
+    def test_fresh_search_transition_diffs_successive_target_item_ids(self):
+        policy, town, _ring, ring_id = self._policy_with_home_ring()
+        policy.last_reason = "test:first-search"
+
+        first = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertIsNotNone(first)
+        first_transition = policy.equipment_optimization_state(None)[
+            "fresh_search_transition"
+        ]
+        self.assertIn(ring_id, first_transition["item_ids"])
+        self.assertEqual(first_transition["trigger_reason"], "test:first-search")
+
+        policy._equipment_transaction_session = None
+        policy._equipment_optimization_signature = None
+        policy._equipment_catalog._home = {}
+        policy._home_knowledge_items = ()
+        policy.last_reason = "test:catalog-changed"
+        second = policy._prepare_equipment_optimization(town, depth_override=31)
+        self.assertIsNotNone(second)
+        transition = policy.equipment_optimization_state(None)[
+            "fresh_search_transition"
+        ]
+        self.assertNotIn(ring_id, transition["item_ids"])
+        self.assertIn(ring_id, transition["removed_ids"])
+        self.assertEqual(transition["trigger_reason"], "test:catalog-changed")
 
     def test_optimizer_strategy_telemetry_names_incremental_empty_seed(self):
         from hengbot import warrior_optimization as warrior_module
