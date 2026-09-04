@@ -2792,7 +2792,10 @@ class HengbotPolicy(TownArbiterMixin):
             else "unregistered"
         )
         goal: Position | None = None
-        if owner == "store-router":
+        if owner == "store-router" or (
+            owner == "equipment-txn"
+            and (reason or self.last_reason) == "equipment-transaction:approach-home"
+        ):
             goal = self._shopping_approach_goal
         elif owner == "departure":
             goal = self._descent_target_goal

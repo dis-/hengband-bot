@@ -342,6 +342,92 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             )
             self.assertFalse(row["retired"])
 
+    def test_recorded_equipment_home_walk_does_not_spend_stall_budget(self):
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        start = snapshot.player.position.__class__(37, 107)
+        goal = snapshot.player.position.__class__(41, 115)
+        policy._store_visit = StoreVisit(
+            owner="equipment-transaction", purpose="equipment-work",
+            store_type=7, goal=goal,
+        )
+        # Constructed from the recorded t1410622 approach endpoints.  These
+        # are decision indexes 1-9 (decision_sequence 2-10); every position
+        # strictly lowers Manhattan distance to the fixed Home goal.
+        positions = (
+            (37, 107), (37, 108), (38, 109),
+            (38, 110), (39, 111), (39, 112),
+            (40, 113), (40, 114), (41, 115),
+        )
+        turns = (1410622, 1410631, 1410640, 1410649, 1410658,
+                 1410667, 1410676, 1410685, 1410695)
+        distances = []
+        observations = []
+        for index, ((y, x), turn) in enumerate(zip(positions, turns), start=1):
+            moved = replace(
+                snapshot,
+                turn=turn,
+                player=replace(snapshot.player, position=replace(start, y=y, x=x)),
+            )
+            vector = policy._town_arbiter_progress_vector(
+                moved, "equipment-transaction:approach-home"
+            )
+            distances.append(
+                vector[-1][-1]
+                if isinstance(vector[-1], tuple)
+                and vector[-1][:2] == ("locomotion", "equipment-txn")
+                else None
+            )
+            row = policy._town_turn_arbiter.observe(
+                in_town=True,
+                reason="equipment-transaction:approach-home",
+                progress_vector=vector,
+            )
+            observations.append((index, index + 1, turn, row))
+        self.assertFalse(
+            any(row["retired"] for _, _, _, row in observations), observations
+        )
+        self.assertTrue(all(
+            row["budget_remaining_estimate"] == 8
+            for _, _, _, row in observations
+        ))
+        self.assertEqual(distances, [12, 11, 9, 8, 6, 5, 3, 2, 0])
+
+    def test_equipment_home_equidistant_oscillation_retires_at_stall_budget(self):
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        goal = snapshot.player.position.__class__(41, 115)
+        policy._store_visit = StoreVisit(
+            owner="equipment-transaction", purpose="equipment-work",
+            store_type=7, goal=goal,
+        )
+        positions = ((40, 114), (40, 116))
+        budget = policy._town_turn_arbiter.registry["equipment-txn"].budget
+        retired_at = None
+        for index in range(budget + 1):
+            y, x = positions[index % 2]
+            moved = replace(
+                snapshot,
+                player=replace(
+                    snapshot.player,
+                    position=replace(snapshot.player.position, y=y, x=x),
+                ),
+            )
+            vector = policy._town_arbiter_progress_vector(
+                moved, "equipment-transaction:approach-home"
+            )
+            self.assertEqual(vector[-1][-1], 2)
+            row = policy._town_turn_arbiter.observe(
+                in_town=True,
+                reason="equipment-transaction:approach-home",
+                progress_vector=vector,
+            )
+            if row["retired"]:
+                retired_at = index + 1
+                break
+        self.assertEqual(retired_at, budget + 1)
+        self.assertEqual(row["budget_remaining_estimate"], 0)
+
     def test_hundred_tile_departure_leg_does_not_retire(self):
         policy = HengbotPolicy()
         snapshot = self._postlevel_snapshot()
