@@ -14335,13 +14335,18 @@ class HengbotPolicy(TownArbiterMixin):
             carry_target = self._quest_carry_target_for_item(snapshot, item, force)
             if carry_target is not None:
                 carry_name, _, required = carry_target
-                target = max(target, required)
                 matches = lambda candidate: (
                     (candidate_target := self._quest_carry_target_for_item(
                         snapshot, candidate, force
                     )) is not None
                     and candidate_target[0] == carry_name
                 )
+                equipped = sum(
+                    candidate.count
+                    for candidate in snapshot.equipment
+                    if item.is_launcher and matches(candidate)
+                )
+                target = max(target, required - equipped)
                 branch = f"carry-strategy:{carry_name}"
             elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
                 target = min(

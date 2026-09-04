@@ -46033,6 +46033,81 @@ class RetentionAuthorityTest(unittest.TestCase):
             self.assertEqual(policy._retention_reservation(snap, shots), 45)
             self.assertEqual(policy._retention_reservation(snap, bolts), 0)
 
+    def test_q2_equipped_launcher_releases_displaced_pack_launcher_for_deposit(self):
+        """t1411595 seq 4/9: the worn Q2 launcher satisfies required:1."""
+        equipped = item(
+            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="Light Crossbow", is_equipment=True, to_h=2, to_d=3,
+        )
+        displaced = item(
+            "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="Light Crossbow", is_equipment=True, to_h=3, to_d=1,
+        )
+        snap = replace(
+            self._town([displaced], equipment=[equipped]),
+            town_id=0,
+            visited_town_ids=(0, 1),
+            quests={
+                2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)
+            },
+        )
+        policy = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests"))
+        )
+        strategy = policy._carry_procurement_strategy(snap)
+        self.assertEqual(strategy.quest_id, 2)
+        self.assertEqual(strategy.required_force["launcher"], {
+            "ammo": "equipped", "equipped": True,
+        })
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "deposit",
+            "pack:displaced-light-crossbow",
+            item_identity=policy_module.equipment_identity(displaced),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+
+        reservation = policy._retention_reservation(snap, displaced)
+        keep_set = policy._home_visit_keep_set(snap)
+        request = policy._derived_home_visit_request(snap)
+
+        self.assertEqual(
+            (
+                reservation,
+                policy._item_signature(displaced) in keep_set,
+                request is None,
+            ),
+            (0, False, False),
+        )
+        self.assertEqual(request.kind, HomeVisitKind.EQUIPMENT_MUTATION)
+        self.assertEqual(request.requester, "equipment-transaction")
+        self.assertEqual(request.item_identity, policy._item_signature(displaced))
+
+    def test_q2_pack_launcher_stays_reserved_when_none_is_equipped(self):
+        displaced = item(
+            "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="Light Crossbow", is_equipment=True, to_h=3, to_d=1,
+        )
+        snap = replace(
+            self._town([displaced]),
+            town_id=0,
+            visited_town_ids=(0, 1),
+            quests={
+                2: QuestState(2, status=QUEST_STATUS_UNTAKEN, fixed=True)
+            },
+        )
+        policy = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests"))
+        )
+        strategy = policy._carry_procurement_strategy(snap)
+
+        self.assertEqual(strategy.quest_id, 2)
+        self.assertEqual(policy._retention_reservation(snap, displaced), 1)
+
     def test_same_visit_purchase_guard_clears_on_floor_change(self):
         detection = item(
             "h", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
