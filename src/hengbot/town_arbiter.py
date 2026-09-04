@@ -248,6 +248,19 @@ class TownTurnArbiter:
             and (previous_vector is None or previous_vector != progress_vector)
             and not recurrent
         )
+        durable_progress = (
+            progress
+            and previous_vector is not None
+            and self._pending_transfer is None
+        )
+        if durable_progress:
+            # Transfer recurrence detects a tight store-to-store bounce.  Scope
+            # it to work since the last real owner-vector delta: merely seeing
+            # a new owner, spending turns, or processing the transfer itself
+            # cannot erase an otherwise unproductive oscillation.
+            self._visit_transfers.clear()
+            self._last_transfer_pair = None
+            self._transfer_exhausted = False
         if (
             self._pending_transfer is not None
             and self._pending_transfer != self._last_transfer_pair
@@ -288,6 +301,13 @@ class TownTurnArbiter:
             "retired": owner in self._retired,
             "retirement_set": sorted(self._retired),
         }
+        if self._transfer_exhausted:
+            transfer = self._last_transfer_pair
+            self.telemetry["transfer_exhausted"] = True
+            self.telemetry["transfer_pair"] = list(transfer) if transfer else None
+            self.telemetry["transfer_count"] = (
+                self._visit_transfers[transfer] if transfer else None
+            )
         self._owner = owner
         self._last_pair = recurrence_key
         return dict(self.telemetry)
