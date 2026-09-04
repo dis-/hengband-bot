@@ -12905,6 +12905,8 @@ class HengbotPolicy(TownArbiterMixin):
             or not snapshot.in_town
         ):
             state["search_telemetry_freshness"] = "stale-republished"
+        if state.get("result_source") != "fresh-search":
+            state.pop("fresh_search_transition", None)
         if preparation is not None:
             if snapshot is not None:
                 state["optimization_depth"] = self._equipment_optimization_depth(
@@ -20792,9 +20794,11 @@ class HengbotPolicy(TownArbiterMixin):
         )
 
     def _set_town_store_attempted(
-        self, store_type: int, turn: int, site_label: str
+        self, store_type: int, turn: int, site_label: str, *, if_absent: bool = False
     ) -> None:
         """Set the existing latch and retain observation-only Home provenance."""
+        if if_absent and store_type in self._town_store_attempted:
+            return
         self._town_store_attempted[store_type] = turn
         if store_type == STORE_HOME:
             entry = {"turn": turn, "site": site_label}
@@ -20811,6 +20815,13 @@ class HengbotPolicy(TownArbiterMixin):
         wrapper_fallthrough: str | None = None,
     ) -> ProcurementHomeGate:
         """Record a gate return without participating in its decision."""
+        previous = self._home_gate_telemetry
+        if (
+            branch.startswith("evaluate-")
+            and previous.get("decision_sequence") == self._decision_sequence
+            and str(previous.get("branch", "")).startswith("wrapper-")
+        ):
+            return result
         item_class = self._procurement_class(item)
         matches = [
             known for known in self._home_knowledge_items
@@ -20819,6 +20830,9 @@ class HengbotPolicy(TownArbiterMixin):
         candidate = self._home_procurement_candidate(item_class)
         fails = self._town_visit_ledger.approach_fails[STORE_HOME]
         limit = self._town_store_visit_limit(STORE_HOME)
+        attempted = STORE_HOME in self._town_store_attempted
+        if not attempted:
+            self._home_latch_active = None
         self._home_gate_telemetry = {
             "result": (
                 "allow" if result is ProcurementHomeGate.ALLOW_PURCHASE
@@ -20848,7 +20862,7 @@ class HengbotPolicy(TownArbiterMixin):
             "inputs": {
                 "knowledge_current": self._home_knowledge_current,
                 "knowledge_invalidated": self._home_knowledge_invalidated,
-                "attempted": STORE_HOME in self._town_store_attempted,
+                "attempted": attempted,
                 "blocked_store": STORE_HOME in self._town_visit_ledger.blocked_stores,
                 "fails_at_limit": fails >= limit,
                 "approach_fails": fails,
@@ -24814,7 +24828,12 @@ class HengbotPolicy(TownArbiterMixin):
             if store_type in preserved_stores:
                 self._town_store_attempted.pop(store_type, None)
             else:
-                self._town_store_attempted.setdefault(store_type, snapshot.turn)
+                self._set_town_store_attempted(
+                    store_type,
+                    snapshot.turn,
+                    "repetition-preserve-exhausted-store",
+                    if_absent=True,
+                )
         self._abandon_blocked_equipment_transaction(snapshot)
         self._clear_pending_disposal()
         self._close_store_visit("abandoned-with-restore")

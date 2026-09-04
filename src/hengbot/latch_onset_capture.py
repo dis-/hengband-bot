@@ -64,6 +64,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
     restored.__dict__.setdefault("_town_restock_last_wait_turn", None)
+    restored.__dict__.setdefault("_home_latch_active", None)
+    restored.__dict__.setdefault("_home_latch_history", [])
+    restored.__dict__.setdefault("_home_gate_telemetry", {})
+    restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
     latches = restored.__dict__.get("_cross_decision_latches", {})
     town_block = latches.get("_town_blocked_reason")
     if (

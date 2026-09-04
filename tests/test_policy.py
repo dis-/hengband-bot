@@ -56,6 +56,7 @@ from hengbot.cli import (
     _dispatch_response_lines,
     _send_new_decision_key,
     _send_stall_recovery_nudge,
+    _decision_record,
 )
 
 from hengbot.town_maps import TownMap, parse_town_map
@@ -48495,8 +48496,117 @@ class TownErrandPlanTest(unittest.TestCase):
 
         gate = policy._home_gate_telemetry
         self.assertEqual(gate["result"], "home-first")
-        self.assertEqual(gate["branch"], "evaluate-candidate-home-first")
+        self.assertEqual(gate["branch"], "wrapper-candidate-home-first")
         self.assertFalse(gate["inputs"]["attempted"])
+
+    def test_pre_telemetry_checkpoint_shop_gate_records_compatible_values(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        for name in (
+            "_home_latch_active",
+            "_home_latch_history",
+            "_home_gate_telemetry",
+            "_equipment_fresh_search_target_ids",
+        ):
+            delattr(policy, name)
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+
+        shop_snapshot = replace(entrance, store=restored._shop_observation[0])
+        key = restored._shop(shop_snapshot)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(
+            restored._home_gate_telemetry["branch"],
+            "wrapper-candidate-home-first",
+        )
+        self.assertFalse(restored._home_gate_telemetry["inputs"]["attempted"])
+        self.assertIsNone(restored._home_gate_telemetry["home_latch"]["active"])
+
+    def test_home_attempt_setdefault_keeps_original_time_and_provenance(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        policy._set_town_store_attempted(STORE_HOME, 41, "first-site")
+
+        policy._set_town_store_attempted(
+            STORE_HOME, 99, "later-site", if_absent=True
+        )
+
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], 41)
+        self.assertEqual(policy._home_latch_active, {"turn": 41, "site": "first-site"})
+        self.assertEqual(
+            policy._home_latch_history, [{"turn": 41, "site": "first-site"}]
+        )
+
+    def test_cycle_break_home_setdefault_records_its_site(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        policy._last_return_trigger = None
+        policy._departure_blocking_town_needs = lambda _snapshot: []
+
+        policy._break_town_cycle(entrance)
+
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], entrance.turn)
+        self.assertEqual(
+            policy._home_latch_active,
+            {
+                "turn": entrance.turn,
+                "site": "repetition-preserve-exhausted-store",
+            },
+        )
+
+    def test_home_gate_decision_record_keeps_consumed_wrapper_evaluation(self):
+        policy, incident, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        parsed = parse_snapshot(
+            {
+                "turn": incident.turn,
+                "player": {"y": 10, "x": 10, "hp": 10, "max_hp": 10},
+                "floor": {"dungeon_id": 0, "level": 0, "in_town": True},
+            },
+            {},
+        )
+        entrance = replace(
+            parsed,
+            player=incident.player,
+            grids=incident.grids,
+            floor_key=incident.floor_key,
+            inventory=incident.inventory,
+            town_flag=True,
+        )
+
+        key = policy.choose_key(entrance)
+        policy._wanted_purchase_is_home_first_refused(entrance, STORE_MAGIC)
+        gate = policy._home_gate_telemetry
+        record = _decision_record(
+            entrance, key, policy.last_reason, home_gate=gate
+        )
+
+        self.assertEqual(record["home_gate"]["result"], "home-first")
+        self.assertEqual(
+            record["home_gate"]["branch"], "wrapper-candidate-home-first"
+        )
+        self.assertFalse(record["home_gate"]["inputs"]["attempted"])
+        self.assertIsNone(record["home_gate"]["home_latch"]["active"])
+
+    def test_home_latch_active_tracks_attempted_predicate_both_directions(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        policy._set_town_store_attempted(STORE_HOME, entrance.turn, "pin-latched")
+        policy._home_knowledge_items = []
+        policy._purchase_has_fresh_home_absence(
+            entrance, policy._shop_observation[0].items[0]
+        )
+        self.assertTrue(policy._home_gate_telemetry["inputs"]["attempted"])
+        self.assertEqual(
+            policy._home_gate_telemetry["home_latch"]["active"]["site"],
+            "pin-latched",
+        )
+
+        policy._town_store_attempted.clear()
+        policy._purchase_has_fresh_home_absence(
+            entrance, policy._shop_observation[0].items[0]
+        )
+        self.assertFalse(policy._home_gate_telemetry["inputs"]["attempted"])
+        self.assertIsNone(policy._home_gate_telemetry["home_latch"]["active"])
 
     def test_home_gate_fresh_absence_records_class_census(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
@@ -54359,6 +54469,15 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         self.assertNotIn(ring_id, transition["item_ids"])
         self.assertIn(ring_id, transition["removed_ids"])
         self.assertEqual(transition["trigger_reason"], "test:catalog-changed")
+
+        policy._prepare_equipment_optimization(town, depth_override=31)
+        cached = policy.equipment_optimization_state(None)
+        self.assertEqual(cached["result_source"], "signature-cache-hit")
+        self.assertNotIn("fresh_search_transition", cached)
+
+        policy._prepare_equipment_optimization(replace(town, town_flag=False))
+        stale = policy.equipment_optimization_state(None)
+        self.assertNotIn("fresh_search_transition", stale)
 
     def test_optimizer_strategy_telemetry_names_incremental_empty_seed(self):
         from hengbot import warrior_optimization as warrior_module
