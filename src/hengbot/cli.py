@@ -832,6 +832,8 @@ def _decision_record(
     arbiter: dict | None = None,
     town_emit_ownership: dict | None = None,
     home_route_refusal: dict | None = None,
+    retention_reservations: list[dict] | None = None,
+    deposit_keep_conflict: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -970,6 +972,12 @@ def _decision_record(
         **(
             {"home_route_refusal": home_route_refusal}
             if home_route_refusal is not None
+            else {}
+        ),
+        "retention_reservations": retention_reservations or [],
+        **(
+            {"deposit_keep_conflict": deposit_keep_conflict}
+            if deposit_keep_conflict is not None
             else {}
         ),
         **({"hunt_report": hunt_report} if hunt_report is not None else {}),
@@ -1329,8 +1337,10 @@ def _capture_decision_facts(snapshot, policy) -> dict:
             "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
             "departure_block": {}, "cross_town_shopping": {},
             "quest_strategy": None,
+            "retention_reservations": [], "deposit_keep_conflict": None,
         }
     fixedquest_readiness = policy.fixed_quest_readiness_state()
+    retention = policy.retention_reservation_state(snapshot)
     quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
     return {
         "requirements": policy.procurement_requirements(snapshot),
@@ -1357,6 +1367,8 @@ def _capture_decision_facts(snapshot, policy) -> dict:
             if quest_id > 0
             else None
         ),
+        "retention_reservations": retention["retention_reservations"],
+        "deposit_keep_conflict": retention["deposit_keep_conflict"],
     }
 
 
@@ -1555,6 +1567,8 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
+                    facts["retention_reservations"],
+                    facts["deposit_keep_conflict"],
                 ),
                 file,
                 ensure_ascii=False,

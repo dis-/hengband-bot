@@ -14151,6 +14151,12 @@ class HengbotPolicy(TownArbiterMixin):
         Every stash, sale, and destruction path asks this view.  Quantities are
         allocated in pack order so duplicate stacks share one aggregate target.
         """
+        return self._retention_reservation_detail(snapshot, item)[0]
+
+    def _retention_reservation_detail(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> tuple[int, str | None]:
+        """Return the existing reservation together with its observed branch."""
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (
@@ -14162,9 +14168,10 @@ class HengbotPolicy(TownArbiterMixin):
             and not capped_emergency_potion
             and not obsolete_oil
         ):
-            return item.count
+            return item.count, "visit-purchase"
 
         target = 0
+        branch = None
         matches = lambda candidate: False
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = (
@@ -14182,18 +14189,22 @@ class HengbotPolicy(TownArbiterMixin):
                 self._recall_required_target(snapshot),
             )
             matches = lambda candidate: candidate.is_recall_scroll
+            branch = "supply-ledger:recall"
         elif item.is_teleport_scroll:
             target = ledger["teleport"].required_departure
             matches = lambda candidate: candidate.is_teleport_scroll
+            branch = "supply-ledger:teleport"
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
             target = ledger["cure"].required_departure
             matches = lambda candidate: (
                 candidate.tval == TVAL_POTION
                 and candidate.sval == SV_POTION_CURE_CRITICAL
             )
+            branch = "supply-ledger:cure"
         elif item.is_oil:
             target = ledger["oil"].required_departure
             matches = lambda candidate: candidate.is_oil
+            branch = "supply-ledger:oil"
         elif (
             item.is_food
             and item.aware
@@ -14204,27 +14215,31 @@ class HengbotPolicy(TownArbiterMixin):
             matches = lambda candidate: (
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
             )
+            branch = "supply-ledger:food"
         elif item.is_torch:
             if self._matching_ammo(snapshot) is not None:
-                return 0
+                return 0, None
             if not item.known or item.fuel <= 0:
-                return 0
+                return 0, None
             target = TORCH_THROW_TARGET
             matches = lambda candidate: (
                 candidate.is_torch and candidate.known and candidate.fuel > 0
             )
+            branch = "torch-throw"
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
             target = EMERGENCY_POTION_CARRY_TARGET
             matches = lambda candidate: (
                 candidate.tval == TVAL_POTION
                 and candidate.sval == SV_POTION_SPEED
             )
+            branch = "emergency-potion:speed"
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
             target = EMERGENCY_POTION_CARRY_TARGET
             matches = lambda candidate: (
                 candidate.tval == TVAL_POTION
                 and candidate.sval == SV_POTION_HEALING
             )
+            branch = "emergency-potion:healing"
         elif item.is_ammo:
             launcher = self._equipped_launcher(snapshot)
             quest_target = (
@@ -14243,7 +14258,7 @@ class HengbotPolicy(TownArbiterMixin):
                 # selected launcher.  A fixed-quest reservation takes precedence:
                 # town preparation may intentionally carry bolts while a sling is
                 # still equipped, before the quest crossbow is wielded.
-                return 0
+                return 0, None
             if launcher is not None and item.tval == launcher.ammo_tval:
                 retained_slots = self._retained_ammo_slots(
                     snapshot, launcher.ammo_tval
@@ -14252,12 +14267,13 @@ class HengbotPolicy(TownArbiterMixin):
                     # The two-slot ceiling is stronger than a quest's aggregate
                     # ammo target.  Otherwise the force reservation below simply
                     # re-reserves every tiny enchanted stack we rejected here.
-                    return 0
+                    return 0, None
                 target = AMMO_CARRY_TARGET
                 matches = lambda candidate: (
                     candidate.tval == launcher.ammo_tval
                     and candidate.slot in retained_slots
                 )
+                branch = "retained-ammo"
         elif item.is_launcher:
             launcher = self._equipped_launcher(snapshot)
             quest_target = (
@@ -14273,13 +14289,14 @@ class HengbotPolicy(TownArbiterMixin):
                 and item.ammo_tval != launcher.ammo_tval
                 and quest_target is None
             ):
-                return 0
+                return 0, None
         # Keep this predicate identical to _next_required_store_type's town-cycle
         # trigger.  That router can activate fundraising later in the same visit,
         # after Home has already asked this retention authority what may be stashed.
         elif item.is_treasure_detection_scroll and mining_planned:
             target = self._mining_detection_scroll_target(snapshot)
             matches = lambda candidate: candidate.is_treasure_detection_scroll
+            branch = "mining:detection"
         elif item.is_digging_tool and mining_planned:
             pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
             equipped_count = sum(
@@ -14298,7 +14315,11 @@ class HengbotPolicy(TownArbiterMixin):
                     reverse=True,
                 )[: max(0, 2 - equipped_count)]
             }
-            return item.count if item.slot in keep_slots else 0
+            return (
+                (item.count, "mining:digging-tool")
+                if item.slot in keep_slots
+                else (0, None)
+            )
         elif snapshot.player.food_type == FOOD_TYPE_MANA and item.is_wand_staff:
             # Charged devices are MANA food; Identify charges below the casting
             # floor are reserved for identification rather than edible surplus.
@@ -14307,7 +14328,7 @@ class HengbotPolicy(TownArbiterMixin):
                 and item.charges > 0
                 and item.slot == self._device_food_reserve_slot(snapshot)
             ):
-                return item.count
+                return item.count, "mana-device"
 
         if strategy is not None:
             force = strategy.required_force
@@ -14321,6 +14342,7 @@ class HengbotPolicy(TownArbiterMixin):
                     )) is not None
                     and candidate_target[0] == carry_name
                 )
+                branch = f"carry-strategy:{carry_name}"
             elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
                 target = min(
                     EMERGENCY_POTION_CARRY_TARGET,
@@ -14329,6 +14351,7 @@ class HengbotPolicy(TownArbiterMixin):
                 matches = lambda candidate: (
                     candidate.tval == TVAL_POTION and candidate.sval == SV_POTION_SPEED
                 )
+                branch = "carry-strategy:speed-potions"
             elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
                 target = min(
                     EMERGENCY_POTION_CARRY_TARGET,
@@ -14338,15 +14361,56 @@ class HengbotPolicy(TownArbiterMixin):
                     candidate.tval == TVAL_POTION
                     and candidate.sval == SV_POTION_HEALING
                 )
+                branch = "carry-strategy:heal-potions"
         if target <= 0:
-            return 0
+            return 0, None
         before = 0
         for candidate in snapshot.inventory:
             if candidate.slot == item.slot:
                 break
             if matches(candidate):
                 before += candidate.count
-        return min(item.count, max(0, target - before))
+        reservation = min(item.count, max(0, target - before))
+        return reservation, (branch or "unlabelled") if reservation > 0 else None
+
+    def retention_reservation_state(self, snapshot: Snapshot) -> dict[str, object]:
+        """Describe pack retention and an active deposit collision, read-only."""
+        reservations = []
+        by_signature = {}
+        for item in snapshot.inventory:
+            reservation, branch = self._retention_reservation_detail(snapshot, item)
+            if reservation <= 0:
+                continue
+            signature = self._item_signature(item)
+            by_signature[signature] = branch
+            reservations.append({
+                "signature": signature,
+                "tval": item.tval,
+                "sval": item.sval,
+                "count": item.count,
+                "reservation": reservation,
+                "branch": branch,
+            })
+
+        conflict = None
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if action is not None and action.kind == "deposit":
+            current = next((
+                item for item in snapshot.inventory
+                if item.is_equipment
+                and equipment_identity(item) == action.item_identity
+            ), None)
+            signature = self._item_signature(current) if current is not None else None
+            conflict = {
+                "session_deposit_identity": action.item_identity,
+                "in_keep_set": signature in by_signature if signature is not None else False,
+                "reserving_branch": by_signature.get(signature),
+            }
+        return {
+            "retention_reservations": reservations,
+            "deposit_keep_conflict": conflict,
+        }
 
     def _retention_surplus(self, snapshot: Snapshot, item: InventoryItem) -> int:
         if self._equipment_transaction_owns_item(item):

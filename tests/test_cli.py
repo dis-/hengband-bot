@@ -104,6 +104,7 @@ from hengbot.policy import (
 from hengbot.town_arbiter import TownArbiterMixin
 from tests.run_follow_hygiene import run_follow as _run_follow, run_follow_with_ledger
 from hengbot.equipment_mutation import progress_core
+from hengbot.equipment_optimizer import equipment_identity
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
 from hengbot.cli import _game_process_alive
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -2543,6 +2544,60 @@ class DecisionRecordTest(unittest.TestCase):
             "attempts_used": 0,
             "queued": 1,
         })
+
+    def test_retention_reservation_telemetry_is_value_pinned_and_state_pure(self):
+        data = json.loads(_snap_line(123, 5, 7))
+        data["floor"] = {"dungeon_id": 0, "level": 0, "in_town": True}
+        data["inventory"] = [{
+            "slot": "b",
+            "name": "Short Bow",
+            "count": 1,
+            "tval": 19,
+            "sval": 12,
+            "aware": True,
+            "known": True,
+            "fully_known": True,
+            "is_equipment": True,
+            "is_cursed": False,
+            "is_broken": False,
+        }]
+        snapshot = parse_snapshot(data, {})
+        bow = snapshot.inventory[0]
+        policy = HengbotPolicy()
+        signature = policy._item_signature(bow)
+        policy._town_visit_purchases.add(signature)
+        policy._equipment_transaction_session = SimpleNamespace(
+            current_action=SimpleNamespace(
+                kind="deposit", item_identity=equipment_identity(bow)
+            )
+        )
+        before = {name: repr(value) for name, value in policy.__dict__.items()}
+
+        telemetry = policy.retention_reservation_state(snapshot)
+
+        self.assertEqual(policy._retention_reservation(snapshot, bow), 1)
+        self.assertEqual(
+            before, {name: repr(value) for name, value in policy.__dict__.items()}
+        )
+        self.assertEqual(telemetry["retention_reservations"], [{
+            "signature": signature,
+            "tval": 19,
+            "sval": 12,
+            "count": 1,
+            "reservation": 1,
+            "branch": "visit-purchase",
+        }])
+        self.assertEqual(telemetry["deposit_keep_conflict"], {
+            "session_deposit_identity": equipment_identity(bow),
+            "in_keep_set": True,
+            "reserving_branch": "visit-purchase",
+        })
+        record = _decision_record(snapshot, "5", "retention-probe", **telemetry)
+        self.assertEqual(record["retention_reservations"], telemetry["retention_reservations"])
+        self.assertEqual(record["deposit_keep_conflict"], telemetry["deposit_keep_conflict"])
+        self.assertEqual(
+            before, {name: repr(value) for name, value in policy.__dict__.items()}
+        )
 
     def test_missing_departure_block_means_not_evaluated_this_decision(self):
         snapshot = self._town_snapshot()
