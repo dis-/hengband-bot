@@ -1,9 +1,11 @@
 """Construct the two frozen incidents' proximate foreign-visit refusal state."""
 
 import json
+import pickle
 from pathlib import Path
 
 from hengbot.model import parse_snapshot
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
@@ -34,9 +36,15 @@ def _snapshot(capture, turn):
 
 def measure():
     results = []
+    prototypes = {}
     for name, capture, turn, open_store, phase, opened_sequence in INCIDENTS:
         snapshot, monraces = _snapshot(capture, turn)
-        policy = HengbotPolicy(monrace_knowledge=monraces)
+        monrace_key = pickle.dumps(monraces, protocol=5)
+        if monrace_key not in prototypes:
+            prototypes[monrace_key] = checkpoint(
+                HengbotPolicy(monrace_knowledge=monraces)
+            )
+        policy = restore_checkpoint(HengbotPolicy, prototypes[monrace_key])
         policy._store_visit = StoreVisit(
             owner="town-errand",
             purpose="shopping",

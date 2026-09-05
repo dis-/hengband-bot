@@ -131,14 +131,14 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         snapshot = self._postlevel_snapshot()
         policy = HengbotPolicy()
         budget = policy._town_turn_arbiter.registry["home-scan"].budget
-        decisions = []
-        for _ in range(budget + 1):
-            key = policy.choose_key(snapshot)
-            decisions.append((key, policy.last_reason, copy.deepcopy(policy)))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
-            for key, reason, decided_policy in decisions:
-                _write_decision(path, snapshot, key, reason, decided_policy)
+            for _ in range(budget + 1):
+                key = policy.choose_key(snapshot)
+                decided_policy = copy.copy(policy)
+                _write_decision(
+                    path, snapshot, key, policy.last_reason, decided_policy
+                )
             rows = [
                 json.loads(line)
                 for line in path.read_text(encoding="utf-8").splitlines()

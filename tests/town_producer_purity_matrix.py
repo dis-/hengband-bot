@@ -8,6 +8,7 @@ import pickle
 from hengbot.model import (
     parse_snapshot, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC,
 )
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, WAIT_KEY
 from hengbot.policy_types import StoreVisit
@@ -135,10 +136,11 @@ def producer_equivalence():
     for capture in CAPTURES:
         snapshots, _ = _snapshots(capture)
         rows = {"unconstrained": 0, "posted_general": 0, "total": len(snapshots)}
+        prototype = checkpoint(HengbotPolicy())
+        old = restore_checkpoint(HengbotPolicy, prototype)
+        new = restore_checkpoint(HengbotPolicy, prototype)
         for snapshot in snapshots:
             for pinned, label in ((False, "unconstrained"), (True, "posted_general")):
-                old = HengbotPolicy()
-                new = HengbotPolicy()
                 if pinned:
                     visit = StoreVisit(
                         "town-errand", "shopping", STORE_GENERAL,
@@ -154,6 +156,9 @@ def producer_equivalence():
                 new_changes = _mutation_map(new_before, observable_policy_fields(new))
                 rows[label] += old_key == new_key
                 missing_mutations.update(old_changes.keys() - new_changes.keys())
+                if old_changes or new_changes or pinned:
+                    old = restore_checkpoint(HengbotPolicy, prototype)
+                    new = restore_checkpoint(HengbotPolicy, prototype)
         populations[capture] = rows
     return populations, missing_mutations
 
@@ -167,12 +172,14 @@ def measure():
     )
     impure = []
     results = {}
+    prototype = checkpoint(HengbotPolicy())
+    policy = restore_checkpoint(HengbotPolicy, prototype)
     for name in producers:
-        policy = HengbotPolicy()
         before = observable_policy_state(policy)
         results[name] = getattr(policy, name)(snapshot)
         if observable_policy_state(policy) != before:
             impure.append(name)
+            policy = restore_checkpoint(HengbotPolicy, prototype)
 
     return {
         "impure": impure,
@@ -186,13 +193,17 @@ def probe_sweep():
     sweep = {}
     for capture in CAPTURES:
         snapshots, _ = _snapshots(capture)
+        prototype = checkpoint(HengbotPolicy())
+        policy = restore_checkpoint(HengbotPolicy, prototype)
         calls = impure_calls = 0
         for candidate in snapshots:
-            policy = HengbotPolicy()
             before = observable_policy_state(policy)
             policy._boxed_town_breakout_key(candidate)
             calls += 1
-            impure_calls += observable_policy_state(policy) != before
+            impure = observable_policy_state(policy) != before
+            impure_calls += impure
+            if impure:
+                policy = restore_checkpoint(HengbotPolicy, prototype)
         sweep[capture] = {"calls": calls, "impure_calls": impure_calls}
     return sweep
 
