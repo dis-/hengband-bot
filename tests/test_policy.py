@@ -21235,6 +21235,58 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             )
         return supplies
 
+    def _consume_failed_digger_procurement_withdrawal(
+        self, policy, outside, stored, offered
+    ):
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the real Home entry and atomic operation run while unrelated town decision collaborators are isolated
+        policy._floor_key = outside.floor_key
+        policy._fundraising_mode = "prepare"
+        policy._equipment_catalog._home = {}
+        signature = policy._item_signature(stored)
+        item_class = policy._procurement_class(offered)
+        position = outside.player.position
+        home_entrance = replace(
+            outside,
+            grids={
+                position: replace(
+                    grid(position.y, position.x), store_number=STORE_HOME
+                ),
+                Position(position.y, position.x - 1): grid(
+                    position.y, position.x - 1
+                ),
+            },
+        )
+        policy._home_procurement_probe = item_class
+        policy._home_pending_item = signature
+        policy._home_page_size = 12
+        policy._digger_home_withdraw_failures = 1
+        policy._shop_observation = None
+        policy._store_visit = None
+        policy._town_errand_plan = None
+        policy._shopping_approach_store_type = STORE_HOME
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: the public withdrawal observer is the subject; only unrelated downstream policy selection is replaced
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=lambda snapshot: policy._shopping_approach_key(
+                snapshot, snapshot.player.position, "shop:travel"
+            ),
+        ):
+            entry_key = policy.choose_key(home_entrance)
+        self.assertEqual(entry_key, WAIT_KEY)
+        policy.confirm_key_posted(entry_key)
+        operation_key = policy.choose_key(replace(
+            home_entrance,
+            store=StoreState(
+                STORE_HOME, [stored], stock_num=1, page_top=0, page_size=12,
+            ),
+        ))
+        self.assertEqual(operation_key, "pa\x1b")
+        policy.confirm_key_posted(operation_key)
+        failed_outside = replace(home_entrance, turn=home_entrance.turn + 1)
+        policy.choose_key(failed_outside)
+        return failed_outside
+
     def _digger_purchase_gate_fixture(self, *, home_present=True, terminal=False):
         offered = store_item(
             "a", TVAL_DIGGING, 1, name="new shovel", price=50,
@@ -21253,22 +21305,27 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._floor_key = outside.floor_key
         policy._fundraising_mode = "prepare"
-        policy.consume_home_knowledge((stored,) if home_present else ())
+        policy.consume_home_knowledge(
+            (stored,) if home_present or terminal else ()
+        )
         # Procurement's live Home gate consumes the complete ~9 catalogue;
         # the separate equipment catalog is deliberately empty here because
         # this pin models a consumer-equivalent tool, not an optimizer-owned
         # loadout candidate.
         policy._equipment_catalog._home = {}
-        policy._digger_home_withdraw_failures = 2
         if terminal:
-            item_class = policy._procurement_class(offered)
-            policy._home_procurement_withdraw_failure = {
-                "item_class": policy._procurement_equivalence(item_class),
-                "identity": policy._item_signature(stored),
-                "reason": "home:atomic-withdraw-failed",
-                "attempts": 2,
-                "turn": outside.turn - 1,
-            }
+            producer = HengbotPolicy()
+            producer.consume_home_knowledge((stored,))
+            self._consume_failed_digger_procurement_withdrawal(
+                producer, outside, stored, offered
+            )
+            self.assertIsNotNone(producer._home_procurement_withdraw_failure)
+            policy._home_procurement_withdraw_failure = dict(
+                producer._home_procurement_withdraw_failure
+            )
+            policy._deferred_home_items.update(producer._deferred_home_items)
+            policy.consume_home_knowledge((stored,) if home_present else ())
+            policy._equipment_catalog._home = {}
         observed = StoreState(STORE_GENERAL, [offered], page_top=0)
         policy._shop_observation = (observed, policy._decision_sequence)
         policy._shopping_approach_store_type = STORE_GENERAL
@@ -21297,7 +21354,7 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy.choose_key(replace(outside, store=observed))
         key = policy.choose_key(replace(outside, turn=outside.turn + 1))
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY, policy.last_reason)
         self.assertEqual(
             policy.last_reason,
             "town:blocked:home-withdraw-failed-stock-present",
@@ -21306,6 +21363,9 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             policy._home_gate_telemetry["withdraw_failure"]["item_class"],
             "digger:exact-tval-any-sval",
         )
+        census = policy._home_gate_telemetry["candidate_absence_census"]
+        self.assertEqual(census["class_matches"], 1)
+        self.assertEqual(census["excluded_as_deferred"], 1)
 
     def test_pin_vacuity_digger_terminal_failure_absent_allows_buy(self):
         policy, outside, observed = self._digger_purchase_gate_fixture(
@@ -48544,6 +48604,71 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shop_observation = (StoreState(STORE_MAGIC, [stock], page_top=0), 2042)
         return policy, snapshot, home_staff
 
+    def _consume_failed_procurement_withdrawal(
+        self, policy, outside, home_item, item_class
+    ):
+        policy = HengbotPolicy()
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the real Home entry and atomic operation run while unrelated town decision collaborators are isolated
+        policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        policy.consume_home_knowledge((home_item,))
+        signature = policy._item_signature(home_item)
+        home_position = outside.player.position
+        home_entrance = replace(
+            outside,
+            inventory=[],
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x), store_number=STORE_HOME
+                ),
+                Position(home_position.y, home_position.x - 1): grid(
+                    home_position.y, home_position.x - 1
+                ),
+            },
+        )
+        policy._home_procurement_probe = item_class
+        policy._home_pending_item = signature
+        policy._home_page_size = 12
+        policy._shop_observation = None
+        policy._store_visit = None
+        policy._town_errand_plan = None
+        policy._shopping_approach_store_type = STORE_HOME
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: the public withdrawal observer is the subject; only unrelated downstream policy selection is replaced
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=lambda snapshot: policy._shopping_approach_key(
+                snapshot, snapshot.player.position, "shop:travel"
+            ),
+        ):
+            entry_key = policy.choose_key(home_entrance)
+        self.assertEqual(entry_key, WAIT_KEY)
+        self.assertIsNotNone(
+            policy._store_visit.operation_key,
+            (policy.last_reason, policy._store_visit, policy._home_pending_item),
+        )
+        policy.confirm_key_posted(entry_key)
+        page_item = store_item(
+            "a", home_item.tval, home_item.sval, name=home_item.name,
+            count=home_item.count, charges=home_item.charges,
+            is_equipment=home_item.is_equipment,
+        )
+        operation_key = policy.choose_key(
+            replace(
+                home_entrance,
+                store=StoreState(
+                    STORE_HOME, [page_item], stock_num=1,
+                    page_top=0, page_size=12,
+                ),
+            )
+        )
+        self.assertEqual(
+            operation_key, "pa\x1b",
+            (policy.last_reason, policy._store_visit, policy._home_pending_item),
+        )
+        policy.confirm_key_posted(operation_key)
+        policy.choose_key(replace(home_entrance, turn=home_entrance.turn + 1))
+        return policy, replace(outside, turn=home_entrance.turn + 2)
+
     def test_deferred_home_staff_allows_incident_magic_buy_composition(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
 
@@ -48728,19 +48853,32 @@ class TownErrandPlanTest(unittest.TestCase):
             deferred=False
         )
         item_class = policy._procurement_class(home_staff)
-        policy._home_procurement_withdraw_failure = {
-            "item_class": policy._procurement_equivalence(item_class),
-            "identity": policy._item_signature(home_staff),
-            "reason": "home:atomic-withdraw-failed",
-            "attempts": 1,
-            "turn": entrance.turn - 1,
-        }
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, item_class
+        )
+        policy.consume_home_knowledge((home_staff,))
+        policy._equipment_catalog._home = {}
+        policy._floor_key = entrance.floor_key
+        policy._calibration_phase = None
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the purchase gate is isolated from unrelated automatic character calibration
+        policy._character_calibration_key = Mock(return_value=None)
+        policy._shop_observation = (
+            StoreState(
+                STORE_MAGIC,
+                [store_item(
+                    "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=888,
+                    charges=20, count=3, name="Staff of Identify",
+                )],
+                page_top=0,
+            ),
+            policy._decision_sequence,
+        )
         policy._shopping_approach_store_type = STORE_MAGIC
         policy._shopping_approach_goal = entrance.player.position
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
         key = policy.choose_key(entrance)
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY, policy.last_reason)
         self.assertEqual(
             policy.last_reason,
             "town:blocked:home-withdraw-failed-stock-present",
@@ -48749,6 +48887,8 @@ class TownErrandPlanTest(unittest.TestCase):
         gate = policy._home_gate_telemetry
         self.assertEqual(gate["result"], "blocked")
         self.assertEqual(gate["branch"], "wrapper-withdraw-failed-stock-present")
+        self.assertEqual(gate["candidate_absence_census"]["class_matches"], 1)
+        self.assertEqual(gate["candidate_absence_census"]["excluded_as_deferred"], 1)
         self.assertEqual(gate["withdraw_failure"]["item_class"], "device:is-wand-staff")
         self.assertEqual(
             tuple(gate["withdraw_failure"]["identity"]),
@@ -48761,15 +48901,9 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         signature = policy._item_signature(home_staff)
         item_class = policy._procurement_class(home_staff)
-        before_count = policy._inventory_signature_count(entrance, signature)
-        policy._home_procurement_probe = item_class
-        policy._home_pending_item = signature
-        policy._home_atomic_withdraw_pending = (
-            signature, before_count, home_staff, 1
+        policy, _ = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, item_class
         )
-        policy._home_atomic_withdraw_posted_turn = entrance.turn - 1
-
-        policy.choose_key(entrance)
 
         failure = policy._home_procurement_withdraw_failure
         self.assertIsNotNone(failure)
@@ -48779,6 +48913,94 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(failure["attempts"], 1)
         self.assertFalse(policy._home_knowledge_current)
         self.assertTrue(policy._home_knowledge_invalidated)
+
+    def test_successful_same_class_withdrawal_clears_procurement_failure(self):
+        policy, entrance, home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        item_class = policy._procurement_class(home_staff)
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, item_class
+        )
+        signature = policy._item_signature(home_staff)
+        policy._home_atomic_withdraw_pending = (signature, 0, home_staff, 1)
+        policy._home_atomic_withdraw_posted_turn = entrance.turn - 1
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: the withdrawal success observer is the subject; downstream town selection is not asserted
+        policy._decide = Mock(return_value=WAIT_KEY)
+
+        policy.choose_key(replace(entrance, inventory=[home_staff]))
+
+        self.assertIsNone(policy._home_procurement_withdraw_failure)
+        other_staff = item(
+            "w", TVAL_WAND, 99, charges=1, name="other Home wand"
+        )
+        policy.consume_home_knowledge((home_staff, other_staff))
+        offered = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=888,
+            charges=20, count=3, name="Staff of Identify",
+        )
+        self.assertIs(
+            policy._evaluate_purchase_home_gate(entrance, offered),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        self.assertNotEqual(
+            policy._home_gate_telemetry["branch"],
+            "evaluate-withdraw-failed-stock-present",
+        )
+
+    def test_equipment_withdraw_failure_does_not_claim_procurement_probe(self):
+        target = item(
+            "h", TVAL_RING, 99, name="Home target", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home-target",
+            item_identity=policy_module.equipment_identity(target),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((target,))
+        policy._home_page_size = 12
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 0)
+            )
+        )
+        policy._home_procurement_probe = policy._procurement_class(target)
+        position = Position(10, 10)
+        entrance = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {position: replace(grid(10, 10), store_number=STORE_HOME)},
+            [], turn=100, floor_key=(0, 0, 0), town_flag=True,
+        )
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(entrance, position), WAIT_KEY
+        )
+        self.assertIsNone(policy._home_atomic_withdraw_procurement_class)
+        policy._home_procurement_probe = policy._procurement_class(target)
+        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: calls are wrapped to prove the equipment-owned operation does not invoke procurement-only collaborators
+        policy._home_atomic_withdraw_posted_turn = entrance.turn
+        policy._store_visit = None
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: the equipment-withdraw failure observer is the subject; downstream town selection is not asserted
+        policy._decide = Mock(return_value=WAIT_KEY)
+
+        with (
+            patch.object(
+                policy, "_invalidate_home_observation",
+                wraps=policy._invalidate_home_observation,
+            ) as invalidate,
+            patch.object(
+                policy, "_rearm_town_store_for_new_work",
+                wraps=policy._rearm_town_store_for_new_work,
+            ) as rearm,
+        ):
+            policy.choose_key(replace(entrance, turn=entrance.turn + 1))
+
+        self.assertIsNone(policy._home_procurement_withdraw_failure)
+        invalidate.assert_not_called()
+        rearm.assert_not_called()
 
     def test_pin_vacuity_terminal_withdraw_failure_absent_allows_buy(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(

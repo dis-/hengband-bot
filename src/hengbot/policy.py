@@ -2195,6 +2195,7 @@ class HengbotPolicy(TownArbiterMixin):
         self._home_atomic_withdraw_pending: tuple[
             tuple[str, int, int], int, StoreItem, int
         ] | None = None
+        self._home_atomic_withdraw_procurement_class: tuple[int, int] | None = None
         self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
         # Outcome-keyed supervisor for a requested Home take.  The count is in
@@ -2594,6 +2595,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._home_gate_telemetry = {}
         if not hasattr(self, "_home_procurement_withdraw_failure"):
             self._home_procurement_withdraw_failure = None
+        if not hasattr(self, "_home_atomic_withdraw_procurement_class"):
+            self._home_atomic_withdraw_procurement_class = None
         if not hasattr(self, "_home_latch_active"):
             self._home_latch_active = None
         if not hasattr(self, "_home_latch_history"):
@@ -4010,6 +4013,7 @@ class HengbotPolicy(TownArbiterMixin):
             )
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
+            procurement_class = self._home_atomic_withdraw_procurement_class
             after_count = self._inventory_signature_count(snapshot, signature)
             if getattr(self, "_home_visit", None) is not None:
                 self._home_visit.observe_outside(
@@ -4021,9 +4025,19 @@ class HengbotPolicy(TownArbiterMixin):
             ):
                 self._home_errand.observe_outside(after_count)
             self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_procurement_class = None
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                failure = self._home_procurement_withdraw_failure
+                if (
+                    failure is not None
+                    and failure.get("item_class")
+                    == self._procurement_equivalence(
+                        self._procurement_class(withdrawn)
+                    )
+                ):
+                    self._home_procurement_withdraw_failure = None
                 tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
                 if tracked is not None and tracked[0] == signature:
                     self._withdrawal_unsatisfied_for = None
@@ -4130,14 +4144,11 @@ class HengbotPolicy(TownArbiterMixin):
                 terminal_failure = not retry_digger
                 if (
                     terminal_failure
-                    and self._home_procurement_probe is not None
-                    and self._procurement_class_matches(
-                        withdrawn, self._home_procurement_probe
-                    )
+                    and procurement_class is not None
                 ):
                     self._home_procurement_withdraw_failure = {
                         "item_class": self._procurement_equivalence(
-                            self._home_procurement_probe
+                            procurement_class
                         ),
                         "identity": signature,
                         "reason": self.last_reason,
@@ -15153,6 +15164,16 @@ class HengbotPolicy(TownArbiterMixin):
             item,
             take_count,
         )
+        procurement_probe = getattr(self, "_home_procurement_probe", None)
+        self._home_atomic_withdraw_procurement_class = (
+            procurement_probe
+            if (
+                procurement_probe is not None
+                and self._home_pending_item == signature
+                and self._procurement_class_matches(item, procurement_probe)
+            )
+            else None
+        )
         if session is not None and action is not None and action.kind == "withdraw":
             self._equipment_atomic_withdraw_leave_count = 0
         tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
@@ -20971,20 +20992,25 @@ class HengbotPolicy(TownArbiterMixin):
                 return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "wrapper-home-unroutable")
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-stale-knowledge-route-home")
         candidate = self._home_procurement_candidate(item_class)
+        failure = getattr(self, "_home_procurement_withdraw_failure", None)
+        class_matches = sum(
+            self._procurement_class_matches(known, item_class)
+            for known in self._home_knowledge_items
+        )
+        if (
+            failure is not None
+            and failure.get("item_class") == self._procurement_equivalence(item_class)
+            and class_matches > 0
+        ):
+            self._home_procurement_probe = None
+            self._record_purchase_home_refusal(
+                "town:blocked:home-withdraw-failed-stock-present"
+            )
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.BLOCKED,
+                "wrapper-withdraw-failed-stock-present",
+            )
         if candidate is not None:
-            failure = getattr(self, "_home_procurement_withdraw_failure", None)
-            if (
-                failure is not None
-                and failure.get("item_class") == self._procurement_equivalence(item_class)
-            ):
-                self._home_procurement_probe = None
-                self._record_purchase_home_refusal(
-                    "town:blocked:home-withdraw-failed-stock-present"
-                )
-                return self._record_home_gate(
-                    snapshot, item, ProcurementHomeGate.BLOCKED,
-                    "wrapper-withdraw-failed-stock-present",
-                )
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = identity
@@ -21087,16 +21113,22 @@ class HengbotPolicy(TownArbiterMixin):
             result = ProcurementHomeGate.HOME_FIRST if step is not None else ProcurementHomeGate.BLOCKED
             return self._record_home_gate(snapshot, item, result, "evaluate-stale-route-found" if step is not None else "evaluate-stale-route-missing")
         item_class = self._procurement_class(item)
-        if self._home_procurement_candidate(item_class) is not None:
-            failure = getattr(self, "_home_procurement_withdraw_failure", None)
-            if (
-                failure is not None
-                and failure.get("item_class") == self._procurement_equivalence(item_class)
-            ):
-                return self._record_home_gate(
-                    snapshot, item, ProcurementHomeGate.BLOCKED,
-                    "evaluate-withdraw-failed-stock-present",
-                )
+        candidate = self._home_procurement_candidate(item_class)
+        failure = getattr(self, "_home_procurement_withdraw_failure", None)
+        class_matches = sum(
+            self._procurement_class_matches(known, item_class)
+            for known in self._home_knowledge_items
+        )
+        if (
+            failure is not None
+            and failure.get("item_class") == self._procurement_equivalence(item_class)
+            and class_matches > 0
+        ):
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.BLOCKED,
+                "evaluate-withdraw-failed-stock-present",
+            )
+        if candidate is not None:
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-candidate-home-first")
         return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-no-candidate")
 
