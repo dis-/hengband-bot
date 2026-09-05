@@ -48594,7 +48594,9 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._home_knowledge_current = True
         policy._home_knowledge_items = [home_staff]
         if deferred:
-            policy._deferred_home_items.add(policy._item_signature(home_staff))
+            policy._defer_home_item(
+                policy._item_signature(home_staff), "fixture-deferred-home-staff"
+            )
         policy._shop_observation = (StoreState(STORE_MAGIC, [stock], page_top=0), 2042)
         return policy, snapshot, home_staff
 
@@ -48662,16 +48664,17 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.choose_key(replace(home_entrance, turn=home_entrance.turn + 1))
         return policy, replace(outside, turn=home_entrance.turn + 2)
 
-    def test_deferred_home_staff_allows_incident_magic_buy_composition(self):
+    def test_deferred_home_staff_blocks_incident_magic_buy_with_provenance(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
 
         key = policy._atomic_shop_transaction_key(entrance)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
+        self.assertEqual(policy.last_reason, "town:blocked:home-withdraw-failed-stock-present")
+        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
         self.assertEqual(
-            policy._town_visit_ledger.pending_store_transaction,
-            (STORE_MAGIC, policy._decision_sequence),
+            policy._home_gate_telemetry["deferred_matches"][0]["site"],
+            "fixture-deferred-home-staff",
         )
 
     def test_pin_vacuity_incident_latch_rearms_routable_home_first(self):
@@ -48702,10 +48705,15 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
         route_key = policy.choose_key(replace(entrance, turn=entrance.turn + 1))
+        if policy._shopping_approach_store_type is None:
+            route_key = policy.choose_key(replace(entrance, turn=entrance.turn + 2))
         self.assertNotEqual(route_key, WAIT_KEY)
-        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
-        self.assertIsNotNone(policy._store_visit)
-        self.assertEqual(policy._store_visit.store_type, STORE_HOME)
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(_home_staff)
+        )
+        self.assertNotIn(
+            policy._item_signature(_home_staff), policy._deferred_home_items
+        )
 
     def test_home_gate_candidate_without_latch_records_home_first(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident(
@@ -48937,6 +48945,96 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._item_signature(home_staff),
         )
 
+    def test_procurement_claim_is_not_deferred_before_atomic_withdraw_posts(self):
+        policy, entrance, home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        offered = policy._shop_observation[0].items[0]
+
+        gate = policy._purchase_has_fresh_home_absence(entrance, offered)
+        processing_key = policy._town_item_processing_key(entrance)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.HOME_FIRST)
+        self.assertIsNone(processing_key)
+        self.assertTrue(policy._home_withdrawal_queued)
+        self.assertEqual(
+            policy._home_pending_item, policy._item_signature(home_staff)
+        )
+        self.assertNotIn(
+            policy._item_signature(home_staff), policy._deferred_home_items
+        )
+
+    def test_procurement_oil_withdraw_uses_missing_amount_capped_by_stock(self):
+        for stock, expected in ((8, 5), (3, 3)):
+            with self.subTest(stock=stock):
+                policy = HengbotPolicy()
+                policy._deepest_level = 1
+                oil = store_item(
+                    "a", TVAL_FLASK, SV_FLASK_OIL, count=stock, name="Flask of oil"
+                )
+                outside = replace(
+                    self._snapshot(),
+                    inventory=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500)],
+                    grids={
+                        Position(10, 10): replace(
+                            grid(10, 10), store_number=STORE_HOME
+                        )
+                    },
+                )
+                policy.consume_home_knowledge((oil,))
+                signature = policy._item_signature(oil)
+                policy._home_pending_item = signature
+                policy._home_pending_quantities[signature] = min(
+                    stock, policy._procurement_missing_amount(outside, oil)
+                )
+                policy._home_page_size = 12
+                policy._store_visit = StoreVisit(
+                    "home-visit", "procurement-withdrawal", STORE_HOME
+                )
+
+                self.assertEqual(
+                    policy._atomic_home_withdraw_key(
+                        outside, outside.player.position
+                    ),
+                    WAIT_KEY,
+                )
+                self.assertEqual(
+                    policy._store_visit.operation_key, f"pa{expected}\r\x1b"
+                )
+
+    def test_deferred_digger_blocks_purchase_without_failure_record(self):
+        policy = HengbotPolicy()
+        entrance = self._snapshot()
+        digger = store_item("a", TVAL_DIGGING, 1, name="Shovel")
+        policy.consume_home_knowledge((digger,))
+        policy._defer_home_item(
+            policy._item_signature(digger), "digger-routing-deferred"
+        )
+
+        gate = policy._purchase_has_fresh_home_absence(entrance, digger)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.BLOCKED)
+        self.assertEqual(
+            policy._home_gate_telemetry["deferred_matches"][0]["site"],
+            "digger-routing-deferred",
+        )
+
+    def test_procurement_batch_keeps_home_as_next_owner(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot()
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
+        teleport = store_item(
+            "b", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15, name="Teleport"
+        )
+        policy.consume_home_knowledge((oil, teleport))
+        policy._home_pending_item = policy._item_signature(oil)
+        policy._home_pending_batch = [policy._item_signature(teleport)]
+        policy._home_procurement_batch_active = True
+        policy._shopping_approach_store_type = None
+
+        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
+        self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_MAGIC)
+
     def test_pin_vacuity_observed_terminal_withdraw_failure_records_procurement(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
             deferred=False
@@ -49131,7 +49229,7 @@ class TownErrandPlanTest(unittest.TestCase):
             "shop:home-first-before-purchase",
         )
 
-    def test_incident_magic_entrance_cycle_releases_the_composed_buy(self):
+    def test_incident_magic_entrance_cycle_stops_before_composed_buy(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident()
         observed_store = policy._shop_observation[0]
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
@@ -49174,35 +49272,12 @@ class TownErrandPlanTest(unittest.TestCase):
                 return self.inside, self.gold, len(self.inventory), len(self.stock)
 
         world = MagicEntranceWorld()
-        initial_gold = world.gold
-        initial_pack = len(world.inventory)
-
-        result = drive_trajectory(
-            policy,
-            world,
-            decisions=3,
-            milestones=((
-                "purchase applied",
-                2,
-                lambda _p, w, _r, _k: (
-                    w.gold < initial_gold and len(w.inventory) > initial_pack
-                ),
-            ),),
-            owner_bound=3,
-            pair_bound=3,
-        )
-
-        self.assertTrue(any(key.startswith(BUY_KEY + "a") for _, key in result.transcript))
-        self.assertEqual(
-            result.transcript,
-            (
-                ("shop:one-shot-buy", WAIT_KEY),
-                ("shop:one-shot-buy", "pa1\r\r\x1b"),
-            ),
-        )
-        self.assertEqual(world.gold, 8981)
-        self.assertEqual(len(world.inventory), 2)
-        self.assertTrue(policy._store_visit.operation_released)
+        key = policy.choose_key(world.snapshot(0))
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:blocked:home-withdraw-failed-stock-present")
+        self.assertFalse(key.startswith(BUY_KEY))
+        self.assertEqual(world.gold, entrance.player.gold)
+        self.assertEqual(len(world.inventory), len(entrance.inventory))
 
     def _identification_claim_incident(self, *, shape):
         policy = HengbotPolicy()
@@ -49330,15 +49405,22 @@ class TownErrandPlanTest(unittest.TestCase):
             "shop:home-first-before-purchase",
         )
 
-        policy._deferred_home_items.add(policy._item_signature(_home_staff))
+        policy._defer_home_item(
+            policy._item_signature(_home_staff), "diagnostic-fixture-defer"
+        )
         policy._shop_observation = (
             StoreState(STORE_MAGIC, list(observed_store.items), page_top=0),
             policy._decision_sequence,
         )
         composed = policy.choose_key(entrance)
         self.assertEqual(composed, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
-        self.assertNotIn("composition_refusal", policy._shop_selector_diagnostics)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:home-withdraw-failed-stock-present"
+        )
+        self.assertEqual(
+            policy._home_gate_telemetry["deferred_matches"][0]["site"],
+            "diagnostic-fixture-defer",
+        )
 
     def test_visit_ledger_survives_plan_rebuild(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
