@@ -18912,6 +18912,7 @@ class HiddenInfoFallbackTest(unittest.TestCase):
             store=StoreState(STORE_GENERAL, [shovel]), gold=500
         )
         policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
         policy._home_knowledge_current = True
         policy._home_knowledge_items = [dwarven_pick]
 
@@ -48605,10 +48606,18 @@ class TownErrandPlanTest(unittest.TestCase):
     def _consume_failed_procurement_withdrawal(
         self, policy, outside, home_item, item_class
     ):
-        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the real Home entry and atomic operation run while unrelated town decision collaborators are isolated
         policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
         policy.consume_home_knowledge((home_item,))
         signature = policy._item_signature(home_item)
+        offered = store_item(
+            "a", home_item.tval, home_item.sval, name=home_item.name,
+            count=home_item.count, charges=home_item.charges,
+            is_equipment=home_item.is_equipment,
+        )
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(outside, offered),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
         home_position = outside.player.position
         home_entrance = replace(
             outside,
@@ -48622,8 +48631,6 @@ class TownErrandPlanTest(unittest.TestCase):
                 ),
             },
         )
-        policy._home_procurement_probe = item_class
-        policy._home_pending_item = signature
         policy._home_page_size = 12
         policy._shop_observation = None
         policy._store_visit = None
@@ -48658,8 +48665,12 @@ class TownErrandPlanTest(unittest.TestCase):
                 ),
             )
         )
+        requested = policy._home_atomic_withdraw_pending[3]
+        expected_operation = (
+            f"pa{requested}\r\x1b" if page_item.count > 1 else "pa\x1b"
+        )
         self.assertEqual(
-            operation_key, "pa\x1b",
+            operation_key, expected_operation,
             (policy.last_reason, policy._store_visit, policy._home_pending_item),
         )
         policy.confirm_key_posted(operation_key)
@@ -48683,6 +48694,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "town:blocked:home-withdraw-failed-stock-present"
         )
+        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
         self.assertEqual(
             policy._home_gate_telemetry["deferred_matches"][0]["site"],
             "atomic-withdraw-observed-failure",
@@ -49007,12 +49019,107 @@ class TownErrandPlanTest(unittest.TestCase):
                     policy._store_visit.operation_key, f"pa{expected}\r\x1b"
                 )
 
+    def test_batch_queue_does_not_overwrite_gate_quantity_before_composition(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
+        one_missing = replace(
+            self._snapshot(),
+            inventory=[
+                item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=4, name="Oil"),
+            ],
+            grids={Position(10, 10): replace(grid(10, 10), store_number=STORE_HOME)},
+        )
+        policy.consume_home_knowledge((oil,))
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(one_missing, oil),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        signature = policy._item_signature(oil)
+        self.assertEqual(policy._home_pending_quantities[signature], 1)
+        five_missing = replace(one_missing, inventory=one_missing.inventory[:1])
+        policy._queue_home_procurement_batch(five_missing, oil)
+        policy._home_page_size = 12
+        policy._store_visit = StoreVisit("home-visit", "procurement-withdrawal", STORE_HOME)
+
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(five_missing, five_missing.player.position),
+            WAIT_KEY,
+        )
+        self.assertEqual(policy._store_visit.operation_key, "pa1\r\x1b")
+
+    def test_atomic_composer_floors_legacy_zero_quantity_to_one(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
+        snapshot = replace(
+            self._snapshot(),
+            inventory=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500)],
+            grids={Position(10, 10): replace(grid(10, 10), store_number=STORE_HOME)},
+        )
+        policy.consume_home_knowledge((oil,))
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snapshot, oil),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        # Narrow compatibility seam: live producers reject zero, but restored
+        # checkpoints from the prior schema may still contain it.
+        policy._home_pending_quantities[policy._item_signature(oil)] = 0
+        policy._home_page_size = 12
+        policy._store_visit = StoreVisit("home-visit", "procurement-withdrawal", STORE_HOME)
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(snapshot, snapshot.player.position),
+            WAIT_KEY,
+        )
+        self.assertEqual(policy._store_visit.operation_key, "pa1\r\x1b")
+
+    def test_oil_gate_queue_blocks_claim_processing_until_withdraw_posts(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
+        snapshot = replace(
+            self._snapshot(),
+            inventory=[
+                item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=1, name="Oil"),
+            ],
+        )
+        policy.consume_home_knowledge((oil,))
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snapshot, oil),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        pending = policy._home_pending_item
+
+        self.assertIsNone(policy._town_item_processing_key(snapshot))
+        self.assertTrue(policy._home_withdrawal_queued)
+        self.assertEqual(policy._home_pending_item, pending)
+
+    def test_procurement_batch_state_resets_on_real_town_exit_and_fresh_visit(self):
+        for target in (
+            replace(self._snapshot(), floor_key=(1, 1, 0), town_flag=False),
+            replace(self._snapshot(), floor_key=(0, 0, 0), town_flag=True),
+        ):
+            with self.subTest(in_town=target.in_town):
+                policy = HengbotPolicy()
+                policy._floor_key = (2, 2, 0)
+                policy._home_pending_quantities[("Oil", TVAL_FLASK, SV_FLASK_OIL)] = 5
+                policy._home_procurement_batch_active = True
+                # TEST_FAKERY_LINT_ALLOW: public-path-replaced: observe reset is the subject; unrelated decision selection is isolated
+                with patch.object(policy, "_decide", return_value=None):
+                    policy.choose_key(target)
+                self.assertEqual(policy._home_pending_quantities, {})
+                self.assertFalse(policy._home_procurement_batch_active)
+
     def test_oil_with_permanent_light_is_not_routed_or_queued_through_home(self):
         policy = HengbotPolicy()
         oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=8, name="Oil")
         outside = replace(
             self._snapshot(),
-            inventory=[item("l", TVAL_LITE, 2, name="Phial", known=True)],
+            inventory=[
+                item("l", TVAL_LITE, SV_LITE_FEANOR, name="Phial", known=True)
+            ],
         )
         policy.consume_home_knowledge((oil,))
 
@@ -49020,31 +49127,50 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
         self.assertEqual(policy._home_gate_telemetry["branch"], "wrapper-no-procurement-need")
+        self.assertEqual(
+            policy._home_gate_telemetry["wrapper_fallthrough"],
+            "no-procurement-need",
+        )
         self.assertIsNone(policy._home_pending_item)
         self.assertEqual(policy._home_pending_batch, [])
         self.assertFalse(policy._home_procurement_batch_active)
+        self.assertNotEqual(policy._next_required_store_type(outside), STORE_HOME)
 
-    def test_deferred_digger_blocks_purchase_without_failure_record(self):
-        policy = HengbotPolicy()
-        entrance = self._snapshot()
-        digger = store_item("a", TVAL_DIGGING, 1, name="Shovel")
-        policy.consume_home_knowledge((digger,))
-        policy._defer_home_item(
-            policy._item_signature(digger), "digger-routing-deferred"
+    def test_detection_and_digger_routing_follows_fundraising_requirement_mode(self):
+        wares = (
+            store_item("a", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=9),
+            store_item("b", TVAL_DIGGING, SV_DIGGING_SHOVEL, count=5),
         )
-
-        gate = policy._purchase_has_fresh_home_absence(entrance, digger)
-
-        self.assertIs(gate, policy_module.ProcurementHomeGate.BLOCKED)
-        self.assertEqual(
-            policy._home_gate_telemetry["deferred_matches"][0]["site"],
-            "digger-routing-deferred",
-        )
+        for mode, expected in ((None, False), ("descend", False), ("mine", True), ("prepare", True)):
+            with self.subTest(mode=mode):
+                policy = HengbotPolicy()
+                policy._fundraising_mode = mode
+                entrance = self._snapshot()
+                policy.consume_home_knowledge(wares)
+                for ware in wares:
+                    missing = policy._procurement_missing_amount(entrance, ware)
+                    self.assertEqual(missing > 1, expected)
+                    gate = policy._purchase_has_fresh_home_absence(entrance, ware)
+                    self.assertIs(
+                        gate,
+                        policy_module.ProcurementHomeGate.HOME_FIRST
+                        if expected else policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+                    )
 
     def test_procurement_batch_keeps_home_between_two_real_withdrawal_operations(self):
         policy = HengbotPolicy()
         policy._deepest_level = policy_module.TELEPORT_REQUIRED_DEPTH
-        snapshot = replace(self._snapshot(), floor_key=(0, 1, 0))
+        snapshot = replace(
+            self._snapshot(),
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500)],
+            grids={
+                Position(10, 10): replace(grid(10, 10), store_number=STORE_HOME)
+            },
+        )
+        self.assertTrue(snapshot.in_town)
+        policy._floor_key = snapshot.floor_key
         oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
         teleport = store_item(
             "b", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15, name="Teleport"
@@ -49055,18 +49181,56 @@ class TownErrandPlanTest(unittest.TestCase):
             policy_module.ProcurementHomeGate.HOME_FIRST,
         )
         self.assertIn(policy._item_signature(teleport), policy._home_pending_batch)
-        decisions = [
-            ("withdraw", policy._home_pending_item),
-            ("owner", policy._next_required_store_type(snapshot)),
-        ]
-        policy._home_pending_item = None
-        policy._activate_home_batch_item()
-        decisions.append(("withdraw", policy._home_pending_item))
+        policy._home_page_size = 12
+        policy._shopping_approach_store_type = STORE_HOME
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: the real Home entry owner is driven while unrelated downstream selection is isolated
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=lambda current: policy._shopping_approach_key(
+                current, current.player.position, "shop:travel"
+            ),
+        ):
+            first = policy.choose_key(snapshot)
+        self.assertEqual(first, WAIT_KEY)
+        policy.confirm_key_posted(first)
+        first_operation = policy.choose_key(
+            replace(
+                snapshot,
+                store=StoreState(
+                    STORE_HOME, [oil, teleport], stock_num=2,
+                    page_top=0, page_size=12,
+                ),
+            )
+        )
+        self.assertEqual(first_operation, "pa5\r\x1b")
+        policy.confirm_key_posted(first_operation)
+        gained = replace(
+            snapshot,
+            turn=snapshot.turn + 1,
+            inventory=[*snapshot.inventory, item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")],
+        )
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: public observation and item processing are under test; later unrelated policy selection is isolated
+        with patch.object(policy, "_decide", side_effect=policy._town_item_processing_key):
+            policy.choose_key(gained)
 
-        self.assertEqual(decisions[0][0], "withdraw")
-        self.assertEqual(decisions[1], ("owner", STORE_HOME))
-        self.assertEqual(decisions[2], ("withdraw", policy._item_signature(teleport)))
-        self.assertNotIn(("owner", STORE_MAGIC), decisions)
+        # After the real producer and first withdrawal observation, remove the
+        # completed approach shell so only batch retention owns store selection.
+        policy._shopping_approach_store_type = None
+        policy._shopping_approach_goal = None
+        policy._store_visit = None
+        policy._town_errand_plan = TownErrandPlan([STORE_MAGIC])
+        policy.consume_home_knowledge(())
+        self.assertTrue(policy._home_procurement_batch_active)
+        self.assertTrue(policy._home_pending_batch)
+        owner = policy._next_required_store_type(gained)
+        self.assertEqual(owner, STORE_HOME)
+        self.assertEqual(policy._home_pending_batch, [policy._item_signature(teleport)])
+        policy.consume_home_knowledge((teleport,))
+        policy._store_visit = StoreVisit("home-visit-2", "procurement-withdrawal", STORE_HOME)
+        second = policy._atomic_home_withdraw_key(gained, gained.player.position)
+        self.assertEqual(second, WAIT_KEY)
+        self.assertRegex(policy._store_visit.operation_key, r"^pa[1-9][0-9]*\r\x1b$")
 
     def test_procurement_quantity_uses_supply_ledger_depth_and_mana_food_rules(self):
         teleport_policy = HengbotPolicy()
@@ -49089,6 +49253,55 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         self.assertEqual(
             mana_policy._procurement_missing_amount(mana_snapshot, mana_device), 15
+        )
+
+    def test_depth_21_ccw_home_stock_refuses_alchemist_purchase_end_to_end(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 21
+        ccw = store_item(
+            "a", TVAL_POTION, SV_POTION_CURE_CRITICAL,
+            count=20, price=100, name="Cure Critical Wounds",
+        )
+        snapshot = replace(
+            self._snapshot(),
+            inventory=[item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=1)],
+            store=StoreState(STORE_ALCHEMIST, [ccw], page_top=0),
+        )
+        policy.consume_home_knowledge((replace(ccw, letter="h"),))
+
+        key = policy._shop(snapshot)
+
+        self.assertFalse(key.startswith(BUY_KEY), key)
+        self.assertEqual(policy.last_reason, "shop:home-first-before-purchase")
+        self.assertEqual(policy._home_gate_telemetry["result"], "home-first")
+
+    def test_zero_need_deferred_oil_bypasses_both_home_gates_truthfully(self):
+        policy = HengbotPolicy()
+        policy._deepest_level = 1
+        oil = item("h", TVAL_FLASK, SV_FLASK_OIL, count=8, name="Oil")
+        lantern_snapshot = replace(
+            self._snapshot(),
+            inventory=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500)],
+        )
+        policy, outside = self._consume_failed_procurement_withdrawal(
+            policy, lantern_snapshot, oil, policy._procurement_class(oil)
+        )
+        policy.consume_home_knowledge((oil,))
+        permanent = replace(
+            outside,
+            inventory=[item("l", TVAL_LITE, SV_LITE_FEANOR, known=True)],
+        )
+        offered = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=8, name="Oil")
+
+        wrapper = policy._purchase_has_fresh_home_absence(permanent, offered)
+        wrapper_telemetry = dict(policy._home_gate_telemetry)
+        evaluate = policy._evaluate_purchase_home_gate(permanent, offered)
+
+        self.assertIs(wrapper, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
+        self.assertIs(evaluate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
+        self.assertEqual(wrapper_telemetry["branch"], "wrapper-no-procurement-need")
+        self.assertEqual(
+            wrapper_telemetry["wrapper_fallthrough"], "no-procurement-need"
         )
 
     def test_detection_and_digger_quantities_are_composed_from_real_gate(self):

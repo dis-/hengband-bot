@@ -248,6 +248,15 @@ class HomeEntryCaptureTest(unittest.TestCase):
         self.assertEqual(record["posted_characters"], list(key))
         self.assertEqual(set(record["scan_entry_state"]), set(STATE_FIELDS))
         self.assertEqual(
+            record["scan_entry_state"]["_home_pending_quantities"],
+            {"['item', 39, 0]": 3},
+        )
+        self.assertTrue(record["scan_entry_state"]["_home_procurement_batch_active"])
+        self.assertEqual(
+            record["scan_entry_state"]["_deferred_home_item_sites"],
+            {"['item', 39, 0]": "town-item-processing-missing-pending"},
+        )
+        self.assertEqual(
             record["scan_entry_state"]["_home_atomic_withdraw_posted_turn"],
             3200199,
         )

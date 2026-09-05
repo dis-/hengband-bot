@@ -10749,7 +10749,7 @@ class HengbotPolicy(TownArbiterMixin):
             for it in self._home_knowledge_items
             if self._home_knowledge_current
             and it.known
-            and it.tval in {TVAL_WAND, TVAL_STAFF}
+            and InventoryItem.is_wand_staff.fget(it)
             and it.charges > 0
             and self._item_signature(it) not in self._deferred_home_items
         )
@@ -10782,7 +10782,7 @@ class HengbotPolicy(TownArbiterMixin):
             for it in self._home_knowledge_items
             if self._home_knowledge_current
             and it.known
-            and it.tval in {TVAL_WAND, TVAL_STAFF}
+            and InventoryItem.is_wand_staff.fget(it)
             and it.charges > 0
             and self._item_signature(it) not in self._deferred_home_items
         )
@@ -11047,8 +11047,9 @@ class HengbotPolicy(TownArbiterMixin):
                 ledger["cure"].required_departure,
             )
 
-        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
-            detection_target = self._mining_detection_scroll_target(snapshot)
+        mining_requirements = self._fundraising_mining_requirements(snapshot)
+        if mining_requirements is not None:
+            detection_target, digger_target = mining_requirements
             require(
                 "Treasure Detection scrolls",
                 self._count_treasure_detection_scrolls(snapshot),
@@ -11057,7 +11058,7 @@ class HengbotPolicy(TownArbiterMixin):
             require(
                 "Digging tool",
                 self._digging_tool_count(snapshot),
-                2,
+                digger_target,
             )
 
         if self._identification_need is not None:
@@ -20899,6 +20900,29 @@ class HengbotPolicy(TownArbiterMixin):
             for item in self._home_knowledge_items
         )
 
+    def _home_procurement_viable_item(
+        self, item_class: tuple[int, int]
+    ) -> InventoryItem | None:
+        """Return usable class stock whether or not withdrawal was deferred."""
+        return next(
+            (
+                item
+                for item in self._home_knowledge_items
+                if self._procurement_class_matches(item, item_class)
+                and item.count > 0
+                and (not item.is_torch or item.fuel > 0)
+            ),
+            None,
+        )
+
+    def _fundraising_mining_requirements(
+        self, snapshot: Snapshot
+    ) -> tuple[int, int] | None:
+        """Share the mining-only requirement targets with procurement."""
+        if self._fundraising_mode not in {"prepare", "mine", "scavenge"}:
+            return None
+        return self._mining_detection_scroll_target(snapshot), 2
+
     def _procurement_missing_amount(
         self, snapshot: Snapshot, item: StoreItem
     ) -> int:
@@ -20922,18 +20946,24 @@ class HengbotPolicy(TownArbiterMixin):
         ):
             kind = "food"
         if kind is not None:
-            status = self._supply_ledger(snapshot, snapshot.floor_key[1])[kind]
+            status = self._supply_ledger(snapshot, self._planned_depth())[kind]
             return max(0, status.required_departure - status.count)
         if item_class == (TVAL_LITE, SV_LITE_TORCH):
             return max(0, FOOD_STOCK_TARGET - self._count_usable_torches(snapshot))
         if item.is_treasure_detection_scroll:
+            requirements = self._fundraising_mining_requirements(snapshot)
+            if requirements is None:
+                return 0
             return max(
                 0,
-                self._mining_detection_scroll_target(snapshot)
+                requirements[0]
                 - self._count_treasure_detection_scrolls(snapshot),
             )
         if item.is_digging_tool:
-            return max(0, 2 - self._digging_tool_count(snapshot))
+            requirements = self._fundraising_mining_requirements(snapshot)
+            if requirements is None:
+                return 0
+            return max(0, requirements[1] - self._digging_tool_count(snapshot))
         return 1
 
     def _queue_home_procurement_batch(
@@ -21137,6 +21167,18 @@ class HengbotPolicy(TownArbiterMixin):
         viable_class_matches = self._home_procurement_viable_class_matches(
             item_class
         )
+        viable_item = self._home_procurement_viable_item(item_class)
+        if (
+            viable_item is not None
+            and self._procurement_missing_amount(snapshot, viable_item) <= 0
+        ):
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "no-procurement-need"
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "wrapper-no-procurement-need",
+                wrapper_fallthrough="no-procurement-need",
+            )
         all_viable_deferred = viable_class_matches > 0 and candidate is None
         if all_viable_deferred or (
             failure is not None
@@ -21155,11 +21197,11 @@ class HengbotPolicy(TownArbiterMixin):
             missing = self._procurement_missing_amount(snapshot, candidate)
             if missing <= 0:
                 self._home_procurement_probe = None
-                self._home_procurement_fallthrough = "fresh-catalogue-absence"
+                self._home_procurement_fallthrough = "no-procurement-need"
                 return self._record_home_gate(
                     snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                     "wrapper-no-procurement-need",
-                    wrapper_fallthrough="fresh-catalogue-absence",
+                    wrapper_fallthrough="no-procurement-need",
                 )
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
@@ -21270,6 +21312,15 @@ class HengbotPolicy(TownArbiterMixin):
         viable_class_matches = self._home_procurement_viable_class_matches(
             item_class
         )
+        viable_item = self._home_procurement_viable_item(item_class)
+        if (
+            viable_item is not None
+            and self._procurement_missing_amount(snapshot, viable_item) <= 0
+        ):
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "evaluate-no-procurement-need",
+            )
         all_viable_deferred = viable_class_matches > 0 and candidate is None
         if all_viable_deferred or (
             failure is not None
@@ -24160,6 +24211,8 @@ class HengbotPolicy(TownArbiterMixin):
             # This is the deliberate terminal produced by a refreshed Home
             # census, not an ordinary uncomposable supplier pass.  Keep the
             # observed page and publish the stop at the consumed WAIT boundary.
+            self._town_visit_ledger.pending_store_transaction = None
+            self._town_visit_ledger.pending_store_context_waits = 0
             self._publish_purchase_home_block()
             return WAIT_KEY
         # Decide the observed no-op while this page is still current, then
