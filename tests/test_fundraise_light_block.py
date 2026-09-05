@@ -110,7 +110,7 @@ class FundraiseLightBlockAcceptanceTest(unittest.TestCase):
 
         self.assertNotIn(STORE_GENERAL, policy._town_store_attempted)
 
-    def test_blocked_home_with_real_oil_demotes_to_general_purchase(self):
+    def test_blocked_home_with_real_oil_remains_home_first(self):
         _, _, general, home, _ = captured_pages()
         oil = next(item for item in general.store.items if item.is_oil)
         policy = incident_policy()
@@ -124,7 +124,7 @@ class FundraiseLightBlockAcceptanceTest(unittest.TestCase):
         pure = policy._evaluate_purchase_home_gate(general, oil)
         stateful = policy._purchase_has_fresh_home_absence(general, oil)
 
-        self.assertIs(pure, ProcurementHomeGate.ALLOW_PURCHASE)
+        self.assertIs(pure, ProcurementHomeGate.HOME_FIRST)
         self.assertIs(stateful, pure)
 
     def test_captured_window_composes_a_general_purchase_within_eight_decisions(self):

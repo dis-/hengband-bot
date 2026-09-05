@@ -2094,10 +2094,11 @@ class HengbotPolicy(TownArbiterMixin):
         self._town_visit_sale_signatures: set[tuple[int, int]] = set()
         self.town_visit_report: str | None = None
         # A6a: Home remains the preferred source for the two-tool mining kit.
-        # Repeated visible withdrawal failures permit one liveness purchase per
-        # town visit; they never silently turn Home stock into an open buy loop.
+        # The count remains useful as terminal-failure evidence, but no longer
+        # authorizes buying around stock that Home still records.
         self._digger_home_withdraw_failures = 0
         self._digger_fallback_bought_this_visit = False
+        self._home_procurement_withdraw_failure: dict[str, object] | None = None
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
         # price is permitted for the cross-town funds gate.
@@ -2591,6 +2592,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._equipment_transaction_route_terminal = None
         if not hasattr(self, "_home_gate_telemetry"):
             self._home_gate_telemetry = {}
+        if not hasattr(self, "_home_procurement_withdraw_failure"):
+            self._home_procurement_withdraw_failure = None
         if not hasattr(self, "_home_latch_active"):
             self._home_latch_active = None
         if not hasattr(self, "_home_latch_history"):
@@ -2661,6 +2664,12 @@ class HengbotPolicy(TownArbiterMixin):
             )
         key = self._refuse_no_progress_cycle(snapshot, key)
         key = self._town_procurement_decision(snapshot, key)
+        if (
+            self._town_blocked_reason
+            == "town:blocked:home-withdraw-failed-stock-present"
+        ):
+            key = WAIT_KEY
+            self.last_reason = self._town_blocked_reason
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
@@ -4118,6 +4127,34 @@ class HengbotPolicy(TownArbiterMixin):
                 )
                 if withdrawn.is_digging_tool:
                     self._digger_home_withdraw_failures += 1
+                terminal_failure = not retry_digger
+                if (
+                    terminal_failure
+                    and self._home_procurement_probe is not None
+                    and self._procurement_class_matches(
+                        withdrawn, self._home_procurement_probe
+                    )
+                ):
+                    self._home_procurement_withdraw_failure = {
+                        "item_class": self._procurement_equivalence(
+                            self._home_procurement_probe
+                        ),
+                        "identity": signature,
+                        "reason": self.last_reason,
+                        "attempts": (
+                            self._digger_home_withdraw_failures
+                            if withdrawn.is_digging_tool else 1
+                        ),
+                        "turn": snapshot.turn,
+                    }
+                    # The failed command leaves the old catalogue unable to
+                    # distinguish a rejected take from concurrently vanished
+                    # stock.  Require the next gate decision to use a fresh
+                    # complete Home census before applying the failure rule.
+                    self._invalidate_home_observation()
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
             self._home_atomic_withdraw_index = None
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
@@ -7852,6 +7889,7 @@ class HengbotPolicy(TownArbiterMixin):
                 self._town_store_attempted.clear()
                 self._digger_home_withdraw_failures = 0
                 self._digger_fallback_bought_this_visit = False
+                self._home_procurement_withdraw_failure = None
                 self._unsellable_items.clear()
                 self._store_sale_refused.clear()
                 self._store_sell_attempt = None
@@ -20874,6 +20912,11 @@ class HengbotPolicy(TownArbiterMixin):
                 "active": self._home_latch_active,
                 "history": list(self._home_latch_history),
             },
+            "withdraw_failure": (
+                dict(getattr(self, "_home_procurement_withdraw_failure", None))
+                if getattr(self, "_home_procurement_withdraw_failure", None)
+                is not None else None
+            ),
             "decision_sequence": self._decision_sequence,
             "turn": snapshot.turn,
         }
@@ -20888,13 +20931,6 @@ class HengbotPolicy(TownArbiterMixin):
         self._home_procurement_fallthrough_equivalence = (
             self._procurement_equivalence(item_class)
         )
-        if evaluated is ProcurementHomeGate.ALLOW_PURCHASE and (
-            item.is_digging_tool and self._digger_buy_fallback_available(snapshot)
-        ):
-            # Two observed Home-withdrawal failures authorize the existing
-            # one-per-visit fallback purchase even though Home still records a
-            # consumer-equivalent digger.
-            return self._record_home_gate(snapshot, item, evaluated, "wrapper-digger-fallback")
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
             if not self._current_town_has_home(snapshot):
@@ -20935,14 +20971,20 @@ class HengbotPolicy(TownArbiterMixin):
                 return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "wrapper-home-unroutable")
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-stale-knowledge-route-home")
         candidate = self._home_procurement_candidate(item_class)
-        if (
-            candidate is not None
-            and evaluated is ProcurementHomeGate.ALLOW_PURCHASE
-        ):
-            self._home_procurement_probe = None
-            self._home_procurement_fallthrough = "home-unreachable"
-            return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "wrapper-home-unreachable", wrapper_fallthrough="home-unreachable")
         if candidate is not None:
+            failure = getattr(self, "_home_procurement_withdraw_failure", None)
+            if (
+                failure is not None
+                and failure.get("item_class") == self._procurement_equivalence(item_class)
+            ):
+                self._home_procurement_probe = None
+                self._record_purchase_home_refusal(
+                    "town:blocked:home-withdraw-failed-stock-present"
+                )
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.BLOCKED,
+                    "wrapper-withdraw-failed-stock-present",
+                )
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = identity
@@ -20972,17 +21014,18 @@ class HengbotPolicy(TownArbiterMixin):
             "composition_refusal_sequence"
         )
         if sequence == self._decision_sequence and reason in {
+            "town:blocked:home-withdraw-failed-stock-present",
             "town:blocked:procurement-home-unavailable",
             "town:blocked:procurement-home-unroutable",
         }:
             self.last_reason = reason
+            if reason == "town:blocked:home-withdraw-failed-stock-present":
+                self._town_blocked_reason = reason
 
     def _evaluate_purchase_home_gate(
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
         """Evaluate Home-first purchase policy without changing policy state."""
-        if item.is_digging_tool and self._digger_buy_fallback_available(snapshot):
-            return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-digger-fallback")
         if not self._home_knowledge_current:
             if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
                 town_has_home = True
@@ -21045,13 +21088,15 @@ class HengbotPolicy(TownArbiterMixin):
             return self._record_home_gate(snapshot, item, result, "evaluate-stale-route-found" if step is not None else "evaluate-stale-route-missing")
         item_class = self._procurement_class(item)
         if self._home_procurement_candidate(item_class) is not None:
+            failure = getattr(self, "_home_procurement_withdraw_failure", None)
             if (
-                STORE_HOME in self._town_store_attempted
-                or STORE_HOME in self._town_visit_ledger.blocked_stores
-                or self._town_visit_ledger.approach_fails[STORE_HOME]
-                >= self._town_store_visit_limit(STORE_HOME)
+                failure is not None
+                and failure.get("item_class") == self._procurement_equivalence(item_class)
             ):
-                return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-candidate-latched")
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.BLOCKED,
+                    "evaluate-withdraw-failed-stock-present",
+                )
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-candidate-home-first")
         return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-no-candidate")
 
@@ -23920,6 +23965,12 @@ class HengbotPolicy(TownArbiterMixin):
             self._close_store_visit("home-first-yield")
             self.last_reason = reason_before_composition
             return None
+        if composition_refusal == "town:blocked:home-withdraw-failed-stock-present":
+            # This is the deliberate terminal produced by a refreshed Home
+            # census, not an ordinary uncomposable supplier pass.  Keep the
+            # observed page and publish the stop at the consumed WAIT boundary.
+            self._publish_purchase_home_block()
+            return WAIT_KEY
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.
