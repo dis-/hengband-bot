@@ -21371,12 +21371,14 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         gate = policy._purchase_has_fresh_home_absence(
             replace(outside, store=observed), observed.items[0]
         )
+        buy_key = policy._shop(replace(outside, store=observed))
 
         self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
             "wrapper-fresh-catalogue-absence",
         )
+        self.assertTrue(buy_key.startswith(BUY_KEY), buy_key)
 
     def test_cure_shortage_falls_back_to_alchemist_after_temple(self):
         snap = Snapshot(
@@ -48665,16 +48667,25 @@ class TownErrandPlanTest(unittest.TestCase):
         return policy, replace(outside, turn=home_entrance.turn + 2)
 
     def test_deferred_home_staff_blocks_incident_magic_buy_with_provenance(self):
-        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+        policy, entrance, home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        observed = policy._shop_observation
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, policy._procurement_class(home_staff)
+        )
+        policy.consume_home_knowledge((home_staff,))
+        policy._shop_observation = (observed[0], policy._decision_sequence)
 
         key = policy._atomic_shop_transaction_key(entrance)
 
         self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:home-withdraw-failed-stock-present")
-        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:home-withdraw-failed-stock-present"
+        )
         self.assertEqual(
             policy._home_gate_telemetry["deferred_matches"][0]["site"],
-            "fixture-deferred-home-staff",
+            "atomic-withdraw-observed-failure",
         )
 
     def test_pin_vacuity_incident_latch_rearms_routable_home_first(self):
@@ -48850,24 +48861,20 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(gate["candidate_absence_census"]["class_matches"], 0)
 
     def test_terminal_failure_ignores_exhausted_torch_but_blocks_fueled_deferred_torch(self):
-        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
-            deferred=False
-        )
+        policy = HengbotPolicy()
+        entrance = self._snapshot()
         offered = store_item(
             "a", TVAL_LITE, SV_LITE_TORCH, price=3, name="Torch"
         )
         item_class = policy._procurement_class(offered)
-        policy._home_procurement_withdraw_failure = {
-            "item_class": policy._procurement_equivalence(item_class),
-            "identity": ("item", TVAL_LITE, SV_LITE_TORCH),
-            "reason": "home:atomic-withdraw-failed",
-            "attempts": 1,
-            "turn": entrance.turn - 1,
-        }
-        exhausted = item(
-            "h", TVAL_LITE, SV_LITE_TORCH, count=1, fuel=0,
-            name="expired torch",
+        fueled = item(
+            "h", TVAL_LITE, SV_LITE_TORCH, count=1, fuel=5000,
+            name="Torch",
         )
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, fueled, item_class
+        )
+        exhausted = replace(fueled, fuel=0)
         policy.consume_home_knowledge((exhausted,))
 
         gate = policy._purchase_has_fresh_home_absence(entrance, offered)
@@ -48882,9 +48889,7 @@ class TownErrandPlanTest(unittest.TestCase):
             1,
         )
 
-        fueled = replace(exhausted, fuel=5000)
         policy.consume_home_knowledge((fueled,))
-        policy._deferred_home_items.add(policy._item_signature(fueled))
 
         gate = policy._purchase_has_fresh_home_absence(entrance, offered)
 
@@ -48983,9 +48988,9 @@ class TownErrandPlanTest(unittest.TestCase):
                 )
                 policy.consume_home_knowledge((oil,))
                 signature = policy._item_signature(oil)
-                policy._home_pending_item = signature
-                policy._home_pending_quantities[signature] = min(
-                    stock, policy._procurement_missing_amount(outside, oil)
+                self.assertIs(
+                    policy._purchase_has_fresh_home_absence(outside, oil),
+                    policy_module.ProcurementHomeGate.HOME_FIRST,
                 )
                 policy._home_page_size = 12
                 policy._store_visit = StoreVisit(
@@ -49001,6 +49006,23 @@ class TownErrandPlanTest(unittest.TestCase):
                 self.assertEqual(
                     policy._store_visit.operation_key, f"pa{expected}\r\x1b"
                 )
+
+    def test_oil_with_permanent_light_is_not_routed_or_queued_through_home(self):
+        policy = HengbotPolicy()
+        oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=8, name="Oil")
+        outside = replace(
+            self._snapshot(),
+            inventory=[item("l", TVAL_LITE, 2, name="Phial", known=True)],
+        )
+        policy.consume_home_knowledge((oil,))
+
+        gate = policy._purchase_has_fresh_home_absence(outside, oil)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
+        self.assertEqual(policy._home_gate_telemetry["branch"], "wrapper-no-procurement-need")
+        self.assertIsNone(policy._home_pending_item)
+        self.assertEqual(policy._home_pending_batch, [])
+        self.assertFalse(policy._home_procurement_batch_active)
 
     def test_deferred_digger_blocks_purchase_without_failure_record(self):
         policy = HengbotPolicy()
@@ -49019,21 +49041,104 @@ class TownErrandPlanTest(unittest.TestCase):
             "digger-routing-deferred",
         )
 
-    def test_procurement_batch_keeps_home_as_next_owner(self):
+    def test_procurement_batch_keeps_home_between_two_real_withdrawal_operations(self):
         policy = HengbotPolicy()
-        snapshot = self._snapshot()
+        policy._deepest_level = policy_module.TELEPORT_REQUIRED_DEPTH
+        snapshot = replace(self._snapshot(), floor_key=(0, 1, 0))
         oil = store_item("a", TVAL_FLASK, SV_FLASK_OIL, count=5, name="Oil")
         teleport = store_item(
             "b", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15, name="Teleport"
         )
         policy.consume_home_knowledge((oil, teleport))
-        policy._home_pending_item = policy._item_signature(oil)
-        policy._home_pending_batch = [policy._item_signature(teleport)]
-        policy._home_procurement_batch_active = True
-        policy._shopping_approach_store_type = None
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(snapshot, oil),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        self.assertIn(policy._item_signature(teleport), policy._home_pending_batch)
+        decisions = [
+            ("withdraw", policy._home_pending_item),
+            ("owner", policy._next_required_store_type(snapshot)),
+        ]
+        policy._home_pending_item = None
+        policy._activate_home_batch_item()
+        decisions.append(("withdraw", policy._home_pending_item))
 
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        self.assertNotEqual(policy._next_required_store_type(snapshot), STORE_MAGIC)
+        self.assertEqual(decisions[0][0], "withdraw")
+        self.assertEqual(decisions[1], ("owner", STORE_HOME))
+        self.assertEqual(decisions[2], ("withdraw", policy._item_signature(teleport)))
+        self.assertNotIn(("owner", STORE_MAGIC), decisions)
+
+    def test_procurement_quantity_uses_supply_ledger_depth_and_mana_food_rules(self):
+        teleport_policy = HengbotPolicy()
+        teleport_policy._deepest_level = 20
+        shallow = replace(self._snapshot(), floor_key=(0, 1, 0))
+        teleport = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=20, name="Teleport"
+        )
+        self.assertEqual(
+            teleport_policy._procurement_missing_amount(shallow, teleport), 15
+        )
+
+        mana_policy = HengbotPolicy()
+        mana_snapshot = replace(
+            self._snapshot(), player=player(10, 10, food_type=FOOD_TYPE_MANA)
+        )
+        mana_device = replace(
+            store_item("a", TVAL_STAFF, 99, count=2, name="Mana food device"),
+            pval=20,
+        )
+        self.assertEqual(
+            mana_policy._procurement_missing_amount(mana_snapshot, mana_device), 15
+        )
+
+    def test_detection_and_digger_quantities_are_composed_from_real_gate(self):
+        for ware, expected in (
+            (
+                store_item(
+                    "a", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+                    count=9, name="Detect Treasure",
+                ),
+                5,
+            ),
+            (store_item("a", TVAL_DIGGING, SV_DIGGING_SHOVEL, count=5, name="Shovel"), 2),
+        ):
+            with self.subTest(ware=ware.name):
+                policy = HengbotPolicy()
+                policy._fundraising_mode = "prepare"
+                snapshot = replace(
+                    self._snapshot(),
+                    grids={
+                        Position(10, 10): replace(
+                            grid(10, 10), store_number=STORE_HOME
+                        )
+                    },
+                )
+                policy.consume_home_knowledge((ware,))
+                self.assertIs(
+                    policy._purchase_has_fresh_home_absence(snapshot, ware),
+                    policy_module.ProcurementHomeGate.HOME_FIRST,
+                )
+                policy._home_page_size = 12
+                policy._store_visit = StoreVisit(
+                    "home-visit", "procurement-withdrawal", STORE_HOME
+                )
+                self.assertEqual(
+                    policy._atomic_home_withdraw_key(
+                        snapshot, snapshot.player.position
+                    ),
+                    WAIT_KEY,
+                )
+                self.assertEqual(
+                    policy._store_visit.operation_key, f"pa{expected}\r\x1b"
+                )
+
+    def test_procurement_batch_active_clears_when_batch_drains(self):
+        policy = HengbotPolicy()
+        policy._home_procurement_batch_active = True
+
+        policy._activate_home_batch_item()
+
+        self.assertFalse(policy._home_procurement_batch_active)
 
     def test_pin_vacuity_observed_terminal_withdraw_failure_records_procurement(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
@@ -49084,6 +49189,54 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._home_gate_telemetry["branch"],
             "evaluate-withdraw-failed-stock-present",
         )
+
+    def test_all_viable_deferred_without_failure_is_refused_by_evaluate_consumer(self):
+        policy = HengbotPolicy()
+        home_digger = store_item(
+            "a", TVAL_DIGGING, SV_DIGGING_SHOVEL, count=2, name="Shovel"
+        )
+        outside = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_HOME
+                )
+            },
+        )
+        policy._fundraising_mode = "prepare"
+        policy.consume_home_knowledge((home_digger,))
+        self.assertIs(
+            policy._purchase_has_fresh_home_absence(outside, home_digger),
+            policy_module.ProcurementHomeGate.HOME_FIRST,
+        )
+        policy._home_page_size = 12
+        policy._store_visit = StoreVisit(
+            "home-visit", "procurement-withdrawal", STORE_HOME
+        )
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(outside, outside.player.position),
+            WAIT_KEY,
+        )
+        policy.confirm_key_posted(policy._store_visit.operation_key)
+        self.assertIsNone(policy._town_item_processing_key(outside))
+        self.assertIsNone(policy._home_procurement_withdraw_failure)
+        self.assertEqual(
+            policy._deferred_home_item_sites[policy._item_signature(home_digger)],
+            "town-item-processing-missing-pending",
+        )
+        offered = store_item(
+            "a", TVAL_DIGGING, SV_DIGGING_SHOVEL, price=20, name="Shovel"
+        )
+        policy._shop_observation = (
+            StoreState(STORE_GENERAL, [offered], page_top=0),
+            policy._decision_sequence,
+        )
+
+        refused = policy._wanted_purchase_is_home_first_refused(
+            outside, STORE_GENERAL
+        )
+
+        self.assertTrue(refused)
 
     def test_successful_same_class_withdrawal_clears_procurement_failure(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
@@ -49197,12 +49350,14 @@ class TownErrandPlanTest(unittest.TestCase):
         gate = policy._purchase_has_fresh_home_absence(
             replace(entrance, store=observed_store), observed_store.items[0]
         )
+        buy_key = policy._shop(replace(entrance, store=observed_store))
 
         self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
             "wrapper-fresh-catalogue-absence",
         )
+        self.assertTrue(buy_key.startswith(BUY_KEY), buy_key)
 
     def test_retrievable_home_staff_still_preempts_incident_magic_buy(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
@@ -49237,6 +49392,7 @@ class TownErrandPlanTest(unittest.TestCase):
         class MagicEntranceWorld:
             def __init__(self):
                 self.inside = False
+                self.applied = 0
                 self.gold = entrance.player.gold
                 self.inventory = list(entrance.inventory)
                 self.stock = list(observed_store.items)
@@ -49257,6 +49413,7 @@ class TownErrandPlanTest(unittest.TestCase):
                 )
 
             def apply(self, key):
+                self.applied += 1
                 if key == WAIT_KEY:
                     self.inside = True
                 elif self.inside and key.startswith(BUY_KEY + "a"):
@@ -49272,10 +49429,35 @@ class TownErrandPlanTest(unittest.TestCase):
                 return self.inside, self.gold, len(self.inventory), len(self.stock)
 
         world = MagicEntranceWorld()
-        key = policy.choose_key(world.snapshot(0))
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:home-withdraw-failed-stock-present")
-        self.assertFalse(key.startswith(BUY_KEY))
+        result = drive_trajectory(
+            policy,
+            world,
+            decisions=3,
+            owner_bound=3,
+            pair_bound=3,
+            milestones=(
+                (
+                    "entered-without-buy",
+                    1,
+                    lambda _policy, current, _reason, key: (
+                        current.inside and key == WAIT_KEY
+                    ),
+                ),
+                (
+                    "second-decision-still-no-buy",
+                    2,
+                    lambda _policy, current, _reason, key: (
+                        current.applied >= 2 and not key.startswith(BUY_KEY)
+                    ),
+                ),
+            ),
+        )
+        key = result.transcript[-1][1]
+        self.assertFalse(any(k.startswith(BUY_KEY) for _reason, k in result.transcript))
+        self.assertIn(
+            "town:blocked:home-withdraw-failed-stock-present",
+            {reason for reason, _key in result.transcript},
+        )
         self.assertEqual(world.gold, entrance.player.gold)
         self.assertEqual(len(world.inventory), len(entrance.inventory))
 

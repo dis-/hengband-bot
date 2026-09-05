@@ -7835,6 +7835,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._home_processing_seen_pages.clear()
             self._home_digger_seen_pages.clear()
             self._home_pending_batch.clear()
+            getattr(self, "_home_pending_quantities", {}).clear()
+            self._home_procurement_batch_active = False
             self._home_batch_review_items.clear()
             self._home_active_from_batch = False
             self._home_atomic_withdraw_pending = None
@@ -7910,6 +7912,9 @@ class HengbotPolicy(TownArbiterMixin):
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
+                getattr(self, "_deferred_home_item_sites", {}).clear()
+                getattr(self, "_home_pending_quantities", {}).clear()
+                self._home_procurement_batch_active = False
                 self._town_unidentifiable_carried_sigs.clear()
                 self._town_supplier_stock_observations.clear()
                 self._deferred_device_items.clear()
@@ -10744,7 +10749,7 @@ class HengbotPolicy(TownArbiterMixin):
             for it in self._home_knowledge_items
             if self._home_knowledge_current
             and it.known
-            and it.is_wand_staff
+            and it.tval in {TVAL_WAND, TVAL_STAFF}
             and it.charges > 0
             and self._item_signature(it) not in self._deferred_home_items
         )
@@ -10777,7 +10782,7 @@ class HengbotPolicy(TownArbiterMixin):
             for it in self._home_knowledge_items
             if self._home_knowledge_current
             and it.known
-            and it.is_wand_staff
+            and it.tval in {TVAL_WAND, TVAL_STAFF}
             and it.charges > 0
             and self._item_signature(it) not in self._deferred_home_items
         )
@@ -15119,7 +15124,7 @@ class HengbotPolicy(TownArbiterMixin):
             if self._home_pending_quantity is not None
             else 1
         )
-        take_count = min(item.count, requested_quantity)
+        take_count = max(1, min(item.count, requested_quantity))
         # The completed address scan binds the shelf letter and stack count to
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
@@ -16801,6 +16806,8 @@ class HengbotPolicy(TownArbiterMixin):
             self._home_pending_slot = None
             self._home_active_from_batch = True
             self._home_candidate_waiting = False
+        elif self._home_pending_item is None:
+            self._home_procurement_batch_active = False
 
     def _defer_home_item(
         self, signature: tuple[str, int, int], site: str
@@ -20907,31 +20914,26 @@ class HengbotPolicy(TownArbiterMixin):
             (name for name in SUPPLY_STORES if self._store_item_is_supply(item, name)),
             None,
         )
+        if (
+            kind is None
+            and snapshot.player.food_type == FOOD_TYPE_MANA
+            and item.tval in {TVAL_WAND, TVAL_STAFF}
+            and item.pval > 0
+        ):
+            kind = "food"
         if kind is not None:
-            if kind == "recall":
-                current = self._count_recall_scrolls(snapshot)
-                required = (
-                    0
-                    if self._fundraising_mode in {"mine", "scavenge"}
-                    else self._recall_required_target(snapshot)
-                )
-            else:
-                counters = {
-                    "teleport": self._count_teleport_scrolls,
-                    "cure": self._count_cure_critical_potions,
-                    "oil": self._oil_departure_count,
-                    "food": self._count_food,
-                }
-                current = counters[kind](snapshot)
-                threshold_depth = self._planned_depth()
-                required = self._supply_threshold(
-                    kind, "departure", threshold_depth
-                )
-                if kind == "oil" and self._owns_usable_permanent_light(snapshot):
-                    required = 0
-            return max(0, required - current)
+            status = self._supply_ledger(snapshot, snapshot.floor_key[1])[kind]
+            return max(0, status.required_departure - status.count)
         if item_class == (TVAL_LITE, SV_LITE_TORCH):
             return max(0, FOOD_STOCK_TARGET - self._count_usable_torches(snapshot))
+        if item.is_treasure_detection_scroll:
+            return max(
+                0,
+                self._mining_detection_scroll_target(snapshot)
+                - self._count_treasure_detection_scrolls(snapshot),
+            )
+        if item.is_digging_tool:
+            return max(0, 2 - self._digging_tool_count(snapshot))
         return 1
 
     def _queue_home_procurement_batch(
@@ -20945,16 +20947,20 @@ class HengbotPolicy(TownArbiterMixin):
         primary_is_supply = any(
             self._store_item_is_supply(primary, kind) for kind in SUPPLY_STORES
         )
-        if quest_target is None and not primary_is_supply:
+        if (
+            quest_target is None
+            and not primary_is_supply
+            and not primary.is_treasure_detection_scroll
+            and not primary.is_digging_tool
+        ):
+            return
+        primary_missing = self._procurement_missing_amount(snapshot, primary)
+        if primary_missing <= 0:
             return
         wanted_classes = {self._procurement_class(primary)}
         for known in self._home_knowledge_items:
-            for kind in SUPPLY_STORES:
-                if (
-                    self._store_item_is_supply(known, kind)
-                    and self._procurement_missing_amount(snapshot, known) > 0
-                ):
-                    wanted_classes.add(self._procurement_class(known))
+            if self._procurement_missing_amount(snapshot, known) > 0:
+                wanted_classes.add(self._procurement_class(known))
         for item_class in wanted_classes:
             candidate = self._home_procurement_candidate(item_class)
             if candidate is None:
@@ -20962,9 +20968,12 @@ class HengbotPolicy(TownArbiterMixin):
             signature = self._item_signature(candidate)
             if not hasattr(self, "_home_pending_quantities"):
                 self._home_pending_quantities = {}
-            self._home_pending_quantities[signature] = min(
+            quantity = min(
                 candidate.count, self._procurement_missing_amount(snapshot, candidate)
             )
+            if quantity <= 0:
+                continue
+            self._home_pending_quantities.setdefault(signature, quantity)
             if (
                 signature != self._home_pending_item
                 and signature not in self._home_pending_batch
@@ -21143,12 +21152,21 @@ class HengbotPolicy(TownArbiterMixin):
                 "wrapper-withdraw-failed-stock-present",
             )
         if candidate is not None:
+            missing = self._procurement_missing_amount(snapshot, candidate)
+            if missing <= 0:
+                self._home_procurement_probe = None
+                self._home_procurement_fallthrough = "fresh-catalogue-absence"
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                    "wrapper-no-procurement-need",
+                    wrapper_fallthrough="fresh-catalogue-absence",
+                )
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = identity
             self._home_pending_quantity = min(
                 candidate.count,
-                max(1, self._procurement_missing_amount(snapshot, candidate)),
+                max(1, missing),
             )
             if not hasattr(self, "_home_pending_quantities"):
                 self._home_pending_quantities = {}
@@ -21252,7 +21270,8 @@ class HengbotPolicy(TownArbiterMixin):
         viable_class_matches = self._home_procurement_viable_class_matches(
             item_class
         )
-        if (
+        all_viable_deferred = viable_class_matches > 0 and candidate is None
+        if all_viable_deferred or (
             failure is not None
             and failure.get("item_class") == self._procurement_equivalence(item_class)
             and viable_class_matches > 0
@@ -21262,6 +21281,11 @@ class HengbotPolicy(TownArbiterMixin):
                 "evaluate-withdraw-failed-stock-present",
             )
         if candidate is not None:
+            if self._procurement_missing_amount(snapshot, candidate) <= 0:
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                    "evaluate-no-procurement-need",
+                )
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "evaluate-candidate-home-first")
         return self._record_home_gate(snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE, "evaluate-no-candidate")
 
