@@ -21314,16 +21314,10 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         # loadout candidate.
         policy._equipment_catalog._home = {}
         if terminal:
-            producer = HengbotPolicy()
-            producer.consume_home_knowledge((stored,))
             self._consume_failed_digger_procurement_withdrawal(
-                producer, outside, stored, offered
+                policy, outside, stored, offered
             )
-            self.assertIsNotNone(producer._home_procurement_withdraw_failure)
-            policy._home_procurement_withdraw_failure = dict(
-                producer._home_procurement_withdraw_failure
-            )
-            policy._deferred_home_items.update(producer._deferred_home_items)
+            self.assertIsNotNone(policy._home_procurement_withdraw_failure)
             policy.consume_home_knowledge((stored,) if home_present else ())
             policy._equipment_catalog._home = {}
         observed = StoreState(STORE_GENERAL, [offered], page_top=0)
@@ -21350,6 +21344,8 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
         policy, outside, observed = self._digger_purchase_gate_fixture(
             terminal=True
         )
+        self.assertGreaterEqual(policy._decision_sequence, 3)
+        self.assertTrue(policy._deferred_home_items)
 
         policy.choose_key(replace(outside, store=observed))
         key = policy.choose_key(replace(outside, turn=outside.turn + 1))
@@ -21372,13 +21368,11 @@ class TownAndFundraisingPolicyTest(unittest.TestCase):
             home_present=False, terminal=True
         )
 
-        first_key = policy.choose_key(outside)
-        buy_key = policy.choose_key(
-            replace(outside, turn=outside.turn + 1, store=observed)
+        gate = policy._purchase_has_fresh_home_absence(
+            replace(outside, store=observed), observed.items[0]
         )
 
-        self.assertEqual(first_key, WAIT_KEY)
-        self.assertTrue(buy_key.startswith(BUY_KEY), buy_key)
+        self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
             "wrapper-fresh-catalogue-absence",
@@ -48607,7 +48601,6 @@ class TownErrandPlanTest(unittest.TestCase):
     def _consume_failed_procurement_withdrawal(
         self, policy, outside, home_item, item_class
     ):
-        policy = HengbotPolicy()
         # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the real Home entry and atomic operation run while unrelated town decision collaborators are isolated
         policy._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
         policy.consume_home_knowledge((home_item,))
@@ -48848,6 +48841,55 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(gate["wrapper_fallthrough"], "fresh-catalogue-absence")
         self.assertEqual(gate["candidate_absence_census"]["class_matches"], 0)
 
+    def test_terminal_failure_ignores_exhausted_torch_but_blocks_fueled_deferred_torch(self):
+        policy, entrance, _home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        offered = store_item(
+            "a", TVAL_LITE, SV_LITE_TORCH, price=3, name="Torch"
+        )
+        item_class = policy._procurement_class(offered)
+        policy._home_procurement_withdraw_failure = {
+            "item_class": policy._procurement_equivalence(item_class),
+            "identity": ("item", TVAL_LITE, SV_LITE_TORCH),
+            "reason": "home:atomic-withdraw-failed",
+            "attempts": 1,
+            "turn": entrance.turn - 1,
+        }
+        exhausted = item(
+            "h", TVAL_LITE, SV_LITE_TORCH, count=1, fuel=0,
+            name="expired torch",
+        )
+        policy.consume_home_knowledge((exhausted,))
+
+        gate = policy._purchase_has_fresh_home_absence(entrance, offered)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
+        self.assertEqual(
+            policy._home_gate_telemetry["branch"],
+            "wrapper-fresh-catalogue-absence",
+        )
+        self.assertEqual(
+            policy._home_gate_telemetry["candidate_absence_census"]["torch_no_fuel"],
+            1,
+        )
+
+        fueled = replace(exhausted, fuel=5000)
+        policy.consume_home_knowledge((fueled,))
+        policy._deferred_home_items.add(policy._item_signature(fueled))
+
+        gate = policy._purchase_has_fresh_home_absence(entrance, offered)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.BLOCKED)
+        self.assertEqual(
+            policy._home_gate_telemetry["branch"],
+            "wrapper-withdraw-failed-stock-present",
+        )
+        self.assertEqual(
+            policy._home_gate_telemetry["candidate_absence_census"]["excluded_as_deferred"],
+            1,
+        )
+
     def test_pin_vacuity_terminal_withdraw_failure_present_publishes_wait(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
             deferred=False
@@ -48913,6 +48955,37 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(failure["attempts"], 1)
         self.assertFalse(policy._home_knowledge_current)
         self.assertTrue(policy._home_knowledge_invalidated)
+
+    def test_terminal_failure_viable_deferred_stock_is_refused_by_evaluate_consumer(self):
+        policy, entrance, home_staff = self._deferred_identify_staff_incident(
+            deferred=False
+        )
+        item_class = policy._procurement_class(home_staff)
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, item_class
+        )
+        policy.consume_home_knowledge((home_staff,))
+        policy._shop_observation = (
+            StoreState(
+                STORE_MAGIC,
+                [store_item(
+                    "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=888,
+                    charges=20, count=3, name="Staff of Identify",
+                )],
+                page_top=0,
+            ),
+            policy._decision_sequence,
+        )
+
+        refused = policy._wanted_purchase_is_home_first_refused(
+            entrance, STORE_MAGIC
+        )
+
+        self.assertTrue(refused)
+        self.assertEqual(
+            policy._home_gate_telemetry["branch"],
+            "evaluate-withdraw-failed-stock-present",
+        )
 
     def test_successful_same_class_withdrawal_clears_procurement_failure(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
@@ -49007,26 +49080,27 @@ class TownErrandPlanTest(unittest.TestCase):
             deferred=False
         )
         item_class = policy._procurement_class(home_staff)
-        policy._home_procurement_withdraw_failure = {
-            "item_class": policy._procurement_equivalence(item_class),
-            "identity": policy._item_signature(home_staff),
-            "reason": "home:atomic-withdraw-failed",
-            "attempts": 1,
-            "turn": entrance.turn - 1,
-        }
+        policy, entrance = self._consume_failed_procurement_withdrawal(
+            policy, entrance, home_staff, item_class
+        )
         policy.consume_home_knowledge(())
         policy._shopping_approach_store_type = STORE_MAGIC
         policy._shopping_approach_goal = entrance.player.position
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
-        observed_store = policy._shop_observation[0]
-        first_key = policy.choose_key(entrance)
-        inside = replace(
-            entrance, turn=entrance.turn + 1, store=observed_store
+        observed_store = StoreState(
+            STORE_MAGIC,
+            [store_item(
+                "a", TVAL_STAFF, SV_STAFF_IDENTIFY, price=888,
+                charges=20, count=3, name="Staff of Identify",
+            )],
+            page_top=0,
         )
-        key = policy.choose_key(inside)
+        policy._shop_observation = (observed_store, policy._decision_sequence)
+        gate = policy._purchase_has_fresh_home_absence(
+            replace(entrance, store=observed_store), observed_store.items[0]
+        )
 
-        self.assertEqual(first_key, WAIT_KEY)
-        self.assertTrue(key.startswith(BUY_KEY), key)
+        self.assertIs(gate, policy_module.ProcurementHomeGate.ALLOW_PURCHASE)
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
             "wrapper-fresh-catalogue-absence",

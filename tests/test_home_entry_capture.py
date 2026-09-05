@@ -189,6 +189,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [policy._item_signature(target)]
         policy._home_candidate_waiting = True
+        policy._home_atomic_withdraw_procurement_class = (39, 0)
         policy._home_atomic_withdraw_posted_turn = 3200199
         decision_snapshot = replace(
             harness._entrance_snapshot(harness._real_pack(), turn=3200200),
@@ -245,6 +246,14 @@ class HomeEntryCaptureTest(unittest.TestCase):
             record["scan_entry_state"]["_home_atomic_withdraw_posted_turn"],
             3200199,
         )
+        self.assertEqual(
+            record["scan_entry_state"]["_home_atomic_withdraw_procurement_class"],
+            [39, 0],
+        )
+        replay = restore_checkpoint(
+            type(policy), record["predecision_policy_checkpoint_pickle_b64"]
+        )
+        self.assertEqual(replay._home_atomic_withdraw_procurement_class, (39, 0))
         self.assertIsNone(record["decision_snapshot"]["store"])
         self.assertEqual(
             record["next_snapshot"]["store"],

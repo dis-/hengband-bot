@@ -34,6 +34,7 @@ STATE_FIELDS = (
     "_home_pending_quantity",
     "_home_pending_batch",
     "_home_atomic_withdraw_pending",
+    "_home_atomic_withdraw_procurement_class",
     "_home_atomic_withdraw_posted_turn",
     "_home_atomic_deposit_pending",
     "_home_knowledge_current",

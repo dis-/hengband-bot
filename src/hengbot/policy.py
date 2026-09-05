@@ -20852,6 +20852,17 @@ class HengbotPolicy(TownArbiterMixin):
             None,
         )
 
+    def _home_procurement_viable_class_matches(
+        self, item_class: tuple[int, int]
+    ) -> int:
+        """Count usable class stock, including items deferred after a failure."""
+        return sum(
+            self._procurement_class_matches(item, item_class)
+            and item.count > 0
+            and (not item.is_torch or item.fuel > 0)
+            for item in self._home_knowledge_items
+        )
+
     def _set_town_store_attempted(
         self, store_type: int, turn: int, site_label: str, *, if_absent: bool = False
     ) -> None:
@@ -20993,14 +21004,13 @@ class HengbotPolicy(TownArbiterMixin):
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-stale-knowledge-route-home")
         candidate = self._home_procurement_candidate(item_class)
         failure = getattr(self, "_home_procurement_withdraw_failure", None)
-        class_matches = sum(
-            self._procurement_class_matches(known, item_class)
-            for known in self._home_knowledge_items
+        viable_class_matches = self._home_procurement_viable_class_matches(
+            item_class
         )
         if (
             failure is not None
             and failure.get("item_class") == self._procurement_equivalence(item_class)
-            and class_matches > 0
+            and viable_class_matches > 0
         ):
             self._home_procurement_probe = None
             self._record_purchase_home_refusal(
@@ -21115,14 +21125,13 @@ class HengbotPolicy(TownArbiterMixin):
         item_class = self._procurement_class(item)
         candidate = self._home_procurement_candidate(item_class)
         failure = getattr(self, "_home_procurement_withdraw_failure", None)
-        class_matches = sum(
-            self._procurement_class_matches(known, item_class)
-            for known in self._home_knowledge_items
+        viable_class_matches = self._home_procurement_viable_class_matches(
+            item_class
         )
         if (
             failure is not None
             and failure.get("item_class") == self._procurement_equivalence(item_class)
-            and class_matches > 0
+            and viable_class_matches > 0
         ):
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.BLOCKED,
