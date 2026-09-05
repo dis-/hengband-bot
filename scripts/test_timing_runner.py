@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Run the standard non-CLI unittest suite and record per-test timings."""
+"""Run the authoritative serial non-CLI suite and record reproducible timings."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -17,13 +18,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "tests"
 DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-timings.json"
+DEFAULT_SUMMARY_OUTPUT = ROOT / "jsonlog" / "test-timings-summary.json"
 
 
 def standard_modules() -> list[str]:
     """Return the standing full-suite identity in its established order."""
     return [
         f"tests.{path.stem}"
-        for path in sorted(TESTS.glob("test_*.py"), key=lambda item: item.name)
+        for path in sorted(TESTS.glob("test*.py"), key=lambda item: item.name)
         if path.name != "test_cli.py"
     ]
 
@@ -50,6 +52,7 @@ class TimingResult(unittest.TextTestResult):
         super().__init__(*args, **kwargs)
         self.timings: list[dict[str, object]] = []
         self._started: float | None = None
+        self._recorded: set[str] = set()
 
     def startTest(self, test: unittest.case.TestCase) -> None:
         super().startTest(test)
@@ -57,11 +60,22 @@ class TimingResult(unittest.TextTestResult):
 
     def stopTest(self, test: unittest.case.TestCase) -> None:
         if self._started is not None:
-            self.timings.append(
-                {"id": test.id(), "seconds": time.perf_counter() - self._started}
-            )
+            self._record(test, time.perf_counter() - self._started)
             self._started = None
         super().stopTest(test)
+
+    def addError(self, test: unittest.case.TestCase, err: tuple[type[BaseException], BaseException, object]) -> None:
+        # setUpClass/import failures arrive as _ErrorHolder objects without a
+        # startTest/stopTest pair. Keep their identities in timing artifacts.
+        if test.id() not in self._recorded:
+            self._record(test, 0.0)
+        super().addError(test, err)
+
+    def _record(self, test: unittest.case.TestCase, seconds: float) -> None:
+        test_id = test.id()
+        if test_id not in self._recorded:
+            self.timings.append({"id": test_id, "seconds": seconds})
+            self._recorded.add(test_id)
 
 
 def aggregate(timings: list[dict[str, object]], parts: int) -> list[dict[str, object]]:
@@ -82,6 +96,28 @@ def print_group(title: str, rows: list[dict[str, object]], limit: int) -> None:
         print(f"{float(row['seconds']):10.3f}s  {row['id']}")
 
 
+def timing_summary(payload: dict[str, object], limit: int = 15) -> dict[str, object]:
+    """Return the reproducible T3 test/class/module aggregates."""
+    timings = list(payload["tests"])
+    top_tests = sorted(timings, key=lambda row: (-float(row["seconds"]), str(row["id"])))
+    classes = aggregate(timings, 3)
+    modules = aggregate(timings, 2)
+    total = float(payload["total_seconds"])
+    return {
+        "generated_at": payload["generated_at"],
+        "head_sha": payload["head_sha"],
+        "total_seconds": total,
+        "test_count": len(timings),
+        "top_tests": top_tests[:limit],
+        "top_classes": classes[:10],
+        "top_modules": modules[:10],
+        "top_10_classes_share_percent": (
+            100.0 * sum(float(row["seconds"]) for row in classes[:10]) / total
+            if total else 0.0
+        ),
+    }
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -90,6 +126,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="module names (space- or comma-separated); default is every test_*.py except test_cli.py",
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument("--top", type=int, default=30)
     return parser.parse_args(argv)
 
@@ -104,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         value = str(path)
         if value not in sys.path:
             sys.path.insert(0, value)
+    os.environ["PYTHONPATH"] = os.pathsep.join((str(ROOT / "src"), str(TESTS)))
 
     modules = normalize_modules(args.modules)
     suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
@@ -122,12 +160,22 @@ def main(argv: list[str] | None = None) -> int:
     output = args.output if args.output.is_absolute() else ROOT / args.output
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    summary_output = (
+        args.summary_output if args.summary_output.is_absolute() else ROOT / args.summary_output
+    )
+    summary_output.parent.mkdir(parents=True, exist_ok=True)
+    summary_output.write_text(
+        json.dumps(timing_summary(payload), indent=2) + "\n", encoding="utf-8"
+    )
 
     tests = sorted(result.timings, key=lambda row: (-float(row["seconds"]), str(row["id"])))
     print_group("Slowest tests", tests, args.top)
     print_group("Slowest classes", aggregate(result.timings, 3), args.top)
     print_group("Slowest modules", aggregate(result.timings, 2), args.top)
-    print(f"\nTotal: {total_seconds:.3f}s; recorded {len(result.timings)} tests; output: {output}")
+    print(
+        f"\nTotal: {total_seconds:.3f}s; recorded {len(result.timings)} tests; "
+        f"output: {output}; summary: {summary_output}"
+    )
     return 0 if result.wasSuccessful() else 1
 
 
