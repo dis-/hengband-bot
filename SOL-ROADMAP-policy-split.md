@@ -849,3 +849,6 @@ Binding for every phase. A violation is grounds for revert, not a review comment
 - Phase 3: the roadmap's literal prefix list matches 24 methods, not the
   stated 35. The 11-method count mismatch is retained for later classification;
   Phase 3 moved only the methods selected by the authoritative literal prefixes.
+- Phase 4: the roadmap's literal prefix list matches 28 methods, not the
+  stated 77. The 49-method count mismatch is retained for later classification;
+  Phase 4 moved only the methods selected by the authoritative literal prefixes.

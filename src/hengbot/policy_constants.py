@@ -2,6 +2,8 @@
 
 from enum import Enum
 
+from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE
+
 # When the character dies, Hengband leaves the command loop for the tombstone,
 # death-info, and high-score shutdown chain and emits no more snapshots. Escape
 # nudges cannot revive it, so eight fruitless observations trigger recovery.
@@ -124,6 +126,32 @@ FUNDRAISING_KIT_MARGIN = (
 )
 
 MINING_DETECTION_RADIUS = 30
+
+QUEST_STATUS_UNTAKEN = 0
+BREEDER_CONTAINMENT_WINDOW = 60
+SUMMONER_CHOKE_NEIGHBORS = 3
+LANTERN_REFILL_FUEL = 1000
+LANTERN_DIM_WARNING_FUEL = 100
+TORCH_REFILL_FUEL = 500
+OIL_TARGET = 5
+FOOD_STOCK_TARGET = 5
+MANA_FOOD_CHARGE_TARGET = 15
+MANA_FOOD_DEVICE_TARGET = 2
+IDENTIFY_CHARGE_FLOOR = 5
+TELEPORT_REQUIRED_DEPTH = 2
+CURE_CRITICAL_REQUIRED_DEPTH = 2
+STAFF_IDENTIFY_MIN_DEPTH = 10
+SUPPLY_STORES: dict[str, tuple[int, ...]] = {
+    "recall": (STORE_TEMPLE, STORE_ALCHEMIST),
+    "teleport": (STORE_ALCHEMIST,),
+    "cure": (STORE_TEMPLE, STORE_ALCHEMIST),
+    "oil": (STORE_GENERAL,),
+    "food": (STORE_GENERAL,),  # MANA races are replaced with Magic in ledger.
+}
+STAFF_IDENTIFY_MIN_CHARGES = 20
+STAFF_IDENTIFY_MAX_COUNT = 5
+IDENTIFY_STAFF_LEVEL = 10
+USE_DEVICE_MIN = 3
 
 class ExplorationPathOutcome(str, Enum):
     PAUSE = "pause"
