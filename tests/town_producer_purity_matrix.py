@@ -4,6 +4,9 @@ import hashlib
 import json
 from pathlib import Path
 import pickle
+from collections import Counter
+from dataclasses import dataclass
+from functools import cache
 
 from hengbot.model import (
     parse_snapshot, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC,
@@ -34,7 +37,29 @@ CACHE_FIELD_OWNERS = {
     "_town_visit_entrances": "producer B routing history; cumulative by construction",
 }
 
+DIRECT_PRODUCERS = (
+    "_boxed_town_breakout_key",
+    "_town_procurement_progress_key",
+    "departure_block_state",
+)
+PARTITION_COUNT = 6
+FULL_CELL_COUNT = 1116
+PARTITION_CELL_INDEXES = tuple(
+    tuple(range(partition, FULL_CELL_COUNT, PARTITION_COUNT))
+    for partition in range(PARTITION_COUNT)
+)
 
+
+@dataclass(frozen=True)
+class PurityCell:
+    kind: str
+    capture: str
+    row: int
+    producer: str = ""
+    pinned: bool = False
+
+
+@cache
 def _snapshots(name):
     path = CAPTURES[name]
     definitions = find_monrace_definitions(path, None)
@@ -46,6 +71,17 @@ def _snapshots(name):
             if snapshot.in_town and snapshot.store is None:
                 snapshots.append(snapshot)
     return snapshots, monraces
+
+
+@cache
+def _surface_snapshot_count(name):
+    count = 0
+    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
+        for line in stream:
+            row = json.loads(line)
+            if row.get("floor", {}).get("in_town") and row.get("store") is None:
+                count += 1
+    return count
 
 
 def _surface_snapshot():
@@ -165,16 +201,11 @@ def producer_equivalence():
 
 def measure():
     snapshot = _surface_snapshot()
-    producers = (
-        "_boxed_town_breakout_key",
-        "_town_procurement_progress_key",
-        "departure_block_state",
-    )
     impure = []
     results = {}
     prototype = checkpoint(HengbotPolicy())
     policy = restore_checkpoint(HengbotPolicy, prototype)
-    for name in producers:
+    for name in DIRECT_PRODUCERS:
         before = observable_policy_state(policy)
         results[name] = getattr(policy, name)(snapshot)
         if observable_policy_state(policy) != before:
@@ -206,6 +237,108 @@ def probe_sweep():
                 policy = restore_checkpoint(HengbotPolicy, prototype)
         sweep[capture] = {"calls": calls, "impure_calls": impure_calls}
     return sweep
+
+
+def purity_cells():
+    """Return the old test's complete producer/cell matrix in execution order."""
+    cells = [
+        PurityCell("direct", "equip-swap", 0, producer=name)
+        for name in DIRECT_PRODUCERS
+    ]
+    for capture in CAPTURES:
+        cells.extend(
+            PurityCell("probe", capture, row, producer="_boxed_town_breakout_key")
+            for row in range(_surface_snapshot_count(capture))
+        )
+    for capture in CAPTURES:
+        for row in range(_surface_snapshot_count(capture)):
+            cells.append(PurityCell("equivalence", capture, row, pinned=False))
+            cells.append(PurityCell("equivalence", capture, row, pinned=True))
+    return tuple(cells)
+
+
+def partition_cells(partition):
+    cells = purity_cells()
+    return tuple(cells[index] for index in PARTITION_CELL_INDEXES[partition])
+
+
+def assert_partition_is_pure(testcase, partition):
+    """Run one order-preserving slice of the former monolithic purity test."""
+    selected = set(PARTITION_CELL_INDEXES[partition])
+    cells = purity_cells()
+    snapshots_by_capture = {
+        capture: _snapshots(capture)[0] for capture in CAPTURES
+    }
+
+    if partition == 0:
+        testcase.assertTrue(_differ_detects_visit_mutation())
+        testcase.assertTrue(_exemption_control())
+
+    direct_policy = HengbotPolicy()
+    direct_snapshot = _surface_snapshot()
+    probe_state = {}
+    equivalence_prototype = checkpoint(HengbotPolicy())
+    for index, cell in enumerate(cells):
+        if index not in selected:
+            continue
+        if cell.kind == "direct":
+            before = observable_policy_state(direct_policy)
+            result = getattr(direct_policy, cell.producer)(direct_snapshot)
+            testcase.assertEqual(observable_policy_state(direct_policy), before)
+            if cell.producer == "_boxed_town_breakout_key":
+                testcase.assertEqual(result, "\x1b`n&.")
+            continue
+
+        snapshots = snapshots_by_capture[cell.capture]
+        snapshot = snapshots[cell.row]
+        if cell.kind == "probe":
+            policy, prototype = probe_state.get(cell.capture, (None, None))
+            if policy is None:
+                prototype = checkpoint(HengbotPolicy())
+                policy = restore_checkpoint(HengbotPolicy, prototype)
+            before = observable_policy_state(policy)
+            policy._boxed_town_breakout_key(snapshot)
+            testcase.assertEqual(observable_policy_state(policy), before)
+            probe_state[cell.capture] = (policy, prototype)
+            continue
+
+        old = restore_checkpoint(HengbotPolicy, equivalence_prototype)
+        new = restore_checkpoint(HengbotPolicy, equivalence_prototype)
+        if cell.pinned:
+            visit = StoreVisit(
+                "town-errand", "shopping", STORE_GENERAL,
+                operation_posted=True, operation_key="5",
+            )
+            old._store_visit = visit
+            new._store_visit = pickle.loads(pickle.dumps(visit, protocol=5))
+        old_before = observable_policy_fields(old)
+        new_before = observable_policy_fields(new)
+        old_key = _old_boxed_town_breakout_key(old, snapshot)
+        new_key = new._commit_boxed_town_breakout_key(snapshot)
+        old_changes = _mutation_map(old_before, observable_policy_fields(old))
+        new_changes = _mutation_map(new_before, observable_policy_fields(new))
+        testcase.assertEqual(new_key, old_key)
+        testcase.assertEqual(old_changes.keys() - new_changes.keys(), set())
+
+
+def assert_partitions_complete(testcase):
+    cells = purity_cells()
+    flattened = tuple(
+        index for partition in PARTITION_CELL_INDEXES for index in partition
+    )
+    testcase.assertEqual(len(cells), FULL_CELL_COUNT)
+    testcase.assertEqual(len(flattened), len(set(flattened)), "partition overlap")
+    testcase.assertEqual(set(flattened), set(range(len(cells))))
+    testcase.assertEqual(
+        Counter((cell.kind, cell.capture) for cell in cells),
+        Counter({
+            ("direct", "equip-swap"): 3,
+            ("probe", "equip-swap"): 145,
+            ("probe", "no-actionable"): 226,
+            ("equivalence", "equip-swap"): 290,
+            ("equivalence", "no-actionable"): 452,
+        }),
+    )
 
 
 if __name__ == "__main__":
