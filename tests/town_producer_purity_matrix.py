@@ -1,6 +1,7 @@
 """Count town producers that leak state while being evaluated as candidates."""
 
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import pickle
@@ -43,6 +44,10 @@ DIRECT_PRODUCERS = (
     "departure_block_state",
 )
 PARTITION_COUNT = 6
+PARTITION_MODULES = tuple(
+    f"test_town_producer_purity_part{partition}"
+    for partition in range(1, PARTITION_COUNT + 1)
+)
 FULL_CELL_COUNT = 1116
 PARTITION_CELL_INDEXES = tuple(
     tuple(range(partition, FULL_CELL_COUNT, PARTITION_COUNT))
@@ -322,6 +327,17 @@ def assert_partition_is_pure(testcase, partition):
 
 
 def assert_partitions_complete(testcase):
+    for module in PARTITION_MODULES:
+        testcase.assertIsNotNone(
+            importlib.util.find_spec(module),
+            f"purity partition module is not discoverable: {module}",
+        )
+    for capture in CAPTURES:
+        testcase.assertEqual(
+            len(_snapshots(capture)[0]),
+            _surface_snapshot_count(capture),
+            f"parsed surface population drifted for {capture}",
+        )
     cells = purity_cells()
     flattened = tuple(
         index for partition in PARTITION_CELL_INDEXES for index in partition

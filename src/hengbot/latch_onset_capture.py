@@ -21,6 +21,7 @@ _CAPTURE_STATE_NAMES = frozenset(
     {
         "_latch_capture_path",
         "_latch_capture_previous",
+        "_latch_capture_predecision",
         "_latch_capture_assignment",
         "_latch_capture_remaining",
         "_latch_capture_rotate_bytes",

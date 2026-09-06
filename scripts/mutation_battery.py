@@ -481,7 +481,7 @@ MUTATIONS = (
         "Stop cooling an unfulfilled recovered Home route for the town visit.",
         (replacement(
             "policy.py",
-            "                self._town_store_attempted[STORE_HOME] = snapshot.turn\n"
+            "                self._set_town_store_attempted(STORE_HOME, snapshot.turn, \"home-capture-complete\")\n"
             "                self.last_reason = \"home:route-claim-unfulfilled\"\n",
             "                self.last_reason = \"home:route-claim-unfulfilled\"\n",
         ),),
@@ -621,12 +621,13 @@ MUTATIONS = (
         "Require the transient Home item address before routing the durable latch.",
         (replacement(
             "policy.py",
-            "        if snapshot.in_town and self._home_digger_withdraw_pending:\n",
-            "        if (\n"
-            "            snapshot.in_town\n"
-            "            and self._home_digger_withdraw_pending\n"
-            "            and self._home_pending_item is not None\n"
-            "        ):\n",
+            "            self._home_digger_withdraw_pending\n"
+            "            or (\n",
+            "            (\n"
+            "                self._home_digger_withdraw_pending\n"
+            "                and self._home_pending_item is not None\n"
+            "            )\n"
+            "            or (\n",
         ),),
     ),
     Mutation(
