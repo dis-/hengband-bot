@@ -3492,9 +3492,34 @@ class HengbotPolicy(TownArbiterMixin):
         displaced = tuple(
             owned.item for slot, owned in current_slots.items() if slot in displaced_slots
         )
+        # Match object_sort_comp's ordering decisions that are represented on
+        # InventoryItem (object-sort.cpp:40-107, 126-152): tval descending,
+        # sval ascending, artifact/ego rank ascending, then value descending.
+        # Awareness/knownness precede sval/rank in the C++ comparator.  The
+        # emitter has no calc_price field; fuel is the value discriminator for
+        # the same-sval light stacks whose order matters to retention.
+        def pack_sort_key(item: InventoryItem) -> tuple:
+            rank = 3 if item.is_artifact else 1 if item.is_ego else 0
+            ammo_bonus = item.to_h + item.to_d if item.is_ammo else 0
+            value_proxy = item.fuel if item.is_light else ammo_bonus
+            return (
+                -item.tval,
+                not item.aware,
+                item.sval,
+                not item.known,
+                rank,
+                -value_proxy,
+            )
+
+        projected_inventory = sorted(
+            tuple(snapshot.inventory) + displaced, key=pack_sort_key
+        )
         projected = replace(
             snapshot,
-            inventory=tuple(snapshot.inventory) + displaced,
+            inventory=tuple(
+                replace(item, slot=chr(ord("a") + index))
+                for index, item in enumerate(projected_inventory)
+            ),
             equipment=tuple(
                 item for item in snapshot.equipment if item.slot not in displaced_slots
             ),
@@ -11592,6 +11617,12 @@ class HengbotPolicy(TownArbiterMixin):
                 snapshot, "calibration-redress", target, slot
             )
             if macro is None:
+                # A visible executor refusal is still a real attempt.  Charge
+                # it so STORE_STUCK_LIMIT remains a bot-reachable release.
+                if self._equipment_mutation_result.report is not None:
+                    self._calibration_redress_attempts[obligation] = (
+                        self._calibration_redress_attempts.get(obligation, 0) + 1
+                    )
                 continue
             self._calibration_redress_attempts[obligation] = (
                 self._calibration_redress_attempts.get(obligation, 0) + 1
@@ -12998,7 +13029,13 @@ class HengbotPolicy(TownArbiterMixin):
             # without these): the two live quarantine sets and any last-source
             # readmissions the optimizer view performed.  Strictly diagnostic.
             "failed_transaction_item_ids": sorted(
-                self._equipment_transaction_failed_items
+                key for key in self._equipment_transaction_failed_items
+                if not key.startswith("identity:")
+            ),
+            "failed_transaction_item_identities": sorted(
+                key.removeprefix("identity:")
+                for key in self._equipment_transaction_failed_items
+                if key.startswith("identity:")
             ),
             "deferred_home_item_signatures": [
                 list(signature)
@@ -13008,10 +13045,22 @@ class HengbotPolicy(TownArbiterMixin):
                 self._equipment_quarantine_readmitted_ids
             ),
             "quarantine_second_chance_item_ids": sorted(
-                self._equipment_quarantine_second_chance_ids
+                key for key in self._equipment_quarantine_second_chance_ids
+                if not key.startswith("identity:")
+            ),
+            "quarantine_second_chance_item_identities": sorted(
+                key.removeprefix("identity:")
+                for key in self._equipment_quarantine_second_chance_ids
+                if key.startswith("identity:")
             ),
             "quarantine_burned_item_ids": sorted(
-                self._equipment_quarantine_burned_ids
+                key for key in self._equipment_quarantine_burned_ids
+                if not key.startswith("identity:")
+            ),
+            "quarantine_burned_item_identities": sorted(
+                key.removeprefix("identity:")
+                for key in self._equipment_quarantine_burned_ids
+                if key.startswith("identity:")
             ),
             "home_procurement": dict(getattr(self, "_home_procurement_approach_state", {})),
             "home_route_projection": {
@@ -13890,8 +13939,9 @@ class HengbotPolicy(TownArbiterMixin):
                 snapshot, "transaction-apply", target, action.target_slot
             )
             if macro is None:
+                refusal = getattr(self._equipment_mutation_result, "report", None)
                 self._block_equipment_transaction(
-                    f"unknown-equipment-slot:{action.target_slot}"
+                    refusal or f"unknown-equipment-slot:{action.target_slot}"
                 )
                 return WAIT_KEY
             if not self._prepare_equipment_transaction_command(

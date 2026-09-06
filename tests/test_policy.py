@@ -46267,6 +46267,49 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertFalse(policy._town_visit_purchases)
 
 
+    def test_takeoff_projection_uses_real_two_torch_pack_order(self):
+        """Plan-time retention agrees with each real post-takeoff ordering."""
+        for worn_fuel, expected_retained in ((5000, True), (100, False)):
+            with self.subTest(worn_fuel=worn_fuel):
+                carried = item(
+                    "a", TVAL_LITE, 0, name="carried torch", count=10,
+                    fuel=1000, known=True, fully_known=True,
+                    is_equipment=True,
+                )
+                worn = item(
+                    "light", TVAL_LITE, 0, name="worn torch", count=1,
+                    fuel=worn_fuel, known=True, fully_known=True,
+                    is_equipment=True,
+                )
+                policy = HengbotPolicy()
+                snapshot = self._town([carried], equipment=[worn])
+                policy._equipment_catalog.refresh_carried(
+                    snapshot.inventory, snapshot.equipment
+                )
+                catalog = policy._equipment_catalog.items
+                current = current_loadout(catalog)
+                target = Loadout((), "empty")
+                projected = policy._transaction_retain_identities(
+                    snapshot, current, target
+                )
+
+                real_order = sorted(
+                    (carried, replace(worn, slot="b")), key=lambda it: -it.fuel
+                )
+                post_takeoff = replace(
+                    snapshot,
+                    inventory=tuple(
+                        replace(it, slot=chr(ord("a") + index))
+                        for index, it in enumerate(real_order)
+                    ),
+                    equipment=(),
+                )
+                retained_after = policy._home_visit_retention(post_takeoff)[1]
+                identity = policy_module.equipment_identity(worn)
+                self.assertEqual(identity in projected, expected_retained)
+                self.assertEqual(identity in retained_after, expected_retained)
+
+
 class HomeFullLatchTest(unittest.TestCase):
     """Home rejection is represented only by observed operation outcomes."""
 
@@ -57891,6 +57934,11 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         key = policy.choose_key(partial_calm)
         self.assertEqual(key, equipment_mutation_module.WIELD_KEY + "c")
         self.assertEqual(policy.last_reason, "calibration:redress")
+        self.assertNotIn(
+            ("sub_hand", policy_module.equipment_identity(shovel)),
+            policy._calibration_redress_attempts,
+            "main-hand ordering must avoid first refusing the reachable sub hand",
+        )
 
         # Dressed again: the guard clears (departure conjunct reopens) and
         # the SAME calm dressed observation must NOT begin a fresh strip —
@@ -57907,6 +57955,58 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         # And once more, to pin that the loop cannot restart later either.
         policy.choose_key(dressed)
         self.assertIsNone(policy._calibration_phase)
+
+    def test_sub_hand_only_redress_refusals_release_departure_gate(self):
+        """Seq 792/793: the live producer cannot leave a refused debt forever."""
+        policy = self._scan_complete_policy()
+        policy._mutation_signature = (1,)
+        policy._town_was_in_town = True
+        sub = item(
+            "sub_hand", 23, 5, name="dagger", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        main = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        lantern = item(
+            "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000,
+            known=True, fully_known=True, is_equipment=True,
+        )
+        dressed = self._snapshot(equipment=(sub, main, lantern))
+        self.assertEqual(policy.choose_key(dressed), "5")
+
+        # The real calibration observer aborts the partial strip and then
+        # exhausts its restore session.  Its closed-world accounting releases
+        # the missing main-hand item, reproducing the captured sub-only debt.
+        sub_in_pack = replace(sub, slot="c")
+        threat = hostile(1, 10, 13, distance=3)
+        partial = self._snapshot(
+            inventory=(sub_in_pack,), equipment=(lantern,), monsters=(threat,)
+        )
+        policy._calibration_observe(partial)
+        for _ in range(STORE_STUCK_LIMIT + 3):
+            if policy._calibration_blocked_this_visit:
+                break
+            policy._equipment_transaction_session = None
+            policy._calibration_observe(partial)
+        calm = self._snapshot(inventory=(sub_in_pack,), equipment=(lantern,))
+
+        # The lost-main producer emits its one-shot abandonment observation;
+        # the following STORE_STUCK_LIMIT+2 decisions are the refusal drive.
+        policy.choose_key(calm)
+        charged_attempts = []
+        for _ in range(STORE_STUCK_LIMIT + 2):
+            policy.choose_key(calm)
+            charged_attempts.append(max(
+                policy._calibration_redress_attempts.values(), default=0
+            ))
+
+        self.assertGreaterEqual(max(charged_attempts), STORE_STUCK_LIMIT)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertTrue(policy._town_departure_conjuncts(calm)[
+            "calibration_loadout_restored"
+        ])
 
     def test_restore_completion_releases_the_stripped_guard(self):
         policy = self._scan_complete_policy()
@@ -59885,7 +59985,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
     def test_abandoned_deposit_is_preserved_from_every_replanned_transaction(self):
         """The failed A13 action must be absent from the next plan's deposits."""
         shovel = item(
-            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
+            "d", TVAL_RING, 1, name="captured displaced ring",
             known=True, fully_known=True, is_equipment=True,
         )
         policy, outside = NoSafeRecallDestinationTest()._fixture()

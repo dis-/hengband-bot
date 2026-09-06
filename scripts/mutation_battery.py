@@ -61,6 +61,7 @@ PUBLIC_TESTS = frozenset(
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
         "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
+        "test_policy.RetentionAuthorityTest.test_takeoff_projection_uses_real_two_torch_pack_order",
         "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
         "test_policy.IdleItemDepositTest.test_gate1_sale_retains_the_standing_two_digger_kit",
@@ -632,8 +633,22 @@ MUTATIONS = (
         "Restore A13 by allowing a failed deposit back into every fresh plan.",
         (replacement(
             "policy.py",
-            "                or item.id in self._equipment_transaction_failed_items\n",
+            "                or self._equipment_memory_contains(\n"
+            "                    self._equipment_transaction_failed_items, item\n"
+            "                )\n",
             "",
+        ),),
+    ),
+    Mutation(
+        "append-displaced-item-after-pack-retention",
+        True,
+        "Restore the pack-order approximation for displaced worn retention.",
+        (replacement(
+            "policy.py",
+            "        projected_inventory = sorted(\n"
+            "            tuple(snapshot.inventory) + displaced, key=pack_sort_key\n"
+            "        )\n",
+            "        projected_inventory = tuple(snapshot.inventory) + displaced\n",
         ),),
     ),
     Mutation(
