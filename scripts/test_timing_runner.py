@@ -128,6 +128,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument("--top", type=int, default=30)
+    parser.add_argument("--no-receipt", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -180,4 +181,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parsed = parse_args()
+    if parsed.no_receipt:
+        raise SystemExit(main())
+    import run_receipt
+    raise SystemExit(run_receipt.run_native(
+        "test_timing_runner", "full" if not parsed.modules else "modules",
+        sys.argv, main,
+    ))

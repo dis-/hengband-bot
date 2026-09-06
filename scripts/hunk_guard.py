@@ -185,7 +185,12 @@ def introduced_symbols(body: list[str]) -> set[str]:
 
 
 def _failure_sections(stderr: str) -> dict[str, str]:
-    headers = list(re.finditer(r"^(?:FAIL|ERROR): test\S+ \(([^)]+)\)$", stderr, re.MULTILINE))
+    headers = list(re.finditer(
+        r"^(?:FAIL|ERROR): test\S+ \(([^)\r\n]+)\)"
+        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
+        stderr,
+        re.MULTILINE,
+    ))
     return {match.group(1): stderr[match.start():(headers[index + 1].start() if index + 1 < len(headers) else len(stderr))]
             for index, match in enumerate(headers)}
 

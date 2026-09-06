@@ -342,16 +342,25 @@ sys.exit(not x.wasSuccessful())
 def parse_test_failures(stderr: str) -> list[str]:
     """Return unittest ids, including verbose failures followed by docstrings."""
     verbose = re.findall(
-        r"^(test\S+) \(([^)]+)\)(?:\n(?![-=]{5})[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$",
+        r"^(test\S+) \(([^)\r\n]+)\)"
+        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?"
+        r"(?:\n(?![-=]{5})[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$",
         stderr, re.MULTILINE,
     )
-    headers = re.findall(r"^(?:FAIL|ERROR): (test\S+) \(([^)]+)\)$", stderr, re.MULTILINE)
+    headers = re.findall(
+        r"^(?:FAIL|ERROR): (test\S+) \(([^)\r\n]+)\)"
+        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
+        stderr,
+        re.MULTILINE,
+    )
     return list(dict.fromkeys(qualified for _name, qualified in verbose + headers))
 
 
 def parse_test_errors(stderr: str) -> list[str]:
     return list(dict.fromkeys(qualified for _name, qualified in re.findall(
-        r"^ERROR: (test\S+) \(([^)]+)\)$", stderr, re.MULTILINE)))
+        r"^ERROR: (test\S+) \(([^)\r\n]+)\)"
+        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
+        stderr, re.MULTILINE)))
 
 
 def known_failure_matches(key: str, stderr: str, failure_ids: list[str]) -> list[dict[str, str]]:

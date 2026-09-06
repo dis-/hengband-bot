@@ -94,7 +94,7 @@ def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) ->
     env["TEMP"] = env["TMP"] = str(worker_temp)
     command = [sys.executable, str(ROOT / "scripts" / "test_timing_runner.py"),
                "--modules", *modules, "--output", str(timing_path),
-               "--summary-output", str(summary_path), "--top", "0"]
+               "--summary-output", str(summary_path), "--top", "0", "--no-receipt"]
     started = time.perf_counter()
     with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open("w", encoding="utf-8") as stderr:
         run = subprocess.run(command, cwd=ROOT, env=env, stdout=stdout, stderr=stderr)
@@ -168,4 +168,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import run_receipt
+    raise SystemExit(run_receipt.run_native(
+        "test_parallel_runner", "full", sys.argv, main,
+    ))

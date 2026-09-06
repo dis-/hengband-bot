@@ -694,7 +694,7 @@ def apply_mutation(package: Path, mutation: Mutation) -> tuple[bool, str | None]
 
 FAILURE_RE = re.compile(
     r"^(?:FAIL|ERROR): \S+ \(([^)]+)\)"
-    r"(?: \[[^\r\n]*\]| \([^\r\n]*\))?$",
+    r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
     re.MULTILINE,
 )
 RAN_RE = re.compile(r"^Ran (\d+) tests?", re.MULTILINE)
