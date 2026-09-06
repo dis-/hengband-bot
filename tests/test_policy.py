@@ -46469,6 +46469,181 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         self.assertEqual(plan.phase("home_finalize"), ())
         self.assertEqual(plan.peak_pack_items, 2)
 
+    def _live_worn_reserved_digger_seed(self):
+        """Construct the captured 7-equipped/1-pack optimization shape."""
+        digger = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="Shovel (1d2)", known=True, fully_known=True,
+            is_equipment=True,
+        )
+        sword = item(
+            "a", 23, 4, name="Long Sword (2d5)", known=True,
+            fully_known=True, is_equipment=True, to_h=25, to_d=25,
+        )
+        worn = (
+            digger,
+            item("bow", TVAL_BOW, SV_BOW_SLING, name="Sling", known=True,
+                 fully_known=True, is_equipment=True),
+            item("light", TVAL_LITE, SV_LITE_LANTERN, name="Lantern", fuel=5000,
+                 known=True, fully_known=True, is_equipment=True),
+            item("body", 36, 1, name="Soft Leather Armour", known=True,
+                 fully_known=True, is_equipment=True),
+            item("head", 34, 1, name="Hard Leather Cap", known=True,
+                 fully_known=True, is_equipment=True),
+            item("hands", 31, 1, name="Leather Gloves", known=True,
+                 fully_known=True, is_equipment=True),
+            item("feet", 30, 1, name="Soft Leather Boots", known=True,
+                 fully_known=True, is_equipment=True),
+        )
+        snapshot = self._town(inventory=(sword,), equipment=worn)
+        snapshot = replace(
+            snapshot,
+            player=replace(
+                snapshot.player,
+                stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18),
+                melee_skill=60, saving_skill=40,
+            ),
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )
+        policy = HengbotPolicy(monrace_knowledge={1: knowledge})
+        seed_character_calibration(policy, snapshot)
+        policy._equipment_catalog.observe_home_page([])
+        policy._fundraising_mode = "mine"
+        policy._town_was_in_town = True
+        return policy, snapshot, digger, sword, worn
+
+    @staticmethod
+    def _incident_target_preparation(snapshot, items, *_args, **_kwargs):
+        current = current_loadout(items)
+        replacement = next(
+            owned
+            for owned in items
+            if owned.origin == "pack" and owned.item.is_equipment
+        )
+        target = Loadout(
+            tuple(
+                (slot, owned)
+                for slot, owned in current.slots
+                if slot != "main_hand"
+            ) + (("main_hand", replacement),),
+            "one_handed",
+        )
+        result = OptimizationResult(
+            EvaluatedLoadout(target, LoadoutMetrics(1.0, 1.0, 1.0)),
+            (), (), frozenset(), 1, 1, 0, 0.0, False, frozenset(),
+        )
+        return policy_module.WarriorOptimizationPreparation(
+            current,
+            result,
+            policy_module.EquipmentTransactionPlan((), (), len(snapshot.inventory)),
+            (),
+        )
+
+    def test_live_fresh_replan_retains_displaced_worn_digger_to_completion(self):
+        """H2 fresh-search: choose_key owns the retained takeoff end to end."""
+        policy, snapshot, digger, sword, worn = (
+            self._live_worn_reserved_digger_seed()
+        )
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._incident_target_preparation,
+        ), patch.object(policy, "_town_restore_weapon_key", return_value=None):
+            first = policy.choose_key(snapshot)
+            if first == WAIT_KEY:
+                first = policy.choose_key(snapshot)
+        self.assertTrue(first.startswith(equipment_mutation_module.TAKEOFF_KEY))
+        state = policy.equipment_optimization_state(snapshot)
+        self.assertEqual(
+            state["search_catalog_origins"],
+            {"equipped": 7, "pack": 1, "home": 0},
+        )
+        self.assertEqual(state["preserve_pack_items"]["total"], 0)
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertNotIn(
+            policy_module.equipment_identity(digger),
+            {
+                action.item_identity
+                for action in session.plan.phase("home_finalize")
+            },
+        )
+        self.assertNotIn("home-route-unavailable", session.blockers)
+        self.assertTrue(policy.confirm_key_posted(first))
+
+        displaced = replace(digger, slot="b")
+        after_takeoff = replace(
+            snapshot, inventory=(sword, displaced), equipment=worn[1:], turn=1,
+        )
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._incident_target_preparation,
+        ), patch.object(policy, "_town_restore_weapon_key", return_value=None):
+            second = policy.choose_key(after_takeoff)
+        self.assertTrue(second.startswith(equipment_mutation_module.WIELD_KEY))
+        self.assertNotIn(policy_module.equipment_identity(digger), second)
+        self.assertTrue(policy.confirm_key_posted(second))
+        policy._fundraising_mode = None
+
+        complete = replace(
+            snapshot,
+            inventory=(replace(digger, slot="a"),),
+            equipment=(replace(sword, slot="main_hand"),) + worn[1:],
+            turn=2,
+        )
+        self.assertTrue(session.observe(
+            policy_module.observe_equipment_transactions(complete)
+        ))
+        self.assertTrue(session.complete)
+        self.assertFalse((policy.last_reason or "").endswith("home-route-unavailable"))
+
+    def test_live_cache_hit_replan_retains_displaced_worn_digger(self):
+        """H2 cache hit: pack-size replan keeps the displaced reservation."""
+        policy, snapshot, digger, _sword, _worn = (
+            self._live_worn_reserved_digger_seed()
+        )
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._incident_target_preparation,
+        ):
+            policy._prepare_equipment_optimization(snapshot)
+        policy._equipment_transaction_session = None
+        extra = item("b", TVAL_POTION, SV_POTION_CURE_CRITICAL, name="Cure")
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=self._incident_target_preparation,
+        ):
+            policy._prepare_equipment_optimization(
+                replace(snapshot, inventory=(*snapshot.inventory, extra))
+            )
+
+        self.assertEqual(
+            policy._equipment_optimization_telemetry["result_source"],
+            "signature-cache-hit",
+        )
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertNotIn(
+            policy_module.equipment_identity(digger),
+            {
+                action.item_identity
+                for action in session.plan.phase("home_finalize")
+            },
+        )
+        self.assertNotIn("home-route-unavailable", session.blockers)
+        self.assertIn(
+            policy_module.equipment_identity(digger),
+            {action.item_identity for action in session.plan.actions},
+        )
+
     def test_retained_incident_diggers_are_preserved_and_never_deposited(self):
         policy, snapshot, digger_ids, home_id, _ = (
             self._digger_withdrawal_incident()
@@ -55232,23 +55407,134 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         )
         self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
 
-        # The same physical kind now arrives from the pack view with a new
+        # The same physical kind now arrives in an equipped view with a new
         # origin-prefixed catalogue id.  The stall producer above and this
         # consumer share the same policy instance; quarantine must survive it.
         moved = item(
-            "a", TVAL_RING, 4, name=self.RING_NAME, known=True,
+            "main_ring", TVAL_RING, 4, name=self.RING_NAME, known=True,
             fully_known=True, is_equipment=True, known_flags=frozenset({62}),
         )
-        policy._equipment_catalog.refresh_carried([moved], town.equipment)
+        policy._equipment_catalog.refresh_carried(
+            town.inventory, (*town.equipment, moved)
+        )
         moved_owned = next(
             owned
             for owned in policy._equipment_catalog.items
-            if owned.origin == "pack"
+            if owned.origin == "equipped" and owned.item.slot == "main_ring"
         )
         self.assertNotEqual(moved_owned.id, ring_id)
-        self.assertTrue(policy._equipment_memory_contains(
-            policy._equipment_quarantine_second_chance_ids, moved_owned
-        ))
+        moved_town = replace(town, equipment=(*town.equipment, moved))
+        moved_preparation = policy._prepare_equipment_optimization(moved_town)
+        self.assertEqual(
+            moved_preparation.blockers,
+            ("equipment-transaction-failed",),
+            "the consumed quarantine must stop a real pack-origin target, not "
+            "merely remain discoverable through a private helper",
+        )
+
+    def test_failed_equipped_takeoff_quarantines_same_item_after_pack_move(self):
+        """M6 equipped->pack: a real refused takeoff changes selection."""
+        policy, town, _ring, _ring_id = self._policy_with_home_ring()
+        worn_ring = item(
+            "main_ring", TVAL_RING, 4, name=self.RING_NAME, known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+        )
+        worn = replace(town, equipment=(*town.equipment, worn_ring))
+        policy = HengbotPolicy(monrace_knowledge={1: self._monster()})
+        seed_character_calibration(policy, worn)
+        policy._equipment_catalog.observe_home_page([])
+        policy._town_was_in_town = True
+
+        def remove_ring(snapshot, items, *_args, **_kwargs):
+            current = current_loadout(items)
+            target = Loadout(
+                tuple(
+                    (slot, owned)
+                    for slot, owned in current.slots
+                    if slot != "main_ring"
+                ),
+                current.hand_mode,
+            )
+            result = OptimizationResult(
+                EvaluatedLoadout(target, LoadoutMetrics(1.0, 1.0, 1.0)),
+                (), (), frozenset(), 1, 1, 0, 0.0, False, frozenset(),
+            )
+            return policy_module.WarriorOptimizationPreparation(
+                current, result,
+                policy_module.EquipmentTransactionPlan(
+                    (), (), len(snapshot.inventory)
+                ),
+                (),
+            )
+
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=remove_ring,
+        ):
+            takeoff = policy.choose_key(worn)
+            self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY))
+            self.assertTrue(policy.confirm_key_posted(takeoff))
+            for turn in range(
+                1, policy_module.EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT + 3
+            ):
+                # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: unchanged equipped observations are the real refusal evidence that exhausts the posted takeoff confirmation window
+                policy.choose_key(replace(worn, turn=turn))
+                if policy._equipment_transaction_failed_items:
+                    break
+        equipped_id = next(
+            key
+            for key in policy._equipment_transaction_failed_items
+            if key.startswith("equipped:")
+        )
+
+        moved_ring = replace(worn_ring, slot="a")
+        moved = replace(
+            town, inventory=(moved_ring,), equipment=town.equipment,
+            turn=worn.turn + policy_module.EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT + 4,
+        )
+        moved_catalog = OwnedEquipmentCatalog()
+        moved_catalog.refresh_carried(moved.inventory, moved.equipment)
+        moved_id = next(
+            owned.id for owned in moved_catalog.items if owned.origin == "pack"
+        )
+
+        def select_ring(snapshot, items, *_args, **_kwargs):
+            current = current_loadout(items)
+            ring = next(
+                (owned for owned in items if owned.origin == "pack"), None
+            )
+            if ring is None:
+                return policy_module.WarriorOptimizationPreparation(
+                    current, None, None, ("no-valid-loadout",),
+                )
+            target = Loadout(current.slots + (("main_ring", ring),), current.hand_mode)
+            result = OptimizationResult(
+                EvaluatedLoadout(target, LoadoutMetrics(1.0, 1.0, 1.0)),
+                (), (), frozenset(), 1, 1, 0, 0.0, False, frozenset(),
+            )
+            return policy_module.WarriorOptimizationPreparation(
+                current, result,
+                policy_module.EquipmentTransactionPlan(
+                    (), (), len(snapshot.inventory)
+                ),
+                (),
+            )
+
+        policy._equipment_transaction_session = None
+        policy._equipment_catalog.refresh_carried(
+            moved.inventory, moved.equipment
+        )
+        with patch(
+            "hengbot.policy.prepare_warrior_optimization",
+            side_effect=select_ring,
+        ):
+            consumed = policy._prepare_equipment_optimization(moved)
+
+        self.assertNotEqual(
+            equipped_id,
+            moved_id,
+        )
+        self.assertEqual(consumed.blockers, ("equipment-transaction-failed",))
 
     def _second_ring(self):
         return store_item(
