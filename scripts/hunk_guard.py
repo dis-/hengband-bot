@@ -16,12 +16,14 @@ import sys
 import tempfile
 import textwrap
 import time
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import verify_scope
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.0"
+VERSION = "3.0"
+DEFAULT_MODULE_TIMEOUT = 900.0
 # Python's unified-diff generator joins edits separated by at most this many
 # unchanged lines at the default context width (3 + 3 + two boundary lines).
 ADJACENT_HUNK_GAP = 8
@@ -127,6 +129,7 @@ def prepare_tree(target: str) -> tuple[Path, Path]:
             destination = temp / area
             if destination.exists(): shutil.rmtree(destination)
             shutil.copytree(source, destination)
+    verify_scope.copy_runtime_artifacts(ROOT, temp)
     return temp, temp
 
 
@@ -209,9 +212,21 @@ def _is_incoherent_revert(section: str, root: Path, reverted_file: str,
     return any(match and match.group(1) in symbols for match in messages)
 
 
+@dataclass(frozen=True)
+class CandidateResult:
+    status: str
+    failures: frozenset[str] = frozenset()
+
+
+def _artifact_failure(stderr: str) -> bool:
+    return bool(re.search(
+        r"(?:FileNotFoundError|No such file or directory|could not find|missing (?:artifact|fixture))",
+        stderr, re.IGNORECASE))
+
+
 def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path,
                   reverted_file: str | None = None,
-                  symbols: set[str] | None = None) -> set[str]:
+                  symbols: set[str] | None = None) -> CandidateResult:
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root / "tests")))
@@ -221,26 +236,80 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path,
             run = subprocess.run(command, cwd=root, env=env, stdout=subprocess.PIPE, stderr=err,
                                  text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return set()
+        return CandidateResult("TIMEOUT")
     if run.returncode == 0:
-        return set()
+        return CandidateResult("PASS")
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+    if _artifact_failure(stderr):
+        return CandidateResult("ARTIFACT-SKIPPED")
     # Classify each reported failure independently.  A real test may quite
     # legitimately pin behavior by asserting that an exception is raised;
     # exception text elsewhere in the same module run must not erase it.
     # unittest's loader/collection failures are the structural non-pins.
     sections = _failure_sections(stderr)
-    return {test_id for test_id in verify_scope.parse_test_failures(stderr)
+    failures = {test_id for test_id in verify_scope.parse_test_failures(stderr)
             if not test_id.startswith("unittest.loader._FailedTest.")
             and "._FailedTest." not in test_id
             and not (reverted_file and _is_incoherent_revert(
                 sections.get(test_id, ""), root, reverted_file, symbols or set()))}
+    return CandidateResult("FAIL" if failures else "ERROR", frozenset(failures))
 
 
 def compiles(root: Path, relative: str) -> bool:
     run = subprocess.run([sys.executable, "-m", "py_compile", relative], cwd=root,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return run.returncode == 0
+
+
+def hunk_symbols(root: Path, target: str, group: list[dict[str, object]]) -> set[str]:
+    """Return changed names plus enclosing top-level definitions for a hunk."""
+    import ast
+    names = set().union(*(introduced_symbols(hunk["body"]) for hunk in group))
+    for hunk in group:
+        text = verify_scope.source_at(root, target, str(hunk["file"]))
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        start, end = int(hunk["line_start"]), int(hunk["line_end"])
+        enclosing = [node for node in ast.walk(tree)
+                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                     and node.lineno <= end and getattr(node, "end_lineno", node.lineno) >= start]
+        if enclosing:
+            smallest_span = min(getattr(node, "end_lineno", node.lineno) - node.lineno
+                                for node in enclosing)
+            names.update(node.name for node in enclosing
+                         if getattr(node, "end_lineno", node.lineno) - node.lineno == smallest_span)
+    return names
+
+
+def modules_for_hunk(root: Path, target: str, group: list[dict[str, object]],
+                     candidates: list[str]) -> list[str]:
+    names = hunk_symbols(root, target, group)
+    owners = {f"tests.test_{Path(str(h['file'])).stem}" for h in group}
+    selected = []
+    for module in candidates:
+        relative = "tests/" + module.removeprefix("tests.") + ".py"
+        source = verify_scope.source_at(root, target, relative)
+        if module in owners or any(re.search(rf"\b{re.escape(name)}\b", source) for name in names):
+            selected.append(module)
+    return selected
+
+
+def source_text_only_tests(root: Path, target: str, modules: list[str]) -> set[tuple[str, str]]:
+    """Return lint-identified source-text-only tests, which cannot protect code."""
+    try:
+        import test_fakery_lint
+    except ImportError:
+        return set()
+    result = set()
+    for module in modules:
+        relative = "tests/" + module.removeprefix("tests.") + ".py"
+        source = verify_scope.source_at(root, target, relative)
+        for finding in test_fakery_lint.analyze_source(source, Path(relative)):
+            if finding.rule == "source-text-only-assertions":
+                result.add((module, finding.test))
+    return result
 
 
 def cleanup_tree(path: Path) -> None:
@@ -251,12 +320,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base")
     parser.add_argument("--target", default="WORKTREE")
-    parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--timeout", type=float, default=DEFAULT_MODULE_TIMEOUT,
+                        help="per-module timeout (default: %(default)ss)")
+    parser.add_argument("--budget-seconds", type=float,
+                        help="total hunk-evaluation budget; remaining hunks are reported NOT-EVALUATED")
     parser.add_argument("--output")
     parser.add_argument("--wide", action="store_true", help="include the full derived module sweep")
     parser.add_argument("--hunk", type=int, action="append", help="limit to a one-based diff hunk (diagnostic reconstruction)")
     parser.add_argument("--interrupt-after-revert", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.timeout <= 0 or args.budget_seconds is not None and args.budget_seconds < 0:
+        parser.error("timeouts and budgets must be positive (a zero budget is allowed)")
+    started = time.monotonic()
     live_before = verify_scope.tree_fingerprint(ROOT)
     base = verify_scope.resolve_base(ROOT, args.base, args.target)
     target = args.target if args.target == "WORKTREE" else verify_scope.git(ROOT, "rev-parse", args.target).strip()
@@ -277,19 +352,26 @@ def main(argv: list[str] | None = None) -> int:
         preferred.append(f"tests.test_{Path(path).stem}")
     preferred = list(dict.fromkeys(m for m in preferred if m in scope["modules"]))
     candidates = preferred + ([m for m in scope["modules"] if m not in preferred] if args.wide else [])
+    groups = group_hunks(hunks)
+    per_group_candidates = [modules_for_hunk(ROOT, target, group, candidates) for group in groups]
+    candidates = list(dict.fromkeys(module for modules in per_group_candidates for module in modules))
     sandbox, _ = prepare_tree(target)
     original = file_hashes(sandbox)
     original_bytes = {rel: (sandbox / rel).read_bytes() for rel in original}
     results = []
     try:
-        baseline: dict[str, set[str]] = {}
+        baseline: dict[str, CandidateResult] = {}
+        remaining = None if args.budget_seconds is None else args.budget_seconds - (time.monotonic() - started)
+        baseline_timeout = args.timeout if remaining is None else max(0.001, min(args.timeout, remaining))
+        baseline_candidates = candidates if remaining is None or remaining > 0 else []
         with ThreadPoolExecutor(max_workers=4) as pool:
-            jobs = {pool.submit(run_candidate, sandbox, module, args.timeout,
+            jobs = {pool.submit(run_candidate, sandbox, module, baseline_timeout,
                                 ROOT / "jsonlog" / "hunk-guard" / f"baseline-{module}.stderr.log"): module
-                    for module in candidates}
+                    for module in baseline_candidates}
             for job in as_completed(jobs):
                 baseline[jobs[job]] = job.result()
-        for number, group in enumerate(group_hunks(hunks), 1):
+        ineligible = source_text_only_tests(ROOT, target, candidates)
+        for number, group in enumerate(groups, 1):
             kinds = [classify(hunk["body"]) for hunk in group]
             behavioral = [hunk for hunk, kind in zip(group, kinds) if kind == "behavioral"]
             files = list(dict.fromkeys(str(h["file"]) for h in group))
@@ -301,30 +383,66 @@ def main(argv: list[str] | None = None) -> int:
                 record["protecting_test_id"] = None
                 record["result"] = "SKIPPED"
                 results.append(record); continue
+            hunk_candidates = per_group_candidates[number - 1]
+            record["candidate_modules"] = hunk_candidates
+            elapsed = time.monotonic() - started
+            if args.budget_seconds is not None and elapsed >= args.budget_seconds:
+                record.update(protecting_test_id=None, result="NOT-EVALUATED",
+                              reason="BUDGET-EXHAUSTED")
+                results.append(record); continue
             new_file = any(hunk["new_file"] for hunk in group)
-            for hunk in reversed(group):
-                relative = str(hunk["file"])
-                if hunk["new_file"]:
-                    if (sandbox / relative).exists():
-                        (sandbox / relative).unlink()
-                else:
-                    apply_patch(sandbox, str(hunk["patch"]), reverse=True)
             try:
+                try:
+                    for hunk in reversed(group):
+                        relative = str(hunk["file"])
+                        if hunk["new_file"]:
+                            if (sandbox / relative).exists():
+                                (sandbox / relative).unlink()
+                        else:
+                            apply_patch(sandbox, str(hunk["patch"]), reverse=True)
+                except RuntimeError as error:
+                    record.update(protecting_test_id=None, result="REVERT-UNAPPLIABLE",
+                                  reason=str(error))
+                    results.append(record); continue
                 if args.interrupt_after_revert:
                     raise KeyboardInterrupt("simulated interrupt")
                 protector = None
-                if not new_file and all(compiles(sandbox, path) for path in files):
+                outcomes = {}
+                if not new_file and not all(compiles(sandbox, path) for path in files):
+                    record.update(protecting_test_id=None, result="REVERT-UNAPPLIABLE",
+                                  reason="reverse-patched source does not compile")
+                elif not new_file:
                     symbols = set().union(*(introduced_symbols(hunk["body"]) for hunk in behavioral))
-                    for module in candidates:
-                        failures = run_candidate(sandbox, module, args.timeout,
+                    for module in hunk_candidates:
+                        remaining = None if args.budget_seconds is None else args.budget_seconds - (time.monotonic() - started)
+                        if remaining is not None and remaining <= 0:
+                            outcomes["budget"] = "NOT-EVALUATED"
+                            break
+                        timeout = args.timeout if remaining is None else min(args.timeout, remaining)
+                        outcome = run_candidate(sandbox, module, timeout,
                             ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log",
                             files[0] if len(files) == 1 else None, symbols)
-                        new_failures = failures - baseline[module]
+                        outcomes[module] = outcome.status
+                        new_failures = outcome.failures - baseline[module].failures
+                        new_failures = {test_id for test_id in new_failures
+                                        if not any(test_id.startswith(module + ".") and test_id.endswith("." + method)
+                                                   for module, method in ineligible)}
                         if new_failures:
                             protector = sorted(new_failures)[0]; break
-                record["protecting_test_id"] = protector
-                record["result"] = ("NEW-FILE-UNVERIFIED" if new_file else
-                                    ("PROTECTED" if protector else "UNPROTECTED"))
+                    record["module_outcomes"] = outcomes
+                    if protector:
+                        record.update(protecting_test_id=protector, result="PROTECTED")
+                    elif "TIMEOUT" in outcomes.values():
+                        record.update(protecting_test_id=None, result="TIMEOUT")
+                    elif "ARTIFACT-SKIPPED" in outcomes.values():
+                        record.update(protecting_test_id=None, result="ARTIFACT-SKIPPED")
+                    elif "NOT-EVALUATED" in outcomes.values():
+                        record.update(protecting_test_id=None, result="NOT-EVALUATED",
+                                      reason="BUDGET-EXHAUSTED")
+                    else:
+                        record.update(protecting_test_id=None, result="UNPROTECTED")
+                else:
+                    record.update(protecting_test_id=None, result="NEW-FILE-UNVERIFIED")
                 results.append(record)
             finally:
                 for rel, content in original_bytes.items():
@@ -334,17 +452,17 @@ def main(argv: list[str] | None = None) -> int:
         payload = {"tool": {"name": "hunk_guard", "version": VERSION, "base_ref": base, "target": target,
                             "tree_fingerprint": verify_scope.tree_fingerprint(sandbox)},
                    "candidate_modules": candidates, "hunks": results,
-                   "summary": {"protected": sum(r["result"] == "PROTECTED" for r in results),
-                               "unprotected": sum(r["result"] == "UNPROTECTED" for r in results),
-                               "new_file_unverified": sum(r["result"] == "NEW-FILE-UNVERIFIED" for r in results),
-                               "skipped": sum(r["result"] == "SKIPPED" for r in results)}}
+                   "summary": {name.lower().replace("-", "_"): sum(r["result"] == name for r in results)
+                               for name in ("PROTECTED", "UNPROTECTED", "REVERT-UNAPPLIABLE", "TIMEOUT",
+                                            "ARTIFACT-SKIPPED", "NOT-EVALUATED", "NEW-FILE-UNVERIFIED", "SKIPPED")}}
         if not any(r["classification"] == "behavioral" for r in results):
             payload["warnings"] = ["NO-BEHAVIORAL-HUNKS"]
         rendered = json.dumps(payload, indent=2, sort_keys=True)
         print(rendered)
-        print(f"hunk_guard: {payload['summary']['protected']} protected, {payload['summary']['unprotected']} UNPROTECTED, {payload['summary']['new_file_unverified']} NEW-FILE-UNVERIFIED, {payload['summary']['skipped']} explicitly skipped", file=sys.stderr)
+        print("hunk_guard: " + ", ".join(f"{count} {name.upper().replace('_', '-')}"
+              for name, count in payload["summary"].items()), file=sys.stderr)
         if args.output: Path(args.output).write_text(rendered + "\n", encoding="utf-8")
-        return int(payload["summary"]["unprotected"] > 0 or payload["summary"]["new_file_unverified"] > 0)
+        return int(any(r["result"] not in {"PROTECTED", "SKIPPED"} for r in results))
     finally:
         for rel, content in original_bytes.items():
             (sandbox / rel).write_bytes(content)

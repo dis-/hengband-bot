@@ -23,8 +23,8 @@ MUTATIONS = {
         "    if any(name in stderr for name in (\"NameError\", \"AttributeError\", \"ImportError\")):\n        return set()\n    sections = _failure_sections(stderr)\n",
     ),
     "inline-literal-answer-key": (
-        "                        new_failures = failures - baseline[module]\n",
-        "                        new_failures = failures - {'test_demo.T.test_pin'}\n",
+        "                        new_failures = outcome.failures - baseline[module].failures\n",
+        "                        new_failures = outcome.failures - {'test_demo.T.test_pin'}\n",
     ),
     "docstring-prose-fallback-removed": (
         "            return \"nonbehavioral-docstring-prose\"\n",

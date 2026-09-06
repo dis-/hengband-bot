@@ -110,14 +110,14 @@ class VerificationGateSelfTest(unittest.TestCase):
 
     def test_timeout_and_import_failures_never_protect(self) -> None:
         with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["x"], 1)):
-            self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, Path(tempfile.gettempdir()) / "x.err"), set())
+            self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, Path(tempfile.gettempdir()) / "x.err").status, "TIMEOUT")
         for error in ("AttributeError", "TypeError", "IndentationError", "TabError"):
             with tempfile.TemporaryDirectory() as name:
                 stderr = Path(name) / "x.err"
                 completed = subprocess.CompletedProcess([], 1, stdout="")
                 with mock.patch("subprocess.run", return_value=completed):
                     stderr.write_text(f"{error}: broken\n")
-                    self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr), set())
+                    self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr).failures, frozenset())
 
     def test_incoherent_revert_error_is_rejected_but_assertion_pin_counts(self) -> None:
         with tempfile.TemporaryDirectory() as name:
@@ -138,7 +138,7 @@ class VerificationGateSelfTest(unittest.TestCase):
             with mock.patch("subprocess.run", side_effect=failing_run):
                 self.assertEqual(hunk_guard.run_candidate(
                     root, "tests.x", 1, stderr, "src/hengbot/demo.py", {"helper"}),
-                    {"test_foo.ComputeTest.test_pin"})
+                    hunk_guard.CandidateResult("FAIL", frozenset({"test_foo.ComputeTest.test_pin"})))
 
     def test_deepest_frame_and_introduced_symbol_both_bind_discriminator(self) -> None:
         root = Path.cwd(); source = root / "src/hengbot/demo.py"
@@ -217,6 +217,79 @@ class VerificationGateSelfTest(unittest.TestCase):
                 payload = json.loads(output.getvalue())
                 self.assertEqual(payload["hunks"][0]["result"], "PROTECTED")
 
+    def test_hunk_local_pruning_uses_only_intersecting_modules(self) -> None:
+        with SyntheticRepo() as repo:
+            (repo.root / "tests/test_unrelated.py").write_text(
+                "import unittest\nclass U(unittest.TestCase):\n    def test_other(self): pass\n", encoding="utf-8")
+            repo.change()
+            group = hunk_guard.parse_hunks(command(repo.root, "git", "diff", "--unified=0", repo.base,
+                                                   "--", "src/hengbot"))
+            selected = hunk_guard.modules_for_hunk(
+                repo.root, "WORKTREE", group, ["tests.test_demo", "tests.test_unrelated"])
+            self.assertEqual(selected, ["tests.test_demo"])
+
+    def test_artifact_failure_is_loud_and_never_protects(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            stderr = Path(name) / "artifact.err"
+            def artifact_run(*args, **kwargs):
+                kwargs["stderr"].write(
+                    "ERROR: setUpClass (test_incident.T)\nFileNotFoundError: missing fixture.jsonl\n")
+                return subprocess.CompletedProcess([], 1, stdout="")
+            with mock.patch("subprocess.run", side_effect=artifact_run):
+                result = hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr)
+            self.assertEqual((result.status, result.failures), ("ARTIFACT-SKIPPED", frozenset()))
+
+    def test_reverse_patch_syntax_error_is_revert_unappliable(self) -> None:
+        with SyntheticRepo() as repo:
+            repo.change()
+            patches = (mock.patch.object(verify_scope, "ROOT", repo.root),
+                       mock.patch.object(hunk_guard, "ROOT", repo.root),
+                       mock.patch.object(verify_scope, "ALWAYS_MODULES", set()),
+                       mock.patch.object(verify_scope, "KNOWN_FAILURES", ()),
+                       mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}))
+            real_apply = hunk_guard.apply_patch
+            def invalid_revert(root, patch, reverse):
+                real_apply(root, patch, reverse)
+                (root / "src/hengbot/demo.py").write_text("def value(:\n", encoding="utf-8")
+            with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                 mock.patch.object(hunk_guard, "apply_patch", side_effect=invalid_revert), \
+                 io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide", "--timeout", "10"]), 1)
+                payload = json.loads(output.getvalue())
+            self.assertEqual(payload["hunks"][0]["result"], "REVERT-UNAPPLIABLE")
+
+    def test_budget_reports_every_hunk_as_not_evaluated(self) -> None:
+        with SyntheticRepo() as repo:
+            repo.change()
+            with mock.patch.object(verify_scope, "ROOT", repo.root), \
+                 mock.patch.object(hunk_guard, "ROOT", repo.root), \
+                 mock.patch.object(verify_scope, "ALWAYS_MODULES", set()), \
+                 mock.patch.object(verify_scope, "KNOWN_FAILURES", ()), \
+                 mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}), \
+                 io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide", "--budget-seconds", "0"]), 1)
+                payload = json.loads(output.getvalue())
+            self.assertEqual(payload["hunks"][0]["result"], "NOT-EVALUATED")
+
+    def test_timeout_and_artifact_outcomes_are_hunk_verdicts(self) -> None:
+        for candidate_status in ("TIMEOUT", "ARTIFACT-SKIPPED"):
+            with self.subTest(candidate_status=candidate_status), SyntheticRepo() as repo:
+                repo.change()
+                def outcome(*args, **kwargs):
+                    stderr = args[3]
+                    return hunk_guard.CandidateResult(
+                        "PASS" if Path(stderr).name.startswith("baseline-") else candidate_status)
+                with mock.patch.object(verify_scope, "ROOT", repo.root), \
+                     mock.patch.object(hunk_guard, "ROOT", repo.root), \
+                     mock.patch.object(verify_scope, "ALWAYS_MODULES", set()), \
+                     mock.patch.object(verify_scope, "KNOWN_FAILURES", ()), \
+                     mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}), \
+                     mock.patch.object(hunk_guard, "run_candidate", side_effect=outcome), \
+                     io.StringIO() as output, contextlib.redirect_stdout(output):
+                    self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide"]), 1)
+                    payload = json.loads(output.getvalue())
+                self.assertEqual(payload["hunks"][0]["result"], candidate_status)
+
     def test_new_file_branch_and_no_behavioral_warning_are_real(self) -> None:
         diff = "diff --git a/src/hengbot/new.py b/src/hengbot/new.py\nnew file mode 100644\n--- /dev/null\n+++ b/src/hengbot/new.py\n@@ -0,0 +1 @@\n+x = 1\n"
         self.assertTrue(hunk_guard.parse_hunks(diff)[0]["new_file"])
@@ -230,7 +303,7 @@ class VerificationGateSelfTest(unittest.TestCase):
         ]
         self.assertEqual([len(group) for group in hunk_guard.group_hunks(hunks)], [1, 1, 1])
         source = Path(hunk_guard.__file__).read_text(encoding="utf-8")
-        self.assertIn('"NEW-FILE-UNVERIFIED" if new_file', source)
+        self.assertIn('result="NEW-FILE-UNVERIFIED"', source)
 
     def test_failed_loader_is_never_a_protector_even_for_structural_changes(self) -> None:
         with tempfile.TemporaryDirectory() as name:
@@ -241,7 +314,7 @@ class VerificationGateSelfTest(unittest.TestCase):
                     "structural collection failure\n")
                 return subprocess.CompletedProcess([], 1, stdout="")
             with mock.patch("subprocess.run", side_effect=loader_failure):
-                self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr), set())
+                self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr).status, "ERROR")
 
     def test_exception_text_does_not_void_a_real_failing_test(self) -> None:
         for error in ("ImportError", "ModuleNotFoundError", "NameError", "SyntaxError",
@@ -255,8 +328,8 @@ class VerificationGateSelfTest(unittest.TestCase):
                     kwargs["stderr"].flush()
                     return subprocess.CompletedProcess([], 1, stdout="")
                 with mock.patch("subprocess.run", side_effect=failing_run):
-                    self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr),
-                                     {"test_demo.T.test_pin"})
+                    self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr).failures,
+                                     frozenset({"test_demo.T.test_pin"}))
 
     def test_answer_key_cannot_be_reintroduced_under_historical_name(self) -> None:
         self.assertFalse(hasattr(hunk_guard, "INELIGIBLE_PROTECTORS"))
@@ -269,8 +342,8 @@ class VerificationGateSelfTest(unittest.TestCase):
                     "FAIL: test_pin (test_demo.T.test_pin)\nAssertionError: NameError ImportError AttributeError\n")
                 return subprocess.CompletedProcess([], 1, stdout="")
             with mock.patch("subprocess.run", side_effect=failing_run):
-                self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr),
-                                 {"test_demo.T.test_pin"})
+                self.assertEqual(hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr).failures,
+                                 frozenset({"test_demo.T.test_pin"}))
 
     def test_new_file_and_no_behavioral_results_come_from_main(self) -> None:
         with SyntheticRepo() as repo, mock.patch.object(verify_scope, "ROOT", repo.root), \
@@ -327,7 +400,8 @@ class VerificationGateSelfTest(unittest.TestCase):
             if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Sub):
                 continue
             left_names = {item.id for item in ast.walk(node.left) if isinstance(item, ast.Name)}
-            if left_names & {"failures", "new_failures"} and isinstance(
+            left_attributes = {item.attr for item in ast.walk(node.left) if isinstance(item, ast.Attribute)}
+            if (left_names & {"failures", "new_failures"} or "failures" in left_attributes) and isinstance(
                     node.right, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
                 offenders.append(node.lineno)
         self.assertEqual(offenders, [])
