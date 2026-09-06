@@ -32,17 +32,19 @@ from hengbot.model import (
     InventoryItem,
     Snapshot,
 )
-from hengbot.policy_constants import PACK_CAPACITY, STORE_STUCK_LIMIT, WAIT_KEY
+from hengbot.policy_constants import (
+    CHARACTER_DUMP_MACRO,
+    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+    PACK_CAPACITY,
+    STORE_STUCK_LIMIT,
+    WAIT_KEY,
+)
 from hengbot.warrior_optimization import (
     CharacterCalibration,
     calibrate_character_constants,
     load_character_calibration,
     save_character_calibration,
 )
-
-
-CHARACTER_DUMP_MACRO = "Cf\ry\x1b\x1b"
-EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
 
 
 class CalibrationMixin:

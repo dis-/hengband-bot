@@ -58,6 +58,9 @@ class PolicyStructureTest(unittest.TestCase):
 
     def test_equip_swap_checkpoint_round_trip_is_byte_stable(self):
         definitions = find_monrace_definitions(EQUIP_SWAP, None)
+        repository_definitions = ROOT.parent / "lib" / "edit" / "MonraceDefinitions.jsonc"
+        if repository_definitions.is_file():
+            self.assertIsNotNone(definitions)
         if definitions is None:
             self.skipTest(
                 "MonraceDefinitions.jsonc is unavailable in the detached verification checkout"

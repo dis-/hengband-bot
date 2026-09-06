@@ -94,7 +94,9 @@ from hengbot.policy_types import (
 )
 from hengbot.policy_constants import (
     BUY_KEY,
+    CHARACTER_DUMP_MACRO,
     DOWN_STAIRS_KEY,
+    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
@@ -483,7 +485,6 @@ ENTER_DUNGEON_MACRO = ">\ry"
 # (stats, resistances, equipment). C = character screen, f = file dump, Return
 # accepts the default filename, y confirms an overwrite, and two Escapes return to
 # the command loop (so the next snapshot is emitted). Spare Escapes are harmless.
-CHARACTER_DUMP_MACRO = "Cf\ry\x1b\x1b"
 # Rest until HP/SP recover or we are disturbed. The rest prompt defaults to "&"
 # (rest as needed); we type it explicitly and confirm with Return.
 REST_MACRO = "R&\r"
@@ -1005,7 +1006,6 @@ LANTERN_MIN_GOLD = 1
 # Posted equipment commands get the reviewed store no-progress budget.  The
 # observation count remains diagnostic: exhaustion releases the session as a
 # visible failure and never substitutes for the action's physical postcondition.
-EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
 # Oscillating store-approach turns (while _is_oscillating) tolerated before giving
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
