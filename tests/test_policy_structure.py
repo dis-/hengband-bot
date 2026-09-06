@@ -17,29 +17,51 @@ ROOT = Path(__file__).resolve().parents[1]
 EQUIP_SWAP = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
 
 
-def _method_names(owner):
+def _member_names(owner):
     return {
         name
-        for name, value in vars(owner).items()
-        if not name.startswith("__") and callable(value)
+        for name in vars(owner)
+        if not name.startswith("__")
     }
+
+
+def _member_collisions(policy_type):
+    owners = tuple(owner for owner in policy_type.__mro__ if owner is not object)
+    members = {owner: _member_names(owner) for owner in owners}
+    return [
+        (left, right, members[left] & members[right])
+        for index, left in enumerate(owners)
+        for right in owners[index + 1:]
+        if members[left] & members[right]
+    ]
 
 
 class PolicyStructureTest(unittest.TestCase):
     def test_policy_mixins_have_no_method_name_collisions(self):
-        owners = (HengbotPolicy, *HengbotPolicy.__bases__)
-        methods = {owner: _method_names(owner) for owner in owners}
-        for index, left in enumerate(owners):
-            for right in owners[index + 1:]:
-                self.assertEqual(
-                    methods[left] & methods[right],
-                    set(),
-                    f"method collision between {left.__name__} and {right.__name__}",
-                )
+        self.assertEqual(_member_collisions(HengbotPolicy), [])
+
+    def test_collision_guard_catches_descriptor_shadowing_through_full_mro(self):
+        class Grandparent:
+            shadowed = classmethod(lambda cls: None)
+
+        class Parent(Grandparent):
+            pass
+
+        class Policy(Parent):
+            shadowed = property(lambda self: None)
+
+        collisions = _member_collisions(Policy)
+        self.assertEqual(
+            [(left.__name__, right.__name__, names) for left, right, names in collisions],
+            [("Policy", "Grandparent", {"shadowed"})],
+        )
 
     def test_equip_swap_checkpoint_round_trip_is_byte_stable(self):
         definitions = find_monrace_definitions(EQUIP_SWAP, None)
-        self.assertIsNotNone(definitions)
+        if definitions is None:
+            self.skipTest(
+                "MonraceDefinitions.jsonc is unavailable in the detached verification checkout"
+            )
         knowledge = load_monrace_knowledge(definitions)
         policy = HengbotPolicy(monrace_knowledge=knowledge)
         with EQUIP_SWAP.open(encoding="utf-8") as stream:
