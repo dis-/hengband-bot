@@ -1,7 +1,7 @@
 # SOL-ROADMAP-policy-split.md
 
 Split roadmap for `src/hengbot/policy.py` (38,239 lines / 1.67 MB).
-Drafted 2026-09-06. Status: **proposed, awaiting user approval.** Nothing here is dispatched yet.
+Drafted 2026-09-06. Status: **APPROVED (user 2026-09-06, decisions in §9); Phases 0-2 landed.**
 
 Execution model: **sol implements one phase per commit; Claude reviews each phase before the next
 is dispatched.** Phases are strictly sequential (single-writer discipline). No phase may begin while
@@ -825,9 +825,24 @@ Binding for every phase. A violation is grounds for revert, not a review comment
 - Phase 2 F4 (constants consolidation): `policy_identification.py` duplicated
   23 constants still defined in `policy.py`; 12 of the policy-side copies were
   dead after the identification move. Resolved by defining the shared values
-  once in `policy_constants.py` and importing only each module's consumers.
+  once in `policy_constants.py` and policy.py re-imports all consolidated names from policy_constants (re-export compatibility: tests and scripts access several via hengbot.policy attributes, which is WHY zero-Load deletions were safe).
 - Phase 2 F5 (derived-neighbour authority): the identification mixin rewrote
   `NEIGHBOR_OFFSETS` as an expanded literal instead of retaining
   `tuple(DIRECTION_KEYS.keys())`. Resolved by moving `DIRECTION_KEYS` alongside
   the shared constants and deriving `NEIGHBOR_OFFSETS` exactly once in
   `policy_constants.py`.
+
+- Phase 2 (9af9d8c): the roadmap's Phase 2 section says 29 methods, but its
+  literal prefix list matches only 21; these 8 identification/chest methods
+  remain in policy.py for a later residue commit: _is_processable_chest,
+  _normal_identification_flow_candidate, _reserve_next_identification_source,
+  _release_identification_source_reservation,
+  _town_equipped_identification_key, _request_identification,
+  _retain_identification_source_owner, _defer_full_identification.
+- Phase 2 rework (6d39996) follow-ups queued as Phase 3 riders: hunk_guard
+  F2 any() short-circuits on the first non-parsing line (prose-first mixed
+  hunks still SKIPPED); dead LEAVE_STORE_KEY import in
+  policy_identification.py; fix-event receipts must list path+sha256 pairs
+  (the rework event regressed to hashes only); scripts self-test suite
+  (scripts/test_verification_gates.py) is outside parallel/serial discovery
+  and must be run focused whenever scripts/ changes.
