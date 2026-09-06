@@ -692,7 +692,11 @@ def apply_mutation(package: Path, mutation: Mutation) -> tuple[bool, str | None]
     return True, None
 
 
-FAILURE_RE = re.compile(r"^(?:FAIL|ERROR): (\S+) \(([^)]+)\)$", re.MULTILINE)
+FAILURE_RE = re.compile(
+    r"^(?:FAIL|ERROR): \S+ \(([^)]+)\)"
+    r"(?: \[[^\r\n]*\]| \([^\r\n]*\))?$",
+    re.MULTILINE,
+)
 RAN_RE = re.compile(r"^Ran (\d+) tests?", re.MULTILINE)
 ASSERTION_RE = re.compile(r"^(?:AssertionError|[A-Za-z_.]+Error): (.+)$", re.MULTILINE)
 MISSING_EVIDENCE_RE = re.compile(
@@ -723,7 +727,7 @@ def run_tests(package_parent: Path, full_suite: bool) -> dict:
     failures = []
     skipped_missing_evidence = []
     for match in FAILURE_RE.finditer(output):
-        _method, container = match.groups()
+        (container,) = match.groups()
         next_header = FAILURE_RE.search(output, match.end())
         block = output[match.start():next_header.start() if next_header else len(output)]
         if MISSING_EVIDENCE_RE.search(block):

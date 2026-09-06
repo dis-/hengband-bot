@@ -3493,22 +3493,43 @@ class HengbotPolicy(TownArbiterMixin):
             owned.item for slot, owned in current_slots.items() if slot in displaced_slots
         )
         # Match object_sort_comp's ordering decisions that are represented on
-        # InventoryItem (object-sort.cpp:40-107, 126-152): tval descending,
-        # sval ascending, artifact/ego rank ascending, then value descending.
-        # Awareness/knownness precede sval/rank in the C++ comparator.  The
-        # emitter has no calc_price field; fuel is the value discriminator for
-        # the same-sval light stacks whose order matters to retention.
+        # InventoryItem (object-sort.cpp:40-107, 126-154): tval descending,
+        # sval ascending, artifact/ego rank ascending, ammo bonuses ascending,
+        # then calc_price descending.  Equal keys deliberately stay in input
+        # order: inven_carry inserts the displaced item after equal existing
+        # stock (inventory-object.cpp:307-313), and reorder_pack is stable.
         def pack_sort_key(item: InventoryItem) -> tuple:
             rank = 3 if item.is_artifact else 1 if item.is_ego else 0
             ammo_bonus = item.to_h + item.to_d if item.is_ammo else 0
-            value_proxy = item.fuel if item.is_light else ammo_bonus
+            # For equal tval/sval/rank, base cost is equal.  These are the
+            # represented variable calc_price terms from object-value.cpp:
+            # 160-205.  In particular DIGGING and other weapons add
+            # (to_h + to_d + to_a) * 100; lights have no fuel term.
+            if item.tval in {
+                TVAL_BOW, TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD,
+            }:
+                price_adjustment = (
+                    item.to_h + item.to_d + item.to_a
+                ) * 100
+            elif item.tval in {TVAL_RING, TVAL_AMULET}:
+                price_adjustment = (
+                    item.to_h + item.to_d + item.to_a
+                ) * 200
+            elif item.tval in {
+                TVAL_BOOTS, TVAL_GLOVES, TVAL_CLOAK, TVAL_CROWN, TVAL_HELM,
+                TVAL_SHIELD, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR,
+            }:
+                price_adjustment = (item.to_h + item.to_d) * 200 + item.to_a * 100
+            else:
+                price_adjustment = 0
             return (
                 -item.tval,
                 not item.aware,
                 item.sval,
                 not item.known,
                 rank,
-                -value_proxy,
+                ammo_bonus,
+                -price_adjustment,
             )
 
         projected_inventory = sorted(

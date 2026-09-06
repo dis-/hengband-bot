@@ -46268,34 +46268,70 @@ class RetentionAuthorityTest(unittest.TestCase):
 
 
     def test_takeoff_projection_uses_real_two_torch_pack_order(self):
-        """Plan-time retention agrees with each real post-takeoff ordering."""
-        for worn_fuel, expected_retained in ((5000, True), (100, False)):
-            with self.subTest(worn_fuel=worn_fuel):
-                carried = item(
-                    "a", TVAL_LITE, 0, name="carried torch", count=10,
-                    fuel=1000, known=True, fully_known=True,
-                    is_equipment=True,
-                )
-                worn = item(
+        """Plan time matches inven_carry for displaced-first and -last cases."""
+        cases = (
+            {
+                "name": "fuel-5000-torch-displaced-last",
+                "pack": (
+                    item(
+                        "a", TVAL_LITE, 0, name="carried torch", count=10,
+                        fuel=1000, known=True, fully_known=True,
+                        is_equipment=True,
+                    ),
+                ),
+                "worn": item(
                     "light", TVAL_LITE, 0, name="worn torch", count=1,
-                    fuel=worn_fuel, known=True, fully_known=True,
+                    fuel=5000, known=True, fully_known=True,
                     is_equipment=True,
-                )
+                ),
+                # Equal calc_price: inven_carry places the new takeoff after
+                # existing stock.  Fuel is not an object-value term.
+                "insertion_index": 1,
+                "retained": False,
+            },
+            {
+                "name": "enchanted-digger-displaced-first",
+                "pack": (
+                    item(
+                        "a", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                        name="plain shovel A", known=True, fully_known=True,
+                        is_equipment=True,
+                    ),
+                    item(
+                        "b", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                        name="plain shovel B", known=True, fully_known=True,
+                        is_equipment=True,
+                    ),
+                ),
+                "worn": item(
+                    "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+                    name="enchanted shovel", to_h=9, to_d=9,
+                    known=True, fully_known=True, is_equipment=True,
+                ),
+                # object_value_real's DIGGING branch adds
+                # (to_h + to_d + to_a) * 100, so inven_carry inserts first.
+                "insertion_index": 0,
+                "retained": True,
+            },
+        )
+        for case in cases:
+            with self.subTest(case=case["name"]):
                 policy = HengbotPolicy()
-                snapshot = self._town([carried], equipment=[worn])
+                policy._fundraising_mode = "mine"
+                worn = case["worn"]
+                snapshot = self._town(case["pack"], equipment=[worn])
                 policy._equipment_catalog.refresh_carried(
                     snapshot.inventory, snapshot.equipment
                 )
                 catalog = policy._equipment_catalog.items
-                current = current_loadout(catalog)
-                target = Loadout((), "empty")
                 projected = policy._transaction_retain_identities(
-                    snapshot, current, target
+                    snapshot, current_loadout(catalog), Loadout((), "empty")
                 )
 
-                real_order = sorted(
-                    (carried, replace(worn, slot="b")), key=lambda it: -it.fuel
-                )
+                # Independent ground truth: model inven_carry's find_if
+                # insertion result directly, including its equal-key rule.
+                real_order = list(case["pack"])
+                real_order.insert(case["insertion_index"], worn)
                 post_takeoff = replace(
                     snapshot,
                     inventory=tuple(
@@ -46306,8 +46342,21 @@ class RetentionAuthorityTest(unittest.TestCase):
                 )
                 retained_after = policy._home_visit_retention(post_takeoff)[1]
                 identity = policy_module.equipment_identity(worn)
-                self.assertEqual(identity in projected, expected_retained)
-                self.assertEqual(identity in retained_after, expected_retained)
+                self.assertEqual(identity in projected, case["retained"])
+                self.assertEqual(identity in retained_after, case["retained"])
+
+                plan = policy_module.plan_equipment_transactions(
+                    catalog,
+                    current_loadout(catalog),
+                    Loadout((), "empty"),
+                    current_pack_items=len(snapshot.inventory),
+                    home_scan_complete=True,
+                    retain_item_identities=projected,
+                )
+                deposits = {
+                    action.item_identity for action in plan.phase("home_finalize")
+                }
+                self.assertEqual(identity not in deposits, case["retained"])
 
 
 class HomeFullLatchTest(unittest.TestCase):
