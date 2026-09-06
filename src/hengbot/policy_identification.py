@@ -21,35 +21,35 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
-from hengbot.policy_constants import LEAVE_STORE_KEY, PACK_CAPACITY, WAIT_KEY
-from hengbot.quest_navigator import PICKUP_KEY
-
-
-CARDINAL_OFFSETS = ((-1, 0), (0, -1), (0, 1), (1, 0))
-NEIGHBOR_OFFSETS = tuple({(-1, -1): '7', (-1, 0): '8', (-1, 1): '9', (0, -1): '4', (0, 1): '6', (1, -1): '1', (1, 0): '2', (1, 1): '3'}.keys())
-STORE_RESTOCK_WAIT_TURNS = 1000
-PROBE_LIMIT = 2
-READ_KEY = "r"
-RANGED_MAX_DISTANCE = 10
-CHEST_DROP_KEY = "d"
-CHEST_SEARCH_KEY = "s"
-CHEST_DISARM_KEY = "D"
-CHEST_OPEN_KEY = "o"
-CHEST_SEARCH_BUDGET = 6
-CHEST_DISARM_BUDGET = 2
-CHEST_OPEN_BUDGET = 8
-CHEST_COLLECT_BUDGET = 32
-USE_STAFF_KEY = "u"
-ZAP_ROD_KEY = "z"
-FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
-LOOT_THREAT_DAMAGE_RATIO = 0.25
-LOOT_DEFER_BLOCKERS = frozenset(
-    {"summoner-visible", "multiplier-visible", "material-threat", "paralyzer-ring"}
+from hengbot.policy_constants import (
+    CARDINAL_OFFSETS,
+    CHEST_COLLECT_BUDGET,
+    CHEST_DISARM_BUDGET,
+    CHEST_DISARM_KEY,
+    CHEST_DROP_KEY,
+    CHEST_OPEN_BUDGET,
+    CHEST_OPEN_KEY,
+    CHEST_SEARCH_BUDGET,
+    CHEST_SEARCH_KEY,
+    FULL_IDENTIFY_DISMISS_SUFFIX,
+    FUNDRAISING_GOLD_TARGET,
+    IDENTIFY_FAIL_LIMIT,
+    IDENTIFY_PRESSURE_FREE_SLOTS,
+    LEAVE_STORE_KEY,
+    LOOT_DEFER_BLOCKERS,
+    LOOT_THREAT_DAMAGE_RATIO,
+    NEIGHBOR_OFFSETS,
+    PACK_CAPACITY,
+    PROBE_LIMIT,
+    RANGED_MAX_DISTANCE,
+    READ_KEY,
+    STAFF_IDENTIFY_MIN_SUCCESS,
+    STORE_RESTOCK_WAIT_TURNS,
+    USE_STAFF_KEY,
+    WAIT_KEY,
+    ZAP_ROD_KEY,
 )
-IDENTIFY_PRESSURE_FREE_SLOTS = 3
-IDENTIFY_FAIL_LIMIT = 3
-STAFF_IDENTIFY_MIN_SUCCESS = 0.80
-FUNDRAISING_GOLD_TARGET = 15000
+from hengbot.quest_navigator import PICKUP_KEY
 
 
 class IdentificationMixin:

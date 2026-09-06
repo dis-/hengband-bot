@@ -94,15 +94,37 @@ from hengbot.policy_types import (
 )
 from hengbot.policy_constants import (
     BUY_KEY,
+    CARDINAL_OFFSETS,
     CHARACTER_DUMP_MACRO,
+    CHEST_COLLECT_BUDGET,
+    CHEST_DISARM_BUDGET,
+    CHEST_DISARM_KEY,
+    CHEST_DROP_KEY,
+    CHEST_OPEN_BUDGET,
+    CHEST_OPEN_KEY,
+    CHEST_SEARCH_BUDGET,
+    CHEST_SEARCH_KEY,
+    DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
+    FULL_IDENTIFY_DISMISS_SUFFIX,
+    FUNDRAISING_GOLD_TARGET,
+    IDENTIFY_FAIL_LIMIT,
+    IDENTIFY_PRESSURE_FREE_SLOTS,
     LEAVE_STORE_KEY,
+    LOOT_DEFER_BLOCKERS,
+    LOOT_THREAT_DAMAGE_RATIO,
+    NEIGHBOR_OFFSETS,
     PACK_CAPACITY,
+    PROBE_LIMIT,
+    RANGED_MAX_DISTANCE,
+    READ_KEY,
     SELL_KEY,
+    STAFF_IDENTIFY_MIN_SUCCESS,
+    STORE_RESTOCK_WAIT_TURNS,
     STORE_STUCK_LIMIT,
     TERMINAL_NUDGE_LIMIT,
     TOWN_TRAVEL_STORE_SYMBOLS,
@@ -110,7 +132,9 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     UP_STAIRS_KEY,
+    USE_STAFF_KEY,
     WAIT_KEY,
+    ZAP_ROD_KEY,
 )
 from hengbot.town_arbiter import TownArbiterMixin, TownTurnArbiter
 from hengbot.policy_calibration import CalibrationMixin
@@ -259,20 +283,6 @@ from hengbot.model import (
 )
 
 
-DIRECTION_KEYS: dict[tuple[int, int], str] = {
-    (-1, -1): "7",
-    (-1, 0): "8",
-    (-1, 1): "9",
-    (0, -1): "4",
-    (0, 1): "6",
-    (1, -1): "1",
-    (1, 0): "2",
-    (1, 1): "3",
-}
-
-NEIGHBOR_OFFSETS = tuple(DIRECTION_KEYS.keys())
-CARDINAL_OFFSETS = ((-1, 0), (0, -1), (0, 1), (1, 0))
-
 def _persistent_grid_signature(grid: GridState) -> tuple:
     """All terrain/player-memory fields, deliberately excluding transients."""
     return (
@@ -389,7 +399,6 @@ CALIBRATION_HOME_VISIT_LIMIT = 300
 CROSS_TOWN_SHOPPING_RESERVE = 1000
 
 
-STORE_RESTOCK_WAIT_TURNS = 1000
 # R300 costs about 300 player turns at roughly 10 game turns per rest.
 # Use that measured game-turn cost when crediting one rest command; the stock
 # turnover interval is a separate clock and is not a valid charge clamp.
@@ -498,7 +507,6 @@ BACKTRACK_PENALTY = 30
 # The pathfinder only walks KNOWN tiles, so it can circle frontiers whose unknown
 # side never comes into view. When stuck, step directly into an adjacent unknown
 # tile to reveal it; give up on a direction after this many bumps (it is a wall).
-PROBE_LIMIT = 2
 # 'o' attempts to open (and pick the lock of) a closed door. After three tries
 # it is treated as impassable (jammed / too hard) and routed around.
 DOOR_OPEN_LIMIT = 3
@@ -850,7 +858,6 @@ TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
 
 # Consumable use (item command + inventory letter, sent as a macro).
 QUAFF_KEY = "q"
-READ_KEY = "r"
 # Ranged attack: prefer fire (f) / throw (v) + item slot + a direction digit.
 # get_aim_dir resolves a direction key immediately with no targeting UI, so
 # the bot only shoots RAY-ALIGNED targets (8 directions) it can verify a clear
@@ -860,7 +867,6 @@ AIM_WAND_KEY = "a"
 THROW_KEY = "v"
 # Fire range is 13+tmul/80 (shoot.cpp:531) ≈ 15 for a sling; the bot stays
 # conservative because every ray tile must be KNOWN passable to fire at all.
-RANGED_MAX_DISTANCE = 10
 RANGED_TARGET_FAILURE_LIMIT = 3
 # Don't wake distant sleepers with a shot — approach quietly instead (the
 # existing hunt path); close sleepers get softened before they act anyway.
@@ -900,14 +906,6 @@ PLAYER_CLASS_BERSERKER = 23
 # "trap discovered" message through snapshots, so each phase runs a fixed
 # budget instead: search chances are skill_srh% per press, disarm may fail,
 # a locked chest needs several picks.
-CHEST_DROP_KEY = "d"
-CHEST_SEARCH_KEY = "s"
-CHEST_DISARM_KEY = "D"
-CHEST_OPEN_KEY = "o"
-CHEST_SEARCH_BUDGET = 6
-CHEST_DISARM_BUDGET = 2
-CHEST_OPEN_BUDGET = 8
-CHEST_COLLECT_BUDGET = 32
 EAT_KEY = "E"
 INSCRIBE_KEY = "{"
 UNINSCRIBE_KEY = "}"
@@ -930,8 +928,6 @@ REFILL_KEY = "\\F"  # bypass keymaps, then refill from the selected pack slot
 # BOT_PLAY is launched with -o, which forces Hengband's original command set.
 # Keep item commands aligned with that contract: use staff = u, zap rod = z,
 # destroy = k, and numeric direction keys.
-USE_STAFF_KEY = "u"
-ZAP_ROD_KEY = "z"
 # The "0<count>" prefix sets command_arg, putting
 # select_destroying_item in force mode (skipping the "Really destroy?" prompt —
 # whose y/n answers can otherwise leak) and is reused by input_quantity (no
@@ -958,7 +954,6 @@ STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 # *Identify* always opens screen_object(); equipment with many attributes can
 # add several ``-- more --`` pages before the final continue prompt.  Escape
 # closes each page and is harmless after control returns to the command loop.
-FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
 SELL_ATTEMPT_LIMIT = 3
 SELL_CONFIRM_SUFFIX = "\r"
 # Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
@@ -1102,7 +1097,6 @@ RECALL_ISSUE_CONFIRM_TURNS = 10
 WALK_OUT_MAX_DEPTH = RECALL_MIN_DEPTH - 1
 # Safe floor items remain worthwhile around distant weak monsters, but not when
 # the visible group can remove a substantial share of current HP in three turns.
-LOOT_THREAT_DAMAGE_RATIO = 0.25
 # Pre-engagement navigation should tolerate ordinary attrition. The loot gate
 # may conservatively defer an optional pickup at 25%, but retreating from a
 # route needs a substantially material threat; otherwise weak monsters create
@@ -1111,9 +1105,6 @@ ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 # Once a route to remembered loot reveals one of these threats, leave that loot
 # for the rest of the floor.  Otherwise stepping just outside line of sight makes
 # the blocker disappear and immediately sends the bot back across the same edge.
-LOOT_DEFER_BLOCKERS = frozenset(
-    {"summoner-visible", "multiplier-visible", "material-threat", "paralyzer-ring"}
-)
 # An ordinary supply return may make a short detour for realised value. Critical
 # returns (food/light/pack/emergency) never wait for loot.
 RETURN_LOOT_SWEEP_MAX_DISTANCE = 12
@@ -1174,11 +1165,9 @@ STAFF_IDENTIFY_MIN_CHARGES = 20
 STAFF_IDENTIFY_MAX_COUNT = 5
 # Identify unknowns once the pack has only this many free slots left, so the
 # disposal/sale logic can judge them before they crowd out genuine loot.
-IDENTIFY_PRESSURE_FREE_SLOTS = 3
 # Consecutive pack-pressure identify attempts that leave the pack's unknown count
 # unchanged before we give up on a target (the device use did not land) — stops
 # a stalled identify from looping forever.
-IDENTIFY_FAIL_LIMIT = 3
 # Staff of Identify ("Perception", BaseitemDefinitions id 326) base level and the
 # device-use minimum from gamevalue.h (USE_DEVICE).  They model the staff
 # activation success rate per use-execution.cpp: chance = device_skill - level,
@@ -1188,7 +1177,6 @@ IDENTIFY_FAIL_LIMIT = 3
 # onto the town map (the shop-underfoot identify/leave loop).
 IDENTIFY_STAFF_LEVEL = 10
 USE_DEVICE_MIN = 3
-STAFF_IDENTIFY_MIN_SUCCESS = 0.80
 # A single Identify/*Identify* purchase covers the whole outstanding tier (see
 # _outstanding_identification_count) instead of one scroll per store trip, but
 # is capped so one unusually large Home batch cannot empty the wallet in a
@@ -1202,7 +1190,6 @@ FUNDRAISING_START_GOLD = 3000
 # Mining has substantial fixed overhead: town processing, two wilderness crossings
 # for shallow runs, and one Treasure Detection scroll per fresh floor.  Build a
 # useful reserve in one batch instead of restarting fundraising after every dive.
-FUNDRAISING_GOLD_TARGET = 15000
 # Outpost base prices are about 20g for the General Store's cheapest Shovel and
 # 15g for one Alchemist Treasure Detection scroll.  Keep a deliberately round
 # 100g reserve to cover charisma/store-price variation and a useful margin.
