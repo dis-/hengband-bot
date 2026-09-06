@@ -192,6 +192,15 @@ class VerificationGateSelfTest(unittest.TestCase):
         ]
         self.assertEqual(hunk_guard.classify(body), "behavioral")
 
+    def test_prose_first_mixed_code_hunk_is_behavioral(self) -> None:
+        body = [
+            "-old prose only\n",
+            "-class HengbotPolicy(TownArbiterMixin):\n",
+            "+new prose only\n",
+            "+class HengbotPolicy(CalibrationMixin, TownArbiterMixin):\n",
+        ]
+        self.assertEqual(hunk_guard.classify(body), "behavioral")
+
     def test_file_grouping_keeps_interdependent_hunks_together(self) -> None:
         hunks = [{"file": "src/hengbot/x.py", "line_start": 1, "line_end": 2},
                  {"file": "src/hengbot/x.py", "line_start": 5, "line_end": 6},

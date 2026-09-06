@@ -83,11 +83,8 @@ def classify(body: list[str]) -> str:
         if before and after and ast_equivalent(before, after):
             return "nonbehavioral-ast-equivalent"
     except SyntaxError:
-        try:
-            if changed and any(ast_equivalent(line + "\n    pass", line + "\n    pass") for line in changed):
-                return "behavioral"
-        except SyntaxError:
-            pass
+        if changed and any(_line_parses_as_suite_header(line) for line in changed):
+            return "behavioral"
         # A zero-context diff inside a multiline docstring contains prose but
         # not the unchanged quote delimiters.  Recognise only plain prose
         # fragments; punctuation used by executable Python keeps the hunk
@@ -95,6 +92,13 @@ def classify(body: list[str]) -> str:
         if changed and all(re.fullmatch(r"[A-Za-z0-9 `_'.,;:()-]+", line.strip()) for line in changed):
             return "nonbehavioral-docstring-prose"
     return "behavioral"
+
+
+def _line_parses_as_suite_header(line: str) -> bool:
+    try:
+        return ast_equivalent(line + "\n    pass", line + "\n    pass")
+    except SyntaxError:
+        return False
 
 
 def ast_equivalent(before: str, after: str) -> bool:
