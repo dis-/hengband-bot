@@ -20,6 +20,8 @@ import sys
 import tempfile
 from typing import Callable
 
+from failure_headers import failure_identity_pattern, iter_failure_headers
+
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 
@@ -692,17 +694,23 @@ def apply_mutation(package: Path, mutation: Mutation) -> tuple[bool, str | None]
     return True, None
 
 
-FAILURE_RE = re.compile(
-    r"^(?:FAIL|ERROR): \S+ \(([^)]+)\)"
-    r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
-    re.MULTILINE,
-)
 RAN_RE = re.compile(r"^Ran (\d+) tests?", re.MULTILINE)
+# Compatibility for the existing public self-test; grammar remains centralized.
+FAILURE_RE = failure_identity_pattern(test_names_only=False)
 ASSERTION_RE = re.compile(r"^(?:AssertionError|[A-Za-z_.]+Error): (.+)$", re.MULTILINE)
 MISSING_EVIDENCE_RE = re.compile(
     r"FileNotFoundError:.*(?:evidence[\\/]|required frozen incident fixture is absent)",
     re.IGNORECASE,
 )
+
+
+def failure_blocks(output: str) -> list[tuple[str, str]]:
+    """Return each failure identity and its bounded output section."""
+    headers = list(iter_failure_headers(output, test_names_only=False))
+    return [(header.identity,
+             output[header.start:(headers[index + 1].start
+                                  if index + 1 < len(headers) else len(output))])
+            for index, header in enumerate(headers)]
 
 
 def run_tests(package_parent: Path, full_suite: bool) -> dict:
@@ -726,10 +734,7 @@ def run_tests(package_parent: Path, full_suite: bool) -> dict:
     output = proc.stdout
     failures = []
     skipped_missing_evidence = []
-    for match in FAILURE_RE.finditer(output):
-        (container,) = match.groups()
-        next_header = FAILURE_RE.search(output, match.end())
-        block = output[match.start():next_header.start() if next_header else len(output)]
+    for container, block in failure_blocks(output):
         if MISSING_EVIDENCE_RE.search(block):
             skipped_missing_evidence.append(container)
         else:

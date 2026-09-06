@@ -19,6 +19,8 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from failure_headers import iter_failure_headers
+
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "1.0"
 WORKTREE_OWNER_FILE = ".hengbot-gate-owner.json"
@@ -347,20 +349,15 @@ def parse_test_failures(stderr: str) -> list[str]:
         r"(?:\n(?![-=]{5})[^\n]+)?\n? \.\.\. (?:FAIL|ERROR)$",
         stderr, re.MULTILINE,
     )
-    headers = re.findall(
-        r"^(?:FAIL|ERROR): (test\S+) \(([^)\r\n]+)\)"
-        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
-        stderr,
-        re.MULTILINE,
-    )
+    headers = [(header.name, header.identity) for header in
+               iter_failure_headers(stderr, test_names_only=True)]
     return list(dict.fromkeys(qualified for _name, qualified in verbose + headers))
 
 
 def parse_test_errors(stderr: str) -> list[str]:
-    return list(dict.fromkeys(qualified for _name, qualified in re.findall(
-        r"^ERROR: (test\S+) \(([^)\r\n]+)\)"
-        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
-        stderr, re.MULTILINE)))
+    return list(dict.fromkeys(header.identity for header in
+                              iter_failure_headers(stderr, test_names_only=True)
+                              if header.kind == "ERROR"))
 
 
 def known_failure_matches(key: str, stderr: str, failure_ids: list[str]) -> list[dict[str, str]]:

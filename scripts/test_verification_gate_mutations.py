@@ -84,7 +84,8 @@ def main() -> int:
     for name, (old, new) in MUTATIONS.items():
         with tempfile.TemporaryDirectory(prefix="vgate-mutation-") as temporary:
             scripts = Path(temporary) / "scripts"; scripts.mkdir()
-            for filename in ("hunk_guard.py", "verify_scope.py", "test_verification_gates.py"):
+            for filename in ("failure_headers.py", "hunk_guard.py", "verify_scope.py",
+                             "test_verification_gates.py"):
                 shutil.copy2(HERE / filename, scripts / filename)
             target = scripts / ("hunk_guard.py" if old in (scripts / "hunk_guard.py").read_text(encoding="utf-8")
                                 else "verify_scope.py")

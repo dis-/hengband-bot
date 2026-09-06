@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import verify_scope
+from failure_headers import failure_sections
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "3.0"
@@ -185,14 +186,7 @@ def introduced_symbols(body: list[str]) -> set[str]:
 
 
 def _failure_sections(stderr: str) -> dict[str, str]:
-    headers = list(re.finditer(
-        r"^(?:FAIL|ERROR): test\S+ \(([^)\r\n]+)\)"
-        r"(?: \[[^\r\n]*\])?(?: \([^\r\n]*\))?$",
-        stderr,
-        re.MULTILINE,
-    ))
-    return {match.group(1): stderr[match.start():(headers[index + 1].start() if index + 1 < len(headers) else len(stderr))]
-            for index, match in enumerate(headers)}
+    return failure_sections(stderr, test_names_only=True)
 
 
 def _is_incoherent_revert(section: str, root: Path, reverted_file: str,

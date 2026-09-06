@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import hunk_guard
+import failure_headers
 import mutation_battery
 import run_receipt
 import verify_receipt
@@ -37,9 +38,46 @@ def git(root: Path, *args: str) -> str:
 
 
 class SubTestParserTest(unittest.TestCase):
+    def test_each_consumer_delegates_to_the_shared_header_parser(self) -> None:
+        sentinel = failure_headers.FailureHeader("FAIL", "test_x", "pkg.T.test_x", 0, 28)
+        with mock.patch.object(hunk_guard, "failure_sections", return_value={"pkg.T.test_x": "section"}) as parser:
+            self.assertEqual(hunk_guard._failure_sections("ignored"), {"pkg.T.test_x": "section"})
+            parser.assert_called_once_with("ignored", test_names_only=True)
+        with mock.patch.object(verify_scope, "iter_failure_headers", return_value=iter([sentinel])) as parser:
+            self.assertEqual(verify_scope.parse_test_failures("ignored"), ["pkg.T.test_x"])
+            parser.assert_called_once_with("ignored", test_names_only=True)
+        with mock.patch.object(mutation_battery, "iter_failure_headers", return_value=iter([sentinel])) as parser:
+            self.assertEqual(mutation_battery.failure_blocks("x" * 28), [("pkg.T.test_x", "x" * 28)])
+            parser.assert_called_once_with("x" * 28, test_names_only=False)
+        with mock.patch.object(run_receipt, "iter_failure_headers", return_value=iter([sentinel])) as parser:
+            self.assertEqual(run_receipt.summarize("", "")["failures"], ["pkg.T.test_x"])
+            parser.assert_called_once_with("\n", test_names_only=False)
+
     def test_mutation_parser_handles_all_subtest_suffix_forms(self) -> None:
-        self.assertEqual([match.group(1) for match in mutation_battery.FAILURE_RE.finditer(HEADERS)],
+        self.assertEqual([identity for identity, _section in
+                          mutation_battery.failure_blocks(HEADERS)],
                          IDENTITIES)
+
+    def test_mutation_parser_does_not_swallow_malformed_header_newline(self) -> None:
+        text = "FAIL: broken (unterminated\nFAIL: test_real (pkg.T.test_real)\n"
+        self.assertEqual([identity for identity, _section in mutation_battery.failure_blocks(text)],
+                         ["pkg.T.test_real"])
+
+    def test_shared_parser_does_not_swallow_newline_and_pins_name_scope(self) -> None:
+        text = "FAIL: custom (pkg.T.custom)\nFAIL: test_real (pkg.T.test_real)\n"
+        self.assertEqual(
+            [header.identity for header in failure_headers.iter_failure_headers(
+                text, test_names_only=False)], ["pkg.T.custom", "pkg.T.test_real"])
+        self.assertEqual(
+            [header.identity for header in failure_headers.iter_failure_headers(
+                text, test_names_only=True)], ["pkg.T.test_real"])
+
+    def test_repeated_subtest_sections_are_preserved(self) -> None:
+        text = ("FAIL: test_x (pkg.T.test_x) (case=1)\nfirst marker\n"
+                "FAIL: test_x (pkg.T.test_x) (case=2)\nsecond marker\n")
+        section = hunk_guard._failure_sections(text)["pkg.T.test_x"]
+        self.assertIn("first marker", section)
+        self.assertIn("second marker", section)
 
     def test_hunk_guard_parser_handles_all_subtest_suffix_forms(self) -> None:
         self.assertEqual(list(hunk_guard._failure_sections(HEADERS)), IDENTITIES)
@@ -47,6 +85,12 @@ class SubTestParserTest(unittest.TestCase):
     def test_verify_scope_parser_handles_all_subtest_suffix_forms(self) -> None:
         self.assertEqual(verify_scope.parse_test_failures(HEADERS), IDENTITIES)
         self.assertEqual(verify_scope.parse_test_errors(HEADERS), [IDENTITIES[2]])
+
+    def test_receipt_summary_uses_shared_subtest_parser(self) -> None:
+        summary = run_receipt.summarize("", HEADERS + "Ran 4 tests in 0.01s\nFAILED (failures=3, errors=1)\n")
+        self.assertEqual(summary["test_count"], 4)
+        self.assertEqual(summary["failures"], [IDENTITIES[0], IDENTITIES[1], IDENTITIES[3]])
+        self.assertEqual(summary["errors"], [IDENTITIES[2]])
 
     def test_hunk_guard_subtest_only_protector_is_protected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hguard-subtest-") as name:
@@ -88,7 +132,10 @@ class SubTestParserTest(unittest.TestCase):
 
 class ReceiptTest(unittest.TestCase):
     def make_repo(self, root: Path) -> None:
-        (root / "tracked.txt").write_text("original\n", encoding="utf-8")
+        (root / "src").mkdir()
+        (root / "src/tracked.txt").write_text("original\n", encoding="utf-8")
+        (root / "jsonlog").mkdir()
+        (root / "jsonlog/sol-events.jsonl").write_text('{"type":"base"}\n', encoding="utf-8")
         git(root, "init", "-q")
         git(root, "config", "user.email", "selftest@example.invalid")
         git(root, "config", "user.name", "selftest")
@@ -104,14 +151,21 @@ class ReceiptTest(unittest.TestCase):
                 stamp = run_receipt.now()
                 receipt = run_receipt.write_receipt(
                     "unittest", "selftest", [sys.executable, "-m", "unittest"], stamp, stamp, 0,
-                    out, err, git(root, "rev-parse", "HEAD"), verify_scope.tree_fingerprint(root))
+                    out, err, git(root, "rev-parse", "HEAD"), run_receipt.source_fingerprint(root))
             ok, problems, payload = verify_receipt.verify(receipt, root)
             self.assertTrue(ok, problems); self.assertEqual(payload["result"]["test_count"], 4)
+            with mock.patch.object(run_receipt, "ROOT", root), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(verify_receipt.main([str(receipt)]), 0)
+            rendered = output.getvalue()
+            for label in ("tool: unittest", "target: selftest", "argv:", "exit_code: 0",
+                          "derived_result:", "failures: [] means no FAIL header scraped"):
+                self.assertIn(label, rendered)
             out.write_text("tampered", encoding="utf-8")
             ok, problems, _ = verify_receipt.verify(receipt, root)
             self.assertFalse(ok); self.assertIn("stdout stream sha256 mismatch", problems)
 
-    def test_receipt_detects_stale_tree(self) -> None:
+    def test_receipt_ignores_event_append_but_detects_stale_source(self) -> None:
         with tempfile.TemporaryDirectory(prefix="receipt-stale-") as name:
             root = Path(name); self.make_repo(root)
             receipts = root / "jsonlog/receipts"; receipts.mkdir(parents=True)
@@ -121,10 +175,40 @@ class ReceiptTest(unittest.TestCase):
                 stamp = run_receipt.now()
                 receipt = run_receipt.write_receipt(
                     "decision_equivalence", "selftest", ["command"], stamp, stamp, 0,
-                    out, err, git(root, "rev-parse", "HEAD"), verify_scope.tree_fingerprint(root))
-            (root / "tracked.txt").write_text("changed\n", encoding="utf-8")
+                    out, err, git(root, "rev-parse", "HEAD"), run_receipt.source_fingerprint(root))
+            with (root / "jsonlog/sol-events.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write('{"type":"fix"}\n')
             ok, problems, _ = verify_receipt.verify(receipt, root)
-            self.assertFalse(ok); self.assertIn("stale tree_fingerprint", problems)
+            self.assertTrue(ok, problems)
+            (root / "src/tracked.txt").write_text("changed\n", encoding="utf-8")
+            ok, problems, _ = verify_receipt.verify(receipt, root)
+            self.assertFalse(ok); self.assertIn("stale source_fingerprint", problems)
+
+    def test_receipt_detects_forged_result_fields_and_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="receipt-forge-") as name:
+            root = Path(name); self.make_repo(root)
+            receipts = root / "jsonlog/receipts"; receipts.mkdir(parents=True)
+            out, err = receipts / "run.stdout.log", receipts / "run.stderr.log"
+            out.write_text("", encoding="utf-8")
+            err.write_text(
+                "FAIL: test_bad (tests.test_demo.DemoTest.test_bad)\n"
+                "Ran 1 test in 0.01s\n\nFAILED (failures=1)\n", encoding="utf-8")
+            with mock.patch.object(run_receipt, "ROOT", root), mock.patch.object(run_receipt, "RECEIPTS", receipts):
+                stamp = run_receipt.now()
+                receipt = run_receipt.write_receipt(
+                    "unittest", "selftest", [sys.executable, "-m", "unittest"], stamp, stamp, 1,
+                    out, err, git(root, "rev-parse", "HEAD"), run_receipt.source_fingerprint(root))
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            payload["result"]["test_count"] = 99
+            payload["result"]["failures"] = []
+            payload["result"]["summary_lines"] = []
+            payload["exit_code"] = 0
+            receipt.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            ok, problems, _ = verify_receipt.verify(receipt, root)
+            self.assertFalse(ok)
+            joined = "\n".join(problems)
+            for field in ("result.test_count", "result.failures", "result.summary_lines", "exit_code"):
+                self.assertIn(field + " mismatch", joined)
 
 
 if __name__ == "__main__":
