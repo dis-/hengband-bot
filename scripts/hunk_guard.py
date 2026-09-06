@@ -240,18 +240,22 @@ def run_candidate(root: Path, module: str, timeout: float, stderr_path: Path,
     if run.returncode == 0:
         return CandidateResult("PASS")
     stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-    if _artifact_failure(stderr):
-        return CandidateResult("ARTIFACT-SKIPPED")
     # Classify each reported failure independently.  A real test may quite
     # legitimately pin behavior by asserting that an exception is raised;
     # exception text elsewhere in the same module run must not erase it.
     # unittest's loader/collection failures are the structural non-pins.
     sections = _failure_sections(stderr)
-    failures = {test_id for test_id in verify_scope.parse_test_failures(stderr)
+    reported = set(verify_scope.parse_test_failures(stderr))
+    artifact_failures = {test_id for test_id in reported
+                         if _artifact_failure(sections.get(test_id, ""))}
+    failures = {test_id for test_id in reported
             if not test_id.startswith("unittest.loader._FailedTest.")
             and "._FailedTest." not in test_id
+            and test_id not in artifact_failures
             and not (reverted_file and _is_incoherent_revert(
                 sections.get(test_id, ""), root, reverted_file, symbols or set()))}
+    if not failures and (artifact_failures or _artifact_failure(stderr)):
+        return CandidateResult("ARTIFACT-SKIPPED")
     return CandidateResult("FAIL" if failures else "ERROR", frozenset(failures))
 
 
@@ -317,7 +321,10 @@ def cleanup_tree(path: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=("UNPROTECTED means no protection among the candidate_modules listed in the verdict. "
+                "REVERT-UNAPPLIABLE is indeterminate; verify by manual revert."))
     parser.add_argument("--base")
     parser.add_argument("--target", default="WORKTREE")
     parser.add_argument("--timeout", type=float, default=DEFAULT_MODULE_TIMEOUT,
@@ -356,6 +363,8 @@ def main(argv: list[str] | None = None) -> int:
     per_group_candidates = [modules_for_hunk(ROOT, target, group, candidates) for group in groups]
     candidates = list(dict.fromkeys(module for modules in per_group_candidates for module in modules))
     sandbox, _ = prepare_tree(target)
+    run_log_dir = ROOT / "jsonlog" / "hunk-guard" / (
+        f"run-{time.time_ns()}-{os.getpid()}")
     original = file_hashes(sandbox)
     original_bytes = {rel: (sandbox / rel).read_bytes() for rel in original}
     results = []
@@ -366,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
         baseline_candidates = candidates if remaining is None or remaining > 0 else []
         with ThreadPoolExecutor(max_workers=4) as pool:
             jobs = {pool.submit(run_candidate, sandbox, module, baseline_timeout,
-                                ROOT / "jsonlog" / "hunk-guard" / f"baseline-{module}.stderr.log"): module
+                                run_log_dir / f"baseline-{module}.stderr.log"): module
                     for module in baseline_candidates}
             for job in as_completed(jobs):
                 baseline[jobs[job]] = job.result()
@@ -414,19 +423,24 @@ def main(argv: list[str] | None = None) -> int:
                 elif not new_file:
                     symbols = set().union(*(introduced_symbols(hunk["body"]) for hunk in behavioral))
                     for module in hunk_candidates:
+                        baseline_status = baseline.get(module, CandidateResult("NOT-EVALUATED")).status
+                        if baseline_status not in {"PASS", "FAIL", "ERROR"}:
+                            outcomes[module] = baseline_status
+                            continue
                         remaining = None if args.budget_seconds is None else args.budget_seconds - (time.monotonic() - started)
                         if remaining is not None and remaining <= 0:
                             outcomes["budget"] = "NOT-EVALUATED"
                             break
                         timeout = args.timeout if remaining is None else min(args.timeout, remaining)
                         outcome = run_candidate(sandbox, module, timeout,
-                            ROOT / "jsonlog" / "hunk-guard" / f"hunk-{number}-{module}.stderr.log",
+                            run_log_dir / f"hunk-{number}-{module}.stderr.log",
                             files[0] if len(files) == 1 else None, symbols)
                         outcomes[module] = outcome.status
                         new_failures = outcome.failures - baseline[module].failures
                         new_failures = {test_id for test_id in new_failures
-                                        if not any(test_id.startswith(module + ".") and test_id.endswith("." + method)
-                                                   for module, method in ineligible)}
+                                        if not any(test_id.startswith(lint_module.removeprefix("tests.") + ".")
+                                                   and test_id.endswith("." + method)
+                                                   for lint_module, method in ineligible)}
                         if new_failures:
                             protector = sorted(new_failures)[0]; break
                     record["module_outcomes"] = outcomes

@@ -50,6 +50,18 @@ MUTATIONS = {
         '    return matches if len(matches) == 1 and len(failure_ids) == matches[0]["count"] else []\n',
         '    return [] if matches else []\n',
     ),
+    "fakery-cross-check-deleted": (
+        'if not any(test_id.startswith(lint_module.removeprefix("tests.") + ".")\n'
+        '                                                   and test_id.endswith("." + method)\n'
+        '                                                   for lint_module, method in ineligible)',
+        'if True',
+    ),
+    "baseline-status-check-deleted": (
+        '                        if baseline_status not in {"PASS", "FAIL", "ERROR"}:\n'
+        '                            outcomes[module] = baseline_status\n'
+        '                            continue\n',
+        '',
+    ),
 }
 
 PINS = {
@@ -62,6 +74,8 @@ PINS = {
     "lint-allowance-count-disabled": "test_failed_skipped_and_lint_excess_are_measured",
     "excluded-test-prefix-wrong": "test_excluded_test_prefix_is_exact",
     "known-failure-matcher-disabled": "test_stalled_capture_allowance_matches_real_failure_text",
+    "fakery-cross-check-deleted": "test_source_text_only_assertion_cannot_protect_a_hunk",
+    "baseline-status-check-deleted": "test_incomplete_baselines_cannot_protect_and_become_hunk_verdicts",
 }
 
 

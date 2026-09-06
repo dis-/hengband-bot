@@ -420,6 +420,17 @@ def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, bool]:
             shutil.copytree(src, dst, copy_function=shutil.copy2)
             if is_reparse_point(dst) or artifact_inventory(source)[name] != before:
                 raise RuntimeError(f"unsafe or source-mutating artifact copy: {name}")
+    incident_files = sorted((source / "jsonlog").glob("incident-*.jsonl"))
+    present["jsonlog/incident-*.jsonl"] = bool(incident_files)
+    if incident_files:
+        target_dir = destination / "jsonlog"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        before = {path: hashlib.sha256(path.read_bytes()).digest() for path in incident_files}
+        for path in incident_files:
+            shutil.copy2(path, target_dir / path.name)
+        after = {path: hashlib.sha256(path.read_bytes()).digest() for path in incident_files}
+        if before != after:
+            raise RuntimeError("source-mutating artifact copy: jsonlog/incident-*.jsonl")
     return present
 
 

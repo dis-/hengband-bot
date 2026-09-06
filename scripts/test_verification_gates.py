@@ -82,6 +82,18 @@ class VerificationGateSelfTest(unittest.TestCase):
             (destination / "evidence/x").write_text("changed")
             self.assertEqual((marker.read_text(), marker.stat().st_mtime_ns), ("x", before))
 
+    def test_incident_jsonl_files_are_copied_without_touching_source(self) -> None:
+        with tempfile.TemporaryDirectory() as source_name, tempfile.TemporaryDirectory() as destination_name:
+            source, destination = Path(source_name), Path(destination_name)
+            (source / "jsonlog").mkdir()
+            marker = source / "jsonlog/incident-town-wander.jsonl"
+            marker.write_bytes(b'{"turn": 1}\n')
+            before = (marker.read_bytes(), marker.stat().st_mtime_ns)
+            present = verify_scope.copy_runtime_artifacts(source, destination)
+            self.assertTrue(present["jsonlog/incident-*.jsonl"])
+            self.assertEqual((destination / "jsonlog" / marker.name).read_bytes(), before[0])
+            self.assertEqual((marker.read_bytes(), marker.stat().st_mtime_ns), before)
+
     def test_reparse_cleanup_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as root_name, tempfile.TemporaryDirectory() as outside_name:
             root, outside = Path(root_name), Path(outside_name)
@@ -239,6 +251,19 @@ class VerificationGateSelfTest(unittest.TestCase):
                 result = hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr)
             self.assertEqual((result.status, result.failures), ("ARTIFACT-SKIPPED", frozenset()))
 
+    def test_artifact_failure_does_not_discard_a_real_failure_in_same_run(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            stderr = Path(name) / "mixed.err"
+            def mixed_run(*args, **kwargs):
+                kwargs["stderr"].write(
+                    "ERROR: test_missing (test_demo.T.test_missing)\nFileNotFoundError: missing fixture.jsonl\n"
+                    "FAIL: test_pin (test_demo.T.test_pin)\nAssertionError: behavior regressed\n")
+                return subprocess.CompletedProcess([], 1, stdout="")
+            with mock.patch("subprocess.run", side_effect=mixed_run):
+                result = hunk_guard.run_candidate(Path.cwd(), "tests.x", 1, stderr)
+            self.assertEqual((result.status, result.failures),
+                             ("FAIL", frozenset({"test_demo.T.test_pin"})))
+
     def test_reverse_patch_syntax_error_is_revert_unappliable(self) -> None:
         with SyntheticRepo() as repo:
             repo.change()
@@ -289,6 +314,46 @@ class VerificationGateSelfTest(unittest.TestCase):
                     self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide"]), 1)
                     payload = json.loads(output.getvalue())
                 self.assertEqual(payload["hunks"][0]["result"], candidate_status)
+
+    def test_incomplete_baselines_cannot_protect_and_become_hunk_verdicts(self) -> None:
+        for baseline_status in ("TIMEOUT", "ARTIFACT-SKIPPED"):
+            with self.subTest(baseline_status=baseline_status), SyntheticRepo() as repo:
+                repo.change()
+                def outcome(*args, **kwargs):
+                    stderr = args[3]
+                    if Path(stderr).name.startswith("baseline-"):
+                        return hunk_guard.CandidateResult(baseline_status)
+                    return hunk_guard.CandidateResult("FAIL", frozenset({"test_demo.T.test_value"}))
+                with mock.patch.object(verify_scope, "ROOT", repo.root), \
+                     mock.patch.object(hunk_guard, "ROOT", repo.root), \
+                     mock.patch.object(verify_scope, "ALWAYS_MODULES", set()), \
+                     mock.patch.object(verify_scope, "KNOWN_FAILURES", ()), \
+                     mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}), \
+                     mock.patch.object(hunk_guard, "run_candidate", side_effect=outcome), \
+                     io.StringIO() as output, contextlib.redirect_stdout(output):
+                    self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide"]), 1)
+                    payload = json.loads(output.getvalue())
+                self.assertEqual(payload["hunks"][0]["result"], baseline_status)
+
+    def test_source_text_only_assertion_cannot_protect_a_hunk(self) -> None:
+        with SyntheticRepo() as repo:
+            repo.change()
+            (repo.root / "tests/test_demo.py").write_text(
+                "import unittest\nfrom pathlib import Path\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_value(self):\n"
+                "        source = Path('src/hengbot/demo.py').read_text()\n"
+                "        self.assertIn('return 2', source)\n", encoding="utf-8")
+            with mock.patch.object(verify_scope, "ROOT", repo.root), \
+                 mock.patch.object(hunk_guard, "ROOT", repo.root), \
+                 mock.patch.object(verify_scope, "ALWAYS_MODULES", set()), \
+                 mock.patch.object(verify_scope, "KNOWN_FAILURES", ()), \
+                 mock.patch.object(verify_scope, "KNOWN_LINT_FAILURES", {}), \
+                 io.StringIO() as output, contextlib.redirect_stdout(output):
+                self.assertEqual(hunk_guard.main(["--base", repo.base, "--wide", "--timeout", "10"]), 1)
+                payload = json.loads(output.getvalue())
+            self.assertEqual(payload["hunks"][0]["result"], "UNPROTECTED")
+            self.assertEqual(payload["hunks"][0]["candidate_modules"], ["tests.test_demo"])
 
     def test_new_file_branch_and_no_behavioral_warning_are_real(self) -> None:
         diff = "diff --git a/src/hengbot/new.py b/src/hengbot/new.py\nnew file mode 100644\n--- /dev/null\n+++ b/src/hengbot/new.py\n@@ -0,0 +1 @@\n+x = 1\n"
