@@ -3456,11 +3456,50 @@ class HengbotPolicy(TownArbiterMixin):
 
     def _home_visit_keep_set(self, snapshot: Snapshot) -> frozenset[tuple]:
         """Snapshot retention inputs before a visit is allowed to approach."""
-        return frozenset(
-            self._item_signature(item)
+        return self._home_visit_retention(snapshot)[0]
+
+    def _home_visit_retention(
+        self, snapshot: Snapshot
+    ) -> tuple[frozenset[tuple], frozenset[str]]:
+        """Return the one retention authority in UI and equipment key spaces."""
+        retained = tuple(
+            item
             for item in snapshot.inventory
             if self._retention_reservation(snapshot, item) > 0
         )
+        return (
+            frozenset(self._item_signature(item) for item in retained),
+            frozenset(
+                equipment_identity(item) for item in retained if item.is_equipment
+            ),
+        )
+
+    def _transaction_retain_identities(
+        self, snapshot: Snapshot, current: Loadout, target: Loadout
+    ) -> frozenset[str]:
+        """Project displaced worn items through takeoff before asking retention."""
+        if not isinstance(current, Loadout) or not isinstance(target, Loadout):
+            return frozenset()
+        current_slots = dict(current.slots)
+        target_slots = dict(target.slots)
+        displaced_slots = {
+            slot
+            for slot, owned in current_slots.items()
+            if target_slots.get(slot) is None or target_slots[slot].id != owned.id
+        }
+        if not displaced_slots:
+            return frozenset()
+        displaced = tuple(
+            owned.item for slot, owned in current_slots.items() if slot in displaced_slots
+        )
+        projected = replace(
+            snapshot,
+            inventory=tuple(snapshot.inventory) + displaced,
+            equipment=tuple(
+                item for item in snapshot.equipment if item.slot not in displaced_slots
+            ),
+        )
+        return self._home_visit_retention(projected)[1]
 
     def _derived_home_visit_request(
         self, snapshot: Snapshot
@@ -11497,7 +11536,20 @@ class HengbotPolicy(TownArbiterMixin):
         if self._calibration_phase not in (None, "restore-supplies"):
             return []
         _, outstanding, _ = self._calibration_redress_accounting(snapshot)
-        return outstanding
+        ordered = list(outstanding)
+        main_index = next(
+            (index for index, entry in enumerate(ordered) if entry[0] == SLOT_MAIN_HAND),
+            None,
+        )
+        sub_index = next(
+            (index for index, entry in enumerate(ordered) if entry[0] == SLOT_SUB_HAND),
+            None,
+        )
+        if main_index is not None and sub_index is not None and sub_index < main_index:
+            ordered[main_index], ordered[sub_index] = (
+                ordered[sub_index], ordered[main_index]
+            )
+        return ordered
 
     def _calibration_redress_key(self, snapshot: Snapshot) -> str | None:
         """Dress a calibration-stripped character UNCONDITIONALLY.
@@ -12198,7 +12250,9 @@ class HengbotPolicy(TownArbiterMixin):
         for required_flag in required_flags:
             if any(
                 required_flag in item.flags
-                and item.id not in self._equipment_transaction_failed_items
+                and not self._equipment_memory_contains(
+                    self._equipment_transaction_failed_items, item
+                )
                 for item in eligible_catalog
             ):
                 continue
@@ -12206,20 +12260,25 @@ class HengbotPolicy(TownArbiterMixin):
                 item.id
                 for item in eligible_catalog
                 if required_flag in item.flags
-                and item.id in self._equipment_transaction_failed_items
-                and item.id not in self._equipment_quarantine_burned_ids
+                and self._equipment_memory_contains(
+                    self._equipment_transaction_failed_items, item
+                )
+                and not self._equipment_memory_contains(
+                    self._equipment_quarantine_burned_ids, item
+                )
             )
         if released_failed_ids:
-            self._equipment_transaction_failed_items.difference_update(
-                released_failed_ids
-            )
-            self._equipment_quarantine_second_chance_ids.update(
-                released_failed_ids
-            )
+            for item in eligible_catalog:
+                if item.id in released_failed_ids:
+                    keys = self._equipment_memory_keys(item)
+                    self._equipment_transaction_failed_items.difference_update(keys)
+                    self._equipment_quarantine_second_chance_ids.update(keys)
         catalog = tuple(
             item
             for item in eligible_catalog
-            if item.id not in self._equipment_transaction_failed_items
+            if not self._equipment_memory_contains(
+                self._equipment_transaction_failed_items, item
+            )
         )
         # INVARIANT: no quarantine (a stall-failed item id, a deferred Home
         # signature, or both at once) may remove the LAST owned source of a
@@ -12246,7 +12305,9 @@ class HengbotPolicy(TownArbiterMixin):
                 for item in operational_catalog
                 if required_flag in item.flags
                 and item.id not in catalog_ids
-                and item.id not in self._equipment_quarantine_burned_ids
+                and not self._equipment_memory_contains(
+                    self._equipment_quarantine_burned_ids, item
+                )
             )
             if candidates:
                 readmitted_ids.add(candidates[0])
@@ -12256,7 +12317,11 @@ class HengbotPolicy(TownArbiterMixin):
                 for item in operational_catalog
                 if item.id in readmitted_ids
             )
-            self._equipment_quarantine_second_chance_ids.update(readmitted_ids)
+            for item in operational_catalog:
+                if item.id in readmitted_ids:
+                    self._equipment_quarantine_second_chance_ids.update(
+                        self._equipment_memory_keys(item)
+                    )
         self._equipment_quarantine_readmitted_ids = tuple(sorted(readmitted_ids))
         if optimization_depth is None:
             # Quarantine and deferred-routing state govern whether a selected
@@ -12313,7 +12378,9 @@ class HengbotPolicy(TownArbiterMixin):
                 # deposit by itself.  Preserve that pack item explicitly or a
                 # fresh plan recreates the same deposit immediately after the
                 # old session releases ownership.
-                or item.id in self._equipment_transaction_failed_items
+                or self._equipment_memory_contains(
+                    self._equipment_transaction_failed_items, item
+                )
                 or self._retention_reservation(snapshot, item.item) > 0
                 or (
                     item.item.is_digging_tool
@@ -12468,6 +12535,11 @@ class HengbotPolicy(TownArbiterMixin):
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
                     preserve_pack_item_ids=preserve,
+                    retain_item_identities=self._transaction_retain_identities(
+                        snapshot,
+                        preparation.current,
+                        preparation.result.best.loadout,
+                    ),
                 )
                 preparation = replace(
                     preparation,
@@ -12659,6 +12731,25 @@ class HengbotPolicy(TownArbiterMixin):
         if not isinstance(selected_ids, (set, frozenset)):
             selected_ids = frozenset()
         selected_ids = frozenset(selected_ids)
+        if (
+            isinstance(loadout, Loadout)
+            and isinstance(preparation.current, Loadout)
+            and preparation.transaction is not None
+        ):
+            transaction = plan_equipment_transactions(
+                catalog,
+                preparation.current,
+                loadout,
+                current_pack_items=len(snapshot.inventory),
+                home_scan_complete=self._equipment_catalog.home_scan_complete,
+                preserve_pack_item_ids=preserve,
+                retain_item_identities=self._transaction_retain_identities(
+                    snapshot, preparation.current, loadout
+                ),
+            )
+            preparation = replace(
+                preparation, transaction=transaction, blockers=transaction.blockers
+            )
         if any(
             item.id in selected_ids
             and not item.item.fully_known
@@ -12671,7 +12762,13 @@ class HengbotPolicy(TownArbiterMixin):
                 transaction=None,
                 blockers=("pending-random-teleport-suppression",),
             )
-        elif selected_ids.intersection(self._equipment_transaction_failed_items):
+        elif any(
+            item.id in selected_ids
+            and self._equipment_memory_contains(
+                self._equipment_transaction_failed_items, item
+            )
+            for item in catalog
+        ):
             preparation = replace(
                 preparation,
                 transaction=None,
@@ -13085,7 +13182,9 @@ class HengbotPolicy(TownArbiterMixin):
                 "failed_quarantined_ids": sorted(
                     item.id
                     for item in sources
-                    if item.id in self._equipment_transaction_failed_items
+                    if self._equipment_memory_contains(
+                        self._equipment_transaction_failed_items, item
+                    )
                 ),
                 "deferred_home_ids": sorted(
                     item.id
@@ -13097,7 +13196,9 @@ class HengbotPolicy(TownArbiterMixin):
                 "burned_ids": sorted(
                     item.id
                     for item in sources
-                    if item.id in self._equipment_quarantine_burned_ids
+                    if self._equipment_memory_contains(
+                        self._equipment_quarantine_burned_ids, item
+                    )
                 ),
             })
         return report
@@ -13107,6 +13208,28 @@ class HengbotPolicy(TownArbiterMixin):
         if session is not None:
             session.block(reason)
         self._town_blocked_reason = f"equipment-transaction:{reason}"
+
+    @staticmethod
+    def _equipment_memory_keys(item: OwnedEquipment) -> frozenset[str]:
+        """Keys for visit-scoped memory across pack/equipped origin changes."""
+        return frozenset((
+            item.id,
+            f"identity:{equipment_identity(item.item)}",
+        ))
+
+    @staticmethod
+    def _equipment_action_memory_keys(
+        action: EquipmentTransaction,
+    ) -> frozenset[str]:
+        keys = {action.item_id}
+        if action.item_identity:
+            keys.add(f"identity:{action.item_identity}")
+        return frozenset(keys)
+
+    def _equipment_memory_contains(
+        self, memory: set[str], item: OwnedEquipment
+    ) -> bool:
+        return not memory.isdisjoint(self._equipment_memory_keys(item))
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
@@ -13343,18 +13466,20 @@ class HengbotPolicy(TownArbiterMixin):
                     )
                 finally:
                     self._equipment_transaction_session = session
-            if not route_blocked and not owner_retired and (
-                action.item_id
-                in self._equipment_quarantine_second_chance_ids
+            action_memory_keys = self._equipment_action_memory_keys(action)
+            if not route_blocked and not owner_retired and not (
+                action_memory_keys.isdisjoint(
+                    self._equipment_quarantine_second_chance_ids
+                )
             ):
                 # The item already had its one release/readmission this visit
                 # and its transaction failed again: consume the second chance.
                 # Burned ids are excluded from both the release valve and the
                 # last-source readmission, so every quarantine escape strictly
                 # shrinks the remaining candidate set (monotonic exit).
-                self._equipment_quarantine_burned_ids.add(action.item_id)
+                self._equipment_quarantine_burned_ids.update(action_memory_keys)
             if not route_blocked and not owner_retired:
-                self._equipment_transaction_failed_items.add(action.item_id)
+                self._equipment_transaction_failed_items.update(action_memory_keys)
         self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
@@ -13794,7 +13919,9 @@ class HengbotPolicy(TownArbiterMixin):
         observed_identity: str | None,
     ) -> None:
         """Re-derive a plan when its current letter no longer names its item."""
-        self._equipment_transaction_failed_items.add(action.item_id)
+        self._equipment_transaction_failed_items.update(
+            self._equipment_action_memory_keys(action)
+        )
         self._equipment_transaction_route_terminal_pending = False
         self._discard_unposted_equipment_transaction_command()
         self._set_equipment_transaction_session(None)

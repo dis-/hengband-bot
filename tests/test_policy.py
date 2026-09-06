@@ -46379,6 +46379,53 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._equipment_catalog.home_scan_complete = True
         return policy, snapshot, digger_ids, home_id, wearable
 
+    def test_worn_reserved_digger_projects_through_takeoff_and_never_deposits(self):
+        """Seq 803-815 shape: one authority governs post-takeoff retention."""
+        digger = item(
+            "main_hand", TVAL_DIGGING, SV_DIGGING_SHOVEL,
+            name="Shovel (1d2)", known=True, fully_known=True,
+            is_equipment=True,
+        )
+        sword = item(
+            "a", 23, 4, name="Long Sword (2d5)", known=True,
+            fully_known=True, is_equipment=True, to_h=5, to_d=8,
+        )
+        snapshot = self._town(inventory=(sword,), equipment=(digger,))
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        catalog = policy._equipment_catalog.items
+        current = current_loadout(catalog)
+        worn = next(owned for owned in catalog if owned.origin == "equipped")
+        replacement = next(owned for owned in catalog if owned.origin == "pack")
+        target = Loadout((("main_hand", replacement),), "one_handed")
+
+        retained = policy._transaction_retain_identities(
+            snapshot, current, target
+        )
+        plan = policy_module.plan_equipment_transactions(
+            catalog,
+            current,
+            target,
+            current_pack_items=len(snapshot.inventory),
+            home_scan_complete=True,
+            preserve_pack_item_ids=frozenset({replacement.id}),
+            retain_item_identities=retained,
+        )
+
+        self.assertIn(policy_module.equipment_identity(digger), retained)
+        self.assertEqual(
+            [(action.kind, action.item_identity) for action in plan.actions],
+            [
+                ("takeoff", policy_module.equipment_identity(digger)),
+                ("equip", policy_module.equipment_identity(sword)),
+            ],
+        )
+        self.assertEqual(plan.phase("home_finalize"), ())
+        self.assertEqual(plan.peak_pack_items, 2)
+
     def test_retained_incident_diggers_are_preserved_and_never_deposited(self):
         policy, snapshot, digger_ids, home_id, _ = (
             self._digger_withdrawal_incident()
@@ -55142,6 +55189,24 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         )
         self.assertIn(ring_id, policy._equipment_quarantine_readmitted_ids)
 
+        # The same physical kind now arrives from the pack view with a new
+        # origin-prefixed catalogue id.  The stall producer above and this
+        # consumer share the same policy instance; quarantine must survive it.
+        moved = item(
+            "a", TVAL_RING, 4, name=self.RING_NAME, known=True,
+            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+        )
+        policy._equipment_catalog.refresh_carried([moved], town.equipment)
+        moved_owned = next(
+            owned
+            for owned in policy._equipment_catalog.items
+            if owned.origin == "pack"
+        )
+        self.assertNotEqual(moved_owned.id, ring_id)
+        self.assertTrue(policy._equipment_memory_contains(
+            policy._equipment_quarantine_second_chance_ids, moved_owned
+        ))
+
     def _second_ring(self):
         return store_item(
             "K", TVAL_RING, 4, name="Second Ring of Law [+3]", known=True,
@@ -57783,11 +57848,15 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
         )
+        shovel = item(
+            "sub_hand", 23, 5, name="dagger",
+            known=True, fully_known=True, is_equipment=True,
+        )
         lantern = item(
             "light", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, known=True,
             fully_known=True, is_equipment=True,
         )
-        dressed = self._snapshot(equipment=(sword, lantern))
+        dressed = self._snapshot(equipment=(shovel, sword, lantern))
 
         # First dressed calm observation legitimately starts calibration and
         # installs the strip (empty pack -> straight to the takeoffs).
@@ -57799,9 +57868,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         # Partial strip: the sword comes off, then an interruption aborts the
         # phase into restore-equip and the restore budget is exhausted.
         sword_in_pack = replace(sword, slot="c")
+        shovel_in_pack = replace(shovel, slot="d")
         threat = hostile(1, 10, 13, distance=3)
         partial_threatened = self._snapshot(
-            inventory=(sword_in_pack,), equipment=(lantern,),
+            inventory=(shovel_in_pack, sword_in_pack), equipment=(lantern,),
             monsters=(threat,),
         )
         policy._calibration_observe(partial_threatened)
@@ -57816,10 +57886,10 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         # Redress under the ordinary machinery, still one visit.
         partial_calm = self._snapshot(
-            inventory=(sword_in_pack,), equipment=(lantern,)
+            inventory=(shovel_in_pack, sword_in_pack), equipment=(lantern,)
         )
         key = policy.choose_key(partial_calm)
-        self.assertTrue(key.startswith(equipment_mutation_module.WIELD_KEY), key)
+        self.assertEqual(key, equipment_mutation_module.WIELD_KEY + "c")
         self.assertEqual(policy.last_reason, "calibration:redress")
 
         # Dressed again: the guard clears (departure conjunct reopens) and

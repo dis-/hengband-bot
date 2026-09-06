@@ -106,6 +106,11 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
                 empty, "mining-loadout", tool, "main_hand", SLOTS
             ).key, "ws"
         )
+        impossible = EquipmentMutationExecutor().request_wield(
+            empty, "calibration-redress", tool, "sub_hand", SLOTS
+        )
+        self.assertIsNone(impossible.key)
+        self.assertEqual(impossible.report, "sub-hand-requires-main-hand")
         main = item("main_hand", "Sword", tval=23, melee=True)
         self.assertEqual(
             EquipmentMutationExecutor().request_wield(

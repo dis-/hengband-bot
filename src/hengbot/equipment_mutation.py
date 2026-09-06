@@ -147,6 +147,13 @@ class EquipmentMutationExecutor:
         suffix = ""
         tval = getattr(item, "tval", None)
         if tval in {TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD}:
+            if main is None and sub is None and target_slot == "sub_hand":
+                # do_cmd_wield initializes an empty pair with wield_slot(),
+                # which selects INVEN_MAIN_HAND, and asks no follow-up prompt.
+                # There is therefore no suffix capable of selecting the left
+                # hand.  Refuse the impossible direct mutation; callers must
+                # restore main_hand before sub_hand.
+                return EquipmentMutationResult(None, "sub-hand-requires-main-hand")
             if main is not None and sub is not None:
                 suffix = slot_keys[target_slot]
             elif main is not None:

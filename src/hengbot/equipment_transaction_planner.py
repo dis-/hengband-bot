@@ -74,6 +74,7 @@ def plan_equipment_transactions(
     home_scan_complete: bool,
     pack_capacity: int = 23,
     preserve_pack_item_ids: frozenset[str] = frozenset(),
+    retain_item_identities: frozenset[str] = frozenset(),
     preserve_worn_light: bool = False,
 ) -> EquipmentTransactionPlan:
     """Build a batched, fail-closed Home/equipment transaction plan."""
@@ -231,6 +232,7 @@ def plan_equipment_transactions(
             item_identity=equipment_identity(item.item),
         )
         for item in displaced
+        if equipment_identity(item.item) not in retain_item_identities
     )
     return EquipmentTransactionPlan(
         tuple(actions), tuple(dict.fromkeys(blockers)), peak_pack_items

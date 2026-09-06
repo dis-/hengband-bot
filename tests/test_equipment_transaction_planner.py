@@ -1,6 +1,6 @@
 import unittest
 
-from hengbot.equipment_optimizer import Loadout, OwnedEquipment
+from hengbot.equipment_optimizer import Loadout, OwnedEquipment, equipment_identity
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
     PHASE_HOME_FINALIZE,
@@ -193,6 +193,53 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
             Loadout((), "empty"), current_pack_items=23,
             home_scan_complete=True,
         )
+        self.assertEqual(plan.peak_pack_items, 24)
+        self.assertIn("pack-space-required:1", plan.blockers)
+
+    def test_retained_displaced_digger_stays_in_pack_without_final_deposit(self):
+        digger = gear("equipped:3de78ae78c7ba624:0", "equipped")
+        sword = gear("pack:sword:0", "pack")
+        plan = plan_equipment_transactions(
+            (digger, sword),
+            Loadout((("main_hand", digger),), "one_handed"),
+            Loadout((("main_hand", sword),), "one_handed"),
+            current_pack_items=1,
+            home_scan_complete=True,
+            preserve_pack_item_ids=frozenset({sword.id}),
+            retain_item_identities=frozenset({equipment_identity(digger.item)}),
+        )
+
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [("takeoff", digger.id), ("equip", sword.id)],
+        )
+        self.assertEqual(plan.peak_pack_items, 2)
+
+    def test_retained_displaced_launcher_uses_identity_not_origin_id(self):
+        bow = gear("equipped:73244d56c331ef37:0", "equipped", tval=19)
+        plan = plan_equipment_transactions(
+            (bow,),
+            Loadout((("bow", bow),), "empty"),
+            Loadout((), "empty"),
+            current_pack_items=0,
+            home_scan_complete=True,
+            retain_item_identities=frozenset({equipment_identity(bow.item)}),
+        )
+
+        self.assertEqual([action.kind for action in plan.actions], ["takeoff"])
+        self.assertEqual(plan.phase(PHASE_HOME_FINALIZE), ())
+
+    def test_retained_displaced_item_still_consumes_peak_pack_space(self):
+        bow = gear("equipped:73244d56c331ef37:0", "equipped", tval=19)
+        plan = plan_equipment_transactions(
+            (bow,),
+            Loadout((("bow", bow),), "empty"),
+            Loadout((), "empty"),
+            current_pack_items=23,
+            home_scan_complete=True,
+            retain_item_identities=frozenset({equipment_identity(bow.item)}),
+        )
+
         self.assertEqual(plan.peak_pack_items, 24)
         self.assertIn("pack-space-required:1", plan.blockers)
 
