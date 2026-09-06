@@ -1,5 +1,7 @@
 """Small dependency-free constants shared by policy and its executors."""
 
+from enum import Enum
+
 # When the character dies, Hengband leaves the command loop for the tombstone,
 # death-info, and high-score shutdown chain and emits no more snapshots. Escape
 # nudges cannot revive it, so eight fruitless observations trigger recovery.
@@ -64,6 +66,7 @@ IDENTIFY_PRESSURE_FREE_SLOTS = 3
 IDENTIFY_FAIL_LIMIT = 3
 STAFF_IDENTIFY_MIN_SUCCESS = 0.80
 FUNDRAISING_GOLD_TARGET = 15000
+FUNDRAISING_KIT_RESERVE = 100
 
 TOWN_TRAVEL_STALL_LIMIT = 8
 TOWN_TRAVEL_TURN_STALL_LIMIT = 12
@@ -75,3 +78,55 @@ EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
         "equipment-transaction:home-route-repeat-terminal",
     }
 )
+
+TUNNEL_KEY = "T"
+
+SEARCH_KEY = "s"
+
+SEARCH_LIMIT = 8
+
+STUCK_ESCAPE_LIMIT = 60
+
+EAT_KEY = "E"
+
+REFILL_KEY = "\\F"  # bypass keymaps, then refill from the selected pack slot
+
+DIGGER_WIELD_LIMIT = TERMINAL_NUDGE_LIMIT
+
+MINING_COMBAT_CONTACT_LIMIT = 2
+
+MINING_THREAT_FREE_LIMIT = 8
+
+MINING_STALL_LIMIT = 150
+
+BARREN_FLOOR_SKIP_THRESHOLD = 10
+
+MINING_SWEEP_NO_PROGRESS_LIMIT = 24
+
+MINING_SWEEP_HARD_LIMIT = 600
+
+MINING_ROUTE_REVISIT_LIMIT = 4
+
+MINING_NAVIGATION_REVISIT_LIMIT = 8
+
+MINING_OSCILLATION_RETARGET_LIMIT = 3
+
+RECALL_MIN_DEPTH = 5
+
+FUNDRAISING_DIGGER_BASE_PRICE = 20
+
+FUNDRAISING_DETECTION_BASE_PRICE = 15
+
+FUNDRAISING_KIT_MARGIN = (
+    FUNDRAISING_KIT_RESERVE
+    - FUNDRAISING_DIGGER_BASE_PRICE
+    - FUNDRAISING_DETECTION_BASE_PRICE
+)
+
+MINING_DETECTION_RADIUS = 30
+
+class ExplorationPathOutcome(str, Enum):
+    PAUSE = "pause"
+    INVALIDATE = "invalidate"
+    SUCCESS = "success"
+    ABANDON = "abandon"

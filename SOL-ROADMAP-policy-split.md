@@ -846,3 +846,6 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   (the rework event regressed to hashes only); scripts self-test suite
   (scripts/test_verification_gates.py) is outside parallel/serial discovery
   and must be run focused whenever scripts/ changes.
+- Phase 3: the roadmap's literal prefix list matches 24 methods, not the
+  stated 35. The 11-method count mismatch is retained for later classification;
+  Phase 3 moved only the methods selected by the authoritative literal prefixes.
