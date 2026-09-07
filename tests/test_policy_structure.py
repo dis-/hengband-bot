@@ -18,10 +18,12 @@ from hengbot.policy_combat import CombatMixin
 from hengbot.policy_equipment import EquipmentMixin
 from hengbot.policy_fundraising import FundraisingMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
+from hengbot.policy_home import HomeMixin
 from hengbot.policy_identification import IdentificationMixin
 from hengbot.policy_navigation import NavigationMixin
 from hengbot.policy_quest import QuestMixin
 from hengbot.policy_supply import SupplyMixin
+from hengbot.town_arbiter import TownArbiterMixin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,19 +98,22 @@ class PolicyStructureTest(unittest.TestCase):
                 1,
             )
 
-    def test_policy_composes_all_nine_split_mixins(self):
-        self.assertTrue(
+    def test_policy_composes_all_eleven_split_mixins(self):
+        self.assertEqual(
+            set(HengbotPolicy.__bases__),
             {
                 CalibrationMixin,
                 CombatMixin,
                 EquipmentMixin,
                 FundraisingMixin,
+                HomeMixin,
                 PolicyHelpersMixin,
                 IdentificationMixin,
                 NavigationMixin,
                 QuestMixin,
                 SupplyMixin,
-            }.issubset(HengbotPolicy.__mro__)
+                TownArbiterMixin,
+            },
         )
 
     def test_policy_mixins_have_no_method_name_collisions(self):
