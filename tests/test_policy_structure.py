@@ -1,9 +1,11 @@
 """Structural guards for the behavior-preserving policy mixin split."""
 
 import base64
+import importlib
 import json
 import pickle
 from pathlib import Path
+import sys
 import unittest
 
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
@@ -45,6 +47,26 @@ def _member_collisions(policy_type):
 
 
 class PolicyStructureTest(unittest.TestCase):
+    def test_test_modules_do_not_bind_foreign_test_cases(self):
+        offenders = []
+        scripts = str(ROOT / "scripts")
+        sys.path.insert(0, scripts)
+        try:
+            for path in sorted((ROOT / "tests").glob("test_*.py")):
+                module = importlib.import_module(path.stem)
+                for name, value in vars(module).items():
+                    if (
+                        isinstance(value, type)
+                        and issubclass(value, unittest.TestCase)
+                        and value.__module__ != module.__name__
+                    ):
+                        offenders.append(
+                            f"{module.__name__}.{name} from {value.__module__}"
+                        )
+        finally:
+            sys.path.remove(scripts)
+        self.assertEqual(offenders, [])
+
     def test_policy_composes_all_eight_split_mixins(self):
         self.assertTrue(
             {
