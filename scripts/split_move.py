@@ -10,8 +10,13 @@ import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import symtable
 import sys
+import tempfile
+import tokenize
+from io import StringIO
 from typing import Iterable
 
 
@@ -38,6 +43,7 @@ class MovePlan:
     original_decorators: tuple[tuple[str, tuple[str, ...]], ...]
     source_delta: int
     target_delta: int
+    source_backrefs: tuple[str, ...]
 
 
 def _class(tree: ast.Module, name: str) -> ast.ClassDef:
@@ -130,7 +136,7 @@ def _render_import(node: ast.Import | ast.ImportFrom, wanted: set[str]) -> str:
     return f"from {dots}{module} import {names}"
 
 
-def build_plan(source_text: str, source_class: str, selectors: Iterable[str]) -> MovePlan:
+def build_plan(source_text: str, source_class: str, selectors: Iterable[str], source_module: str = "policy") -> MovePlan:
     tree = ast.parse(source_text)
     methods = select_methods(_spans(source_text, source_class), selectors)
     bindings, local_constants = _module_bindings(tree)
@@ -151,7 +157,7 @@ def build_plan(source_text: str, source_class: str, selectors: Iterable[str]) ->
             source_local.append(name)
     imports = [_render_import(node, wanted_imports) for node in import_nodes]
     if source_local:
-        imports.append("from .policy import " + ", ".join(source_local))
+        imports.append(f"from .{source_module} import " + ", ".join(source_local))
     if constants:
         imports.append("from .policy_constants import " + ", ".join(constants))
     source_lines = source_text.splitlines()
@@ -166,9 +172,9 @@ def build_plan(source_text: str, source_class: str, selectors: Iterable[str]) ->
         (span.name, tuple(ast.dump(item, include_attributes=False) for item in span.node.decorator_list))
         for span in all_spans
     )
-    target_lines = 4 + sum(span.text.count("\n") for span in methods)
+    target_lines = 6 + sum(span.text.count("\n") for span in methods)
     return MovePlan(methods, tuple(imports), constants, decorated, sentinels,
-                    original_decorators, -removed + 1, target_lines)
+                    original_decorators, -removed + 1, target_lines, tuple(source_local))
 
 
 def _normalized(node: ast.AST) -> str:
@@ -181,7 +187,24 @@ def _normalized(node: ast.AST) -> str:
     return ast.dump(node, include_attributes=False)
 
 
-def verify_move(original: MovePlan, source_text: str, target_text: str, source_class: str, mixin_name: str) -> None:
+def _import_smoke_test(source_text: str, target_text: str, source_path: Path,
+                       target_module: str) -> None:
+    package_dir = source_path.parent
+    with tempfile.TemporaryDirectory(prefix="split-move-smoke-") as raw_temp:
+        temp_root = Path(raw_temp)
+        copied_package = temp_root / package_dir.name
+        shutil.copytree(package_dir, copied_package)
+        (copied_package / source_path.name).write_text(source_text, encoding="utf-8", newline="")
+        (copied_package / f"{target_module}.py").write_text(target_text, encoding="utf-8", newline="")
+        command = [sys.executable, "-c", f"import {package_dir.name}.{target_module}"]
+        completed = subprocess.run(command, cwd=temp_root, capture_output=True, text=True, timeout=60)
+        if completed.returncode:
+            detail = (completed.stderr or completed.stdout).strip().splitlines()
+            raise SplitMoveError("new module failed import smoke test: " + (detail[-1] if detail else "unknown error"))
+
+
+def verify_move(original: MovePlan, source_text: str, target_text: str, source_class: str,
+                mixin_name: str, source_path: Path, target_module: str) -> None:
     source_tree = ast.parse(source_text)
     target_tree = ast.parse(target_text)
     remaining = {node.name for node in _class(source_tree, source_class).body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
@@ -206,9 +229,44 @@ def verify_move(original: MovePlan, source_text: str, target_text: str, source_c
     if unresolved:
         raise SplitMoveError("new module has unresolved free names: " + ", ".join(unresolved))
     compile(target_text, "<split target>", "exec")
+    _import_smoke_test(source_text, target_text, source_path, target_module)
 
 
-def render(source_text: str, plan: MovePlan, source_class: str, target_module: str, mixin_name: str) -> tuple[str, str]:
+def _class_header_positions(text: str, class_name: str) -> tuple[int | None, int]:
+    """Return the opening-parenthesis and terminating-colon offsets for a class."""
+    line_offsets = [0]
+    for line in text.splitlines(keepends=True):
+        line_offsets.append(line_offsets[-1] + len(line))
+    tokens = iter(tokenize.generate_tokens(StringIO(text).readline))
+    for token in tokens:
+        if token.type != tokenize.NAME or token.string != "class":
+            continue
+        name = next(tokens)
+        if name.type != tokenize.NAME or name.string != class_name:
+            continue
+        opening = None
+        depth = 0
+        for item in tokens:
+            offset = line_offsets[item.start[0] - 1] + item.start[1]
+            if item.string in "([{" and item.type == tokenize.OP:
+                if opening is None and item.string == "(":
+                    opening = offset
+                depth += 1
+            elif item.string in ")]}":
+                depth -= 1
+            elif item.string == ":" and item.type == tokenize.OP and depth == 0:
+                return opening, offset
+    raise SplitMoveError(f"source class {class_name!r} header was not found")
+
+
+def render(source_text: str, plan: MovePlan, source_class: str, target_module: str,
+           mixin_name: str, source_path: Path) -> tuple[str, str]:
+    if plan.source_backrefs:
+        raise SplitMoveError(
+            f"refusing back-reference to {source_path.parent.name}.{source_path.stem} for: "
+            + ", ".join(plan.source_backrefs)
+            + "; lift these symbols to a shared module first"
+        )
     if plan.constants_to_relocate:
         raise SplitMoveError("constants must be relocated to policy_constants before applying: " + ", ".join(plan.constants_to_relocate))
     lines = source_text.splitlines(keepends=True)
@@ -220,16 +278,16 @@ def render(source_text: str, plan: MovePlan, source_class: str, target_module: s
     changed_lines = changed.splitlines(keepends=True)
     changed_lines.insert(insert_at, import_line)
     changed = "".join(changed_lines)
-    cls = _class(ast.parse(changed), source_class)
-    header_end = changed.find(":", changed_lines and sum(len(x) for x in changed_lines[:cls.lineno - 1]))
-    header = changed[:header_end]
-    if "(" in header[header.rfind("class "):]:
-        changed = changed[:header_end] + f", {mixin_name}" + changed[header_end:]
+    opening, header_end = _class_header_positions(changed, source_class)
+    if opening is not None:
+        following = changed[opening + 1:header_end]
+        separator = "" if re.fullmatch(r"\s*\)", following) else ", "
+        changed = changed[:opening + 1] + mixin_name + separator + changed[opening + 1:]
     else:
         changed = changed[:header_end] + f"({mixin_name})" + changed[header_end:]
     body = "\n\n".join(span.text.rstrip() for span in plan.methods)
-    target = "\n".join((*plan.import_lines, "", f"class {mixin_name}:", body, ""))
-    verify_move(plan, changed, target, source_class, mixin_name)
+    target = "\n".join(("from __future__ import annotations", "", *plan.import_lines, "", f"class {mixin_name}:", body, ""))
+    verify_move(plan, changed, target, source_class, mixin_name, source_path, target_module)
     return changed, target
 
 
@@ -244,6 +302,18 @@ def _print_plan(plan: MovePlan) -> None:
     print(f"Expected line deltas: source {plan.source_delta:+d}, target {plan.target_delta:+d}")
 
 
+def _print_constants_plan(source_text: str, plan: MovePlan) -> None:
+    tree = ast.parse(source_text)
+    bindings, _ = _module_bindings(tree)
+    print("policy_constants.py additions:")
+    for name in plan.constants_to_relocate:
+        node = bindings[name]
+        print(ast.get_source_segment(source_text, node))
+    print("policy.py deletions:")
+    for name in plan.constants_to_relocate:
+        print(f"  delete definition of {name}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
@@ -256,11 +326,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         source_text = args.source.read_text(encoding="utf-8")
-        plan = build_plan(source_text, args.source_class, args.selectors)
+        plan = build_plan(source_text, args.source_class, args.selectors, args.source.stem)
         _print_plan(plan)
-        if args.dry_run or args.constants_plan:
+        if args.constants_plan:
+            _print_constants_plan(source_text, plan)
             return 0
-        changed, target = render(source_text, plan, args.source_class, args.target.stem, args.mixin)
+        changed, target = render(source_text, plan, args.source_class, args.target.stem, args.mixin, args.source)
+        if args.dry_run:
+            header = ast.get_source_segment(changed, _class(ast.parse(changed), args.source_class)).splitlines()[0]
+            print("Rendered class header: " + header)
+            print("Import smoke test: PASS")
+            return 0
         if args.target.exists():
             raise SplitMoveError(f"target already exists: {args.target}")
         args.source.write_text(changed, encoding="utf-8", newline="")
