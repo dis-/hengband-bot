@@ -349,7 +349,7 @@ MUTATIONS = (
         True,
         "Restore owner movement through the no-adjacency ring.",
         (replacement(
-            "policy.py",
+            "policy_navigation.py",
             "        if step in self._paralyzer_avoid_cells:\n",
             "        if False and step in self._paralyzer_avoid_cells:\n",
         ),),
@@ -392,7 +392,7 @@ MUTATIONS = (
         True,
         "Prevent paralyzer retreat from crossing a fully ringed veto.",
         (replacement(
-            "policy.py",
+            "policy_navigation.py",
             "            if not (allow_paralyzer_ring_escape and fully_ringed):\n",
             "            if True:\n",
         ),),
@@ -605,7 +605,7 @@ MUTATIONS = (
         True,
         "Restore the mining walk-in early return ahead of the pending withdrawal guard.",
         (replacement(
-            "policy.py",
+            "policy_navigation.py",
             "        if (\n"
             "            self._home_digger_withdraw_pending\n"
             "            and not self._digger_fallback_bought_this_visit\n"
@@ -659,7 +659,7 @@ MUTATIONS = (
         True,
         "Keep quiet accepted stair observations in the empty-key wait forever.",
         (replacement(
-            "policy.py",
+            "policy_navigation.py",
             "            if self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:\n",
             "            if False and self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:\n",
         ),),

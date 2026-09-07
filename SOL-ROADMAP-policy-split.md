@@ -860,3 +860,6 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   and :1133 references test_policy.EmergencyRecallEscapeTest — Phase 6
   moves that class to test_policy_combat.py and WILL break this reference;
   repoint it in the same commit.
+- Phase 5: the roadmap's literal prefix list matches 27 methods, not the
+  stated 79. The 52-method count mismatch is retained for later classification;
+  Phase 5 moved only the methods selected by the authoritative literal prefixes.
