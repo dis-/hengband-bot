@@ -141,6 +141,32 @@ class ReceiptTest(unittest.TestCase):
         git(root, "config", "user.name", "selftest")
         git(root, "add", "."); git(root, "commit", "-qm", "base")
 
+    def test_receipted_bare_policy_unittest_leaves_repository_history_unchanged(self) -> None:
+        history = run_receipt.ROOT / "home-withdraw-history.jsonc"
+        before = history.read_bytes()
+        environment = __import__("os").environ.copy()
+        environment.pop("HENGBOT_HOME_HISTORY_DIR", None)
+        environment["PYTHONPATH"] = __import__("os").pathsep.join(
+            [str(run_receipt.ROOT / "src"), str(run_receipt.ROOT / "tests"), str(run_receipt.ROOT / "scripts")]
+        )
+        run = subprocess.run(
+            [
+                sys.executable,
+                str(run_receipt.ROOT / "scripts" / "run_receipt.py"),
+                "--tool", "unittest", "--target", "receipt-history-isolation-probe", "--",
+                sys.executable, "-m", "unittest",
+                "test_home_disposal.ReceiptHistoryIsolationProbeTest.test_default_policy_history_writer",
+            ],
+            cwd=run_receipt.ROOT,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(history.read_bytes(), before)
+
     def test_receipt_round_trip_and_stream_tamper_detection(self) -> None:
         with tempfile.TemporaryDirectory(prefix="receipt-test-") as name:
             root = Path(name); self.make_repo(root)

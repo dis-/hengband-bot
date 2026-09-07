@@ -279,5 +279,10 @@ class HomeDisposalTests(unittest.TestCase):
         self.assertEqual(policy._home_disposal_processing_key(appeared), "01kc")
 
 
+class ReceiptHistoryIsolationProbeTest(unittest.TestCase):
+    def test_default_policy_history_writer(self):
+        self.assertIn(HengbotPolicy()._home_disposal.note_dungeon_recall(), (True, False))
+
+
 if __name__ == "__main__":
     unittest.main()

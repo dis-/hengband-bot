@@ -15,9 +15,11 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -28,6 +30,7 @@ from failure_headers import iter_failure_headers
 
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPTS = ROOT / "jsonlog" / "receipts"
+HOME_HISTORY_DIR_ENV = "HENGBOT_HOME_HISTORY_DIR"
 
 
 def sha256(path: Path) -> str:
@@ -44,6 +47,20 @@ def now() -> datetime:
 
 def safe(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-") or "run"
+
+
+@contextlib.contextmanager
+def isolated_home_history():
+    """Give a receipt run private durable history unless its caller supplied one."""
+    if HOME_HISTORY_DIR_ENV in os.environ:
+        yield os.environ[HOME_HISTORY_DIR_ENV]
+        return
+    with tempfile.TemporaryDirectory(prefix="hengbot-receipt-history-") as name:
+        os.environ[HOME_HISTORY_DIR_ENV] = name
+        try:
+            yield name
+        finally:
+            os.environ.pop(HOME_HISTORY_DIR_ENV, None)
 
 
 def source_fingerprint(root: Path) -> str:
@@ -131,9 +148,10 @@ def run_native(tool: str, target: str, argv: list[str], action: Callable[[], int
     started, head, tree = now(), verify_scope.git(ROOT, "rev-parse", "HEAD").strip(), source_fingerprint(ROOT)
     stem = f"{safe(tool)}-{safe(target)}-{started.strftime('%Y%m%dT%H%M%S%z')}"
     stdout_path, stderr_path = RECEIPTS / f"{stem}.stdout.log", RECEIPTS / f"{stem}.stderr.log"
-    with stdout_path.open("w", encoding="utf-8") as out, stderr_path.open("w", encoding="utf-8") as err:
-        with contextlib.redirect_stdout(Tee(sys.stdout, out)), contextlib.redirect_stderr(Tee(sys.stderr, err)):
-            exit_code = action()
+    with isolated_home_history():
+        with stdout_path.open("w", encoding="utf-8") as out, stderr_path.open("w", encoding="utf-8") as err:
+            with contextlib.redirect_stdout(Tee(sys.stdout, out)), contextlib.redirect_stderr(Tee(sys.stderr, err)):
+                exit_code = action()
     receipt = write_receipt(tool, target, argv, started, now(), exit_code,
                             stdout_path, stderr_path, head, tree)
     print(f"Receipt: {receipt}; sha256: {sha256(receipt)}")
@@ -154,8 +172,11 @@ def main(argv: list[str] | None = None) -> int:
     started, head, tree = now(), verify_scope.git(ROOT, "rev-parse", "HEAD").strip(), source_fingerprint(ROOT)
     stem = f"{safe(tool)}-{safe(args.target)}-{started.strftime('%Y%m%dT%H%M%S%z')}"
     stdout_path, stderr_path = RECEIPTS / f"{stem}.stdout.log", RECEIPTS / f"{stem}.stderr.log"
-    with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
-        run = subprocess.run(command, cwd=ROOT, stdout=out, stderr=err)
+    with isolated_home_history() as history_dir:
+        environment = os.environ.copy()
+        environment[HOME_HISTORY_DIR_ENV] = history_dir
+        with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
+            run = subprocess.run(command, cwd=ROOT, env=environment, stdout=out, stderr=err)
     receipt = write_receipt(tool, args.target, command, started, now(), run.returncode,
                             stdout_path, stderr_path, head, tree)
     sys.stdout.write(stdout_path.read_text(encoding="utf-8", errors="replace"))

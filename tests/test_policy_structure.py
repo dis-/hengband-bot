@@ -46,6 +46,15 @@ def _member_collisions(policy_type):
     ]
 
 
+def _import_test_module(stem):
+    qualified_name = f"tests.{stem}"
+    if qualified_name in sys.modules:
+        sys.modules[stem] = sys.modules[qualified_name]
+    elif stem in sys.modules:
+        sys.modules.setdefault(qualified_name, sys.modules[stem])
+    return importlib.import_module(qualified_name)
+
+
 class PolicyStructureTest(unittest.TestCase):
     def test_test_modules_do_not_bind_foreign_test_cases(self):
         offenders = []
@@ -53,7 +62,7 @@ class PolicyStructureTest(unittest.TestCase):
         sys.path.insert(0, scripts)
         try:
             for path in sorted((ROOT / "tests").glob("test_*.py")):
-                module = importlib.import_module(path.stem)
+                module = _import_test_module(path.stem)
                 for name, value in vars(module).items():
                     if (
                         isinstance(value, type)
@@ -66,6 +75,21 @@ class PolicyStructureTest(unittest.TestCase):
         finally:
             sys.path.remove(scripts)
         self.assertEqual(offenders, [])
+
+    def test_duplicate_collection_guard_imports_one_module_object_per_stem(self):
+        for path in sorted((ROOT / "tests").glob("test_*.py")):
+            qualified_name = f"tests.{path.stem}"
+            imported = _import_test_module(path.stem)
+            after = {
+                name: module
+                for name, module in sys.modules.items()
+                if name in {path.stem, qualified_name}
+            }
+            self.assertIs(after[qualified_name], imported)
+            self.assertEqual(
+                len({id(module) for module in after.values()}),
+                1,
+            )
 
     def test_policy_composes_all_eight_split_mixins(self):
         self.assertTrue(
