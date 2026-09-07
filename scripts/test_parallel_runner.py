@@ -23,6 +23,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median
 
 from test_timing_runner import ROOT, standard_modules, timing_summary
 
@@ -32,10 +33,15 @@ DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-parallel-timings.json"
 DEFAULT_SUMMARY = ROOT / "jsonlog" / "test-parallel-timings-summary.json"
 DEFAULT_STREAMS = ROOT / "jsonlog" / "test-parallel-streams"
 
-# Audited 2026-09-06: fixture and capture-ledger access is read-only, temporary
-# writes use tempfile, and test_control_client asks the OS for port 0. No
-# observed fixed-path or fixed-port conflict requires an exclusive shard.
-SERIAL_MODULES: frozenset[str] = frozenset()
+# These modules write the fixed cwd-relative home-withdraw-history.jsonc path.
+# Keep them behind the worker pool so tests.test_policy is the sole in-pool
+# writer and no two writers can race its shared .tmp replacement (Phase 6
+# runner-hazard diagnosis, 2026-09-07).
+SERIAL_MODULES: frozenset[str] = frozenset({
+    "tests.test_absorbing_states",
+    "tests.test_latch_onset_capture",
+    "tests.test_policy_structure",
+})
 
 
 def physical_cores() -> int:
@@ -61,15 +67,17 @@ def module_seconds(path: Path) -> dict[str, float] | None:
 
 def partition(modules: list[str], workers: int, weights: dict[str, float] | None) -> list[list[str]]:
     shards = [[] for _ in range(workers)]
-    if not weights or any(module not in weights for module in modules):
+    if not weights:
         for index, module in enumerate(sorted(modules)):
             shards[index % workers].append(module)
         return shards
+    default_weight = float(median(weights.values()))
+    effective_weights = {module: weights.get(module, default_weight) for module in modules}
     totals = [0.0] * workers
-    for module in sorted(modules, key=lambda name: (-weights[name], name)):
+    for module in sorted(modules, key=lambda name: (-effective_weights[name], name)):
         index = min(range(workers), key=lambda item: (totals[item], item))
         shards[index].append(module)
-        totals[index] += weights[module]
+        totals[index] += effective_weights[module]
     return shards
 
 
