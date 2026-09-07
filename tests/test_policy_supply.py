@@ -165,7 +165,7 @@ from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.equipment_mutation import progress_core
 from hengbot.policy_constants import FOOD_TYPE_MANA
-import test_policy as _test_policy
+import test_policy_combat as _test_policy
 
 from hengbot.policy import (
     HengbotPolicy,

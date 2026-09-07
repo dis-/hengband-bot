@@ -48,18 +48,18 @@ PUBLIC_TESTS = frozenset(
         "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
         "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
         "test_cli.UniversalPostingContractTest.test_completed_dual_wield_prompt_history_is_not_an_open_owner",
-        "test_policy.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
-        "test_policy.CombatTest.test_hunt_blink_does_not_restore_the_full_progress_budget",
-        "test_policy.PredictiveEscapeTest.test_paralyzer_hunt_closure_is_vetoed_through_choose_key_after_restart",
-        "test_policy.PredictiveEscapeTest.test_distant_sleeping_immobile_paralyzer_does_not_preempt_hunt",
-        "test_policy.PredictiveEscapeTest.test_paralyzer_ring_invalidates_cached_explore_path_through_choose_key",
-        "test_policy.PredictiveEscapeTest.test_awake_mobile_adjacent_paralyzer_walks_away_first",
-        "test_policy.PredictiveEscapeTest.test_sleeping_immobile_adjacent_paralyzer_is_never_meleed",
-        "test_policy.PredictiveEscapeTest.test_step_composer_refuses_every_owner_entry_into_paralyzer_ring",
-        "test_policy.PredictiveEscapeTest.test_adjacent_paralyzer_flee_uses_composer_to_open_closed_door",
-        "test_policy.PredictiveEscapeTest.test_paralyzer_flee_scores_against_every_physical_adjacent",
-        "test_policy.PredictiveEscapeTest.test_only_paralyzer_retreat_may_cross_a_fully_ringed_veto",
-        "test_policy.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
+        "test_policy_combat.CombatTest.test_hunt_pack_midpoint_replay_cools_claim_before_cell_guard",
+        "test_policy_combat.CombatTest.test_hunt_blink_does_not_restore_the_full_progress_budget",
+        "test_policy_combat.PredictiveEscapeTest.test_paralyzer_hunt_closure_is_vetoed_through_choose_key_after_restart",
+        "test_policy_combat.PredictiveEscapeTest.test_distant_sleeping_immobile_paralyzer_does_not_preempt_hunt",
+        "test_policy_combat.PredictiveEscapeTest.test_paralyzer_ring_invalidates_cached_explore_path_through_choose_key",
+        "test_policy_combat.PredictiveEscapeTest.test_awake_mobile_adjacent_paralyzer_walks_away_first",
+        "test_policy_combat.PredictiveEscapeTest.test_sleeping_immobile_adjacent_paralyzer_is_never_meleed",
+        "test_policy_combat.PredictiveEscapeTest.test_step_composer_refuses_every_owner_entry_into_paralyzer_ring",
+        "test_policy_combat.PredictiveEscapeTest.test_adjacent_paralyzer_flee_uses_composer_to_open_closed_door",
+        "test_policy_combat.PredictiveEscapeTest.test_paralyzer_flee_scores_against_every_physical_adjacent",
+        "test_policy_combat.PredictiveEscapeTest.test_only_paralyzer_retreat_may_cross_a_fully_ringed_veto",
+        "test_policy_combat.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
         "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
@@ -313,7 +313,7 @@ MUTATIONS = (
         True,
         "Stop failing closed when free-action source state is absent.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "        return bool(snapshot.player.ability_sources.get(\"free_action\", ()))\n",
             "        return \"free_action\" in snapshot.player.abilities\n",
         ),),
@@ -323,7 +323,7 @@ MUTATIONS = (
         True,
         "Leave the previous snapshot's paralyzer cells in the shared veto.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "        self._engagement_avoid_cells -= (\n"
             "            previous_cells\n"
             "            - self._engagement_owned_avoid_cells\n"
@@ -337,7 +337,7 @@ MUTATIONS = (
         True,
         "Keep a cached exploration path after its next step enters the ring.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "        if any(step in cells for step in self._explore_path):\n"
             "            self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)\n",
             "        if False and any(step in cells for step in self._explore_path):\n"
@@ -359,7 +359,7 @@ MUTATIONS = (
         True,
         "Restore melee against an adjacent sleeping paralysis attacker.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "            if (\n"
             "                (knowledge := self._monrace_knowledge.get(monster.race_id))\n",
             "            if (\n"
@@ -372,7 +372,7 @@ MUTATIONS = (
         True,
         "Drop other physically adjacent enemies from paralyzer flee scoring.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "            step = self._flee_step(snapshot, physical_adjacent)\n",
             "            step = self._flee_step(snapshot, adjacent)\n",
         ),),
@@ -418,7 +418,7 @@ MUTATIONS = (
         True,
         "Restore the unbounded midpoint hunt claim.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "                and progress[\"steps\"] >= HUNT_RANGE\n",
             "                and False and progress[\"steps\"] >= HUNT_RANGE\n",
         ),),
@@ -428,7 +428,7 @@ MUTATIONS = (
         True,
         "Restore the blinking-target full-budget reset.",
         (replacement(
-            "policy.py",
+            "policy_combat.py",
             "        if player.hp_ratio < HUNT_HP_RATIO or not hostiles:\n",
             "        observed_indexes = {monster.index for monster in snapshot.visible_monsters}\n"
             "        for index in tuple(self._hunt_target_identities):\n"

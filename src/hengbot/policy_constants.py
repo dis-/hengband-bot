@@ -169,3 +169,49 @@ class ExplorationPathOutcome(str, Enum):
     INVALIDATE = "invalidate"
     SUCCESS = "success"
     ABANDON = "abandon"
+
+SUMMONER_RANGED_KILL_SHOTS = 3
+SUMMONER_EXPOSED_NEIGHBORS = 4
+FLEE_HP_RATIO = 0.40  # below this, break off and run from any hostile
+SWARM_COUNT = 3  # a swarm starts at this many adjacent hostiles...
+SWARM_LOOKAHEAD = 3  # turns of incoming damage to sum for the swarm check
+COMBAT_OUTCOME_WINDOW = 300
+BREEDER_STALEMATE_TURN_LIMIT = 3000
+COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
+RESIST_FLAG_BY_ABILITY = {
+    "free_action": 46,
+    "resist_acid": 48,
+    "resist_elec": 49,
+    "resist_fire": 50,
+    "resist_cold": 51,
+    "resist_pois": 52,
+    "resist_fear": 53,
+    "resist_lite": 54,
+    "resist_dark": 55,
+    "resist_blind": 56,
+    "resist_conf": 57,
+    "resist_sound": 58,
+    "resist_shard": 59,
+    "resist_neth": 60,
+    "resist_nexus": 61,
+    "resist_chaos": 62,
+    "resist_disen": 63,
+    "see_invisible": 78,
+    "telepathy": 79,
+}
+THREAT_PREDICTION_MEMO_LIMIT = 8
+HUNT_HP_RATIO = 0.60
+HUNT_MAX_HOSTILES = 2
+HUNT_RANGE = 8
+QUAFF_KEY = "q"
+FIRE_KEY = "f"
+THROW_KEY = "v"
+RANGED_TARGET_FAILURE_LIMIT = 3
+RANGED_SLEEPER_MAX_DISTANCE = 4
+TORCH_THROW_MAX_DEPTH = 10
+HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
+FIXED_QUEST_HEAL_HP_RATIO = 0.30
+EMERGENCY_RETURN_COUNT = 2
+ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
+UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
+HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})

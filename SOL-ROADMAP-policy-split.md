@@ -884,3 +884,6 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   ~89s/suite parse tax) + _read_json OSError hardening + the same pattern
   in the queue writer (:190); exploration_ledger.py shares the .tmp+replace
   shape but is not test-reachable (path=None default).
+- Phase 6: the roadmap's literal prefix list matches 38 methods, not the
+  stated 85. The 47-method count mismatch is retained for later classification;
+  Phase 6 moved only the methods selected by the authoritative literal prefixes.
