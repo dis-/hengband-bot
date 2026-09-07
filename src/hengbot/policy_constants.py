@@ -3,6 +3,7 @@
 from enum import Enum
 
 from hengbot.model import (
+    Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
     STORE_GENERAL,
     STORE_MAGIC,
@@ -260,3 +261,131 @@ EMERGENCY_RETURN_COUNT = 2
 ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
+
+QUEST_STATUS_TAKEN = 1
+
+QUEST_STATUS_COMPLETED = 2
+
+QUEST_STATUS_REWARDED = 3
+
+QUEST_STATUS_FINISHED = 4
+
+QUEST_ID_THIEF = 1
+
+WIN_QUEST_IDS = frozenset({8, 9})
+
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 34})
+
+EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 22, 31, 34})
+
+FIXED_QUEST_TOWNS = {2: 1, 22: 3, 31: 0}
+
+FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
+
+MORIVANT_TOWN_ID = 2
+
+MORIVANT_LIBRARY_BUILDING_TYPE = 0
+
+MORIVANT_FULL_IDENTIFY_COST = 1300
+
+TOWN_TELEPORT_COST = 500
+
+MORIVANT_FULL_IDENTIFY_THRESHOLD = 2
+
+FIXED_QUEST_SIMULTANEOUS_MONSTERS = 8
+
+FIXED_QUEST_THREAT_TURNS = 3
+
+FIXED_QUEST_MAX_DAMAGE_RATIO = 0.50
+
+FIXED_QUEST_TOUGHEST_KILL_TURNS = 10
+
+FIXED_QUEST_REWARD_POSITIONS = {
+    QUEST_ID_THIEF: (0, frozenset({Position(27, 98)})),
+    2: (1, frozenset({Position(22, 42)})),
+    # Rewarding Outpost castle quests share this `!` floor square. Quest 28
+    # explicitly has no floor reward and therefore needs no latch/coordinate.
+    14: (0, frozenset({Position(27, 98)})),
+    18: (0, frozenset({Position(27, 98)})),
+    25: (0, frozenset({Position(27, 98)})),
+    # Dump Witness: the parsed town map carries a second reward glyph at
+    # (36,119), directly beside the quest-34 building at (37,119). Without
+    # this entry the reward pickup silently no-ops (user-caught 2026-07-17).
+    34: (0, frozenset({Position(36, 119)})),
+    22: (3, frozenset({Position(31, 99)})),
+    31: (0, frozenset({Position(36, 119)})),
+}
+
+REST_MACRO = "R&\r"
+
+AIM_WAND_KEY = "a"
+
+EQUIPMENT_SLOT_KEY = {
+    "main_hand": "a",
+    "sub_hand": "b",
+    "bow": "c",
+    "main_ring": "d",
+    "sub_ring": "e",
+    "neck": "f",
+    "light": "g",
+    "body": "h",
+    "outer": "i",
+    "head": "j",
+    "arms": "k",
+    "feet": "l",
+}
+
+PANIC_HP_RATIO = 0.20
+
+MIN_FREE_PACK_SLOTS = 5
+
+UNIQUE_COMBAT_MAX_ATTACKS = 20
+
+HEALING_POTION_HP = 300
+
+SPEED_POTION_BONUS = 10
+
+FIXED_QUEST_CURE_CRITICAL_HP = 27
+
+QUEST_AMMO_TVALS = {
+    "shot": TVAL_SHOT,
+    "arrow": TVAL_ARROW,
+    "bolt": TVAL_BOLT,
+}
+
+QUEST_SCROLL_SVALS = {
+    "light": SV_SCROLL_LIGHT,
+    "teleport": SV_SCROLL_TELEPORT,
+}
+
+Q2_BREEDER_RACES = frozenset({86, 153, 202, 252, 213})
+
+Q2_RESIDUAL_SWEEP_RACES = (202, 213, 252, 153, 86)
+
+Q2_WERERAT_RACE = 270
+
+Q2_WHITE_CROCODILE_RACE = 1044
+
+Q2_BREACH_POSITION = Position(11, 47)
+
+Q2_BREACH_STANDING = Position(6, 47)
+
+Q2_BREACH_CORRIDOR = tuple(
+    Position(y, Q2_BREACH_POSITION.x)
+    for y in range(Q2_BREACH_STANDING.y + 1, Q2_BREACH_POSITION.y + 1)
+)
+
+Q2_BLUE_CONFIRM_POSITION = Position(13, 47)
+
+Q2_POST_BLUE_SEQUENCE = (
+    ("down-puddle", 885, (Position(18, 46),)),
+    ("spiders", 175, tuple(Position(21, x) for x in range(50, 56))),
+    ("lower-right-puddle", 885, (Position(20, 62),)),
+    ("upper-puddle", 944, (Position(12, 64),)),
+    ("nether-worm", 213, (Position(11, 60),)),
+    ("upper-left-puddle", 944, (Position(8, 55),)),
+)
+
+Q2_BREACH_MIN_DIGGING = 3
+
+Q2_BREACH_ATTEMPT_LIMIT = 20

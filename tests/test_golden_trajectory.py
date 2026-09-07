@@ -13,6 +13,7 @@ from hengbot.policy import HengbotPolicy, QUEST_STATUS_TAKEN
 from hengbot.latch_onset_capture import checkpoint
 
 import test_policy as fixture
+from test_policy_quest import ApprovedQuestStrategyExecutionTest
 from absorbing_state_catalog import TownWorld
 from trajectory_harness import (
     checkpoint_row,
@@ -82,12 +83,12 @@ class GoldenOpeningWorld(TownWorld):
 class GoldenOpeningTrajectoryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
+        ApprovedQuestStrategyExecutionTest.setUpClass()
 
     def build(self):
-        if not hasattr(fixture.ApprovedQuestStrategyExecutionTest, "profiles"):
-            fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
-        helper = fixture.ApprovedQuestStrategyExecutionTest()
+        if not hasattr(ApprovedQuestStrategyExecutionTest, "profiles"):
+            ApprovedQuestStrategyExecutionTest.setUpClass()
+        helper = ApprovedQuestStrategyExecutionTest()
         policy = helper._policy()
         # The real Q34 roster is tiny and stable.  Pin it here so the fresh-birth
         # trajectory never depends on a source checkout or generated data file.
@@ -143,8 +144,8 @@ class IncidentConverterTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not hasattr(fixture.ApprovedQuestStrategyExecutionTest, "profiles"):
-            fixture.ApprovedQuestStrategyExecutionTest.setUpClass()
+        if not hasattr(ApprovedQuestStrategyExecutionTest, "profiles"):
+            ApprovedQuestStrategyExecutionTest.setUpClass()
 
     def test_missing_fixture_fails_loudly(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -188,7 +189,7 @@ class IncidentConverterTest(unittest.TestCase):
         measured = json.loads(
             (self.FIXTURES / "q34-throwpoint-r2.json").read_text(encoding="utf-8")
         )["measured"]
-        helper = fixture.ApprovedQuestStrategyExecutionTest()
+        helper = ApprovedQuestStrategyExecutionTest()
         policy = helper._policy()
         plans = policy.approved_quest_strategy(34).engagement_plan["throwing_points"]
         # This is the incident premise: restart lost all durable progress.

@@ -11,6 +11,14 @@ from hengbot.flight_recorder import jsonable
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_calibration import CalibrationMixin
+from hengbot.policy_combat import CombatMixin
+from hengbot.policy_fundraising import FundraisingMixin
+from hengbot.policy_helpers import PolicyHelpersMixin
+from hengbot.policy_identification import IdentificationMixin
+from hengbot.policy_navigation import NavigationMixin
+from hengbot.policy_quest import QuestMixin
+from hengbot.policy_supply import SupplyMixin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +45,20 @@ def _member_collisions(policy_type):
 
 
 class PolicyStructureTest(unittest.TestCase):
+    def test_policy_composes_all_eight_split_mixins(self):
+        self.assertTrue(
+            {
+                CalibrationMixin,
+                CombatMixin,
+                FundraisingMixin,
+                PolicyHelpersMixin,
+                IdentificationMixin,
+                NavigationMixin,
+                QuestMixin,
+                SupplyMixin,
+            }.issubset(HengbotPolicy.__mro__)
+        )
+
     def test_policy_mixins_have_no_method_name_collisions(self):
         self.assertEqual(_member_collisions(HengbotPolicy), [])
 
