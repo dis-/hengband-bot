@@ -647,7 +647,7 @@ MUTATIONS = (
         True,
         "Restore the pack-order approximation for displaced worn retention.",
         (replacement(
-            "policy.py",
+            "policy_helpers.py",
             "        projected_inventory = sorted(\n"
             "            tuple(snapshot.inventory) + displaced, key=pack_sort_key\n"
             "        )\n",

@@ -2,7 +2,21 @@
 
 from enum import Enum
 
-from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE
+from hengbot.model import (
+    STORE_ALCHEMIST,
+    STORE_GENERAL,
+    STORE_MAGIC,
+    STORE_TEMPLE,
+    SV_POTION_RESIST_COLD,
+    SV_POTION_SLEEP,
+    SV_SCROLL_BLESSING,
+    SV_SCROLL_DETECT_DOOR,
+    SV_SCROLL_DETECT_INVISIBLE,
+    SV_SCROLL_DETECT_ITEM,
+    SV_SCROLL_DETECT_TRAP,
+    SV_SCROLL_HOLY_CHANT,
+    SV_SCROLL_LIGHT,
+)
 
 # When the character dies, Hengband leaves the command loop for the tombstone,
 # death-info, and high-score shutdown chain and emits no more snapshots. Escape
@@ -24,6 +38,7 @@ WAIT_KEY = "5"
 LEAVE_STORE_KEY = "\x1b"
 PACK_CAPACITY = 23
 FOOD_TYPE_MANA = 4
+HEAVY_CURSE_TAG = "HEAVY_CURSE"
 UP_STAIRS_KEY = "<"
 DOWN_STAIRS_KEY = ">"
 SELL_KEY = "d"
@@ -32,6 +47,36 @@ FOOD_MIN_SVAL = 32
 STORE_STUCK_LIMIT = 8
 CHARACTER_DUMP_MACRO = "Cf\ry\x1b\x1b"
 EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
+
+LOW_VALUE_POTION_SVALS = frozenset({28, 34})
+DISPOSABLE_POTION_SVALS = LOW_VALUE_POTION_SVALS | {
+    SV_POTION_SLEEP, SV_POTION_RESIST_COLD,
+}
+DISPOSABLE_SCROLL_SVALS = frozenset(
+    {
+        SV_SCROLL_DETECT_INVISIBLE,
+        SV_SCROLL_DETECT_TRAP,
+        SV_SCROLL_DETECT_ITEM,
+        SV_SCROLL_DETECT_DOOR,
+        SV_SCROLL_LIGHT,
+        SV_SCROLL_BLESSING,
+        SV_SCROLL_HOLY_CHANT,
+    }
+)
+
+SPEED_ENERGY_90 = (
+    3, 3, 3, 3, 3, 4, 4, 4, 4, 4,
+    5, 5, 5, 5, 6, 6, 7, 7, 8, 9,
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+    30, 31, 32, 33, 34, 35, 36, 36, 37, 37,
+    38, 38, 39, 39, 40, 40, 40, 41, 41, 41,
+    42, 42, 42, 43, 43, 43, 44, 44, 44, 44,
+    45, 45, 45, 45, 45, 46, 46, 46, 46, 46,
+    47, 47, 47, 47, 47, 48, 48, 48, 48, 48,
+    49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
+    49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
+)
 
 DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (-1, -1): "7",

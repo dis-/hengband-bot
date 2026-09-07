@@ -904,3 +904,7 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   recall 145, overwhelmingly test pollution accumulated before H2; a
   cleanup/restore decision is deferred to the user (recall counter gates
   disposal cadence).
+- Phase 7: the roadmap's literal move list names 19 methods, not the stated
+  25. The unspecified "remaining 6" are not runnable literal selectors and
+  remain in policy.py for later classification; Phase 7 moved only the 19
+  explicitly named methods.
