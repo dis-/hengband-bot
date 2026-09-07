@@ -992,3 +992,35 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   policy.py (not by quest-module methods as the event said) — retaining
   them was still correct. Note hunk_guard's candidate_modules omits
   tests.test_policy_quest, so that seam is not advisory-covered.
+- Phase 10 attempt (breaker, both attempts reverted): failures were purely
+  MECHANICAL hand-execution slips — (1) AST spans excluding decorators
+  stranded @staticmethod onto the FOLLOWING methods (_inventory_overweight,
+  _find_low_level_sale) causing "missing snapshot argument"; (2) an import
+  header copied from Phase 9 omitted ADJ_STR_WEIGHT_LIMIT and
+  UNUSED_DIVE_LIMIT (NameError). Per the 3-strike rule the response was
+  STRUCTURAL: scripts/split_move.py (cc91b9a) now performs moves with
+  decorator-inclusive spans, auto-computed imports, and pre-write
+  self-verification. Riders 8a66c51 closed the blank/empty
+  HENGBOT_HOME_HISTORY_DIR hole and documented hunk_guard ADVISORY_GAPS.
+  REVIEW VERDICT: both commits ACCEPT and pushed, but the TOOL IS NOT YET
+  USABLE for Phase 10 — blockers found by adversarial testing:
+   F1 (blocker) base-class insertion renders `class HengbotPolicy(A, ..., Z), HomeMixin:`
+      — outside the parens => SyntaxError. Untested path: the self-test
+      fixture class has no bases and --dry-run returns before render.
+      Fix: insert right after the opening paren (mixin-first, avoiding a
+      metaclass= kwarg); reviewer validated a patch across 6 header shapes.
+   F2 (blocker) a generated back-reference `from .policy import
+      ProcurementHomeGate` passes verify_move (static binding + compile only)
+      but fails at real import time (circular). Fix: refuse on back-references
+      to the source module and require lifting the symbol first
+      (ProcurementHomeGate is an Enum -> policy_types.py), and add a real
+      import smoke test to verify_move.
+   F3 generated modules lack `from __future__ import annotations` (Phase 9's
+      hand-written policy_equipment.py has it).
+   P0a prerequisite: 8 constants must move to policy_constants.py first —
+      the tool correctly refuses until then.
+  Also: the roadmap's Phase 10 selector `_deferred_home*` matches no method;
+  _deferred_home_items / _deferred_home_item_sites are INSTANCE ATTRIBUTES —
+  the phase line mixes state ownership with method selectors. Drop it from
+  the selector argv (hard refusal is the correct default for unmatched
+  selectors).
