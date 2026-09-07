@@ -1,9 +1,16 @@
 """Shared fixture constructors for policy tests."""
 
+import os
 from dataclasses import replace
 from pathlib import Path
+import tempfile
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+
+from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
+
+
+os.environ.setdefault(HOME_HISTORY_DIR_ENV, tempfile.mkdtemp(prefix="hengbot-test-history-"))
 
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog, current_loadout
 from hengbot.model import (
@@ -404,4 +411,3 @@ def hostile(
         max_ranged_damage=max_ranged_damage,
         race_id=race_id,
     )
-

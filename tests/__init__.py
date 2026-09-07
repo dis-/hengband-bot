@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import tempfile
 import unittest
+
+from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
+
+
+os.environ.setdefault(HOME_HISTORY_DIR_ENV, tempfile.mkdtemp(prefix="hengbot-test-history-"))
 
 
 _LEDGER_ROOT = Path(__file__).resolve().parents[1] / "capture-ledger"

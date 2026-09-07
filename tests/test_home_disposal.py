@@ -1,6 +1,9 @@
+import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -133,6 +136,32 @@ class HomeDisposalTests(unittest.TestCase):
         self.assertEqual((sentinel.stat().st_mtime_ns, sentinel.read_bytes()), before)
         with patch.dict(os.environ, {}, clear=True), patch("pathlib.Path.cwd", return_value=live):
             self.assertEqual(HomeDisposalState.in_repo().history_path, sentinel)
+
+    def test_bare_policy_unittest_does_not_touch_repository_history(self):
+        repository = Path(__file__).resolve().parents[1]
+        history = repository / "home-withdraw-history.jsonc"
+        before = hashlib.sha256(history.read_bytes()).digest()
+        environment = os.environ.copy()
+        environment.pop("HENGBOT_HOME_HISTORY_DIR", None)
+        source_root = repository / "src"
+        environment["PYTHONPATH"] = os.pathsep.join(
+            filter(None, (str(source_root), environment.get("PYTHONPATH", "")))
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "test_policy.HistoryIsolationProbeTest.test_policy_history_writer_uses_fixture_default",
+            ],
+            cwd=repository / "tests",
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(hashlib.sha256(history.read_bytes()).digest(), before)
 
     def test_queue_is_real_data_shaped_and_collapses_duplicate_signatures(self):
         state = self.state()

@@ -35,6 +35,11 @@ import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 
 
+class HistoryIsolationProbeTest(unittest.TestCase):
+    def test_policy_history_writer_uses_fixture_default(self):
+        HengbotPolicy()._home_disposal.note_dungeon_recall()
+
+
 def setUpModule():
     global _knowledge_tmp, _knowledge_patch
     _knowledge_tmp = TemporaryDirectory()
