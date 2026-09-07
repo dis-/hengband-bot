@@ -1435,7 +1435,7 @@ class HengbotPolicy(CombatMixin, NavigationMixin, SupplyMixin, FundraisingMixin,
         # applying reconnect recovery there would skip the opening/light and
         # gremlin phases.
         self._q2_reconnect_recovery_floor: tuple[int, int, int] | None = None
-        self._home_disposal = home_disposal_state or HomeDisposalState.in_repo(Path.cwd())
+        self._home_disposal = home_disposal_state or HomeDisposalState.in_repo()
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}

@@ -2,6 +2,13 @@
 
 Experimental external bot for Hengband's `--bot-json-output` mode.
 
+The suite runners isolate durable Home history automatically. Plain
+`unittest` commands retain the live default (`Path.cwd()`); set
+`HENGBOT_HOME_HISTORY_DIR` explicitly when test isolation is required. The
+override relocates the entire `HomeDisposalState.in_repo()` root, including
+the decisions file and the `jsonlog/` queue and sol-event paths, not only the
+transaction history.
+
 The first milestone is intentionally small:
 
 - read JSON Lines snapshots emitted before player input

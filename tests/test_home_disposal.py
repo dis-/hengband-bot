@@ -1,11 +1,14 @@
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from hengbot.home_disposal import HomeDisposalCandidate, HomeDisposalState, signature_key
+from hengbot.home_disposal import (
+    HomeDisposalCandidate, HomeDisposalReadError, HomeDisposalState, signature_key,
+)
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC,
     TVAL_FOOD, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_SWORD,
@@ -71,6 +74,66 @@ class HomeDisposalTests(unittest.TestCase):
         sleep.assert_called_once_with(0.05)
         self.assertEqual(json.loads(self.paths[0].read_text(encoding="utf-8"))["transactions"][0]["turn"], 100)
 
+    def test_reader_retries_oserror_then_fails_loudly(self):
+        with (
+            patch.object(Path, "read_text", side_effect=PermissionError("locked")) as read,
+            patch("hengbot.home_disposal.time.sleep") as sleep,
+        ):
+            with self.assertRaises(HomeDisposalReadError):
+                HomeDisposalState._read_json(self.paths[0])
+        self.assertEqual(read.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.1])
+
+    def test_history_save_refuses_to_shrink_newer_disk_history(self):
+        state = self.state()
+        existing = {"version": 1, "dungeon_recall_count": 9, "transactions": [
+            {"action": "deposit", "signature": [f"potion {index}", TVAL_POTION, index], "turn": index}
+            for index in range(4)
+        ]}
+        self.paths[0].write_text(json.dumps(existing), encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "refusing to shrink"):
+            state.record("deposit", ("new potion", TVAL_POTION, 99), 100)
+        self.assertEqual(len(json.loads(self.paths[0].read_text(encoding="utf-8"))["transactions"]), 4)
+
+    def test_malformed_history_does_not_dead_latch_recall_or_get_lost(self):
+        malformed = [
+            "not an object",
+            {"action": "deposit", "signature": ["broken"]},
+            {"action": "discard", "signature": ["wrong action", TVAL_POTION, 2]},
+        ]
+        valid = {
+            "action": "deposit", "signature": ["valid potion", TVAL_POTION, 3], "turn": 7,
+        }
+        self.paths[0].write_text(json.dumps({
+            "version": 1, "dungeon_recall_count": 0,
+            "transactions": [*malformed, valid],
+        }), encoding="utf-8")
+
+        state = self.state()
+        self.assertFalse(state.note_dungeon_recall())
+        saved = json.loads(self.paths[0].read_text(encoding="utf-8"))["transactions"]
+        self.assertEqual(saved, [*malformed, valid])
+
+    def test_environment_override_is_policy_default_and_unset_uses_cwd(self):
+        override = Path(self.temporary.name) / "isolated"
+        live = Path(self.temporary.name) / "live"
+        live.mkdir()
+        sentinel = live / "home-withdraw-history.jsonc"
+        sentinel.write_text('{"sentinel": true}', encoding="utf-8")
+        before = (sentinel.stat().st_mtime_ns, sentinel.read_bytes())
+        with patch.dict(os.environ, {"HENGBOT_HOME_HISTORY_DIR": str(override)}), patch("pathlib.Path.cwd", return_value=live):
+            state = HomeDisposalState.in_repo()
+            self.assertEqual(state.history_path.parent, override)
+            self.assertEqual(state.decisions_path, override / "home-disposal-decisions.jsonc")
+            self.assertEqual(state.queue_path, override / "jsonlog" / "home-disposal-queue.json")
+            self.assertEqual(state.events_path, override / "jsonlog" / "sol-events.jsonl")
+            policy = HengbotPolicy()
+            policy._home_disposal.note_dungeon_recall()
+        self.assertTrue((override / "home-withdraw-history.jsonc").exists())
+        self.assertEqual((sentinel.stat().st_mtime_ns, sentinel.read_bytes()), before)
+        with patch.dict(os.environ, {}, clear=True), patch("pathlib.Path.cwd", return_value=live):
+            self.assertEqual(HomeDisposalState.in_repo().history_path, sentinel)
+
     def test_queue_is_real_data_shaped_and_collapses_duplicate_signatures(self):
         state = self.state()
         duplicate = self.candidate(count=4)
@@ -82,6 +145,30 @@ class HomeDisposalTests(unittest.TestCase):
         self.assertEqual(queue["items"][0]["proposed_default_action"], "identify-then-sell")
         event = json.loads(self.paths[3].read_text(encoding="utf-8").splitlines()[0])
         self.assertEqual(event["event"], "question")
+
+    def test_queue_read_failure_prevents_atomic_replacement(self):
+        state = self.state()
+        self.paths[2].parent.mkdir(parents=True)
+        self.paths[2].write_text('{"old": true}', encoding="utf-8")
+        before = self.paths[2].read_bytes()
+        with patch.object(state, "_read_json", side_effect=HomeDisposalReadError("locked")):
+            with self.assertRaises(HomeDisposalReadError):
+                state.emit_queue([self.candidate()], 321)
+        self.assertEqual(self.paths[2].read_bytes(), before)
+
+    def test_queue_writer_uses_atomic_replace(self):
+        state = self.state()
+        real_replace = Path.replace
+        targets = []
+
+        def observe_replace(path, target):
+            targets.append((path, target))
+            return real_replace(path, target)
+
+        with patch.object(Path, "replace", observe_replace):
+            state.emit_queue([self.candidate()], 321)
+        self.assertEqual(targets[-1][1], self.paths[2])
+        self.assertNotEqual(targets[-1][0], self.paths[2])
 
     def test_decisions_hot_reload_and_keep_never_requeues(self):
         signature = ("a Potion", TVAL_POTION, 3)

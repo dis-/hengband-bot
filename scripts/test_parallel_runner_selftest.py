@@ -13,6 +13,29 @@ import test_parallel_runner as runner
 
 
 class ParallelRunnerSelfTest(unittest.TestCase):
+    def test_run_shard_exports_distinct_history_roots_under_run_temp(self) -> None:
+        exported: list[Path] = []
+
+        def fake_run(command, **kwargs):
+            history_dir = Path(kwargs["env"]["HENGBOT_HOME_HISTORY_DIR"])
+            exported.append(history_dir)
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(json.dumps({"tests": []}), encoding="utf-8")
+            return mock.Mock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temp_root = Path(directory) / "run"
+            streams = Path(directory) / "streams"
+            temp_root.mkdir()
+            streams.mkdir()
+            with mock.patch.object(runner.subprocess, "run", side_effect=fake_run):
+                rows = [runner.run_shard(index, ["tests.safe"], temp_root, streams) for index in range(2)]
+
+            self.assertEqual(len(set(exported)), 2)
+            self.assertTrue(all(path.parent.parent == temp_root for path in exported))
+            self.assertTrue(all(path.name == "home-history" and path.is_dir() for path in exported))
+            self.assertEqual([Path(row["home_history_dir"]) for row in rows], exported)
+
     def test_unknown_module_uses_median_without_discarding_known_lpt_weights(self) -> None:
         modules = ["tests.heavy", "tests.medium", "tests.light", "tests.new"]
         weights = {"tests.heavy": 12.0, "tests.medium": 6.0, "tests.light": 2.0}
@@ -55,6 +78,7 @@ class ParallelRunnerSelfTest(unittest.TestCase):
                     parallel_active -= 1
             return {
                 "name": f"worker-{index + 1}", "modules": shard, "returncode": 0,
+                "home_history_dir": str(temp_root / f"worker-{index + 1}" / "home-history"),
                 "wall_seconds": 0.0, "payload": {"tests": []}, "failures": [],
                 "errors": [], "stdout": str(streams / "stdout"),
                 "stderr": str(streams / "stderr"),

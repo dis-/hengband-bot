@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from collections import defaultdict
@@ -145,10 +146,19 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["PYTHONPATH"] = os.pathsep.join((str(ROOT / "src"), str(TESTS)))
 
     modules = normalize_modules(args.modules)
-    suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
-    started = time.perf_counter()
-    result = unittest.TextTestRunner(resultclass=TimingResult, verbosity=1).run(suite)
-    total_seconds = time.perf_counter() - started
+    supplied_history_dir = os.environ.get("HENGBOT_HOME_HISTORY_DIR")
+    with tempfile.TemporaryDirectory(prefix="hengbot-serial-history-") as directory:
+        history_dir = supplied_history_dir or directory
+        os.environ["HENGBOT_HOME_HISTORY_DIR"] = history_dir
+        print(f"Home history: {history_dir}")
+        try:
+            suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
+            started = time.perf_counter()
+            result = unittest.TextTestRunner(resultclass=TimingResult, verbosity=1).run(suite)
+            total_seconds = time.perf_counter() - started
+        finally:
+            if supplied_history_dir is None:
+                os.environ.pop("HENGBOT_HOME_HISTORY_DIR", None)
 
     payload = {
         "generated_at": datetime.now(timezone.utc).astimezone().isoformat(),

@@ -33,10 +33,9 @@ DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-parallel-timings.json"
 DEFAULT_SUMMARY = ROOT / "jsonlog" / "test-parallel-timings-summary.json"
 DEFAULT_STREAMS = ROOT / "jsonlog" / "test-parallel-streams"
 
-# These modules write the fixed cwd-relative home-withdraw-history.jsonc path.
-# Keep them behind the worker pool so tests.test_policy is the sole in-pool
-# writer and no two writers can race its shared .tmp replacement (Phase 6
-# runner-hazard diagnosis, 2026-09-07).
+# HENGBOT_HOME_HISTORY_DIR now isolates every worker's durable files. Keep
+# these historically risky modules in the serial tail as defense-in-depth;
+# removal can follow a separately measured optimization.
 SERIAL_MODULES: frozenset[str] = frozenset({
     "tests.test_absorbing_states",
     "tests.test_latch_onset_capture",
@@ -100,6 +99,9 @@ def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) ->
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((str(ROOT / "src"), str(ROOT / "tests")))
     env["TEMP"] = env["TMP"] = str(worker_temp)
+    history_dir = worker_temp / "home-history"
+    history_dir.mkdir()
+    env["HENGBOT_HOME_HISTORY_DIR"] = str(history_dir)
     command = [sys.executable, str(ROOT / "scripts" / "test_timing_runner.py"),
                "--modules", *modules, "--output", str(timing_path),
                "--summary-output", str(summary_path), "--top", "0", "--no-receipt"]
@@ -109,6 +111,7 @@ def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) ->
     payload = json.loads(timing_path.read_text(encoding="utf-8"))
     stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
     return {"name": name, "modules": modules, "returncode": run.returncode,
+            "home_history_dir": str(history_dir),
             "wall_seconds": time.perf_counter() - started, "payload": payload,
             "failures": outcome_ids(stderr_text, "FAIL"),
             "errors": outcome_ids(stderr_text, "ERROR"),
@@ -155,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
                "total_seconds": time.perf_counter() - started, "tests": tests,
                "failures": [test_id for row in results for test_id in row["failures"]],
                "errors": [test_id for row in results for test_id in row["errors"]],
-               "shards": [{key: row[key] for key in ("name", "modules", "returncode", "wall_seconds", "failures", "errors", "stdout", "stderr")}
+               "shards": [{key: row[key] for key in ("name", "modules", "returncode", "wall_seconds", "home_history_dir", "failures", "errors", "stdout", "stderr")}
                           for row in results], "serial_modules": sorted(SERIAL_MODULES)}
     output, summary_output = resolved(args.output), resolved(args.summary_output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -165,7 +168,8 @@ def main(argv: list[str] | None = None) -> int:
 
     for row in results:
         print(f"{row['name']}: {len(row['payload']['tests'])} tests, "
-              f"{row['wall_seconds']:.3f}s, exit {row['returncode']}")
+              f"{row['wall_seconds']:.3f}s, exit {row['returncode']}; "
+              f"home history: {row['home_history_dir']}")
         if row["returncode"]:
             stderr = Path(str(row["stderr"])).read_text(encoding="utf-8", errors="replace")
             print(stderr.rstrip())

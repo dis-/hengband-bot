@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
+import tempfile
 import time
 from typing import Iterable
 
@@ -13,6 +15,11 @@ from typing import Iterable
 Signature = tuple[str, int, int]
 CONSUMABLE_TVALS = frozenset({55, 65, 66, 70, 75, 80})
 VALID_DECISIONS = frozenset({"keep", "sell", "destroy"})
+HOME_HISTORY_DIR_ENV = "HENGBOT_HOME_HISTORY_DIR"
+
+
+class HomeDisposalReadError(OSError):
+    """A durable disposal file remained unreadable after bounded retries."""
 
 
 def signature_key(signature: Signature) -> str:
@@ -56,6 +63,7 @@ class HomeDisposalState:
         self.events_path = Path(events_path)
         self.recall_count = 0
         self.history: list[dict[str, object]] = []
+        self._unloadable_history: list[object] = []
         self.withdrawn: set[Signature] = set()
         self.decisions: dict[Signature, str] = {}
         self._load_history()
@@ -63,7 +71,10 @@ class HomeDisposalState:
 
     @classmethod
     def in_repo(cls, root: Path | None = None) -> "HomeDisposalState":
-        root = Path.cwd() if root is None else Path(root)
+        if root is None:
+            root = Path(os.environ.get(HOME_HISTORY_DIR_ENV, Path.cwd()))
+        else:
+            root = Path(root)
         return cls(
             root / "home-withdraw-history.jsonc",
             root / "home-disposal-decisions.jsonc",
@@ -72,11 +83,54 @@ class HomeDisposalState:
         )
 
     @staticmethod
+    def _loadable_history_record(record: object) -> bool:
+        return (
+            isinstance(record, dict)
+            and parse_signature(record.get("signature")) is not None
+            and record.get("action") in {"deposit", "withdraw"}
+        )
+
+    @staticmethod
     def _read_json(path: Path) -> object:
+        for attempt in range(3):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                return {}
+            except OSError as error:
+                if attempt == 2:
+                    raise HomeDisposalReadError(
+                        f"cannot read Home disposal state after 3 attempts: {path}"
+                    ) from error
+                time.sleep(0.05 * (attempt + 1))
+            except ValueError:
+                return {}
+        raise AssertionError("unreachable")
+
+    @staticmethod
+    def _atomic_write_json(path: Path, payload: object) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(serialized)
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
+            for attempt in range(5):
+                try:
+                    temporary.replace(path)
+                    return
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
 
     def _load_history(self) -> None:
         data = self._read_json(self.history_path)
@@ -87,36 +141,39 @@ class HomeDisposalState:
         if not isinstance(records, list):
             return
         for record in records:
-            if not isinstance(record, dict):
+            if not self._loadable_history_record(record):
+                self._unloadable_history.append(record)
                 continue
+            assert isinstance(record, dict)
             signature = parse_signature(record.get("signature"))
-            if signature is None or record.get("action") not in {"deposit", "withdraw"}:
-                continue
+            assert signature is not None
             self.history.append(record)
             if record["action"] == "withdraw":
                 self.withdrawn.add(signature)
 
     def _save_history(self) -> None:
-        self.history_path.parent.mkdir(parents=True, exist_ok=True)
+        disk_data = self._read_json(self.history_path)
+        unloadable = self._unloadable_history
+        if isinstance(disk_data, dict):
+            disk_records = disk_data.get("transactions", [])
+            if isinstance(disk_records, list):
+                disk_loadable = sum(self._loadable_history_record(record) for record in disk_records)
+                unloadable = [record for record in disk_records if not self._loadable_history_record(record)]
+            else:
+                disk_loadable = 0
+            if disk_loadable > len(self.history):
+                raise RuntimeError(
+                    "refusing to shrink Home transaction history "
+                    f"from {disk_loadable} to {len(self.history)} loadable records"
+                )
         payload = {
             "version": 1,
             "dungeon_recall_count": self.recall_count,
-            "transactions": self.history,
+            # Preserve records this version cannot interpret instead of
+            # silently deleting them during the next durable update.
+            "transactions": [*unloadable, *self.history],
         }
-        temporary = self.history_path.with_suffix(self.history_path.suffix + ".tmp")
-        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        # Antivirus/indexers and concurrent readers can briefly hold the old
-        # file without delete sharing on Windows.  Preserve atomic replacement,
-        # but tolerate that transient sharing violation instead of killing the
-        # gameplay bot.
-        for attempt in range(5):
-            try:
-                temporary.replace(self.history_path)
-                break
-            except PermissionError:
-                if attempt == 4:
-                    raise
-                time.sleep(0.05 * (attempt + 1))
+        self._atomic_write_json(self.history_path, payload)
 
     def record(self, action: str, signature: Signature, turn: int) -> None:
         if action not in {"deposit", "withdraw"}:
@@ -168,7 +225,7 @@ class HomeDisposalState:
 
     def emit_queue(self, candidates: Iterable[HomeDisposalCandidate], turn: int) -> None:
         pending = self.pending(candidates)
-        self.queue_path.parent.mkdir(parents=True, exist_ok=True)
+        self._read_json(self.queue_path)
         payload = {
             "version": 1,
             "generated_turn": int(turn),
@@ -187,7 +244,7 @@ class HomeDisposalState:
                 for item in pending
             ],
         }
-        self.queue_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self._atomic_write_json(self.queue_path, payload)
         if pending:
             event = {
                 "event": "question",
