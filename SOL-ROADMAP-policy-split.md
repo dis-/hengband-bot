@@ -863,3 +863,8 @@ Binding for every phase. A violation is grounds for revert, not a review comment
 - Phase 5: the roadmap's literal prefix list matches 27 methods, not the
   stated 79. The 52-method count mismatch is retained for later classification;
   Phase 5 moved only the methods selected by the authoritative literal prefixes.
+- Phase 5 (fed6344) review notes: 4 of 27 moved methods drifted by docstring
+  trailing whitespace only (semantically pure; describe such moves as
+  "AST-identical modulo docstring whitespace" going forward); dead
+  `import test_policy as _test_policy` in tests/test_policy_navigation.py:169
+  (inherited template, unused) — remove in a later phase.
