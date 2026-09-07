@@ -934,3 +934,19 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   C:\hengband\backups\home-withdraw-history.jsonc.bak-20260907-preclean
   (2,054,315 bytes, sha256 b1f0022c...). Phase 8's fixture-default
   isolation rider is what keeps it clean from here.
+- Phase 8 (6d2e9ce+54efee5+1d843fe) review notes: move REJECTED once for
+  duplicate collection (+174 ids/+7 skips) caused by a from-import of a
+  foreign TestCase in tests/test_golden_trajectory.py; fixed by module-alias
+  form plus a duplicate-collection guard (revert-proved). Final id math:
+  3139 unique = 3135 base + 320 moved 1:1 + 4 genuinely new, 0 duplicated,
+  skips back to 26. SUPERVISOR NOTE: sol's rebuild reset past two pushed
+  commits (incl. the user's live-history cleanup record); the work was
+  rebased onto origin/main and the standing rule "never reset past a commit
+  that exists on origin/main" was added to fixer prompts.
+  Phase 9 riders queued: (a) scripts/run_receipt.py sets no isolation env,
+  so receipted bare-unittest runs still touch the live history via
+  in_repo()'s Path.cwd() fallback (measured: recall drifted 148 -> 152 —
+  transactions stayed []); wire the env there; (b) the duplicate-collection
+  guard imports test modules by bare stem, creating second module objects
+  under the runner — switch it to the `tests.<stem>` form; (c) fix events
+  keep listing receipts by label without paths — path+sha256 is required.
