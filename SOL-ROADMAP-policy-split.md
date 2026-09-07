@@ -950,3 +950,26 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   guard imports test modules by bare stem, creating second module objects
   under the runner — switch it to the `tests.<stem>` form; (c) fix events
   keep listing receipts by label without paths — path+sha256 is required.
+- Phase 9 attempt 1 (b4991b0, parked at branch phase9-attempt1): REVERTED
+  per §7 after the parallel gate showed 2 new failures in
+  tests.test_ability_sources_incident (_equipment_optimization_last_depth
+  None instead of 19). MECHANISM (supervisor-confirmed by source read, not
+  a guess): that module patches "hengbot.policy.prepare_warrior_optimization"
+  (lines 118/126); once _prepare_equipment_optimization moves to
+  policy_equipment.py the call resolves against the NEW module's globals, so
+  the patch no longer intercepts and the stubbed preparation never lands.
+  Same class as Phase 1's calibrate_character_constants repoint — a TEST-side
+  patch-target repoint, not a production defect.
+  NEW STANDING PRE-CHECK for every move phase: before committing, grep the
+  WHOLE tests tree for patch("hengbot.policy.<name>") / patch.object on
+  hengbot.policy for every symbol the phase moves (and for functions the
+  moved methods CALL that are imported into the source module), and repoint
+  them in the same commit. Do not rely on per-phase discovery.
+  Riders of that round landed separately as b00de17 (receipt-run history
+  isolation + tests.<stem> duplicate-collection guard).
+  Rider follow-ups: run_receipt's isolated_home_history gates on env
+  MEMBERSHIP, so an empty HENGBOT_HOME_HISTORY_DIR falls through to cwd and
+  writes the live file (reviewer tripped it: 148->149, restored) — match
+  test_timing_runner's truthiness check or harden in_repo() against blank
+  values; and note ReceiptHistoryIsolationProbeTest is a deliberate canary
+  that bumps the live counter if run bare without the env.
