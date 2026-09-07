@@ -918,3 +918,19 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   via setdefault. Conduct rule stays as secondary. Live file drifted again
   (+22 tx/+3 recall this round): now 10,203 tx / recall 148 — cleanup
   decision still pending with the user.
+- Phase 8: the roadmap's literal prefix list matches 66 methods, not the
+  stated 94 + 4. The 32-method count mismatch is retained for later
+  classification; Phase 8 moved only the methods selected by the authoritative
+  literal prefixes and exact `_q2_phase_key` / `_q2_breach_key` names.
+- Live-history cleanup (user decision 2026-09-07): investigation found NO
+  pre-pollution backup anywhere — the file itself began 2026-09-02 already
+  carrying test-fixture names, and every on-disk copy was a test artifact.
+  Composition was 10,203 tx of which only ~96 were live-shaped (turns
+  1.3-1.5M, real Japanese item names); the rest were fixture names (item /
+  captured restore / home pick / restore 00-11 / selected sword ...).
+  User chose: reset transactions to [] and KEEP dungeon_recall_count=148.
+  Applied: home-withdraw-history.jsonc is now 77 bytes (tx 0, recall 148,
+  version 1); pre-reset file preserved at
+  C:\hengband\backups\home-withdraw-history.jsonc.bak-20260907-preclean
+  (2,054,315 bytes, sha256 b1f0022c...). Phase 8's fixture-default
+  isolation rider is what keeps it clean from here.
