@@ -145,7 +145,14 @@ class HomeDisposalTests(unittest.TestCase):
         environment.pop("HENGBOT_HOME_HISTORY_DIR", None)
         source_root = repository / "src"
         environment["PYTHONPATH"] = os.pathsep.join(
-            filter(None, (str(source_root), environment.get("PYTHONPATH", "")))
+            filter(
+                None,
+                (
+                    str(source_root),
+                    str(repository / "tests"),
+                    environment.get("PYTHONPATH", ""),
+                ),
+            )
         )
         result = subprocess.run(
             [
@@ -154,7 +161,7 @@ class HomeDisposalTests(unittest.TestCase):
                 "unittest",
                 "test_policy.HistoryIsolationProbeTest.test_policy_history_writer_uses_fixture_default",
             ],
-            cwd=repository / "tests",
+            cwd=repository,
             env=environment,
             capture_output=True,
             text=True,
