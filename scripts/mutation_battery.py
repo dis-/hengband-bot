@@ -34,8 +34,8 @@ PUBLIC_TESTS = frozenset(
         "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_uses_uppercase_and_live_page_three_arithmetic",
         "test_policy.HomeOneOperationPerEntryTest.test_descending_withdrawals_share_one_home_knowledge_read",
         "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_waits_when_page_size_was_never_observed",
-        "test_policy.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
-        "test_policy.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
+        "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
+        "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
         "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
         "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
         "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
@@ -62,7 +62,7 @@ PUBLIC_TESTS = frozenset(
         "test_policy_combat.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
         "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
-        "test_policy.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
+        "test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
         "test_policy.RetentionAuthorityTest.test_takeoff_projection_uses_real_two_torch_pack_order",
         "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
@@ -199,7 +199,7 @@ MUTATIONS = (
         True,
         "Revert the common stock predicate so Gate-1 can post a second fallback buy.",
         (replacement(
-            "policy.py",
+            "policy_equipment.py",
             "        if (\n"
             "            self._store_buy_inflight is not None\n"
             "            and self._store_buy_inflight[1][1] == TVAL_DIGGING\n"
@@ -442,7 +442,7 @@ MUTATIONS = (
         True,
         "Restore the circular mode gate that starved Home digger arming.",
         (replacement(
-            "policy.py",
+            "policy_equipment.py",
             "            store is None\n"
             "            or store.store_type != STORE_HOME\n"
             "            or self._digging_tool_count(snapshot) >= 2\n"
@@ -593,7 +593,7 @@ MUTATIONS = (
         True,
         "Clear the queued attribution bit set by standing Home digger selection.",
         (replacement(
-            "policy.py",
+            "policy_equipment.py",
             "        self._home_withdrawal_queued = True\n"
             "        self.last_reason = \"home:queue-digging-tool-withdraw\"\n",
             "        self._home_withdrawal_queued = False\n"
@@ -635,7 +635,7 @@ MUTATIONS = (
         True,
         "Restore A13 by allowing a failed deposit back into every fresh plan.",
         (replacement(
-            "policy.py",
+            "policy_equipment.py",
             "                or self._equipment_memory_contains(\n"
             "                    self._equipment_transaction_failed_items, item\n"
             "                )\n",

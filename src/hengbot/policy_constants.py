@@ -389,3 +389,45 @@ Q2_POST_BLUE_SEQUENCE = (
 Q2_BREACH_MIN_DIGGING = 3
 
 Q2_BREACH_ATTEMPT_LIMIT = 20
+
+DEPTH_ABILITY_REQUIREMENTS = (
+    (20, 20, frozenset({"free_action", "resist_fire"})),
+    (21, 25, frozenset({"free_action", "resist_conf", "resist_fire"})),
+    (26, 30, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid"})),
+    (31, 39, frozenset({"resist_chaos"})),
+    (40, 49, frozenset({"resist_chaos", "resist_neth"})),
+    (50, 80, frozenset({"resist_chaos", "resist_neth", "telepathy"})),
+    (81, 127, frozenset({"resist_chaos", "resist_neth", "telepathy"})),
+)
+
+def _required_abilities_for_depth(depth: int) -> frozenset:
+    for low, high, required in DEPTH_ABILITY_REQUIREMENTS:
+        if low <= depth <= high:
+            return required
+    return frozenset()
+
+DESTRUCTION_GATE_DEPTH = 50
+
+DESTRUCTION_GATE_LABEL = "destruction"
+
+SPEED_GATE_DEPTH = 81
+
+SPEED_GATE_LABEL = "speed+25"
+
+SPEED_GATE_MINIMUM = 135  # +25 over the 110 base
+
+def required_depth_gates(depth: int) -> frozenset:
+    """Every mandatory gate for a depth: the resistance/telepathy table plus the
+    *Destruction* (50F+) and speed +25 (81F+) requirements."""
+    gates = set(_required_abilities_for_depth(depth))
+    if depth >= DESTRUCTION_GATE_DEPTH:
+        gates.add(DESTRUCTION_GATE_LABEL)
+    if depth >= SPEED_GATE_DEPTH:
+        gates.add(SPEED_GATE_LABEL)
+    return frozenset(gates)
+
+AMMO_CARRY_STACK_LIMIT = 2
+
+WEAPON_BLOCK_LIMIT = 400
+
+FUNDRAISING_START_GOLD = 3000

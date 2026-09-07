@@ -973,3 +973,9 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   test_timing_runner's truthiness check or harden in_repo() against blank
   values; and note ReceiptHistoryIsolationProbeTest is a deliberate canary
   that bumps the live counter if run bare without the env.
+- Phase 9: the roadmap's literal prefix list matches 43 methods, not the
+  stated 84. The 41-method count mismatch is retained for later classification;
+  Phase 9 moved only the methods selected by the authoritative literal prefixes
+  and exact names. Four mutation anchors moved with those methods; the listed
+  `_set_equipment_transaction_session` method is outside the literal selectors
+  and remains in policy.py with its anchor.

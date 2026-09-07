@@ -15,6 +15,7 @@ from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_kno
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_combat import CombatMixin
+from hengbot.policy_equipment import EquipmentMixin
 from hengbot.policy_fundraising import FundraisingMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
 from hengbot.policy_identification import IdentificationMixin
@@ -91,11 +92,12 @@ class PolicyStructureTest(unittest.TestCase):
                 1,
             )
 
-    def test_policy_composes_all_eight_split_mixins(self):
+    def test_policy_composes_all_nine_split_mixins(self):
         self.assertTrue(
             {
                 CalibrationMixin,
                 CombatMixin,
+                EquipmentMixin,
                 FundraisingMixin,
                 PolicyHelpersMixin,
                 IdentificationMixin,

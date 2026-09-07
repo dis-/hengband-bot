@@ -115,7 +115,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
     def test_contaminated_depth_fallback_uses_permanent_sources(self):
         policy, preparation = self._contaminated_optimization()
 
-        with patch("hengbot.policy.prepare_warrior_optimization", return_value=preparation):
+        with patch("hengbot.policy_equipment.prepare_warrior_optimization", return_value=preparation):
             policy._prepare_equipment_optimization(self.town)
 
         self.assertEqual(policy._equipment_optimization_last_depth, 19)
@@ -123,7 +123,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
     def test_contaminated_depth_cache_fallback_uses_permanent_sources(self):
         policy, preparation = self._contaminated_optimization()
 
-        with patch("hengbot.policy.prepare_warrior_optimization", return_value=preparation):
+        with patch("hengbot.policy_equipment.prepare_warrior_optimization", return_value=preparation):
             policy._prepare_equipment_optimization(self.town)
             policy._equipment_optimization_last_depth = None
             policy._prepare_equipment_optimization(self.town)

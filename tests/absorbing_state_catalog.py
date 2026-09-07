@@ -34,6 +34,7 @@ from hengbot.home_visit import (
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
+import test_policy_equipment as equipment_fixture
 
 
 MOVES = {
@@ -704,7 +705,7 @@ def _evidence_visit_cycle(frames):
 def _transaction_abandoned_mid_strip():
     """A stripped optimizer transaction restores or stops at its named terminal."""
     policy, surface, _ = (
-        fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
+        equipment_fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
     )
 
     class MidStripWorld(TownWorld):
@@ -726,7 +727,7 @@ def _transaction_abandoned_mid_strip():
 def _abandon_retry_home_pass_burn():
     """Inside Home must release the historical abandon/retry/pass-burn cycle."""
     policy, surface, _ = (
-        fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
+        equipment_fixture.EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
     )
     target = fixture.store_item(
         "a", fixture.TVAL_RING, 99, name="Home target", known=True,
