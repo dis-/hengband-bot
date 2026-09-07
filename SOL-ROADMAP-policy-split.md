@@ -868,3 +868,19 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   "AST-identical modulo docstring whitespace" going forward); dead
   `import test_policy as _test_policy` in tests/test_policy_navigation.py:169
   (inherited template, unused) — remove in a later phase.
+- Phase 6 breaker (2026-09-07, attempts 8cfc77d/2750f34 rolled back):
+  investigated and the move EXONERATED. Root causes are latent: (1)
+  home_disposal.py writes a fixed cwd-relative home-withdraw-history
+  .jsonc.tmp with no env override; four test modules drive it; the phase's
+  NEW test module made the parallel partitioner discard all weights
+  (any-unweighted guard) and round-robin co-scheduled the writers -> tmp
+  replace race. (2) WORSE: _read_json swallows OSError -> {} -> next
+  record() silently REWRITES the live bot's durable history from empty
+  (reproduced: 9676 tx/recall 133 -> 248/0; restored). Retry round =
+  runner-only fix (SERIAL_MODULES for the three out-of-pool writers +
+  default weight for unknown modules) + reapply the move. QUEUED with full
+  gates: home_disposal hardening — env-routed path (isolates workers AND
+  stops suite runs polluting the live 1.9MB artifact, ~4000 rows/day,
+  ~89s/suite parse tax) + _read_json OSError hardening + the same pattern
+  in the queue writer (:190); exploration_ledger.py shares the .tmp+replace
+  shape but is not test-reachable (path=None default).
