@@ -979,3 +979,16 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   and exact names. Four mutation anchors moved with those methods; the listed
   `_set_equipment_transaction_session` method is outside the literal selectors
   and remains in policy.py with its anchor.
+- Phase 9 retry (81b77a4): ACCEPT. Attempt-1's failure class is CLOSED —
+  two independent tree-wide sweeps (43 moved symbols + 24 reviewer-derived
+  at-risk module helpers) found zero stale patch/import targets, and the
+  lone-revert of the old patch strings reproduces exactly the two
+  "None != 19" failures. Event narration corrections recorded by review:
+  (i) 3 anchors bite, not 4 (omit-inflight-digger is a standing miss);
+  (ii) "42 constants" was the added LINE count — the real symbol count is
+  11; (iii) the discovery-accounting sentence is arithmetically broken
+  though its underlying facts are right; (iv) the quest weapon_expected_dps
+  patches are consumed by _approved_strategy_force_ready which REMAINS in
+  policy.py (not by quest-module methods as the event said) — retaining
+  them was still correct. Note hunk_guard's candidate_modules omits
+  tests.test_policy_quest, so that seam is not advisory-covered.
