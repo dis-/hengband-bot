@@ -908,3 +908,13 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   25. The unspecified "remaining 6" are not runnable literal selectors and
   remain in policy.py for later classification; Phase 7 moved only the 19
   explicitly named methods.
+- Phase 7 (bb89fe0+4c5efef) review notes: ACCEPT, streak restarted at 1.
+  Phase 8 rider queued: fixture-DEFAULT history isolation —
+  os.environ.setdefault(HOME_HISTORY_DIR_ENV, per-process tempdir) in BOTH
+  tests/__init__.py and the shared module test_policy imports (the repo
+  uses both "tests.test_policy" and bare "test_policy" import forms), plus
+  a selftest asserting a bare unittest run does not touch
+  <repo>/home-withdraw-history.jsonc; runner per-worker roots keep priority
+  via setdefault. Conduct rule stays as secondary. Live file drifted again
+  (+22 tx/+3 recall this round): now 10,203 tx / recall 148 — cleanup
+  decision still pending with the user.
