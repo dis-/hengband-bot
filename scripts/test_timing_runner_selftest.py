@@ -42,10 +42,10 @@ class TimingRunnerSelfTest(unittest.TestCase):
                     "--modules", "tests.safe", "--output", str(output),
                     "--summary-output", str(summary), "--top", "0",
                 ])
+                self.assertNotIn("HENGBOT_HOME_HISTORY_DIR", os.environ)
 
             self.assertEqual(status, 0)
             self.assertEqual(observed, [run_root])
-            self.assertNotIn("HENGBOT_HOME_HISTORY_DIR", os.environ)
 
 
 if __name__ == "__main__":

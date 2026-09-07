@@ -728,6 +728,7 @@ def run_tests(package_parent: Path, full_suite: bool) -> dict:
     env["PYTHONPATH"] = os.pathsep.join(
         [str(package_parent), *(old_pythonpath.split(os.pathsep) if old_pythonpath else [])]
     )
+    env["HENGBOT_HOME_HISTORY_DIR"] = str(package_parent / "home-history")
     proc = subprocess.run(
         command, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, encoding="utf-8", errors="replace",
