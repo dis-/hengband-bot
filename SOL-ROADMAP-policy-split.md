@@ -1046,3 +1046,40 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   Note: roadmap §2's "four pickled classes stay in policy.py" is now stale —
   ProcurementHomeGate and ExplorationPathOutcome live in other modules with
   aliases.
+
+### Phase 10 selector correction (supervisor, 2026-09-08)
+
+The Phase 10 prefix list reaches only 39 methods, yet the phase's own stated size is 65. The
+STEP-0 accounting closes exactly: 39 matched + 2 already moved in Phase 9
+(`_home_rearm_weapon_score`, `_home_rearm_key`, in 81b77a4) + 24 genuine Home-cluster methods the
+literal prefixes miss = 65. The selector list was an incomplete rendering of the documented intent,
+so Phase 10 executes with these 24 EXACT names appended to the prefix list (drop `_deferred_home*`,
+which names instance attributes, not methods):
+
+- `_file_home_errand`
+- `_ensure_home_visit_request`
+- `home_route_refusal_state`
+- `consume_home_knowledge`
+- `_open_home_page_is_complete`
+- `_record_digger_home_withdraw_failure`
+- `_has_withdrawable_digging_tool`
+- `_has_withdrawable_treasure_detection`
+- `consume_pending_home_visit_report`
+- `consume_pending_home_procurement_fallthrough_report`
+- `_current_town_has_home`
+- `retention_reservation_state`
+- `_entire_stack_is_surplus`
+- `_inventory_overweight`
+- `_spare_equipment_deposit_shape`
+- `_idle_deposit_protected`
+- `_defer_unobserved_home_withdrawal`
+- `_invalidate_home_observation`
+- `_stage_home_operation`
+- `_observe_home_history`
+- `_capture_home_history_intent`
+- `_retain_identification_source_owner`
+- `_activate_home_batch_item`
+- `_defer_home_item`
+
+This realizes the roadmap's own 65-method figure; it is a correction of the selector rendering,
+not a scope change. Anything these 24 + the prefixes still leave behind is residue for §10.
