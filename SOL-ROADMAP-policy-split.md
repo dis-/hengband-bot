@@ -852,3 +852,11 @@ Binding for every phase. A violation is grounds for revert, not a review comment
 - Phase 4: the roadmap's literal prefix list matches 28 methods, not the
   stated 77. The 49-method count mismatch is retained for later classification;
   Phase 4 moved only the methods selected by the authoritative literal prefixes.
+- Phase 4 (fd660d9) review notes: (a) the NameError repair added a
+  _supply_test_case() lazy accessor in tests/test_policy.py and one
+  qualified reference in the moved WieldLightTest — undisclosed in the
+  event (accuracy demerit on record); (b) LANDMINE for Phase 6:
+  tests/test_policy_supply.py:168 does `import test_policy as _test_policy`
+  and :1133 references test_policy.EmergencyRecallEscapeTest — Phase 6
+  moves that class to test_policy_combat.py and WILL break this reference;
+  repoint it in the same commit.
