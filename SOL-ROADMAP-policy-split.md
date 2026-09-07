@@ -1024,3 +1024,25 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   the phase line mixes state ownership with method selectors. Drop it from
   the selector argv (hard refusal is the correct default for unmatched
   selectors).
+- Tool hardening (b6ef5be + 8d3b913): ACCEPT and pushed. F1 (base inserted
+  inside the parens, six header shapes pinned), F2 (back-reference refusal +
+  a REAL import smoke test in verify_move), F3 (future-annotations) all
+  closed with executed lone-reverts; 8 constants + ProcurementHomeGate
+  lifted (pickle compat proven at the production protocol 5, not just the
+  pin's protocol 0). Phase 10 dry-run now: 39 matched, zero back-references,
+  valid header (HomeMixin first, inside the parens), import smoke PASS.
+  CORRECTION (see the correction event): re-export is required for FOUR
+  constants + the Gate, not one; four have no external consumers. Do NOT
+  prune policy.py's now-unused imports after the Phase 10 render
+  (UNUSED_DIVE_LIMIT in particular) — eight test modules import them from
+  hengbot.policy.
+  PHASE 10 GO CONDITIONS (from review): (1) correction recorded [done];
+  (2) no import pruning [in the phase prompt]; (3) reconcile the roadmap's
+  Phase 10 expectation (65 methods / -2,419 / +2,460) against the measured
+  39 / -1,992 / +1,999 — account for all 26 missing names (already moved in
+  an earlier phase, renamed, or deleted) before executing, per
+  plan-source-of-truth; (4) the roadmap's Phase 10 review obligation to diff
+  home_entry_capture.STATE_FIELDS' 30 names is still owed.
+  Note: roadmap §2's "four pickled classes stay in policy.py" is now stale —
+  ProcurementHomeGate and ExplorationPathOutcome live in other modules with
+  aliases.
