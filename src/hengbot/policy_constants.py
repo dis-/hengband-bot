@@ -46,6 +46,20 @@ SELL_KEY = "d"
 BUY_KEY = "p"
 FOOD_MIN_SVAL = 32
 STORE_STUCK_LIMIT = 8
+CALIBRATION_HOME_VISIT_LIMIT = 300
+UNUSED_DIVE_LIMIT = 3
+AMMO_CARRY_TARGET = 99
+TORCH_THROW_TARGET = 10
+EMERGENCY_POTION_CARRY_TARGET = 10
+# Source: player-status-table.cpp adj_str_wgt. Values become internal
+# decipounds after multiplication by 50 in calc_weight_limit().
+ADJ_STR_WEIGHT_LIMIT = (
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31, 31, 32, 32, 33, 33, 34, 34, 35, 35, 36,
+    36, 37, 37, 38, 38, 39,
+)
+PLAYER_CLASS_BERSERKER = 23
+DESTROY_COMMAND = "k"
 CHARACTER_DUMP_MACRO = "Cf\ry\x1b\x1b"
 EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
 

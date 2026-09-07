@@ -91,9 +91,13 @@ from hengbot.policy_types import (
     CrossDecisionLatch,
     SupplyStatus,
     TownErrandPlan,
+    ProcurementHomeGate,
 )
 from hengbot.policy_constants import (
+    ADJ_STR_WEIGHT_LIMIT,
+    AMMO_CARRY_TARGET,
     AMMO_CARRY_STACK_LIMIT,
+    CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
@@ -158,6 +162,8 @@ from hengbot.policy_constants import (
     CHEST_SEARCH_KEY,
     DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
+    DESTROY_COMMAND,
+    EMERGENCY_POTION_CARRY_TARGET,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     EAT_KEY,
@@ -191,6 +197,7 @@ from hengbot.policy_constants import (
     MINING_THREAT_FREE_LIMIT,
     NEIGHBOR_OFFSETS,
     PACK_CAPACITY,
+    PLAYER_CLASS_BERSERKER,
     PROBE_LIMIT,
     RANGED_MAX_DISTANCE,
     READ_KEY,
@@ -204,6 +211,7 @@ from hengbot.policy_constants import (
     STORE_STUCK_LIMIT,
     STUCK_ESCAPE_LIMIT,
     TERMINAL_NUDGE_LIMIT,
+    TORCH_THROW_TARGET,
     TOWN_TRAVEL_STORE_SYMBOLS,
     TOWN_STOP_PASS_LIMIT,
     TOWN_TRAVEL_STALL_LIMIT,
@@ -220,6 +228,7 @@ from hengbot.policy_constants import (
     EXTENDED_STUCK_WINDOW,
     TUNNEL_KEY,
     UP_STAIRS_KEY,
+    UNUSED_DIVE_LIMIT,
     USE_STAFF_KEY,
     WAIT_KEY,
     SPEED_ENERGY_90,
@@ -528,7 +537,6 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
 
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を300回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
-CALIBRATION_HOME_VISIT_LIMIT = 300
 # Cash retained after buying every departure-blocking shortage on a cross-town
 # shopping expedition, covering the user-specified round trip.
 CROSS_TOWN_SHOPPING_RESERVE = 1000
@@ -772,7 +780,6 @@ STORE_RESTOCK_REASON_NAMES = {
 # count; an over-deep dive is defined by the danger, not the empty pack alone.
 EMPTY_DIVE_LIMIT = 3  # consecutive over-extended dives before switching dungeons
 NO_DEPTH_PROGRESS_DIVE_LIMIT = 5
-UNUSED_DIVE_LIMIT = 3  # dives an item goes unused before it is stashed at Home
 
 # Authoritative depth-requirement table (bot-client/AGENTS.md "Authoritative depth
 # requirements"). Each (min_depth, max_depth, required abilities) band lists the
@@ -890,7 +897,6 @@ TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
 # existing hunt path); close sleepers get softened before they act anyway.
 # A full launcher stack is operationally useful and user-approved, but duplicate
 # stacks beyond it must not impose an inventory-speed penalty.
-AMMO_CARRY_TARGET = 99
 # Different enchantments do not combine, so floor recovery can otherwise turn
 # one 99-shot supply target into most of the pack.  Keep two dense stacks; Home
 # owns every additional compatible stack.
@@ -901,19 +907,11 @@ AMMO_CARRY_TARGET = 99
 # floors the bot actively throws CHEAP TORCHES instead — a thrown light
 # survives 50% (object-broken.cpp) and costs ~1g at the General Store, so it
 # is near-free ranged pressure while the launcher has no matching ammo.
-TORCH_THROW_TARGET = 10
 # Speed and Healing are valuable emergency supplies, but carrying an unlimited
 # Black Market stockpile can impose a speed penalty.  Keep a useful field stock
 # while shelving everything above the user-approved per-kind limit at Home.
-EMERGENCY_POTION_CARRY_TARGET = 10
 # Source: player-status-table.cpp adj_str_wgt.  Values become internal
 # decipounds after multiplication by 50 in calc_weight_limit().
-ADJ_STR_WEIGHT_LIMIT = (
-    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-    26, 27, 28, 29, 30, 31, 31, 32, 32, 33, 33, 34, 34, 35, 35, 36,
-    36, 37, 37, 38, 38, 39,
-)
-PLAYER_CLASS_BERSERKER = 23
 # Chest processing (user-specified procedure): drop the carried chest, step
 # to an adjacent tile, `s` to discover its trap (search() marks adjacent
 # trapped chests known — player-move.cpp discover_hidden_things), `D` to
@@ -930,7 +928,6 @@ UNINSCRIBE_KEY = "}"
 # select_destroying_item in force mode (skipping the "Really destroy?" prompt —
 # whose y/n answers can otherwise leak) and is reused by input_quantity (no
 # quantity prompt), so the whole stack is destroyed with no stray keys leaking.
-DESTROY_COMMAND = "k"
 # Consecutive destroy attempts that leave the pack unchanged before we give up on
 # an item and mark it undestroyable (e.g. an artifact the game refuses to break).
 DESTROY_FAIL_LIMIT = 3
@@ -1194,14 +1191,6 @@ class ExplorationGoalIdentity:
     kind: ExplorationGoalKind
     position: Position
     evidence_signature: tuple[int, bool, bool, bool, int]
-
-
-class ProcurementHomeGate(Enum):
-    """Explicit result of checking Home before composing a purchase."""
-
-    ALLOW_PURCHASE = "allow-purchase"
-    HOME_FIRST = "home-first"
-    BLOCKED = "blocked"
 
 
 def _new_town_turn_arbiter() -> TownTurnArbiter:

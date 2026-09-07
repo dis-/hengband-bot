@@ -17,6 +17,14 @@ from hengbot.policy_constants import (
 OWNER_EXPECTATION_MAX_TURNS = 10
 
 
+class ProcurementHomeGate(Enum):
+    """Explicit result of checking Home before composing a purchase."""
+
+    ALLOW_PURCHASE = "allow-purchase"
+    HOME_FIRST = "home-first"
+    BLOCKED = "blocked"
+
+
 @dataclass(frozen=True)
 class DecisionContext:
     """Immutable latch captured once at the public decision boundary."""

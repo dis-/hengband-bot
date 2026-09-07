@@ -12,7 +12,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.flight_recorder import jsonable
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
-from hengbot.policy import HengbotPolicy
+from hengbot.policy import HengbotPolicy, ProcurementHomeGate
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_combat import CombatMixin
 from hengbot.policy_equipment import EquipmentMixin
@@ -57,6 +57,10 @@ def _import_test_module(stem):
 
 
 class PolicyStructureTest(unittest.TestCase):
+    def test_old_policy_module_pickle_resolves_lifted_home_gate(self):
+        old_reference = b"chengbot.policy\nProcurementHomeGate\n."
+        self.assertIs(pickle.loads(old_reference), ProcurementHomeGate)
+
     def test_test_modules_do_not_bind_foreign_test_cases(self):
         offenders = []
         scripts = str(ROOT / "scripts")
