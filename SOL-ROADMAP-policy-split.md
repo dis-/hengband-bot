@@ -893,3 +893,14 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   in the phase section reflect the phantom 85-method count. The exonerated
   2750f34 additionally lacked battery retargets (would have failed the
   battery gate) — caught and fixed in reconstruction.
+- home-disposal hardening (06766d8) review notes: ACCEPT; dead-latch,
+  phantom-pin, trailer all closed. Phase 7 riders queued: (D1) the serial
+  selftest's assertNotIn(HENGBOT_HOME_HISTORY_DIR, os.environ) sits outside
+  its patch context and fails if the ambient env sets the var — move it
+  inside; (D2) scripts/mutation_battery.py:~725 does not set
+  HENGBOT_HOME_HISTORY_DIR, so every battery run writes the LIVE
+  home-withdraw-history.jsonc (measured: +89 tx/+2 recall in one run) —
+  wire the isolation env there too. NOTE: live file now 10,181 tx /
+  recall 145, overwhelmingly test pollution accumulated before H2; a
+  cleanup/restore decision is deferred to the user (recall counter gates
+  disposal cadence).
