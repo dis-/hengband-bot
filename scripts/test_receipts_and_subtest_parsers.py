@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -166,6 +167,13 @@ class ReceiptTest(unittest.TestCase):
         )
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertEqual(history.read_bytes(), before)
+
+    def test_empty_history_environment_still_uses_receipt_isolation(self) -> None:
+        with mock.patch.dict(os.environ, {run_receipt.HOME_HISTORY_DIR_ENV: ""}):
+            with run_receipt.isolated_home_history() as history_dir:
+                self.assertTrue(history_dir)
+                self.assertEqual(os.environ[run_receipt.HOME_HISTORY_DIR_ENV], history_dir)
+            self.assertNotIn(run_receipt.HOME_HISTORY_DIR_ENV, os.environ)
 
     def test_receipt_round_trip_and_stream_tamper_detection(self) -> None:
         with tempfile.TemporaryDirectory(prefix="receipt-test-") as name:

@@ -380,6 +380,12 @@ class VerificationGateSelfTest(unittest.TestCase):
             self.assertEqual(payload["hunks"][0]["result"], "UNPROTECTED")
             self.assertEqual(payload["hunks"][0]["candidate_modules"], ["tests.test_demo"])
 
+    def test_hunk_guard_documents_module_helper_advisory_gap(self) -> None:
+        self.assertEqual(
+            hunk_guard.ADVISORY_GAPS["weapon_expected_dps"],
+            ["tests.test_policy_quest"],
+        )
+
     def test_new_file_branch_and_no_behavioral_warning_are_real(self) -> None:
         diff = "diff --git a/src/hengbot/new.py b/src/hengbot/new.py\nnew file mode 100644\n--- /dev/null\n+++ b/src/hengbot/new.py\n@@ -0,0 +1 @@\n+x = 1\n"
         self.assertTrue(hunk_guard.parse_hunks(diff)[0]["new_file"])

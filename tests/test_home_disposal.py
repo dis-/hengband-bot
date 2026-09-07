@@ -136,6 +136,11 @@ class HomeDisposalTests(unittest.TestCase):
         self.assertEqual((sentinel.stat().st_mtime_ns, sentinel.read_bytes()), before)
         with patch.dict(os.environ, {}, clear=True), patch("pathlib.Path.cwd", return_value=live):
             self.assertEqual(HomeDisposalState.in_repo().history_path, sentinel)
+        for blank in ("", " \t "):
+            with self.subTest(blank=blank), patch.dict(
+                os.environ, {"HENGBOT_HOME_HISTORY_DIR": blank}
+            ), patch("pathlib.Path.cwd", return_value=live):
+                self.assertEqual(HomeDisposalState.in_repo().history_path, sentinel)
 
     def test_bare_policy_unittest_does_not_touch_repository_history(self):
         repository = Path(__file__).resolve().parents[1]

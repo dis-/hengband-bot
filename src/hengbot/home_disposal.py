@@ -72,7 +72,8 @@ class HomeDisposalState:
     @classmethod
     def in_repo(cls, root: Path | None = None) -> "HomeDisposalState":
         if root is None:
-            root = Path(os.environ.get(HOME_HISTORY_DIR_ENV, Path.cwd()))
+            configured_root = os.environ.get(HOME_HISTORY_DIR_ENV, "").strip()
+            root = Path(configured_root) if configured_root else Path.cwd()
         else:
             root = Path(root)
         return cls(

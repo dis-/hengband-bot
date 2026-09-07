@@ -23,6 +23,9 @@ import verify_scope
 from failure_headers import failure_sections
 
 ROOT = Path(__file__).resolve().parents[1]
+ADVISORY_GAPS = {
+    "weapon_expected_dps": ["tests.test_policy_quest"],
+}
 VERSION = "3.0"
 DEFAULT_MODULE_TIMEOUT = 900.0
 # Python's unified-diff generator joins edits separated by at most this many
@@ -473,7 +476,8 @@ def main(argv: list[str] | None = None) -> int:
                     raise RuntimeError(f"sandbox tree hash mismatch after hunk {number}")
         payload = {"tool": {"name": "hunk_guard", "version": VERSION, "base_ref": base, "target": target,
                             "tree_fingerprint": verify_scope.tree_fingerprint(sandbox)},
-                   "candidate_modules": candidates, "hunks": results,
+                   "candidate_modules": candidates, "advisory_gaps": ADVISORY_GAPS,
+                   "hunks": results,
                    "summary": {name.lower().replace("-", "_"): sum(r["result"] == name for r in results)
                                for name in ("PROTECTED", "UNPROTECTED", "REVERT-UNAPPLIABLE", "TIMEOUT",
                                             "ARTIFACT-SKIPPED", "NOT-EVALUATED", "NEW-FILE-UNVERIFIED", "SKIPPED")}}

@@ -52,8 +52,9 @@ def safe(value: str) -> str:
 @contextlib.contextmanager
 def isolated_home_history():
     """Give a receipt run private durable history unless its caller supplied one."""
-    if HOME_HISTORY_DIR_ENV in os.environ:
-        yield os.environ[HOME_HISTORY_DIR_ENV]
+    supplied_history_dir = os.environ.get(HOME_HISTORY_DIR_ENV)
+    if supplied_history_dir:
+        yield supplied_history_dir
         return
     with tempfile.TemporaryDirectory(prefix="hengbot-receipt-history-") as name:
         os.environ[HOME_HISTORY_DIR_ENV] = name
