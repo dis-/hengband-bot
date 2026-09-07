@@ -30,10 +30,10 @@ PACKAGE = ROOT / "src" / "hengbot"
 
 PUBLIC_TESTS = frozenset(
     {
-        "test_policy.HomeOneOperationPerEntryTest.test_public_page_three_withdrawal_posts_one_complete_sender_key",
-        "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_uses_uppercase_and_live_page_three_arithmetic",
-        "test_policy.HomeOneOperationPerEntryTest.test_descending_withdrawals_share_one_home_knowledge_read",
-        "test_policy.HomeOneOperationPerEntryTest.test_derived_withdrawal_waits_when_page_size_was_never_observed",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_public_page_three_withdrawal_posts_one_complete_sender_key",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_derived_withdrawal_uses_uppercase_and_live_page_three_arithmetic",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_descending_withdrawals_share_one_home_knowledge_read",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_derived_withdrawal_waits_when_page_size_was_never_observed",
         "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
         "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
         "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
@@ -61,9 +61,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy_combat.PredictiveEscapeTest.test_only_paralyzer_retreat_may_cross_a_fully_ringed_veto",
         "test_policy_combat.PredictiveEscapeTest.test_adjacent_orc_fight_is_not_abandoned_for_distant_paralyzer",
         "test_flight_recorder.FlightRecorderTest.test_policy_state_retains_commitment_and_downstairs_and_map_renders",
-        "test_policy.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard",
         "test_policy_equipment.EquipmentTransactionOwnershipRegressionTest.test_abandoned_deposit_is_preserved_from_every_replanned_transaction",
-        "test_policy.RetentionAuthorityTest.test_takeoff_projection_uses_real_two_torch_pack_order",
+        "test_policy_home.RetentionAuthorityTest.test_takeoff_projection_uses_real_two_torch_pack_order",
         "test_home_visit.HomeVisitExecutorTest.test_retention_conflict_is_rejected_at_filing",
         "test_home_visit.HomeVisitExecutorTest.test_semantic_churn_is_a_visible_defect",
         "test_policy_fundraising.IdleItemDepositTest.test_gate1_sale_retains_the_standing_two_digger_kit",
@@ -84,12 +84,12 @@ PUBLIC_TESTS = frozenset(
         "test_home_visit.HomeVisitExecutorTest.test_history_is_visit_scoped_and_same_signature_stacks_are_allowed",
         "test_home_visit.HomeVisitExecutorTest.test_calibration_deposit_restore_is_authorized",
         "test_home_visit.HomeVisitCaptureAcceptanceTest.test_ast_ratchet_keeps_optimizer_and_composers_under_executor",
-        "test_policy.HomeVisitOwnershipTest.test_new_home_transaction_cannot_reset_completed_home_visit_history",
-        "test_policy.HomeVisitOwnershipTest.test_rejected_home_visit_budget_stops_the_real_approach",
-        "test_policy.HomeVisitOwnershipTest.test_prepare_operation_budget_exhaustion_is_visible",
-        "test_policy.HomeVisitOwnershipTest.test_home_rearm_is_noop_after_visit_budget_exhaustion",
-        "test_policy.HomeOneOperationPerEntryTest.test_same_turn_home_leave_does_not_refile_atomic_deposit",
-        "test_policy.HomeOneOperationPerEntryTest.test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound",
+        "test_policy_home.HomeVisitOwnershipTest.test_new_home_transaction_cannot_reset_completed_home_visit_history",
+        "test_policy_home.HomeVisitOwnershipTest.test_rejected_home_visit_budget_stops_the_real_approach",
+        "test_policy_home.HomeVisitOwnershipTest.test_prepare_operation_budget_exhaustion_is_visible",
+        "test_policy_home.HomeVisitOwnershipTest.test_home_rearm_is_noop_after_visit_budget_exhaustion",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_same_turn_home_leave_does_not_refile_atomic_deposit",
+        "test_policy_home.HomeOneOperationPerEntryTest.test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound",
         "test_home_visit.HomeVisitCaptureAcceptanceTest.test_executor_era_deposit_repost_is_same_turn_unobserved_refile",
     }
 )
@@ -169,7 +169,7 @@ MUTATIONS = (
         True,
         "Restore the false-absence filter for unidentified Home devices.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "            if item.is_wand_staff and (not item.known or item.charges > 0)\n",
             "            if item.is_wand_staff and item.known and item.charges > 0\n",
         ),),
@@ -254,11 +254,11 @@ MUTATIONS = (
         True,
         "Restore the rejected-budget atomic composer fallthrough.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "            if visit.request is None or not visit.begin_approach(\n",
             "            if False and (visit.request is None or not visit.begin_approach(\n",
         ), replacement(
-            "policy.py",
+            "policy_home.py",
             "                self._decision_sequence\n            ):\n",
             "                self._decision_sequence\n            )):\n",
         )),
@@ -279,7 +279,7 @@ MUTATIONS = (
         True,
         "Restore the captured ESC loop by suppressing the fresh ~9 request.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "        if owner_indices and index <= min(owner_indices):\n"
             "            self._invalidate_home_observation()\n",
             "        if False and owner_indices and index <= min(owner_indices):\n"
@@ -511,7 +511,7 @@ MUTATIONS = (
         True,
         "Guess 52 columns when no Home page size was observed.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "        if not self._home_page_size:\n            self.last_reason = \"home:await-page-size\"\n            return None\n",
             "        if not self._home_page_size:\n            self._home_page_size = 52  # mutant guesses geometry\n",
         ),),
@@ -521,7 +521,7 @@ MUTATIONS = (
         True,
         "Continue lowercase address arithmetic past z.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "            if page_pos < 26\n",
             "            if page_pos < 52\n",
         ),),
@@ -531,7 +531,7 @@ MUTATIONS = (
         True,
         "Invalidate the whole knowledge read after the first withdrawal.",
         (replacement(
-            "policy.py",
+            "policy_home.py",
             "        self._home_knowledge_valid_before = index\n",
             "        self._home_knowledge_current = False  # mutant loses descending batch\n",
         ),),

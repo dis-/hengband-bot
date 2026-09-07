@@ -35,6 +35,7 @@ from hengbot.home_visit import (
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
 import test_policy_equipment as equipment_fixture
+import test_policy_home as home_fixture
 
 
 MOVES = {
@@ -485,7 +486,7 @@ def _invalid_command_noop_home_cycle():
 
 def _doubled_store_entry_cycle():
     """Delay the Home-open page once after accepting its entry command."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     target = fixture.store_item("a", TVAL_POTION, 2999, name="delayed target")
     policy = HengbotPolicy()
     policy._calibration_phase = "restore-supplies"
@@ -528,7 +529,7 @@ def _doubled_store_entry_cycle():
 
 def _lagged_successful_store_entry():
     """Expose a direction posted into a store whose first page is lagged."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     target = fixture.store_item("a", TVAL_POTION, 3001, name="lagged target")
     policy = HengbotPolicy()
     policy._calibration_phase = "restore-supplies"
@@ -572,7 +573,7 @@ def _lagged_successful_store_entry():
 
 def _failed_store_entry_same_turn():
     """A refused entrance WAIT must hand routing back without a filler key."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     target = fixture.store_item("a", TVAL_POTION, 3000, name="refused target")
     policy = HengbotPolicy()
     policy._calibration_phase = "restore-supplies"
@@ -657,7 +658,7 @@ class EvidenceFrame:
 
 def _evidence_visit_cycle(frames):
     """Cycle a preserved live burst without inventing game-side progress."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     base = helper._entrance_snapshot(helper._real_pack(), turn=frames[0].turn)
     policy = HengbotPolicy()
     policy._shopping_approach_store_type = STORE_HOME
@@ -757,7 +758,7 @@ def _abandon_retry_home_pass_burn():
 
 def _movement_opens_store_before_surface_observation():
     """A disclosed movement destination opens a shop before its first page."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     origin = Position(45, 122)
     entrance = Position(45, 123)
     surface = helper._entrance_snapshot(helper._real_pack(), turn=3500000)
@@ -814,7 +815,7 @@ def _movement_opens_store_before_surface_observation():
 
 
 def _version_discard(*, swallow=False):
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     stock = [fixture.store_item(chr(ord("a") + n % 12), TVAL_POTION, 2000 + n,
                         name=f"catalogue {n}") for n in range(60)]
     policy = HengbotPolicy()
@@ -867,7 +868,7 @@ def _withdraw_refusal_cycle():
     The measured refusal incident had valid incomplete 3-of-5 page provenance;
     this seed reconstructs only the independently observed version-probe freeze.
     """
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     missing = fixture.store_item("a", TVAL_POTION, 3990, name="missing restore")
     other = fixture.store_item("a", TVAL_POTION, 3991, name="other home item")
     policy = HengbotPolicy()
@@ -889,7 +890,7 @@ def _withdraw_refusal_cycle():
 
 
 def _released_bound():
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     policy = HengbotPolicy()
     pack = helper._real_pack()
     entrance = helper._entrance_snapshot(pack, turn=3200000)
@@ -1143,7 +1144,7 @@ def _frozen_approach_optimizer_transaction():
 
 def _ordinary_alchemist_entry_seed(*, turn, target_sval):
     """Build an entrance-owned Alchemist trip without invoking Home scanning."""
-    helper = fixture.HomeOneOperationPerEntryTest()
+    helper = home_fixture.HomeOneOperationPerEntryTest()
     target = fixture.store_item(
         "a", TVAL_POTION, target_sval, name="ordinary-shop target"
     )
@@ -1485,7 +1486,7 @@ def _home_semantic_churn_defect():
             self.home_visit_report = home_visit_report
             return ""
 
-    base = fixture.HomeOneOperationPerEntryTest()._entrance_snapshot([])
+    base = home_fixture.HomeOneOperationPerEntryTest()._entrance_snapshot([])
 
     world = TownWorld(base)
     world.expected_terminal_reason = (

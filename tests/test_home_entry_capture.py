@@ -12,7 +12,7 @@ from hengbot.cli import _observe_home_entry_capture
 from hengbot.home_entry_capture import HomeEntryCapture, STATE_FIELDS, _home_owned
 from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import STORE_HOME, StoreState
-from tests import test_policy
+from tests import test_policy, test_policy_home
 
 
 class HomeEntryCaptureTest(unittest.TestCase):
@@ -30,7 +30,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
                 self.last_reason = "explore"
                 return "6"
 
-        harness = test_policy.HomeOneOperationPerEntryTest()
+        harness = test_policy_home.HomeOneOperationPerEntryTest()
         snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
         policy = NonHomePolicy()
         self.assertFalse(_home_owned(policy, snapshot))
@@ -49,7 +49,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
             self.assertFalse(path.exists())
 
     def test_home_owned_decision_still_takes_full_checkpoint_row(self):
-        harness = test_policy.HomeOneOperationPerEntryTest()
+        harness = test_policy_home.HomeOneOperationPerEntryTest()
         policy = test_policy.HengbotPolicy()
         policy._shopping_approach_store_type = STORE_HOME
         snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
@@ -73,7 +73,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         self.assertEqual(replay._shopping_approach_store_type, STORE_HOME)
 
     def test_home_approach_onset_still_takes_full_checkpoint_row(self):
-        harness = test_policy.HomeOneOperationPerEntryTest()
+        harness = test_policy_home.HomeOneOperationPerEntryTest()
         policy = test_policy.HengbotPolicy()
         policy._home_candidate_waiting = True
         snapshot = harness._entrance_snapshot(harness._real_pack(), turn=3200100)
@@ -181,7 +181,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
             )
 
     def test_writes_joined_fields_and_replays_each_record_through_choose_key(self):
-        harness = test_policy.HomeOneOperationPerEntryTest()
+        harness = test_policy_home.HomeOneOperationPerEntryTest()
         policy = test_policy.HengbotPolicy()
         target = test_policy.store_item(
             "a", test_policy.TVAL_POTION, 9999, name="capture target"
