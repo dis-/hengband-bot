@@ -887,3 +887,9 @@ Binding for every phase. A violation is grounds for revert, not a review comment
 - Phase 6: the roadmap's literal prefix list matches 38 methods, not the
   stated 85. The 47-method count mismatch is retained for later classification;
   Phase 6 moved only the methods selected by the authoritative literal prefixes.
+- Phase 6 retry (894f809+73f23b8) review notes: move 38/38 AST-identical
+  (streak 6); minor: event misquoted the roadmap's `_paralyz*` prefix as
+  `_paralyz_*` (implementation used the correct one); expected-delta lines
+  in the phase section reflect the phantom 85-method count. The exonerated
+  2750f34 additionally lacked battery retargets (would have failed the
+  battery gate) — caught and fixed in reconstruction.
