@@ -1065,6 +1065,35 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   test naming the missing class. All 11 receipts hash-verified at the
   shipped head; live history unchanged (recall 148, tx []).
   policy.py is now 20,588 lines (from 38,260 at project start, −46%).
+- Phase 11a (5cc9301): ACCEPT and PUSHED 2026-09-08, on the FIRST round and
+  with every claim independently reproduced by the supervisor from the two
+  git blobs alone: 376/376 methods AST-identical (strict `ast.dump`), zero
+  lost / added / duplicated names, 343 tests partitioned 230 town + 113 shop,
+  relative method order preserved inside each destination, `test_policy.py`
+  test-id set 907 -> 907 with exactly 113 renamed 1:1 AND body-identical,
+  zero other class in the module touched, all 17 receipts hash-matched at the
+  shipped head, all 11 `mutation_battery` ids resolving (7 repointed to the
+  shop class). The execution-order landmine did NOT bite: parallel x2 and the
+  isolated serial standing suite were all 3142 green.
+  Shared helpers live on a zero-test `_TownShopFixtureBase(unittest.TestCase)`
+  that BOTH halves inherit — `_strict_supplies`, `_lantern`,
+  `_shallow_partial_mining_snapshot`, `_home_tile`, `_ready_home_town` — which
+  is what keeps `absorbing_state_catalog.py`'s
+  `fixture.TownAndFundraisingPolicyTest()._strict_supplies()` resolving.
+  **Phase 11b inherits a new problem from this**: the shop class now inherits
+  a base that lives in `tests/test_policy.py`. Importing a TestCase subclass
+  across test modules is exactly the duplicate-collection defect that cost
+  +174 discovered ids earlier, so 11b must first relocate the base into a
+  NON-DISCOVERED helper module (a name that does not match `test*.py`, like
+  `absorbing_state_catalog.py` already is) and import it from both sides.
+  Advisory `test_fakery_lint` reports 13 undeclared / 123 declared — the
+  supervisor ran it in a base worktree and got the identical numbers, so it
+  is pre-existing and NOT a Phase 11a regression.
+  Accuracy streak: 2 (phase10-guard-fix, phase11a) — slimmed review form is
+  unlocked; any misreport resets it to 0.
+  Correction owed to sol: the 11a prompt's runtime notice said the game was
+  not running. It IS — `Hengband.exe` PID 19412, started 2026-09-05T15:36:50.
+  sol observed this read-only and touched nothing; the notice was wrong.
 
 ### Phase 10 selector correction (supervisor, 2026-09-08)
 
