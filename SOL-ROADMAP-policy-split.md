@@ -481,7 +481,8 @@ classes). Phases 9–12 are the three tangles named in §1.
     methods) inside `tests/test_policy.py`, moving method bodies verbatim with no edits.
     `absorbing_state_catalog.py` references the original class name — keep that name on the
     town half so the importer keeps resolving.
-  - **Phase 11b (the move):** move `ShopPurchaseSellPolicyTest`, `TownErrandPlanTest` (2,865),
+  - **Phase 11b (the move):** move `ShopPurchaseSellPolicyTest` (113 tests after 11a),
+    `TownErrandPlanTest` (2,865),
     `ProbePurityIncidentPinsTest` (350), `OptionalBlackMarketPotionTest` (162),
     `StoreTravelRetryTest` (118), `StatRestoreTest` (82), `ScavengeStoreLatchTest` (38),
     `StoreAttemptExpiryTest` (63) → `tests/test_policy_shop.py`.
