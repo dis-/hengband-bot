@@ -7168,36 +7168,127 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             )
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
-    def test_q2_surround_uses_teleport_reset_before_fighting(self):
-        policy = self._policy()
+    def _q2_adjacent_swarm(
+        self,
+        *,
+        can_multiply=False,
+        max_melee_damage=0,
+        carry_ammo=False,
+    ):
+        positions = ((9, 10), (10, 11), (11, 10))
         adjacent = [
-            replace(hostile(index, y, x, distance=1), race_id=86)
-            for index, (y, x) in enumerate(((9, 10), (10, 11), (11, 10)), 1)
+            hostile(
+                index,
+                y,
+                x,
+                distance=1,
+                race_id=153 if can_multiply else 86,
+                can_multiply=can_multiply,
+                max_melee_damage=max_melee_damage,
+            )
+            for index, (y, x) in enumerate(positions, 1)
         ]
+        terrain = {
+            (y, x): "floor"
+            for y in range(8, 13)
+            for x in range(8, 13)
+        }
+        policy = HengbotPolicy(
+            quest_strategies=self.profiles,
+            quest_knowledge={
+                2: QuestInfo(
+                    2,
+                    "The Sewer",
+                    6,
+                    15,
+                    0,
+                    battlefield=QuestBattlefield(
+                        terrain=terrain,
+                        player_start=(10, 10),
+                        entrance=(10, 10),
+                        exit=(10, 10),
+                    ),
+                )
+            },
+        )
+        inventory = [item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)]
+        if carry_ammo:
+            inventory.append(item("b", TVAL_BOLT, 0, count=20))
         snapshot = Snapshot(
             player(10, 10, hp=300, max_hp=300),
             {
-                Position(10, 10): grid(10, 10),
-                **{
-                    monster.position: grid(
-                        monster.position.y, monster.position.x, monster=True
-                    )
-                    for monster in adjacent
-                },
+                Position(y, x): grid(
+                    y,
+                    x,
+                    monster=(y, x) in positions,
+                )
+                for y, x in terrain
             },
-            adjacent, floor_key=(0, 1, 2),
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2)],
+            adjacent,
+            floor_key=(0, 15, 2),
+            inventory=inventory,
+            equipment=[
+                item(
+                    "bow",
+                    TVAL_BOW,
+                    SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+        )
+        return policy, snapshot
+
+    def test_q2_survivable_surround_stays_and_fights(self):
+        policy, snapshot = self._q2_adjacent_swarm(
+            can_multiply=True,
+            max_melee_damage=8,
+            carry_ammo=True,
         )
 
-        self.assertEqual(
-            policy._approved_quest_strategy_key(snapshot, adjacent, adjacent), "rt"
+        self.assertEqual(policy.choose_key(snapshot), "8")
+        self.assertEqual(policy.last_reason, "quest-strategy:melee")
+
+    def test_q2_no_ammo_commits_to_dangerous_adjacent_breeders(self):
+        policy, snapshot = self._q2_adjacent_swarm(
+            can_multiply=True,
+            max_melee_damage=20,
         )
+        prediction = policy.threat_prediction(
+            snapshot, snapshot.visible_monsters, turns=3
+        )
+
+        self.assertEqual(prediction["operational_total"], 240)
+        self.assertEqual(prediction["expected_total"], 240)
+        self.assertEqual(policy.choose_key(snapshot), "8")
+        self.assertEqual(policy.last_reason, "quest-strategy:melee")
+
+    def test_q2_material_nonbreeder_swarm_keeps_teleport_reset(self):
+        policy, snapshot = self._q2_adjacent_swarm(max_melee_damage=20)
+
+        self.assertEqual(policy.choose_key(snapshot), "rt")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-teleport-reset")
+
+    def test_q2_lethal_adjacent_swarm_still_uses_emergency_teleport(self):
+        policy, snapshot = self._q2_adjacent_swarm(max_melee_damage=30)
+        prediction = policy.threat_prediction(
+            snapshot, snapshot.visible_monsters, turns=3
+        )
+
+        self.assertEqual(prediction["operational_total"], 360)
+        self.assertGreaterEqual(
+            prediction["operational_total"], snapshot.player.hp
+        )
+        self.assertEqual(policy.choose_key(snapshot), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_q2_melee_commits_to_adjacent_corpse_cluster_without_ammo(self):
         policy = self._policy()
         adjacent = [
-            replace(hostile(index, y, x, distance=1), race_id=202)
+            replace(
+                hostile(index, y, x, distance=1),
+                race_id=202,
+                can_multiply=True,
+            )
             for index, (y, x) in enumerate(((1, 2), (2, 3), (3, 3)), 1)
         ]
         snapshot = Snapshot(

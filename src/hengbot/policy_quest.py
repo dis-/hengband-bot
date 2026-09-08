@@ -1623,10 +1623,14 @@ class QuestMixin:
         # the caller's normal adjacent-melee path finish the breeders.
         melee_commit = (
             adjacent
-            and all(monster.race_id == 202 for monster in adjacent)
+            and all(monster.can_multiply for monster in adjacent)
             and self._quest_profile_ammo(snapshot, profile) is None
         )
-        if not melee_commit and len(adjacent) >= SWARM_COUNT and not (
+        dangerous_swarm = (
+            len(adjacent) >= SWARM_COUNT
+            and self._should_flee(snapshot, hostiles, adjacent)
+        )
+        if not melee_commit and dangerous_swarm and not (
             snapshot.player.blind or snapshot.player.confused
         ):
             teleport = self._find_teleport_scroll(snapshot)
