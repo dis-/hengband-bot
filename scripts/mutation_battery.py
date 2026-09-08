@@ -37,13 +37,13 @@ PUBLIC_TESTS = frozenset(
         "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_home_upgrade_invalidates_confirmation_through_choose_key",
         "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
         "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
-        "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
+        "test_policy_town.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
         "test_policy_shop.ShopPurchaseSellPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
-        "test_policy.TownAndFundraisingPolicyTest.test_queued_digger_withdrawal_blocks_departure_without_home_route",
+        "test_policy_town.TownAndFundraisingPolicyTest.test_queued_digger_withdrawal_blocks_departure_without_home_route",
         "test_policy_shop.ShopPurchaseSellPolicyTest.test_failed_digger_withdraw_retries_only_after_fresh_home_observation",
-        "test_policy.TownAndFundraisingPolicyTest.test_second_failed_digger_withdrawal_releases_to_visible_fallback",
+        "test_policy_town.TownAndFundraisingPolicyTest.test_second_failed_digger_withdrawal_releases_to_visible_fallback",
         "test_policy_shop.ShopPurchaseSellPolicyTest.test_second_digger_queue_survives_surface_item_processing_until_post",
-        "test_policy.TownAndFundraisingPolicyTest.test_pending_home_digger_is_additional_mining_walk_in_conjunct",
+        "test_policy_town.TownAndFundraisingPolicyTest.test_pending_home_digger_is_additional_mining_walk_in_conjunct",
         "test_policy_shop.ShopPurchaseSellPolicyTest.test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue",
         "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
         "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
@@ -541,7 +541,7 @@ MUTATIONS = (
         True,
         "Restore the departure race by making the pending take conditional on Home routing.",
         (replacement(
-            "policy.py",
+            "policy_town.py",
             "            \"home_atomic_withdraw_clear\": (\n"
             "                self._home_atomic_withdraw_pending is None\n"
             "            ),\n",
@@ -555,7 +555,7 @@ MUTATIONS = (
         True,
         "Remove the state-based queued digger departure premise.",
         (replacement(
-            "policy.py",
+            "policy_town.py",
             "            \"digger_withdrawal_resolved\": (\n"
             "                not self._home_digger_withdraw_pending\n"
             "                or self._digger_fallback_bought_this_visit\n"

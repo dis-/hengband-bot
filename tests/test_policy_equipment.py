@@ -29,6 +29,7 @@ from policy_fixtures import (
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 import test_policy as fixture
+import test_policy_town as town_fixture
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -4976,7 +4977,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
     """Pins for the stripped-loadout ring-sale incident."""
 
     def _stripped_fixture(self):
-        policy, snapshot = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, snapshot = town_fixture.NoSafeRecallDestinationTest()._fixture()
         source = snapshot.inventory[0]
         slots = tuple(policy_module.EQUIPMENT_SLOT_KEY)[:10]
         owned = []
@@ -5066,7 +5067,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
                 )
             )
             policy._prepare_equipment_optimization = Mock()
-            _, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+            _, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
             return policy, replace(
                 outside,
                 turn=2409461,
@@ -5093,7 +5094,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
             known=True, fully_known=True, is_equipment=True,
         )
-        policy, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
         outside = replace(outside, inventory=[shovel])
         policy.choose_key(outside)
         # TEST_FAKERY_LINT_ALLOW: private-state-injected: replay starts from the captured exhausted transaction checkpoint
@@ -5153,7 +5154,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
             known=True, fully_known=True, is_equipment=True,
         )
-        policy, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
         outside = replace(outside, inventory=[shovel])
         policy.choose_key(outside)
         # TEST_FAKERY_LINT_ALLOW: private-state-injected: restart pin reconstructs the captured blocked transaction checkpoint
@@ -5207,7 +5208,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
             known=True, fully_known=True, is_equipment=True,
         )
-        policy, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
         outside = replace(outside, inventory=[shovel])
         policy.choose_key(outside)
         # TEST_FAKERY_LINT_ALLOW: private-state-injected: leaked-visit replay starts from the captured Home-deposit transaction
@@ -5292,7 +5293,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         )
 
     def test_abandon_blocked_marker_activates_no_progress_refusal(self):
-        policy, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
         policy._store_visit = StoreVisit(
             "equipment-transaction", "equipment-work", STORE_HOME
         )
@@ -5317,7 +5318,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
             "d", TVAL_RING, 1, name="captured displaced ring",
             known=True, fully_known=True, is_equipment=True,
         )
-        policy, outside = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
         outside = replace(outside, inventory=[shovel])
         # TEST_FAKERY_LINT_ALLOW: private-state-injected: planner pin starts from the captured failed-deposit quarantine state
         policy._equipment_catalog = OwnedEquipmentCatalog()
@@ -5631,7 +5632,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertTrue(projection["equipment_work_need_present"])
 
     def test_satisfied_zero_action_optimization_does_not_own_home(self):
-        policy, snapshot = fixture.NoSafeRecallDestinationTest()._fixture()
+        policy, snapshot = town_fixture.NoSafeRecallDestinationTest()._fixture()
         policy._home_pending_item = None
         policy._home_pending_batch = []
         policy._home_atomic_withdraw_pending = None

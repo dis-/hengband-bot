@@ -1311,3 +1311,53 @@ bad code; plan-source-of-truth is doing exactly its job.
 Phase 12 must also expect the same two hazard classes: `HengbotPolicy.`-qualified static calls
 (`_has_town_economic_path` and `_town_observable_effect_state` both carry one today, so at least one
 will collide with a `_town_*` selector) and module-level constants the tool refuses until lifted.
+
+- Phase 12 (`policy-split-phase12`): the corrected 77-method manifest moved to
+  `policy_town.py`: `_refresh_town_facts`, `_town_arbiter_terminal_result`,
+  `_town_arbiter_progress_vector`, `_town_result_makes_progress`,
+  `_town_progress_fingerprint`, `_town_progress_history`,
+  `_town_begin_progress_decision`, `_town_progress_allow_members`,
+  `_town_procurement_progress_key`, `_town_observed_purchase_is_composable`,
+  `_town_blocked_purchase_is_composable`, `_town_procurement_decision`,
+  `_boxed_town_breakout_key`, `_boxed_town_breakout_route`,
+  `_commit_boxed_town_breakout_key`, `_town_entrance_step_off_key`,
+  `_release_stale_town_block`, `_town_departure_ready`,
+  `_town_departure_conjuncts`, `_town_pack_space_ready`,
+  `_recall_town_departure_conjuncts`, `_town_pack_space_signature`,
+  `_town_overflow_destroy_key`, `_town_device_processing_key`,
+  `_town_item_processing_key`, `_town_destroy_key`, `_town_need_candidates`,
+  `_town_need_registry`, `_town_claims_active`, `_enumerate_town_needs`,
+  `_departure_blocking_town_needs`, `_town_need_supplier_reachable`,
+  `_departure_supplier_counterfactual`, `_order_town_stops`,
+  `_town_need_phase`, `_town_need_effective_phase`, `_order_town_needs`,
+  `_build_town_errand_plan`, `_town_workflow_progress_state`,
+  `_report_town_stop_pass`, `_town_store_visit_limit`,
+  `_town_store_blocked_under_applicable_bound`, `_cross_town_item_categories`,
+  `_observe_cross_town_shelf`, `_cross_town_supplier_types`,
+  `_cross_town_shortages`, `_cross_town_unobtainable_categories`,
+  `_cross_town_candidate_order`, `_town_terminal_transitions`,
+  `_find_town_organization_surplus`, `_town_organization_home_routable`,
+  `_town_organization_sale_store`, `_town_travel_key`,
+  `_town_clear_traveler_key`, `_town_kill_mob_key`,
+  `_town_cancel_unsafe_recall_key`, `_town_remove_curse_key`,
+  `_town_random_teleport_suppression_key`, `_town_cycle_detected`,
+  `_break_town_cycle`, `_town_blocked_store_context`,
+  `_town_blocked_entrance_has_composable_operation`, `_town_blocked_key`,
+  `_town_recall_destination`, `_town_special_key`, `_departure_block_state`,
+  `_town_teleport_key`, `_read_dungeon_recall_scroll_key`,
+  `_dungeon_recall_confirmation_key`, `_should_start_town_return`,
+  `_return_to_town_key`, `_town_entrance_cells`, `_town_map_goal_step`,
+  `_town_map_descent_entrance`, `_effective_town_id`, `_town_map_active`, and
+  `_on_town_border`. This includes all six `_town_*` methods Phase 11b deferred.
+- Phase 12 R2 residue: `_town_observable_effect_state` and
+  `_has_town_economic_path` remain in `policy.py` because their bodies contain
+  `HengbotPolicy.`-qualified calls. Moving either needs a separate reviewed
+  dereference commit. No Phase 12 catalog method is deferred to Phase 13;
+  `_observe_cross_town_shelf` is town workflow state and moved here despite its
+  observation-shaped name.
+- Phase 12 prerequisite lifted the supervisor-listed 20 constants plus
+  `RECALL_ISSUE_CONFIRM_TURNS`, surfaced by the two exact recall-watch handlers,
+  and its definition dependencies `MOVE_REASONS` and `RUMOR_KEY`. All retain
+  `policy.py` re-exports. `tests/policy_shop_fixture.py` now serves town and shop
+  test modules; its name is narrower than its shared role, but renaming it is
+  deliberately outside this commit.

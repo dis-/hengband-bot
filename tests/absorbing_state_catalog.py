@@ -37,6 +37,7 @@ import test_policy as fixture
 import test_policy_shop as shop_fixture
 import test_policy_equipment as equipment_fixture
 import test_policy_home as home_fixture
+import test_policy_town as town_fixture
 
 
 MOVES = {
@@ -298,7 +299,7 @@ class TownWorld:
 
 
 def _departure_freeze():
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     policy._town_errand_plan = None
     policy._town_blocked_reason = "repetition"
@@ -844,7 +845,7 @@ def _version_discard(*, swallow=False):
 
 
 def _home_entry_cycle():
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     policy._town_errand_plan = None
     for store_type in range(8):
@@ -922,7 +923,7 @@ def _released_bound():
 
 def _calibration_deposit_claim_budget():
     """Unsafe recall must not install its terminal over a live Home deposit."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     home = replace(
         fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
@@ -962,7 +963,7 @@ def _calibration_deposit_claim_budget():
 
 def _plan_none_live_calibration_home_available():
     """A live calibration owner with no plan must still reach bounded Home."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     home = replace(
         fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
@@ -982,7 +983,7 @@ def _plan_none_live_calibration_home_available():
 
 def _calibration_prerequisite_scan_bound():
     """Mixed pre-phase Home work must survive the legacy third-pass boundary."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     home = replace(
         fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
@@ -1036,7 +1037,7 @@ def _calibration_prerequisite_scan_bound():
 
 def _successful_optimizer_transaction():
     """Optimizer success must retain the Home route needed to apply its plan."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     home = replace(
         fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
@@ -1081,7 +1082,7 @@ def _successful_optimizer_transaction():
 
 def _exhausted_equipment_home_route():
     """Outstanding work with no remaining Home route must stop visibly."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, snap = helper._fixture()
     policy.choose_key(snap)
     policy._town_errand_plan = None
@@ -1171,7 +1172,7 @@ def _ordinary_alchemist_entry_seed(*, turn, target_sval):
 
 def _all_nonhome_needs_unobtainable():
     """Established no-effect evidence must survive the next WAIT turn."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, surface = helper._fixture()
     fixture.seed_character_calibration(policy, surface)
     policy._equipment_optimization_preparation = SimpleNamespace(
@@ -1211,7 +1212,7 @@ def _all_nonhome_needs_unobtainable():
 
 def _restocked_recall_unavailable_with_shelf_stock():
     """A real recall shortage must derive its unavailable terminal."""
-    helper = fixture.NoSafeRecallDestinationTest()
+    helper = town_fixture.NoSafeRecallDestinationTest()
     policy, surface = helper._fixture()
     recall = fixture.store_item(
         "i", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
@@ -1506,7 +1507,7 @@ def _town_sell_rebuy_churn_defect():
         fixture.player(10, 10, gold=1000, class_id=0),
         {Position(10, 10): fixture.grid(10, 10)},
         [], floor_key=(0, 0, 0), town_flag=True,
-        inventory=fixture.TownAndFundraisingPolicyTest()._strict_supplies(detection=5),
+        inventory=town_fixture.TownAndFundraisingPolicyTest()._strict_supplies(detection=5),
         store=StoreState(STORE_GENERAL, [offered]),
     )
     class ChurnPolicy(HengbotPolicy):

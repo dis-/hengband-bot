@@ -24,6 +24,7 @@ from hengbot.policy_navigation import NavigationMixin
 from hengbot.policy_quest import QuestMixin
 from hengbot.policy_shop import ShopMixin
 from hengbot.policy_supply import SupplyMixin
+from hengbot.policy_town import TownMixin
 from hengbot.town_arbiter import TownArbiterMixin
 
 
@@ -99,7 +100,7 @@ class PolicyStructureTest(unittest.TestCase):
                 1,
             )
 
-    def test_policy_composes_all_twelve_split_mixins(self):
+    def test_policy_composes_all_thirteen_split_mixins(self):
         self.assertEqual(
             set(HengbotPolicy.__bases__),
             {
@@ -114,6 +115,7 @@ class PolicyStructureTest(unittest.TestCase):
                 QuestMixin,
                 ShopMixin,
                 SupplyMixin,
+                TownMixin,
                 TownArbiterMixin,
             },
         )

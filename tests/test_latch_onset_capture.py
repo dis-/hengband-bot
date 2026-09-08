@@ -18,13 +18,13 @@ from hengbot.model import (
     STORE_TEMPLE,
     STORE_WEAPON,
 )
-from tests import test_policy
+from tests import test_policy, test_policy_town
 from absorbing_state_catalog import TownWorld
 
 
 class LatchOnsetCaptureTest(unittest.TestCase):
     def test_restore_seeds_marked_memory_for_checkpoint_before_axis_split(self):
-        policy, _ = test_policy.NoSafeRecallDestinationTest()._fixture()
+        policy, _ = test_policy_town.NoSafeRecallDestinationTest()._fixture()
         policy._remembered_known_t = {(2, 3), (4, 5)}
         del policy._remembered_marked_t
 
@@ -75,7 +75,7 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         )
 
     def test_none_to_value_captures_bounded_replayable_four_decision_window(self):
-        policy, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
+        policy, snapshot = test_policy_town.NoSafeRecallDestinationTest()._fixture()
         test_policy.seed_character_calibration(policy, snapshot)
         with TemporaryDirectory() as directory:
             path = Path(directory) / "latch-onset.jsonl"
@@ -107,7 +107,7 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             "before": None,
             "after": "depth-gate:destination-30:missing-resist_acid,resist_elec",
         })
-        self.assertTrue(onset["assignment"]["assigning_file"].endswith("policy.py"))
+        self.assertTrue(onset["assignment"]["assigning_file"].endswith("policy_town.py"))
         self.assertIsInstance(onset["assignment"]["assigning_line"], int)
         self.assertTrue(onset["assignment"]["caller_chain"])
         self.assertIn(
@@ -156,7 +156,7 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         )
 
     def test_non_none_transition_and_steady_state_do_not_fire(self):
-        policy, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
+        policy, snapshot = test_policy_town.NoSafeRecallDestinationTest()._fixture()
         with TemporaryDirectory() as directory:
             path = Path(directory) / "latch-onset.jsonl"
             policy._latch_capture_path = path
@@ -168,8 +168,8 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             self.assertFalse(path.exists())
 
     def test_enabled_capture_is_decision_pure_for_150_paired_decisions(self):
-        disabled, snapshot = test_policy.NoSafeRecallDestinationTest()._fixture()
-        enabled, _ = test_policy.NoSafeRecallDestinationTest()._fixture()
+        disabled, snapshot = test_policy_town.NoSafeRecallDestinationTest()._fixture()
+        enabled, _ = test_policy_town.NoSafeRecallDestinationTest()._fixture()
         self._exhaust_town_work(disabled, snapshot)
         self._exhaust_town_work(enabled, snapshot)
         disabled_world = TownWorld(snapshot)
