@@ -169,12 +169,15 @@ from hengbot.policy_constants import (
     EMERGENCY_POTION_CARRY_TARGET,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
+    ENTER_DUNGEON_MACRO,
     EAT_KEY,
     ExplorationPathOutcome,
     FOOD_MIN_SVAL,
     FOOD_TYPE_RATION,
     FOOD_TYPE_MANA,
     HEAVY_CURSE_TAG,
+    INN_BUILDING_TYPE,
+    INSCRIBE_KEY,
     LOW_VALUE_POTION_SVALS,
     DISPOSABLE_POTION_SVALS,
     DISPOSABLE_SCROLL_SVALS,
@@ -189,6 +192,7 @@ from hengbot.policy_constants import (
     DETECTION_SCROLL_BUFFER,
     IDENTIFY_PRESSURE_FREE_SLOTS,
     LEAVE_STORE_KEY,
+    LANTERN_MIN_GOLD,
     LOOT_DEFER_BLOCKERS,
     LOOT_THREAT_DAMAGE_RATIO,
     DIGGER_WIELD_LIMIT,
@@ -201,6 +205,9 @@ from hengbot.policy_constants import (
     MINING_SWEEP_HARD_LIMIT,
     MINING_SWEEP_NO_PROGRESS_LIMIT,
     MINING_THREAT_FREE_LIMIT,
+    MINING_RUNS_PER_SET,
+    MIN_TERMINAL_FREE_PACK_SLOTS,
+    MOVE_REASONS,
     NEIGHBOR_OFFSETS,
     PACK_CAPACITY,
     HOME_BATCH_RESERVED_SLOTS,
@@ -208,6 +215,7 @@ from hengbot.policy_constants import (
     PROBE_LIMIT,
     RANGED_MAX_DISTANCE,
     READ_KEY,
+    RECALL_ISSUE_CONFIRM_TURNS,
     RECALL_MIN_DEPTH,
     REFILL_KEY,
     SEARCH_KEY,
@@ -221,12 +229,26 @@ from hengbot.policy_constants import (
     STORE_ACCEPTED_TVALS,
     STORE_RETRY_TURNS,
     STORE_STUCK_LIMIT,
+    RESTOCK_WAIT_MACRO,
+    RUMOR_COST,
+    RUMOR_GOLD_RESERVE,
+    RUMOR_KEY,
+    RUMOR_READ_KEY,
+    RUMOR_READS_PER_VISIT,
     STUCK_ESCAPE_LIMIT,
     TERMINAL_NUDGE_LIMIT,
     TORCH_THROW_TARGET,
     TOWN_TRAVEL_STORE_SYMBOLS,
+    TOWN_CLAIM_ADVANCING_MOVE_REASONS,
     CROSS_TOWN_SHOPPING_RESERVE,
+    TOWN_CYCLE_MAX_DISTINCT,
+    TOWN_CYCLE_WINDOW,
+    TOWN_FAST_TRAVEL_MAX_POSITIONS,
+    TOWN_FAST_TRAVEL_MIN_ROWS,
+    TOWN_FAST_TRAVEL_WINDOW,
     TOWN_STOP_PASS_LIMIT,
+    TOWN_TELEPORT_BUILDING_TYPES,
+    TOWN_TRAVEL_MIN_DISTANCE,
     TOWN_CYCLE_BREAK_LIMIT,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
@@ -246,6 +268,7 @@ from hengbot.policy_constants import (
     UNUSED_DIVE_LIMIT,
     USE_STAFF_KEY,
     WAIT_KEY,
+    WALK_OUT_MAX_DEPTH,
     SPEED_ENERGY_90,
     ZAP_ROD_KEY,
 )
@@ -491,7 +514,6 @@ def _persistent_grid_signature(grid: GridState) -> tuple:
 # ensuring the following backtick reaches the travel selector.
 ENTRANCE_TRAVEL_MACRO = "\x1b`n>."
 # Adjacent-ish goals are cheaper on foot than a travel round-trip.
-TOWN_TRAVEL_MIN_DISTANCE = 3
 # Consecutive travel issues without getting closer before giving the goal back
 # to BFS walking (an unknown approach makes the game reject the route).
 HOME_PLAN_OWNED_PROCESSING_REASONS = {
@@ -559,7 +581,6 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
 # R300 costs about 300 player turns at roughly 10 game turns per rest.
 # Use that measured game-turn cost when crediting one rest command; the stock
 # turnover interval is a separate clock and is not a valid charge clamp.
-RESTOCK_WAIT_MACRO = "R300\r"
 # A store visited once and found to have nothing to buy/sell latches into
 # _town_store_attempted for the rest of the town stay (see that field), which
 # is normally fine — the fresh-town reset re-arms it on the next visit. But a
@@ -582,7 +603,6 @@ RESTOCK_WAIT_MACRO = "R300\r"
 # Building 0 is the Outpost inn/castle.  The ordinary inns in Telmora,
 # Morivant, and Angwil are building 4.  Zul's tavern does not offer town
 # teleportation, so it is intentionally absent.
-TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
 # The static town maps 01-04 each contain exactly one Home (`8`).  Zul's
 # 05_Zul map contains none.  A negative runtime route is not evidence that a
 # Home-bearing town lacks a Home; it is a visible bot defect instead.
@@ -607,7 +627,6 @@ TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
 # >y/<esc> loop at the entrance. Return dismisses the -more- (Escape would answer
 # the [y/n] as "no"); on later entrances there is no message and the extra keys
 # are harmless no-ops.
-ENTER_DUNGEON_MACRO = ">\ry"
 # Write a character dump before diving, for the human to inspect the full sheet
 # (stats, resistances, equipment). C = character screen, f = file dump, Return
 # accepts the default filename, y confirms an overwrite, and two Escapes return to
@@ -737,14 +756,9 @@ TOWN_WANDER_LIMIT = 60
 # and equipment all stay unchanged IS such a cycle, whatever subsystem drives
 # it. Waits are excluded (deliberate stationary states), and any progress
 # resets the window.
-TOWN_CYCLE_WINDOW = 48
-TOWN_CYCLE_MAX_DISTINCT = 8
 # Native town travel is comparatively slow, so the generic 48-decision window
 # can represent many minutes.  A route that emits at least eight travel rows
 # while collapsing to three cells is not a legitimate cross-town traverse.
-TOWN_FAST_TRAVEL_WINDOW = 12
-TOWN_FAST_TRAVEL_MIN_ROWS = 8
-TOWN_FAST_TRAVEL_MAX_POSITIONS = 3
 # d309c2a lowered this fallback only to beat cli.py's 40-decision cell guard in
 # town.  1e46bb5 removed that guard from town entirely, so that race no longer
 # exists and the tighter bound only adds false positives: on a first visit,
@@ -844,46 +858,6 @@ LIVELOCK_LIMIT = 4
 # Reasons whose keys are ordinary "walk toward something" moves; only these are
 # watched for livelock (melee/flee/rest deliberately keep us in place). "pickup"
 # is included so a stuck ``g`` on an un-grabbable pile forces us to move on.
-MOVE_REASONS = frozenset(
-    {
-        "explore",
-        "seek-downstairs",
-        "approach-descent",
-        "breakout:seek-frontier",
-        "clear-descent",
-        "hunt",
-        "town:kill-mob-approach",
-        "stuck:seek-stairs",
-        "seek-secret-wall",
-        "stuck:wander",
-        "breakout",
-        "pickup",
-        "probe",
-        "summoner:retreat",
-        "return:explore",
-        "return:flee",
-        "return:seek-upstairs",
-        "return:wander",
-        "livelock:seek-upstairs",
-        "survival:seek-exit",
-        "fundraise:probe",
-        "fundraise:seek-upstairs",
-        "fundraise:seek-upstairs-explore",
-        "fundraise:seek-upstairs-wander",
-        "fundraise:seek-loot",
-        "fundraise:trigger-autodestroy",
-        "paralyzer-guard:approach-range",
-        "seek-loot",
-        "trigger-autodestroy",
-        "victory:trigger-autodestroy",
-        "shop:approach",
-    }
-)
-TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
-    reason
-    for reason in MOVE_REASONS
-    if reason != "stuck:wander" and not reason.startswith("breakout")
-)
 
 # Consumable use (item command + inventory letter, sent as a macro).
 # Ranged attack: prefer fire (f) / throw (v) + item slot + a direction digit.
@@ -918,7 +892,6 @@ TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
 # "trap discovered" message through snapshots, so each phase runs a fixed
 # budget instead: search chances are skill_srh% per press, disarm may fail,
 # a locked chest needs several picks.
-INSCRIBE_KEY = "{"
 UNINSCRIBE_KEY = "}"
 # BOT_PLAY is launched with -o, which forces Hengband's original command set.
 # Keep item commands aligned with that contract: use staff = u, zap rod = z,
@@ -952,7 +925,6 @@ SELL_CONFIRM_SUFFIX = "\r"
 # Fuel flasks to stock for the lantern. We only walk to the shop if we have at
 # least a little gold; true affordability is re-checked against the live price in
 # the store (and if we can't afford it there we give up rather than loop).
-LANTERN_MIN_GOLD = 1
 # If the same purchase is re-issued this many times with no effect (gold
 # unchanged, item still on the shelf — a buy that never registers), give up and
 # leave the store. The store re-emits a snapshot every loop with no loop-detector
@@ -1014,7 +986,6 @@ EMERGENCY_RETURN_HP_RATIO = 0.50
 # overrides this reserve because survival is the device's final purpose.
 # Five slots is the normal loot-space target.  Four remains a usable terminal
 # fallback when every safe town route for freeing another slot is exhausted.
-MIN_TERMINAL_FREE_PACK_SLOTS = 4
 TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
 # head back to restock once it is drawn down to the low reserve.
@@ -1024,10 +995,8 @@ TELEPORT_RETURN_THRESHOLD = 3
 # from town uses Word of Recall (which lands at the deepest level reached) rather
 # than walking to the wilderness entrance and re-descending from level 1.
 RECALL_RETURN_THRESHOLD = 3
-RECALL_ISSUE_CONFIRM_TURNS = 10
 # Below this floor every ledger item is a convenience: if its suppliers are
 # exhausted (or the item is unaffordable), walking out is safer than bouncing.
-WALK_OUT_MAX_DEPTH = RECALL_MIN_DEPTH - 1
 # Safe floor items remain worthwhile around distant weak monsters, but not when
 # the visible group can remove a substantial share of current HP in three turns.
 # Pre-engagement navigation should tolerate ordinary attrition. The loot gate
@@ -1095,7 +1064,6 @@ SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
 # _outstanding_identification_count) instead of one scroll per store trip, but
 # is capped so one unusually large Home batch cannot empty the wallet in a
 # single transaction.
-MINING_RUNS_PER_SET = 5
 # User-approved standing float: it enables the strict spare-scroll barren-floor
 # clause and is consumed only by incidental losses such as fire, acid, or theft.
 # Mining has substantial fixed overhead: town processing, two wilderness crossings
@@ -1106,19 +1074,13 @@ MINING_RUNS_PER_SET = 5
 # 100g reserve to cover charisma/store-price variation and a useful margin.
 # When either missing component is visible in the live store snapshot, its
 # observed price replaces that component's base price for the reserve decision.
-INN_BUILDING_TYPE = 0
 HUNTER_OFFICE_BUILDING_TYPE = 13
-RUMOR_KEY = "u"
 RUMOR_EXIT_SUFFIX = "\r\r\x1b"
 # Unlocking destinations can take many medium ("u") rumors. Keep each visit
 # bounded so PostMessage input finishes well below the CLI's stalled-send
 # diagnostic, then re-read exported progress before spending more gold.
-RUMOR_COST = 10
-RUMOR_READ_KEY = RUMOR_KEY + "\r"  # pick the rumor action, dismiss its -more-
-RUMOR_READS_PER_VISIT = 40
 # Gold kept in reserve so a rumor batch never spends the character dry; the batch
 # size adapts to whatever is affordable above it. Below this, top up by mining.
-RUMOR_GOLD_RESERVE = 300
 # A descent block from one bad landing must not ratchet the bot upward forever:
 # besides clearing on a level-up, it expires after this many decisions.
 DESCENT_BLOCK_DECISIONS = 200

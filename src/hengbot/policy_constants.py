@@ -541,3 +541,87 @@ FUNDRAISING_START_GOLD = 3000
 TOWN_IDS_WITH_HOME = frozenset({0, 1, 2, 3})
 
 ZUL_TOWN_ID = 4
+
+TOWN_TRAVEL_MIN_DISTANCE = 3
+
+RESTOCK_WAIT_MACRO = "R300\r"
+
+TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
+
+ENTER_DUNGEON_MACRO = ">\ry"
+
+TOWN_CYCLE_WINDOW = 48
+
+TOWN_CYCLE_MAX_DISTINCT = 8
+
+TOWN_FAST_TRAVEL_WINDOW = 12
+
+TOWN_FAST_TRAVEL_MIN_ROWS = 8
+
+TOWN_FAST_TRAVEL_MAX_POSITIONS = 3
+
+MOVE_REASONS = frozenset(
+    {
+        "explore",
+        "seek-downstairs",
+        "approach-descent",
+        "breakout:seek-frontier",
+        "clear-descent",
+        "hunt",
+        "town:kill-mob-approach",
+        "stuck:seek-stairs",
+        "seek-secret-wall",
+        "stuck:wander",
+        "breakout",
+        "pickup",
+        "probe",
+        "summoner:retreat",
+        "return:explore",
+        "return:flee",
+        "return:seek-upstairs",
+        "return:wander",
+        "livelock:seek-upstairs",
+        "survival:seek-exit",
+        "fundraise:probe",
+        "fundraise:seek-upstairs",
+        "fundraise:seek-upstairs-explore",
+        "fundraise:seek-upstairs-wander",
+        "fundraise:seek-loot",
+        "fundraise:trigger-autodestroy",
+        "paralyzer-guard:approach-range",
+        "seek-loot",
+        "trigger-autodestroy",
+        "victory:trigger-autodestroy",
+        "shop:approach",
+    }
+)
+
+TOWN_CLAIM_ADVANCING_MOVE_REASONS = frozenset(
+    reason
+    for reason in MOVE_REASONS
+    if reason != "stuck:wander" and not reason.startswith("breakout")
+)
+
+INSCRIBE_KEY = "{"
+
+LANTERN_MIN_GOLD = 1
+
+MIN_TERMINAL_FREE_PACK_SLOTS = 4
+
+RECALL_ISSUE_CONFIRM_TURNS = 10
+
+WALK_OUT_MAX_DEPTH = RECALL_MIN_DEPTH - 1
+
+MINING_RUNS_PER_SET = 5
+
+INN_BUILDING_TYPE = 0
+
+RUMOR_KEY = "u"
+
+RUMOR_COST = 10
+
+RUMOR_READ_KEY = RUMOR_KEY + "\r"  # pick the rumor action, dismiss its -more-
+
+RUMOR_READS_PER_VISIT = 40
+
+RUMOR_GOLD_RESERVE = 300
