@@ -1198,7 +1198,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         """t1411595 seq 4/9: the worn Q2 launcher satisfies required:1."""
         equipped = item(
             "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
-            name="Light Crossbow", is_equipment=True, to_h=2, to_d=3,
+            name="Light Crossbow", is_equipment=True, to_h=2, to_d=6,
         )
         displaced = item(
             "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
@@ -1219,6 +1219,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(strategy.quest_id, 2)
         self.assertEqual(strategy.required_force["launcher"], {
             "ammo": "equipped", "equipped": True,
+            "min_average_damage": 25,
         })
         action = policy_module.EquipmentTransaction(
             policy_module.PHASE_HOME_PREPARE,
@@ -1251,7 +1252,7 @@ class RetentionAuthorityTest(unittest.TestCase):
     def test_q2_pack_launcher_stays_reserved_when_none_is_equipped(self):
         displaced = item(
             "a", TVAL_BOW, SV_BOW_LIGHT_XBOW,
-            name="Light Crossbow", is_equipment=True, to_h=3, to_d=1,
+            name="Light Crossbow", is_equipment=True, to_h=3, to_d=6,
         )
         snap = replace(
             self._town([displaced]),

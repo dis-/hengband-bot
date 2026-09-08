@@ -4711,7 +4711,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 2),
             inventory=[
-                item("b", TVAL_BOLT, 0, count=45),
+                item(
+                    "b", TVAL_BOLT, 0, count=99, to_d=3,
+                    damage_dice_num=1, damage_dice_sides=5,
+                ),
                 item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6),
                 item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=2),
                 item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=3),
@@ -4720,7 +4723,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             ],
             equipment=[
                 item("main_hand", TVAL_SWORD, 1, is_equipment=True),
-                item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True),
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True, to_d=3,
+                ),
             ],
         )
 
@@ -4757,7 +4763,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             variants = {
                 "launcher": replace(base, equipment=base.equipment[:1]),
                 "throwing_items.launcher_ammo": replace(
-                    base, inventory=[replace(base.inventory[0], count=44), *base.inventory[1:]]
+                    base, inventory=[replace(base.inventory[0], count=98), *base.inventory[1:]]
                 ),
                 "required_scrolls.light": replace(
                     base, inventory=[base.inventory[0], replace(base.inventory[1], count=5), *base.inventory[2:]]
@@ -4778,6 +4784,146 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                         missing,
                         policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
                     )
+
+    def test_q2_average_shot_damage_gate_reports_carried_ammo_measurement(self):
+        policy = self._policy()
+        profile = self.profiles[2]
+        ready = self._q2_carry_snapshot()
+        entry = replace(
+            ready,
+            inventory=[replace(ready.inventory[0], to_d=0), *ready.inventory[1:]],
+        )
+        near = replace(
+            ready,
+            inventory=[replace(ready.inventory[0], to_d=2), *ready.inventory[1:]],
+        )
+
+        for snapshot, measured, expected_ready in (
+            (entry, 18.0, False),
+            (near, 24.0, False),
+            (ready, 27.0, True),
+        ):
+            with self.subTest(measured=measured):
+                status = policy._quest_carry_status(
+                    snapshot, profile.required_force
+                )["launcher.average_damage"]
+                self.assertEqual(status["measured"], measured)
+                self.assertEqual(status["required"], 25.0)
+                self.assertEqual(status["ready"], expected_ready)
+
+        with patch("hengbot.policy.weapon_expected_dps", return_value=50):
+            self.assertFalse(
+                policy._approved_strategy_force_ready(near, profile)
+            )
+        readiness = policy.fixed_quest_readiness_state()["strategy_force"]
+        self.assertIn("launcher.average_damage", readiness["failed"])
+        self.assertEqual(
+            readiness["carries"]["launcher.average_damage"],
+            {"measured": 24.0, "required": 25.0, "ready": False},
+        )
+
+    def test_q2_unmet_average_damage_continues_into_real_shop_progression(self):
+        gremlin = MonraceKnowledge(
+            25,
+            110,
+            False,
+            False,
+            level=8,
+            max_melee_damage=1,
+            can_multiply=True,
+            average_hp=15,
+            armor_class=30,
+        )
+        policy = HengbotPolicy(
+            quest_strategies=self.profiles,
+            quest_knowledge={
+                2: QuestInfo(
+                    2,
+                    "The Sewer",
+                    6,
+                    15,
+                    QUEST_FLAG_ONCE,
+                    placed_monsters=((153, 1),),
+                )
+            },
+            monrace_knowledge={153: gremlin},
+        )
+        prepared = self._q2_carry_snapshot()
+        near = replace(
+            prepared,
+            player=replace(
+                prepared.player,
+                level=20,
+                gold=10000,
+                main_hand_blows=10,
+                main_hand_to_h=100,
+                main_hand_to_d=20,
+                melee_skill=200,
+            ),
+            grids={
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): replace(
+                    grid(10, 11), store_number=STORE_WEAPON
+                ),
+            },
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            town_id=0,
+            visited_town_ids=(0, 1),
+            inventory=[
+                replace(prepared.inventory[0], to_d=2),
+                *prepared.inventory[1:],
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=3),
+                item("f", TVAL_FOOD, 35, count=5),
+            ],
+            equipment=[
+                item(
+                    "main_hand",
+                    TVAL_SWORD,
+                    1,
+                    is_equipment=True,
+                    damage_dice_num=10,
+                    damage_dice_sides=10,
+                    to_h=10,
+                    to_d=10,
+                ),
+                prepared.equipment[1],
+                item(
+                    "light",
+                    TVAL_LITE,
+                    SV_LITE_LANTERN,
+                    is_equipment=True,
+                    fuel=5000,
+                ),
+            ],
+            quests={
+                2: QuestState(
+                    2,
+                    status=QUEST_STATUS_UNTAKEN,
+                    fixed=True,
+                    level=15,
+                )
+            },
+        )
+
+        key = policy.choose_key(near)
+        readiness = policy.fixed_quest_readiness_state()
+
+        self.assertEqual(key, "6")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertFalse(readiness["verdict"])
+        self.assertEqual(readiness["reason"], "strategy-force")
+        self.assertIn(
+            "launcher.average_damage",
+            readiness["strategy_force"]["failed"],
+        )
+        self.assertEqual(
+            readiness["strategy_force"]["carries"][
+                "launcher.average_damage"
+            ],
+            {"measured": 24.0, "required": 25.0, "ready": False},
+        )
+        self.assertIsNone(policy._town_blocked_reason)
 
     def test_q2_wall_breach_checks_black_market_then_falls_back_to_general(self):
         policy = self._policy()
@@ -5949,7 +6095,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIsNotNone(strategy)
         self.assertEqual(strategy.quest_id, 2)
         self.assertEqual(
-            strategy.required_force["throwing_items"]["launcher_ammo"], 45
+            strategy.required_force["throwing_items"]["launcher_ammo"], 99
         )
 
     def test_q2_carry_procurement_buys_ammo_target_and_reserves_exact_shortages(self):
@@ -5963,14 +6109,21 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             equipment=[item("main_hand", TVAL_SWORD, 1, is_equipment=True)],
         )
         crossbow = StoreItem(
-            "a", "Light Crossbow", 1, TVAL_BOW, SV_BOW_LIGHT_XBOW, price=200
+            "a", "Light Crossbow", 1, TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            price=200, to_d=6,
         )
         bolts = StoreItem("b", "Bolts", 99, TVAL_BOLT, 0, price=2)
         weapon_store = replace(base, store=StoreState(STORE_WEAPON, [crossbow, bolts]))
         self.assertEqual(policy._quest_carry_purchase(weapon_store, profile), crossbow)
         armed = replace(
             weapon_store,
-            equipment=[*base.equipment, item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
+            equipment=[
+                *base.equipment,
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True, to_d=6,
+                ),
+            ],
         )
         self.assertEqual(policy._quest_carry_purchase(armed, profile), bolts)
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
@@ -5984,7 +6137,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             self.assertEqual(policy._purchase_quantity(scroll_store, light), 6)
 
-        carried_bolts = item("b", TVAL_BOLT, 0, count=45)
+        carried_bolts = item("b", TVAL_BOLT, 0, count=99)
         carried_light = item("l", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)
         carried_wand = item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)
         retained = replace(
@@ -5992,11 +6145,14 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             inventory=[carried_bolts, carried_light, carried_wand],
             equipment=[
                 *base.equipment,
-                item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True),
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True, to_d=6,
+                ),
             ],
         )
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            self.assertEqual(policy._retention_reservation(retained, carried_bolts), 45)
+            self.assertEqual(policy._retention_reservation(retained, carried_bolts), 99)
             self.assertEqual(policy._retention_reservation(retained, carried_light), 6)
             self.assertEqual(policy._retention_reservation(retained, carried_wand), 1)
 
@@ -6063,7 +6219,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         superior = StoreItem(
             "a", "Superior Light Crossbow", 1,
             TVAL_BOW, SV_BOW_LIGHT_XBOW,
-            price=0, is_equipment=True, is_ego=True, to_h=5, to_d=4,
+            price=0, is_equipment=True, is_ego=True, to_h=5, to_d=6,
         )
         plain = StoreItem(
             "a", "Light Crossbow", 1,
@@ -7067,24 +7223,82 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._fixed_quest_speed_attempted = True
         giant_rat = replace(hostile(1, 10, 14, distance=4), race_id=86)
         wererat = replace(hostile(2, 14, 10, distance=4), race_id=270)
+        gremlin = replace(
+            hostile(3, 6, 10, distance=4, can_multiply=True), race_id=153
+        )
         grids = {
             **{Position(10, x): grid(10, x, monster=x == 14, lit=True)
                for x in range(10, 15)},
             **{Position(y, 10): grid(y, 10, monster=y == 14, lit=True)
                for y in range(11, 15)},
+            **{Position(y, 10): grid(y, 10, monster=y == 6, lit=True)
+               for y in range(6, 10)},
         }
         snapshot = Snapshot(
-            player(10, 10), grids, [giant_rat, wererat], floor_key=(0, 1, 2),
+            player(10, 10), grids, [giant_rat, wererat, gremlin],
+            floor_key=(0, 1, 2),
             inventory=[item("b", TVAL_BOLT, 0, count=45)],
             equipment=[item("bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, is_equipment=True)],
         )
 
         self.assertEqual(
             policy._approved_quest_strategy_key(
-                snapshot, [giant_rat, wererat], []
+                snapshot, [giant_rat, wererat, gremlin], []
             ),
             "fb2",
         )
+
+    def test_q2_gremlin_preempts_nonbreeder_work_through_public_policy(self):
+        giant_rat = replace(hostile(1, 10, 11, distance=1), race_id=86)
+        gremlin = replace(
+            hostile(2, 6, 10, distance=4, can_multiply=True), race_id=153
+        )
+        grids = {
+            Position(10, 10): grid(10, 10, lit=True),
+            Position(10, 11): grid(10, 11, monster=True, lit=True),
+            **{
+                Position(y, 10): grid(
+                    y, 10, monster=y == 6, lit=True
+                )
+                for y in range(6, 10)
+            },
+        }
+        battlefield = QuestBattlefield(
+            terrain={(position.y, position.x): "floor" for position in grids},
+            player_start=(10, 10),
+            entrance=(10, 10),
+            exit=(10, 10),
+        )
+        policy = HengbotPolicy(
+            quest_strategies=self.profiles,
+            quest_knowledge={
+                2: QuestInfo(
+                    2, "The Sewer", 6, 15, QUEST_FLAG_ONCE,
+                    battlefield=battlefield,
+                )
+            },
+        )
+        snapshot = Snapshot(
+            player(10, 10, hp=300, max_hp=300),
+            grids,
+            [giant_rat, gremlin],
+            floor_key=(0, 15, 2),
+            inventory=[item("b", TVAL_BOLT, 0, count=99)],
+            equipment=[
+                item(
+                    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+                    is_equipment=True,
+                )
+            ],
+            quests={
+                2: QuestState(
+                    2, status=QUEST_STATUS_TAKEN, fixed=True, level=15
+                )
+            },
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), "fb8")
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
     def test_q2_wererat_lock_hunts_out_of_range_before_next_phase(self):
         policy = self._policy()

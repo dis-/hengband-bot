@@ -641,7 +641,12 @@ class QuestMixin:
         return isinstance(launcher, dict) and launcher.get("ammo") == "equipped"
 
     def _quest_launcher_meets_force(
-        self, item: InventoryItem | StoreItem | None, force: dict
+        self,
+        item: InventoryItem | StoreItem | None,
+        force: dict,
+        snapshot: Snapshot | None = None,
+        *,
+        require_carried_ammo: bool = False,
     ) -> bool:
         if item is None or item.tval != TVAL_BOW or item.ammo_tval is None:
             return False
@@ -653,9 +658,50 @@ class QuestMixin:
             self._quest_uses_selected_launcher(force)
             or item.ammo_tval == required_ammo
         )
-        return ammo_matches and self._launcher_average_damage(item) >= float(
+        measured_damage = (
+            self._quest_launcher_average_damage(
+                snapshot,
+                item,
+                require_carried_ammo=require_carried_ammo,
+            )
+            if snapshot is not None
+            else self._launcher_average_damage(item)
+        )
+        return ammo_matches and measured_damage >= float(
             launcher.get("min_average_damage", 0) or 0
         )
+
+    @staticmethod
+    def _quest_launcher_average_damage(
+        snapshot: Snapshot,
+        launcher: InventoryItem | StoreItem | None,
+        *,
+        require_carried_ammo: bool,
+    ) -> float:
+        """Measure the shot the quest executor will fire from its first ammo stack."""
+        if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
+            return 0.0
+        ammo_tval, _energy, multiplier = LAUNCHER_PROPERTIES[launcher.sval]
+        ammo = next(
+            (
+                candidate
+                for candidate in snapshot.inventory
+                if candidate.tval == ammo_tval and candidate.count > 0
+            ),
+            None,
+        )
+        if ammo is None and require_carried_ammo:
+            return 0.0
+        ammo_damage = (
+            ammo.damage_dice_num * (ammo.damage_dice_sides + 1) / 2
+            if ammo is not None
+            and ammo.damage_dice_num > 0
+            and ammo.damage_dice_sides > 0
+            else STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
+        )
+        if ammo is not None:
+            ammo_damage += ammo.to_d
+        return max(0.0, (ammo_damage + launcher.to_d) * multiplier)
 
     def _quest_launcher_ammo_from_item_or_force(
         self, item: InventoryItem | StoreItem | None, force: dict
@@ -706,7 +752,12 @@ class QuestMixin:
         launcher_required = isinstance(force.get("launcher"), dict)
         if launcher_required:
             launcher = self._equipped_launcher(snapshot)
-            ready = self._quest_launcher_meets_force(launcher, force)
+            ready = self._quest_launcher_meets_force(
+                launcher,
+                force,
+                snapshot,
+                require_carried_ammo=True,
+            )
             status["launcher"] = {
                 "measured": int(ready), "required": 1, "ready": ready,
             }
@@ -714,7 +765,11 @@ class QuestMixin:
                 force["launcher"].get("min_average_damage", 0) or 0
             )
             if minimum_damage > 0:
-                measured_damage = self._launcher_average_damage(launcher)
+                measured_damage = self._quest_launcher_average_damage(
+                    snapshot,
+                    launcher,
+                    require_carried_ammo=True,
+                )
                 status["launcher.average_damage"] = {
                     "measured": measured_damage,
                     "required": minimum_damage,
@@ -816,16 +871,16 @@ class QuestMixin:
         selected_launcher = self._quest_uses_selected_launcher(force)
         if item.tval == TVAL_BOW and (
             selected_launcher or item.ammo_tval == launcher_ammo
-        ) and self._quest_launcher_meets_force(item, force):
+        ) and self._quest_launcher_meets_force(item, force, snapshot):
             equipped = self._equipped_launcher(snapshot)
             current = int(
-                self._quest_launcher_meets_force(equipped, force)
+                self._quest_launcher_meets_force(equipped, force, snapshot)
             )
             current += sum(
                 it.count
                 for it in snapshot.inventory
                 if it.tval == TVAL_BOW
-                and self._quest_launcher_meets_force(it, force)
+                and self._quest_launcher_meets_force(it, force, snapshot)
             )
             return "launcher", current, 1
         throwing = force.get("throwing_items", {})

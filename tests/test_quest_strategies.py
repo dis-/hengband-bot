@@ -123,9 +123,18 @@ class QuestStrategiesTest(unittest.TestCase):
             self.assertNotIn("prior_targets_complete_cells", point)
         q2_force = profiles[2].required_force
         self.assertEqual(
-            q2_force["launcher"], {"ammo": "equipped", "equipped": True}
+            q2_force["launcher"],
+            {
+                "ammo": "equipped",
+                "equipped": True,
+                "min_average_damage": 25,
+            },
         )
-        self.assertEqual(q2_force["throwing_items"], {"launcher_ammo": 45})
+        self.assertEqual(q2_force["throwing_items"], {"launcher_ammo": 99})
+        self.assertEqual(
+            profiles[2].engagement_plan["immediate_priority_targets"],
+            [270, 153],
+        )
         q31_force = profiles[31].required_force
         self.assertEqual(
             q31_force["launcher"], {"ammo": "equipped", "equipped": True}
