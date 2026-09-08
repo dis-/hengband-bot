@@ -17,12 +17,17 @@ It is authorized. Implement it; do not renegotiate it.
            "OPEN_DOOR", "TAKE_ITEM", "CAN_SWIM"]}
 ```
 
-**5d5 → maximum HP 25.** A shot that deals 25 kills any gremlin outright, which is exactly what
-確殺 (guaranteed kill) means. The number is not arbitrary; it is the race's HP ceiling.
+**5d5 → maximum HP 25.** The number is not arbitrary; it is the race's HP ceiling.
 
-**Therefore the requirement is on the MINIMUM damage of a shot, not the average.** An average of 25
-leaves roughly half of all gremlins alive, which does not satisfy 確殺. Record this reading
-explicitly in the profile so the next reader cannot mistake it for the existing average convention.
+**The requirement is on the AVERAGE per-shot damage — the user settled this explicitly.**
+
+> USER (2026-09-09, after the supervisor flagged that 確殺 read literally implies a minimum):
+> 「平均25で良い。まだ不足するようなら再度調整する。」
+
+So: **average per-shot damage >= 25**, using the same average convention the profile already uses
+for its「1命中平均18点」figure. Do NOT implement a minimum-damage gate. Record in the profile that
+this is an average against a 5d5 (max 25) target — i.e. it kills a typical gremlin outright and is
+deliberately a tuning value the user expects to revisit, not a proof of 確殺.
 
 ## What the current loadout actually does — it cannot satisfy this even on a perfect roll
 
@@ -41,13 +46,22 @@ avg = (3 + 0 + 3) x 3 =  18   <- the profile's stated "1命中平均18点"
 max = (5 + 0 + 3) x 3 =  24   <- even a MAXIMUM roll is 24 < 25
 ```
 
-The current setup cannot one-shot a gremlin under any roll. With the (+5,+2) bolts also owned:
-min = (1+2+3)x3 = 18, still short.
+Against the **average >= 25** requirement the entry loadout gives 18 — short by 7.
 
-To reach a guaranteed 25 with a x3 launcher: `(1 + to_dam_total) x 3 >= 25` → **to_dam_total >= 8**
-(bolt to-dam + bow to-dam). With a x4 launcher: `to_dam_total >= 6`. Derive and record the actual
-threshold in the profile rather than copying these numbers blindly — verify the formula against
-`shoot.cpp` yourself, as the existing rationale did.
+What the average requirement implies for gear, with a x3 launcher:
+
+```
+(3 + to_dam_total) x 3 >= 25   ->   to_dam_total >= 5.34   ->   to_dam_total >= 6
+```
+
+The entry loadout had `to_dam_total = 0 (bolt) + 3 (bow) = 3`. The (+5,+2) bolts the character also
+owned give `to_dam_total = 5` → average `(3+5)x3 = 24` — still one point short, which is worth
+saying out loud in the profile because it is so close. A x4 launcher needs only
+`to_dam_total >= 3.25 -> 4`.
+
+Derive and record the actual threshold yourself rather than copying these numbers — verify the
+formula against `shoot.cpp` the way the existing rationale did, and state whether the STR multiplier
+and criticals are in or out of your figure (the existing rationale excludes both, conservatively).
 
 ## Why 99 replaces 45
 
@@ -98,9 +112,13 @@ never to switch targets while it is visible. Say exactly how you ordered them an
    `SOL-TASK-q2-breeder-teleport-reset.md`, a separate task on the same quest. Do not merge them;
    if the ordering matters, say so.
 
-## Supervisor note on interpretation, for the record
+## Interpretation history, for the record
 
-The supervisor read 「威力25」 as a MINIMUM because 確殺 admits no other reading against a 5d5
-ceiling. The consequence is a materially stronger gear gate than an average-25 reading would give
-(to-dam >= 8 on a x3 launcher). This is flagged to the user in the same report that dispatches this
-task; if the user corrects the reading, this document is amended before the change lands.
+The supervisor first read 「威力25」 as a MINIMUM, because 確殺 admits no other literal reading
+against a 5d5 ceiling, and flagged the consequence (to-dam >= 8 on a x3 launcher — a materially
+stronger gate). The user settled it: **average**, with an explicit expectation of retuning:
+「平均25で良い。まだ不足するようなら再度調整する。」 This document was amended before dispatch.
+
+Because the user expects to revisit the number, make it easy to revisit: the threshold belongs in
+`QUEST_2.jsonc` as data, NOT baked into policy code. A later change from 25 to something else must
+be a one-line profile edit, not a code change.
