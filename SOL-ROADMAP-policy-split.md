@@ -1199,3 +1199,35 @@ the Phase 10 precedent (8d3b913 lifted 8 constants + `ProcurementHomeGate` as a 
 
 This is a targeted prerequisite lift, NOT Phase 14: Phase 14 was the wholesale relocation of module
 constants across 25 import sites and remains EXCLUDED by user decision.
+
+#### Round-2 amendment: `_book_sale_store_type` is EXCLUDED (supervisor, 2026-09-08)
+
+Round 2 landed C1 (`82742ec`, the prerequisite lift) and then STOPPED at the dry-run gate exactly as
+instructed, on a SECOND back-reference the manifest had not anticipated: `_book_sale_store_type`
+contains `HengbotPolicy._is_high_value_book(item)` — a CLASS-QUALIFIED call, not an importable
+module symbol. It is spelled that way because both are `@staticmethod`s, so there is no `self` to
+route through.
+
+A supervisor sweep of all 58 manifest methods found this is the ONLY one: exactly three methods in
+`HengbotPolicy` contain a `HengbotPolicy.`-qualified reference — `_has_town_economic_path` (stays),
+`_town_observable_effect_state` (stays), and `_book_sale_store_type` (was to move).
+
+Moving `_is_high_value_book` alongside it does NOT fix the reference: the token `HengbotPolicy` is
+still unresolvable in `policy_shop.py`. The only fixes are a hand-edit inside a moved span
+(forbidden) or relocating a leaf helper that Home, town AND shop all consume (an ownership decision
+with no documented basis). So:
+
+**`_book_sale_store_type` is EXCLUDED from Phase 11b. The manifest is 57 methods.** Residue for §10:
+a method whose body carries a `HengbotPolicy.`-qualified static call cannot be moved mechanically;
+relocating it needs its own reviewed dereference commit, which is not a move-phase's business.
+`_is_high_value_book` stays in `policy.py` and keeps serving `policy_home.py` and the town paths
+through ordinary mixin composition.
+
+C1 verified independently by the supervisor: the five lifted constants keep their exact values
+(STORE_RETRY_TURNS 5000, TOWN_CYCLE_BREAK_LIMIT 2, SELL_ATTEMPT_LIMIT 3, SHOP_APPROACH_STUCK_LIMIT
+12, IDENTIFY_PURCHASE_MAX 5), all six symbols still resolve through `hengbot.policy`, and
+`hengbot.policy._new_town_turn_arbiter is hengbot.town_arbiter._new_town_turn_arbiter`. Dropping
+`TownTurnArbiter` from policy.py's imports is safe — policy.py no longer references it and nothing
+imports it from `hengbot.policy`. Residue: the explanatory comment blocks that sat above the five
+lifted constants stayed behind in `policy.py` and now head unrelated code; left in place because
+DO-NOT #5 forbids cleanup churn inside a move phase.
