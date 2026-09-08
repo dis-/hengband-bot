@@ -1438,3 +1438,33 @@ back-reference**, so R2 does not apply. Thirteen constants need the R1 lift:
   remains inaccurate: earlier phases already lifted pickled classes with
   compatibility aliases. Phase 13 moves no module-level class and changes no
   pickle or checkpoint payload.
+
+#### Phase 13 verdict (supervisor, 2026-09-08)
+
+Phase 13: ACCEPT and PUSHED as `2f97359` (constants) + `3a5d58d` (move) + `d608aea` (ledger). First
+round, no STOP. Independently re-derived by the supervisor:
+
+- **7/7 moved methods AST-identical**, no method in `ObservationMixin` absent from the base class,
+  **300/300 retained identical**, nothing lost or duplicated. Composition is 14 bases and the
+  collision guard still passes.
+- **`_observe`'s write surface: 166 distinct `self.<attr>` targets at base and 166 at head, sets
+  exactly equal — zero added, zero removed.** This is the claim the phase existed to prove, and the
+  supervisor derived it independently from the AST (Assign / AugAssign / AnnAssign targets).
+  **The roadmap's "133 attributes" figure is WRONG — the real number is 166.** Recorded here so the
+  stale figure is not quoted again.
+- `latch_onset_capture.checkpoint()` pickled `vars(policy)` to 32,008 bytes with an identical
+  sha256 at base and head — the mixin changed zero checkpoint bytes, as the design predicted.
+- Test ids: 39 moved 1:1 plus the guard's thirteen -> fourteen rename; discovery 3142 -> 3142, new 0,
+  removed 0, duplicated 0. 13 constants lifted, all definition-identical and re-exported.
+- 19 receipts hash-matched at the shipped head; parallel x2 and serial standing all 3142 green;
+  live history untouched.
+
+**ALL MOVE PHASES ARE COMPLETE. `policy.py` is 11,488 lines — down from 38,260 at project start
+(−70%), across 14 composed mixins.** Only Phase 15 (verification tooling) remains; Phase 14 stays
+excluded by user decision.
+
+The payoff Phase 15 was supposed to unlock has ALREADY largely arrived: `tests/test_policy.py` is
+now **1,612 lines**, so `verify_scope.ALWAYS_MODULES` forcing it into every scope costs almost
+nothing. What Phase 15 should now buy is different and more valuable: `tests.test_policy_structure`
+is NOT in `ALWAYS_MODULES`, so the exact-`__bases__` composition guard — the one thing that catches a
+silently dropped mixin — does not run unconditionally. Adding it is the point.
