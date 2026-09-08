@@ -38,13 +38,13 @@ PUBLIC_TESTS = frozenset(
         "test_policy_equipment.ConfirmedLoadoutPublicPathPinTest.test_fuel_tick_reuses_confirmation_through_choose_key",
         "test_home_entry_capture.HomeEntryCaptureTest.test_gate1_substrate_replays_fixed_digger_arming_and_composed_key",
         "test_policy.TownAndFundraisingPolicyTest.test_recovered_home_entry_charges_an_evaporated_route_claim",
-        "test_policy.ShopPurchaseSellPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart",
         "test_policy.TownAndFundraisingPolicyTest.test_queued_digger_withdrawal_blocks_departure_without_home_route",
-        "test_policy.ShopPurchaseSellPolicyTest.test_failed_digger_withdraw_retries_only_after_fresh_home_observation",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_failed_digger_withdraw_retries_only_after_fresh_home_observation",
         "test_policy.TownAndFundraisingPolicyTest.test_second_failed_digger_withdrawal_releases_to_visible_fallback",
-        "test_policy.ShopPurchaseSellPolicyTest.test_second_digger_queue_survives_surface_item_processing_until_post",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_second_digger_queue_survives_surface_item_processing_until_post",
         "test_policy.TownAndFundraisingPolicyTest.test_pending_home_digger_is_additional_mining_walk_in_conjunct",
-        "test_policy.ShopPurchaseSellPolicyTest.test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_scavenge_plan_routes_unaddressed_home_digger_latch_and_clears_queue",
         "test_navigation.StairRejectionInvalidationTest.test_interleaved_refusal_probe_releases_older_stair_watch",
         "test_navigation.StairRejectionInvalidationTest.test_quiet_same_turn_stair_watch_has_visible_bounded_probe",
         "test_cli.UniversalPostingContractTest.test_completed_dual_wield_prompt_history_is_not_an_open_owner",
@@ -77,9 +77,9 @@ PUBLIC_TESTS = frozenset(
         "test_policy_supply.HiddenInfoFallbackTest.test_starving_ration_race_with_home_stock_withdraws_before_buying",
         "test_policy_supply.HiddenInfoFallbackTest.test_unknown_home_device_is_a_mana_food_withdrawal_candidate",
         "test_policy_fundraising.IdleItemDepositTest.test_five_equal_diggers_are_surplus_for_deposit_but_retained_from_sale",
-        "test_policy.ShopPurchaseSellPolicyTest.test_two_visible_withdraw_failures_do_not_override_total_stock_target",
-        "test_policy.ShopPurchaseSellPolicyTest.test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase",
-        "test_policy.ShopPurchaseSellPolicyTest.test_confirmed_digger_sale_arms_sell_rebuy_churn_defect",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_two_visible_withdraw_failures_do_not_override_total_stock_target",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_gate1_digger_rebuy_window_stops_after_first_fallback_purchase",
+        "test_policy_shop.ShopPurchaseSellPolicyTest.test_confirmed_digger_sale_arms_sell_rebuy_churn_defect",
         "test_home_visit.HomeVisitExecutorTest.test_budget_rejection_has_visible_report_and_no_none_crash",
         "test_home_visit.HomeVisitExecutorTest.test_history_is_visit_scoped_and_same_signature_stacks_are_allowed",
         "test_home_visit.HomeVisitExecutorTest.test_calibration_deposit_restore_is_authorized",
@@ -125,7 +125,7 @@ MUTATIONS = (
         True,
         "Remove the universal fresh-Home evidence gate from purchase composition.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "            home_gate = self._purchase_has_fresh_home_absence(snapshot, item)\n",
             "            home_gate = ProcurementHomeGate.ALLOW_PURCHASE\n",
         ),),
@@ -145,7 +145,7 @@ MUTATIONS = (
         True,
         "Remove retention-safe sales as the affordability fallback.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "                sale = self._mana_survival_sale_candidate(\n"
             "                    snapshot, store.store_type\n"
             "                )\n",
@@ -157,7 +157,7 @@ MUTATIONS = (
         True,
         "Bypass the universal Home-first check for survival ration purchases.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "                    home_gate = self._purchase_has_fresh_home_absence(\n"
             "                        snapshot, food_item\n"
             "                    )\n",
@@ -179,7 +179,7 @@ MUTATIONS = (
         True,
         "Allow the standing digger kit into the inscription-bound sale path.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "        return better_count < 2\n",
             "        return False\n",
         ),),
@@ -189,7 +189,7 @@ MUTATIONS = (
         True,
         "Allow a sold item class to be bought back in the same town visit.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "            if (item.tval, item.sval) in self._town_visit_sale_signatures:\n",
             "            if False and (item.tval, item.sval) in self._town_visit_sale_signatures:\n",
         ),),
@@ -244,7 +244,7 @@ MUTATIONS = (
         True,
         "Restore the rejected-budget approach fallthrough.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "            if not self._ensure_home_visit_request(snapshot):\n",
             "            if False and not self._ensure_home_visit_request(snapshot):\n",
         ),),
@@ -268,7 +268,7 @@ MUTATIONS = (
         True,
         "Permit new Home work to erase the exhausted visit stop.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "            and home_visit.attempts_used >= home_visit.attempt_limit\n",
             "            and False\n"
             "            and home_visit.attempts_used >= home_visit.attempt_limit\n",
@@ -620,7 +620,7 @@ MUTATIONS = (
         True,
         "Require the transient Home item address before routing the durable latch.",
         (replacement(
-            "policy.py",
+            "policy_shop.py",
             "            self._home_digger_withdraw_pending\n"
             "            or (\n",
             "            (\n"

@@ -1231,3 +1231,41 @@ C1 verified independently by the supervisor: the five lifted constants keep thei
 imports it from `hengbot.policy`. Residue: the explanatory comment blocks that sat above the five
 lifted constants stayed behind in `policy.py` and now head unrelated code; left in place because
 DO-NOT #5 forbids cleanup churn inside a move phase.
+
+- Phase 11b (`policy-split-phase11b`): moved 57 shop/store methods to
+  `policy_shop.py`: `_arbiter_close_store_visit`, `_store_visit_arbiter_owner`,
+  `_inventory_item_from_store_item`, `_release_invalid_store_visit`,
+  `_find_light_sale`, `_cheapest_exchange_item`, `_store_item_is_supply`,
+  `_release_staged_store_operation`, `_digging_tool_sale_quality`,
+  `_sale_retains_digging_tool`, `_find_book_sale`, `_find_device_sale`,
+  `_carried_restore_potion`, `_needs_stat_restore`, `_restore_potion_purchase`,
+  `_stat_restore_quaff_key`, `_dominated_disposal_store`, `_find_low_level_sale`,
+  `_retry_after_store_restock`, `_released_restock_store_key`,
+  `_enumerate_live_store_claims`, `_next_required_store_type`,
+  `_release_blocked_store_latches`, `_rearm_town_store_for_new_work`,
+  `cross_town_shopping_state`, `_cross_town_shopping_key`,
+  `_set_town_store_attempted`, `_purchase_has_fresh_home_absence`,
+  `_record_purchase_home_refusal`, `_publish_purchase_home_block`,
+  `_evaluate_purchase_home_gate`, `_wanted_purchase_is_home_first_refused`,
+  `_mana_survival_sale_candidate`, `_next_purchase`,
+  `_purchase_diagnostic_category`, `_shop_candidate_diagnostics`,
+  `_record_shop_selector_diagnostics`, `_black_market_optional_purchase`,
+  `_live_purchase_need`, `_mandatory_purchase`, `_next_purchase_unreserved`,
+  `_purchase_quantity`, `_store_accepts_sale`, `_store_sell_key`,
+  `_current_store_sale_candidates`, `_batch_sell_key`, `_sale_tag_is_unique`,
+  `_sale_inscription_text`, `_item_has_sale_tag`, `_sale_item_identity`,
+  `_batch_sale_entry`, `_shop`, `_shopping_approach_step`,
+  `_shopping_approach_key`, `_atomic_shop_transaction_key`,
+  `_star_remove_curse_reserve_purchase_needed`, and
+  `_restore_mining_combat_hand_key`.
+- Phase 11b deliberately left six `_town_*` names in `policy.py` for Phase 12:
+  `_town_observed_purchase_is_composable`,
+  `_town_blocked_purchase_is_composable`, `_town_store_visit_limit`,
+  `_town_store_blocked_under_applicable_bound`,
+  `_town_organization_sale_store`, and `_town_blocked_store_context`. Phase 12's
+  review must confirm that its `_town_*` move picks up all six.
+- Phase 11b also left `_book_sale_store_type` in `policy.py`. Its body contains
+  the class-qualified `HengbotPolicy._is_high_value_book` call, so relocation
+  requires a separate reviewed dereference commit before a mechanical move;
+  `_is_high_value_book` remains shared by Home, town, and shop paths through
+  mixin composition.

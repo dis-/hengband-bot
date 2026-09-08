@@ -34,6 +34,7 @@ from hengbot.home_visit import (
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
+import test_policy_shop as shop_fixture
 import test_policy_equipment as equipment_fixture
 import test_policy_home as home_fixture
 
@@ -430,7 +431,7 @@ def _home_suppression_refusal():
 
 def _catalogue_invalidated_with_equipment_work():
     """A cleared catalogue must release through ~9 despite equipment work."""
-    surface = fixture.TownErrandPlanTest()._snapshot(turn=3542954)
+    surface = shop_fixture.TownErrandPlanTest()._snapshot(turn=3542954)
     entrance = Position(10, 11)
     surface = replace(
         surface,
@@ -458,7 +459,7 @@ def _catalogue_invalidated_with_equipment_work():
 
 def _invalid_command_noop_home_cycle():
     """An observation-only disposal pass cannot own a Home entry."""
-    helper = fixture.TownErrandPlanTest()
+    helper = shop_fixture.TownErrandPlanTest()
     surface = helper._snapshot(turn=2994536)
     entrance = Position(10, 11)
     surface = replace(
