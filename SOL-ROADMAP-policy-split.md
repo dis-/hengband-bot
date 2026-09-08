@@ -1269,3 +1269,45 @@ DO-NOT #5 forbids cleanup churn inside a move phase.
   requires a separate reviewed dereference commit before a mechanical move;
   `_is_high_value_book` remains shared by Home, town, and shop paths through
   mixin composition.
+
+#### Phase 11b verdict (supervisor, 2026-09-08)
+
+Phase 11b: ACCEPT and PUSHED as `82742ec` (C1 prerequisite lift) + `b2adc7b` (supervisor amendment)
++ `a5af827` (C2 move + C3 ledger, combined — a minor deviation from the requested split, noted, not
+blocking). Every structural claim re-derived independently by the supervisor from the git blobs:
+
+- **57/57 moved methods AST-identical** under strict `ast.dump`; `ShopMixin` contains no method that
+  is not in the base class (zero new code); **384/384 retained methods identical**; nothing lost,
+  nothing duplicated across `policy.py` and `policy_shop.py`.
+- Test ids **907 -> 907** with **262 renamed 1:1 and body-identical** across
+  test_policy/test_policy_shop, plus the guard rename = the event's 263. Genuinely new 0, removed 0,
+  duplicated 0. Discovery 3142 before, 3142 after the fixture step alone, 3142 after.
+- `tests/policy_shop_fixture.py` does NOT match `test*.py`, so the shared base is imported across
+  modules without re-introducing duplicate collection.
+- All 11 `mutation_battery` ids resolve; 7 now under `test_policy_shop`. The sweep found TWO stale
+  anchors beyond the historical six; both bite now.
+- The composition guard is at twelve bases; the supervisor's own lone-revert (drop `ShopMixin`)
+  fails it naming `<class 'hengbot.policy_shop.ShopMixin'>`.
+- C2 lifted eight further constants into `policy_constants.py` (the tool refuses until they move):
+  `FOOD_TYPE_RATION`, `BUY_CONFIRM_SUFFIX`, `STORE_RESTOCK_REST_GAME_TURNS`,
+  `DETECTION_SCROLL_BUFFER`, `CROSS_TOWN_SHOPPING_RESERVE`, `HOME_BATCH_RESERVED_SLOTS`,
+  `STORE_RESTOCK_REASON_NAMES`, `STORE_ACCEPTED_TVALS` — all verified value-identical to base and
+  still importable from `hengbot.policy`.
+- `_book_sale_store_type` and `_is_high_value_book` both confirmed still in `policy.py`, as the
+  amendment requires.
+- 17 receipts hash-matched at the shipped head; parallel x2 and serial standing all 3142 green;
+  live history untouched.
+
+**policy.py is now 16,756 lines — down from 38,260 at project start (−56%).**
+
+Accuracy streak: 3. Two of Phase 11b's three rounds were STOPS before any edit, both on real spec
+defects (the regex-artefact manifest, then the `HengbotPolicy.`-qualified call). Neither shipped
+bad code; plan-source-of-truth is doing exactly its job.
+
+**Phase 12 inherits an explicit obligation**: pick up the six `_town_*` names Phase 11b deferred —
+`_town_observed_purchase_is_composable`, `_town_blocked_purchase_is_composable`,
+`_town_store_visit_limit`, `_town_store_blocked_under_applicable_bound`,
+`_town_organization_sale_store`, `_town_blocked_store_context` — and say so in its accounting.
+Phase 12 must also expect the same two hazard classes: `HengbotPolicy.`-qualified static calls
+(`_has_town_economic_path` and `_town_observable_effect_state` both carry one today, so at least one
+will collide with a `_town_*` selector) and module-level constants the tool refuses until lifted.
