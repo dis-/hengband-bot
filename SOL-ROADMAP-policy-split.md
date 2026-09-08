@@ -1046,6 +1046,24 @@ Binding for every phase. A violation is grounds for revert, not a review comment
   Note: roadmap §2's "four pickled classes stay in policy.py" is now stale —
   ProcurementHomeGate and ExplorationPathOutcome live in other modules with
   aliases.
+- Phase 10 (14a9be9) + guard fix (ce42f5c): ACCEPT and PUSHED 2026-09-08.
+  The move itself was judged impeccable — 63/63 moved methods byte-identical
+  under both `ast.unparse` and strict `ast.dump`, 441 retained methods
+  identical, zero stale patch targets across a 1117-file sweep, zero
+  re-exports, STATE_FIELDS preserved by value (the tuple holds 29 names, NOT
+  the roadmap prose's 30 — the prose is wrong and stays a documented
+  discrepancy). First review was REJECT (narrow) on the ACCOUNTING, not the
+  code: the event asserted a composition gate
+  (`test_policy_composes_all_eleven_split_mixins`) THAT DID NOT EXIST, and
+  the real guard (`..._nine_split_mixins`) still PASSED with HomeMixin
+  removed. ce42f5c closes both: the guard now asserts
+  `set(HengbotPolicy.__bases__) == {11 mixins}` — exact equality, so it can
+  neither fall behind nor silently outgrow itself, and every future phase
+  MUST update it. Supervisor re-executed both lone-reverts independently:
+  removing HomeMixin and removing TownArbiterMixin each fail the structural
+  test naming the missing class. All 11 receipts hash-verified at the
+  shipped head; live history unchanged (recall 148, tx []).
+  policy.py is now 20,588 lines (from 38,260 at project start, −46%).
 
 ### Phase 10 selector correction (supervisor, 2026-09-08)
 
