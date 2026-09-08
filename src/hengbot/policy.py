@@ -1954,6 +1954,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._deferred_device_items: set[tuple[str, int, int]] = set()
         self._processed_home_items: set[tuple[str, int, int]] = set()
         self._deferred_home_items: set[tuple[str, int, int]] = set()
+        self._retried_deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         # knowledge-self.cpp:214 and bot-json-output.cpp:861 traverse the same
         # Home stock array in the same order.  Addressing is derived from this
@@ -2268,6 +2269,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_gate_telemetry = {}
         if not hasattr(self, "_home_procurement_withdraw_failure"):
             self._home_procurement_withdraw_failure = None
+        if not hasattr(self, "_retried_deferred_home_items"):
+            self._retried_deferred_home_items = set()
         if not hasattr(self, "_home_atomic_withdraw_procurement_class"):
             self._home_atomic_withdraw_procurement_class = None
         if not hasattr(self, "_home_latch_active"):

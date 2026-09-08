@@ -2327,6 +2327,23 @@ class HomeMixin:
         fails = self._town_visit_ledger.approach_fails[STORE_HOME]
         limit = self._town_store_visit_limit(STORE_HOME)
         attempted = STORE_HOME in self._town_store_attempted
+        viable_signatures = {
+            self._item_signature(known)
+            for known in matches
+            if known.count > 0 and (not known.is_torch or known.fuel > 0)
+        }
+        all_viable_deferred = bool(viable_signatures) and viable_signatures.issubset(
+            self._deferred_home_items
+        )
+        retried_deferred = getattr(
+            self, "_retried_deferred_home_items", set()
+        )
+        retried_signatures = viable_signatures.intersection(retried_deferred)
+        fresh_retry_failed = bool(
+            branch == "wrapper-withdraw-failed-stock-present"
+            and all_viable_deferred
+            and viable_signatures.issubset(retried_deferred)
+        )
         if not attempted:
             self._home_latch_active = None
         self._home_gate_telemetry = {
@@ -2367,6 +2384,13 @@ class HomeMixin:
                 and known.count > 0
                 and (not known.is_torch or known.fuel > 0)
             ],
+            "deferred_retry": {
+                "attempted_signatures": [
+                    list(signature) for signature in sorted(retried_signatures)
+                ],
+                "fresh_attempt_made": fresh_retry_failed,
+                "fresh_attempt_failed": fresh_retry_failed,
+            },
             "inputs": {
                 "knowledge_current": self._home_knowledge_current,
                 "knowledge_invalidated": self._home_knowledge_invalidated,

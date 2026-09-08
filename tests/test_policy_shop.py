@@ -403,7 +403,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             policy._home_gate_telemetry["branch"], "wrapper-candidate-home-first"
         )
 
-    def test_pin_vacuity_digger_terminal_failure_present_publishes_wait(self):
+    def test_pin_vacuity_digger_terminal_failure_present_retries_home_once(self):
         policy, outside, observed = self._digger_purchase_gate_fixture(
             terminal=True
         )
@@ -413,18 +413,15 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy.choose_key(replace(outside, store=observed))
         key = policy.choose_key(replace(outside, turn=outside.turn + 1))
 
-        self.assertEqual(key, WAIT_KEY, policy.last_reason)
+        signature = policy._item_signature(policy._home_knowledge_items[0])
+        self.assertNotEqual(key, WAIT_KEY, policy.last_reason)
         self.assertEqual(
-            policy.last_reason,
-            "town:blocked:home-withdraw-failed-stock-present",
+            policy._home_gate_telemetry["branch"],
+            "wrapper-candidate-home-first",
         )
-        self.assertEqual(
-            policy._home_gate_telemetry["withdraw_failure"]["item_class"],
-            "digger:exact-tval-any-sval",
-        )
-        census = policy._home_gate_telemetry["candidate_absence_census"]
-        self.assertEqual(census["class_matches"], 1)
-        self.assertEqual(census["excluded_as_deferred"], 1)
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(signature, policy._retried_deferred_home_items)
+        self.assertIsNone(policy._home_procurement_withdraw_failure)
 
     def test_pin_vacuity_digger_terminal_failure_absent_allows_buy(self):
         policy, outside, observed = self._digger_purchase_gate_fixture(
@@ -3949,7 +3946,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.choose_key(replace(home_entrance, turn=home_entrance.turn + 1))
         return policy, replace(outside, turn=home_entrance.turn + 2)
 
-    def test_deferred_home_staff_blocks_incident_magic_buy_with_provenance(self):
+    def test_deferred_home_staff_retries_before_incident_magic_buy(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
             deferred=False
         )
@@ -3962,15 +3959,17 @@ class TownErrandPlanTest(unittest.TestCase):
 
         key = policy._atomic_shop_transaction_key(entrance)
 
-        self.assertEqual(key, WAIT_KEY)
+        signature = policy._item_signature(home_staff)
+        self.assertIsNone(key)
         self.assertEqual(
-            policy.last_reason, "town:blocked:home-withdraw-failed-stock-present"
+            policy._home_gate_telemetry["branch"],
+            "wrapper-candidate-home-first",
         )
-        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
         self.assertEqual(
-            policy._home_gate_telemetry["deferred_matches"][0]["site"],
-            "atomic-withdraw-observed-failure",
+            policy._town_visit_ledger.pending_store_transaction[0], STORE_HOME
         )
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(signature, policy._retried_deferred_home_items)
 
     def test_pin_vacuity_incident_latch_rearms_routable_home_first(self):
         policy, entrance, _home_staff = self._deferred_identify_staff_incident(
@@ -4144,7 +4143,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(gate["wrapper_fallthrough"], "fresh-catalogue-absence")
         self.assertEqual(gate["candidate_absence_census"]["class_matches"], 0)
 
-    def test_terminal_failure_ignores_exhausted_torch_but_blocks_fueled_deferred_torch(self):
+    def test_terminal_failure_ignores_exhausted_torch_and_retries_fueled_torch(self):
         policy = HengbotPolicy()
         entrance = self._snapshot()
         offered = store_item(
@@ -4177,17 +4176,16 @@ class TownErrandPlanTest(unittest.TestCase):
 
         gate = policy._purchase_has_fresh_home_absence(entrance, offered)
 
-        self.assertIs(gate, policy_module.ProcurementHomeGate.BLOCKED)
+        signature = policy._item_signature(fueled)
+        self.assertIs(gate, policy_module.ProcurementHomeGate.HOME_FIRST)
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
-            "wrapper-withdraw-failed-stock-present",
+            "wrapper-candidate-home-first",
         )
-        self.assertEqual(
-            policy._home_gate_telemetry["candidate_absence_census"]["excluded_as_deferred"],
-            1,
-        )
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(signature, policy._retried_deferred_home_items)
 
-    def test_pin_vacuity_terminal_withdraw_failure_present_publishes_wait(self):
+    def test_pin_vacuity_terminal_withdraw_failure_present_retries_home_once(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
             deferred=False
         )
@@ -4217,22 +4215,15 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
         key = policy.choose_key(entrance)
 
-        self.assertEqual(key, WAIT_KEY, policy.last_reason)
-        self.assertEqual(
-            policy.last_reason,
-            "town:blocked:home-withdraw-failed-stock-present",
-        )
+        signature = policy._item_signature(home_staff)
+        self.assertFalse(key.startswith(BUY_KEY), key)
         self.assertIsNone(policy._store_buy_inflight)
         gate = policy._home_gate_telemetry
-        self.assertEqual(gate["result"], "blocked")
-        self.assertEqual(gate["branch"], "wrapper-withdraw-failed-stock-present")
-        self.assertEqual(gate["candidate_absence_census"]["class_matches"], 1)
-        self.assertEqual(gate["candidate_absence_census"]["excluded_as_deferred"], 1)
-        self.assertEqual(gate["withdraw_failure"]["item_class"], "device:is-wand-staff")
-        self.assertEqual(
-            tuple(gate["withdraw_failure"]["identity"]),
-            policy._item_signature(home_staff),
-        )
+        self.assertEqual(gate["result"], "home-first")
+        self.assertEqual(gate["branch"], "wrapper-candidate-home-first")
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(signature, policy._retried_deferred_home_items)
+        self.assertIsNone(gate["withdraw_failure"])
 
     def test_procurement_claim_is_not_deferred_before_atomic_withdraw_posts(self):
         policy, entrance, home_staff = self._deferred_identify_staff_incident(
@@ -4869,8 +4860,8 @@ class TownErrandPlanTest(unittest.TestCase):
             "shop:home-first-before-purchase",
         )
 
-    def test_incident_magic_entrance_cycle_stops_before_composed_buy(self):
-        policy, entrance, _home_staff = self._deferred_identify_staff_incident()
+    def test_incident_magic_entrance_cycle_retries_home_before_composed_buy(self):
+        policy, entrance, home_staff = self._deferred_identify_staff_incident()
         observed_store = policy._shop_observation[0]
         policy._store_visit = StoreVisit("town-errand", "shopping", STORE_MAGIC)
 
@@ -4939,9 +4930,13 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         key = result.transcript[-1][1]
         self.assertFalse(any(k.startswith(BUY_KEY) for _reason, k in result.transcript))
+        self.assertEqual(
+            policy._home_gate_telemetry["branch"],
+            "wrapper-candidate-home-first",
+        )
         self.assertIn(
-            "town:blocked:home-withdraw-failed-stock-present",
-            {reason for reason, _key in result.transcript},
+            policy._item_signature(home_staff),
+            policy._retried_deferred_home_items,
         )
         self.assertEqual(world.gold, entrance.player.gold)
         self.assertEqual(len(world.inventory), len(entrance.inventory))
@@ -5070,23 +5065,6 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"],
             "shop:home-first-before-purchase",
-        )
-
-        policy._defer_home_item(
-            policy._item_signature(_home_staff), "diagnostic-fixture-defer"
-        )
-        policy._shop_observation = (
-            StoreState(STORE_MAGIC, list(observed_store.items), page_top=0),
-            policy._decision_sequence,
-        )
-        composed = policy.choose_key(entrance)
-        self.assertEqual(composed, WAIT_KEY)
-        self.assertEqual(
-            policy.last_reason, "town:blocked:home-withdraw-failed-stock-present"
-        )
-        self.assertEqual(
-            policy._home_gate_telemetry["deferred_matches"][0]["site"],
-            "diagnostic-fixture-defer",
         )
 
     def test_visit_ledger_survives_plan_rebuild(self):

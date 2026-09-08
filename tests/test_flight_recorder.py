@@ -371,7 +371,9 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertTrue(newest.exists())
 
     def test_policy_state_retains_commitment_and_downstairs_and_map_renders(self):
-        state = json.loads(json.dumps(policy_state(self.policy(), self.snapshot())))
+        policy = self.policy()
+        policy._retried_deferred_home_items = {("stored item", 18, 1)}
+        state = json.loads(json.dumps(policy_state(policy, self.snapshot())))
         self.assertEqual(
             state["state"]["_remembered_downstairs"], [[2, 2]]
         )
@@ -386,6 +388,10 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertEqual(state["state"]["_unseen_retreat_direction"], [-1, 1])
         self.assertIn("_shop_selector_diagnostics", state["state"])
         self.assertIn("_identification_source_reservation", state["state"])
+        self.assertEqual(
+            state["state"]["_retried_deferred_home_items"],
+            [["stored item", 18, 1]],
+        )
         self.assertEqual(state["state"]["_unseen_retreat_floor"], [1, 5, 0])
         self.assertEqual(state["state"]["_unseen_choke_position"], [2, 3])
         self.assertEqual(state["state"]["_unseen_wait_remaining"], 42)

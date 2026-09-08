@@ -92,9 +92,9 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 30)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 30)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 30)
+        self.assertEqual(len(SEEDED_STATES), 31)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 31)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 31)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
@@ -155,6 +155,93 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             policy._random_teleport_suppression_actionable(
                 world.snapshot(9), preparation
             )
+        )
+
+    def test_captured_fully_deferred_class_retries_once_per_town_stay(self):
+        state = next(
+            state for state in SEEDED_STATES
+            if state.name == "home-deferral-fully-deferred-procurement-class"
+        )
+        policy, world = state.build()
+        signature = world.target_signature
+
+        self.assertEqual(world.producer_key, "\x1b`n!.")
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertNotIn(
+            signature, getattr(policy, "_retried_deferred_home_items", set())
+        )
+
+        for decision in range(1, state.decisions + 1):
+            key = policy.choose_key(world.snapshot(decision))
+            policy.confirm_key_posted(key)
+            world.apply(key)
+
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(
+            signature, getattr(policy, "_retried_deferred_home_items", set())
+        )
+        self.assertEqual(
+            policy._home_gate_telemetry["branch"],
+            "wrapper-candidate-home-first",
+        )
+        self.assertEqual(
+            policy._home_pending_item, signature,
+            "Home re-entry must not replenish the one-retry budget",
+        )
+
+        catalogue = tuple(policy._home_knowledge_items)
+        for inside in (world.snapshots[-2], world.snapshots[-2]):
+            key = policy.choose_key(inside)
+            policy.confirm_key_posted(key)
+        failed_outside = replace(
+            world.snapshots[-1],
+            turn=policy._home_atomic_withdraw_posted_turn + 1,
+        )
+        policy.confirm_key_posted(policy.choose_key(failed_outside))
+        self.assertIn(signature, policy._deferred_home_items)
+        policy.consume_home_knowledge(catalogue)
+        offered = fixture.store_item(
+            "q", 18, 1, name="shop bolts", price=3, is_equipment=True
+        )
+
+        gate = policy._purchase_has_fresh_home_absence(failed_outside, offered)
+
+        self.assertIs(gate, cat.policy_module.ProcurementHomeGate.BLOCKED)
+        self.assertEqual(
+            policy._home_gate_telemetry["candidate_absence_census"],
+            {
+                "class_matches": 2,
+                "excluded_as_deferred": 2,
+                "zero_count": 0,
+                "torch_no_fuel": 0,
+            },
+        )
+        self.assertEqual(
+            policy._home_gate_telemetry["deferred_retry"],
+            {
+                "attempted_signatures": [list(signature)],
+                "fresh_attempt_made": True,
+                "fresh_attempt_failed": True,
+            },
+        )
+
+        dungeon = replace(
+            failed_outside,
+            turn=failed_outside.turn + 1,
+            floor_key=(1, 1, 0),
+            town_flag=False,
+        )
+        policy.choose_key(dungeon)
+        returned = replace(
+            failed_outside,
+            turn=failed_outside.turn + 2,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+        )
+        policy.choose_key(returned)
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertNotIn(
+            signature, getattr(policy, "_retried_deferred_home_items", set())
         )
 
     def test_public_choose_key_refuses_all_four_live_store_cycles(self):
@@ -352,6 +439,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             [
                 "quiet-stair-observation-timeout-probe",
                 "all-nonhome-needs-unobtainable-departure-unsatisfiable",
+                "home-deferral-fully-deferred-procurement-class",
                 "doubled-store-entry-cycle",
                 "lagged-successful-store-entry",
                 "transaction-abandoned-mid-strip",
@@ -362,6 +450,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             [result.outcome for result in passed],
             [
                 "drive-ending terminal bounded stair observation probe",
+                "durable progress within decision bound",
                 "durable progress within decision bound",
                 "durable progress within decision bound",
                 "durable progress within decision bound",

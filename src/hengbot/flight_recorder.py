@@ -162,6 +162,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         # no-valid-loadout stop could not be diagnosed post-hoc.
         "_equipment_transaction_failed_items",
         "_deferred_home_items",
+        "_retried_deferred_home_items",
         "_equipment_quarantine_readmitted_ids",
         "_equipment_quarantine_second_chance_ids",
         "_equipment_quarantine_burned_ids",

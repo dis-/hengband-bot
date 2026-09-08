@@ -1166,6 +1166,37 @@ class ShopMixin:
                 wrapper_fallthrough="no-procurement-need",
             )
         all_viable_deferred = viable_class_matches > 0 and candidate is None
+        viable_signatures = {
+            self._item_signature(known)
+            for known in self._home_knowledge_items
+            if self._procurement_class_matches(known, item_class)
+            and known.count > 0
+            and (not known.is_torch or known.fuel > 0)
+        }
+        retried_deferred = getattr(
+            self, "_retried_deferred_home_items", set()
+        )
+        retry_signatures = (
+            viable_signatures - retried_deferred
+            if all_viable_deferred else set()
+        )
+        if retry_signatures:
+            if not hasattr(self, "_retried_deferred_home_items"):
+                self._retried_deferred_home_items = retried_deferred
+            self._retried_deferred_home_items.update(retry_signatures)
+            self._deferred_home_items.difference_update(retry_signatures)
+            deferred_sites = getattr(self, "_deferred_home_item_sites", {})
+            for signature in retry_signatures:
+                deferred_sites.pop(signature, None)
+            if (
+                failure is not None
+                and failure.get("item_class")
+                == self._procurement_equivalence(item_class)
+            ):
+                self._home_procurement_withdraw_failure = None
+                failure = None
+            candidate = self._home_procurement_candidate(item_class)
+            all_viable_deferred = False
         if all_viable_deferred or (
             failure is not None
             and failure.get("item_class") == self._procurement_equivalence(item_class)

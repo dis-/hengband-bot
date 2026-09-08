@@ -14,7 +14,12 @@ world has no recovery/status physics with which to decide when it completes.
 
 from __future__ import annotations
 
+import base64
+import gzip
+import json
+import pickle
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import hengbot.policy as policy_module
@@ -31,6 +36,7 @@ from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _stall_recovery_action
 from hengbot.home_visit import (
     HomeVisitExecutor, HomeVisitKind, HomeVisitRequest,
 )
+from hengbot.latch_onset_capture import restore_checkpoint
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
@@ -40,12 +46,122 @@ import test_policy_home as home_fixture
 import test_policy_town as town_fixture
 
 
+HOME_DEFERRAL_CAPTURE = (
+    Path(__file__).parent / "fixtures" / "home-deferral-absorbing-state.json.gz"
+)
+
+
 MOVES = {
     "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
     "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
 }
 
 EMITTED_TURNS_PER_PLAYER_TURN = 10
+
+
+class CapturedHomeDeferralWorld:
+    """Replay the observed post-producer path without inventing game state."""
+
+    entries = 0
+    exits = 0
+
+    def __init__(self, policy, snapshots, target_signature, producer_key):
+        self.policy = policy
+        self.snapshots = snapshots
+        self.target_signature = target_signature
+        self.producer_key = producer_key
+        self.index = 0
+
+    def snapshot(self, _decision):
+        snapshot = self.snapshots[min(self.index, len(self.snapshots) - 1)]
+        self.index += 1
+        return snapshot
+
+    def apply(self, _key):
+        pass
+
+    def deliver_events(self, _policy):
+        pass
+
+    def durable_fingerprint(self):
+        visit = self.policy._store_visit
+        return (
+            self.target_signature in self.policy._deferred_home_items,
+            self.target_signature
+            in getattr(self.policy, "_retried_deferred_home_items", set()),
+            self.policy._home_pending_item == self.target_signature,
+            None if visit is None else visit.store_type,
+            None if visit is None else visit.phase.value,
+            bool(
+                self.policy._home_atomic_withdraw_pending is not None
+                and self.policy._home_atomic_withdraw_pending[0]
+                == self.target_signature
+            ),
+        )
+
+    def visible_terminal(self, _reason):
+        gate = self.policy._home_gate_telemetry
+        census = gate.get("candidate_absence_census") or {}
+        if (
+            gate.get("branch") == "wrapper-withdraw-failed-stock-present"
+            and census.get("class_matches", 0) > 0
+            and census.get("class_matches") == census.get("excluded_as_deferred")
+        ):
+            return "stale Home withdrawal failure absorbed the town stay"
+        return None
+
+    def terminal_ends_drive(self, _reason, _key):
+        return False
+
+    def unmodelled_release(self, _reason):
+        return False
+
+
+def _captured_home_deferral_retry():
+    """Build the live fully-deferred class through its real public producer."""
+    with gzip.open(HOME_DEFERRAL_CAPTURE, "rt", encoding="utf-8") as stream:
+        capture = json.load(stream)
+    policy = restore_checkpoint(
+        HengbotPolicy, capture["producer_checkpoint_pickle_b64"]
+    )
+    decoded = [
+        pickle.loads(base64.b64decode(encoded))
+        for encoded in capture["snapshots_pickle_b64"]
+    ]
+    sequence = capture["sequence"]
+    target_signature = next(
+        item
+        for item in policy._home_pending_batch
+        if item[1:] == (18, 1)
+    )
+    before = set(policy._deferred_home_items)
+    producer = sequence[0]
+    producer_key = policy.choose_key(decoded[producer["snapshot_id"]])
+    policy.confirm_key_posted(producer_key)
+    added = policy._deferred_home_items - before
+    if (
+        producer["decision_index"] != 26
+        or producer_key != producer["expected_key"]
+        or policy.last_reason != producer["expected_reason"]
+        or target_signature not in added
+    ):
+        raise AssertionError("captured Home deferral producer no longer replays")
+    retry_start = next(
+        index
+        for index, entry in enumerate(sequence)
+        if entry["decision_index"] == 77
+    )
+    for entry in sequence[1:retry_start]:
+        key = policy.choose_key(decoded[entry["snapshot_id"]])
+        policy.confirm_key_posted(key)
+    snapshots = [
+        decoded[entry["snapshot_id"]] for entry in sequence[retry_start:]
+    ]
+    return policy, CapturedHomeDeferralWorld(
+        policy, snapshots, target_signature, producer_key
+    )
+
+
 class TownWorld:
     def __init__(self, snapshot: Snapshot, *, entrance=STORE_HOME, stock=(),
                  page_size=12, swallow_space=False, version_reply=False,
@@ -1558,6 +1674,10 @@ SEEDED_STATES = (
     AbsorbingState(
         "home-random-teleport-suppression-refusal", 20,
         _home_suppression_refusal,
+    ),
+    AbsorbingState(
+        "home-deferral-fully-deferred-procurement-class", 6,
+        _captured_home_deferral_retry,
     ),
     AbsorbingState(
         "catalogue-invalidated-equipment-work-repetition", 20,

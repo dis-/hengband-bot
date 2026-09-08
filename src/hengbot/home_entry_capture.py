@@ -36,6 +36,7 @@ STATE_FIELDS = (
     "_home_pending_batch",
     "_home_procurement_batch_active",
     "_deferred_home_item_sites",
+    "_retried_deferred_home_items",
     "_home_atomic_withdraw_pending",
     "_home_atomic_withdraw_procurement_class",
     "_home_atomic_withdraw_posted_turn",

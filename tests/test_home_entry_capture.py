@@ -196,6 +196,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         policy._deferred_home_item_sites = {
             ("item", 39, 0): "town-item-processing-missing-pending"
         }
+        policy._retried_deferred_home_items = {("item", 39, 0)}
         decision_snapshot = replace(
             harness._entrance_snapshot(harness._real_pack(), turn=3200200),
             equipment=[
@@ -257,6 +258,10 @@ class HomeEntryCaptureTest(unittest.TestCase):
             {"['item', 39, 0]": "town-item-processing-missing-pending"},
         )
         self.assertEqual(
+            record["scan_entry_state"]["_retried_deferred_home_items"],
+            [["item", 39, 0]],
+        )
+        self.assertEqual(
             record["scan_entry_state"]["_home_atomic_withdraw_posted_turn"],
             3200199,
         )
@@ -274,6 +279,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
             replay._deferred_home_item_sites,
             {("item", 39, 0): "town-item-processing-missing-pending"},
         )
+        self.assertEqual(replay._retried_deferred_home_items, {("item", 39, 0)})
         self.assertIsNone(record["decision_snapshot"]["store"])
         self.assertEqual(
             record["next_snapshot"]["store"],

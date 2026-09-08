@@ -582,6 +582,7 @@ class ObservationMixin:
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = True
                 self._deferred_home_items.clear()
+                self._retried_deferred_home_items.clear()
                 getattr(self, "_deferred_home_item_sites", {}).clear()
                 getattr(self, "_home_pending_quantities", {}).clear()
                 self._home_procurement_batch_active = False
