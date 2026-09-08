@@ -1,5 +1,8 @@
+import base64
+import gzip
 import inspect
 import json
+import pickle
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -12,6 +15,7 @@ import hengbot.policy as policy_module
 import hengbot.policy_calibration as policy_calibration_module
 from hengbot.cli import POLICY_FINAL_STOP_REASONS
 from hengbot.equipment_optimizer import OwnedEquipment
+from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import (
     GridState,
     PLAYER_CLASS_WARRIOR,
@@ -467,6 +471,84 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [("x", 75, 1)]
         self.assertFalse(policy._town_departure_ready(snapshot))
+
+    def test_live_capture_batches_same_page_restore_through_public_keys(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "calibration-restore-batch-live.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        self.assertEqual([row["decision_index"] for row in rows], [5432, 5433])
+
+        policy = restore_checkpoint(
+            HengbotPolicy,
+            rows[0]["predecision_policy_checkpoint_pickle_b64"],
+        )
+        entrance = pickle.loads(base64.b64decode(
+            rows[0]["decision_snapshot_pickle_b64"]
+        ))
+        inside = pickle.loads(base64.b64decode(
+            rows[1]["decision_snapshot_pickle_b64"]
+        ))
+        expected = (
+            "pZ47\r"
+            "pW2\r"
+            "py"
+            "pu2\r"
+            "pq"
+            "pk6\r"
+            "pi30\r"
+            "ph87\r"
+            "pf6\r"
+            "pe29\r"
+            "pd"
+            "pa9\r"
+            "\x1b"
+        )
+
+        first = policy.choose_key(entrance)
+
+        self.assertEqual(first, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertTrue(policy._home_procurement_batch_active)
+        self.assertEqual(
+            policy._home_pending_batch,
+            policy._calibration_restore_signatures,
+        )
+        self.assertEqual(policy._store_visit.operation_key, expected)
+        self.assertTrue(policy.confirm_key_posted(first))
+
+        second = policy.choose_key(inside)
+
+        self.assertEqual(second, expected)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(policy.choose_key(inside), policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
+
+        pending = policy._home_atomic_withdraw_pending
+        restored = [
+            replace(withdrawn, slot=chr(ord("a") + offset))
+            for offset, (
+                _signature, _before_count, withdrawn, _quantity, _index
+            ) in enumerate(pending[4])
+        ]
+        # After the captured producer and key consumer have run, isolate only
+        # durable history I/O while the public outside observer reconciles
+        # every batch effect.
+        with patch.object(policy._home_disposal, "record") as history_record:
+            policy.choose_key(replace(
+                entrance,
+                turn=entrance.turn + 1,
+                inventory=restored,
+            ))
+
+        self.assertEqual(len(policy._calibration_restore_signatures), 2)
+        self.assertEqual(len(policy._home_pending_batch), 2)
+        self.assertTrue(policy._home_procurement_batch_active)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(history_record.call_count, 12)
 
     def test_live_restore_window_keeps_queue_after_confirming_home_pages(self):
         """02:57:50-53 pin: Home was just observed, but its atomic-operation

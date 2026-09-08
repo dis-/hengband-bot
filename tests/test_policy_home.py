@@ -1829,7 +1829,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 [], wares[:12], turn=2320394,
                 stock_num=len(wares), page_top=0, page_size=52,
             )),
-            "pa5\r\x1b",
+            "pbpa5\r\x1b",
         )
         policy.choose_key(replace(
             entrance,

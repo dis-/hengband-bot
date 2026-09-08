@@ -1917,6 +1917,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # the first ordinary outside snapshot and is never used to repost.
         self._home_atomic_withdraw_pending: tuple[
             tuple[str, int, int], int, StoreItem, int
+        ] | tuple[
+            tuple[str, int, int],
+            int,
+            StoreItem,
+            int,
+            tuple[tuple[tuple[str, int, int], int, StoreItem, int, int], ...],
         ] | None = None
         self._home_atomic_withdraw_procurement_class: tuple[int, int] | None = None
         self._home_atomic_withdraw_index: int | None = None
@@ -2669,6 +2675,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         pending_withdrawal = self._home_atomic_withdraw_pending
+        if (
+            pending_withdrawal is not None
+            and len(pending_withdrawal) == 5
+            and snapshot.store is None
+            and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+            and (
+                self._home_atomic_withdraw_posted_turn is None
+                or snapshot.turn > self._home_atomic_withdraw_posted_turn
+            )
+        ):
+            self._observe_calibration_restore_batch(snapshot, pending_withdrawal)
+            pending_withdrawal = None
         if (
             pending_withdrawal is not None
             and snapshot.store is None

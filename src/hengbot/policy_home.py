@@ -12,6 +12,15 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
 class HomeMixin:
+    @staticmethod
+    def _home_page_letter(page_pos: int) -> str:
+        """Map one zero-based Home page position to Hengband's selector."""
+        return (
+            chr(ord("a") + page_pos)
+            if page_pos < 26
+            else chr(ord("A") + page_pos - 26)
+        )
+
     def _file_home_errand(
         self,
         snapshot: Snapshot,
@@ -1143,6 +1152,14 @@ class HomeMixin:
             self._record_digger_home_withdraw_failure(signature)
             self._defer_unobserved_home_withdrawal(signature)
             return LEAVE_STORE_KEY
+        if self._calibration_phase == "restore-supplies":
+            for restore_signature in self._calibration_restore_signatures:
+                if (
+                    restore_signature != self._home_pending_item
+                    and restore_signature not in self._home_pending_batch
+                ):
+                    self._home_pending_batch.append(restore_signature)
+            self._home_procurement_batch_active = bool(self._home_pending_batch)
         selected = next(
             (
                 (index, item)
@@ -1170,11 +1187,7 @@ class HomeMixin:
             return LEAVE_STORE_KEY
         index, item = selected
         page, page_pos = divmod(index, self._home_page_size)
-        letter = (
-            chr(ord("a") + page_pos)
-            if page_pos < 26
-            else chr(ord("A") + page_pos - 26)
-        )
+        letter = self._home_page_letter(page_pos)
         if restore_owner_signature is not None:
             quantity = item.count
         if not letter or len(letter) != 1:
@@ -1211,6 +1224,57 @@ class HomeMixin:
             + quantity_suffix
             + LEAVE_STORE_KEY
         )
+        batch_entries = ()
+        if (
+            restore_owner_signature is not None
+            and restore_owner_signature == signature
+        ):
+            free_slots = max(1, PACK_CAPACITY - len(snapshot.inventory))
+            page_candidates = []
+            for owner_signature in self._calibration_restore_signatures:
+                match = next(
+                    (
+                        (owner_index, owner_item)
+                        for owner_index, owner_item in reversed(address_slots)
+                        if self._item_signature(owner_item) == owner_signature
+                        and owner_index // self._home_page_size == page
+                    ),
+                    None,
+                )
+                if match is not None:
+                    page_candidates.append((owner_signature, *match))
+            page_candidates.sort(key=lambda entry: entry[1], reverse=True)
+            page_candidates = page_candidates[:free_slots]
+            if not any(
+                owner_signature == restore_owner_signature
+                for owner_signature, _owner_index, _owner_item in page_candidates
+            ):
+                page_candidates[-1:] = [
+                    (restore_owner_signature, index, item)
+                ]
+                page_candidates.sort(key=lambda entry: entry[1], reverse=True)
+            if len(page_candidates) > 1:
+                batch_entries = tuple(
+                    (
+                        owner_signature,
+                        self._inventory_signature_count(snapshot, owner_signature),
+                        owner_item,
+                        owner_item.count,
+                        owner_index,
+                    )
+                    for owner_signature, owner_index, owner_item in page_candidates
+                )
+                commands = []
+                for _owner_signature, owner_index, owner_item in page_candidates:
+                    page_pos = owner_index % self._home_page_size
+                    owner_letter = self._home_page_letter(page_pos)
+                    owner_quantity = (
+                        f"{owner_item.count}\r" if owner_item.count > 1 else ""
+                    )
+                    commands.append(BUY_KEY + owner_letter + owner_quantity)
+                operation_key = (
+                    (" " * page) + "".join(commands) + LEAVE_STORE_KEY
+                )
         key = WAIT_KEY
         if session is not None and action is not None and action.kind == "withdraw":
             observation = replace(
@@ -1248,6 +1312,12 @@ class HomeMixin:
             self._inventory_signature_count(snapshot, signature),
             item,
             take_count,
+            batch_entries,
+        ) if batch_entries else (
+            signature,
+            self._inventory_signature_count(snapshot, signature),
+            item,
+            take_count,
         )
         procurement_probe = getattr(self, "_home_procurement_probe", None)
         self._home_atomic_withdraw_procurement_class = (
@@ -1279,14 +1349,14 @@ class HomeMixin:
             self._home_errand.post(
                 self._inventory_signature_count(snapshot, signature)
             )
-        if restore_owner_signature is not None:
+        if restore_owner_signature is not None and not batch_entries:
             self._calibration_restore_signatures.remove(restore_owner_signature)
         self._home_pending_quantity = None
         getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False
         self._home_withdrawal_queued = False
         self._home_entry_operation_posted = True
-        self._home_history_inflight = (
+        self._home_history_inflight = None if batch_entries else (
             "withdraw",
             signature,
             len(snapshot.inventory),
@@ -1295,6 +1365,50 @@ class HomeMixin:
         self._stage_home_operation(snapshot, operation_key)
         self.last_reason = reason
         return key
+
+    def _observe_calibration_restore_batch(
+        self, snapshot: Snapshot, pending: tuple
+    ) -> None:
+        """Reconcile one same-page calibration restore macro outside Home."""
+        succeeded = []
+        failed = []
+        for entry in pending[4]:
+            signature, before_count, _withdrawn, quantity, _index = entry
+            after_count = self._inventory_signature_count(snapshot, signature)
+            (succeeded if after_count >= before_count + quantity else failed).append(
+                entry
+            )
+        if getattr(self, "_home_visit", None) is not None:
+            self._home_visit.observe_outside(
+                effect_observed=bool(succeeded) and not failed
+            )
+        self._home_atomic_withdraw_pending = None
+        self._home_atomic_withdraw_procurement_class = None
+        self._home_atomic_withdraw_posted_turn = None
+        self._home_atomic_withdraw_index = None
+        self._home_entry_operation_posted = False
+        for signature, before_count, withdrawn, quantity, _index in succeeded:
+            if signature in self._calibration_restore_signatures:
+                self._calibration_restore_signatures.remove(signature)
+            if signature in self._home_pending_batch:
+                self._home_pending_batch.remove(signature)
+            self._home_pending_quantities.pop(signature, None)
+            self._equipment_catalog.record_home_withdrawal(
+                withdrawn,
+                intent=(snapshot.turn, signature, before_count, quantity),
+            )
+            self._home_disposal.record("withdraw", signature, snapshot.turn)
+        self._home_procurement_batch_active = bool(self._home_pending_batch)
+        self._invalidate_home_observation()
+        if succeeded:
+            self._refresh_carried_equipment_catalog(snapshot)
+        if self._calibration_restore_signatures:
+            self._rearm_town_store_for_new_work(
+                STORE_HOME, release_visit_bound=True
+            )
+            self.last_reason = "home:process-next-batch-item"
+        elif failed:
+            self.last_reason = "home:atomic-withdraw-failed"
 
     def _confirm_home_withdrawal_address(
         self, signature: tuple[str, int, int], posted_index: int | None
