@@ -15,7 +15,7 @@ HISTORICAL_CASES = (
     ("fundraising premise overwrite", "0de8159", "tests/test_policy.py", "test_incomplete_optimizer_blocks_normal_direct_entrance", "invariant-input-overwritten"),
     ("best/loadout fabrication", "43726bb", "tests/test_policy.py", "test_unactionable_suppression_keeps_confirmed_loadout", "pipeline-result-injected"),
     ("literal success predicate", "b57957f", "tests/test_policy.py", "test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window", "literal-success-predicate"),
-    ("frozen 105-decision drive", "HEAD", "tests/test_policy.py", "test_live_home_door_block_replay_never_posts_stay_publicly", "frozen-drive-state"),
+    ("frozen 105-decision drive", "HEAD", "tests/test_policy_town.py", "test_live_home_door_block_replay_never_posts_stay_publicly", "frozen-drive-state"),
     ("helper state injection", "5f49d7a", "tests/test_policy.py", "_catalogued_withdrawal_policy", "private-state-injected"),
     ("all collaborators mocked", "534b4be^", "tests/test_policy.py", "test_live_block_replay_continues_alchemist_plan_publicly", "collaborator-wall"),
 )
