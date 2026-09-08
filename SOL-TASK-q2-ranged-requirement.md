@@ -101,10 +101,27 @@ never to switch targets while it is visible. Say exactly how you ordered them an
 
 ## Hard requirements
 
-1. **NO ABSORBING STATE.** A requirement the bot cannot satisfy must produce a VISIBLE STOP with a
-   report, never a silent loop or an endless shopping cycle. If no launcher/bolt combination
-   reaching a guaranteed 25 is obtainable, the bot must say so and stop — that is the
-   `bot-absorbing-survival-state` rule and it is the main risk this change introduces. Pin it.
+1. **AN UNMET REQUIREMENT MUST NOT STOP THE BOT.** It must flow into the EXISTING not-ready
+   fallback: the bot declines to accept the quest and continues ordinary progression — explore,
+   fundraise/mine, dive, shop.
+
+   > **Supervisor correction (user, 2026-09-09):**「全てのクエスト受要件が満たせない場合は
+   > ダンジョン探索か採掘に進むはずだが可視停止するのか？」
+   > The user is right and the first version of this document was WRONG to demand a visible stop.
+   > That fallback already exists and is exercised: over the live log there are **3,645 decisions
+   > with `fixedquest_readiness.verdict = False`**, during which the bot ran `explore` 521,
+   > `fundraise:dig-to-treasure` 437, `fundraise:seek-treasure` 308, `fundraise:seek-loot` 244,
+   > `seek-downstairs` 182, plus ordinary shopping. It never stopped. Demanding a stop would have
+   > REPLACED working behaviour with a halt.
+
+   So pin the real thing: with the requirement unmet, `fixedquest_readiness.verdict` is False AND
+   non-quest progression continues. Not a stop, not a loop. An unmet carry requirement is a normal
+   state transition, not a fault. Visible stops are for states with no bot-reachable exit (the Home
+   deferral absorbing state was one); this is not one.
+
+   The one genuine risk is an UNBOUNDED shopping cycle — the bot circling town forever trying to buy
+   what it cannot afford or find. Check that the existing town progress invariant already bounds it,
+   and say what you found; do not add a new bound on top of a working one.
 2. **The acceptance gate must be the ONLY thing that changes about quest entry.** Do not weaken any
    other carry requirement to make room for 99 bolts. If pack space or weight becomes the binding
    constraint, report it — do not silently drop another requirement.
