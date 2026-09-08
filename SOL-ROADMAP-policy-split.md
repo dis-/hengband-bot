@@ -1404,3 +1404,37 @@ back-reference**, so R2 does not apply. Thirteen constants need the R1 lift:
 `STUCK_FAMILY_REASONS`, `STUCK_NEUTRAL_REASONS`, `TOWN_CYCLE_IGNORED_REASONS`,
 `TOWN_NO_PROGRESS_LIMIT`, `TOWN_WANDER_LIMIT`, `TOWN_WANDER_REASONS`. Decorator-stranding sentinel:
 `_approved_strategy_force_ready`. This is the first phase whose selector list is not defective.
+
+- Phase 13 (`policy-split-phase13`): moved the exact seven-method manifest to
+  `policy_observation.py`: `observe_character_snapshot`, `_observe`,
+  `_current_pinned_identities`, `_resolve_observed_uncomposable_stop`,
+  `_strategy_force_for_snapshot`, `_missing_required_abilities`, and
+  `_refresh_warning_avoidance`. `split_move.py` measured -988/+995, found no
+  back-reference, and retained `_approved_strategy_force_ready` in `policy.py`
+  as the decorator-stranding sentinel. No R2 residue was created.
+- The Phase 13 prerequisite lifted exactly the 13 pre-scouted constants to
+  `policy_constants.py`, definition-identically and with `policy.py` re-exports:
+  `EMERGENCY_ESCAPE_REASONS`, `EMPTY_DIVE_LIMIT`,
+  `HOME_PLAN_OWNED_PROCESSING_REASONS`, `NO_DEPTH_PROGRESS_DIVE_LIMIT`,
+  `OVEREXTEND_EMERGENCY_MIN`, `OVEREXTEND_LOOT_MAX`, `PICKUP_REASONS`,
+  `STUCK_FAMILY_REASONS`, `STUCK_NEUTRAL_REASONS`,
+  `TOWN_CYCLE_IGNORED_REASONS`, `TOWN_NO_PROGRESS_LIMIT`,
+  `TOWN_WANDER_LIMIT`, and `TOWN_WANDER_REASONS`. No additional constant
+  surfaced.
+- The assignment-target AST census of `_observe` finds 166 distinct
+  `self.<name>` attributes at the base and 166 at the Phase 13 head, with the
+  sets equal. This supersedes the roadmap table's stale 133 count; the moved
+  832-line method is strict-`ast.dump` identical, so no write was reordered,
+  renamed, added, or lost. `OverExtensionDungeonSwitchTest` and `StatusTest`
+  moved to `tests/test_policy_observation.py` with no re-export or foreign
+  `TestCase` import.
+- The mandatory tracked-tree sweep found no fixture importer, module patch
+  target, mutation anchor, or moved-test-id consumer requiring a Phase 13
+  repoint. The moved methods call no module-level helper retained in
+  `policy.py`; their global helpers are imported directly by the generated
+  observation module. Existing `policy.py` imports remain deliberately
+  unpruned.
+- Roadmap section 2's statement that four pickled classes stay in `policy.py`
+  remains inaccurate: earlier phases already lifted pickled classes with
+  compatibility aliases. Phase 13 moves no module-level class and changes no
+  pickle or checkpoint payload.
