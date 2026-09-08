@@ -7,7 +7,21 @@ from typing import Callable, Mapping
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.emit_ownership import in_flight_clause
 from hengbot.model import Position, Snapshot, STORE_HOME
-from hengbot.policy_constants import LEAVE_STORE_KEY
+from hengbot.policy_constants import (
+    CALIBRATION_HOME_VISIT_LIMIT,
+    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+    IDENTIFY_FAIL_LIMIT,
+    IDENTIFY_PURCHASE_MAX,
+    LEAVE_STORE_KEY,
+    MINING_STALL_LIMIT,
+    SELL_ATTEMPT_LIMIT,
+    SHOP_APPROACH_STUCK_LIMIT,
+    STORE_RETRY_TURNS,
+    STORE_STUCK_LIMIT,
+    TOWN_CYCLE_BREAK_LIMIT,
+    TOWN_STOP_PASS_LIMIT,
+    TOWN_TRAVEL_STALL_LIMIT,
+)
 from hengbot.policy_types import (
     EmissionState,
     OwnerProgressCore,
@@ -343,6 +357,31 @@ class TownTurnArbiter:
                 self._last_pair = None
             return True
         return False
+
+
+def _new_town_turn_arbiter() -> TownTurnArbiter:
+    return TownTurnArbiter({
+        "store-router": (("TOWN_TRAVEL_STALL_LIMIT", "SHOP_APPROACH_STUCK_LIMIT"), min(TOWN_TRAVEL_STALL_LIMIT, SHOP_APPROACH_STUCK_LIMIT)),
+        "shop-buy": (("STORE_STUCK_LIMIT", "STORE_RETRY_TURNS"), STORE_STUCK_LIMIT),
+        "shop-sell": (("SELL_ATTEMPT_LIMIT",), SELL_ATTEMPT_LIMIT),
+        "home-visit": (("CALIBRATION_HOME_VISIT_LIMIT", "TOWN_STOP_PASS_LIMIT"), CALIBRATION_HOME_VISIT_LIMIT),
+        "home-errand": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "home-scan": (("CALIBRATION_HOME_VISIT_LIMIT",), CALIBRATION_HOME_VISIT_LIMIT),
+        "equipment-txn": (("EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT",), EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT),
+        "equipment-opt": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "calibration": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "identification": (("IDENTIFY_FAIL_LIMIT", "IDENTIFY_PURCHASE_MAX"), IDENTIFY_FAIL_LIMIT),
+        "town-plan": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "fundraising": (("MINING_STALL_LIMIT",), MINING_STALL_LIMIT),
+        "curse-enchant": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "cross-town": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
+        "survival": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
+        "departure": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
+        "detectors": (("TOWN_CYCLE_BREAK_LIMIT",), TOWN_CYCLE_BREAK_LIMIT),
+        "rumor": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "quest-request": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+        "misc": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
+    })
 
 
 class TownArbiterMixin:

@@ -183,6 +183,7 @@ from hengbot.policy_constants import (
     FUNDRAISING_KIT_MARGIN,
     FUNDRAISING_KIT_RESERVE,
     IDENTIFY_FAIL_LIMIT,
+    IDENTIFY_PURCHASE_MAX,
     IDENTIFY_PRESSURE_FREE_SLOTS,
     LEAVE_STORE_KEY,
     LOOT_DEFER_BLOCKERS,
@@ -208,17 +209,21 @@ from hengbot.policy_constants import (
     SEARCH_KEY,
     SEARCH_LIMIT,
     SELL_KEY,
+    SELL_ATTEMPT_LIMIT,
     STAFF_IDENTIFY_MIN_SUCCESS,
     STORE_RESTOCK_WAIT_TURNS,
+    STORE_RETRY_TURNS,
     STORE_STUCK_LIMIT,
     STUCK_ESCAPE_LIMIT,
     TERMINAL_NUDGE_LIMIT,
     TORCH_THROW_TARGET,
     TOWN_TRAVEL_STORE_SYMBOLS,
     TOWN_STOP_PASS_LIMIT,
+    TOWN_CYCLE_BREAK_LIMIT,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     STAIR_OBSERVATION_WAIT_LIMIT,
+    SHOP_APPROACH_STUCK_LIMIT,
     OPEN_KEY,
     VISIT_PENALTY,
     BACKTRACK_PENALTY,
@@ -280,7 +285,7 @@ from hengbot.policy_constants import (
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
-from hengbot.town_arbiter import TownArbiterMixin, TownTurnArbiter
+from hengbot.town_arbiter import TownArbiterMixin, _new_town_turn_arbiter
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_identification import IdentificationMixin
 from hengbot.policy_fundraising import FundraisingMixin
@@ -562,7 +567,6 @@ RESTOCK_WAIT_MACRO = "R300\r"
 # moves between retries per store — cheap insurance against supplies quietly
 # running out forever, and far looser than STORE_RESTOCK_WAIT_TURNS's
 # deliberate short wait for a store the bot is actively depending on.
-STORE_RETRY_TURNS = 5000
 # Oberon and the Serpent are factual game constants: fixed WIN quests that are
 # TAKEN from birth and are never completable by the bot's fixed-quest machinery.
 # This is executor capability, not strategy approval or a tuning threshold.
@@ -744,7 +748,6 @@ TOWN_FAST_TRAVEL_MAX_POSITIONS = 3
 # bound is safe for every known legitimate shape: Home scans are page-bounded,
 # and purchases reset the marker per transaction.
 TOWN_NO_PROGRESS_LIMIT = 96
-TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 TOWN_CYCLE_IGNORED_REASONS = frozenset(
     {
         "town:wait-recall",
@@ -946,7 +949,6 @@ STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 # *Identify* always opens screen_object(); equipment with many attributes can
 # add several ``-- more --`` pages before the final continue prompt.  Escape
 # closes each page and is harmless after control returns to the command loop.
-SELL_ATTEMPT_LIMIT = 3
 SELL_CONFIRM_SUFFIX = "\r"
 # Mirrors store/service-checker.cpp's per-store tval switches.  The policy's
 # sale paths only need these ordinary, unconditional cases; the Temple's
@@ -997,7 +999,6 @@ LANTERN_MIN_GOLD = 1
 # up an unreachable store and diving with what we have. Above STUCK_WINDOW so a
 # reachable store one tile on is still pursued; below the cli loop guard's window
 # so we abandon BEFORE it stops the bot.
-SHOP_APPROACH_STUCK_LIMIT = 12
 # Backstop only: the digging-tool wield normally takes at once (answering the
 # "Equip which hand?" prompt when both hands are full). If it still keeps not taking
 # this many times, the main weapon is genuinely stuck/cursed — abandon the mining run.
@@ -1131,7 +1132,6 @@ SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
 # _outstanding_identification_count) instead of one scroll per store trip, but
 # is capped so one unusually large Home batch cannot empty the wallet in a
 # single transaction.
-IDENTIFY_PURCHASE_MAX = 5
 MINING_RUNS_PER_SET = 5
 # User-approved standing float: it enables the strict spare-scroll barren-floor
 # clause and is consumed only by incidental losses such as fire, acid, or theft.
@@ -1191,31 +1191,6 @@ class ExplorationGoalIdentity:
     kind: ExplorationGoalKind
     position: Position
     evidence_signature: tuple[int, bool, bool, bool, int]
-
-
-def _new_town_turn_arbiter() -> TownTurnArbiter:
-    return TownTurnArbiter({
-        "store-router": (("TOWN_TRAVEL_STALL_LIMIT", "SHOP_APPROACH_STUCK_LIMIT"), min(TOWN_TRAVEL_STALL_LIMIT, SHOP_APPROACH_STUCK_LIMIT)),
-        "shop-buy": (("STORE_STUCK_LIMIT", "STORE_RETRY_TURNS"), STORE_STUCK_LIMIT),
-        "shop-sell": (("SELL_ATTEMPT_LIMIT",), SELL_ATTEMPT_LIMIT),
-        "home-visit": (("CALIBRATION_HOME_VISIT_LIMIT", "TOWN_STOP_PASS_LIMIT"), CALIBRATION_HOME_VISIT_LIMIT),
-        "home-errand": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
-        "home-scan": (("CALIBRATION_HOME_VISIT_LIMIT",), CALIBRATION_HOME_VISIT_LIMIT),
-        "equipment-txn": (("EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT",), EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT),
-        "equipment-opt": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
-        "calibration": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
-        "identification": (("IDENTIFY_FAIL_LIMIT", "IDENTIFY_PURCHASE_MAX"), IDENTIFY_FAIL_LIMIT),
-        "town-plan": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
-        "fundraising": (("MINING_STALL_LIMIT",), MINING_STALL_LIMIT),
-        "curse-enchant": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
-        "cross-town": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
-        "survival": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
-        "departure": (("TOWN_TRAVEL_STALL_LIMIT",), TOWN_TRAVEL_STALL_LIMIT),
-        "detectors": (("TOWN_CYCLE_BREAK_LIMIT",), TOWN_CYCLE_BREAK_LIMIT),
-        "rumor": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
-        "quest-request": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
-        "misc": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
-    })
 
 
 from hengbot.policy_navigation import NavigationMixin
