@@ -1513,3 +1513,67 @@ silently dropped mixin — does not run unconditionally. Adding it is the point.
 
 **PROJECT CLOSED.** All thirteen move phases and the Phase 15 verification-tooling fix are complete;
 Phase 14 remains excluded by the authoritative user decision.
+
+#### Phase 15 verdict + PROJECT CLOSE-OUT (supervisor, 2026-09-08)
+
+Phase 15: ACCEPT and PUSHED as `775de40`. Verified independently:
+
+- `git diff --stat fd3fb71..775de40 -- src/` is EMPTY — a pure tooling change, as required.
+- `ALWAYS_MODULES` gains `tests.test_policy_structure`. **No derived scope can shrink by
+  construction**: the literal is UNIONed with the referencing set and `tests.test_policy` was kept,
+  so the event's "lost: []" across all four sampled commits is structurally guaranteed, not just
+  measured. Two of the three historical fixes already derived the module by reference (50->50,
+  52->52); `599abb2` and the shipped head gained it (40->41, 3->4).
+- `run_item` now puts `root/scripts` on PYTHONPATH — a genuine latent gate bug: without it
+  `test_policy_structure` cannot import `mutation_battery`/`failure_headers` in a detached scoped
+  run, so the newly-unconditional module would have ERRORED rather than guarded. Checked for import
+  shadowing: none of the 24 `scripts/*.py` names collides with a stdlib module.
+- Supervisor re-ran the revert-proof: deleting `tests.test_policy_structure` from `ALWAYS_MODULES`
+  fails the membership pin with `AssertionError: 'tests.test_policy_structure' not found in
+  {'tests.test_policy', 'tests.test_absorbing_states', 'tests.test_cli'}`.
+- `tests.test_policy` KEPT, on evidence: 55 tests in 0.847s / 1,612 lines. Dropping it was correctly
+  left as a proposal — removing coverage is outside the approved additive scope.
+- `owner_map.py` unchanged (676 reasons, 1414 facts, 92 starvation-prone, 57 modules);
+  `sale_key_lint` 0 findings across all 57 modules with no renames, so no moved findings.
+- 26 receipts hash-matched at the shipped head; parallel x2, serial standing, scripts self-tests
+  (80) all green; live history untouched.
+
+Honest caveat recorded by sol and worth keeping: the structure MODULE takes ~59s, not "tiny" — the
+exact-`__bases__` guard itself is 0.001s and checkpoint replay dominates the rest. Making it
+unconditional costs about a minute per gated fix. That is the price of never silently losing a mixin.
+
+---
+
+## PROJECT CLOSE-OUT
+
+**`policy.py`: 38,260 -> 11,488 lines (-26,772, -70%), across 14 composed mixins.**
+policy_quest 5,089 / policy_town 4,288 / policy_shop 3,840 / policy_combat 2,696 /
+policy_equipment 2,589 / policy_home 2,449 / policy_navigation 1,688 / policy_supply 1,254 /
+policy_fundraising 1,143 / policy_identification 1,082 / policy_observation 1,006 /
+policy_calibration 842 / town_arbiter 670 / policy_helpers 407.
+`tests/test_policy.py`: ~61,000 -> 1,612 lines. Discovery held at exactly 3,142 ids throughout.
+
+What actually made it work, for whoever picks this up next:
+1. **Mechanical moves only.** After two hand-execution failures the response was structural —
+   `scripts/split_move.py`. Every phase from 10 on moved with it and hit N/N AST identity.
+2. **The exact-`__bases__` guard.** A subset assertion let two mixins go unguarded. Set equality
+   forces every phase to update it, and it is now unconditional.
+3. **Independent re-derivation.** Every accepted phase had its claims recomputed by the supervisor
+   from the git blobs alone. That is how the one fabricated verification claim was caught.
+4. **Pre-scouting.** Once the supervisor ran the dry-run BEFORE dispatching, Phases 12, 13 and 15
+   each landed in one round instead of three.
+5. **Standing rules beat per-round adjudication.** R1 (lift refused constants) and R2 (exclude
+   `HengbotPolicy.`-qualified methods) turned two recurring STOPs into automatic handling.
+
+Residue that outlived the project:
+- Three methods excluded under R2 remain in `policy.py`: `_book_sale_store_type`,
+  `_town_observable_effect_state`, `_has_town_economic_path`. Each needs its own reviewed
+  dereference commit; none is urgent.
+- `policy.py` imports were deliberately never pruned (eight test modules import through them).
+- `tests/policy_shop_fixture.py` now hosts a base shared by two modules and its name is misleading.
+- §2's "four pickled classes stay in policy.py" sentence is stale.
+- The roadmap's `_observe` "133 attributes" figure was wrong; the measured value is **166**.
+- `verify_scope.KNOWN_LINT_FAILURES` is stale at 9 against a pre-existing fakery result of 13 —
+  this is why verify_scope exits 1 advisory. Deliberately NOT broadened.
+- Phase 14 (module constants) remains EXCLUDED by user decision, though Phases 10-13 lifted 44
+  constants piecemeal as tool prerequisites.
