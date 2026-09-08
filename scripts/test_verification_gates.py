@@ -60,6 +60,39 @@ class SyntheticRepo:
 
 
 class VerificationGateSelfTest(unittest.TestCase):
+    def test_policy_structure_is_an_unconditional_verification_module(self) -> None:
+        self.assertIn("tests.test_policy_structure", verify_scope.ALWAYS_MODULES)
+
+    def test_derived_scope_unions_symbol_references_with_every_always_module(self) -> None:
+        with SyntheticRepo() as repo:
+            repo.change()
+            scope = verify_scope.derive_scope(repo.root, repo.base, "WORKTREE")
+        self.assertEqual(
+            set(scope["modules"]),
+            verify_scope.ALWAYS_MODULES | {"tests.test_demo"},
+        )
+
+    def test_scoped_test_can_import_a_sibling_verification_script(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for directory in ("src", "tests", "scripts"):
+                (root / directory).mkdir()
+            (root / "scripts/gate_helper.py").write_text("VALUE = 7\n", encoding="utf-8")
+            (root / "tests/test_script_import.py").write_text(
+                "import gate_helper\nimport unittest\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_value(self): self.assertEqual(gate_helper.VALUE, 7)\n",
+                encoding="utf-8",
+            )
+            result = verify_scope.run_item(
+                root,
+                "tests.test_script_import",
+                [str(PYTHON), "-c", verify_scope._test_code("tests.test_script_import")],
+                10,
+                root / "logs",
+            )
+        self.assertEqual(result["status"], "ran")
+
     def test_live_artifact_survives_copy_and_atexit_cleanup(self) -> None:
         with SyntheticRepo() as repo, tempfile.TemporaryDirectory(prefix="vgate-live-") as live_name:
             live = Path(live_name)

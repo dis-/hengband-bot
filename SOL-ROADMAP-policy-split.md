@@ -1468,3 +1468,48 @@ now **1,612 lines**, so `verify_scope.ALWAYS_MODULES` forcing it into every scop
 nothing. What Phase 15 should now buy is different and more valuable: `tests.test_policy_structure`
 is NOT in `ALWAYS_MODULES`, so the exact-`__bases__` composition guard — the one thing that catches a
 silently dropped mixin — does not run unconditionally. Adding it is the point.
+
+#### Phase 15 result and project closeout (implementer, 2026-09-08)
+
+- Added `tests.test_policy_structure` to `verify_scope.ALWAYS_MODULES` and added three script
+  self-tests: one pins that membership directly, one pins that derived scope is the union of
+  symbol-referencing tests and every unconditional module, and one pins that scoped tests can
+  import sibling verification scripts. With the membership removed, the direct guard fails naming
+  `tests.test_policy_structure`. The first detached new-scope run exposed the runner's omitted
+  `scripts/` import path through `test_mutation_battery -> mutation_battery -> failure_headers`;
+  `run_item` now includes the copied `scripts/` directory in `PYTHONPATH`, and removing that entry
+  makes the subprocess regression fail.
+- Runtime command: `python -m unittest <module>` with the Codex runtime, `PYTHONPATH=src;tests;scripts`,
+  and a nonempty scratch `HENGBOT_HOME_HISTORY_DIR`. `tests.test_policy` ran 55 tests in 1.183s
+  (2.951s wall), so it stays in `ALWAYS_MODULES`; removing it is neither recommended nor proposed.
+  `tests.test_policy_structure` ran 7 tests in 58.835s (59.394s wall) because the checkpoint replay
+  dominates the module. The exact fourteen-base composition guard itself ran in 0.001s (0.511s
+  wall including interpreter startup). The guard is tiny, although the whole module is not; the
+  unconditional module cost is accepted because no other unconditional check requires the exact
+  `HengbotPolicy.__bases__` set and therefore catches a silently dropped mixin directly.
+- Historical derived-scope validation, using each named fix as the target and its parent as base:
+  `599abb2` (Home procurement) grew 40 -> 41 modules, gaining only
+  `tests.test_policy_structure`; `81b77a4` (equipment) stayed 50 -> 50 and `a5af827` (shop) stayed
+  52 -> 52 because both already changed and therefore derived the structure test. All three lost
+  zero modules.
+- `scripts/owner_map.py` was rerun over the package glob: the reason map is unchanged (676 reason
+  sites; 1,414 facts; 92 starvation-prone facts). `scripts/sale_key_lint.py` scanned all 57
+  `src/hengbot/*.py` modules and reported zero findings. No renamed-module finding exists to
+  classify; nothing moved in Phase 15.
+- Final line-count command: `C:\Program Files\Git\usr\bin\wc.exe -l` over `policy.py` and every
+  composed mixin. `policy.py` closes at **11,488 lines**, down from 38,260 at project start
+  (26,772 lines / 70.0%). The fourteen mixin modules are: `policy_calibration.py` 842,
+  `policy_combat.py` 2,696, `policy_equipment.py` 2,589, `policy_fundraising.py` 1,143,
+  `policy_home.py` 2,449, `policy_helpers.py` 407, `policy_identification.py` 1,082,
+  `policy_navigation.py` 1,688, `policy_observation.py` 1,006, `policy_quest.py` 5,089,
+  `policy_shop.py` 3,840, `policy_supply.py` 1,254, `policy_town.py` 4,288, and
+  `town_arbiter.py` 670.
+- Closeout residue: the three methods excluded by the two R2 findings remain in `policy.py`:
+  `_book_sale_store_type`, `_town_observable_effect_state`, and `_has_town_economic_path`.
+  `policy.py` imports remain deliberately unpruned. `tests/policy_shop_fixture.py` still has a
+  misleadingly narrow name. Section 2's sentence that four pickled classes stay in `policy.py`
+  remains stale. The roadmap's stale `_observe` write-surface figure of 133 is superseded by the
+  AST-derived **166**.
+
+**PROJECT CLOSED.** All thirteen move phases and the Phase 15 verification-tooling fix are complete;
+Phase 14 remains excluded by the authoritative user decision.

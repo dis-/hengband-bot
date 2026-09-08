@@ -25,7 +25,12 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = "1.0"
 WORKTREE_OWNER_FILE = ".hengbot-gate-owner.json"
 STALE_WORKTREE_AGE_SECONDS = 24 * 60 * 60
-ALWAYS_MODULES = {"tests.test_policy", "tests.test_cli", "tests.test_absorbing_states"}
+ALWAYS_MODULES = {
+    "tests.test_absorbing_states",
+    "tests.test_cli",
+    "tests.test_policy",
+    "tests.test_policy_structure",
+}
 LINTS = ("scripts/sale_key_lint.py", "scripts/test_fakery_lint.py")
 EXCLUDED_TESTS = {
     "test_cli.DecisionTimingTest": "known hang; exclusion required by SOL-TASK-verification-gates.md",
@@ -369,7 +374,9 @@ def run_item(root: Path, key: str, command: list[str], timeout: float, stderr_di
     stderr_dir.mkdir(parents=True, exist_ok=True)
     stderr_path = stderr_dir / (re.sub(r"[^A-Za-z0-9_.-]", "_", key) + ".stderr.log")
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root / "tests")))
+    env["PYTHONPATH"] = os.pathsep.join(
+        (str(root / "src"), str(root / "tests"), str(root / "scripts"))
+    )
     started = time.monotonic()
     try:
         stderr_label = str(stderr_path.relative_to(ROOT)).replace("\\", "/")
