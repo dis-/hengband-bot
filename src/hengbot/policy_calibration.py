@@ -20,6 +20,8 @@ from hengbot.equipment_transaction_planner import (
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
+    RESTORE_POTION_SVAL_BY_STAT,
+    STORE_ALCHEMIST,
     STORE_HOME,
     TVAL_CAPTURE,
     TVAL_CARD,
@@ -207,6 +209,103 @@ class CalibrationMixin:
             for item in snapshot.equipment
             if item.is_equipment and not item.is_cursed
         ]
+
+    def _home_stat_restore_candidate(
+        self, snapshot: Snapshot
+    ) -> InventoryItem | None:
+        """Return a currently addressable Home potion for a drained stat."""
+        if (
+            not self._home_knowledge_current
+            or not self._home_available_for_probe(snapshot)
+        ):
+            return None
+        addressable = self._home_knowledge_items[
+            : self._home_knowledge_valid_before
+        ]
+        for stat in snapshot.player.drained_stats:
+            sval = RESTORE_POTION_SVAL_BY_STAT.get(stat)
+            candidate = next(
+                (
+                    item
+                    for item in addressable
+                    if item.is_potion
+                    and item.aware
+                    and item.sval == sval
+                    and item.count > 0
+                    and self._item_signature(item) not in self._deferred_home_items
+                ),
+                None,
+            )
+            if candidate is not None:
+                return candidate
+        return None
+
+    def _stat_restore_purchase_actionable(
+        self, snapshot: Snapshot, stat: str
+    ) -> bool:
+        """Return whether the ordinary Alchemist route can restore ``stat``."""
+        if snapshot.player.gold <= 0:
+            return False
+        category = f"stat-restore:{stat}"
+        observed = self._town_visit_ledger.shelf_observations.get(
+            (STORE_ALCHEMIST, category)
+        )
+        if observed is not None:
+            return any(
+                price <= snapshot.player.gold for price, _units in observed
+            )
+        if (
+            STORE_ALCHEMIST in self._town_store_attempted
+            or STORE_ALCHEMIST in self._town_visit_ledger.blocked_stores
+        ):
+            return False
+        if (
+            self._town_map_active(snapshot)
+            and self._town_map.store_position(STORE_ALCHEMIST) is None
+        ):
+            return False
+        # The existing stat-restore NeedSpec owns one exploratory Alchemist
+        # visit.  Until that visit supplies negative shelf evidence, it is an
+        # actionable route; the observed branch above retires it immediately
+        # on stock-out or unaffordability.
+        return True
+
+    def _calibration_actionable_invalidator(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Name a known invalidator whose existing town action can clear it."""
+        if snapshot.player.drained_stats:
+            if any(
+                self._carried_restore_potion(snapshot, stat) is not None
+                for stat in snapshot.player.drained_stats
+            ):
+                return "actionable-invalidator:stat_cur"
+            if self._home_stat_restore_candidate(snapshot) is not None:
+                return "actionable-invalidator:stat_cur"
+            if any(
+                self._stat_restore_purchase_actionable(snapshot, stat)
+                for stat in snapshot.player.drained_stats
+            ):
+                return "actionable-invalidator:stat_cur"
+        if self._normal_remove_curse_actionable_this_visit(snapshot):
+            return "actionable-invalidator:pinned-set"
+        return None
+
+    def _queue_home_stat_restore(self, snapshot: Snapshot) -> None:
+        """Give an addressable Home restore potion to the existing executor."""
+        if (
+            self._home_pending_item is not None
+            or self._home_atomic_withdraw_pending is not None
+        ):
+            return
+        candidate = self._home_stat_restore_candidate(snapshot)
+        if candidate is None:
+            return
+        signature = self._item_signature(candidate)
+        self._home_pending_item = signature
+        self._home_pending_quantity = 1
+        self._home_pending_quantities[signature] = 1
+        self._home_withdrawal_queued = True
 
     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
         self._calibration_phase = "deposit"
@@ -780,10 +879,15 @@ class CalibrationMixin:
                         return WAIT_KEY
                     self._abort_character_calibration(snapshot, "no-pack-space")
                     return WAIT_KEY
+            entry_blocker = self.calibration_entry_state(snapshot)[
+                "entry_blocker"
+            ]
             self._calibration_entry_refusal = (
                 self._decision_sequence,
-                self.calibration_entry_state(snapshot)["entry_blocker"],
+                entry_blocker,
             )
+            if entry_blocker == "actionable-invalidator:stat_cur":
+                self._queue_home_stat_restore(snapshot)
             if (
                 self._calibration_blocked_this_visit
                 or self._calibration_restore_signatures
@@ -802,6 +906,7 @@ class CalibrationMixin:
                 or self._home_pending_item is not None
                 or self._home_pending_batch
                 or self._home_atomic_withdraw_pending is not None
+                or self._calibration_actionable_invalidator(snapshot) is not None
             ):
                 return None
             self._begin_character_calibration(snapshot)

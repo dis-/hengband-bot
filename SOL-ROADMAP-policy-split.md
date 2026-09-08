@@ -1577,3 +1577,29 @@ Residue that outlived the project:
   this is why verify_scope exits 1 advisory. Deliberately NOT broadened.
 - Phase 14 (module constants) remains EXCLUDED by user decision, though Phases 10-13 lifted 44
   constants piecemeal as tool prerequisites.
+
+### Calibration start timing decision (2026-09-09)
+
+The user approved D2: do not start calibration while a known invalidator has an actionable clearing
+path. The start gate now defers `stat_cur` only while a drained stat can be restored by an aware
+carried potion, an addressable non-deferred Home potion, or the existing Alchemist errand while its
+stock/affordability question remains live. Negative or unaffordable shelf evidence retires the gate
+immediately; no counter, latch, retry budget, or new guard constant was added. A Home match is queued
+through the existing atomic Home withdrawal executor. The existing cheap
+`_normal_remove_curse_actionable_this_visit` predicate also makes an actionable normal worn curse a
+`pinned-set` start blocker. `character-identity`, `level`, and `mutations` remain deliberately outside
+the gate because they are not predictable planned work. Deferrals are reported only through
+`equipment_optimization.calibration.entry_blocker`.
+
+The production-faithful start pin uses decision 5095 / turn 1571525 extracted byte-for-byte from
+`jsonlog/home-entry-capture.jsonl.2` into the committed
+`tests/fixtures/calibration-start-timing-live.jsonl.gz`; it is the drained-CON snapshot immediately
+after the observed first cycle began. Tests build Home and shelf knowledge through their real public
+consumers on the same policy instance. The F1 pin first observes an unaffordable restore potion
+through the real shelf producer, then proves calibration starts as soon as that actionability
+disappears.
+
+Separate task candidate: in the incident window the calibration phase machine advanced only when
+`town-progress-invariant:defect:*` fired, 14 times, including
+`calibration:strip-installed=>...` and `boxed-breakout`. Investigate and remove that dependency in a
+dedicated task; it is recorded here and intentionally not repaired by the calibration-timing change.

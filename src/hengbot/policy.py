@@ -6435,6 +6435,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             blocker = "home-scan-incomplete"
         elif self._validated_character_calibration(snapshot) is not None:
             blocker = "calibration-valid"
+        elif self._calibration_actionable_invalidator(snapshot) is not None:
+            blocker = self._calibration_actionable_invalidator(snapshot)
         elif any(monster.hostile for monster in snapshot.visible_monsters):
             blocker = "calibration-preconditions"
         elif not self._home_available(snapshot):

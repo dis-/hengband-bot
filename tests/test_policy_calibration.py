@@ -22,11 +22,15 @@ from hengbot.model import (
     Position,
     STORE_ALCHEMIST,
     STORE_HOME,
+    STORE_TEMPLE,
     SV_LITE_FEANOR,
     SV_LITE_LANTERN,
     SV_POTION_CURE_CRITICAL,
+    SV_POTION_RESTORE_CON,
     SV_SCROLL_IDENTIFY,
+    SV_SCROLL_REMOVE_CURSE,
     Snapshot,
+    StoreState,
     TVAL_LITE,
     TVAL_POTION,
     TVAL_RING,
@@ -85,6 +89,26 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
         return policy
 
+    def _live_calibration_start_snapshot(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "calibration-start-timing-live.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["decision_index"], 5095)
+        self.assertEqual(row["last_reason"], "store:entry-await-observation")
+        snapshot = pickle.loads(
+            base64.b64decode(row["decision_snapshot_pickle_b64"])
+        )
+        self.assertEqual(snapshot.turn, 1571525)
+        self.assertEqual(snapshot.player.drained_stats, ("con",))
+        self.assertEqual(snapshot.player.gold, 4358)
+        return snapshot
+
     def test_optimizer_fails_closed_and_never_triggers_the_phase_itself(self):
         policy = HengbotPolicy()
         snapshot = self._snapshot()
@@ -132,6 +156,124 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self._snapshot(inventory=(pack,), equipment=(worn,))
         )
         self.assertEqual(ready._calibration_phase, "deposit")
+
+    def test_live_drained_con_defers_calibration_until_restore_errand(self):
+        """The captured first-cycle start must yield to its live CON errand."""
+        snapshot = self._live_calibration_start_snapshot()
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+
+        policy.choose_key(snapshot)
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(
+            policy.equipment_optimization_state(snapshot)["calibration"],
+            {
+                "phase": None,
+                "entry_blocker": "actionable-invalidator:stat_cur",
+            },
+        )
+
+    def test_unaffordable_restore_retires_deferral_and_starts_calibration(self):
+        """F1: shelf evidence retires the gate without a count or retry latch."""
+        snapshot = self._live_calibration_start_snapshot()
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        self.assertEqual(
+            policy.calibration_entry_state(snapshot)["entry_blocker"],
+            "actionable-invalidator:stat_cur",
+        )
+        expensive = store_item(
+            "a",
+            TVAL_POTION,
+            SV_POTION_RESTORE_CON,
+            price=snapshot.player.gold + 1,
+            name="Restore Constitution",
+        )
+        alchemist = replace(
+            snapshot,
+            store=StoreState(STORE_ALCHEMIST, [expensive]),
+        )
+        # The first observation opens the town epoch; the second is retained
+        # by the real shelf producer on this same policy instance.
+        policy.choose_key(alchemist)
+        policy.choose_key(replace(alchemist, turn=alchemist.turn + 1))
+
+        outside = replace(snapshot, turn=snapshot.turn + 2, store=None)
+        policy.choose_key(outside)
+
+        self.assertFalse(any(
+            item.sval == SV_POTION_RESTORE_CON for item in outside.inventory
+        ))
+        self.assertEqual(policy._home_knowledge_items, ())
+        self.assertEqual(policy._calibration_phase, "deposit")
+        self.assertEqual(
+            policy.calibration_entry_state(outside),
+            {"phase": "deposit", "entry_blocker": None},
+        )
+
+    def test_carried_restore_is_consumed_before_calibration_can_start(self):
+        snapshot = self._live_calibration_start_snapshot()
+        restore = item(
+            "z", TVAL_POTION, SV_POTION_RESTORE_CON,
+            name="Restore Constitution",
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+
+        policy.choose_key(
+            replace(snapshot, inventory=[*snapshot.inventory, restore])
+        )
+
+        self.assertEqual(policy.last_reason, "restore:quaff-con")
+        self.assertIsNone(policy._calibration_phase)
+
+    def test_home_restore_is_queued_before_calibration_can_start(self):
+        snapshot = self._live_calibration_start_snapshot()
+        restore = item(
+            "h", TVAL_POTION, SV_POTION_RESTORE_CON, count=2,
+            name="Restore Constitution",
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((restore,))
+
+        policy.choose_key(snapshot)
+
+        signature = policy._item_signature(restore)
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._home_pending_item, signature)
+        self.assertEqual(policy._home_pending_quantities[signature], 1)
+        self.assertTrue(policy._home_withdrawal_queued)
+        self.assertEqual(
+            policy.calibration_entry_state(snapshot)["entry_blocker"],
+            "actionable-invalidator:stat_cur",
+        )
+
+    def test_actionable_remove_curse_defers_pinned_set_calibration(self):
+        cursed = item(
+            "main_ring", TVAL_RING, 4, name="cursed ring", known=True,
+            fully_known=True, is_equipment=True, is_cursed=True,
+        )
+        scroll = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE,
+            price=100, name="Remove Curse",
+        )
+        outside = self._snapshot(equipment=(cursed,))
+        temple = replace(
+            outside, store=StoreState(STORE_TEMPLE, [scroll])
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        policy.choose_key(temple)
+        policy.choose_key(replace(temple, turn=temple.turn + 1))
+
+        policy.choose_key(replace(outside, turn=outside.turn + 2))
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(
+            policy.calibration_entry_state(outside)["entry_blocker"],
+            "actionable-invalidator:pinned-set",
+        )
 
     def test_deposit_phase_deposits_protected_supplies_and_records_restore(self):
         policy = self._scan_complete_policy()
