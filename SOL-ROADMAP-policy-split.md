@@ -1361,3 +1361,46 @@ will collide with a `_town_*` selector) and module-level constants the tool refu
   `policy.py` re-exports. `tests/policy_shop_fixture.py` now serves town and shop
   test modules; its name is narrower than its shared role, but renaming it is
   deliberately outside this commit.
+
+#### Phase 12 verdict (supervisor, 2026-09-08)
+
+Phase 12: ACCEPT and PUSHED as `40b8476` (constants) + `afc0a29` (move + ledger) + `047646f`
+(fakery-lint fixture repoint). First round, no STOP — the pre-scouting and the new standing rules
+R1/R2 did what they were meant to. Independently re-derived by the supervisor:
+
+- **77/77 moved methods AST-identical**, `TownMixin` contains no method absent from the base class,
+  **307/307 retained identical**, nothing lost or duplicated. `_town_need_candidates` (601 lines)
+  moved whole.
+- Composition is 13 bases with **TownMixin immediately before TownArbiterMixin** and the two still
+  separate, as the phase required. `test_policy_mixins_have_no_method_name_collisions` passes, which
+  is what makes the changed MRO order harmless.
+- **`home_entry_capture.STATE_FIELDS`: 29 names, identical order and values** — the obligation this
+  phase was most likely to breach (tangle 3 is town state, and a rename there fails silently).
+- Test ids 1091 -> 1091 across the five affected modules; 551 renamed 1:1 and body-identical, the
+  552nd difference being the guard's own twelve -> thirteen rename. New 0, removed 0, duplicated 0.
+- 23 constants lifted (the supervisor's 20 plus `RECALL_ISSUE_CONFIRM_TURNS`, `MOVE_REASONS`,
+  `RUMOR_KEY`, the last two because the moved definitions depend on them) — all
+  definition-identical and all still re-exported from `hengbot.policy`.
+- All 11 `mutation_battery` ids resolve. 19 receipts hash-matched at the shipped head; parallel x2
+  and serial standing all 3142 green; live history untouched.
+- R2 applied as specified: `_town_observable_effect_state` and `_has_town_economic_path` stayed in
+  `policy.py`, confirmed present there and absent from `TownMixin`.
+
+Sweep finding worth keeping: `tests/test_policy_equipment.py` was a THIRD importer the roadmap never
+named. The roadmap's importer lists have been incomplete in every phase — the tree-wide sweep, not
+the roadmap, is the authority.
+
+**policy.py is now 12,518 lines — down from 38,260 at project start (−67%).**
+
+#### Phase 13 pre-scouting (supervisor, 2026-09-08)
+
+Dry-run at `047646f`: the roadmap's Phase 13 selectors match **exactly the stated 7 methods**
+(`observe_character_snapshot`, `_observe`, `_current_pinned_identities`,
+`_resolve_observed_uncomposable_stop`, `_strategy_force_for_snapshot`, `_missing_required_abilities`,
+`_refresh_warning_avoidance`) with deltas −988/+995 against the roadmap's −989/+1,030. **No
+back-reference**, so R2 does not apply. Thirteen constants need the R1 lift:
+`EMERGENCY_ESCAPE_REASONS`, `EMPTY_DIVE_LIMIT`, `HOME_PLAN_OWNED_PROCESSING_REASONS`,
+`NO_DEPTH_PROGRESS_DIVE_LIMIT`, `OVEREXTEND_EMERGENCY_MIN`, `OVEREXTEND_LOOT_MAX`, `PICKUP_REASONS`,
+`STUCK_FAMILY_REASONS`, `STUCK_NEUTRAL_REASONS`, `TOWN_CYCLE_IGNORED_REASONS`,
+`TOWN_NO_PROGRESS_LIMIT`, `TOWN_WANDER_LIMIT`, `TOWN_WANDER_REASONS`. Decorator-stranding sentinel:
+`_approved_strategy_force_ready`. This is the first phase whose selector list is not defective.
