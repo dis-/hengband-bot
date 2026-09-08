@@ -1,3 +1,4 @@
+import base64
 import gzip
 import hashlib
 import json
@@ -16,6 +17,7 @@ from hengbot.model import (
     Snapshot,
     parse_snapshot,
 )
+from hengbot.latch_onset_capture import checkpoint
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, _persistent_grid_signature
 from hengbot.town_maps import TownMap
@@ -107,6 +109,56 @@ def snapshot(grids, *, floor_key=(0, 0, 0), town=True, width=7, height=5, town_i
 
 
 class TownLatencyCacheTest(unittest.TestCase):
+    def test_fixed_quest_offer_cache_clears_at_public_decision_boundary(self):
+        offer = Position(2, 4)
+        board = snapshot({offer: grid(offer, building_special=34)})
+        policy = HengbotPolicy()
+
+        policy.choose_key(board)
+        self.assertTrue(policy._fixed_quest_is_offered(board, 34))
+        self.assertFalse(policy._fixed_quest_is_offered(board, 14))
+
+        # Reuse the exact Snapshot identity with a new producer observation.
+        # Only the public decision boundary may make the cached answer stale.
+        board.grids[offer] = grid(offer, building_special=14)
+        policy.choose_key(board)
+
+        self.assertFalse(policy._fixed_quest_is_offered(board, 34))
+        self.assertTrue(policy._fixed_quest_is_offered(board, 14))
+
+    def test_fixed_quest_head_is_computed_once_per_snapshot_identity(self):
+        policy = HengbotPolicy()
+        board = snapshot({})
+        calls = 0
+        original = policy._uncached_fixed_quest_head
+
+        def counted(candidate):
+            nonlocal calls
+            calls += 1
+            return original(candidate)
+
+        policy._uncached_fixed_quest_head = counted
+        expected = policy._fixed_quest_head(board)
+        for _ in range(20):
+            self.assertEqual(policy._fixed_quest_head(board), expected)
+
+        self.assertEqual(calls, 1)
+
+    def test_fixed_quest_caches_do_not_change_checkpoint_bytes(self):
+        policy = HengbotPolicy()
+        board = snapshot({})
+        before = base64.b64decode(checkpoint(policy))
+
+        policy._fixed_quest_is_offered(board, 34)
+        policy._fixed_quest_head(board)
+        after = base64.b64decode(checkpoint(policy))
+
+        self.assertEqual(len(after), len(before))
+        self.assertEqual(
+            hashlib.sha256(after).digest(), hashlib.sha256(before).digest()
+        )
+        self.assertEqual(after, before)
+
     def test_fixed_quest_offer_scan_is_shared_with_original_decision_snapshot(self):
         class CountingGrids(dict):
             def __init__(self, *args, **kwargs):

@@ -29,6 +29,10 @@ _CAPTURE_STATE_NAMES = frozenset(
         # Derived registry contains local predicate lambdas. It is rebuilt on
         # first use from the authoritative policy state.
         "_town_need_specs",
+        # Per-decision memoization is derived from Snapshot identity and must
+        # never become restorable decision state.
+        "_fixed_quest_offer_cache",
+        "_fixed_quest_head_cache",
         # The Home capture is an observer, not restorable policy state.  It also
         # contains the checkpoint currently being built.
         "_home_entry_capture",

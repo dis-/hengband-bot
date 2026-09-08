@@ -1353,6 +1353,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._map_predicate_snapshot: Snapshot | None = None
         self._decision_input_snapshot: Snapshot | None = None
         self._fixed_quest_offers: frozenset[int] = frozenset()
+        # Derived only for the current public decision.  Each identity entry
+        # holds its Snapshot reference so a recycled id can never hit.
+        self._fixed_quest_offer_cache: dict[
+            int, tuple[Snapshot, frozenset[int]]
+        ] = {}
+        self._fixed_quest_head_cache: dict[
+            int, tuple[Snapshot, QuestState | None]
+        ] = {}
         self._equipment_departure_cache_token: int | None = None
         self._equipment_departure_cache_value = False
         self._hazard_cache: dict[Position, bool] = {}
@@ -2222,6 +2230,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        # Snapshot-derived answers must never survive a public decision
+        # boundary, even when a caller reuses and mutates a Snapshot object.
+        self._fixed_quest_offer_cache = {}
+        self._fixed_quest_head_cache = {}
         # The public boundary is also the diagnostic boundary: capture hooks
         # checkpoint policy state before delegating to ``_choose_key``.  Keep
         # the carried catalogue authoritative here so a freshly observed

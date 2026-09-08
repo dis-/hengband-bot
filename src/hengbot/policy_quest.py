@@ -3961,6 +3961,21 @@ class QuestMixin:
 
     def _fixed_quest_head(self, snapshot: Snapshot) -> QuestState | None:
         """Select one transaction head before readiness or routing is tested."""
+        cache = getattr(self, "_fixed_quest_head_cache", None)
+        if cache is None:
+            cache = {}
+            self._fixed_quest_head_cache = cache
+        identity = id(snapshot)
+        cached = cache.get(identity)
+        if cached is not None and cached[0] is snapshot:
+            return cached[1]
+        head = self._uncached_fixed_quest_head(snapshot)
+        cache[identity] = (snapshot, head)
+        return head
+
+    def _uncached_fixed_quest_head(
+        self, snapshot: Snapshot
+    ) -> QuestState | None:
         def supported(quest: QuestState) -> bool:
             return quest.id in FIXED_QUEST_ALLOWLIST
 
@@ -4310,26 +4325,35 @@ class QuestMixin:
         # terrain retained from the preceding player-turn snapshot.  Do not use
         # static quest data here; remembered building specials were emitted to
         # the player and preserve conditional offer chains fairly.
-        if (
-            snapshot is self._map_predicate_snapshot
-            or snapshot is self._decision_input_snapshot
-        ):
-            if self._fixed_quest_offers:
-                return quest_id in self._fixed_quest_offers
-            if self._town_map_active(snapshot):
-                return bool(self._town_map.quest_building_positions(quest_id))
-            return False
-        grids = snapshot.grids
-        if snapshot.store is not None and not grids:
-            grids = self._remembered_grids
-        specials = {
-            grid.building_special
-            for grid in grids.values()
-            if grid.building_special
-        }
+        cache = getattr(self, "_fixed_quest_offer_cache", None)
+        if cache is None:
+            cache = {}
+            self._fixed_quest_offer_cache = cache
+        identity = id(snapshot)
+        cached = cache.get(identity)
+        if cached is not None and cached[0] is snapshot:
+            specials = cached[1]
+        else:
+            if (
+                snapshot is self._map_predicate_snapshot
+                or snapshot is self._decision_input_snapshot
+            ):
+                specials = self._fixed_quest_offers
+            else:
+                grids = snapshot.grids
+                if snapshot.store is not None and not grids:
+                    grids = self._remembered_grids
+                specials = frozenset(
+                    grid.building_special
+                    for grid in grids.values()
+                    if grid.building_special
+                )
+            cache[identity] = (snapshot, specials)
         if specials:
             return quest_id in specials
-        return bool(self._fixed_quest_building_positions(snapshot, quest_id))
+        if self._town_map_active(snapshot):
+            return bool(self._town_map.quest_building_positions(quest_id))
+        return False
 
     def _fixed_quest_entrance_positions(
         self, snapshot: Snapshot, quest_id: int
