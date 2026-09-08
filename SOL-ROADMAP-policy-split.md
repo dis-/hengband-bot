@@ -1131,3 +1131,71 @@ which names instance attributes, not methods):
 
 This realizes the roadmap's own 65-method figure; it is a correction of the selector rendering,
 not a scope change. Anything these 24 + the prefixes still leave behind is residue for §10.
+
+### Phase 11b selector correction (supervisor, 2026-09-08)
+
+sol STOPPED before implementing Phase 11b, correctly, under plan-source-of-truth: the phase's
+literal selectors match **27** methods against a stated size of **72**, and 38 catalog names would
+have been left in `policy.py` — at least ten of them direct purchase/sale operations. That STOP is
+the right outcome and is recorded as accurate.
+
+Two defects in the roadmap's Phase 11 line, both proven:
+
+1. **The stated 72 is partly a regex artefact.** The count was derived by matching names containing
+   shop/store/purchase/sale/sell. The substring `store` also occurs inside **re-store**, so
+   `_empty_lantern_to_restore` and `_breakout_restore_weapon_key` entered the catalog as FALSE
+   POSITIVES. They are lantern-refuel and weapon-restore methods with no shop surface and are
+   EXCLUDED from Phase 11b.
+2. **The selector list and the count describe different sets.** `_cheapest_exchange_item` is an
+   exact selector that is outside the regex catalog; conversely no selector reaches any of the 38.
+
+**Phase 12 owns `_town_*` by its own documented prefix**, so these six are DEFERRED to Phase 12
+rather than pre-empted here — Phase 12's review must confirm it takes them:
+
+- `_town_observed_purchase_is_composable`
+- `_town_blocked_purchase_is_composable`
+- `_town_store_visit_limit`
+- `_town_store_blocked_under_applicable_bound`
+- `_town_organization_sale_store`
+- `_town_blocked_store_context`
+
+**Phase 11b therefore moves the 27 literal matches PLUS these 31 EXACT names** (58 total). Store and
+visit lifecycle: `_arbiter_close_store_visit`, `_release_invalid_store_visit`,
+`_release_staged_store_operation`, `_release_blocked_store_latches`, `_retry_after_store_restock`,
+`_released_restock_store_key`, `_rearm_town_store_for_new_work`, `_set_town_store_attempted`,
+`_inventory_item_from_store_item`, `_dominated_disposal_store`, `cross_town_shopping_state` (public;
+the `_cross_town_shopping*` selector's leading underscore misses it). Sale mechanics:
+`_digging_tool_sale_quality`, `_book_sale_store_type`, `_find_device_sale`,
+`_mana_survival_sale_candidate`, `_current_store_sale_candidates`, `_sale_tag_is_unique`,
+`_sale_inscription_text`, `_item_has_sale_tag`, `_sale_item_identity`. Purchase gating:
+`_record_purchase_home_refusal`, `_publish_purchase_home_block`,
+`_wanted_purchase_is_home_first_refused`, `_black_market_optional_purchase`, `_live_purchase_need`,
+`_mandatory_purchase`, `_star_remove_curse_reserve_purchase_needed`. Stat restore:
+`_carried_restore_potion`, `_needs_stat_restore`, `_restore_potion_purchase`,
+`_stat_restore_quaff_key` — kept together because the roadmap already assigns `StatRestoreTest` to
+`tests/test_policy_shop.py`; splitting the feature from its test class would be the incoherent
+choice.
+
+Accounting: 39 present-and-unmatched = 31 moved now + 6 deferred to Phase 12 + 2 regex false
+positives excluded. The line-count expectations (−4,114/+4,160) do not survive re-derivation either
+and are superseded by whatever the corrected dry-run measures; record the measurement, not the
+prose.
+
+**P0 prerequisite — the `_new_town_turn_arbiter` back-reference.** Exactly one moved method,
+`_shopping_approach_step`, calls the module-level factory `_new_town_turn_arbiter` (policy.py:1196);
+the other three callers (`__init__`, `choose_key`, `_choose_key`) are spine and stay. `split_move.py`
+correctly refuses to generate `from .policy import _new_town_turn_arbiter`. Resolution, following
+the Phase 10 precedent (8d3b913 lifted 8 constants + `ProcurementHomeGate` as a prerequisite):
+
+- lift the five constants the factory reads that are still in `policy.py` —
+  `IDENTIFY_PURCHASE_MAX`, `SELL_ATTEMPT_LIMIT`, `SHOP_APPROACH_STUCK_LIMIT`, `STORE_RETRY_TURNS`,
+  `TOWN_CYCLE_BREAK_LIMIT` — into `policy_constants.py`, KEEPING `policy.py` re-export imports for
+  every external consumer (sweep before asserting there are none; that assertion was wrong once);
+- then lift `_new_town_turn_arbiter` itself into `town_arbiter.py`, next to the `TownTurnArbiter` it
+  builds, which already imports from `policy_constants`. Re-export it from `policy.py`:
+  `tests/town_acquire_bypass_recorded.py` and `tests/town_emit_ownership_recorded.py` do
+  `from hengbot.policy import _new_town_turn_arbiter`. No `patch("hengbot.policy._new_town_turn_arbiter")`
+  target exists today — verify that again before relying on it.
+
+This is a targeted prerequisite lift, NOT Phase 14: Phase 14 was the wholesale relocation of module
+constants across 25 import sites and remains EXCLUDED by user decision.
