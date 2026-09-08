@@ -166,7 +166,9 @@ from hengbot.policy_constants import (
     DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
     DESTROY_COMMAND,
+    EMERGENCY_ESCAPE_REASONS,
     EMERGENCY_POTION_CARRY_TARGET,
+    EMPTY_DIVE_LIMIT,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     ENTER_DUNGEON_MACRO,
@@ -176,6 +178,7 @@ from hengbot.policy_constants import (
     FOOD_TYPE_RATION,
     FOOD_TYPE_MANA,
     HEAVY_CURSE_TAG,
+    HOME_PLAN_OWNED_PROCESSING_REASONS,
     INN_BUILDING_TYPE,
     INSCRIBE_KEY,
     LOW_VALUE_POTION_SVALS,
@@ -209,7 +212,11 @@ from hengbot.policy_constants import (
     MIN_TERMINAL_FREE_PACK_SLOTS,
     MOVE_REASONS,
     NEIGHBOR_OFFSETS,
+    NO_DEPTH_PROGRESS_DIVE_LIMIT,
+    OVEREXTEND_EMERGENCY_MIN,
+    OVEREXTEND_LOOT_MAX,
     PACK_CAPACITY,
+    PICKUP_REASONS,
     HOME_BATCH_RESERVED_SLOTS,
     PLAYER_CLASS_BERSERKER,
     PROBE_LIMIT,
@@ -229,6 +236,8 @@ from hengbot.policy_constants import (
     STORE_ACCEPTED_TVALS,
     STORE_RETRY_TURNS,
     STORE_STUCK_LIMIT,
+    STUCK_FAMILY_REASONS,
+    STUCK_NEUTRAL_REASONS,
     RESTOCK_WAIT_MACRO,
     RUMOR_COST,
     RUMOR_GOLD_RESERVE,
@@ -241,17 +250,21 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STORE_SYMBOLS,
     TOWN_CLAIM_ADVANCING_MOVE_REASONS,
     CROSS_TOWN_SHOPPING_RESERVE,
+    TOWN_CYCLE_IGNORED_REASONS,
     TOWN_CYCLE_MAX_DISTINCT,
     TOWN_CYCLE_WINDOW,
     TOWN_FAST_TRAVEL_MAX_POSITIONS,
     TOWN_FAST_TRAVEL_MIN_ROWS,
     TOWN_FAST_TRAVEL_WINDOW,
+    TOWN_NO_PROGRESS_LIMIT,
     TOWN_STOP_PASS_LIMIT,
     TOWN_TELEPORT_BUILDING_TYPES,
     TOWN_TRAVEL_MIN_DISTANCE,
     TOWN_CYCLE_BREAK_LIMIT,
     TOWN_TRAVEL_STALL_LIMIT,
     TOWN_TRAVEL_TURN_STALL_LIMIT,
+    TOWN_WANDER_LIMIT,
+    TOWN_WANDER_REASONS,
     STAIR_OBSERVATION_WAIT_LIMIT,
     SHOP_APPROACH_STUCK_LIMIT,
     OPEN_KEY,
@@ -516,9 +529,6 @@ ENTRANCE_TRAVEL_MACRO = "\x1b`n>."
 # Adjacent-ish goals are cheaper on foot than a travel round-trip.
 # Consecutive travel issues without getting closer before giving the goal back
 # to BFS walking (an unknown approach makes the game reject the route).
-HOME_PLAN_OWNED_PROCESSING_REASONS = {
-    "home:processing-complete",
-}
 # Positive page-state observations after a posted Home SPACE.
 # store-key-processor.cpp:90-106: when the whole stock fits one page, SPACE
 # prints this message and does NOT redraw — the observation is current and the
@@ -670,33 +680,10 @@ SWARM_FLEE_DAMAGE_RATIO = 0.6  # flee a swarm only if it could take this share o
 # a frontier or fighting) before we give up and Word-of-Recall out. A level whose
 # down-stairs are walled off otherwise traps the bot forever: supplies stay fine,
 # so the town-return never fires, and it just searches/wanders in place.
-STUCK_FAMILY_REASONS = frozenset(
-    {
-        "stuck:wander",
-        "stuck:seek-stairs",
-        "search",
-        "seek-secret-wall",
-        "breakout:least-visited",
-        "breakout:seek-frontier",
-        "breakout:dig-to-stairs",
-        "probe",
-        # Leaving a fundraising floor toward up-stairs it cannot reach loops the
-        # same way (a walled-off ascent), so those reasons count too.
-        "fundraise:seek-upstairs",
-        "fundraise:seek-upstairs-explore",
-        "fundraise:seek-upstairs-wander",
-        "fundraise:probe",
-        "fundraise:search",
-        "paralyzer-guard:approach-range",
-    }
-)
 # Floor upkeep that a stuck bot still does between searches (relight, heal, eat).
 # These must neither grow the stuck streak nor RESET it — otherwise a relight
 # every few turns keeps the streak pinned near zero and the escape never fires.
 # Only genuine progress (exploring a frontier, fighting, descending) resets it.
-STUCK_NEUTRAL_REASONS = frozenset(
-    {"rest", "refill-light", "wield-light", "eat", "item:eat"}
-)
 # Mode-independent navigation invariant (R1 redesign): a dungeon decision makes
 # "progress" only when it grows remembered map coverage, improves a committed
 # navigation target's best distance, changes gold/pack/equipment, fights, or
@@ -744,8 +731,6 @@ ESCAPE_BUDGETED_WAIT_LIMITS = {
 # wandering; TOWN_WANDER_LIMIT is several times larger than any legitimate town
 # traverse (so real shopping/travel never trips it) yet small enough to bound a
 # future deadlock to roughly a minute of wall-clock play instead of hours.
-TOWN_WANDER_REASONS = frozenset({"stuck:wander", "breakout:least-visited"})
-TOWN_WANDER_LIMIT = 60
 
 # Generic town-repetition detector (user directive: auto-detect and repair this
 # CLASS). Every observed shape — Home-door bounce, store-to-store travel
@@ -767,19 +752,6 @@ TOWN_WANDER_LIMIT = 60
 # marker remains frozen until the first transaction.  The original 96-decision
 # bound is safe for every known legitimate shape: Home scans are page-bounded,
 # and purchases reset the marker per transaction.
-TOWN_NO_PROGRESS_LIMIT = 96
-TOWN_CYCLE_IGNORED_REASONS = frozenset(
-    {
-        "town:wait-recall",
-        "return:wait-recall",
-        "town:cycle-break",
-        # This long locomotion leg is independently bounded by both native-
-        # travel progress leashes.  Counting its duplicate input-latency rows
-        # as transaction/wander no-progress falsely blocks a productive walk
-        # across town before it can reach the entrance.
-        "town:travel-entrance",
-    }
-)
 # Over-extension: this many dives into the recall-target dungeon that collect ZERO
 # loot means it is too deep for the character (a clvl-24 warrior in Angband, whose
 # recommended level is 30, grabs one trivial item, burns escape scrolls on repeated
@@ -791,8 +763,6 @@ TOWN_CYCLE_IGNORED_REASONS = frozenset(
 # spam is what drains the kit, so counting escapes captures the kit-depletion the
 # user pointed to. A quiet zero-loot dive (just found nothing, no danger) does NOT
 # count; an over-deep dive is defined by the danger, not the empty pack alone.
-EMPTY_DIVE_LIMIT = 3  # consecutive over-extended dives before switching dungeons
-NO_DEPTH_PROGRESS_DIVE_LIMIT = 5
 
 # Authoritative depth-requirement table (bot-client/AGENTS.md "Authoritative depth
 # requirements"). Each (min_depth, max_depth, required abilities) band lists the
@@ -826,20 +796,8 @@ TR_NO_TELE = 68
 # a few hundred distinct (race, actions, distance, player-profile) combinations,
 # and every input is part of the key, so entries can never go stale.
 AGGREGATE_RANGED_CACHE_LIMIT = 4096
-OVEREXTEND_LOOT_MAX = 4  # "almost nothing": at most this many pickups on the dive
-OVEREXTEND_EMERGENCY_MIN = 2  # ...paired with at least this many emergency escapes
-PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
 # Bailing out under fire: teleport/phase away, recall out, or run for the stairs.
 # Being forced into these repeatedly is the signature of a too-deep floor.
-EMERGENCY_ESCAPE_REASONS = frozenset(
-    {
-        "emergency:teleport",
-        "emergency:phase",
-        "emergency:recall",
-        "emergency:stairs",
-        "emergency:seek-upstairs",
-    }
-)
 
 # Descending / healing. Dive only when healthy, and recover between fights so we
 # are never caught deep and weak (the classic too-fast-dive death).

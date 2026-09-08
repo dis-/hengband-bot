@@ -625,3 +625,71 @@ RUMOR_READ_KEY = RUMOR_KEY + "\r"  # pick the rumor action, dismiss its -more-
 RUMOR_READS_PER_VISIT = 40
 
 RUMOR_GOLD_RESERVE = 300
+
+EMERGENCY_ESCAPE_REASONS = frozenset(
+    {
+        "emergency:teleport",
+        "emergency:phase",
+        "emergency:recall",
+        "emergency:stairs",
+        "emergency:seek-upstairs",
+    }
+)
+
+EMPTY_DIVE_LIMIT = 3  # consecutive over-extended dives before switching dungeons
+
+HOME_PLAN_OWNED_PROCESSING_REASONS = {
+    "home:processing-complete",
+}
+
+NO_DEPTH_PROGRESS_DIVE_LIMIT = 5
+
+OVEREXTEND_EMERGENCY_MIN = 2  # ...paired with at least this many emergency escapes
+
+OVEREXTEND_LOOT_MAX = 4  # "almost nothing": at most this many pickups on the dive
+
+PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
+
+STUCK_FAMILY_REASONS = frozenset(
+    {
+        "stuck:wander",
+        "stuck:seek-stairs",
+        "search",
+        "seek-secret-wall",
+        "breakout:least-visited",
+        "breakout:seek-frontier",
+        "breakout:dig-to-stairs",
+        "probe",
+        # Leaving a fundraising floor toward up-stairs it cannot reach loops the
+        # same way (a walled-off ascent), so those reasons count too.
+        "fundraise:seek-upstairs",
+        "fundraise:seek-upstairs-explore",
+        "fundraise:seek-upstairs-wander",
+        "fundraise:probe",
+        "fundraise:search",
+        "paralyzer-guard:approach-range",
+    }
+)
+
+STUCK_NEUTRAL_REASONS = frozenset(
+    {"rest", "refill-light", "wield-light", "eat", "item:eat"}
+)
+
+TOWN_CYCLE_IGNORED_REASONS = frozenset(
+    {
+        "town:wait-recall",
+        "return:wait-recall",
+        "town:cycle-break",
+        # This long locomotion leg is independently bounded by both native-
+        # travel progress leashes.  Counting its duplicate input-latency rows
+        # as transaction/wander no-progress falsely blocks a productive walk
+        # across town before it can reach the entrance.
+        "town:travel-entrance",
+    }
+)
+
+TOWN_NO_PROGRESS_LIMIT = 96
+
+TOWN_WANDER_LIMIT = 60
+
+TOWN_WANDER_REASONS = frozenset({"stuck:wander", "breakout:least-visited"})
