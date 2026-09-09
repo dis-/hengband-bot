@@ -1,4 +1,5 @@
 import base64
+import gzip
 import json
 import pickle
 import unittest
@@ -23,6 +24,84 @@ from absorbing_state_catalog import TownWorld
 
 
 class LatchOnsetCaptureTest(unittest.TestCase):
+    _SLIM_STATE_NAMES = frozenset(
+        {
+            "_monrace_knowledge",
+            "_remembered_grid_sources",
+            "_remembered_grid_signatures",
+            "_threat_prediction_memo",
+            "_map_predicate_snapshot",
+            "_decision_input_snapshot",
+            "_town_fact_snapshot",
+        }
+    )
+
+    def test_slim_checkpoint_replays_old_home_deferral_producer_decision(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "home-deferral-absorbing-state.json.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            capture = json.load(stream)
+        producer = capture["sequence"][0]
+        snapshot = pickle.loads(base64.b64decode(
+            capture["snapshots_pickle_b64"][producer["snapshot_id"]]
+        ))
+        old_policy = restore_checkpoint(
+            policy_module.HengbotPolicy,
+            capture["producer_checkpoint_pickle_b64"],
+        )
+        slim = checkpoint(old_policy)
+        slim_state = pickle.loads(base64.b64decode(slim))
+
+        self.assertTrue(self._SLIM_STATE_NAMES.isdisjoint(slim_state))
+        self.assertEqual(
+            (old_policy.choose_key(snapshot), old_policy.last_reason),
+            (producer["expected_key"], producer["expected_reason"]),
+        )
+
+        replay = restore_checkpoint(policy_module.HengbotPolicy, slim)
+        self.assertEqual(replay._monrace_knowledge, old_policy._monrace_knowledge)
+        self.assertEqual(replay._remembered_grid_sources, {})
+        self.assertEqual(replay._remembered_grid_signatures, {})
+        self.assertEqual(replay._threat_prediction_memo, {})
+        self.assertIsNone(replay._map_predicate_snapshot)
+        self.assertIsNone(replay._decision_input_snapshot)
+        self.assertIsNone(replay._town_fact_snapshot)
+        self.assertEqual(
+            (replay.choose_key(snapshot), replay.last_reason),
+            (producer["expected_key"], producer["expected_reason"]),
+        )
+
+    def test_slim_checkpoint_replays_old_calibration_decision(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "calibration-restore-batch-live.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            row = json.loads(stream.readline())
+        snapshot = pickle.loads(base64.b64decode(
+            row["decision_snapshot_pickle_b64"]
+        ))
+        old_policy = restore_checkpoint(
+            policy_module.HengbotPolicy,
+            row["predecision_policy_checkpoint_pickle_b64"],
+        )
+        slim = checkpoint(old_policy)
+
+        replay = restore_checkpoint(policy_module.HengbotPolicy, slim)
+
+        self.assertEqual(
+            (old_policy.choose_key(snapshot), old_policy.last_reason),
+            (row["key"], row["last_reason"]),
+        )
+        self.assertEqual(
+            (replay.choose_key(snapshot), replay.last_reason),
+            (row["key"], row["last_reason"]),
+        )
+
     def test_restore_seeds_marked_memory_for_checkpoint_before_axis_split(self):
         policy, _ = test_policy_town.NoSafeRecallDestinationTest()._fixture()
         policy._remembered_known_t = {(2, 3), (4, 5)}

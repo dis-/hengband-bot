@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from hengbot.flight_recorder import jsonable, rotate_log
+from hengbot.monrace_knowledge import (
+    find_monrace_definitions,
+    load_monrace_knowledge,
+)
 from hengbot.policy_types import OwnerProgressCore
 
 
@@ -33,6 +37,19 @@ _CAPTURE_STATE_NAMES = frozenset(
         # never become restorable decision state.
         "_fixed_quest_offer_cache",
         "_fixed_quest_head_cache",
+        # Static game data is reloaded at restore time.  The two grid maps are
+        # identity/signature accelerators over the retained _remembered_grids
+        # and rebuild lazily on the next map-bearing observation.
+        "_monrace_knowledge",
+        "_remembered_grid_sources",
+        "_remembered_grid_signatures",
+        # Per-decision derivations are replaced before their next read.  The
+        # held Snapshot objects account for most of a mature town checkpoint;
+        # the underlying retained facts and caches remain in policy state.
+        "_threat_prediction_memo",
+        "_map_predicate_snapshot",
+        "_decision_input_snapshot",
+        "_town_fact_snapshot",
         # The Home capture is an observer, not restorable policy state.  It also
         # contains the checkpoint currently being built.
         "_home_entry_capture",
@@ -60,6 +77,19 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored._latch_capture_assignment = None
     restored._latch_capture_remaining = 0
     restored._home_entry_capture = None
+    if "_monrace_knowledge" not in restored.__dict__:
+        definitions = find_monrace_definitions(Path(__file__), None)
+        if definitions is None:
+            raise FileNotFoundError(
+                "MonraceDefinitions.jsonc is required to restore this checkpoint"
+            )
+        restored._monrace_knowledge = load_monrace_knowledge(definitions)
+    restored.__dict__.setdefault("_remembered_grid_sources", {})
+    restored.__dict__.setdefault("_remembered_grid_signatures", {})
+    restored.__dict__.setdefault("_threat_prediction_memo", {})
+    restored.__dict__.setdefault("_map_predicate_snapshot", None)
+    restored.__dict__.setdefault("_decision_input_snapshot", None)
+    restored.__dict__.setdefault("_town_fact_snapshot", None)
     # Checkpoints created before recovery pickup observation existed must be
     # upgraded explicitly; trajectory replay is evidence and may not hide a
     # missing attribute behind a broad exception.
