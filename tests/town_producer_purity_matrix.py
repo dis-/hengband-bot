@@ -7,7 +7,7 @@ from pathlib import Path
 import pickle
 from collections import Counter
 from dataclasses import dataclass
-from functools import cache
+from functools import cache, lru_cache
 
 from hengbot.model import (
     parse_snapshot, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC,
@@ -65,12 +65,40 @@ class PurityCell:
 
 
 @cache
-def _snapshots(name):
+def _monraces(name):
     path = CAPTURES[name]
     definitions = find_monrace_definitions(path, None)
-    monraces = load_monrace_knowledge(definitions) if definitions else {}
+    return load_monrace_knowledge(definitions) if definitions else {}
+
+
+@cache
+def _surface_snapshot_offsets(name):
+    offsets = []
+    with CAPTURES[name].open("rb") as stream:
+        while True:
+            offset = stream.tell()
+            line = stream.readline()
+            if not line:
+                break
+            row = json.loads(line.decode("utf-8-sig"))
+            if row.get("floor", {}).get("in_town") and row.get("store") is None:
+                offsets.append(offset)
+    return tuple(offsets)
+
+
+def _snapshot_at_surface_row(name, row):
+    offset = _surface_snapshot_offsets(name)[row]
+    with CAPTURES[name].open("rb") as stream:
+        stream.seek(offset)
+        raw = json.loads(stream.readline().decode("utf-8-sig"))
+        return parse_snapshot(raw, _monraces(name))
+
+
+@cache
+def _snapshots(name):
+    monraces = _monraces(name)
     snapshots = []
-    with path.open(encoding="utf-8-sig") as stream:
+    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
         for line in stream:
             snapshot = parse_snapshot(json.loads(line), monraces)
             if snapshot.in_town and snapshot.store is None:
@@ -80,18 +108,32 @@ def _snapshots(name):
 
 @cache
 def _surface_snapshot_count(name):
+    return len(_surface_snapshot_offsets(name))
+
+
+def _parsed_surface_snapshot_count(name):
+    monraces = _monraces(name)
     count = 0
     with CAPTURES[name].open(encoding="utf-8-sig") as stream:
         for line in stream:
-            row = json.loads(line)
-            if row.get("floor", {}).get("in_town") and row.get("store") is None:
+            snapshot = parse_snapshot(json.loads(line), monraces)
+            if snapshot.in_town and snapshot.store is None:
                 count += 1
     return count
 
 
 def _surface_snapshot():
-    snapshots, _ = _snapshots("equip-swap")
-    return next(snapshot for snapshot in snapshots if snapshot.turn == 1172205)
+    name = "equip-swap"
+    with CAPTURES[name].open(encoding="utf-8-sig") as stream:
+        for line in stream:
+            row = json.loads(line)
+            if (
+                row.get("floor", {}).get("in_town")
+                and row.get("store") is None
+                and row.get("turn") == 1172205
+            ):
+                return parse_snapshot(row, _monraces(name))
+    raise LookupError("surface snapshot at turn 1172205 is absent")
 
 
 def _digest(value):
@@ -130,8 +172,10 @@ def _differ_detects_visit_mutation():
 
 def _exemption_control():
     """Only X -> Y fields equal to a fresh town-fact refresh on Y may be exempted."""
-    snapshots, monraces = _snapshots("equip-swap")
-    x, y = snapshots[0], snapshots[-1]
+    name = "equip-swap"
+    monraces = _monraces(name)
+    x = _snapshot_at_surface_row(name, 0)
+    y = _snapshot_at_surface_row(name, _surface_snapshot_count(name) - 1)
     carried = HengbotPolicy(monrace_knowledge=monraces)
     fresh = HengbotPolicy(monrace_knowledge=monraces)
     carried._refresh_town_facts(x)
@@ -271,16 +315,19 @@ def assert_partition_is_pure(testcase, partition):
     """Run one order-preserving slice of the former monolithic purity test."""
     selected = set(PARTITION_CELL_INDEXES[partition])
     cells = purity_cells()
-    snapshots_by_capture = {
-        capture: _snapshots(capture)[0] for capture in CAPTURES
-    }
+    whole_capture_cache_before = _snapshots.cache_info()
+
+    @lru_cache(maxsize=1)
+    def snapshot_for(capture, row):
+        # A partition needs at most its current cell.  Retaining one parsed row
+        # bounds memory without changing the (capture, row) identity it sees.
+        return _snapshot_at_surface_row(capture, row)
 
     if partition == 0:
         testcase.assertTrue(_differ_detects_visit_mutation())
         testcase.assertTrue(_exemption_control())
 
     direct_policy = HengbotPolicy()
-    direct_snapshot = _surface_snapshot()
     probe_state = {}
     equivalence_prototype = checkpoint(HengbotPolicy())
     for index, cell in enumerate(cells):
@@ -288,14 +335,13 @@ def assert_partition_is_pure(testcase, partition):
             continue
         if cell.kind == "direct":
             before = observable_policy_state(direct_policy)
-            result = getattr(direct_policy, cell.producer)(direct_snapshot)
+            result = getattr(direct_policy, cell.producer)(_surface_snapshot())
             testcase.assertEqual(observable_policy_state(direct_policy), before)
             if cell.producer == "_boxed_town_breakout_key":
                 testcase.assertEqual(result, "\x1b`n&.")
             continue
 
-        snapshots = snapshots_by_capture[cell.capture]
-        snapshot = snapshots[cell.row]
+        snapshot = snapshot_for(cell.capture, cell.row)
         if cell.kind == "probe":
             policy, prototype = probe_state.get(cell.capture, (None, None))
             if policy is None:
@@ -325,6 +371,12 @@ def assert_partition_is_pure(testcase, partition):
         testcase.assertEqual(new_key, old_key)
         testcase.assertEqual(old_changes.keys() - new_changes.keys(), set())
 
+    testcase.assertEqual(
+        _snapshots.cache_info(),
+        whole_capture_cache_before,
+        "a partition must not populate the whole-capture snapshot cache",
+    )
+
 
 def assert_partitions_complete(testcase):
     for module in PARTITION_MODULES:
@@ -334,7 +386,7 @@ def assert_partitions_complete(testcase):
         )
     for capture in CAPTURES:
         testcase.assertEqual(
-            len(_snapshots(capture)[0]),
+            _parsed_surface_snapshot_count(capture),
             _surface_snapshot_count(capture),
             f"parsed surface population drifted for {capture}",
         )
