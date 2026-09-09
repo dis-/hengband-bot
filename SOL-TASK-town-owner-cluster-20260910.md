@@ -122,3 +122,33 @@ shape.
 4. Note: the serial standing suite currently exits 1 on a PRE-EXISTING harness defect
    (`SOL-TASK-receipt-stderr-fileno.md`) — `io.UnsupportedOperation: fileno` in
    `tests.test_emit_ownership`. That single error is expected and is NOT yours; any OTHER failure is.
+
+---
+
+## VERIFICATION AMENDMENT (supervisor, 2026-09-10 02:20 — after the plan event)
+
+The `type:"plan"` event of 2026-09-10T02:01:56 was ACKNOWLEDGED with one amendment. If you are
+reading this while preparing your fix event, apply it before you ship.
+
+The plan listed **one** `production_hunks` entry spanning two files, and **all three** pins named
+that same single "entry-observation lifecycle hunk" as their lone revert. Reverting the whole
+change for every pin shows only that the change as a whole is load-bearing — not which pin
+depends on which part.
+
+Required before shipping:
+
+1. Enumerate the production change as **separately revertible hunks**. At minimum the
+   store-entry-owner authority change and the staged-operation release change are distinct
+   concerns in distinct files.
+2. For **each** hunk: revert THAT HUNK ALONE with the others still applied, run the pins, and
+   report the test that ACTUALLY failed together with its assertion. Do not attribute a failure
+   you did not observe.
+3. If two hunks genuinely cannot be separated, say so and argue WHY they are one atomic change.
+   That is an acceptable answer, but it must be argued, not the default.
+4. If a hunk exists that **no** pin flips, it is unpinned: add a pin for it or drop it. Do not
+   ship an unpinned production change.
+
+Note also: the plan named `src/hengbot/policy.py` and `src/hengbot/policy_shop.py`, but the
+implementation is touching `src/hengbot/policy.py` and `src/hengbot/policy_town.py`. That may be
+correct — but state in the fix event why the landing site moved, so the reviewer is not left to
+infer it.
