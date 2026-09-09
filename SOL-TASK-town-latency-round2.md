@@ -109,10 +109,28 @@ Two consequences for scoping this task:
 1. **`choose_key` is the right target and it is 25.7x its dungeon cost** (272.0 vs 10.6 ms). That is
    this task. The p90 of 1564.6 ms says the tail is much worse than the median, so measure p90 as
    well as the mean — a fix that moves the mean but not the tail has not fixed the felt slowness.
-2. **`parse_snapshot` is 12.1x its dungeon cost** (187.7 vs 15.5 ms) and is NOT this task. It is
-   game-emitter/snapshot-size work: a town decision carries `nearby_grids: 13068`. Changing it
-   needs separate approval. Do not touch it here; just do not claim the town is fixed while 30% of
-   the median remains outside the scope you addressed.
+2. **`parse_snapshot` is 12.1x its dungeon cost** (187.7 vs 15.5 ms) and it is **bot-side**, not
+   emitter-side. Measured:
+
+   ```
+              grids(med)   snapshot_bytes(med)   parse_ms(med)   us per grid
+   TOWN          13068            30918             187.7           14.36
+   DUNGEON         892            21084              15.5           17.34
+   ```
+
+   The town payload is only **1.47x larger in bytes** but carries **14.6x more grids**, and the
+   per-grid cost is essentially identical in both (14.36 vs 17.34 us). So the cost is NOT payload
+   size and NOT the emitter — it is the bot constructing ~13,000 GridState objects per decision,
+   nearly all of which a given decision never consults.
+
+   (An earlier revision of this file called this "emitter-side, out of scope". That was wrong; the
+   measurement above corrects it. No emitter change and no separate approval is needed to make grid
+   construction lazy or demand-driven.)
+
+   Treat it as a SECOND, SEPARATE task — do not fold it into the `choose_key` work in this pass,
+   and do not claim the town is fixed while this 30% of the median is untouched. The same
+   GridState-construction cost is what made one captured snapshot 20.7 MB in the purity harness,
+   so a fix here likely pays twice.
 
 Report post-fix numbers in this same shape (median AND p90, town AND dungeon) so the improvement is
 comparable to the line above.
