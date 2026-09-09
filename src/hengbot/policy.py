@@ -2629,6 +2629,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._store_visit.transition(StoreVisitPhase.OPERATING)
                 self._store_visit.posted_sequence = None
                 posted_entry_owner = None
+            elif snapshot.store is not None:
+                # The store page is positive game-state evidence. A posted
+                # entry for a different store cannot remain authoritative or
+                # be retried as a surface direction while this page is open.
+                # Release the mismatched visit at its source; the ordinary
+                # in-store handler below now owns the observed store.
+                self._store_entry_posted_owner = None
+                self._close_store_visit("different-store-observed")
+                posted_entry_owner = None
         if posted_entry_owner is not None:
             observed_failed_entry = snapshot.store is None and any(
                 "The doors are locked." in message
@@ -2641,10 +2650,42 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # refusal branch lets routing step off below; the in-flight branch
             # returns an empty, unsent decision now and normal routing owns the
             # next snapshot.  Neither branch retains a wait or emits a filler.
-            self._store_entry_posted_owner = None
             if observed_failed_entry:
+                self._store_entry_posted_owner = None
                 self._store_entry_failed_owner = posted_entry_owner
             else:
+                visit = self._store_visit
+                if (
+                    visit is not None
+                    and visit.store_type == STORE_HOME
+                    and visit.operation_posted
+                ):
+                    # The staged command and entrance are one owner. A lagged
+                    # surface snapshot cannot discharge only the entry half:
+                    # that strands operation_posted in APPROACHING, where no
+                    # producer can consume or release it. Keep the posted
+                    # sequence for the matching page or the existing whole-
+                    # visit posted-entry-unobserved release.
+                    withdrawal = self._home_atomic_withdraw_pending
+                    deposit = self._home_atomic_deposit_pending
+                    observed_effect = bool(
+                        withdrawal is not None
+                        and self._inventory_signature_count(
+                            snapshot, withdrawal[0]
+                        ) >= withdrawal[1] + withdrawal[3]
+                    ) or bool(
+                        deposit is not None
+                        and self._inventory_signature_count(snapshot, deposit[0])
+                        < deposit[1]
+                    )
+                    if not observed_effect:
+                        self.last_reason = "store:entry-await-observation"
+                        return ""
+                    # A completed composed command is stronger evidence than
+                    # the absent intermediate store page. Let the established
+                    # outside observers consume and close it below.
+                    visit.operation_released = True
+                self._store_entry_posted_owner = None
                 state = self._town_travel_state
                 if (
                     state is not None
