@@ -28,7 +28,7 @@ from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
     SV_SCROLL_WORD_OF_RECALL, TVAL_DIGGING, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL,
 )
-from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, WAIT_KEY
+from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, TownNeed, WAIT_KEY
 from hengbot.policy import (
     CHARACTER_DUMP_MACRO, HOME_PAGE_SINGLE_PAGE_MESSAGES,
 )
@@ -48,6 +48,9 @@ import test_policy_town as town_fixture
 
 HOME_DEFERRAL_CAPTURE = (
     Path(__file__).parent / "fixtures" / "home-deferral-absorbing-state.json.gz"
+)
+DEPARTURE_UNSATISFIABLE_CAPTURE = (
+    Path(__file__).parent / "fixtures" / "departure-unsatisfiable-live.json.gz"
 )
 
 
@@ -412,6 +415,85 @@ class TownWorld:
             "transaction preserved through Home withdrawal handoff",
             "surplus staff composed withdrawal",
         }
+
+
+class CapturedDepartureWorld(TownWorld):
+    """Recognize the live state's actual recall issue as a successful exit."""
+
+    def visible_terminal(self, reason: str):
+        if reason.startswith("town:recall-to-"):
+            return "captured departure state issued recall"
+        return super().visible_terminal(reason)
+
+    def terminal_ends_drive(self, reason: str, key: str) -> bool:
+        if reason.startswith("town:recall-to-") and key.startswith("r"):
+            return True
+        return super().terminal_ends_drive(reason, key)
+
+
+def _departure_unsatisfiable_captures():
+    with gzip.open(
+        DEPARTURE_UNSATISFIABLE_CAPTURE, "rt", encoding="utf-8"
+    ) as stream:
+        capture = json.load(stream)
+    if capture["source"] != {
+        "path": "jsonlog/home-entry-capture.jsonl",
+        "sha256": "c07bbc1dec878a53ee60e052e85cda70e7d6091fd628786529dbc91460d5ca58",
+        "rows": 269,
+    }:
+        raise AssertionError("departure capture provenance changed")
+    rows = capture["rows"]
+    if {row["decision_index"] for row in rows} != {1201, 1248}:
+        raise AssertionError("departure capture rows changed")
+    return {row["decision_index"]: row for row in rows}
+
+
+def _captured_departure_unsatisfiable():
+    """Restore the final Home row and consume its real public decision."""
+    row = _departure_unsatisfiable_captures()[1248]
+    policy = restore_checkpoint(
+        HengbotPolicy, row["predecision_policy_checkpoint_pickle_b64"]
+    )
+    inside = pickle.loads(base64.b64decode(row["decision_snapshot_pickle_b64"]))
+    outside = pickle.loads(base64.b64decode(row["next_snapshot_pickle_b64"]))
+    preparation = policy._prepare_equipment_optimization(outside)
+    false_leaves = {
+        name
+        for name, ready in policy._town_departure_conjuncts(outside).items()
+        if not ready
+    }
+    failed_items = set(policy._equipment_transaction_failed_items)
+    legacy_clause_five = bool(
+        STORE_HOME not in policy._town_store_attempted
+        and policy._town_need_supplier_reachable(
+            outside, TownNeed(STORE_HOME, "equipment-work", "home-first")
+        )
+    )
+    if (
+        false_leaves
+        != {"equipment_departure_ready", "home_candidate_resolved"}
+        or tuple(preparation.blockers) != ("equipment-transaction-failed",)
+        or failed_items
+        != {"identity:e4cc76ab18be2ac6", "pack:e4cc76ab18be2ac6:0"}
+        or not legacy_clause_five
+        or policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] != 20
+        or policy._town_visit_ledger.approach_fails[STORE_HOME] != 0
+    ):
+        raise AssertionError("captured departure seal no longer reproduces")
+
+    producer_key = policy.choose_key(inside)
+    policy.confirm_key_posted(producer_key)
+    if (
+        producer_key != row["key"]
+        or policy.last_reason != row["last_reason"]
+    ):
+        raise AssertionError("captured final Home decision no longer replays")
+    world = CapturedDepartureWorld(outside)
+    world.captured_false_leaves = false_leaves
+    world.captured_failed_items = failed_items
+    world.legacy_clause_five = legacy_clause_five
+    world.producer_key = producer_key
+    return policy, world
 
 
 def _departure_freeze():
@@ -1643,6 +1725,10 @@ def _town_sell_rebuy_churn_defect():
 
 
 SEEDED_STATES = (
+    AbsorbingState(
+        "captured-departure-unsatisfiable-equipment-failure", 4,
+        _captured_departure_unsatisfiable,
+    ),
     AbsorbingState(
         "town-blocked-restocked-recall-unavailable", 20,
         _restocked_recall_unavailable_with_shelf_stock,

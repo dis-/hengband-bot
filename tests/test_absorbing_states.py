@@ -92,10 +92,69 @@ class _FinalTwitchWorld(_StubWorld):
 class AbsorbingStateHarnessTest(unittest.TestCase):
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
-        self.assertEqual(len(SEEDED_STATES), 31)
-        self.assertEqual(len({state.name for state in SEEDED_STATES}), 31)
-        self.assertEqual(len({state.build for state in SEEDED_STATES}), 31)
+        self.assertEqual(len(SEEDED_STATES), 32)
+        self.assertEqual(len({state.name for state in SEEDED_STATES}), 32)
+        self.assertEqual(len({state.build for state in SEEDED_STATES}), 32)
         self.assertTrue(all(state.build for state in SEEDED_STATES))
+
+    def test_captured_departure_failure_retires_and_issues_recall(self):
+        state = next(
+            state for state in SEEDED_STATES
+            if state.name == "captured-departure-unsatisfiable-equipment-failure"
+        )
+        policy, world = state.build()
+        self.assertEqual(
+            world.captured_false_leaves,
+            {"equipment_departure_ready", "home_candidate_resolved"},
+        )
+        self.assertEqual(
+            world.captured_failed_items,
+            {"identity:e4cc76ab18be2ac6", "pack:e4cc76ab18be2ac6:0"},
+        )
+        self.assertTrue(world.legacy_clause_five)
+        self.assertEqual(world.producer_key, "\x1b")
+        self.assertEqual(policy._equipment_transaction_failed_items, set())
+
+        result = drive(state)
+
+        self.assertTrue(result.passed, result.report())
+        self.assertEqual(result.decisions, 2)
+        self.assertEqual(result.reasons["town:character-dump"], 1)
+        self.assertEqual(result.reasons["town:recall-to-alt-dungeon"], 1)
+        self.assertFalse(any(
+            reason.startswith("town:blocked:") for reason in result.reasons
+        ))
+
+    def test_captured_progressing_home_work_keeps_failure_gate(self):
+        row = cat._departure_unsatisfiable_captures()[1201]
+        policy = cat.restore_checkpoint(
+            cat.HengbotPolicy,
+            row["predecision_policy_checkpoint_pickle_b64"],
+        )
+        inside = cat.pickle.loads(cat.base64.b64decode(
+            row["decision_snapshot_pickle_b64"]
+        ))
+        outside = cat.pickle.loads(cat.base64.b64decode(
+            row["next_snapshot_pickle_b64"]
+        ))
+        failed_items = set(policy._equipment_transaction_failed_items)
+        self.assertTrue(policy._home_owner_goal_pending(inside))
+
+        first = policy.choose_key(inside)
+        policy.confirm_key_posted(first)
+        second = policy.choose_key(outside)
+        policy.confirm_key_posted(second)
+
+        self.assertEqual(
+            (first, row["key"], second, policy.last_reason),
+            ("\x1b", "\x1b", "5", "home:atomic-withdraw"),
+        )
+        self.assertTrue(policy._home_owner_goal_pending(outside))
+        self.assertEqual(policy._equipment_transaction_failed_items, failed_items)
+        self.assertEqual(
+            tuple(policy._equipment_optimization_preparation.blockers),
+            ("equipment-transaction-failed",),
+        )
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):
         state = next(
@@ -437,6 +496,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         self.assertEqual(
             [result.state for result in passed],
             [
+                "captured-departure-unsatisfiable-equipment-failure",
                 "quiet-stair-observation-timeout-probe",
                 "all-nonhome-needs-unobtainable-departure-unsatisfiable",
                 "home-deferral-fully-deferred-procurement-class",
@@ -449,6 +509,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
         self.assertEqual(
             [result.outcome for result in passed],
             [
+                "drive-ending terminal captured departure state issued recall",
                 "drive-ending terminal bounded stair observation probe",
                 "durable progress within decision bound",
                 "durable progress within decision bound",

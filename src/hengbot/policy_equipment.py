@@ -2115,10 +2115,15 @@ class EquipmentMixin:
             return False
         if (
             STORE_HOME not in self._town_store_attempted
+            and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0
+            and self._town_visit_ledger.approach_fails[STORE_HOME] == 0
             and self._town_need_supplier_reachable(
                 snapshot, TownNeed(STORE_HOME, "equipment-work", "home-first")
             )
         ):
+            # ``_town_store_attempted`` records exhaustion, not first contact.
+            # Once either ledger producer has observed a Home route attempt,
+            # mere reachability is no longer evidence of executable work.
             return False
         # A last-source readmission is real required work, not a retireable
         # phantom.  Its visible terminal must remain closed to departure.
