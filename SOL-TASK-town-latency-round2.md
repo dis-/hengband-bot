@@ -82,3 +82,37 @@ restore_checkpoint(HengbotPolicy, row["predecision_policy_checkpoint_pickle_b64"
 snap = pickle.loads(base64.b64decode(row["decision_snapshot_pickle_b64"]))
 cProfile around policy.choose_key(snap)
 ```
+
+---
+
+## Live measurement after the 2026-09-10 resume (1,339 decisions, real play)
+
+The profile above came from replayed captures. This is the same question measured **live**, from
+`jsonlog/bot-decisions.jsonl` `timing` fields, over the whole post-resume run
+(turns 1736334..1840105):
+
+```
+             n      choose_key_ms            parse_snapshot_ms         total_ms
+                 med    p90     max        med    p90    max        med     p90     max
+TOWN       400   272.0 1564.6 1714.3      187.7  262.9  325.0      621.9  2000.1  3779.7
+DUNGEON    939    10.6   18.5   63.8       15.5   28.3   68.5       68.9   103.6   322.3
+```
+
+**Town runs at 1.61 decisions/sec; the dungeon runs at 14.52. Town is 9.0x slower at the median
+and 19x slower at p90.**
+
+Where the town median goes: `choose_key` 272.0 ms (44%), `parse_snapshot` 187.7 ms (30%), the
+remaining ~162 ms in poll/read/send.
+
+Two consequences for scoping this task:
+
+1. **`choose_key` is the right target and it is 25.7x its dungeon cost** (272.0 vs 10.6 ms). That is
+   this task. The p90 of 1564.6 ms says the tail is much worse than the median, so measure p90 as
+   well as the mean — a fix that moves the mean but not the tail has not fixed the felt slowness.
+2. **`parse_snapshot` is 12.1x its dungeon cost** (187.7 vs 15.5 ms) and is NOT this task. It is
+   game-emitter/snapshot-size work: a town decision carries `nearby_grids: 13068`. Changing it
+   needs separate approval. Do not touch it here; just do not claim the town is fixed while 30% of
+   the median remains outside the scope you addressed.
+
+Report post-fix numbers in this same shape (median AND p90, town AND dungeon) so the improvement is
+comparable to the line above.
