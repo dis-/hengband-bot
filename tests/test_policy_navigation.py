@@ -146,7 +146,7 @@ from hengbot.model import (
     _parse_store,
     parse_snapshot,
 )
-from hengbot.dungeon_knowledge import DungeonInfo
+from hengbot.dungeon_knowledge import DungeonInfo, load_dungeon_knowledge
 from hengbot.equipment_optimizer import (
     EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult,
     OwnedEquipment, OwnedEquipmentCatalog, TR_TELEPORT, current_loadout,
@@ -1687,6 +1687,142 @@ class ExplorationTest(unittest.TestCase):
                     continue
                 grids[Position(10 + dy, 10 + dx)] = grid(10 + dy, 10 + dx, passable=False)
         self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), "5")
+
+
+class TrapSealedFloorRegressionTest(unittest.TestCase):
+    def test_live_labyrinth_floor_crosses_trap_after_safe_coverage_is_exhausted(self):
+        state_path = (
+            Path(__file__).with_name("fixtures")
+            / "trap-sealed-floor-dungeon4-level16.jsonl.gz"
+        )
+        knowledge = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        dungeon_knowledge = load_dungeon_knowledge(
+            Path("C:/hengband/lib/edit/DungeonDefinitions.jsonc")
+        )
+
+        with TemporaryDirectory() as scratch:
+            policy = HengbotPolicy(
+                dungeon_knowledge=dungeon_knowledge,
+                monrace_knowledge=knowledge,
+                exploration_ledger_path=Path(scratch) / "exploration-ledger.json",
+            )
+            snapshot_count = 0
+            observed_traps = set()
+            final_snapshot = None
+            with gzip.open(state_path, mode="rt", encoding="utf-8") as stream:
+                for line in stream:
+                    data = json.loads(line)
+                    floor = data.get("floor", {})
+                    if (
+                        floor.get("dungeon_id") != 4
+                        or floor.get("level") != 16
+                    ):
+                        continue
+                    snapshot = parse_snapshot(data, knowledge)
+                    policy.prime(snapshot)
+                    snapshot_count += 1
+                    observed_traps.update(
+                        (state.position.y, state.position.x)
+                        for state in snapshot.grids.values()
+                        if state.trap
+                    )
+                    final_snapshot = snapshot
+
+            self.assertIsNotNone(final_snapshot)
+            assert final_snapshot is not None
+            merged = policy._with_grid_memory(final_snapshot)
+            policy._build_grid_index(merged)
+
+            self.assertEqual(snapshot_count, 1888)
+            self.assertEqual(len(policy._remembered_known_t), 697)
+            self.assertEqual(len(policy._floor_t), 301)
+            self.assertEqual(len(policy._remembered_wall_t), 396)
+            self.assertEqual(policy._remembered_downstairs, set())
+            self.assertEqual(final_snapshot.player.position, Position(8, 14))
+            self.assertEqual(
+                observed_traps,
+                {(7, 10), (8, 10), (8, 12), (11, 54)},
+            )
+
+            safe_path = policy._plan_explore_path_pass(
+                merged, allow_damaging=False
+            )
+            self.assertEqual(safe_path, [Position(8, 13)])
+            self.assertGreater(policy._visit_counts[safe_path[-1]], 0)
+
+            breakout_path = policy._plan_explore_path(merged)
+            self.assertEqual(breakout_path[0], Position(8, 13))
+            self.assertIn(Position(8, 12), breakout_path)
+            self.assertEqual(policy._visit_counts[breakout_path[-1]], 0)
+
+            self.assertEqual(policy.choose_key(final_snapshot), "4")
+            self.assertEqual(policy.last_reason, "breakout:seek-frontier")
+            beside_trap = replace(
+                final_snapshot,
+                player=replace(
+                    final_snapshot.player, position=Position(8, 13)
+                ),
+                turn=final_snapshot.turn + 1,
+            )
+            self.assertEqual(policy.choose_key(beside_trap), "D4")
+            self.assertEqual(policy.last_reason, "explore")
+            self.assertEqual(policy._floor_trap_disarm_attempts[(8, 12)], 1)
+
+    def test_longer_safe_route_to_new_coverage_wins_over_short_trap_route(self):
+        grids = {
+            Position(10, x): grid(10, x, trap=(x == 11))
+            for x in range(7, 13)
+        }
+        for y in (9, 11):
+            for x in range(6, 14):
+                grids[Position(y, x)] = grid(y, x, passable=False)
+        grids[Position(10, 6)] = grid(10, 6, passable=False)
+        grids[Position(10, 13)] = grid(10, 13, passable=False)
+
+        policy = HengbotPolicy()
+        for x in (8, 9, 10):
+            policy.prime(
+                Snapshot(
+                    player(10, x),
+                    grids,
+                    [],
+                    turn=x,
+                    floor_key=(1, 5, 0),
+                    width=20,
+                    height=20,
+                )
+            )
+        current = Snapshot(
+            player(10, 10),
+            grids,
+            [],
+            turn=20,
+            floor_key=(1, 5, 0),
+            width=20,
+            height=20,
+        )
+
+        merged = policy._with_grid_memory(current)
+        policy._build_grid_index(merged)
+        safe_path = policy._plan_explore_path_pass(
+            merged,
+            allow_damaging=False,
+            new_information_only=True,
+        )
+        short_trap_path = policy._plan_explore_path_pass(
+            merged,
+            allow_damaging=True,
+            new_information_only=True,
+        )
+        self.assertGreater(len(safe_path), len(short_trap_path))
+        self.assertNotIn(Position(10, 11), safe_path)
+        self.assertIn(Position(10, 11), short_trap_path)
+        self.assertEqual(policy.choose_key(current), "4")
+        self.assertEqual(policy.last_reason, "explore")
+        self.assertEqual(policy._floor_trap_disarm_attempts, Counter())
+
 
 class AntiStuckTest(unittest.TestCase):
     def test_seeks_known_stairs_when_fully_explored(self):

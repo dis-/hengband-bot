@@ -1364,10 +1364,27 @@ class NavigationMixin:
     def _plan_explore_path(self, snapshot: Snapshot) -> list[Position]:
         """Dijkstra to the nearest (visit-penalised) frontier, returning the full
         step path so we can commit to it."""
+        # A normal floor keeps the established nearest-frontier ordering.  Only
+        # a confirmed positional oscillation asks whether that hazard-free
+        # reachable region can still add coverage.
         path = self._plan_explore_path_pass(snapshot, allow_damaging=False)
-        if path:
+        if not path:
+            return self._plan_explore_path_pass(snapshot, allow_damaging=True)
+        if not self._is_oscillating() or self._visit_counts[path[-1]] == 0:
             return path
-        return self._plan_explore_path_pass(snapshot, allow_damaging=True)
+
+        safe_new_path = self._plan_explore_path_pass(
+            snapshot, allow_damaging=False, new_information_only=True
+        )
+        if safe_new_path:
+            # Preserve the existing safe frontier choice.  The separate search
+            # proves that this region still has reachable new coverage, so a
+            # damaging route is not justified merely because it is shorter.
+            return path
+        damaging_new_path = self._plan_explore_path_pass(
+            snapshot, allow_damaging=True, new_information_only=True
+        )
+        return damaging_new_path or path
 
     def _global_frontier_path(self, snapshot: Snapshot) -> list[Position]:
         """Route to the most promising frontier anywhere on the remembered map."""
@@ -1451,7 +1468,11 @@ class NavigationMixin:
         return path
 
     def _plan_explore_path_pass(
-        self, snapshot: Snapshot, *, allow_damaging: bool
+        self,
+        snapshot: Snapshot,
+        *,
+        allow_damaging: bool,
+        new_information_only: bool = False,
     ) -> list[Position]:
         start = snapshot.player.position
         previous = self._recent[-2] if len(self._recent) >= 2 else None
@@ -1480,6 +1501,10 @@ class NavigationMixin:
                     break
                 if (
                     pos not in self._unenterable_explore_goals
+                    and (
+                        not new_information_only
+                        or self._visit_counts[pos] == 0
+                    )
                     and self._is_remembered_frontier(snapshot, pos)
                 ):
                     goal = pos
