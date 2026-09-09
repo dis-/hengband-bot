@@ -71,7 +71,11 @@ from hengbot.home_visit import (
     HomeVisitRequest as PhysicalHomeVisitRequest,
     HomeVisitState,
 )
-from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
+from hengbot.equipment_mutation import (
+    EquipmentMutationExecutor,
+    EquipmentMutationResult,
+    EquipmentMutationState,
+)
 from hengbot.policy_types import (
     DecisionContext,
     TownTravelProgress,
@@ -5847,10 +5851,36 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _verified_destroy_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
         """Destroy a selected item while detecting refused or stalled attempts."""
-        disposable = finder(snapshot)
+        transaction = self._equipment_transaction_session
+        if (
+            self._equipment_mutation.state == EquipmentMutationState.POSTED
+            or (
+                transaction is not None
+                and transaction.pending_action is not None
+            )
+        ):
+            self.last_reason = "inventory:destroy-deferred-equipment-mutation"
+            return None
+
+        candidate_snapshot = snapshot
+        disposable = finder(candidate_snapshot)
+        refused_superior = False
         while disposable is not None:
-            if not self._entire_stack_is_surplus(snapshot, disposable):
+            if not self._entire_stack_is_surplus(candidate_snapshot, disposable):
                 return None
+            if self._destroy_would_discard_superior_item(snapshot, disposable):
+                self.last_reason = "inventory:destroy-refused-superior-item"
+                refused_superior = True
+                candidate_snapshot = replace(
+                    candidate_snapshot,
+                    inventory=[
+                        item
+                        for item in candidate_snapshot.inventory
+                        if item is not disposable
+                    ],
+                )
+                disposable = finder(candidate_snapshot)
+                continue
             watch = (
                 self._item_signature(disposable),
                 disposable.count,
@@ -5862,16 +5892,64 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._undestroyable_sigs.add(self._item_signature(disposable))
                     self._destroy_watch = None
                     self._destroy_fail_streak = 0
-                    disposable = finder(snapshot)
+                    disposable = finder(candidate_snapshot)
                     continue
             else:
                 self._destroy_watch = watch
                 self._destroy_fail_streak = 0
-            self.last_reason = reason
+            self.last_reason = (
+                "inventory:destroy-after-superior-item-refusal"
+                if refused_superior
+                else reason
+            )
             return self._destroy_item_key(disposable)
         self._destroy_watch = None
         self._destroy_fail_streak = 0
         return None
+
+    def _destroy_would_discard_superior_item(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        """Fail closed when destruction would discard the best comparable gear."""
+        counterparts = [
+            candidate
+            for candidate in (*snapshot.equipment, *snapshot.inventory)
+            if candidate is not item
+        ]
+        if item.is_digging_tool:
+            peers = [candidate for candidate in counterparts if candidate.is_digging_tool]
+            return bool(peers) and self._digging_tool_sale_quality(item) > max(
+                self._digging_tool_sale_quality(candidate) for candidate in peers
+            )
+        if item.tval == TVAL_BOW:
+            peers = [candidate for candidate in counterparts if candidate.tval == TVAL_BOW]
+            return bool(peers) and self._quest_launcher_quality(item) > max(
+                self._quest_launcher_quality(candidate) for candidate in peers
+            )
+        if item.is_melee_weapon:
+            peers = [candidate for candidate in counterparts if candidate.is_melee_weapon]
+            calibration = self._validated_character_calibration(snapshot)
+            quality = weapon_expected_dps(snapshot, item, 100, calibration)
+            peer_qualities = [
+                weapon_expected_dps(snapshot, candidate, 100, calibration)
+                for candidate in peers
+            ]
+            known_peer_qualities = [value for value in peer_qualities if value is not None]
+            if quality is None:
+                return not self._is_disposable_item(
+                    item, food_type=snapshot.player.food_type
+                )
+            return bool(known_peer_qualities) and quality > max(known_peer_qualities)
+        if item.is_equipment and (
+            slot_for(item) is not None
+            or self._equipment_slot_group(item) is not None
+            or item.tval == TVAL_RING
+        ):
+            return not (
+                self._is_disposable_item(item, food_type=snapshot.player.food_type)
+                or self._is_spare_lantern(snapshot, item)
+            )
+        return False
 
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
@@ -7224,22 +7302,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Keep the best two carried tools; permit excess deposit/disposal."""
         if not item.is_digging_tool:
             return False
-        equipped_count = sum(
-            1 for equipped in snapshot.equipment if equipped.is_digging_tool
-        )
-        pack_diggers = [it for it in snapshot.inventory if it.is_digging_tool]
-        pack_capacity = max(0, 2 - equipped_count)
-        if len(pack_diggers) <= pack_capacity:
-            return False
-        keep_slots = {
-            candidate.slot
-            for candidate in sorted(
-                pack_diggers,
-                key=self._digging_tool_sale_quality,
-                reverse=True,
-            )[:pack_capacity]
-        }
-        return item.slot not in keep_slots
+        diggers = [
+            candidate
+            for candidate in (*snapshot.equipment, *snapshot.inventory)
+            if candidate.is_digging_tool
+        ]
+        keep = sorted(
+            diggers,
+            key=self._digging_tool_sale_quality,
+            reverse=True,
+        )[:2]
+        return all(candidate is not item for candidate in keep)
 
 
 
