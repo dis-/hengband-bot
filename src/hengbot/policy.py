@@ -2679,6 +2679,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._store_entry_failed_owner = posted_entry_owner
             else:
                 visit = self._store_visit
+                entry_observation_pending = bool(
+                    visit is not None
+                    and visit.posted_sequence is not None
+                    and self._decision_sequence == visit.posted_sequence + 1
+                )
                 if (
                     visit is not None
                     and visit.store_type == STORE_HOME
@@ -2714,11 +2719,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # the absent intermediate store page. Let the established
                     # outside observers consume and close it below.
                     visit.operation_released = True
-                # A lagged surface snapshot is not evidence that the entry
-                # failed.  Retain the existing posted owner so subsequent
-                # public decisions remain behind this observation barrier.
-                # The guarded latch evaluation above still releases it at the
-                # existing STORE_STUCK_LIMIT bound.
+                if not entry_observation_pending and not (
+                    visit is not None
+                    and visit.operation_posted
+                    and not visit.operation_released
+                ):
+                    # Only the first decision after a confirmed post can be
+                    # the lagged surface paired with that entry. Later surface
+                    # snapshots are routing observations, so release the
+                    # posted owner instead of absorbing the captured window.
+                    self._store_entry_posted_owner = None
+                    if self._store_visit is not None:
+                        self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 state = self._town_travel_state
                 if (
                     state is not None
@@ -2734,8 +2746,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # attempt walk instead of retrying the same native route.
                     self._town_travel_fallback = state.goal
                     self._town_travel_state = None
-                self.last_reason = "store:entry-await-observation"
-                return ""
+                if entry_observation_pending:
+                    self.last_reason = "store:entry-await-observation"
+                    return ""
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
         )
