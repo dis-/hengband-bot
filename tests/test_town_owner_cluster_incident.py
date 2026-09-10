@@ -93,6 +93,48 @@ class TownOwnerClusterIncidentTest(unittest.TestCase):
         self.assertNotIn(first_mismatched_page[1], "12346789", results)
         self.assertNotEqual(first_mismatched_page[2], "shop:approach", results)
 
+    def test_turn_1837318_open_home_stays_with_store_owner(self):
+        policy = self._captured_policy_through(24)
+        _, snapshots = _captured_rows(25, 25)
+
+        class HomeRouteWaitProducer:
+            def choose_key(self, driven_policy, _snapshot):
+                driven_policy.last_reason = "home:route-claim-unfulfilled"
+                return ""
+
+        # The replay has driven the real policy through the adjacent entry
+        # and into the measured open Home.  Wall only that upstream wait
+        # producer so this pin isolates its town-progress consumer.
+        policy._home_entry_capture = HomeRouteWaitProducer()
+        key = policy.choose_key(snapshots[0])
+
+        self.assertEqual((key, policy.last_reason), (
+            "", "home:route-claim-unfulfilled",
+        ))
+
+    def test_turn_1763804_emit_seam_leaves_instead_of_direction(self):
+        _, snapshots = _captured_rows(25, 25)
+        policy = HengbotPolicy()
+        # First consume the real open-page producer on this same instance.
+        policy.choose_key(snapshots[0])
+
+        class IncidentDirectionProducer:
+            def choose_key(self, driven_policy, _snapshot):
+                driven_policy.last_reason = (
+                    "town-progress-invariant:defect:"
+                    "store:entry-await-observation=>store:entry-await-observation"
+                )
+                return "1"
+
+        # Wall only the upstream incident producer after the real open-store
+        # state has been consumed; the public emission seam remains real.
+        policy._home_entry_capture = IncidentDirectionProducer()
+        key = policy.choose_key(snapshots[0])
+
+        self.assertEqual((key, policy.last_reason), (
+            "\x1b", "store:direction-refused-leave",
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()

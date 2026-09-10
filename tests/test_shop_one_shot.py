@@ -722,12 +722,14 @@ class ShopOneShotTest(unittest.TestCase):
                     ),
                 )
             telemetry.append(dict(policy._town_turn_arbiter.telemetry))
-        self.assertEqual(waits[:STORE_STUCK_LIMIT], [""] * STORE_STUCK_LIMIT)
-        self.assertNotEqual(waits[STORE_STUCK_LIMIT], "")
+        self.assertEqual(
+            waits[:STORE_STUCK_LIMIT - 1], [""] * (STORE_STUCK_LIMIT - 1)
+        )
+        self.assertNotEqual(waits[STORE_STUCK_LIMIT - 1], "")
         self.assertFalse(any(row["retired"] for row in telemetry), telemetry)
         self.assertEqual(
             policy._store_visit_last_closed.outcome,
-            "one-shot-entry-unconfirmed",
+            "posted-entry-unobserved",
         )
 
     def test_bare_wait_cannot_rearm_entry_from_an_earlier_decision(self):
@@ -741,7 +743,7 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertFalse(policy.confirm_key_posted("5"))
         self.assertIsNone(policy._store_entry_posted_owner)
 
-    def test_entry_observation_discharge_returns_visit_to_approach(self):
+    def test_lagged_surface_retains_entry_observation_barrier(self):
         inside = self._inside(STORE_HOME, [], [])
         outside = self._outside(HengbotPolicy(), inside)
         policy = HengbotPolicy()
@@ -751,8 +753,9 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertTrue(policy.confirm_key_posted("5"))
 
         self.assertEqual(policy.choose_key(outside), "")
-        self.assertEqual(policy._store_visit.phase, StoreVisitPhase.APPROACHING)
-        self.assertIsNone(policy._store_entry_posted_owner)
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
+        self.assertEqual(policy._store_entry_posted_owner, STORE_HOME)
 
     def test_home_stage_one_entry_wait_expires_and_routing_resumes(self):
         inside = self._inside(STORE_HOME, [], [])

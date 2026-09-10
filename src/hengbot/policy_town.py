@@ -509,6 +509,14 @@ class TownMixin:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
         self._town_begin_progress_decision(snapshot)
+        if snapshot.store is not None and proposed_reason in {
+            "store:entry-await-observation",
+            "home:route-claim-unfulfilled",
+        }:
+            # An observed store page is already owned by the store command
+            # loop.  Its leave/no-op result is not a stalled surface route
+            # for the progress invariant to replace with an approach step.
+            return key
         result_makes_progress = self._town_result_makes_progress(snapshot, key)
         if not snapshot.in_town or result_makes_progress:
             return key

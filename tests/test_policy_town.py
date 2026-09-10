@@ -8146,6 +8146,22 @@ class TownMapNightRoutingTest(unittest.TestCase):
         self.assertEqual(with_map.choose_key(snap), "\x1b`n(.")
         self.assertEqual(with_map.last_reason, "shop:travel")
 
+    def test_posted_store_travel_without_progress_records_walking_fallback(self):
+        town_map = self._outpost()
+        snap = self._night_snapshot(town_map)
+        policy = HengbotPolicy(town_map=town_map)
+        policy._home_knowledge_scan_requested = True
+
+        travel = policy.choose_key(snap)
+        self.assertEqual(travel, "\x1b`n(.")
+        self.assertTrue(policy.confirm_key_posted(travel))
+        goal = policy._town_travel_state.goal
+
+        self.assertEqual(policy.choose_key(snap), "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(policy._town_travel_fallback, goal)
+        self.assertIsNone(policy._town_travel_state)
+
 class WildernessSafetyTest(unittest.TestCase):
     def _wild_grids(self):
         return {Position(10, x): grid(10, x) for x in range(8, 13)}

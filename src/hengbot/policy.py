@@ -2415,6 +2415,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+        if snapshot.store is not None and key in DIRECTION_KEYS.values():
+            # This is the final policy emission seam.  No producer or
+            # downstream town owner may post a bare direction into Hengband's
+            # store command loop; leave through its established command path.
+            self.last_reason = "store:direction-refused-leave"
+            key = LEAVE_STORE_KEY
+            vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         terminal = self._town_arbiter_terminal_result(key)
         arbiter.observe(
             in_town=bool(snapshot.in_town or snapshot.store is not None),
@@ -2707,7 +2714,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # the absent intermediate store page. Let the established
                     # outside observers consume and close it below.
                     visit.operation_released = True
-                self._store_entry_posted_owner = None
+                # A lagged surface snapshot is not evidence that the entry
+                # failed.  Retain the existing posted owner so subsequent
+                # public decisions remain behind this observation barrier.
+                # The guarded latch evaluation above still releases it at the
+                # existing STORE_STUCK_LIMIT bound.
                 state = self._town_travel_state
                 if (
                     state is not None
@@ -2717,14 +2728,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     >= state.best_distance
                 ):
                     # Native travel emits no player-turn snapshot while it is
-                    # running.  An unchanged snapshot after this posted macro
-                    # therefore arrives only after the CLI's Escape recovered
-                    # a selector/command that made no progress.  Fail over now;
-                    # reissuing the same symbol can only repeat that modal wait.
+                    # running. An unchanged snapshot after this posted macro
+                    # therefore means the travel made no progress. Preserve
+                    # the entry-observation barrier, but make the next routing
+                    # attempt walk instead of retrying the same native route.
                     self._town_travel_fallback = state.goal
                     self._town_travel_state = None
-                if self._store_visit is not None:
-                    self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 self.last_reason = "store:entry-await-observation"
                 return ""
         pending_store_transaction = (
