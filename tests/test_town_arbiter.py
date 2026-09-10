@@ -1,4 +1,5 @@
 import ast
+import cProfile
 import copy
 from dataclasses import replace
 import gzip
@@ -6,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
@@ -126,6 +128,38 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         fixture = FIXTURES / "incident-postlevel-repetition-turn-1006064.jsonl.gz"
         with gzip.open(fixture, "rt", encoding="utf-8-sig") as stream:
             return parse_snapshot(json.loads(next(stream)), {})
+
+    def test_postlevel_decision_bounds_town_need_candidate_enumeration(self):
+        snapshot = self._postlevel_snapshot()
+        policy = HengbotPolicy()
+        original = HengbotPolicy._town_need_candidates
+        invocation_count = 0
+
+        def counting_candidates(instance, *args, **kwargs):
+            nonlocal invocation_count
+            invocation_count += 1
+            return original(instance, *args, **kwargs)
+
+        profiler = cProfile.Profile()
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            HengbotPolicy,
+            "_town_need_candidates",
+            autospec=True,
+            side_effect=counting_candidates,
+        ):
+            path = Path(directory) / "decisions.jsonl"
+            profiler.enable()
+            try:
+                key = policy.choose_key(snapshot)
+                _write_decision(path, snapshot, key, policy.last_reason, policy)
+            finally:
+                profiler.disable()
+
+        self.assertLessEqual(
+            invocation_count,
+            8,
+            f"_town_need_candidates invoked {invocation_count} times",
+        )
 
     def test_pin_vacuity_postlevel_public_choose_key_consumes_retirement_budget(self):
         snapshot = self._postlevel_snapshot()
