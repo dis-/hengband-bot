@@ -1042,6 +1042,7 @@ def _selection_equivalence_key(
         )
     return (
         entry.metrics,
+        entry.loadout.hand_mode,
         entry.loadout.flags.intersection(ABILITY_FLAG.values()),
         bow_policy,
         light_source_quality(entry.loadout),
