@@ -365,7 +365,10 @@ def evaluate_warrior_melee(
         if weapon is None or weapon.item.tval not in {20, 21, 22, 23}:
             continue
         two_handed = loadout.hand_mode == "two_handed"
-        two_hand_bonus = two_handed and ADJ_STR_HOLD[str_idx] >= weapon.item.weight // 5
+        two_hand_bonus = (
+            two_handed
+            and ADJ_STR_HOLD[str_idx] * 2 >= weapon.item.weight // 5
+        )
         extra_blows = _extra_blows(loadout, hand_slot)
         blows = _warrior_blows(
             weapon, str_idx=str_idx, dex_idx=dex_idx, level=inputs.level,
