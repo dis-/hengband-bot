@@ -2163,6 +2163,7 @@ class TownMixin:
     def _build_town_errand_plan(
         self, snapshot: Snapshot, needs: list[TownNeed]
     ) -> TownErrandPlan | None:
+        previous = self._town_errand_plan
         leading_home = any(
             need.store_type == STORE_HOME and need.ordering_class != "post-alchemist-home"
             for need in needs
@@ -2178,7 +2179,7 @@ class TownMixin:
         elif post_home:
             ordered.append(STORE_HOME)
         stops.extend(ordered)
-        return (
+        plan = (
             TownErrandPlan(
                 stops,
                 need_categories={
@@ -2193,6 +2194,23 @@ class TownMixin:
             if stops
             else None
         )
+        if plan is not None and previous is not None:
+            # The route is a replaceable ordering projection, but completion
+            # and blocking are visit facts.  Preserve them when changing the
+            # projection so a rebuilt route cannot resurrect an exhausted stop.
+            plan.completed_this_visit.extend(
+                dict.fromkeys(previous.completed_this_visit)
+            )
+            plan.blocked_this_visit.extend(
+                dict.fromkeys(previous.blocked_this_visit)
+            )
+        return plan
+
+    def _retire_town_errand_plan_for_rebuild(self) -> None:
+        """Retain visit facts while making the current route rebuildable."""
+        plan = self._town_errand_plan
+        if plan is not None:
+            plan.index = len(plan.stops)
 
     @staticmethod
     def _town_workflow_progress_state(snapshot: Snapshot) -> tuple[object, ...]:

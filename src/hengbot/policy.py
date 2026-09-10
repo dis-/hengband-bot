@@ -3516,7 +3516,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # A visible page of a multi-page (or metadata-poor) Home is
                 # useful evidence, but it cannot replace the complete ~9 list.
-                # Leave without latching the Home stop so the scan can continue.
+                # Charge this entry to the existing visit ledger.  A fresh ~9
+                # response can still complete the scan between entries; if it
+                # cannot, the normal Home pass bound latches the stop and lets
+                # the remaining town errands proceed.
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=False
+                )
                 self.last_reason = "home:scan-incomplete-open-page"
                 key = LEAVE_STORE_KEY
             elif (
@@ -5050,7 +5056,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_suppression_claim_stores.add(supplier)
                 self._town_restock_suppressed = False
                 self._town_blocked_reason = None
-                self._town_errand_plan = None
+                self._retire_town_errand_plan_for_rebuild()
         if self._town_cycle_pending:
             town_cycle_repair = self._town_special_key(snapshot)
             if town_cycle_repair is not None:
@@ -6730,6 +6736,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 }
             ),
             "home_scan_complete": self._equipment_catalog.home_scan_complete,
+            "home_knowledge_current": self._home_knowledge_current,
+            "home_knowledge_invalidated": self._home_knowledge_invalidated,
             "catalog_items": len(catalog),
             "incomplete_items": sum(
                 item.identification_incomplete for item in catalog
@@ -8245,7 +8253,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._scavenge_entry_gold = None
         self._town_restock_suppressed = False
         self._town_restock_wait_until = None
-        self._town_errand_plan = None
+        self._retire_town_errand_plan_for_rebuild()
         self._town_blocked_reason = None
 
         ledger = self._supply_ledger(snapshot, self._planned_depth())
@@ -8314,7 +8322,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._processed_home_items.difference_update(signatures)
         self._retried_home_identification_items.update(signatures)
         self._rearm_town_store_for_new_work(STORE_HOME)
-        self._town_errand_plan = None
+        self._retire_town_errand_plan_for_rebuild()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         return True

@@ -3260,9 +3260,26 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsInstance(policy._home_knowledge_items[0], InventoryItem)
         self.assertEqual(policy._count_mana_food_uses(snapshot), 14)
 
-    def test_multi_page_open_home_is_not_consumed_or_attempt_latched(self):
+    def test_multi_page_open_home_uses_existing_pass_bound_then_latches(self):
         policy = HengbotPolicy()
         final_page_item = store_item("a", TVAL_WAND, 6, charges=7)
+        outside = self._entrance_snapshot([])
+        policy.choose_key(outside)
+        self.assertIsNotNone(policy._town_errand_plan)
+        policy.consume_home_knowledge(())
+        policy._invalidate_home_observation()
+        while (
+            policy._town_errand_plan.index < len(policy._town_errand_plan.stops)
+            and policy._town_errand_plan.stops[policy._town_errand_plan.index]
+            != STORE_HOME
+        ):
+            earlier = policy._town_errand_plan.stops[policy._town_errand_plan.index]
+            policy._set_town_store_attempted(earlier, outside.turn, "test-observed-pass")
+            policy.choose_key(outside)
+        self.assertEqual(
+            policy._town_errand_plan.stops[policy._town_errand_plan.index],
+            STORE_HOME,
+        )
         snapshot = replace(
             self._snapshot([]),
             store=StoreState(
@@ -3271,10 +3288,36 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:scan-incomplete-open-page")
+        reasons = []
+        visit_limit = policy._town_store_visit_limit(STORE_HOME)
+        for turn in range(visit_limit):
+            passes_before = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+            decision = policy.choose_key(replace(snapshot, turn=snapshot.turn + turn))
+            self.assertEqual(decision, LEAVE_STORE_KEY)
+            reasons.append(policy.last_reason)
+            if policy.last_reason == "home:scan-incomplete-open-page":
+                self.assertEqual(
+                    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+                    passes_before + 2,
+                )
+            if STORE_HOME in policy._town_store_attempted:
+                break
+        self.assertIn("home:scan-incomplete-open-page", reasons)
+        self.assertLessEqual(len(reasons), visit_limit)
         self.assertFalse(policy._home_knowledge_current)
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
+        policy.choose_key(replace(outside, turn=snapshot.turn + visit_limit + 1))
+        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
+        self.assertNotEqual(
+            policy._town_errand_plan.stops[policy._town_errand_plan.index],
+            STORE_HOME,
+        )
+        state = policy.equipment_optimization_state(snapshot)
+        self.assertTrue(state["home_scan_complete"])
+        self.assertFalse(state["home_knowledge_current"])
+        self.assertTrue(state["home_knowledge_invalidated"])
 
     def test_142251_transaction_deposit_uses_atomic_entrance_visit(self):
         policy = HengbotPolicy()
