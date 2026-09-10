@@ -2629,6 +2629,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         }
         snapshot = self._with_grid_memory(snapshot)
         self._begin_map_predicate_cache(snapshot)
+        # Posted entry observation is handled before ``_decide``, so its empty
+        # wait would otherwise bypass the registered release evaluators.  Run
+        # them only at that early-return seam: a blanket public-boundary call
+        # would reorder every decision path, while the ordinary one-shot wait
+        # still reaches the same evaluators at the start of ``_decide``.
+        if self._store_entry_posted_owner is not None:
+            self._evaluate_cross_decision_latches(snapshot)
         posted_entry_owner = self._store_entry_posted_owner
         if posted_entry_owner is not None:
             if (
