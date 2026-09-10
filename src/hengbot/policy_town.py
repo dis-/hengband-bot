@@ -1878,6 +1878,10 @@ class TownMixin:
     ) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""
         needs: list[TownNeed] = []
+        previous_snapshot = getattr(self, "_town_need_evaluation_snapshot", None)
+        previous_candidates = getattr(
+            self, "_town_need_evaluation_candidates", None
+        )
         self._town_need_evaluation_snapshot = snapshot
         self._town_need_evaluation_candidates = self._town_need_candidates(
             snapshot, include_launcher_enchant=include_launcher_enchant
@@ -1893,8 +1897,8 @@ class TownMixin:
                         )
                     )
         finally:
-            self._town_need_evaluation_snapshot = None
-            self._town_need_evaluation_candidates = None
+            self._town_need_evaluation_snapshot = previous_snapshot
+            self._town_need_evaluation_candidates = previous_candidates
         if (
             self._home_knowledge_current
             and self._home_scan_item_count == 0
@@ -1914,6 +1918,10 @@ class TownMixin:
     ) -> list[TownNeed]:
         """Return live errands whose NeedSpec says they gate departure."""
         needs: list[TownNeed] = []
+        previous_snapshot = getattr(self, "_town_need_evaluation_snapshot", None)
+        previous_candidates = getattr(
+            self, "_town_need_evaluation_candidates", None
+        )
         self._town_need_evaluation_snapshot = snapshot
         self._town_need_evaluation_candidates = self._town_need_candidates(
             snapshot, include_launcher_enchant=include_launcher_enchant
@@ -1929,8 +1937,8 @@ class TownMixin:
                         )
                     )
         finally:
-            self._town_need_evaluation_snapshot = None
-            self._town_need_evaluation_candidates = None
+            self._town_need_evaluation_snapshot = previous_snapshot
+            self._town_need_evaluation_candidates = previous_candidates
         if self._calibration_phase == "deposit" and self._home_available(snapshot):
             needs.append(TownNeed(
                 STORE_HOME, "calibration-deposit", "home-first"
@@ -2240,6 +2248,12 @@ class TownMixin:
             owned_categories = tuple(need.category for need in store_needs)
         registry_satisfied = True
         if owned_categories:
+            previous_snapshot = getattr(
+                self, "_town_need_evaluation_snapshot", None
+            )
+            previous_candidates = getattr(
+                self, "_town_need_evaluation_candidates", None
+            )
             self._town_need_evaluation_snapshot = snapshot
             self._town_need_evaluation_candidates = self._town_need_candidates(
                 snapshot
@@ -2255,8 +2269,8 @@ class TownMixin:
                     )
                 )
             finally:
-                self._town_need_evaluation_snapshot = None
-                self._town_need_evaluation_candidates = None
+                self._town_need_evaluation_snapshot = previous_snapshot
+                self._town_need_evaluation_candidates = previous_candidates
         goal_satisfied = goal_satisfied and registry_satisfied
         for category in owned_categories:
             self._town_visit_ledger.need_attempts[category] = (
