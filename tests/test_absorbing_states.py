@@ -119,6 +119,8 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 
         self.assertTrue(result.passed, result.report())
         self.assertEqual(result.decisions, 2)
+        self.assertEqual(result.reasons["town:character-dump"], 1)
+        self.assertEqual(result.reasons["town:recall-to-alt-dungeon"], 1)
         self.assertFalse(any(
             reason.startswith("town:blocked:") for reason in result.reasons
         ))
