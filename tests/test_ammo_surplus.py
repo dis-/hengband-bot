@@ -47,8 +47,16 @@ class AmmoSurplusTest(unittest.TestCase):
         self.assertTrue(final_key)
         self.assertNotEqual(final_reason, "town:blocked:departure-unsatisfiable")
         self.assertEqual(policy._retention_surplus(snapshot, weakest), 3)
-        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 29)
+        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 0)
         self.assertEqual(policy._retention_surplus(snapshot, best), 0)
+        self.assertEqual(
+            [
+                policy._retention_surplus(snapshot, item)
+                for item in snapshot.inventory
+                if item.slot in "opqrst"
+            ],
+            [3, 0, 0, 0, 0, 0],
+        )
         self.assertIs(policy._find_home_deposit(snapshot), weakest)
         self.assertIsNone(policy._full_pack_destroy_key(snapshot))
 
@@ -57,7 +65,7 @@ class AmmoSurplusTest(unittest.TestCase):
         weakest = next(item for item in snapshot.inventory if item.slot == "o")
         inferior_dense = next(item for item in snapshot.inventory if item.slot == "q")
         self.assertIs(policy._find_home_deposit(snapshot), weakest)
-        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 29)
+        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 0)
 
         # Apply the inventory observation produced by that whole-stack Home
         # deposit.  Store routing is outside this pin; the real normal-purchase
