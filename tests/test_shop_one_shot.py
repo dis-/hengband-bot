@@ -757,6 +757,10 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
         self.assertEqual(policy._store_entry_posted_owner, STORE_HOME)
 
+        policy.choose_key(replace(outside, turn=outside.turn + 1))
+        self.assertNotEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertIsNone(policy._store_entry_posted_owner)
+
     def test_home_stage_one_entry_wait_expires_and_routing_resumes(self):
         inside = self._inside(STORE_HOME, [], [])
         outside = self._outside(HengbotPolicy(), inside)
