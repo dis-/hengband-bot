@@ -37,6 +37,7 @@ from hengbot.home_visit import (
     HomeVisitExecutor, HomeVisitKind, HomeVisitRequest,
 )
 from hengbot.latch_onset_capture import restore_checkpoint
+from hengbot.town_arbiter import _new_town_turn_arbiter
 
 from absorbing_state_harness import AbsorbingState
 import test_policy as fixture
@@ -60,6 +61,50 @@ MOVES = {
 }
 
 EMITTED_TURNS_PER_PLAYER_TURN = 10
+
+
+# Real decision reasons from turns 2,385,131--2,385,397.  The structural
+# invariant below drives them through the production arbiter instead of
+# reconstructing private policy state from the incident.
+SINGLE_OWNER_ERRAND_REASONS = (
+    "equipment-transaction:approach-home",
+    "calibration:redress",
+    "home:request-knowledge-scan",
+    "calibration:redress",
+    "equipment-transaction:deposit-missing",
+)
+
+
+def drive_single_owner_errand_invariant():
+    arbiter = _new_town_turn_arbiter()
+
+    def close_visit(_outcome):
+        arbiter.store_visit = None
+
+    visit = arbiter.acquire_store_visit(
+        store_type=STORE_HOME, owner="equipment-transaction",
+        purpose="equipment-work", opened_sequence=1,
+        close_visit=close_visit,
+    )
+    owners = []
+    for index, reason in enumerate(SINGLE_OWNER_ERRAND_REASONS, 1):
+        owners.append(arbiter.observe(
+            in_town=True, reason=reason, progress_vector=(index,),
+        )["owner"])
+    next_visit = arbiter.acquire_store_visit(
+        store_type=STORE_GENERAL, owner="town-errand", purpose="shopping",
+        opened_sequence=6, close_visit=close_visit,
+    )
+    owners.append(arbiter.observe(
+        in_town=True, reason="shop:one-shot-buy", progress_vector=(6,),
+    )["owner"])
+    survival_owner = arbiter.observe(
+        in_town=True, reason="town:eat-before-travel", progress_vector=(7,),
+    )["owner"]
+    owners.append(arbiter.observe(
+        in_town=True, reason="shop:leave", progress_vector=(8,),
+    )["owner"])
+    return visit, next_visit, tuple(owners), survival_owner
 
 
 class CapturedHomeDeferralWorld:

@@ -116,9 +116,14 @@ class TownTurnArbiter:
         visit = getattr(self, "store_visit", None)
         if not hasattr(self, "store_visit"):
             self.store_visit = visit
+        transferred_owner = None
         if visit is not None and visit.store_type != store_type:
             if in_flight_clause(visit) is not None:
                 return None
+            # A store change is a leg of the same errand, not an ownership
+            # hand-off.  Keep the registered visit owner across the transfer;
+            # the new producer contributes its operation under that owner.
+            transferred_owner = visit.owner
             transfer = (visit.store_type, store_type)
             self._pending_transfer = transfer
             self._last_transfer_sequence = opened_sequence
@@ -127,7 +132,7 @@ class TownTurnArbiter:
             visit = self.store_visit
         if visit is None:
             visit = StoreVisit(
-                owner=owner,
+                owner=transferred_owner or owner,
                 purpose=purpose,
                 store_type=store_type,
                 visit_origin="acquire",
@@ -178,7 +183,7 @@ class TownTurnArbiter:
         if normalized.startswith(step_off_prefix):
             # Step-off wraps delegated work, so recursively attribute its inner reason.
             return self.decision_owner_for_reason(normalized[len(step_off_prefix):])
-        owner = self.owner_for_reason(reason)
+        owner = self._decision_owner(reason)
         if owner not in {"misc", "unregistered"}:
             return owner
         if normalized.startswith("seek-downstairs"):
@@ -188,6 +193,23 @@ class TownTurnArbiter:
         if normalized.startswith("periodic:"):
             return "detectors"
         return "town-plan"
+
+    def _decision_owner(self, reason: str) -> str:
+        """Bind ordinary work to the active errand; survival may hand off."""
+        reason_owner = self.owner_for_reason(reason)
+        if reason_owner == "survival":
+            return reason_owner
+        visit = getattr(self, "store_visit", None)
+        if visit is None:
+            return reason_owner
+        aliases = {
+            "shop-handler": "shop-buy",
+            "shop-one-shot": "shop-buy",
+            "home-one-shot": "home-visit",
+            "equipment-transaction": "equipment-txn",
+            "town-errand": "town-plan",
+        }
+        return aliases.get(visit.owner, visit.owner)
 
     def observe(
         self,
@@ -246,6 +268,9 @@ class TownTurnArbiter:
                 if vector == progress_vector
             }
         self._visit_vector = progress_vector
+        # Keep per-producer progress budgets independent.  The externally
+        # attributed owner is the visit/errand owner in telemetry and at the
+        # emit boundary; contributors do not inherit one another's budget.
         owner = self.owner_for_reason(reason)
         if probe:
             # A refusal observation is not an owner decision.  It cannot spend
@@ -316,7 +341,7 @@ class TownTurnArbiter:
             if close_visit is not None:
                 close_visit(owner, "arbiter-retired")
         self.telemetry = {
-            "owner": owner,
+            "owner": self._decision_owner(reason),
             "tenure": self._tenure,
             "progress": progress,
             "budget_remaining_estimate": remaining,

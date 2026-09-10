@@ -373,6 +373,21 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self.assertNotIn("calibration-required", preparation.blockers)
             self.assertIsNone(policy._calibration_phase)
 
+    def test_foreign_equipment_errand_defers_calibration_redress(self):
+        policy = self._scan_complete_policy()
+        snapshot = self._snapshot()
+        policy._calibration_phase = "capture"
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((), (), 0)
+        )
+        policy._set_equipment_transaction_session(session)
+
+        key = policy._calibration_town_key(snapshot)
+
+        self.assertIsNone(key)
+        self.assertEqual(policy._calibration_phase, "capture")
+        self.assertFalse(policy._calibration_naked_dump_prepared)
+
     def test_strip_takeoffs_reach_capture_instead_of_generic_restore(self):
         policy = self._scan_complete_policy()
         sword = item(
