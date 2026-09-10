@@ -586,11 +586,6 @@ class FlightRecorder:
     def prune_budget(self) -> None:
         """Age rotated snapshots and finalized incidents within the shared budget."""
         try:
-            files = [
-                path
-                for path in self.root.rglob("*")
-                if path.is_file()
-            ]
             incident_dirs = sorted(
                 (
                     path for path in self.incident_root.iterdir()
@@ -598,63 +593,90 @@ class FlightRecorder:
                 ),
                 key=lambda path: path.stat().st_mtime_ns,
             ) if self.incident_root.exists() else []
-            incident_files = [
-                path for directory in incident_dirs
-                for path in directory.rglob("*") if path.is_file()
-            ]
+            def current_files() -> list[Path]:
+                root_files = [path for path in self.root.rglob("*") if path.is_file()]
+                capture_files = [
+                    path for path in self.incident_root.rglob("*") if path.is_file()
+                ] if self.incident_root.exists() else []
+                return root_files + capture_files
 
-            path_sizes: dict[Path, int] = {}
-            path_identities: dict[Path, tuple[int, int]] = {}
-
-            def allocated_size(paths) -> int:
-                seen = set()
-                total_size = 0
-                for path in paths:
-                    if not path.exists():
-                        continue
-                    stat = path.stat()
-                    identity = (stat.st_dev, stat.st_ino)
-                    path_sizes[path] = stat.st_size
-                    path_identities[path] = identity
-                    if identity in seen:
-                        continue
-                    seen.add(identity)
-                    total_size += stat.st_size
-                return total_size
-
-            total = allocated_size(files + incident_files)
-            incident_seen = set()
-            incident_total = 0
-            incident_sizes: dict[Path, int] = {}
+            incident_kinds: dict[Path, str] = {}
             for directory in incident_dirs:
-                directory_size = 0
-                for path in directory.rglob("*"):
-                    identity = path_identities.get(path)
-                    if identity is None or identity in incident_seen:
-                        continue
-                    incident_seen.add(identity)
-                    directory_size += path_sizes[path]
-                incident_sizes[directory] = directory_size
-                incident_total += directory_size
-            incident_budget = self.budget_bytes // len((self.root, self.incident_root))
-            newest_incident = incident_dirs[-1] if incident_dirs else None
-            rotated = [
-                (path.stat().st_mtime_ns, path)
+                try:
+                    meta = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
+                    incident_kinds[directory] = str(meta["kind"])
+                except (OSError, ValueError, KeyError, TypeError):
+                    # Unknown legacy captures cannot prove that another copy exists.
+                    incident_kinds[directory] = str(directory)
+            newest_by_kind = {
+                kind: max(
+                    (path for path in incident_dirs if incident_kinds[path] == kind),
+                    key=lambda path: path.stat().st_mtime_ns,
+                )
+                for kind in set(incident_kinds.values())
+            }
+            candidates = [
+                (path.stat().st_mtime_ns, "file", path)
                 for path in self.snapshot_dir.glob("snapshots-*.jsonl.gz")
                 if path != self.snapshot_path
             ]
-            for _, path in sorted(rotated, key=lambda item: item[0]):
+            candidates.extend(
+                (path.stat().st_mtime_ns, "file", path)
+                for path in self.root.iterdir()
+                if path.is_file()
+                and ".jsonl." in path.name
+                and path.name.rpartition(".")[2].isdigit()
+            )
+            candidates.extend(
+                (path.stat().st_mtime_ns, "directory", path)
+                for path in incident_dirs
+                if newest_by_kind[incident_kinds[path]] != path
+            )
+
+            remaining_paths: dict[Path, tuple[tuple[int, int], int]] = {}
+            identity_paths: dict[tuple[int, int], set[Path]] = {}
+            identity_sizes: dict[tuple[int, int], int] = {}
+            for path in current_files():
+                stat = path.stat()
+                identity = (stat.st_dev, stat.st_ino)
+                remaining_paths[path] = (identity, stat.st_size)
+                identity_paths.setdefault(identity, set()).add(path)
+                identity_sizes[identity] = stat.st_size
+            total = sum(identity_sizes.values())
+            for _, candidate_type, path in sorted(candidates, key=lambda item: item[0]):
                 if total <= self.budget_bytes:
                     break
-                size = path.stat().st_size
-                path.unlink()
-                total -= size
-            for path in incident_dirs:
-                if incident_total <= incident_budget or path == newest_incident:
-                    break
-                size = incident_sizes[path]
-                shutil.rmtree(path)
-                incident_total -= size
-                total -= size
+                removed = [
+                    child for child in remaining_paths
+                    if child == path or candidate_type == "directory" and path in child.parents
+                ]
+                if candidate_type == "directory":
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                for child in removed:
+                    identity, _ = remaining_paths.pop(child)
+                    identity_paths[identity].remove(child)
+                    if not identity_paths[identity]:
+                        total -= identity_sizes[identity]
+
+            if total > self.budget_bytes:
+                contributors = sorted(
+                    (
+                        (size, str(path))
+                        for path, (_, size) in remaining_paths.items()
+                    ),
+                    reverse=True,
+                )[:3]
+                summary = ", ".join(
+                    f"{path}={size}" for size, path in contributors
+                ) or "none"
+                print(
+                    "flight recorder budget remains over target: "
+                    f"total={total} budget={self.budget_bytes} "
+                    f"largest_non_evictable=[{summary}]",
+                    file=sys.stderr,
+                )
+
         except OSError as exc:
             _warn("prune snapshot history", exc)

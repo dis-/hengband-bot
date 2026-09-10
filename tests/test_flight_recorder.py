@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import gzip
+import io
 import json
 import os
 import tempfile
 import unittest
 from collections import Counter
+from contextlib import redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -22,6 +24,13 @@ from hengbot.model import Position
 
 
 class FlightRecorderTest(unittest.TestCase):
+    @staticmethod
+    def _write_incident(path, kind, size, mtime):
+        path.mkdir(parents=True)
+        (path / "meta.json").write_text(json.dumps({"kind": kind}), encoding="utf-8")
+        (path / "payload").write_bytes(b"x" * size)
+        os.utime(path, (mtime, mtime))
+
     def test_diagnostic_filename_components_are_windows_safe(self):
         component = safe_filename_component(
             'posting-contract:bad<name>"/\\|?*\x00. '
@@ -355,7 +364,10 @@ class FlightRecorderTest(unittest.TestCase):
             for index in range(5):
                 path = recorder.incident_root / f"incident-{index}"
                 path.mkdir(parents=True)
-                (path / "meta.json").write_bytes(b"x" * 8)
+                (path / "meta.json").write_text(
+                    json.dumps({"kind": "repeated"}), encoding="utf-8"
+                )
+                (path / "payload").write_bytes(b"x" * 8)
                 os.utime(path, (index + 1, index + 1))
                 incidents.append(path)
 
@@ -363,7 +375,7 @@ class FlightRecorderTest(unittest.TestCase):
 
             self.assertEqual(
                 [path.exists() for path in incidents],
-                [False, False, False, True, True],
+                [False, False, False, False, True],
             )
             self.assertTrue(orphan.exists())
 
@@ -379,7 +391,10 @@ class FlightRecorderTest(unittest.TestCase):
             for index in range(5):
                 incident = recorder.incident_root / f"incident-{index}"
                 incident.mkdir(parents=True)
-                (incident / "meta.json").write_bytes(b"x" * 8)
+                (incident / "meta.json").write_text(
+                    json.dumps({"kind": "repeated"}), encoding="utf-8"
+                )
+                (incident / "payload").write_bytes(b"x" * 8)
                 os.utime(incident, (index + 1, index + 1))
             original_stat = Path.stat
             bulk_stats = 0
@@ -393,7 +408,7 @@ class FlightRecorderTest(unittest.TestCase):
             with patch.object(Path, "stat", counting_stat):
                 recorder.prune_budget()
 
-            self.assertEqual(bulk_stats, 3)
+            self.assertEqual(bulk_stats, 4)
 
     def test_budget_prunes_oldest_incident_but_preserves_newest(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -408,7 +423,10 @@ class FlightRecorderTest(unittest.TestCase):
             newest = recorder.incident_root / "newest"
             for index, path in enumerate((oldest, newest), 1):
                 path.mkdir(parents=True)
-                (path / "meta.json").write_bytes(b"x" * 8)
+                (path / "meta.json").write_text(
+                    json.dumps({"kind": "same-kind"}), encoding="utf-8"
+                )
+                (path / "payload").write_bytes(b"x" * 8)
                 os.utime(path, (index, index))
 
             recorder.prune_budget()
@@ -523,6 +541,62 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertTrue(live.exists())
             self.assertTrue(decision.exists())
             self.assertTrue(incident.exists())
+
+    def test_budget_warns_once_after_exhausting_safe_candidates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=30
+            )
+            recorder.root.mkdir(parents=True)
+            live = recorder.root / "bot-decisions.jsonl"
+            live.write_bytes(b"x" * 40)
+            rotated = recorder.root / "bot-decisions.jsonl.1"
+            rotated.write_bytes(b"x" * 10)
+            self._write_incident(recorder.incident_root / "old-loop", "loop", 10, 1)
+            self._write_incident(recorder.incident_root / "new-loop", "loop", 10, 2)
+            only_kind = recorder.incident_root / "only-stall"
+            self._write_incident(only_kind, "stall", 10, 3)
+
+            warnings = io.StringIO()
+            with redirect_stderr(warnings):
+                recorder.prune_budget()
+
+            self.assertFalse(rotated.exists())
+            self.assertFalse((recorder.incident_root / "old-loop").exists())
+            self.assertTrue(live.exists())
+            self.assertTrue((recorder.incident_root / "new-loop").exists())
+            self.assertTrue(only_kind.exists())
+            lines = warnings.getvalue().splitlines()
+            self.assertEqual(len(lines), 1)
+            self.assertIn("total=93 budget=30", lines[0])
+            self.assertIn(f"{live}=40", lines[0])
+
+    def test_budget_reachable_target_prunes_rotated_logs_without_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=25
+            )
+            recorder.root.mkdir(parents=True)
+            live = recorder.root / "bot-state-fixed.jsonl"
+            live.write_bytes(b"x" * 20)
+            oldest = recorder.root / "bot-state-fixed.jsonl.2"
+            newest = recorder.root / "bot-state-fixed.jsonl.1"
+            oldest.write_bytes(b"x" * 10)
+            newest.write_bytes(b"x" * 10)
+            os.utime(oldest, (1, 1))
+            os.utime(newest, (2, 2))
+
+            warnings = io.StringIO()
+            with redirect_stderr(warnings):
+                recorder.prune_budget()
+
+            self.assertFalse(oldest.exists())
+            self.assertFalse(newest.exists())
+            self.assertTrue(live.exists())
+            self.assertLessEqual(sum(path.stat().st_size for path in recorder.root.rglob("*")), 25)
+            self.assertEqual(warnings.getvalue(), "")
 
     def test_repeated_snapshot_appends_walk_budget_far_less_often(self):
         with tempfile.TemporaryDirectory() as directory:
