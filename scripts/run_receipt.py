@@ -135,13 +135,39 @@ class Tee(io.TextIOBase):
     def __init__(self, display: io.TextIOBase, saved: io.TextIOBase) -> None:
         self.display, self.saved = display, saved
 
+    def fileno(self) -> int:
+        for stream in (self.display, self.saved):
+            try:
+                return stream.fileno()
+            except (AttributeError, io.UnsupportedOperation, ValueError):
+                continue
+        raise io.UnsupportedOperation("fileno")
+
     def write(self, value: str) -> int:
-        self.display.write(value); self.display.flush()
-        self.saved.write(value); self.saved.flush()
+        try:
+            self.saved.write(value); self.saved.flush()
+        except ValueError:
+            pass
+        try:
+            self.display.write(value)
+        except UnicodeEncodeError:
+            encoding = getattr(self.display, "encoding", None) or "utf-8"
+            rendered = value.encode(encoding, errors="backslashreplace").decode(encoding)
+            self.display.write(rendered)
+        except ValueError:
+            pass
+        try:
+            self.display.flush()
+        except ValueError:
+            pass
         return len(value)
 
     def flush(self) -> None:
-        self.display.flush(); self.saved.flush()
+        for stream in (self.display, self.saved):
+            try:
+                stream.flush()
+            except ValueError:
+                pass
 
 
 def run_native(tool: str, target: str, argv: list[str], action: Callable[[], int]) -> int:

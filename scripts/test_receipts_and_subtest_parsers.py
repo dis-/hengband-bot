@@ -132,6 +132,32 @@ class SubTestParserTest(unittest.TestCase):
 
 
 class ReceiptTest(unittest.TestCase):
+    def test_tee_fileno_delegates_to_an_underlying_real_stream(self) -> None:
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as display:
+            tee = run_receipt.Tee(display, io.StringIO())
+            self.assertEqual(tee.fileno(), display.fileno())
+            self.assertEqual(run_receipt.Tee(io.StringIO(), display).fileno(), display.fileno())
+        with self.assertRaises(io.UnsupportedOperation):
+            run_receipt.Tee(io.StringIO(), io.StringIO()).fileno()
+
+    def test_tee_preserves_unencodable_text_exactly_in_saved_stream(self) -> None:
+        display_bytes = io.BytesIO()
+        display = io.TextIOWrapper(display_bytes, encoding="ascii", errors="strict", newline="")
+        saved = io.StringIO()
+        tee = run_receipt.Tee(display, saved)
+        value = "worker emitted \ufffd\n"
+        self.assertEqual(tee.write(value), len(value))
+        self.assertEqual(saved.getvalue(), value)
+        display.flush()
+        self.assertEqual(display_bytes.getvalue(), b"worker emitted \\ufffd\n")
+
+    def test_tee_write_and_flush_tolerate_closed_streams(self) -> None:
+        display, saved = io.StringIO(), io.StringIO()
+        display.close(); saved.close()
+        tee = run_receipt.Tee(display, saved)
+        self.assertEqual(tee.write("late shutdown output"), len("late shutdown output"))
+        tee.flush()
+
     def make_repo(self, root: Path) -> None:
         (root / "src").mkdir()
         (root / "src/tracked.txt").write_text("original\n", encoding="utf-8")
