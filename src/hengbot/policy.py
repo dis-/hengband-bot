@@ -8007,6 +8007,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             preparation, blockers=()
         )
         self._equipment_optimization_signature = None
+        self._home_candidate_waiting = False
         self._town_liveness_claim_retired = True
         return True
 

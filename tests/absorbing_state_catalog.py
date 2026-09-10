@@ -1726,7 +1726,7 @@ def _town_sell_rebuy_churn_defect():
 
 SEEDED_STATES = (
     AbsorbingState(
-        "captured-departure-unsatisfiable-equipment-failure", 6,
+        "captured-departure-unsatisfiable-equipment-failure", 4,
         _captured_departure_unsatisfiable,
     ),
     AbsorbingState(
