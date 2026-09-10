@@ -3503,6 +3503,55 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             self.assertNotIn(key, {WAIT_KEY, "\r"})
         policy._decide.assert_not_called()
 
+    def test_captured_churn_deposits_batch_and_partial_effect_stays_pending(self):
+        policy = HengbotPolicy()
+        deposits = [
+            item(chr(ord("f") + index), TVAL_ARROW, 20 + index,
+                 count=40, name=f"captured surplus arrows {index}")
+            for index in range(4)
+        ]
+        entrance = self._entrance_snapshot(
+            self._real_pack(*deposits), turn=1838172
+        )
+
+        policy._shopping_approach_store_type = STORE_HOME
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=lambda snapshot: policy._shopping_approach_key(
+                snapshot, snapshot.player.position, "shop:travel"
+            ),
+        ):
+            key = policy.choose_key(entrance)
+        policy.confirm_key_posted(key)
+
+        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(
+            policy._store_visit.operation_key,
+            "di40\rdh40\rdg40\rdf40\r\x1b",
+        )
+        home_entries = 1
+        self.assertLess(home_entries, len(deposits))
+        self.assertEqual(policy.choose_key(self._snapshot(
+            self._real_pack(*deposits), turn=1838172
+        )), policy._store_visit.operation_key)
+        policy.confirm_key_posted(policy._store_visit.operation_key)
+        policy._store_visit = None
+        policy._decide = Mock(return_value=WAIT_KEY)
+
+        partial = self._snapshot(
+            self._real_pack(*deposits[2:]), at_home=False, turn=1838173
+        )
+        policy.choose_key(partial)
+        self.assertIsNotNone(policy._home_atomic_deposit_pending)
+
+        complete = self._snapshot(
+            self._real_pack(), at_home=False, turn=1838174
+        )
+        policy.choose_key(complete)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+        self.assertEqual(len(deposits), 4)
+
     def test_quantity_is_present_only_for_multi_item_stack(self):
         policy = HengbotPolicy()
         single = item("f", TVAL_ARROW, 1, count=1, name="single arrow")

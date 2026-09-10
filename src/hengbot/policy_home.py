@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
@@ -1725,10 +1725,14 @@ class HomeMixin:
             )
             self._home_entry_operation_posted = True
             self._home_atomic_deposit_pending = (
-                self._item_signature(current),
-                self._inventory_signature_count(
-                    snapshot, self._item_signature(current)
-                ),
+                ((
+                    self._item_signature(current),
+                    self._inventory_signature_count(
+                        snapshot, self._item_signature(current)
+                    ),
+                    current.count,
+                ),),
+                None,
                 snapshot.turn,
                 0,
             )
@@ -1775,27 +1779,81 @@ class HomeMixin:
         ):
             self.last_reason = "home-visit:deposit-not-authorized"
             return None
+        deposits = self._home_deposit_batch(snapshot, current)
+        operations = []
+        pending_by_signature = {}
+        for item, deposit_count in sorted(
+            deposits, key=lambda entry: entry[0].slot, reverse=True
+        ):
+            operation = self._home_deposit_key(
+                snapshot, item, forced_count=deposit_count
+            )
+            if operation == LEAVE_STORE_KEY:
+                continue
+            operations.append(operation)
+            signature = self._item_signature(item)
+            before_count, expected_count = pending_by_signature.get(
+                signature,
+                (self._inventory_signature_count(snapshot, signature), 0),
+            )
+            pending_by_signature[signature] = (
+                before_count, expected_count + deposit_count
+            )
+            self._equipment_catalog.record_home_deposit(
+                item,
+                intent=(
+                    snapshot.turn,
+                    item.slot,
+                    signature,
+                    deposit_count,
+                    item.charges,
+                    len(snapshot.inventory),
+                ),
+            )
+        if not operations:
+            return None
         self._home_entry_operation_posted = True
         self._home_atomic_deposit_pending = (
-            self._item_signature(current),
-            self._inventory_signature_count(snapshot, self._item_signature(current)),
+            tuple(
+                (signature, before_count, expected_count)
+                for signature, (before_count, expected_count)
+                in pending_by_signature.items()
+            ),
+            None,
             snapshot.turn,
             0,
         )
-        self._equipment_catalog.record_home_deposit(
-            current,
-            intent=(
-                snapshot.turn,
-                current.slot,
-                self._item_signature(current),
-                current.count,
-                current.charges,
-                len(snapshot.inventory),
-            ),
+        self._stage_home_operation(
+            snapshot, "".join(operations) + LEAVE_STORE_KEY
         )
-        self._stage_home_operation(snapshot, operation + LEAVE_STORE_KEY)
         self.last_reason = "home:atomic-deposit"
         return WAIT_KEY
+
+    def _home_deposit_batch(
+        self, snapshot: Snapshot, first: InventoryItem
+    ) -> tuple[tuple[InventoryItem, int], ...]:
+        """Select the deposits successive visits would choose, at their live slots."""
+        limit = min(PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS, STORE_STUCK_LIMIT)
+        selected = []
+        selected_slots = set()
+        remaining = tuple(snapshot.inventory)
+        current = first
+        while current is not None and len(selected) < limit:
+            if current.slot in selected_slots:
+                break
+            deposit_count = (
+                current.count
+                if self._calibration_phase == "deposit"
+                else min(current.count, self._retention_surplus(snapshot, current))
+            )
+            if deposit_count > 0:
+                selected.append((current, deposit_count))
+                selected_slots.add(current.slot)
+            remaining = tuple(item for item in remaining if item.slot != current.slot)
+            current = self._find_home_deposit(
+                replace(snapshot, inventory=remaining)
+            )
+        return tuple(selected)
 
     def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> None:
         """Post Home entry now and release its bound tail on the fresh page."""

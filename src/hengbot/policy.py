@@ -1624,7 +1624,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A same-turn surface record is part of the composed entry/deposit/exit
         # command, not a negative observation of its effect.
         self._home_atomic_deposit_pending: tuple[
-            tuple[str, int, int], int, int, int
+            tuple[tuple[tuple[str, int, int], int, int], ...], None, int, int
         ] | None = None
         # Same target and shortage after a registered, money-spending buy is a
         # distinct defect from a transport failure at unchanged gold.
@@ -2672,16 +2672,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # visit posted-entry-unobserved release.
                     withdrawal = self._home_atomic_withdraw_pending
                     deposit = self._home_atomic_deposit_pending
+                    deposit_observed = bool(
+                        deposit is not None
+                        and all(
+                            self._inventory_signature_count(snapshot, signature)
+                            <= count_before - expected_count
+                            for signature, count_before, expected_count
+                            in deposit[0]
+                        )
+                    )
                     observed_effect = bool(
                         withdrawal is not None
                         and self._inventory_signature_count(
                             snapshot, withdrawal[0]
                         ) >= withdrawal[1] + withdrawal[3]
-                    ) or bool(
-                        deposit is not None
-                        and self._inventory_signature_count(snapshot, deposit[0])
-                        < deposit[1]
-                    )
+                    ) or deposit_observed
                     if not observed_effect:
                         self.last_reason = "store:entry-await-observation"
                         return ""
@@ -3134,12 +3139,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or self._store_visit.operation_released
             )
         ):
-            signature, count_before, posted_turn, unchanged_pages = pending_deposit
+            entries, _unused, posted_turn, unchanged_pages = pending_deposit
             if snapshot.turn > posted_turn:
-                deposit_observed = (
-                    self._inventory_signature_count(snapshot, signature)
-                    < count_before
+                landed = tuple(
+                    signature
+                    for signature, count_before, expected_count in entries
+                    if self._inventory_signature_count(snapshot, signature)
+                    <= count_before - expected_count
                 )
+                deposit_observed = len(landed) == len(entries)
                 if deposit_observed:
                     if getattr(self, "_home_visit", None) is not None:
                         self._home_visit.observe_outside(effect_observed=True)
@@ -3162,11 +3170,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             )
                     self._home_entry_operation_posted = False
                     self._home_atomic_deposit_pending = None
-                    self._home_rejected_deposits.add(signature)
+                    self._home_rejected_deposits.update(
+                        signature
+                        for signature, _count_before, _expected_count in entries
+                        if signature not in landed
+                    )
                     self.last_reason = "home:deposit-unobserved-rescan"
                 else:
                     self._home_atomic_deposit_pending = (
-                        signature, count_before, posted_turn, unchanged_pages + 1
+                        entries, None, posted_turn, unchanged_pages + 1
                     )
         if (
             snapshot.store is None
