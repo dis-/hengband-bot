@@ -16,6 +16,7 @@ from unittest import mock
 import hunk_guard
 import failure_headers
 import mutation_battery
+import test_parallel_runner
 import run_receipt
 import verify_receipt
 import verify_scope
@@ -39,6 +40,16 @@ def git(root: Path, *args: str) -> str:
 
 
 class SubTestParserTest(unittest.TestCase):
+    def test_parallel_runner_aggregates_subtest_failure_header(self) -> None:
+        stderr = (
+            "FAIL: test_worker_case (tests.test_demo.DemoTest.test_worker_case) "
+            "(sequence=294)\n"
+        )
+        self.assertEqual(
+            test_parallel_runner.outcome_ids(stderr, "FAIL"),
+            ["tests.test_demo.DemoTest.test_worker_case"],
+        )
+
     def test_each_consumer_delegates_to_the_shared_header_parser(self) -> None:
         sentinel = failure_headers.FailureHeader("FAIL", "test_x", "pkg.T.test_x", 0, 28)
         with mock.patch.object(hunk_guard, "failure_sections", return_value={"pkg.T.test_x": "section"}) as parser:

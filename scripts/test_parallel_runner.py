@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
 
+from failure_headers import iter_failure_headers
 from test_timing_runner import ROOT, standard_modules, timing_summary
 
 
@@ -85,8 +85,11 @@ def resolved(path: Path) -> Path:
 
 
 def outcome_ids(stderr: str, kind: str) -> list[str]:
-    pattern = rf"^{kind}: \S+ \(([^)]+)\)$"
-    return list(dict.fromkeys(re.findall(pattern, stderr, re.MULTILINE)))
+    return list(dict.fromkeys(
+        header.identity
+        for header in iter_failure_headers(stderr, test_names_only=False)
+        if header.kind == kind
+    ))
 
 
 def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) -> dict[str, object]:
