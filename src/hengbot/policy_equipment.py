@@ -2355,7 +2355,6 @@ class EquipmentMixin:
         if (
             store is None
             or store.store_type not in {STORE_ALCHEMIST, STORE_MAGIC}
-            or not self._town_departure_ready(snapshot)
         ):
             return None
         carried_svals = {

@@ -706,6 +706,21 @@ class OverflowDisposalTest(unittest.TestCase):
         self.assertNotEqual(HengbotPolicy().choose_key(snap), "01ka")
 
 class LauncherEnchantTest(unittest.TestCase):
+    @staticmethod
+    def _captured_procurement_snapshot():
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "destroy-superior-digger-20260910.json.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as stream:
+            rows = json.load(stream)
+        row = next(
+            row for row in rows
+            if row["decision"]["decision_sequence"] == 2107
+        )
+        return parse_snapshot(row["snapshot"], {})
+
     def _town(
         self, launcher=None, inventory=None, store=None, *, gold=4000
     ):
@@ -746,23 +761,26 @@ class LauncherEnchantTest(unittest.TestCase):
         )
 
     def test_surplus_store_buys_one_scroll_for_each_needed_launcher_stat(self):
-        launcher = self._launcher()
+        captured = self._captured_procurement_snapshot()
+        launcher = next(item for item in captured.equipment if item.is_launcher)
         policy = HengbotPolicy()
-        first = self._town(launcher, store=self._stock())
-        with patch.object(policy, "_town_departure_ready", return_value=True):
-            self.assertEqual(
-                policy._launcher_enchant_purchase(first).sval,
-                SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
-            )
-            carried_hit = item(
-                "h", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
-                name="Enchant Weapon To-Hit",
-            )
-            second = replace(first, inventory=[carried_hit])
-            self.assertEqual(
-                policy._launcher_enchant_purchase(second).sval,
-                SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
-            )
+        first = replace(
+            captured, inventory=[], equipment=[launcher], store=self._stock()
+        )
+        self.assertFalse(policy._town_departure_ready(first))
+        self.assertEqual(
+            policy._launcher_enchant_purchase(first).sval,
+            SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+        )
+        carried_hit = item(
+            "h", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+            name="Enchant Weapon To-Hit",
+        )
+        second = replace(first, inventory=[carried_hit])
+        self.assertEqual(
+            policy._launcher_enchant_purchase(second).sval,
+            SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
+        )
 
     def test_read_targets_equipped_launcher_and_bounds_failed_deltas(self):
         launcher = self._launcher()
@@ -800,7 +818,10 @@ class LauncherEnchantTest(unittest.TestCase):
             self.assertIsNone(policy._launcher_enchant_purchase(poor))
         ready_gold = replace(poor, player=replace(poor.player, gold=4000))
         with patch.object(policy, "_town_departure_ready", return_value=False):
-            self.assertIsNone(policy._launcher_enchant_purchase(ready_gold))
+            self.assertEqual(
+                policy._launcher_enchant_purchase(ready_gold).sval,
+                SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+            )
 
     def test_artifact_unknown_or_missing_launcher_is_skipped(self):
         policy = HengbotPolicy()
@@ -814,19 +835,85 @@ class LauncherEnchantTest(unittest.TestCase):
                 with patch.object(policy, "_town_departure_ready", return_value=True):
                     self.assertIsNone(policy._launcher_enchant_purchase(snapshot))
 
-    def test_surplus_launcher_enchant_routes_to_alchemist_without_blocking(self):
-        launcher = self._launcher()
+    def _procurement_policy(self, snapshot):
         policy = HengbotPolicy()
-        snapshot = self._town(launcher, gold=4000)
-        with patch.object(policy, "_town_departure_ready", return_value=True):
-            needs = policy._enumerate_town_needs(snapshot)
-        self.assertIn(TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"), needs)
-        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
-        with patch.object(policy, "_town_departure_ready", return_value=True):
-            needs = policy._enumerate_town_needs(snapshot)
-        self.assertNotIn(
-            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"), needs
+        seed_character_calibration(policy, snapshot)
+        set_completed_equipment_optimization(policy)
+        seed_confirmed_loadout(policy, snapshot)
+        policy._knowledge_response_log_path = None
+        policy._read_batch_log_path = None
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_invalidated = False
+        return policy
+
+    def test_launcher_enchant_routes_before_town_departure_ready(self):
+        captured = self._captured_procurement_snapshot()
+        launcher = next(item for item in captured.equipment if item.is_launcher)
+        snapshot = replace(captured, inventory=[], equipment=[launcher])
+        policy = self._procurement_policy(snapshot)
+        self.assertEqual(snapshot.player.gold, 3809)
+        self.assertFalse(policy._town_departure_ready(snapshot))
+        self.assertEqual(policy._launcher_enchant_needed_svals(snapshot), (17, 18))
+        key = policy.choose_key(snapshot)
+        self.assertIsNotNone(key)
+        self.assertIn(
+            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"),
+            policy._enumerate_town_needs(snapshot),
         )
+
+    def test_launcher_enchant_reroutes_after_real_alchemist_exhaustion(self):
+        captured = self._captured_procurement_snapshot()
+        launcher = next(item for item in captured.equipment if item.is_launcher)
+        town = replace(captured, inventory=[], equipment=[launcher])
+        producer_town = self._town(self._launcher(to_h=2, to_d=3))
+        policy = self._procurement_policy(producer_town)
+
+        exhausted_alchemist = self._town(
+            self._launcher(to_h=2, to_d=3),
+            store=StoreState(
+                STORE_ALCHEMIST,
+                [store_item("z", TVAL_SCROLL, 999, name="Unwanted", price=9999)],
+            ),
+        )
+        _public_shop_inner(self, policy, exhausted_alchemist)
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+        self.assertIn(
+            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"),
+            policy._enumerate_town_needs(town),
+        )
+        key = policy.choose_key(replace(town, turn=town.turn + 1))
+        self.assertIsNotNone(key)
+
+    def test_successful_launcher_enchant_rearms_same_visit(self):
+        captured = self._captured_procurement_snapshot()
+        launcher = next(item for item in captured.equipment if item.is_launcher)
+        hit = item(
+            "a", TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+            name="Enchant Weapon To-Hit",
+        )
+        policy = HengbotPolicy()
+        first = replace(captured, inventory=[hit], equipment=[launcher])
+        seed_character_calibration(policy, first)
+        set_completed_equipment_optimization(policy)
+        seed_confirmed_loadout(policy, first)
+        policy._knowledge_response_log_path = None
+        policy._read_batch_log_path = None
+
+        scan_key = policy.choose_key(first)
+        self.assertEqual(scan_key, "~9\x1b\x1b")
+        self.assertTrue(policy.confirm_key_posted(scan_key))
+        key = policy.choose_key(first)
+        self.assertEqual(key, "ra/c")
+        policy.confirm_key_posted(key)
+
+        # Wall the already-consumed Home-catalogue collaborator after the real
+        # producer, so the next public decision observes and consumes re-arming.
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_invalidated = False
+        improved = replace(first, equipment=[replace(launcher, to_h=3)])
+        self.assertEqual(policy.choose_key(improved), "ra/c")
+        self.assertEqual(policy.last_reason, "town:enchant-launcher-tohit")
 
     def test_shop_reasons_name_curse_and_launcher_scrolls(self):
         cases = (

@@ -1110,7 +1110,9 @@ class TownMixin:
         self.last_reason = "equipment:destroy-unsellable-dominated"
         return self._destroy_item_key(target)
 
-    def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
+    def _town_need_candidates(
+        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
+    ) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
         needs: list[TownNeed] = []
         fundraising_active = (
@@ -1686,10 +1688,14 @@ class TownMixin:
         if self._affordable_star_remove_curse(snapshot) is not None:
             add(STORE_TEMPLE, "star-remove-curse")
         if (
-            self._launcher_enchant_needed_svals(snapshot)
-            and self._town_departure_ready(snapshot)
+            include_launcher_enchant
+            and self._launcher_enchant_needed_svals(snapshot)
             and snapshot.player.gold > FUNDRAISING_START_GOLD
-            and STORE_ALCHEMIST not in self._town_store_attempted
+            and not self._equipment_retired_worn_item_ids
+            and (
+                self._town_departure_ready(snapshot)
+                or self._actionable_departure_supplier(snapshot) is not None
+            )
         ):
             add(STORE_ALCHEMIST, "launcher-enchant")
         if (
@@ -1903,11 +1909,15 @@ class TownMixin:
             ]
         return needs
 
-    def _departure_blocking_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
+    def _departure_blocking_town_needs(
+        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
+    ) -> list[TownNeed]:
         """Return live errands whose NeedSpec says they gate departure."""
         needs: list[TownNeed] = []
         self._town_need_evaluation_snapshot = snapshot
-        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
+        self._town_need_evaluation_candidates = self._town_need_candidates(
+            snapshot, include_launcher_enchant=include_launcher_enchant
+        )
         try:
             for spec in self._town_need_registry():
                 if spec.departure_blocking and spec.produces(snapshot):
@@ -1986,6 +1996,38 @@ class TownMixin:
                 self._rearm_town_store_for_new_work(
                     need.store_type, release_visit_bound=True
                 )
+                return need.store_type
+        return None
+
+    def _actionable_departure_supplier(self, snapshot: Snapshot) -> int | None:
+        """Return a reachable supplier that still owns a failing departure gate."""
+        candidates = self._departure_blocking_town_needs(
+            snapshot, include_launcher_enchant=False
+        )
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        supply_categories = {
+            "recall": "recall", "food": "food", "oil": "oil",
+            "teleport": "teleport", "cure": "cure-critical",
+        }
+        for status in self._ledger_departure_shortages(ledger):
+            if status.obtainable:
+                candidates.extend(
+                    TownNeed(store, supply_categories[status.kind], "normal")
+                    for store in status.stores
+                )
+        for need in candidates:
+            if not self._town_need_supplier_reachable(snapshot, need):
+                continue
+            page = self._town_supplier_stock.get(need.store_type)
+            remembered_affordable = bool(
+                page is not None
+                and any(item.price <= snapshot.player.gold for item in page.items)
+            )
+            if (
+                need.store_type not in self._town_store_attempted
+                or need.store_type == STORE_HOME
+                or remembered_affordable
+            ):
                 return need.store_type
         return None
 

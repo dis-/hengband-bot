@@ -8674,6 +8674,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # latch remains set, so either case is bounded instead of carouselling.
         if current_bonus <= previous_bonus:
             return
+        self._launcher_enchant_attempted.discard(sval)
 
 
 
