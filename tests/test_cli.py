@@ -2274,6 +2274,7 @@ class DecisionRecordTest(unittest.TestCase):
             "owner", "tenure", "progress", "budget_remaining_estimate",
             "would_retire", "retired", "retirement_set",
             "decision_attribution",
+            "producer_owner",
         })
 
     def test_choose_key_mutation_reports_survive_reason_fallthrough(self):
