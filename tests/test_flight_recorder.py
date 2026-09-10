@@ -161,29 +161,73 @@ class FlightRecorderTest(unittest.TestCase):
             meta = json.loads((capture / "meta.json").read_text(encoding="utf-8"))
             self.assertEqual(meta["kind"], kind)
 
-    def test_same_second_freezes_are_unique_and_replace_failure_cleans_temp(self):
+    def test_same_second_freezes_are_unique(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             recorder = FlightRecorder(root / "jsonlog", root / "incidents")
             with patch("hengbot.flight_recorder.time.strftime", return_value="20260821-201139"):
                 first = recorder.freeze(
-                    "posting-contract", self.policy(), self.snapshot(), None, []
+                    "posting-contract-one", self.policy(), self.snapshot(), None, []
                 )
                 second = recorder.freeze(
-                    "posting-contract", self.policy(), self.snapshot(), None, []
+                    "posting-contract-two", self.policy(), self.snapshot(), None, []
                 )
             self.assertNotEqual(first, second)
             self.assertTrue(first.is_dir())
             self.assertTrue(second.is_dir())
 
-            with patch("hengbot.flight_recorder.os.replace", side_effect=OSError("fail")):
-                failed = recorder.freeze(
-                    "replace-failure", self.policy(), self.snapshot(), None, []
-                )
-            self.assertIsNone(failed)
-            self.assertEqual(list(recorder.incident_root.glob(".*.tmp")), [])
+    def test_replace_failure_retains_tree_and_reports_held_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+            held = None
+            original_write_bytes = Path.write_bytes
 
-    def test_capture_episode_rearms_after_different_key_or_observed_effect(self):
+            def write_and_hold(path, data):
+                nonlocal held
+                result = original_write_bytes(path, data)
+                if path.name == "decision-tail.jsonl":
+                    held = path.open("r+b")
+                return result
+
+            try:
+                with patch.object(Path, "write_bytes", write_and_hold):
+                    failed = recorder.freeze(
+                        "replace-failure", self.policy(), self.snapshot(), None, []
+                    )
+                self.assertIsNone(failed)
+                retained = [
+                    path for path in recorder.incident_root.iterdir()
+                    if path.is_dir()
+                ]
+                self.assertEqual(len(retained), 1)
+                self.assertTrue(retained[0].is_dir())
+                diagnostics = list(recorder.incident_root.glob(
+                    "*.freeze-diagnostics.json"
+                ))
+                self.assertEqual(len(diagnostics), 1)
+                report = json.loads(diagnostics[0].read_text(encoding="utf-8"))
+                self.assertIn("decision-tail.jsonl", json.dumps(report))
+                self.assertEqual(len(report["replace_attempts"]), 3)
+            finally:
+                if held is not None:
+                    held.close()
+
+    def test_successful_freeze_writes_no_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(root / "jsonlog", root / "incidents")
+
+            capture = recorder.freeze(
+                "success", self.policy(), self.snapshot(), None, []
+            )
+
+            self.assertTrue(capture.is_dir())
+            self.assertEqual(
+                list(recorder.incident_root.glob("*.freeze-diagnostics.json")), []
+            )
+
+    def test_capture_kind_is_deduplicated_for_recorder_lifetime(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             recorder = FlightRecorder(root / "jsonlog", root / "incidents")
@@ -209,15 +253,17 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertEqual(first, after_probe)
 
             recorder.note_successfully_posted_key("6")
-            rearmed = recorder.freeze(*arguments, owner_reason="explore", key="4")
-            self.assertNotEqual(first, rearmed)
-            self.assertEqual(len(list(recorder.incident_root.iterdir())), 2)
+            after_different_key = recorder.freeze(
+                *arguments, owner_reason="different-owner", key="6"
+            )
+            self.assertEqual(first, after_different_key)
 
             recorder.note_observed_effect("explore", "4")
-            effect_rearmed = recorder.freeze(
+            after_effect = recorder.freeze(
                 *arguments, owner_reason="explore", key="4"
             )
-            self.assertNotEqual(rearmed, effect_rearmed)
+            self.assertEqual(first, after_effect)
+            self.assertEqual(len(list(recorder.incident_root.iterdir())), 1)
 
     def test_capture_hard_links_only_generations_within_incident_window(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -242,20 +288,20 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertEqual(captured[0].read_bytes(), newer.read_bytes())
             self.assertIn("Omitted generations", (capture / "README.md").read_text())
 
-    def test_capture_always_copies_oversize_newest_generation(self):
+    def test_capture_only_copies_live_generation_tail(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             recorder = FlightRecorder(root / "jsonlog", root / "incidents")
             recorder.snapshot_dir.mkdir(parents=True)
             recorder.snapshot_path.write_bytes(b"current-generation")
 
-            with patch("hengbot.flight_recorder.INCIDENT_SNAPSHOT_BYTES", 1):
+            with patch("hengbot.flight_recorder.INCIDENT_DECISION_TAIL_BYTES", 4):
                 capture = recorder.freeze(
                     "oversize", self.policy(), self.snapshot(), None, []
                 )
 
             captured = capture / "snapshots" / recorder.snapshot_path.name
-            self.assertEqual(captured.read_bytes(), b"current-generation")
+            self.assertEqual(captured.read_bytes(), b"tion")
             readme = (capture / "README.md").read_text(encoding="utf-8")
             self.assertIn(str(len(b"current-generation")), readme)
 
