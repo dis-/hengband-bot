@@ -1662,7 +1662,15 @@ class EquipmentMixin:
                 or plan.index >= len(plan.stops)
                 or plan.stops[plan.index] != STORE_HOME
             ):
-                self._town_errand_plan = TownErrandPlan([STORE_HOME])
+                replacement = TownErrandPlan([STORE_HOME])
+                if plan is not None:
+                    replacement.completed_this_visit.extend(
+                        dict.fromkeys(plan.completed_this_visit)
+                    )
+                    replacement.blocked_this_visit.extend(
+                        dict.fromkeys(plan.blocked_this_visit)
+                    )
+                self._town_errand_plan = replacement
             step = (
                 self._shopping_approach_step(snapshot, STORE_HOME)
                 if self._ensure_home_visit_request(snapshot)

@@ -595,9 +595,9 @@ class ShopMixin:
             self._planned_mining_runs = None
             self._town_store_attempted.clear()
             self._town_restock_suppressed = False
-            self._town_errand_plan = None
+            self._retire_town_errand_plan_for_rebuild()
         if self._town_restock_suppressed:
-            self._town_errand_plan = None
+            self._retire_town_errand_plan_for_rebuild()
             return None
         if (
             opening_q34
@@ -698,10 +698,6 @@ class ShopMixin:
             "rebuilt_stops": list(plan.stops) if plan is not None else [],
         }
         if plan is not None:
-            previous_exhausted = (
-                previous_plan is None
-                or previous_plan.index >= len(previous_plan.stops)
-            )
             for store_type in plan.stops:
                 prior_categories = (
                     set(previous_plan.need_categories.get(store_type, ()))
@@ -718,8 +714,7 @@ class ShopMixin:
                     and STORE_ALCHEMIST in self._town_store_attempted
                 )
                 if (
-                    previous_exhausted
-                    or live_categories - prior_categories
+                    live_categories - prior_categories
                     or post_alchemist_home
                 ):
                     self._town_store_attempted.pop(store_type, None)
