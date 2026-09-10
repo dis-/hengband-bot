@@ -1,6 +1,7 @@
+import gzip
 import inspect
-import unittest
 import json
+import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -12,15 +13,20 @@ from hengbot.equipment_optimizer import (
     LoadoutMetrics,
     OptimizationResult,
     OwnedEquipment,
+    OwnedEquipmentCatalog,
+    SLOT_MAIN_HAND,
+    SLOT_SUB_HAND,
     SLOT_MAIN_RING,
     current_loadout,
     equipment_identity,
+    optimize_loadout,
 )
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
     PHASE_HOME_PREPARE,
     EquipmentTransaction,
     EquipmentTransactionPlan,
+    plan_equipment_transactions,
 )
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
@@ -36,6 +42,7 @@ from hengbot.model import (
     STORE_ALCHEMIST,
     STORE_HOME,
     StoreItem,
+    parse_snapshot,
 )
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import (
@@ -82,7 +89,18 @@ from hengbot.warrior_loadout_search import (
     enumerate_single_slot_variants,
     enumerate_warrior_loadouts,
 )
-from hengbot.warrior_equipment_evaluator import TR_BLOWS, TR_DEX, TR_STR
+from hengbot.warrior_equipment_evaluator import (
+    TR_BLOWS,
+    TR_DEX,
+    TR_STR,
+    WarriorCombatInputs,
+    evaluate_warrior_melee,
+)
+from hengbot.warrior_defense_evaluator import WarriorDefenseInputs
+from hengbot.warrior_loadout_evaluator import (
+    CachedWarriorLoadoutEvaluator,
+    WarriorLoadoutInputs,
+)
 
 
 def gear(
@@ -1408,6 +1426,155 @@ class WarriorOptimizationTest(unittest.TestCase):
             replace(weapon, item=replace(weapon.item, is_equipment=False)),
         )
         self.assertTrue(all(key(candidate) != baseline for candidate in variants))
+
+
+class HandModeRankingRegressionTest(unittest.TestCase):
+    def _captured_candidates(self):
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "dual-wield-equip-loop-20260910.json.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as stream:
+            snapshot = parse_snapshot(json.load(stream), {})
+        catalog = OwnedEquipmentCatalog()
+        catalog.refresh_carried(snapshot.inventory, snapshot.equipment)
+        items = catalog.items
+        current = current_loadout(items)
+        talwar = next(
+            item for item in items
+            if item.item.tval == 23 and item.item.sval == 15
+        )
+        hammer = next(
+            item for item in items
+            if item.item.tval == 21 and item.item.sval == 8
+        )
+        candidates = tuple(enumerate_single_slot_variants(
+            items, current_item_ids=current.item_ids, require_light=True,
+        ))
+        talwar_only = next(
+            loadout for loadout in candidates
+            if loadout.item_at(SLOT_MAIN_HAND) == talwar
+            and loadout.item_at(SLOT_SUB_HAND) is None
+        )
+        dual = next(
+            loadout for loadout in candidates
+            if loadout.item_at(SLOT_MAIN_HAND) == talwar
+            and loadout.item_at(SLOT_SUB_HAND) == hammer
+        )
+        inputs = WarriorLoadoutInputs(
+            WarriorCombatInputs(
+                level=25, natural_str=28, natural_dex=18,
+                melee_skill=175, two_weapon_skill=4000,
+            ),
+            WarriorDefenseInputs(
+                level=25, natural_dex=18,
+                shield_skill=snapshot.player.shield_skill,
+                base_ac_bonus=0, base_speed=snapshot.player.speed,
+                saving_skill=snapshot.player.saving_skill,
+            ),
+            max(1, snapshot.player.max_hp), natural_con=18,
+            base_hp=max(1, snapshot.player.max_hp),
+        )
+        evaluator = CachedWarriorLoadoutEvaluator(inputs, ())
+        return snapshot, items, current, talwar_only, dual, evaluator
+
+    def test_captured_dual_wield_target_is_ranked_by_its_real_hand_mode(self):
+        snapshot, items, current, talwar_only, dual, evaluator = self._captured_candidates()
+        single_metrics = evaluator(talwar_only).metrics
+        dual_metrics = evaluator(dual).metrics
+
+        self.assertNotEqual(single_metrics.expected_dps, dual_metrics.expected_dps)
+        result = optimize_loadout(
+            items, lambda loadout: evaluator(loadout).metrics,
+            depth=1, current_item_ids=current.item_ids,
+            candidate_loadouts=(dual, talwar_only), require_light=True,
+        )
+        self.assertEqual(result.best.loadout.hand_mode, "two_handed")
+        self.assertEqual(
+            result.best.loadout.item_at(SLOT_MAIN_HAND),
+            talwar_only.item_at(SLOT_MAIN_HAND),
+        )
+        plan = plan_equipment_transactions(
+            items, current, result.best.loadout,
+            current_pack_items=len(snapshot.inventory),
+            home_scan_complete=True,
+        )
+        self.assertFalse(any(
+            action.kind == "equip" and action.target_slot == SLOT_SUB_HAND
+            for action in plan.actions
+        ))
+
+    def test_equal_fixture_metrics_keep_either_current_loadout(self):
+        (
+            _snapshot, items, current, _single, _dual, evaluator,
+        ) = self._captured_candidates()
+        candidates = tuple(enumerate_single_slot_variants(
+            items, current_item_ids=current.item_ids, require_light=True,
+        ))
+        groups = {}
+        for loadout in candidates:
+            groups.setdefault(evaluator(loadout).metrics, []).append(loadout)
+        tied = next(
+            (left, right)
+            for loadouts in groups.values()
+            for left in loadouts
+            for right in loadouts
+            if left.item_ids != right.item_ids
+        )
+        for worn in tied:
+            result = optimize_loadout(
+                items, lambda loadout: evaluator(loadout).metrics,
+                depth=1, current_item_ids=worn.item_ids,
+                candidate_loadouts=tied, require_light=True,
+            )
+            self.assertEqual(result.best.loadout.item_ids, worn.item_ids)
+            self.assertEqual(
+                [entry.loadout.item_ids for entry in result.top_candidates],
+                [worn.item_ids],
+            )
+
+    def test_equal_metrics_do_not_merge_distinct_hand_modes(self):
+        item = gear("plain sword", "equipped", tval=23)
+        one_handed = Loadout(((SLOT_MAIN_HAND, item),), "one_handed")
+        two_handed = Loadout(((SLOT_MAIN_HAND, item),), "two_handed")
+        metrics = LoadoutMetrics(10.0, 10.0, 0)
+
+        result = optimize_loadout(
+            (item,), lambda _loadout: metrics,
+            depth=1, current_item_ids=frozenset({item.id}),
+            candidate_loadouts=(one_handed, two_handed), require_light=False,
+        )
+
+        self.assertEqual(len(result.top_candidates), 2)
+
+    def test_two_handed_weight_limit_is_doubled_like_the_game(self):
+        (
+            _snapshot, _items, _current, talwar_only, _dual, _evaluator,
+        ) = self._captured_candidates()
+        weapon = talwar_only.item_at(SLOT_MAIN_HAND)
+        boundary_weapon = replace(
+            weapon, item=replace(weapon.item, weight=100),
+        )
+        slots = tuple(
+            (slot, boundary_weapon if slot == SLOT_MAIN_HAND else item)
+            for slot, item in talwar_only.slots
+        )
+        result = evaluate_warrior_melee(
+            Loadout(slots, "two_handed"),
+            WarriorCombatInputs(
+                level=25, natural_str=10, natural_dex=18,
+                melee_skill=175, two_weapon_skill=4000,
+            ),
+        )
+        one_handed = evaluate_warrior_melee(
+            Loadout(slots, "one_handed"),
+            WarriorCombatInputs(
+                level=25, natural_str=10, natural_dex=18,
+                melee_skill=175, two_weapon_skill=4000,
+            ),
+        )
+        self.assertGreater(result.hands[0].to_hit, one_handed.hands[0].to_hit)
 
 
 if __name__ == "__main__":
