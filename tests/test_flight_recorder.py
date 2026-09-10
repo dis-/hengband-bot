@@ -74,6 +74,7 @@ class FlightRecorderTest(unittest.TestCase):
             _descent_blocked=True,
             _descent_block_countdown=2,
             _descent_refusal_reason="descent-cooldown",
+            _equipment_transaction_owned_items=[("weapon-1", "main_hand")],
             _fundraising_mode="mine",
             _town_restock_suppressed=False,
             _abandoned_quest_carry_requirements={
@@ -452,6 +453,10 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertEqual(state["state"]["_unseen_retreat_direction"], [-1, 1])
         self.assertIn("_shop_selector_diagnostics", state["state"])
         self.assertIn("_identification_source_reservation", state["state"])
+        self.assertEqual(
+            state["state"]["_equipment_transaction_owned_items"],
+            [["weapon-1", "main_hand"]],
+        )
         self.assertEqual(
             state["state"]["_retried_deferred_home_items"],
             [["stored item", 18, 1]],
