@@ -381,9 +381,6 @@ class HomeMixin:
             candidate for candidate in snapshot.inventory
             if candidate.tval == launcher.ammo_tval and candidate.count > 0
         ]
-        if sum(candidate.count for candidate in matching) != AMMO_CARRY_TARGET:
-            return baseline
-
         def ammo_damage(candidate: InventoryItem) -> float:
             average = (
                 candidate.damage_dice_num * (candidate.damage_dice_sides + 1) / 2

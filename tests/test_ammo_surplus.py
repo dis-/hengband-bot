@@ -37,6 +37,30 @@ def drive_captured_window():
 
 
 class AmmoSurplusTest(unittest.TestCase):
+    def test_weakest_stack_is_surplus_away_from_exact_carry_target(self):
+        policy, snapshot, _decisions = drive_captured_window()
+        weakest = next(item for item in snapshot.inventory if item.slot == "o")
+
+        best = next(item for item in snapshot.inventory if item.slot == "t")
+        for count in (74, 81):
+            changed = replace(weakest, count=count)
+            changed_snapshot = replace(
+                snapshot,
+                inventory=[
+                    changed if item is weakest else item
+                    for item in snapshot.inventory
+                    if item.tval != weakest.tval or item in (weakest, best)
+                ],
+            )
+            self.assertEqual(
+                policy._count_matching_ammo(changed_snapshot),
+                24 + count,
+            )
+            self.assertEqual(
+                policy._retention_surplus(changed_snapshot, changed),
+                count,
+            )
+
     def test_captured_inferior_stack_routes_to_home(self):
         policy, snapshot, decisions = drive_captured_window()
         weakest = next(item for item in snapshot.inventory if item.slot == "o")
