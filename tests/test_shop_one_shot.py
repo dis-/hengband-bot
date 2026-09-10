@@ -702,10 +702,25 @@ class ShopOneShotTest(unittest.TestCase):
 
         waits = []
         telemetry = []
+        observed = outside
         for turn in range(1, STORE_STUCK_LIMIT + 2):
-            waits.append(policy.choose_key(
-                replace(outside, turn=outside.turn + turn)
-            ))
+            observed = replace(observed, turn=outside.turn + turn)
+            key = policy.choose_key(observed)
+            waits.append(key)
+            policy.confirm_key_posted(key)
+            if key in {"2", "4", "6", "8"}:
+                dy, dx = {
+                    "2": (1, 0), "4": (0, -1),
+                    "6": (0, 1), "8": (-1, 0),
+                }[key]
+                position = observed.player.position
+                observed = replace(
+                    observed,
+                    player=replace(
+                        observed.player,
+                        position=Position(position.y + dy, position.x + dx),
+                    ),
+                )
             telemetry.append(dict(policy._town_turn_arbiter.telemetry))
         self.assertEqual(waits[:STORE_STUCK_LIMIT], [""] * STORE_STUCK_LIMIT)
         self.assertNotEqual(waits[STORE_STUCK_LIMIT], "")
