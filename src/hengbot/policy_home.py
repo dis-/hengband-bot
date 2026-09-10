@@ -372,6 +372,47 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return the existing reservation together with its observed branch."""
+        launcher = self._equipped_launcher(snapshot)
+        if (
+            item.is_ammo
+            and launcher is not None
+            and item.tval == launcher.ammo_tval
+        ):
+            matching_damage = [
+                (
+                    candidate,
+                    self._quest_launcher_average_damage(
+                        replace(
+                            snapshot,
+                            inventory=[candidate, *(
+                                other for other in snapshot.inventory
+                                if other is not candidate
+                            )],
+                        ),
+                        launcher,
+                        require_carried_ammo=True,
+                    ),
+                )
+                for candidate in snapshot.inventory
+                if candidate.tval == launcher.ammo_tval and candidate.count > 0
+            ]
+            best_damage = max(damage for _candidate, damage in matching_damage)
+            if next(
+                damage for candidate, damage in matching_damage if candidate is item
+            ) < best_damage:
+                return 0, None
+            best_ammo = {
+                candidate.slot for candidate, damage in matching_damage
+                if damage == best_damage
+            }
+            snapshot = replace(
+                snapshot,
+                inventory=[
+                    candidate for candidate in snapshot.inventory
+                    if candidate.tval != launcher.ammo_tval
+                    or candidate.slot in best_ammo
+                ],
+            )
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (

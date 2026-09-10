@@ -118,7 +118,8 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         result = drive(state)
 
         self.assertTrue(result.passed, result.report())
-        self.assertEqual(result.decisions, 2)
+        self.assertEqual(result.decisions, 6)
+        self.assertEqual(result.reasons["home:request-knowledge-scan"], 1)
         self.assertEqual(result.reasons["town:character-dump"], 1)
         self.assertEqual(result.reasons["town:recall-to-alt-dungeon"], 1)
         self.assertFalse(any(

@@ -1095,7 +1095,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._find_home_deposit(snap), torches)
         self.assertEqual(policy._home_deposit_key(snap, torches), "dj10\r")
 
-    def test_matching_ammo_is_limited_to_two_dense_pack_stacks(self):
+    def test_matching_ammo_retains_only_the_best_shot_stack(self):
         sling = item(
             "bow", TVAL_BOW, SV_BOW_SLING,
             name="Sling", is_equipment=True,
@@ -1115,10 +1115,10 @@ class RetentionAuthorityTest(unittest.TestCase):
 
         self.assertEqual(
             [policy._retention_reservation(snap, shot) for shot in shots],
-            [14, 51, 0, 0, 0, 0],
+            [0, 0, 0, 0, 6, 0],
         )
-        self.assertEqual(policy._find_home_deposit(snap), shots[2])
-        self.assertEqual(policy._home_deposit_key(snap, shots[2]), "do3\r")
+        self.assertEqual(policy._find_home_deposit(snap), shots[0])
+        self.assertEqual(policy._home_deposit_key(snap, shots[0]), "dm14\r")
 
     def test_quest_ammo_target_does_not_reopen_a_third_pack_slot(self):
         sling = item(
@@ -1141,7 +1141,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             self.assertEqual(
                 [policy._retention_reservation(snap, shot) for shot in shots],
-                [70, 29, 0],
+                [0, 0, 30],
             )
 
     def test_inferior_crossbow_system_is_deposited_when_sling_is_selected(self):
