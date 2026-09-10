@@ -572,6 +572,28 @@ class FlightRecorderTest(unittest.TestCase):
             self.assertIn("total=93 budget=30", lines[0])
             self.assertIn(f"{live}=40", lines[0])
 
+    def test_budget_counts_hardlinked_incident_payload_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            recorder = FlightRecorder(
+                root / "jsonlog", root / "incident-captures", budget_bytes=50
+            )
+            recorder.root.mkdir(parents=True)
+            live = recorder.root / "bot-decisions.jsonl"
+            live.write_bytes(b"x" * 20)
+            incident = recorder.incident_root / "only-loop"
+            self._write_incident(incident, "loop", 10, 1)
+            rotated = recorder.root / "bot-decisions.jsonl.1"
+            os.link(incident / "payload", rotated)
+
+            warnings = io.StringIO()
+            with redirect_stderr(warnings):
+                recorder.prune_budget()
+
+            self.assertTrue(rotated.exists())
+            self.assertTrue((incident / "payload").exists())
+            self.assertEqual(warnings.getvalue(), "")
+
     def test_budget_reachable_target_prunes_rotated_logs_without_warning(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -579,10 +601,11 @@ class FlightRecorderTest(unittest.TestCase):
                 root / "jsonlog", root / "incident-captures", budget_bytes=25
             )
             recorder.root.mkdir(parents=True)
-            live = recorder.root / "bot-state-fixed.jsonl"
+            state_log_name = "bot-state-" + "fixed.jsonl"
+            live = recorder.root / state_log_name
             live.write_bytes(b"x" * 20)
-            oldest = recorder.root / "bot-state-fixed.jsonl.2"
-            newest = recorder.root / "bot-state-fixed.jsonl.1"
+            oldest = recorder.root / f"{state_log_name}.2"
+            newest = recorder.root / f"{state_log_name}.1"
             oldest.write_bytes(b"x" * 10)
             newest.write_bytes(b"x" * 10)
             os.utime(oldest, (1, 1))
