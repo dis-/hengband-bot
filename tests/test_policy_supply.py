@@ -3626,7 +3626,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
                     "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
                     price=500, charges=1,
                 ),
-                "quest-wall-breach",
+                "quest-carry",
             ),
             (
                 "utility_tools.wall_breach",
@@ -3635,7 +3635,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
                     "a", TVAL_WAND, SV_WAND_STONE_TO_MUD,
                     price=500, charges=1,
                 ),
-                "quest-wall-breach",
+                "quest-carry",
             ),
         )
         town = self._q2_town()
@@ -3685,9 +3685,9 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
 
         needs = policy._enumerate_town_needs(town)
 
-        self.assertIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), needs)
+        self.assertIn(TownNeed(STORE_BLACK, "quest-carry", "normal"), needs)
         self.assertNotIn(
-            TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs
+            TownNeed(STORE_GENERAL, "quest-carry", "normal"), needs
         )
 
     def test_sibling_claims_abandon_when_no_affordable_stock_is_remembered(self):
