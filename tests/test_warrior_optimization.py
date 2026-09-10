@@ -1534,6 +1534,20 @@ class HandModeRankingRegressionTest(unittest.TestCase):
                 [worn.item_ids],
             )
 
+    def test_equal_metrics_do_not_merge_distinct_hand_modes(self):
+        item = gear("plain sword", "equipped", tval=23)
+        one_handed = Loadout(((SLOT_MAIN_HAND, item),), "one_handed")
+        two_handed = Loadout(((SLOT_MAIN_HAND, item),), "two_handed")
+        metrics = LoadoutMetrics(10.0, 10.0, 0)
+
+        result = optimize_loadout(
+            (item,), lambda _loadout: metrics,
+            depth=1, current_item_ids=frozenset({item.id}),
+            candidate_loadouts=(one_handed, two_handed), require_light=False,
+        )
+
+        self.assertEqual(len(result.top_candidates), 2)
+
     def test_two_handed_weight_limit_is_doubled_like_the_game(self):
         (
             _snapshot, _items, _current, talwar_only, _dual, _evaluator,

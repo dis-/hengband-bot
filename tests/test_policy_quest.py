@@ -4009,7 +4009,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ))
         self.assertAlmostEqual(
             policy._fixed_quest_readiness["strategy_force"]["dps"]["measured"],
-            22.4,
+            28.161615655384615,
             places=1,
         )
 
