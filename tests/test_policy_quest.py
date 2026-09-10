@@ -4937,15 +4937,15 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(TownNeed(STORE_WEAPON, "quest-ranged-kit", "normal"), needs)
         self.assertIn(TownNeed(STORE_ALCHEMIST, "quest-scrolls", "normal"), needs)
-        self.assertIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), needs)
-        self.assertNotIn(TownNeed(STORE_MAGIC, "quest-wall-breach", "normal"), needs)
-        self.assertNotIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), needs)
+        self.assertIn(TownNeed(STORE_BLACK, "quest-carry", "normal"), needs)
+        self.assertNotIn(TownNeed(STORE_MAGIC, "quest-carry", "normal"), needs)
+        self.assertNotIn(TownNeed(STORE_GENERAL, "quest-carry", "normal"), needs)
 
         policy._town_store_attempted[STORE_BLACK] = snapshot.turn
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             fallback = policy._enumerate_town_needs(snapshot)
-        self.assertNotIn(TownNeed(STORE_BLACK, "quest-wall-breach", "normal"), fallback)
-        self.assertIn(TownNeed(STORE_GENERAL, "quest-wall-breach", "normal"), fallback)
+        self.assertNotIn(TownNeed(STORE_BLACK, "quest-carry", "normal"), fallback)
+        self.assertIn(TownNeed(STORE_GENERAL, "quest-carry", "normal"), fallback)
 
     def test_q2_black_market_buys_stone_to_mud_when_present(self):
         policy = self._policy()

@@ -1581,31 +1581,35 @@ class TownMixin:
                     )
                 ):
                     add(STORE_ALCHEMIST, "quest-scrolls")
-            if "utility_tools.wall_breach" in missing_carries:
-                # Stone-to-Mud is not in the normal Magic-shop table.  It can
-                # appear in the Black Market's random stock, so inspect that
-                # store once before checking the General Store for an eligible
-                # +3 digger.  Neither random stock is waited on indefinitely.
-                if (
-                    STORE_BLACK not in self._town_store_attempted
-                    or self._quest_carry_remembered_affordable(
-                        snapshot,
-                        quest_strategy,
-                        "utility_tools.wall_breach",
-                        STORE_BLACK,
-                    )
-                ):
-                    add(STORE_BLACK, "quest-wall-breach")
-                elif (
-                    STORE_GENERAL not in self._town_store_attempted
-                    or self._quest_carry_remembered_affordable(
-                        snapshot,
-                        quest_strategy,
-                        "utility_tools.wall_breach",
-                        STORE_GENERAL,
-                    )
-                ):
-                    add(STORE_GENERAL, "quest-wall-breach")
+            # Give every otherwise-unrepresented declared quest-carry supplier
+            # a real town errand.  After a supplier is exhausted, evaluation
+            # advances to the next untried supplier (or abandons the carry once
+            # all of its suppliers have been tried).
+            quest_carry_need_added = False
+            for name in sorted(missing_carries):
+                for supplier in self._quest_carry_suppliers(name):
+                    if any(
+                        need.store_type == supplier
+                        and need.category in {
+                            "quest-carry",
+                            "quest-ranged-kit",
+                            "quest-scrolls",
+                            "quest-throwing-items",
+                        }
+                        for need in needs
+                    ):
+                        continue
+                    if (
+                        supplier not in self._town_store_attempted
+                        or self._quest_carry_remembered_affordable(
+                            snapshot, quest_strategy, name, supplier
+                        )
+                    ):
+                        add(supplier, "quest-carry")
+                        quest_carry_need_added = True
+                        break
+                if quest_carry_need_added:
+                    break
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
                 < int(force.get("speed_potions", 0))
@@ -1760,7 +1764,7 @@ class TownMixin:
             ("quest-launcher", "home-first", 1, True),  # A required launcher gates the quest departure.
             ("quest-ranged-kit", "normal", 1, True),  # Required ranged gear gates the quest departure.
             ("quest-scrolls", "normal", 1, True),  # Required scrolls gate the quest departure.
-            ("quest-wall-breach", "normal", 1, True),  # Required wall breach gates the quest departure.
+            ("quest-carry", "normal", 1, True),  # Declared quest-carry suppliers gate departure.
             ("quest-speed", "normal", 1, True),  # Required speed potions gate the quest departure.
             ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
             ("light", "normal", 1, True),  # Expedition light gates departure.
