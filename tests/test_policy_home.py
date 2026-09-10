@@ -3260,64 +3260,84 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsInstance(policy._home_knowledge_items[0], InventoryItem)
         self.assertEqual(policy._count_mana_food_uses(snapshot), 14)
 
-    def test_multi_page_open_home_uses_existing_pass_bound_then_latches(self):
-        policy = HengbotPolicy()
-        final_page_item = store_item("a", TVAL_WAND, 6, charges=7)
-        outside = self._entrance_snapshot([])
-        policy.choose_key(outside)
-        self.assertIsNotNone(policy._town_errand_plan)
-        policy.consume_home_knowledge(())
-        policy._invalidate_home_observation()
-        while (
-            policy._town_errand_plan.index < len(policy._town_errand_plan.stops)
-            and policy._town_errand_plan.stops[policy._town_errand_plan.index]
-            != STORE_HOME
-        ):
-            earlier = policy._town_errand_plan.stops[policy._town_errand_plan.index]
-            policy._set_town_store_attempted(earlier, outside.turn, "test-observed-pass")
-            policy.choose_key(outside)
-        self.assertEqual(
-            policy._town_errand_plan.stops[policy._town_errand_plan.index],
-            STORE_HOME,
-        )
-        snapshot = replace(
-            self._snapshot([]),
-            store=StoreState(
-                STORE_HOME, [final_page_item], stock_num=13,
-                page_top=12, page_size=12,
-            ),
-        )
+    @staticmethod
+    def _apply_home_route_claim_key(current, previous, posted):
+        if previous is None or not posted:
+            return current
+        if LEAVE_STORE_KEY in posted and previous.store is not None:
+            current = replace(current, store=None)
+        if len(posted) == 1 and posted in "12346789":
+            dy, dx = {
+                "1": (1, -1), "2": (1, 0), "3": (1, 1),
+                "4": (0, -1), "6": (0, 1),
+                "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+            }[posted]
+            position = previous.player.position
+            current = replace(
+                current,
+                player=replace(
+                    current.player,
+                    position=Position(position.y + dy, position.x + dx),
+                ),
+            )
+        return current
 
-        reasons = []
-        visit_limit = policy._town_store_visit_limit(STORE_HOME)
-        for turn in range(visit_limit):
-            passes_before = policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
-            decision = policy.choose_key(replace(snapshot, turn=snapshot.turn + turn))
-            self.assertEqual(decision, LEAVE_STORE_KEY)
-            reasons.append(policy.last_reason)
-            if policy.last_reason == "home:scan-incomplete-open-page":
-                self.assertEqual(
-                    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-                    passes_before + 2,
-                )
-            if STORE_HOME in policy._town_store_attempted:
-                break
-        self.assertIn("home:scan-incomplete-open-page", reasons)
-        self.assertLessEqual(len(reasons), visit_limit)
-        self.assertFalse(policy._home_knowledge_current)
-        self.assertTrue(policy._home_knowledge_invalidated)
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
-        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
-        policy.choose_key(replace(outside, turn=snapshot.turn + visit_limit + 1))
-        self.assertIn(STORE_HOME, policy._town_errand_plan.blocked_this_visit)
-        self.assertNotEqual(
-            policy._town_errand_plan.stops[policy._town_errand_plan.index],
-            STORE_HOME,
+    @staticmethod
+    def _confirm_home_route_claim_key(policy, posted, home_items):
+        policy.confirm_key_posted(posted)
+        if posted.startswith("~9"):
+            policy.consume_home_knowledge(home_items)
+
+    def test_live_route_claim_window_does_not_latch_under_reactive_drive(self):
+        capture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "home-route-claim-stall-20260911.json.gz"
         )
-        state = policy.equipment_optimization_state(snapshot)
-        self.assertTrue(state["home_scan_complete"])
-        self.assertFalse(state["home_knowledge_current"])
-        self.assertTrue(state["home_knowledge_invalidated"])
+        with gzip.open(capture, "rt", encoding="utf-8-sig") as stream:
+            snapshots = [
+                parse_snapshot(row["snapshot"])
+                for row in json.load(stream)
+            ]
+        policy = HengbotPolicy()
+        observed = None
+        posted = None
+        latest_home_items = ()
+        home_pages = 0
+        attempted_then_rearmed = False
+        maximum_passes = 0
+        visit_limit = policy._town_store_visit_limit(STORE_HOME)
+        for captured in snapshots:
+            current = self._apply_home_route_claim_key(
+                captured, observed, posted
+            )
+            if current.store is not None and current.store.store_type == STORE_HOME:
+                latest_home_items = tuple(current.store.items)
+                home_pages += 1
+
+            was_attempted = STORE_HOME in policy._town_store_attempted
+            posted = policy.choose_key(current)
+            self._confirm_home_route_claim_key(
+                policy, posted, latest_home_items
+            )
+            attempted_then_rearmed |= (
+                was_attempted and STORE_HOME not in policy._town_store_attempted
+            )
+            maximum_passes = max(
+                maximum_passes,
+                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            )
+            observed = current
+
+        self.assertTrue(snapshots)
+        self.assertTrue(home_pages)
+        self.assertGreater(maximum_passes, visit_limit)
+        self.assertTrue(attempted_then_rearmed)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertFalse(policy._town_errand_plan.index)
+        self.assertNotIn(
+            STORE_HOME, policy._town_errand_plan.blocked_this_visit
+        )
 
     def test_142251_transaction_deposit_uses_atomic_entrance_visit(self):
         policy = HengbotPolicy()
