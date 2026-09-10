@@ -791,7 +791,8 @@ class EquipmentMixin:
         search_excluded = frozenset(
             item.id
             for item in catalog
-            if (
+            if item.identification_incomplete
+            or (
                 item.origin == "pack"
                 and item.item.is_torch
                 and self._retention_reservation(snapshot, item.item) > 0
@@ -820,7 +821,8 @@ class EquipmentMixin:
         identification_exempt = frozenset(
             item.id
             for item in search_catalog
-            if self._item_signature(item.item)
+            if item.identification_incomplete
+            or self._item_signature(item.item)
             in self._town_unidentifiable_carried_sigs
         )
         # The selector memo is the owned equipment multiset plus knowledge
@@ -1001,6 +1003,8 @@ class EquipmentMixin:
                 preserve_reasons[owned.id] = reasons
             if owned.id in search_excluded:
                 reasons = []
+                if owned.identification_incomplete:
+                    reasons.append("identification-incomplete")
                 if (
                     owned.origin == "pack"
                     and owned.item.is_torch
@@ -1382,6 +1386,20 @@ class EquipmentMixin:
             home_identities = {
                 equipment_identity(item) for item in known_home_items
             }
+            owned_by_identity = {
+                equipment_identity(owned.item): owned
+                for owned in self._equipment_catalog.items
+            }
+            self._equipment_transaction_owned_items = [
+                (identity, slot)
+                for identity, slot in self._equipment_transaction_owned_items
+                if f"identity:{identity}"
+                not in self._equipment_transaction_failed_items
+                and not (
+                    identity in owned_by_identity
+                    and owned_by_identity[identity].identification_incomplete
+                )
+            ]
             restore_actions: list[EquipmentTransaction] = []
             missing: list[str] = []
             for identity, slot in self._equipment_transaction_owned_items:
