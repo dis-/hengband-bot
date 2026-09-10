@@ -1,3 +1,6 @@
+import gzip
+import json
+from pathlib import Path
 import unittest
 
 from hengbot.equipment_optimizer import (
@@ -20,6 +23,7 @@ from hengbot.equipment_optimizer import (
     random_teleport_is_suppressed,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
+from hengbot.launcher_damage import best_obtainable_launcher_damage
 from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
 from hengbot.model import (
     SV_DRAGON_HELM,
@@ -29,6 +33,7 @@ from hengbot.model import (
     TVAL_HELM,
     TVAL_LITE,
     InventoryItem,
+    parse_snapshot,
 )
 from hengbot.model import StoreItem
 
@@ -91,6 +96,56 @@ def metrics(
 
 
 class EquipmentOptimizerTest(unittest.TestCase):
+    def test_live_launcher_candidates_rank_by_best_obtainable_ammo_damage(self):
+        fixture = Path(__file__).parent / "fixtures" / (
+            "launcher-post-swap-live-2237771.json.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            snapshot = parse_snapshot(json.load(stream), {})
+        short_item = next(item for item in snapshot.equipment if item.slot == "bow")
+        short = OwnedEquipment(
+            "equipped:live-short-bow", short_item, "equipped", equipped_slot="bow"
+        )
+        # This is the character's Home-owned launcher recorded by the live
+        # equipment catalog at the same incident: (+4,+5), sval 23.
+        crossbow_item = StoreItem(
+            letter="?",
+            name="ライト・クロスボウ (x3) (0.80turn) (+4,+5)",
+            count=1,
+            tval=19,
+            sval=23,
+            price=0,
+            aware=True,
+            known=True,
+            fully_known=True,
+            is_equipment=True,
+            to_h=4,
+            to_d=5,
+        )
+        crossbow = OwnedEquipment("home:live-crossbow", crossbow_item, "home")
+        candidates = (
+            Loadout((("bow", short),), "empty"),
+            Loadout((("bow", crossbow),), "empty"),
+        )
+
+        result = optimize_loadout(
+            (short, crossbow),
+            lambda _loadout: metrics(1),
+            depth=1,
+            current_item_ids=frozenset({short.id}),
+            candidate_loadouts=candidates,
+            obtainable_ammunition=snapshot.inventory,
+        )
+
+        self.assertIsNotNone(result.best)
+        chosen = result.best.loadout.item_at("bow")
+        self.assertIsNotNone(chosen)
+        self.assertEqual(chosen.item.sval, 23)
+        self.assertGreaterEqual(
+            best_obtainable_launcher_damage(chosen.item, snapshot.inventory),
+            best_obtainable_launcher_damage(short.item, snapshot.inventory),
+        )
+
     def setUp(self):
         self.light = gear("light", 39)
 

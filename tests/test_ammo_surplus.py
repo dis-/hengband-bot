@@ -15,6 +15,9 @@ FIXTURE = (
     / "fixtures"
     / "departure-blocked-ammo-fragmentation-20260910.json.gz"
 )
+LAUNCHER_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "launcher-post-swap-live-2237771.json.gz"
+)
 
 
 def captured_rows():
@@ -37,6 +40,23 @@ def drive_captured_window():
 
 
 class AmmoSurplusTest(unittest.TestCase):
+    def test_live_post_swap_releases_all_incompatible_ammo_to_home(self):
+        with gzip.open(LAUNCHER_FIXTURE, "rt", encoding="utf-8") as stream:
+            snapshot = parse_snapshot(json.load(stream), {})
+        policy = HengbotPolicy()
+        bolts = [item for item in snapshot.inventory if item.tval == 18]
+        arrows = [item for item in snapshot.inventory if item.tval == 17]
+
+        self.assertEqual(sum(item.count for item in bolts), 86)
+        self.assertEqual(
+            [policy._retention_surplus(snapshot, item) for item in bolts],
+            [item.count for item in bolts],
+        )
+        self.assertTrue(any(
+            policy._retention_reservation(snapshot, item) > 0 for item in arrows
+        ))
+        self.assertIn(policy._find_home_deposit(snapshot), bolts)
+
     def test_weakest_stack_is_surplus_away_from_exact_carry_target(self):
         policy, snapshot, _decisions = drive_captured_window()
         weakest = next(item for item in snapshot.inventory if item.slot == "o")

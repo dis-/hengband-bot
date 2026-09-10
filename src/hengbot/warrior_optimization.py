@@ -29,7 +29,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
     plan_equipment_transactions,
 )
-from hengbot.model import PLAYER_CLASS_WARRIOR, Snapshot
+from hengbot.model import InventoryItem, PLAYER_CLASS_WARRIOR, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
 from hengbot.warrior_defense_evaluator import (
@@ -600,6 +600,7 @@ def prepare_warrior_optimization(
     loadout_report_path: Path | None = None,
     evaluator_cache: WarriorEvaluatorCache | None = None,
     calibration: CharacterCalibration | None = None,
+    obtainable_ammunition: tuple[InventoryItem | StoreItem, ...] | None = None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command."""
     current = current_loadout(items)
@@ -763,6 +764,11 @@ def prepare_warrior_optimization(
         candidate_loadouts=candidate_loadouts,
         require_light=require_light,
         identification_exempt_item_ids=identification_exempt_item_ids,
+        obtainable_ammunition=(
+            tuple(snapshot.inventory)
+            if obtainable_ammunition is None
+            else obtainable_ammunition
+        ),
     )
     if loadout_report_path is not None:
         _append_loadout_report(
