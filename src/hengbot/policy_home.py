@@ -1821,8 +1821,6 @@ class HomeMixin:
         overweight = self._overweight_home_deposit(snapshot)
         if overweight is not None:
             return overweight
-        if getattr(self, "_town_liveness_claim_retired", False):
-            return None
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)
