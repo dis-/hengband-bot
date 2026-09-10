@@ -3515,6 +3515,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         policy._shopping_approach_store_type = STORE_HOME
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: batch composition through the public wrapper is the subject; the replacement delegates to the real Home approach
         with patch.object(
             policy,
             "_decide",
@@ -3537,6 +3538,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )), policy._store_visit.operation_key)
         policy.confirm_key_posted(policy._store_visit.operation_key)
         policy._store_visit = None
+        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: partial batch-effect observation is isolated from unrelated downstream town routing
         policy._decide = Mock(return_value=WAIT_KEY)
 
         partial = self._snapshot(
