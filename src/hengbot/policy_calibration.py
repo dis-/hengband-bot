@@ -710,8 +710,17 @@ class CalibrationMixin:
     def _calibration_observe(self, snapshot: Snapshot) -> None:
         """Advance the calibration state machine from each new snapshot."""
         self._restore_calibration_redress_obligation(snapshot)
-        self._calibration_redress_observe(snapshot)
         phase = self._calibration_phase
+        if (
+            phase is not None
+            and self._equipment_transaction_session is not None
+            and not self._calibration_session_owned()
+        ):
+            # A foreign equipment plan owns the current errand.  Calibration
+            # resumes after it finishes instead of stripping items named by
+            # that plan between its approach and Home operation.
+            return None
+        self._calibration_redress_observe(snapshot)
         if phase is None:
             return
         if not snapshot.in_town:
@@ -852,6 +861,12 @@ class CalibrationMixin:
         ):
             return None
         phase = self._calibration_phase
+        if (
+            phase is not None
+            and self._equipment_transaction_session is not None
+            and not self._calibration_session_owned()
+        ):
+            return None
         if phase is None:
             if self._calibration_suspended_phase is not None:
                 suspended = self._calibration_suspended_phase

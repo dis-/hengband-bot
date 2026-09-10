@@ -90,6 +90,15 @@ class _FinalTwitchWorld(_StubWorld):
 
 
 class AbsorbingStateHarnessTest(unittest.TestCase):
+    def test_driven_errand_has_one_owner_across_store_transfer(self):
+        first, second, owners, survival_owner = (
+            cat.drive_single_owner_errand_invariant()
+        )
+        self.assertEqual(first.owner, "equipment-transaction")
+        self.assertEqual(second.owner, first.owner)
+        self.assertEqual(set(owners), {"equipment-txn"})
+        self.assertEqual(survival_owner, "survival")
+
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
         self.assertEqual(len(SEEDED_STATES), 32)
