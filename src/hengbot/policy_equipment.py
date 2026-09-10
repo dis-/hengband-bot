@@ -2098,6 +2098,7 @@ class EquipmentMixin:
         preparation: object | None,
         *,
         require_confirmed: bool = True,
+        include_launcher_enchant: bool = True,
     ) -> bool:
         """Prove a failed target has no owner or composable action this visit."""
         if tuple(getattr(preparation, "blockers", ())) != (
@@ -2111,7 +2112,9 @@ class EquipmentMixin:
             and not self._current_worn_loadout_confirmed(snapshot, preparation)
         ):
             return False
-        if self._home_owner_goal_pending(snapshot):
+        if self._home_owner_goal_pending(
+            snapshot, include_launcher_enchant=include_launcher_enchant
+        ):
             return False
         if (
             STORE_HOME not in self._town_store_attempted

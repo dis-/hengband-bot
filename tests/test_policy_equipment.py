@@ -1,9 +1,11 @@
 from __future__ import annotations
 import ast
+import base64
 import gzip
 import inspect
 import json
 import os
+import pickle
 import subprocess
 import sys
 import textwrap
@@ -30,6 +32,7 @@ import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 import test_policy as fixture
 import test_policy_town as town_fixture
+import absorbing_state_catalog as absorbing_catalog
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -859,6 +862,32 @@ class LauncherEnchantTest(unittest.TestCase):
         self.assertIn(
             TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"),
             policy._enumerate_town_needs(snapshot),
+        )
+
+    def test_launcher_enchant_does_not_revive_restored_terminal_town(self):
+        row = absorbing_catalog._departure_unsatisfiable_captures()[1248]
+        policy = restore_checkpoint(
+            HengbotPolicy, row["predecision_policy_checkpoint_pickle_b64"]
+        )
+        inside = pickle.loads(base64.b64decode(row["decision_snapshot_pickle_b64"]))
+        outside = pickle.loads(base64.b64decode(row["next_snapshot_pickle_b64"]))
+
+        policy._prepare_equipment_optimization(outside)
+        producer_key = policy.choose_key(inside)
+        self.assertEqual(producer_key, row["key"])
+        self.assertEqual(policy.last_reason, row["last_reason"])
+        policy.confirm_key_posted(producer_key)
+        self.assertFalse(policy._town_departure_ready(outside))
+        self.assertIsNone(policy._actionable_departure_supplier(outside))
+        self.assertNotIn(
+            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"),
+            policy._enumerate_town_needs(outside),
+        )
+        next_key = policy.choose_key(outside)
+        policy.confirm_key_posted(next_key)
+        self.assertNotIn(
+            TownNeed(STORE_ALCHEMIST, "launcher-enchant", "normal"),
+            policy._enumerate_town_needs(outside),
         )
 
     def test_launcher_enchant_reroutes_after_real_alchemist_exhaustion(self):

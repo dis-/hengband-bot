@@ -1691,11 +1691,7 @@ class TownMixin:
             include_launcher_enchant
             and self._launcher_enchant_needed_svals(snapshot)
             and snapshot.player.gold > FUNDRAISING_START_GOLD
-            and not self._equipment_retired_worn_item_ids
-            and (
-                self._town_departure_ready(snapshot)
-                or self._actionable_departure_supplier(snapshot) is not None
-            )
+            and self._launcher_enchant_registration_actionable(snapshot)
         ):
             add(STORE_ALCHEMIST, "launcher-enchant")
         if (
@@ -1877,11 +1873,15 @@ class TownMixin:
         self._town_claim_categories = claims
         return bool(claims)
 
-    def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
+    def _enumerate_town_needs(
+        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
+    ) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""
         needs: list[TownNeed] = []
         self._town_need_evaluation_snapshot = snapshot
-        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
+        self._town_need_evaluation_candidates = self._town_need_candidates(
+            snapshot, include_launcher_enchant=include_launcher_enchant
+        )
         try:
             for spec in self._town_need_registry():
                 if spec.produces(snapshot):
@@ -1962,45 +1962,29 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> int | None:
         """Return a reachable, obtainable supplier for a failing town gate."""
-        candidates = list(self._departure_blocking_town_needs(snapshot))
-        candidates.extend(
-            claim
-            for claim in self._enumerate_live_store_claims(snapshot)
-            if claim.category in {"equipment-work", "equipment-transaction"}
-        )
-        ledger = self._supply_ledger(snapshot, self._planned_depth())
-        supply_categories = {
-            "recall": "recall", "food": "food", "oil": "oil",
-            "teleport": "teleport", "cure": "cure-critical",
-        }
-        for status in self._ledger_departure_shortages(ledger):
-            if not status.obtainable:
-                continue
-            candidates.extend(
-                TownNeed(store, supply_categories[status.kind], "normal")
-                for store in status.stores
+        supplier, _ = self._departure_supplier_core(snapshot)
+        if supplier is not None:
+            self._rearm_town_store_for_new_work(
+                supplier, release_visit_bound=True
             )
-        for need in candidates:
-            if not self._town_need_supplier_reachable(snapshot, need):
-                continue
-            page = self._town_supplier_stock.get(need.store_type)
-            remembered_affordable = bool(
-                page is not None
-                and any(item.price <= snapshot.player.gold for item in page.items)
-            )
-            if (
-                need.store_type not in self._town_store_attempted
-                or need.store_type == STORE_HOME
-                or remembered_affordable
-            ):
-                self._rearm_town_store_for_new_work(
-                    need.store_type, release_visit_bound=True
-                )
-                return need.store_type
-        return None
+        return supplier
 
     def _actionable_departure_supplier(self, snapshot: Snapshot) -> int | None:
-        """Return a reachable supplier that still owns a failing departure gate."""
+        """Purely find a reachable supplier that owns a failing departure gate."""
+        supplier, _ = self._departure_supplier_core(snapshot)
+        return supplier
+
+    def _launcher_enchant_registration_actionable(self, snapshot: Snapshot) -> bool:
+        """Allow optional work only while the durable town plan is still live."""
+        supplier, exhausted = self._departure_supplier_core(snapshot)
+        return not exhausted and (
+            self._town_departure_ready(snapshot) or supplier is not None
+        )
+
+    def _departure_supplier_core(
+        self, snapshot: Snapshot
+    ) -> tuple[int | None, bool]:
+        """Purely find a supplier and report durable owner exhaustion."""
         candidates = self._departure_blocking_town_needs(
             snapshot, include_launcher_enchant=False
         )
@@ -2015,8 +1999,24 @@ class TownMixin:
                     TownNeed(store, supply_categories[status.kind], "normal")
                     for store in status.stores
                 )
+        if self._equipment_retired_worn_item_ids or (
+            self._equipment_failure_unexecutable_this_visit(
+                snapshot,
+                self._equipment_optimization_preparation,
+                require_confirmed=False,
+                include_launcher_enchant=False,
+            )
+        ):
+            return None, True
+        retired = set(getattr(self._town_turn_arbiter, "_retired", ()))
         for need in candidates:
             if not self._town_need_supplier_reachable(snapshot, need):
+                continue
+            if need.category in {"equipment-work", "equipment-transaction"} and (
+                self._equipment_retired_worn_item_ids
+                or "equipment-opt" in retired
+                or "equipment-txn" in retired
+            ):
                 continue
             page = self._town_supplier_stock.get(need.store_type)
             remembered_affordable = bool(
@@ -2028,8 +2028,8 @@ class TownMixin:
                 or need.store_type == STORE_HOME
                 or remembered_affordable
             ):
-                return need.store_type
-        return None
+                return need.store_type, False
+        return None, False
 
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
