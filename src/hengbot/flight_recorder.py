@@ -305,23 +305,13 @@ class FlightRecorder:
         self.decisions = 0
         self.last_floor = None
         self._snapshot_bytes_since_prune = 0
-        self._captured_episodes: dict[tuple[str, str, str], Path] = {}
+        self._captured_episodes: dict[str, Path] = {}
 
     def note_successfully_posted_key(self, key: str) -> None:
-        """Re-arm episodes after a different, non-recovery input is posted."""
-        if key == "l\x1b":
-            return
-        self._captured_episodes = {
-            episode: capture
-            for episode, capture in self._captured_episodes.items()
-            if episode[2] == key
-        }
+        """Keep the historical notification hook without re-arming a stop kind."""
 
     def note_observed_effect(self, owner_reason: str, key: str) -> None:
-        """Re-arm an episode once its refused operation has an observed effect."""
-        for episode in list(self._captured_episodes):
-            if episode[1:] == (owner_reason, key):
-                del self._captured_episodes[episode]
+        """Keep the historical notification hook without re-arming a stop kind."""
 
     def record_snapshot_lines(self, lines: list[str]) -> None:
         if not lines:
@@ -399,9 +389,8 @@ class FlightRecorder:
         self, kind: str, policy, snapshot, decision_log: Path | None,
         reasons: list[str], *, owner_reason: str = "", key: str = "",
     ) -> Path | None:
-        episode = (kind, owner_reason, key)
-        if owner_reason and key and episode in self._captured_episodes:
-            return self._captured_episodes[episode]
+        if kind in self._captured_episodes:
+            return self._captured_episodes[kind]
         stamp = time.strftime("%Y%m%d-%H%M%S")
         safe_kind = safe_filename_component(kind, fallback="incident")
         final = self.incident_root / f"{stamp}-{safe_kind}"
@@ -438,7 +427,11 @@ class FlightRecorder:
                         continue
                     target = captured / source.name
                     if source == self.snapshot_path:
-                        shutil.copy2(source, target)
+                        with source.open("rb") as source_file:
+                            source_file.seek(max(
+                                0, size - INCIDENT_DECISION_TAIL_BYTES
+                            ))
+                            target.write_bytes(source_file.read())
                         copied.append(source.name)
                     else:
                         try:
@@ -472,21 +465,123 @@ class FlightRecorder:
             (temporary / "README.md").write_text(
                 f"# Automatic incident capture\n\nStop kind: `{kind}`; turn: {snapshot.turn}; "
                 f"floor: `{snapshot.floor_key}`.\n\n"
-                f"Snapshot ring coverage is capped at {INCIDENT_SNAPSHOT_BYTES} bytes. "
+                f"Snapshot ring coverage is capped at {INCIDENT_SNAPSHOT_BYTES} bytes; "
+                f"the live generation tail is capped at "
+                f"{INCIDENT_DECISION_TAIL_BYTES} bytes. "
                 f"Captured generation sizes: {captured_sizes}. "
                 f"Hard-linked generations: {linked}. Copied generations: {copied}. "
                 f"Omitted generations: {omitted}.\n",
                 encoding="utf-8",
             )
             self.incident_root.mkdir(parents=True, exist_ok=True)
-            os.replace(temporary, final)
-            if owner_reason and key:
-                self._captured_episodes[episode] = final
+            replace_attempts = []
+            replace_error = None
+            replace_diagnostic_error = None
+            for attempt in range(1, 4):
+                try:
+                    os.replace(temporary, final)
+                    replace_attempts.append({"attempt": attempt, "outcome": "success"})
+                    replace_error = None
+                    break
+                except OSError as exc:
+                    replace_error = exc
+                    replace_diagnostic_error = exc
+                    replace_attempts.append({
+                        "attempt": attempt,
+                        "outcome": "error",
+                        "exception": repr(exc),
+                        "errno": exc.errno,
+                        "winerror": getattr(exc, "winerror", None),
+                    })
+                    if attempt < 3:
+                        time.sleep(0.05)
+            if replace_error is not None:
+                raise replace_error
+            if len(replace_attempts) > 1:
+                self._write_freeze_diagnostics(
+                    final, temporary, final, replace_diagnostic_error,
+                    replace_attempts,
+                    linked, copied, omitted,
+                )
+            self._captured_episodes[kind] = final
             return final
         except OSError as exc:
             _warn("freeze incident", exc)
-            shutil.rmtree(temporary, ignore_errors=True)
+            attempts = locals().get("replace_attempts", [])
+            failed = self.incident_root / f"{final.name}.failed-{time.strftime('%Y%m%d-%H%M%S')}"
+            retained = temporary
+            try:
+                os.rename(temporary, failed)
+                retained = failed
+            except OSError:
+                pass
+            self._write_freeze_diagnostics(
+                retained, temporary, final, exc, attempts, linked, copied, omitted,
+            )
             return None
+
+    def _write_freeze_diagnostics(
+        self, retained: Path, source: Path, destination: Path, exc,
+        attempts: list[dict[str, Any]], linked: list[str], copied: list[str],
+        omitted: list[str],
+    ) -> None:
+        try:
+            entries = []
+            if retained.is_dir():
+                for path in sorted(retained.rglob("*")):
+                    relative = str(path.relative_to(retained))
+                    entry = {
+                        "path": relative,
+                        "size": path.stat().st_size,
+                        "type": "directory" if path.is_dir() else "file",
+                    }
+                    if path.is_file():
+                        entry["disposition"] = (
+                            "linked" if path.name in linked else
+                            "copied" if path.name in copied else
+                            "omitted" if path.name in omitted else "created"
+                        )
+                        try:
+                            descriptor = os.open(path, os.O_RDWR)
+                        except OSError as probe_error:
+                            entry["lock_probe"] = {
+                                "outcome": "error",
+                                "exception": repr(probe_error),
+                            }
+                        else:
+                            os.close(descriptor)
+                            entry["lock_probe"] = {"outcome": "success"}
+                    entries.append(entry)
+            try:
+                os.replace(retained, retained)
+            except OSError as probe_error:
+                directory_probe = {"outcome": "error", "exception": repr(probe_error)}
+            else:
+                directory_probe = {"outcome": "success"}
+            report = {
+                "exception": repr(exc),
+                "errno": getattr(exc, "errno", None),
+                "winerror": getattr(exc, "winerror", None),
+                "source": str(source),
+                "destination": str(destination),
+                "destination_exists": destination.exists(),
+                "retained": str(retained),
+                "replace_attempts": attempts,
+                "linked": linked,
+                "copied": copied,
+                "omitted": omitted,
+                "directory_lock_probe": directory_probe,
+                "entries": entries,
+            }
+            diagnostic = retained.with_name(f"{retained.name}.freeze-diagnostics.json")
+            diagnostic.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(
+                f"flight recorder freeze diagnostics: {diagnostic}", file=sys.stderr
+            )
+        except OSError as diagnostic_error:
+            _warn("write freeze diagnostics", diagnostic_error)
 
     def prune_budget(self) -> None:
         """Age rotated snapshots and finalized incidents within the shared budget."""
