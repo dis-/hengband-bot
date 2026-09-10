@@ -371,6 +371,63 @@ class HomeMixin:
     def _retention_reservation_detail(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
+        """Return retention plus the narrow weakest-ammo fallback."""
+        baseline = self._retention_reservation_baseline_detail(snapshot, item)
+        launcher = self._equipped_launcher(snapshot)
+        retired_town_owners = set(
+            getattr(
+                getattr(self, "_town_turn_arbiter", None), "_retired", ()
+            )
+        )
+        preparation = getattr(self, "_equipment_optimization_preparation", None)
+        failed_home_route = (
+            tuple(getattr(preparation, "blockers", ()))
+            == ("equipment-transaction-failed",)
+            and self._equipment_transaction_session is None
+            and (
+                STORE_HOME in self._town_store_attempted
+                or self._town_visit_ledger.unsatisfied_passes[STORE_HOME] > 0
+                or self._town_visit_ledger.approach_fails[STORE_HOME] > 0
+            )
+        )
+        if (
+            launcher is None
+            or not item.is_ammo
+            or item.tval != launcher.ammo_tval
+            or self._equipment_retired_worn_item_ids
+            or "equipment-opt" in retired_town_owners
+            or "equipment-txn" in retired_town_owners
+            or failed_home_route
+        ):
+            return baseline
+
+        matching = [
+            candidate for candidate in snapshot.inventory
+            if candidate.tval == launcher.ammo_tval and candidate.count > 0
+        ]
+        def ammo_damage(candidate: InventoryItem) -> float:
+            average = (
+                candidate.damage_dice_num * (candidate.damage_dice_sides + 1) / 2
+                if candidate.damage_dice_num > 0 and candidate.damage_dice_sides > 0
+                else 0.0
+            )
+            return average + candidate.to_d
+
+        ranked = sorted(
+            matching,
+            key=lambda candidate: (ammo_damage(candidate), candidate.slot),
+        )
+        if not ranked or ammo_damage(ranked[0]) >= ammo_damage(ranked[-1]):
+            return baseline
+        return (
+            (0, None)
+            if ranked[0] is item
+            else (item.count, "ammo:retained-better")
+        )
+
+    def _retention_reservation_baseline_detail(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> tuple[int, str | None]:
         """Return the existing reservation together with its observed branch."""
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
