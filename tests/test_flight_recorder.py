@@ -21,6 +21,7 @@ from hengbot.flight_recorder import (
     safe_filename_component,
 )
 from hengbot.model import Position
+from hengbot.policy_types import TownErrandPlan
 
 
 class FlightRecorderTest(unittest.TestCase):
@@ -75,6 +76,16 @@ class FlightRecorderTest(unittest.TestCase):
             _descent_block_countdown=2,
             _descent_refusal_reason="descent-cooldown",
             _equipment_transaction_owned_items=[("weapon-1", "main_hand")],
+            _town_errand_plan=TownErrandPlan(
+                stops=[2, 7, 0],
+                need_categories={2: ("quest-ranged-kit",), 0: ("oil",)},
+                index=1,
+                inserted_this_visit=[7],
+                skipped_latched=[6],
+                completed_this_visit=[2],
+                blocked_this_visit=[5],
+                current_stop_passes=3,
+            ),
             _fundraising_mode="mine",
             _town_restock_suppressed=False,
             _abandoned_quest_carry_requirements={
@@ -456,6 +467,22 @@ class FlightRecorderTest(unittest.TestCase):
         self.assertEqual(
             state["state"]["_equipment_transaction_owned_items"],
             [["weapon-1", "main_hand"]],
+        )
+        self.assertEqual(
+            state["state"]["_town_errand_plan"],
+            {
+                "stops": [2, 7, 0],
+                "need_categories": {
+                    "0": ["oil"],
+                    "2": ["quest-ranged-kit"],
+                },
+                "index": 1,
+                "inserted_this_visit": [7],
+                "skipped_latched": [6],
+                "completed_this_visit": [2],
+                "blocked_this_visit": [5],
+                "current_stop_passes": 3,
+            },
         )
         self.assertEqual(
             state["state"]["_retried_deferred_home_items"],

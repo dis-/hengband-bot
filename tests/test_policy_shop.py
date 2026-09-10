@@ -5213,6 +5213,62 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertNotIn("`", key)
         self.assertIsNone(policy._shop_observation)
 
+    def test_observed_nothing_wanted_advances_actual_plan_stop_despite_stale_approach(self):
+        policy = HengbotPolicy()
+        entrance = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                )
+            },
+        )
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        policy._shop_observation = (
+            StoreState(store_type=STORE_WEAPON, items=[], page_top=0), 1
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON, STORE_BLACK, STORE_GENERAL],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._shop = lambda snapshot: LEAVE_STORE_KEY
+
+        self.assertEqual(policy._atomic_shop_transaction_key(entrance), WAIT_KEY)
+        self.assertEqual(policy._town_errand_plan.index, 1)
+        self.assertIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
+        self.assertIsNone(policy._shop_observation)
+
+    def test_all_nothing_wanted_plan_stops_end_without_rebuild(self):
+        policy = HengbotPolicy()
+        entrance = replace(
+            self._snapshot(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                )
+            },
+        )
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        policy._shop_observation = (
+            StoreState(store_type=STORE_WEAPON, items=[], page_top=0), 1
+        )
+        policy._shop = lambda snapshot: LEAVE_STORE_KEY
+
+        self.assertEqual(policy._atomic_shop_transaction_key(entrance), WAIT_KEY)
+        exhausted = policy._town_errand_plan
+        self.assertEqual(exhausted.index, len(exhausted.stops))
+        self.assertIn(STORE_WEAPON, exhausted.blocked_this_visit)
+        policy._town_need_candidates = lambda snapshot: [
+            TownNeed(STORE_WEAPON, "quest-ranged-kit", "ordinary")
+        ]
+
+        self.assertIsNone(policy._next_required_store_type(entrance))
+        self.assertIsNone(policy._town_errand_plan)
+
     def test_uncomposable_shop_observation_cannot_compose_after_pack_change(self):
         policy = HengbotPolicy()
         entrance = replace(
