@@ -2719,6 +2719,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # public decisions remain behind this observation barrier.
                 # The guarded latch evaluation above still releases it at the
                 # existing STORE_STUCK_LIMIT bound.
+                state = self._town_travel_state
+                if (
+                    state is not None
+                    and (self._store_entry_wait_key or "").startswith("\x1b`")
+                    and state.last_turn == snapshot.turn
+                    and snapshot.player.position.distance_to(state.goal)
+                    >= state.best_distance
+                ):
+                    # Native travel emits no player-turn snapshot while it is
+                    # running. An unchanged snapshot after this posted macro
+                    # therefore means the travel made no progress. Preserve
+                    # the entry-observation barrier, but make the next routing
+                    # attempt walk instead of retrying the same native route.
+                    self._town_travel_fallback = state.goal
+                    self._town_travel_state = None
                 self.last_reason = "store:entry-await-observation"
                 return ""
         pending_store_transaction = (
