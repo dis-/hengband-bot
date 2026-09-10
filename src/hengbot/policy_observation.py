@@ -885,7 +885,11 @@ class ObservationMixin:
 
     def _resolve_observed_uncomposable_stop(self, snapshot: Snapshot) -> bool:
         """Advance an observed stop whose one-shot command cannot be composed."""
-        store_type = self._shopping_approach_store_type
+        store_type = (
+            self._shop_observation[0].store_type
+            if self._shop_observation is not None
+            else self._shopping_approach_store_type
+        )
         plan = self._town_errand_plan
         if (
             store_type is None
