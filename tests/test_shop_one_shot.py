@@ -696,17 +696,23 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.choose_key(inside)
         outside = self._outside(policy, inside)
-        self.assertEqual(policy.choose_key(outside), "5")
+        entry_key = policy.choose_key(outside)
+        self.assertEqual(entry_key, "5")
+        self.assertTrue(policy.confirm_key_posted(entry_key))
 
-        waits = [
-            policy.choose_key(replace(outside, turn=outside.turn + turn))
-            for turn in range(1, STORE_STUCK_LIMIT + 2)
-        ]
-        self.assertEqual(waits[:2], ["", ""])
-        self.assertNotEqual(waits[2], "")
+        waits = []
+        telemetry = []
+        for turn in range(1, STORE_STUCK_LIMIT + 2):
+            waits.append(policy.choose_key(
+                replace(outside, turn=outside.turn + turn)
+            ))
+            telemetry.append(dict(policy._town_turn_arbiter.telemetry))
+        self.assertEqual(waits[:STORE_STUCK_LIMIT], [""] * STORE_STUCK_LIMIT)
+        self.assertNotEqual(waits[STORE_STUCK_LIMIT], "")
+        self.assertFalse(any(row["retired"] for row in telemetry), telemetry)
         self.assertEqual(
             policy._store_visit_last_closed.outcome,
-            "town-progress-invariant-reroute",
+            "one-shot-entry-unconfirmed",
         )
 
     def test_bare_wait_cannot_rearm_entry_from_an_earlier_decision(self):
