@@ -668,7 +668,10 @@ class ShoppingTest(unittest.TestCase):
             (probe, pol.last_reason), ("l\x1b", "shop:travel")
         )
         self.assertEqual(pol._town_turn_arbiter.telemetry, preceding_arbiter)
-        self.assertEqual(pol._town_turn_arbiter.telemetry["owner"], "store-router")
+        self.assertEqual(pol._town_turn_arbiter.telemetry["owner"], "town-errand")
+        self.assertEqual(
+            pol._town_turn_arbiter.telemetry["producer_owner"], "store-router"
+        )
         replacement = pol.choose_key(snap)
         self.assertEqual(replacement, "6")
         self.assertEqual(pol.last_reason, "shop:approach")

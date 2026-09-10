@@ -98,6 +98,17 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         self.assertEqual(second.owner, first.owner)
         self.assertEqual(set(owners), {"equipment-txn"})
         self.assertEqual(survival_owner, "survival")
+        errand_arbiter = cat._new_town_turn_arbiter()
+        errand_arbiter.acquire_store_visit(
+            store_type=cat.STORE_GENERAL, owner="town-errand",
+            purpose="shopping", opened_sequence=1,
+            close_visit=lambda _outcome: None,
+        )
+        telemetry = errand_arbiter.observe(
+            in_town=True, reason="shop:travel", progress_vector=(1,),
+        )
+        self.assertEqual(telemetry["owner"], "town-errand")
+        self.assertEqual(telemetry["producer_owner"], "store-router")
 
     def test_catalogue_is_cheap_and_grows_by_data(self):
         # Five seeds modelled the deleted in-store Home scan/selection paths.
