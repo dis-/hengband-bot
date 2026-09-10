@@ -103,6 +103,21 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_home_latch_history", [])
     restored.__dict__.setdefault("_home_gate_telemetry", {})
     restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
+    pending_deposit = restored.__dict__.get("_home_atomic_deposit_pending")
+    if (
+        pending_deposit is not None
+        and len(pending_deposit) == 4
+        and isinstance(pending_deposit[0], tuple)
+        and len(pending_deposit[0]) == 3
+        and isinstance(pending_deposit[0][0], str)
+    ):
+        signature, count_before, posted_turn, unchanged_pages = pending_deposit
+        restored._home_atomic_deposit_pending = (
+            ((signature, count_before, 1),),
+            None,
+            posted_turn,
+            unchanged_pages,
+        )
     latches = restored.__dict__.get("_cross_decision_latches", {})
     town_block = latches.get("_town_blocked_reason")
     if (

@@ -912,6 +912,8 @@ class CalibrationMixin:
             self._begin_character_calibration(snapshot)
             phase = "deposit"
         if phase == "deposit":
+            if self._home_atomic_deposit_pending is not None:
+                return None
             if self._find_home_deposit(snapshot) is None:
                 # Pack drained as far as Home accepts; strip if the takeoffs
                 # fit, otherwise the observation cannot be made this visit.
