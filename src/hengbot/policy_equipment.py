@@ -2112,10 +2112,19 @@ class EquipmentMixin:
             and not self._current_worn_loadout_confirmed(snapshot, preparation)
         ):
             return False
-        if self._home_owner_goal_pending(
-            snapshot, include_launcher_enchant=include_launcher_enchant
-        ):
-            return False
+        previous_include_launcher_enchant = getattr(
+            self, "_town_need_evaluation_include_launcher_enchant", True
+        )
+        self._town_need_evaluation_include_launcher_enchant = (
+            include_launcher_enchant
+        )
+        try:
+            if self._home_owner_goal_pending(snapshot):
+                return False
+        finally:
+            self._town_need_evaluation_include_launcher_enchant = (
+                previous_include_launcher_enchant
+            )
         if (
             STORE_HOME not in self._town_store_attempted
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0

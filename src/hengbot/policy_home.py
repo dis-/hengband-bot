@@ -2280,9 +2280,7 @@ class HomeMixin:
             target, before_count, passes, forced
         )
 
-    def _home_owner_goal_pending(
-        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
-    ) -> bool:
+    def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
         session = self._equipment_transaction_session
         if session is not None and session.executable and session.required_context is not None:
             return True
@@ -2304,13 +2302,7 @@ class HomeMixin:
             # work.  It is process-independent, so a restart cannot resurrect
             # the visit-count-bounded route.
             return False
-        needs = (
-            self._enumerate_town_needs(snapshot)
-            if include_launcher_enchant
-            else self._enumerate_town_needs(
-                snapshot, include_launcher_enchant=False
-            )
-        )
+        needs = self._enumerate_town_needs(snapshot)
         home_categories = {
             need.category for need in needs if need.store_type == STORE_HOME
         }

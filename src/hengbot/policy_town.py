@@ -1110,9 +1110,7 @@ class TownMixin:
         self.last_reason = "equipment:destroy-unsellable-dominated"
         return self._destroy_item_key(target)
 
-    def _town_need_candidates(
-        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
-    ) -> list[TownNeed]:
+    def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
         needs: list[TownNeed] = []
         fundraising_active = (
@@ -1688,7 +1686,9 @@ class TownMixin:
         if self._affordable_star_remove_curse(snapshot) is not None:
             add(STORE_TEMPLE, "star-remove-curse")
         if (
-            include_launcher_enchant
+            getattr(
+                self, "_town_need_evaluation_include_launcher_enchant", True
+            )
             and self._launcher_enchant_needed_svals(snapshot)
             and snapshot.player.gold > FUNDRAISING_START_GOLD
             and self._launcher_enchant_registration_actionable(snapshot)
@@ -1873,9 +1873,7 @@ class TownMixin:
         self._town_claim_categories = claims
         return bool(claims)
 
-    def _enumerate_town_needs(
-        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
-    ) -> list[TownNeed]:
+    def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""
         needs: list[TownNeed] = []
         previous_snapshot = getattr(self, "_town_need_evaluation_snapshot", None)
@@ -1883,9 +1881,7 @@ class TownMixin:
             self, "_town_need_evaluation_candidates", None
         )
         self._town_need_evaluation_snapshot = snapshot
-        self._town_need_evaluation_candidates = self._town_need_candidates(
-            snapshot, include_launcher_enchant=include_launcher_enchant
-        )
+        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
         try:
             for spec in self._town_need_registry():
                 if spec.produces(snapshot):
@@ -1913,9 +1909,7 @@ class TownMixin:
             ]
         return needs
 
-    def _departure_blocking_town_needs(
-        self, snapshot: Snapshot, *, include_launcher_enchant: bool = True
-    ) -> list[TownNeed]:
+    def _departure_blocking_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return live errands whose NeedSpec says they gate departure."""
         needs: list[TownNeed] = []
         previous_snapshot = getattr(self, "_town_need_evaluation_snapshot", None)
@@ -1923,9 +1917,7 @@ class TownMixin:
             self, "_town_need_evaluation_candidates", None
         )
         self._town_need_evaluation_snapshot = snapshot
-        self._town_need_evaluation_candidates = self._town_need_candidates(
-            snapshot, include_launcher_enchant=include_launcher_enchant
-        )
+        self._town_need_evaluation_candidates = self._town_need_candidates(snapshot)
         try:
             for spec in self._town_need_registry():
                 if spec.departure_blocking and spec.produces(snapshot):
@@ -1993,9 +1985,16 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> tuple[int | None, bool]:
         """Purely find a supplier and report durable owner exhaustion."""
-        candidates = self._departure_blocking_town_needs(
-            snapshot, include_launcher_enchant=False
+        previous_include_launcher_enchant = getattr(
+            self, "_town_need_evaluation_include_launcher_enchant", True
         )
+        self._town_need_evaluation_include_launcher_enchant = False
+        try:
+            candidates = self._departure_blocking_town_needs(snapshot)
+        finally:
+            self._town_need_evaluation_include_launcher_enchant = (
+                previous_include_launcher_enchant
+            )
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         supply_categories = {
             "recall": "recall", "food": "food", "oil": "oil",
