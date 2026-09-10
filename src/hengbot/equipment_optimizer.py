@@ -30,6 +30,7 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
+from hengbot.launcher_damage import best_obtainable_launcher_damage
 
 
 EquipmentItem = InventoryItem | StoreItem
@@ -896,6 +897,7 @@ def _prefer(
     candidate: EvaluatedLoadout,
     incumbent: EvaluatedLoadout,
     current_item_ids: frozenset[str],
+    launcher_damage: Mapping[str, float] | None = None,
 ) -> bool:
     cm = candidate.metrics
     im = incumbent.metrics
@@ -906,6 +908,16 @@ def _prefer(
         if candidate_bow is not None and incumbent_bow is not None
         else set()
     )
+    if (
+        launcher_damage is not None
+        and candidate_bow is not None
+        and incumbent_bow is not None
+        and candidate_bow.id != incumbent_bow.id
+    ):
+        candidate_damage = launcher_damage.get(candidate_bow.id, 0.0)
+        incumbent_damage = launcher_damage.get(incumbent_bow.id, 0.0)
+        if candidate_damage != incumbent_damage:
+            return candidate_damage > incumbent_damage
     if launcher_pair == {SV_BOW_SHORT, SV_BOW_LIGHT_XBOW}:
         short_bow = next(
             bow.item
@@ -1050,6 +1062,7 @@ SUFFICIENT_SURVIVAL_TURNS = 30.0
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
+    launcher_damage: Mapping[str, float] | None = None,
 ) -> EvaluatedLoadout | None:
     """Select from the whole field without a non-transitive winner chain.
 
@@ -1080,6 +1093,22 @@ def _stable_operational_best(
             or bow.item.is_ego
             or bow.item.is_artifact
             or bow.item.pseudo_feeling in {"excellent", "special"}
+        ]
+
+    if launcher_damage is not None:
+        best_launcher_damage = max(
+            (
+                launcher_damage.get(bow.id, 0.0)
+                for entry in pool
+                if (bow := entry.loadout.item_at(SLOT_BOW)) is not None
+            ),
+            default=0.0,
+        )
+        pool = [
+            entry
+            for entry in pool
+            if (bow := entry.loadout.item_at(SLOT_BOW)) is None
+            or launcher_damage.get(bow.id, 0.0) == best_launcher_damage
         ]
 
     # Survival-sufficiency gate.  Loadouts that survive at least
@@ -1159,9 +1188,16 @@ def optimize_loadout(
     candidate_loadouts: Iterable[Loadout] | None = None,
     require_light: bool | None = None,
     identification_exempt_item_ids: frozenset[str] = frozenset(),
+    obtainable_ammunition: Iterable[EquipmentItem] = (),
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
+    ammunition = tuple(obtainable_ammunition)
+    launcher_damage = {
+        owned.id: best_obtainable_launcher_damage(owned.item, ammunition)
+        for owned in catalog
+        if owned.item.ammo_tval is not None
+    }
     if require_light is None:
         require_light = any(usable_light_candidate(item) for item in catalog)
     incomplete = frozenset(
@@ -1220,7 +1256,9 @@ def optimize_loadout(
         evaluated_count += 1
         equivalence_key = _selection_equivalence_key(entry, current_item_ids)
         incumbent = evaluated_by_metrics.get(equivalence_key)
-        if incumbent is None or _prefer(entry, incumbent, current_item_ids):
+        if incumbent is None or _prefer(
+            entry, incumbent, current_item_ids, launcher_damage
+        ):
             evaluated_by_metrics[equivalence_key] = entry
 
     evaluated = list(evaluated_by_metrics.values())
@@ -1228,7 +1266,9 @@ def optimize_loadout(
     band_decisions: list[BandDecision] = []
     chosen_decision = None
     if depth is None and evaluated and not timed_out:
-        free_best = _stable_operational_best(evaluated, current_item_ids)
+        free_best = _stable_operational_best(
+            evaluated, current_item_ids, launcher_damage
+        )
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
         melee_free = free_best.metrics.expected_dps
@@ -1245,7 +1285,9 @@ def optimize_loadout(
                     require_light=require_light,
                 )
             ]
-            band_best = _stable_operational_best(satisfying, current_item_ids)
+            band_best = _stable_operational_best(
+                satisfying, current_item_ids, launcher_damage
+            )
             if band_best is None:
                 band_decisions.append(BandDecision(
                     band, False, None, melee_free, "no-set", None,
@@ -1286,7 +1328,9 @@ def optimize_loadout(
         # viable loadout.  The strict Pareto frontier is retained separately for
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
-        best = _stable_operational_best(evaluated, current_item_ids)
+        best = _stable_operational_best(
+            evaluated, current_item_ids, launcher_damage
+        )
         if depth is not None and best is not None:
             chosen_depth = divable_depth(
                 best.loadout,
@@ -1309,8 +1353,8 @@ def optimize_loadout(
         (entry for entry in evaluated if entry is not best),
         key=cmp_to_key(
             lambda left, right: (
-                -1 if _prefer(left, right, current_item_ids)
-                else 1 if _prefer(right, left, current_item_ids)
+                -1 if _prefer(left, right, current_item_ids, launcher_damage)
+                else 1 if _prefer(right, left, current_item_ids, launcher_damage)
                 else 0
             )
         ),

@@ -308,10 +308,7 @@ from hengbot.warrior_optimization import (
     # warrior_optimization owns the per-source supersede rule; policy consumes it.
     _effective_intrinsic_abilities,
 )
-from hengbot.warrior_loadout_evaluator import (
-    LAUNCHER_PROPERTIES,
-    STORE_AMMO_AVERAGE_DAMAGE,
-)
+from hengbot.launcher_damage import launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import melee_hit_chance
 from hengbot.model import (
@@ -438,13 +435,7 @@ class EquipmentMixin:
 
     @staticmethod
     def _launcher_average_damage(item: InventoryItem | StoreItem | None) -> float:
-        if item is None or item.sval not in LAUNCHER_PROPERTIES:
-            return 0.0
-        ammo_tval, _energy, multiplier = LAUNCHER_PROPERTIES[item.sval]
-        return max(
-            0.0,
-            (STORE_AMMO_AVERAGE_DAMAGE[ammo_tval] + item.to_d) * multiplier,
-        )
+        return launcher_average_damage(item)
 
     def _equipment_optimization_depth(self, snapshot: Snapshot) -> int:
         """Return the depth classified from the optimized owned loadout."""
@@ -856,6 +847,11 @@ class EquipmentMixin:
                 for item in snapshot.equipment
                 if item.is_equipment and item.tval not in AMMUNITION_TVALS
             )),
+            tuple(sorted(
+                self._item_signature(item)
+                for item in (*snapshot.inventory, *self._home_knowledge_items)
+                if item.is_ammo and item.count > 0
+            )),
         )
         if (
             signature == self._equipment_optimization_signature
@@ -1061,6 +1057,11 @@ class EquipmentMixin:
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
+            obtainable_ammunition=tuple(
+                item
+                for item in (*snapshot.inventory, *self._home_knowledge_items)
+                if item.is_ammo and item.count > 0
+            ),
         )
         result = getattr(preparation, "result", None)
         if result is not None:

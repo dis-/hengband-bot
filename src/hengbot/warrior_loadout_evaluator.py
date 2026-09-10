@@ -8,6 +8,7 @@ from math import isinf
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
+from hengbot.launcher_damage import LAUNCHER_PROPERTIES, STORE_AMMO_AVERAGE_DAMAGE
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     WarriorRangedDefenseResult,
@@ -103,14 +104,6 @@ ADJ_CON_HP = (
     5, 6, 7, 8, 9, 10, 11, 12, 14, 17, 20, 23, 26, 29, 32, 35,
     38, 40, 42, 44, 46, 48,
 )
-STORE_AMMO_AVERAGE_DAMAGE = {16: 2.0, 17: 2.5, 18: 3.0}
-LAUNCHER_PROPERTIES = {
-    2: (16, 8000, 2),
-    12: (17, 10000, 2),
-    13: (17, 10000, 3),
-    23: (18, 12000, 3),
-    24: (18, 13333, 4),
-}
 MASTER_WEAPON_EXP = 8000
 
 

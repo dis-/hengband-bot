@@ -297,10 +297,7 @@ from hengbot.warrior_optimization import (
     # warrior_optimization owns the per-source supersede rule; policy consumes it.
     _effective_intrinsic_abilities,
 )
-from hengbot.warrior_loadout_evaluator import (
-    LAUNCHER_PROPERTIES,
-    STORE_AMMO_AVERAGE_DAMAGE,
-)
+from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import melee_hit_chance
 from hengbot.model import (
@@ -681,7 +678,7 @@ class QuestMixin:
         """Measure the shot the quest executor will fire from its first ammo stack."""
         if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
             return 0.0
-        ammo_tval, _energy, multiplier = LAUNCHER_PROPERTIES[launcher.sval]
+        ammo_tval, _energy, _multiplier = LAUNCHER_PROPERTIES[launcher.sval]
         ammo = next(
             (
                 candidate
@@ -692,16 +689,7 @@ class QuestMixin:
         )
         if ammo is None and require_carried_ammo:
             return 0.0
-        ammo_damage = (
-            ammo.damage_dice_num * (ammo.damage_dice_sides + 1) / 2
-            if ammo is not None
-            and ammo.damage_dice_num > 0
-            and ammo.damage_dice_sides > 0
-            else STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
-        )
-        if ammo is not None:
-            ammo_damage += ammo.to_d
-        return max(0.0, (ammo_damage + launcher.to_d) * multiplier)
+        return launcher_average_damage(launcher, ammo)
 
     def _quest_launcher_ammo_from_item_or_force(
         self, item: InventoryItem | StoreItem | None, force: dict
