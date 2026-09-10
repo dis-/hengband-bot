@@ -187,6 +187,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                         "owner", "tenure", "progress",
                         "budget_remaining_estimate", "would_retire",
                         "retired", "retirement_set", "decision_attribution",
+                        "producer_owner",
                     },
                     set(row["arbiter"]),
                 )
