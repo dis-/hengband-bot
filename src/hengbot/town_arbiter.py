@@ -207,7 +207,6 @@ class TownTurnArbiter:
             "shop-one-shot": "shop-buy",
             "home-one-shot": "home-visit",
             "equipment-transaction": "equipment-txn",
-            "town-errand": "town-plan",
         }
         return aliases.get(visit.owner, visit.owner)
 
@@ -342,6 +341,10 @@ class TownTurnArbiter:
                 close_visit(owner, "arbiter-retired")
         self.telemetry = {
             "owner": self._decision_owner(reason),
+            # The visit owner is the authority for the errand, while this
+            # reason-family owner identifies the producer that contributed the
+            # current decision.  Keep both identities for stall diagnostics.
+            "producer_owner": owner,
             "tenure": self._tenure,
             "progress": progress,
             "budget_remaining_estimate": remaining,
