@@ -2421,6 +2421,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             reason=self.last_reason,
             progress_vector=vector,
             terminal=terminal,
+            observation_wait=bool(
+                key == ""
+                and self._store_visit is not None
+                and self._store_visit.operation_posted
+                and not self._store_visit.operation_released
+            ),
             close_visit=self._arbiter_close_store_visit,
         )
         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)

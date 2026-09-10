@@ -197,6 +197,7 @@ class TownTurnArbiter:
         progress_vector: object,
         terminal: bool = False,
         probe: bool = False,
+        observation_wait: bool = False,
         close_visit: Callable[[str, str], None] | None = None,
     ) -> dict[str, object] | None:
         # Checkpoints written by ARB-1 contain a pickled advisory arbiter.
@@ -253,7 +254,7 @@ class TownTurnArbiter:
         same_owner = owner == self._owner
         previous_vector = self._vector_by_owner.get(owner)
         recurrence_key = (owner, progress_vector)
-        if recurrence_key != self._last_pair:
+        if not observation_wait and recurrence_key != self._last_pair:
             self._recurrences[recurrence_key] += 1
         recurrence_limit = self.registry["detectors"].budget
         recurrent = self._recurrences[recurrence_key] >= recurrence_limit
@@ -288,7 +289,12 @@ class TownTurnArbiter:
         self._pending_transfer = None
         self._transferred_visit = None
         self._tenure = self._tenure + 1 if same_owner else 1
-        no_progress = 0 if progress else self._no_progress_by_owner.get(owner, 0) + 1
+        no_progress = (
+            self._no_progress_by_owner.get(owner, 0)
+            if observation_wait
+            else 0 if progress
+            else self._no_progress_by_owner.get(owner, 0) + 1
+        )
         self._no_progress_by_owner[owner] = no_progress
         self._vector_by_owner[owner] = progress_vector
         registration = self.registry.get(owner)
@@ -299,8 +305,11 @@ class TownTurnArbiter:
         recurrence_exhausted = registration is not None and recurrent
         if recurrence_exhausted:
             remaining = 0
-        would_retire = registration is not None and not progress and (
-            remaining == 0 or recurrence_exhausted
+        would_retire = (
+            registration is not None
+            and not observation_wait
+            and not progress
+            and (remaining == 0 or recurrence_exhausted)
         )
         if would_retire:
             self._retired[owner] = progress_vector
