@@ -2963,8 +2963,15 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         policy._equipment_catalog.observe_home_page([])
 
         blocked = policy._prepare_equipment_optimization(snapshot)
-        self.assertIn("incomplete-equipment-catalog", blocked.blockers)
-        self.assertEqual(len(blocked.result.incomplete_item_ids), 1)
+        self.assertNotIn("incomplete-equipment-catalog", blocked.blockers)
+        self.assertEqual(blocked.result.incomplete_item_ids, frozenset())
+        self.assertNotIn(
+            next(
+                owned.id for owned in policy._equipment_catalog.items
+                if owned.item is unknown
+            ),
+            policy._equipment_optimization_search_surviving_ids,
+        )
 
         policy._town_unidentifiable_carried_sigs.add(
             policy._item_signature(unknown)
@@ -5868,3 +5875,104 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertEqual(policy._equipment_transaction_owned_items, [])
         self.assertEqual(restore_trigger.call_count, 0)
+
+
+class EquipLoopAfterE85AA8ERegressionTest(unittest.TestCase):
+    FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "equip-loop-after-e85aa8e-20260911.json.gz"
+    )
+
+    def _captured(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8-sig") as stream:
+            return parse_snapshot(json.load(stream), {})
+
+    def test_identification_incomplete_hammer_is_not_a_search_target(self):
+        snapshot = self._captured()
+        policy = HengbotPolicy()
+        seed_character_calibration(policy, snapshot)
+        policy._equipment_catalog.refresh_carried(
+            snapshot.inventory, snapshot.equipment
+        )
+        policy._equipment_catalog.observe_home_page([])
+
+        preparation = policy._prepare_equipment_optimization(
+            snapshot, depth_override=49
+        )
+        hammer = next(
+            owned
+            for owned in policy._equipment_catalog.items
+            if policy_module.equipment_identity(owned.item) == "da9db64b3a96f3aa"
+        )
+        self.assertTrue(hammer.identification_incomplete)
+        self.assertNotIn(
+            hammer.id, policy._equipment_optimization_search_surviving_ids
+        )
+        self.assertNotEqual(
+            getattr(
+                getattr(preparation, "transaction", None), "actions", ()
+            ),
+            (policy_module.EquipmentTransaction(
+                policy_module.PHASE_EQUIP,
+                "equip",
+                "restore:da9db64b3a96f3aa",
+                "sub_hand",
+                "da9db64b3a96f3aa",
+            ),),
+        )
+        state = policy.equipment_optimization_state(snapshot)
+        excluded = state["search_excluded_items"]["items"]
+        self.assertIn(
+            "identification-incomplete",
+            next(row for row in excluded if row["id"] == hammer.id)["reasons"],
+        )
+
+    def test_failed_incomplete_restore_is_suppressed_for_thirty_decisions(self):
+        snapshot = self._captured()
+        hammer = next(
+            equipped
+            for equipped in snapshot.equipment
+            if policy_module.equipment_identity(equipped) == "da9db64b3a96f3aa"
+        )
+        carried_hammer = replace(hammer, slot="n")
+        current = replace(
+            snapshot,
+            inventory=[*snapshot.inventory, carried_hammer],
+            equipment=[item for item in snapshot.equipment if item is not hammer],
+        )
+        policy = HengbotPolicy()
+        seed_character_calibration(policy, current)
+        policy._equipment_catalog.refresh_carried(
+            current.inventory, current.equipment
+        )
+        policy._equipment_catalog.observe_home_page([])
+        identity = policy_module.equipment_identity(carried_hammer)
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: captured telemetry pins the real failed restoration seam
+        policy._equipment_transaction_owned_items = [(identity, "sub_hand")]
+        policy._equipment_transaction_failed_items.update({
+            "equipped:da9db64b3a96f3aa:0", f"identity:{identity}",
+        })
+
+        reasons = []
+        actions = []
+        for _ in range(30):
+            key = policy.choose_key(current)
+            reasons.append(policy.last_reason)
+            session = policy._equipment_transaction_session
+            action = None if session is None else session.prepared_action
+            if action is not None:
+                actions.append((action.kind, action.item_identity))
+            policy.confirm_key_posted(key)
+
+        alternating = any(
+            {left[0], right[0]} == {"equip", "takeoff"}
+            and left[1] == right[1] == identity
+            for left, right in zip(actions, actions[1:])
+        )
+        self.assertFalse(alternating)
+        self.assertNotIn(("equip", identity), actions)
+        self.assertNotIn("equipment-transaction:equip", reasons)
+        self.assertNotIn("equipment-transaction:takeoff", reasons)
+        self.assertTrue(any(reason.startswith("shop:") for reason in reasons))
+        self.assertEqual(policy._equipment_transaction_owned_items, [])
