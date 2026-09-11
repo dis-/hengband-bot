@@ -20,6 +20,9 @@ class _ShoppingApproachEmission(str):
         value.approach_provenance = provenance
         return value
 
+    def __reduce__(self):
+        return type(self), (str(self), self.approach_provenance)
+
 
 class ShopMixin:
     def _arbiter_close_store_visit(self, owner: str, outcome: str) -> None:

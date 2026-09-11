@@ -8,6 +8,8 @@ import json
 
 import os
 
+import pickle
+
 import subprocess
 
 import sys
@@ -6243,6 +6245,27 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertIsNone(policy._pending_shop_approach)
         self.assertEqual(policy._shop_approach_stuck_count, 0)
+
+    def test_checkpoint_drops_unconfirmed_staged_approach(self):
+        policy = HengbotPolicy()
+        snapshot = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot, grids={**snapshot.grids, home.position: home}, town_flag=True
+        )
+        step = policy._shopping_approach_step(snapshot, STORE_HOME)
+        self.assertIsNotNone(step)
+        policy.last_reason = "shop:approach"
+        emitted = policy._shopping_approach_key(snapshot, step, "shop:travel")
+        round_tripped_emission = pickle.loads(pickle.dumps(emitted, protocol=5))
+
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertEqual(round_tripped_emission, emitted)
+        self.assertTrue(hasattr(round_tripped_emission, "approach_provenance"))
+        self.assertIsNone(restored._staged_shop_approach)
+        restored.confirm_key_posted(round_tripped_emission)
+
+        self.assertIsNone(restored._pending_shop_approach)
 
     def test_store_episode_switch_clears_previous_origin(self):
         policy = self._policy([])

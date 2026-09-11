@@ -50,6 +50,9 @@ _CAPTURE_STATE_NAMES = frozenset(
         "_map_predicate_snapshot",
         "_decision_input_snapshot",
         "_town_fact_snapshot",
+        # An approach emission is confirmable only in the live decision that
+        # produced it.  A restored checkpoint has not posted that emission.
+        "_staged_shop_approach",
         # The Home capture is an observer, not restorable policy state.  It also
         # contains the checkpoint currently being built.
         "_home_entry_capture",
@@ -77,6 +80,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored._latch_capture_assignment = None
     restored._latch_capture_remaining = 0
     restored._home_entry_capture = None
+    restored._staged_shop_approach = None
     if "_monrace_knowledge" not in restored.__dict__:
         definitions = find_monrace_definitions(Path(__file__), None)
         if definitions is None:
