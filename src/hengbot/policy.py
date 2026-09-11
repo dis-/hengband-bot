@@ -1264,6 +1264,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._periodic_save_requested = False
         self._shopping_stuck = False  # gave up an unreachable store approach this visit
         self._shop_approach_stuck_count = 0  # oscillating-approach turns without arriving
+        self._shop_approach_stuck_store = None
+        self._shop_approach_previous_origin = None
+        self._staged_shop_approach = None
+        self._pending_shop_approach = None
         # Town stores are fixed landmarks.  Try Hengband's native travel command
         # once per approach; if it stops short, retain that goal here and finish
         # with the existing one-step pathfinder instead of retrying forever.
@@ -2251,6 +2255,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or (self.last_reason or "").startswith("ranged:")
         ):
             self._shop_approach_stuck_count = 0
+            self._shop_approach_stuck_store = None
+            self._shop_approach_previous_origin = None
+            self._staged_shop_approach = None
+            self._pending_shop_approach = None
         self._acquire_store_visit_attempt = {
             "acquire_store_visit_called": False,
             "requested_owner": None,
@@ -2577,6 +2585,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return key
 
     def _choose_key(self, snapshot: Snapshot) -> str:
+        self._staged_shop_approach = None
         self._read_binding = None
         self.read_telemetry = {}
         self._store_entry_wait_owner = None
@@ -7004,6 +7013,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        self._confirm_staged_shopping_approach(key)
         if (
             self._quest_strategy_recovery_pickup_prepared
             and key == getattr(

@@ -182,6 +182,10 @@ class ObservationMixin:
             self._town_store_attempted.clear()
             self._shopping_stuck = False
             self._shop_approach_stuck_count = 0
+            self._shop_approach_stuck_store = None
+            self._shop_approach_previous_origin = None
+            self._staged_shop_approach = None
+            self._pending_shop_approach = None
             self._shopping_abandoned = False
         # Count consecutive "stuck" turns on a dungeon floor — searching, probing,
         # breaking out or wandering, but never actually exploring a frontier or
@@ -502,6 +506,10 @@ class ObservationMixin:
             self._char_dump_done_this_visit = False
             self._shopping_stuck = False
             self._shop_approach_stuck_count = 0
+            self._shop_approach_stuck_store = None
+            self._shop_approach_previous_origin = None
+            self._staged_shop_approach = None
+            self._pending_shop_approach = None
             self._home_processing_seen_pages.clear()
             self._home_digger_seen_pages.clear()
             self._home_pending_batch.clear()
@@ -820,6 +828,7 @@ class ObservationMixin:
             self._visit_counts[position] += 1
             self._last_position = position
         self._recent.append(position)
+        self._settle_shopping_approach(snapshot)
 
         if self._pending_loot_pickup is not None:
             pickup_floor, pickup_position, pickup_count = self._pending_loot_pickup

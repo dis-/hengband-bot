@@ -11,6 +11,16 @@ from hengbot.baseitem_knowledge import item_base_cost
 import re
 from dataclasses import replace
 
+
+class _ShoppingApproachEmission(str):
+    """A direction carrying the identity of the producer that emitted it."""
+
+    def __new__(cls, key: str, provenance: object):
+        value = super().__new__(cls, key)
+        value.approach_provenance = provenance
+        return value
+
+
 class ShopMixin:
     def _arbiter_close_store_visit(self, owner: str, outcome: str) -> None:
         """Close only a visit resource owned by the yielding token family."""
@@ -3359,7 +3369,6 @@ class ShopMixin:
         if store_type is None:
             store_type = self._next_required_store_type(snapshot)
         if store_type is None:
-            self._shop_approach_stuck_count = 0
             return None
         plan = self._town_errand_plan
         home_categories = (
@@ -3426,7 +3435,6 @@ class ShopMixin:
             >= self._town_store_visit_limit(store_type)
         ):
             self._set_town_store_attempted(store_type, snapshot.turn, "approach-fails-limit")
-            self._shop_approach_stuck_count = 0
             return None
         self._shopping_approach_store_type = store_type
         if self._town_map_active(snapshot):
@@ -3522,7 +3530,6 @@ class ShopMixin:
             # consumed by native store travel, not as a raw movement direction.
             step = self._shopping_approach_goal
         if step is None:
-            self._shop_approach_stuck_count = 0
             return None
         # A few bounces on the way in are fine (the store is usually a tile or two
         # on), but a store approach that keeps oscillating WITHOUT arriving means the
@@ -3531,27 +3538,76 @@ class ShopMixin:
         # up SHOPPING for this visit and let the recall dive with what we have —
         # before the loop guard fires. Never wander outward (we return the store
         # step until then, never a least-visited edge tile).
-        if self._is_oscillating():
+        return step
+
+    def _stage_shopping_approach_key(self, snapshot: Snapshot, key: str) -> str:
+        provenance = object()
+        self._staged_shop_approach = (
+            provenance,
+            self._decision_sequence,
+            self._shopping_approach_store_type,
+            snapshot.player.position,
+            key,
+            self.last_reason,
+        )
+        return _ShoppingApproachEmission(key, provenance)
+
+    def _confirm_staged_shopping_approach(self, key: str) -> None:
+        staged = getattr(self, "_staged_shop_approach", None)
+        self._staged_shop_approach = None
+        if staged is None:
+            return
+        provenance, sequence, store_type, origin, staged_key, reason = staged
+        if (
+            getattr(key, "approach_provenance", None) is provenance
+            and key == staged_key
+            and self.last_reason == reason
+            and self._decision_sequence == sequence
+            and store_type is not None
+        ):
+            self._pending_shop_approach = (store_type, origin)
+
+    def _settle_shopping_approach(self, snapshot: Snapshot) -> None:
+        pending = getattr(self, "_pending_shop_approach", None)
+        if pending is None:
+            return
+        self._pending_shop_approach = None
+        store_type, origin = pending
+        if getattr(self, "_shop_approach_stuck_store", None) != store_type:
+            self._shop_approach_stuck_count = 0
+            self._shop_approach_stuck_store = store_type
+            self._shop_approach_previous_origin = None
+
+        position = snapshot.player.position
+        here = snapshot.grid_at(position)
+        arrived = (
+            snapshot.store is not None
+            and snapshot.store.store_type == store_type
+        ) or (here is not None and here.store_number == store_type)
+        if arrived:
+            self._shop_approach_stuck_count = 0
+            self._shop_approach_stuck_store = None
+            self._shop_approach_previous_origin = None
+            return
+
+        if position == origin or position == getattr(
+            self, "_shop_approach_previous_origin", None
+        ):
             self._shop_approach_stuck_count += 1
         else:
             self._shop_approach_stuck_count = 0
-        if self._shop_approach_stuck_count >= SHOP_APPROACH_STUCK_LIMIT:
-            equipment_work_at_home = (
-                store_type == STORE_HOME and self._outstanding_equipment_work()
-            )
-            self._shop_approach_stuck_count = 0
-            if equipment_work_at_home:
-                # The equipment transaction charges every issued Home approach
-                # to its existing pass ceiling. The detector therefore keeps
-                # returning the known route step without maintaining a second
-                # route bound. A None above still distinctly means that map
-                # routing found no step at all.
-                return step
-            self._shopping_stuck = True
-            self._set_town_store_attempted(store_type, snapshot.turn, "shopping-stuck")
-            self._town_visit_ledger.approach_fails[store_type] += 1
-            return None
-        return step
+        self._shop_approach_previous_origin = origin
+        if self._shop_approach_stuck_count < SHOP_APPROACH_STUCK_LIMIT:
+            return
+
+        self._shop_approach_stuck_count = 0
+        self._shop_approach_stuck_store = None
+        self._shop_approach_previous_origin = None
+        if store_type == STORE_HOME and self._outstanding_equipment_work():
+            return
+        self._shopping_stuck = True
+        self._set_town_store_attempted(store_type, snapshot.turn, "shopping-stuck")
+        self._town_visit_ledger.approach_fails[store_type] += 1
 
     def _shopping_approach_key(
         self, snapshot: Snapshot, step: Position, travel_reason: str
@@ -3601,7 +3657,12 @@ class ShopMixin:
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self.last_reason = "store:entry-failed-step-off"
-            return self._step_toward(snapshot, neighbors[0]) if neighbors else ""
+            return (
+                self._stage_shopping_approach_key(
+                    snapshot, self._step_toward(snapshot, neighbors[0])
+                )
+                if neighbors else ""
+            )
         here = snapshot.grid_at(snapshot.player.position)
         if (
             step == snapshot.player.position
@@ -3613,14 +3674,18 @@ class ShopMixin:
             self._store_entry_wait_key = WAIT_KEY
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
-            return self._step_toward(snapshot, step)
+            return self._stage_shopping_approach_key(
+                snapshot, self._step_toward(snapshot, step)
+            )
         goal = self._shopping_approach_goal
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
             return clear_traveler
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
-            return self._step_toward(snapshot, step)
+            return self._stage_shopping_approach_key(
+                snapshot, self._step_toward(snapshot, step)
+            )
         # A leading Escape dismisses a lingering -more- or prompt before the
         # backtick opens native travel; at the command loop it is a harmless
         # no-op. Without it, the prompt can eat ` and leave (notably) % to open
@@ -3636,7 +3701,9 @@ class ShopMixin:
                 self._town_travel_fallback = goal
                 self._town_travel_state = None
                 self.last_reason = "shop:approach"
-                return self._step_toward(snapshot, step)
+                return self._stage_shopping_approach_key(
+                    snapshot, self._step_toward(snapshot, step)
+                )
             self._post_owner_expectation(
                 snapshot, travel_reason, "position", "store_type"
             )
@@ -3649,7 +3716,9 @@ class ShopMixin:
             self._store_entry_wait_owner = store_type
             self._store_entry_wait_key = travel
             return travel
-        return self._step_toward(snapshot, step)
+        return self._stage_shopping_approach_key(
+            snapshot, self._step_toward(snapshot, step)
+        )
 
     def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
         """Compose one transaction from the latest observed page, outside."""

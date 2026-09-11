@@ -1253,8 +1253,19 @@ def _calibration_prerequisite_scan_bound():
     )
     policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
     policy._recent.extend([snap.player.position] * policy_module.STUCK_WINDOW)
+    step = policy._shopping_approach_step(snap, STORE_HOME)
+    if step is not None:
+        policy.last_reason = "shop:approach"
+        key = policy._shopping_approach_key(snap, step, "shop:travel")
+        policy.confirm_key_posted(key)
+        policy._observe(snap)
     policy._shop_approach_stuck_count = policy_module.SHOP_APPROACH_STUCK_LIMIT - 1
-    policy._shopping_approach_step(snap, STORE_HOME)
+    step = policy._shopping_approach_step(snap, STORE_HOME)
+    if step is not None:
+        policy.last_reason = "shop:approach"
+        key = policy._shopping_approach_key(snap, step, "shop:travel")
+        policy.confirm_key_posted(key)
+        policy._observe(snap)
     policy._report_town_stop_pass(
         snap, STORE_HOME, goal_satisfied=False, operation_completed=False
     )
@@ -1367,9 +1378,15 @@ def _approach_refused_optimizer_transaction():
     policy._town_was_in_town = True
     policy._floor_key = world.base.floor_key
     policy._recent.extend([world.base.player.position] * policy_module.STUCK_WINDOW)
+    key = policy.choose_key(world.base)
+    policy.confirm_key_posted(key)
+    policy._observe(world.base)
     policy._shop_approach_stuck_count = (
         policy_module.SHOP_APPROACH_STUCK_LIMIT - 1
     )
+    key = policy.choose_key(replace(world.base, turn=world.base.turn + 1))
+    policy.confirm_key_posted(key)
+    policy._observe(replace(world.base, turn=world.base.turn + 1))
     return policy, world
 
 
