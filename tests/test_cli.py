@@ -542,11 +542,13 @@ class UniversalPostingContractTest(unittest.TestCase):
             slot="main_hand", tval=23, sval=1, name="Sword", count=1,
             charges=0, inscription="", known=True, fully_known=True,
             is_equipment=True, is_melee_weapon=True, is_digging_tool=False,
+            is_cursed=False,
         )
         shovel = SimpleNamespace(
             slot="g", tval=20, sval=1, name="Shovel", count=1,
             charges=0, inscription="", known=True, fully_known=True,
             is_equipment=True, is_melee_weapon=False, is_digging_tool=True,
+            is_cursed=False,
         )
         yeek_before.equipment = [sword]
         yeek_before.inventory = [shovel]
