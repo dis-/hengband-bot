@@ -16,6 +16,7 @@ from hengbot.home_disposal import HomeDisposalState
 from hengbot.model import parse_snapshot
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
+    MonsterState,
     Position,
     Snapshot,
     StoreState,
@@ -55,7 +56,11 @@ from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import parse_town_map
 from hengbot.wilderness_map import load_wilderness_map
 from hengbot.policy import LEAVE_STORE_KEY, WAIT_KEY
-from hengbot.policy_constants import PACK_CAPACITY, Q2_BREACH_POSITION
+from hengbot.policy_constants import (
+    IDENTIFY_PRESSURE_FREE_SLOTS, PACK_CAPACITY, Q2_BREACH_POSITION,
+)
+from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from tests.policy_fixtures import grid, item, player, store_item
 
 
@@ -241,6 +246,174 @@ class HomeLightAlternationPins(unittest.TestCase):
                     replace(unknown, pseudo_feeling=feeling)
                 )
             )
+
+
+class DungeonIdentificationPins(unittest.TestCase):
+    def setUp(self) -> None:
+        self.scratch = tempfile.TemporaryDirectory(prefix="hengbot-d6-pin-")
+        sandbox = Path(self.scratch.name)
+        previous = Path.cwd()
+        os.chdir(sandbox)
+        os.environ["HENGBOT_HOME_HISTORY_DIR"] = str(sandbox)
+        try:
+            self.policy = _fresh_policy(sandbox)
+        finally:
+            os.chdir(previous)
+
+    def tearDown(self) -> None:
+        self.scratch.cleanup()
+
+    @staticmethod
+    def _snapshot(*, feeling="", monsters=(), source=True, turn=100) -> Snapshot:
+        inventory = []
+        if source:
+            inventory.append(
+                item(
+                    "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=10,
+                    name="Staff of Identify",
+                )
+            )
+        inventory.append(
+            item(
+                "s", TVAL_SWORD, 1, known=False, is_equipment=True,
+                pseudo_feeling=feeling, name="Unknown sword",
+            )
+        )
+        return Snapshot(
+            player(10, 10, class_id=0),
+            {Position(10, 10): grid(10, 10, lit=True, in_view=True)},
+            list(monsters),
+            inventory=inventory,
+            floor_key=(DUNGEON_YEEK_CAVE, 3, 0),
+            turn=turn,
+        )
+
+    def test_pin_d6_1_real_dungeon_producer(self):
+        snap = self._snapshot()
+        key = self.policy.choose_key(snap)
+        self.assertEqual(
+            (self.policy.last_reason, key),
+            ("identify:dungeon-equipment", "uis"),
+        )
+        chain = self.policy.peek_staged_prompt_chain()
+        self.assertIs(chain, self.policy.peek_staged_prompt_chain())
+        self.assertEqual(
+            chain,
+            {
+                "owner": "identify:dungeon-equipment",
+                "key": "uis",
+                "sequence": self.policy._decision_sequence,
+                "turn": snap.turn,
+                "gates": (
+                    (1, SOURCE_PROMPT[USE_STAFF_KEY]),
+                    (2, IDENTIFY_ITEM_PROMPT),
+                ),
+            },
+        )
+
+    def test_pin_d6_2_visible_hostile_blocks_producer(self):
+        hostile = MonsterState(
+            1, Position(20, 20), 5, 5, 14, False, False,
+            asleep=True, name="distant hostile",
+        )
+        key = self.policy.choose_key(self._snapshot(monsters=[hostile]))
+        self.assertNotEqual(self.policy.last_reason, "identify:dungeon-equipment")
+        self.assertNotEqual(key, "uis")
+        self.assertIsNone(self.policy.peek_staged_prompt_chain())
+
+    def test_pin_d6_3_no_source_never_leaks_wield_key(self):
+        snap = self._snapshot(source=False)
+        first = self.policy.choose_key(snap)
+        first_reason = self.policy.last_reason
+        second = self.policy.choose_key(replace(snap, turn=snap.turn + 1))
+        self.assertFalse(first_reason.startswith("identify:"), (first_reason, first))
+        self.assertFalse(self.policy.last_reason.startswith("identify:"))
+        self.assertNotEqual(first, "w")
+        self.assertNotEqual(second, "w")
+        self.assertIsNone(self.policy.peek_staged_prompt_chain())
+
+    def test_pin_d6_4_curse_suspect_feelings_are_excluded(self):
+        for feeling in ("cursed", "terrible", "worthless"):
+            with self.subTest(feeling=feeling):
+                policy = _fresh_policy(Path(self.scratch.name))
+                key = policy.choose_key(self._snapshot(feeling=feeling))
+                self.assertFalse(
+                    policy.last_reason.startswith("identify:"),
+                    (feeling, policy.last_reason, key),
+                )
+                self.assertIsNone(policy.peek_staged_prompt_chain())
+        policy = _fresh_policy(Path(self.scratch.name))
+        self.assertEqual(policy.choose_key(self._snapshot()), "uis")
+
+    def test_pin_prompt_chain_resets_at_each_choose_key(self):
+        snap = self._snapshot()
+        self.assertEqual(self.policy.choose_key(snap), "uis")
+        self.assertIsNotNone(self.policy.peek_staged_prompt_chain())
+        without_source = replace(
+            snap,
+            turn=snap.turn + 1,
+            inventory=[item(
+                "s", TVAL_SWORD, 1, known=False, is_equipment=True,
+                pseudo_feeling="", name="Unknown sword",
+            )],
+        )
+        self.policy.choose_key(without_source)
+        self.assertIsNone(self.policy.peek_staged_prompt_chain())
+
+    def test_pin_f_s1_pack_pressure_shared_tail_and_no_port_narrowing(self):
+        filler = [
+            item(chr(ord("a") + n), TVAL_WAND, n, name=f"filler-{n}")
+            for n in range(
+                PACK_CAPACITY - IDENTIFY_PRESSURE_FREE_SLOTS - 2
+            )
+        ]
+        staff = item(
+            "s", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=10,
+            name="Staff of Identify",
+        )
+        unknown = item("t", TVAL_POTION, 3, known=False, name="murky potion")
+        snap = replace(
+            self._snapshot(),
+            inventory=[*filler, staff, unknown],
+            floor_key=(DUNGEON_YEEK_CAVE, 12, 0),
+        )
+        self.assertEqual(self.policy._pack_pressure_identify_key(snap), "ust")
+        chain = self.policy.peek_staged_prompt_chain()
+        self.assertIsNotNone(chain)
+        self.assertEqual(chain["owner"], "identify:pack-pressure")
+        self.assertEqual(chain["key"], "ust")
+        self.assertEqual(
+            chain["gates"],
+            ((1, SOURCE_PROMPT[USE_STAFF_KEY]), (2, IDENTIFY_ITEM_PROMPT)),
+        )
+
+        no_port = _fresh_policy(Path(self.scratch.name))
+        no_port._prompt_gated_posting = False
+        before = no_port.last_reason
+        self.assertIsNone(no_port._pack_pressure_identify_key(snap))
+        self.assertEqual(no_port.last_reason, before)
+        self.assertIsNone(no_port.peek_staged_prompt_chain())
+        d6_key = no_port.choose_key(self._snapshot())
+        self.assertFalse(no_port.last_reason.startswith("identify:"), d6_key)
+
+    def test_pin_restore_checkpoint_prompt_chain_defaults(self):
+        encoded = checkpoint(self.policy)
+        state = self.policy.__dict__
+        staged = state.pop("_staged_prompt_chain")
+        gated = state.pop("_prompt_gated_posting")
+        try:
+            legacy = checkpoint(self.policy)
+        finally:
+            state["_staged_prompt_chain"] = staged
+            state["_prompt_gated_posting"] = gated
+        restored = restore_checkpoint(type(self.policy), legacy)
+        self.assertIn("_staged_prompt_chain", restored.__dict__)
+        self.assertIn("_prompt_gated_posting", restored.__dict__)
+        self.assertIsNone(restored._staged_prompt_chain)
+        self.assertIs(restored._prompt_gated_posting, True)
+        current = restore_checkpoint(type(self.policy), encoded)
+        self.assertIsNone(current._staged_prompt_chain)
+        self.assertIs(current._prompt_gated_posting, True)
 
 
 class DiggerQuestPins(unittest.TestCase):

@@ -260,6 +260,7 @@ def append_session_marker(
     argv: list[str],
     *,
     input_delays: dict[str, float] | None = None,
+    prompt_japanese: bool | None = None,
 ) -> None:
     if path is None:
         return
@@ -282,6 +283,8 @@ def append_session_marker(
     }
     if input_delays is not None:
         record["input_delays"] = input_delays
+    if prompt_japanese is not None:
+        record["prompt_japanese"] = prompt_japanese
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as file:

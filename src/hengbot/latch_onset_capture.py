@@ -102,6 +102,8 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
+    restored.__dict__.setdefault("_staged_prompt_chain", None)
+    restored.__dict__.setdefault("_prompt_gated_posting", True)
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
     restored.__dict__.setdefault("_town_restock_last_wait_turn", None)
     restored.__dict__.setdefault("_home_latch_active", None)

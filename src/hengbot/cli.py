@@ -1853,6 +1853,221 @@ def _send_new_decision_key(
     return sent, posted_line
 
 
+def _chain_matches(chain: dict, key: str) -> bool:
+    chain_key = str(chain.get("key", ""))
+    return bool(key and chain_key) and key[0] == chain_key[0] and len(key) == len(
+        chain_key
+    )
+
+
+def _release_prompt_gated_tail(
+    shadow_client,
+    send,
+    key: str,
+    gates,
+    *,
+    file,
+    deadline: float,
+    poll_interval: float,
+    prompt_japanese: bool,
+    decision: dict | None,
+) -> dict:
+    """Release each identification segment only under its exact screen prompt."""
+    posted = key[: gates[0][0]]
+    released = 0
+    for gate_index, (index, prompts) in enumerate(gates):
+        next_index = gates[gate_index + 1][0] if gate_index + 1 < len(gates) else len(key)
+        segment = key[index:next_index]
+        prompt = prompts[0] if prompt_japanese else prompts[1]
+        while time.monotonic() < deadline:
+            if os.fstat(file.fileno()).st_size != file.tell():
+                return {
+                    "key": key,
+                    "outcome": "dropped",
+                    "released_through": released,
+                    "posted": posted,
+                    "drop_reason": "command-completed",
+                    "escape_posted": False,
+                }
+            poll_deadline = min(deadline, time.monotonic() + poll_interval)
+            screen = shadow_client.request(
+                "screen", term=0, attrs=False, deadline=poll_deadline
+            )
+            if screen is not None:
+                lines = screen.get("lines", [])
+                row0 = str(lines[0]) if lines else ""
+                if row0.rstrip().endswith(prompt.rstrip()):
+                    if not send(segment, in_store=False, decision=decision):
+                        return {
+                            "key": key,
+                            "outcome": "dropped",
+                            "released_through": released,
+                            "posted": posted,
+                            "drop_reason": "send-failed",
+                            "escape_posted": False,
+                        }
+                    posted += segment
+                    released += 1
+                    break
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(poll_interval, remaining))
+        else:
+            escape_posted = send(NUDGE_KEY, in_store=False, decision=decision)
+            return {
+                "key": key,
+                "outcome": "dropped",
+                "released_through": released,
+                "posted": posted,
+                "drop_reason": "prompt-timeout",
+                "escape_posted": escape_posted,
+            }
+    return {
+        "key": key,
+        "outcome": "released",
+        "released_through": len(gates),
+        "posted": key,
+        "drop_reason": None,
+        "escape_posted": False,
+    }
+
+
+def _send_prompt_gated_decision_key(
+    send,
+    snapshot_line: str,
+    key: str,
+    posted_line: str | None,
+    posted_keys: set[str],
+    chain: dict,
+    *,
+    shadow_client,
+    file,
+    deadline: float,
+    poll_interval: float,
+    prompt_japanese: bool,
+    decision: dict | None,
+    snapshot,
+    posting_contract: PostingContract | None,
+) -> tuple[bool, str | None, dict]:
+    prefix = key[: chain["gates"][0][0]]
+    sent, posted_line = _send_new_decision_key(
+        send,
+        snapshot_line,
+        prefix,
+        posted_line,
+        posted_keys,
+        in_store=False,
+        decision=decision,
+        snapshot=snapshot,
+        posting_contract=posting_contract,
+    )
+    if not sent:
+        return False, posted_line, {
+            "key": key,
+            "outcome": "not-posted",
+            "released_through": 0,
+            "posted": "",
+            "drop_reason": "prefix-refused",
+            "escape_posted": False,
+        }
+    result = _release_prompt_gated_tail(
+        shadow_client,
+        send,
+        key,
+        chain["gates"],
+        file=file,
+        deadline=deadline,
+        poll_interval=poll_interval,
+        prompt_japanese=prompt_japanese,
+        decision=decision,
+    )
+    posted_keys.add(result["posted"])
+    owner = str(chain["owner"])
+    if posting_contract is not None and snapshot is not None:
+        posting_contract.posted(snapshot, result["posted"], owner)
+        recorder = getattr(posting_contract, "flight_recorder", None)
+        if recorder is not None:
+            recorder.note_successfully_posted_key(result["posted"])
+    return result["outcome"] == "released", posted_line, result
+
+
+def _send_decision_key_with_prompt_chain(
+    send,
+    snapshot_line: str,
+    key: str,
+    posted_line: str | None,
+    posted_keys: set[str],
+    *,
+    policy,
+    shadow_client,
+    file,
+    deadline: float,
+    poll_interval: float,
+    prompt_japanese: bool,
+    decision: dict,
+    snapshot,
+    posting_contract: PostingContract,
+    in_store: bool,
+    suppress: bool = False,
+) -> tuple[bool, str | None, dict | None, dict | None]:
+    chain = policy.peek_staged_prompt_chain()
+    if chain is not None and shadow_client is not None and _chain_matches(chain, key):
+        sent, posted_line, result = _send_prompt_gated_decision_key(
+            send,
+            snapshot_line,
+            key,
+            posted_line,
+            posted_keys,
+            chain,
+            shadow_client=shadow_client,
+            file=file,
+            deadline=deadline,
+            poll_interval=poll_interval,
+            prompt_japanese=prompt_japanese,
+            decision=decision,
+            snapshot=snapshot,
+            posting_contract=posting_contract,
+        )
+        return sent, posted_line, chain, result
+    if chain is not None:
+        return False, posted_line, chain, {
+            "key": key,
+            "outcome": "not-posted",
+            "released_through": 0,
+            "posted": "",
+            "drop_reason": (
+                "key-replaced" if shadow_client is not None else "no-control-client"
+            ),
+            "escape_posted": False,
+        }
+    sent, posted_line = _send_new_decision_key(
+        send,
+        snapshot_line,
+        key,
+        posted_line,
+        posted_keys,
+        in_store=in_store,
+        suppress=suppress,
+        decision=decision,
+        snapshot=snapshot,
+        posting_contract=posting_contract,
+    )
+    return sent, posted_line, None, None
+
+
+def _commit_prompt_chain_result(policy, decision_facts: dict, result: dict) -> None:
+    committed = policy.commit_staged_prompt_chain(result)
+    decision_facts["staged_prompt_chain"] = committed
+    outcome = committed["outcome"]
+    if outcome == "released":
+        print("<identify:staged-tail-released>", flush=True)
+    else:
+        print(
+            f"<identify:staged-tail-{outcome}:{committed['drop_reason']}>",
+            flush=True,
+        )
+
+
 def _direction_desynchronized(before, key: str, after) -> bool:
     """Detect an adjacent move that differs from its plain direction command."""
     if before is None or key not in DIRECTION_KEYS:
@@ -2183,6 +2398,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         atexit.register(shadow_client.close)
     args.shadow_client = shadow_client
+    prompt_japanese = True
+    if shadow_client is not None:
+        info = shadow_client.request(
+            "info", deadline=time.monotonic() + args.stall_timeout
+        )
+        if info is not None:
+            prompt_japanese = bool(info.get("japanese", True))
+    args.prompt_japanese = prompt_japanese
 
     if args.economy_log is None and args.decision_log is not None:
         args.economy_log = args.decision_log.with_name("bot-economy.jsonl")
@@ -2204,6 +2427,7 @@ def main(argv: list[str] | None = None) -> int:
             args.decision_log,
             sys.argv if argv is None else argv,
             input_delays=input_delays,
+            prompt_japanese=prompt_japanese,
         )
 
     if args.list_windows:
@@ -2417,6 +2641,7 @@ def main(argv: list[str] | None = None) -> int:
         exploration_ledger_path=EXPLORATION_LEDGER_PATH,
         baseitem_costs=baseitem_costs,
     )
+    policy._prompt_gated_posting = shadow_client is not None
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
     posting_contract = PostingContract()
@@ -3052,25 +3277,42 @@ def _run_follow(
                     else:
                         print(key, flush=True)
                     phase_started_at = time.perf_counter()
-                    sent, posted_decision_line = _send_new_decision_key(
+                    decision = {
+                        "sequence": policy._decision_sequence,
+                        "turn": snapshot.turn,
+                        "reason": policy.last_reason,
+                        "key": key,
+                        "prompt_owner_handoff": policy.prompt_owner_handoff,
+                    }
+                    sent, posted_decision_line, chain, chain_result = (
+                        _send_decision_key_with_prompt_chain(
                         send,
                         snapshot_line,
                         key,
                         posted_decision_line,
                         posted_decision_keys,
+                        policy=policy,
+                        shadow_client=shadow_client,
+                        file=file,
+                        deadline=time.monotonic() + args.stall_timeout,
+                        poll_interval=input_delays["input_item_prompt_delay"],
+                        prompt_japanese=args.prompt_japanese,
                         in_store=snapshot.store is not None,
                         suppress=suppress_unconfirmed_store_leave,
-                        decision={
-                            "sequence": policy._decision_sequence,
-                            "turn": snapshot.turn,
-                            "reason": policy.last_reason,
-                            "key": key,
-                            "prompt_owner_handoff": policy.prompt_owner_handoff,
-                        },
+                        decision=decision,
                         snapshot=snapshot,
                         posting_contract=posting_contract,
+                        )
                     )
-                    pending_batch_row["posted_key"] = key if sent else None
+                    pending_batch_row["posted_key"] = (
+                        chain_result["posted"] or None
+                        if chain_result is not None
+                        else key if sent else None
+                    )
+                    if chain is not None:
+                        _commit_prompt_chain_result(
+                            policy, decision_facts, chain_result
+                        )
                     decision_timing["send_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
@@ -3130,21 +3372,37 @@ def _run_follow(
                             emit_visit, snapshot, key, emit_approach_store
                         ).as_dict()
                         phase_started_at = time.perf_counter()
-                        sent, posted_decision_line = _send_new_decision_key(
-                            send, snapshot_line, key, posted_decision_line,
+                        decision = {
+                            "sequence": policy._decision_sequence,
+                            "turn": snapshot.turn,
+                            "reason": policy.last_reason,
+                            "key": key,
+                            "prompt_owner_handoff": policy.prompt_owner_handoff,
+                        }
+                        sent, posted_decision_line, chain, chain_result = (
+                            _send_decision_key_with_prompt_chain(
+                            send,
+                            snapshot_line,
+                            key,
+                            posted_decision_line,
                             posted_decision_keys,
+                            policy=policy,
+                            shadow_client=shadow_client,
+                            file=file,
+                            deadline=time.monotonic() + args.stall_timeout,
+                            poll_interval=input_delays["input_item_prompt_delay"],
+                            prompt_japanese=args.prompt_japanese,
                             in_store=snapshot.store is not None,
-                            decision={
-                                "sequence": policy._decision_sequence,
-                                "turn": snapshot.turn,
-                                "reason": policy.last_reason,
-                                "key": key,
-                                "prompt_owner_handoff": policy.prompt_owner_handoff,
-                            },
+                            decision=decision,
                             snapshot=snapshot,
                             posting_contract=posting_contract,
+                            )
                         )
-                        pending_batch_row["posted_key"] = key if sent else None
+                        pending_batch_row["posted_key"] = (
+                            chain_result["posted"] or None
+                            if chain_result is not None
+                            else key if sent else None
+                        )
                         decision_timing["send_ms"] = round(
                             decision_timing["send_ms"]
                             + (time.perf_counter() - phase_started_at) * 1000,
@@ -3155,6 +3413,10 @@ def _run_follow(
                         )
                         poll_wait_started_at = time.perf_counter()
                         decision_facts = _capture_decision_facts(snapshot, policy)
+                        if chain is not None:
+                            _commit_prompt_chain_result(
+                                policy, decision_facts, chain_result
+                            )
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,

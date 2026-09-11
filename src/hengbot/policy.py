@@ -1857,6 +1857,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unbuyable_full_identify_sigs: set[tuple[str, int, int]] = set()
         self._identify_watch: tuple[tuple[str, int, int], int] | None = None
         self._identify_fail_streak = 0
+        self._staged_prompt_chain: dict | None = None
+        self._prompt_gated_posting: bool = True
         # Town device identification uses the same staff/scroll flow; guard it the
         # same way (dedicated watch, not reset every town turn) so a device whose
         # identify never lands is deferred instead of looped on.
@@ -2232,6 +2234,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str:
+        self._staged_prompt_chain = None
         # Snapshot-derived answers must never survive a public decision
         # boundary, even when a caller reuses and mutates a Snapshot object.
         self._fixed_quest_offer_cache = {}
@@ -4844,6 +4847,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if bounty is not None:
             return bounty
 
+        dungeon_identify = self._dungeon_equipment_identify_key(
+            snapshot, physical_hostiles
+        )
+        if dungeon_identify is not None:
+            return dungeon_identify
+
         fundraising = self._fundraising_key(snapshot, strategic_hostiles)
         if fundraising is not None:
             return fundraising
@@ -7090,6 +7099,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed or mutation_committed
+
+    def peek_staged_prompt_chain(self) -> dict | None:
+        """Return the current decision's prompt chain without consuming it."""
+        return self._staged_prompt_chain
+
+    def commit_staged_prompt_chain(self, result: dict) -> dict:
+        """Record a transport outcome and clear the current prompt chain."""
+        chain = self._staged_prompt_chain
+        self._staged_prompt_chain = None
+        if chain is None:
+            return dict(result)
+        return {
+            **result,
+            "owner": chain["owner"],
+            "sequence": chain["sequence"],
+            "turn": chain["turn"],
+            "gates": chain["gates"],
+        }
 
     def consume_pending_mutation_report(self) -> str | None:
         """Return the mutation report produced during this decision, once."""

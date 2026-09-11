@@ -49,6 +49,13 @@ from hengbot.policy_constants import (
     ZAP_ROD_KEY,
 )
 
+SOURCE_PROMPT = {
+    USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
+    ZAP_ROD_KEY: ("どのロッドを振りますか? ", "Zap which rod? "),
+    READ_KEY: ("どの巻物を読みますか? ", "Read which scroll? "),
+}
+IDENTIFY_ITEM_PROMPT = ("どのアイテムを鑑定しますか? ", "Identify which item? ")
+
 PROTECTED_UNKNOWN_FEELINGS = frozenset(
     {"", "none", "good", "excellent", "special"}
 )
@@ -334,11 +341,7 @@ class IdentificationMixin:
             return None
         if PACK_CAPACITY - len(snapshot.inventory) > IDENTIFY_PRESSURE_FREE_SLOTS:
             return None
-        source = self._find_identification_source(snapshot, full=False)
-        if source is None:
-            return None
-        command, src = source
-        target = self._first_item(
+        return self._identify_carried_item_key(
             snapshot,
             # `aware` only means the base kind is recognized. Equipment can be
             # aware while this specific item is still unidentified (`known=False`),
@@ -347,8 +350,26 @@ class IdentificationMixin:
             lambda it: not it.known
             and not it.is_food
             and not self._is_ammunition(it)
-            and it.slot != src.slot
             and self._item_signature(it) not in self._unidentifiable_sigs,
+            "identify:pack-pressure",
+        )
+
+    def _identify_carried_item_key(
+        self,
+        snapshot: Snapshot,
+        target_predicate,
+        reason: str,
+    ) -> str | None:
+        """Compose identification while retaining each prompt-gated segment."""
+        if not self._prompt_gated_posting:
+            return None
+        source = self._find_identification_source(snapshot, full=False)
+        if source is None:
+            return None
+        command, src = source
+        target = self._first_item(
+            snapshot,
+            lambda item: item.slot != src.slot and target_predicate(item),
         )
         if target is None:
             return None
@@ -370,10 +391,57 @@ class IdentificationMixin:
         else:
             self._identify_watch = watch
             self._identify_fail_streak = 0
-        self.last_reason = "identify:pack-pressure"
-        if command == READ_KEY:
-            return self._read_key(snapshot, src, target.slot)
-        return command + src.slot + target.slot
+        key = (
+            self._read_key(snapshot, src, target.slot)
+            if command == READ_KEY
+            else command + src.slot + target.slot
+        )
+        if len(key) != 3:
+            return None
+        self.last_reason = reason
+        self._staged_prompt_chain = {
+            "owner": reason,
+            "key": key,
+            "sequence": self._decision_sequence,
+            "turn": snapshot.turn,
+            "gates": (
+                (1, SOURCE_PROMPT[command]),
+                (2, IDENTIFY_ITEM_PROMPT),
+            ),
+        }
+        return key
+
+    def _dungeon_equipment_identify_key(
+        self,
+        snapshot: Snapshot,
+        physical_hostiles: list[MonsterState],
+    ) -> str | None:
+        player = snapshot.player
+        if (
+            snapshot.in_town
+            or physical_hostiles
+            or player.blind
+            or player.confused
+            or player.stunned
+            or self._escape_state.owner is not None
+        ):
+            return None
+        source = self._find_identification_source(snapshot, full=False)
+        if source is None or (source[0] == READ_KEY and self._is_dark(snapshot)):
+            return None
+        return self._identify_carried_item_key(
+            snapshot,
+            lambda item: (
+                item.is_equipment
+                and self._identification_flow_candidate(item)
+                and not item.known
+                and item.pseudo_feeling not in {"cursed", "terrible", "worthless"}
+                and self._item_signature(item) not in self._unidentifiable_sigs
+                and self._item_signature(item)
+                not in self._town_unidentifiable_carried_sigs
+            ),
+            "identify:dungeon-equipment",
+        )
 
     def _full_pack_destroy_key(self, snapshot: Snapshot) -> str | None:
         """Destroy one disposable item to free a pack slot, verifying progress.

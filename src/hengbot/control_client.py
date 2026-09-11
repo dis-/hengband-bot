@@ -26,7 +26,7 @@ class ControlServerError(ControlClientError):
 class ControlClient:
     """Persistent newline-JSON connection with bounded reconnect attempts."""
 
-    _READ_ONLY_OPS = frozenset({"info", "state"})
+    _READ_ONLY_OPS = frozenset({"info", "state", "screen"})
     _ALLOWED_OPS = _READ_ONLY_OPS | {"keys"}
     BACKPRESSURE_ERROR = "the key queue does not have enough room"
 
