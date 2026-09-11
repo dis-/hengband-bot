@@ -563,6 +563,24 @@ class DiggerQuestPins(unittest.TestCase):
                     self.assertEqual(key, expected, (policy.last_reason, key))
                     self.assertEqual(policy.last_reason, "fundraise:wield-light")
 
+    def test_pin_f1b_unknown_town_lantern_does_not_make_fundraising_ready(self):
+        lantern = self._light("l", SV_LITE_LANTERN, fuel=0, known=False)
+        oils = item(
+            "o", TVAL_FLASK, SV_FLASK_OIL, name="Flask of oil",
+            count=5, fuel=5000,
+        )
+        snapshot = self._snapshot([lantern, oils], equipment=(), town=True)
+        # Named fundraising-prepare precedent: tests/test_policy_supply.py:2140.
+        self.policy._fundraising_mode = "prepare"
+
+        self.assertFalse(self.policy._fundraising_light_ready(snapshot))
+        needs = self.policy._town_need_candidates(snapshot)
+        self.assertTrue(any(
+            need.store_type == STORE_GENERAL
+            and need.category == "fundraising-light"
+            for need in needs
+        ), needs)
+
     def test_pin_d3_1_restore_weapon_guard_equivalence(self):
         digger = item(
             "main_hand", TVAL_DIGGING, 1, is_equipment=True, known=True
@@ -791,6 +809,7 @@ class DiggerQuestPins(unittest.TestCase):
             only_unknown, "fundraise:wield-digging-tool"
         ))
         chosen = self.policy.choose_key(only_unknown)
+        self.assertIsNotNone(chosen, (self.policy.last_reason, chosen))
         self.assertFalse(chosen.startswith("wp"), (self.policy.last_reason, chosen))
         self.assertNotEqual(
             self.policy.last_reason, "fundraise:wield-digging-tool"
