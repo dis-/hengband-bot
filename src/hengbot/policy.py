@@ -3516,13 +3516,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # A visible page of a multi-page (or metadata-poor) Home is
                 # useful evidence, but it cannot replace the complete ~9 list.
-                # Charge this entry to the existing visit ledger.  A fresh ~9
-                # response can still complete the scan between entries; if it
-                # cannot, the normal Home pass bound latches the stop and lets
-                # the remaining town errands proceed.
-                self._report_town_stop_pass(
-                    snapshot, STORE_HOME, goal_satisfied=False
-                )
+                # Leave without latching the Home stop so the scan can
+                # continue.  A pass report here was measured inert: the
+                # breakout probe ignores the latch, and _report_town_stop_pass
+                # returns before its block logic whenever Home is not the
+                # plan's current stop (policy_town.py:2312).
                 self.last_reason = "home:scan-incomplete-open-page"
                 key = LEAVE_STORE_KEY
             elif (
