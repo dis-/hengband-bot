@@ -6149,6 +6149,16 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q2_blue_recovery_incident_exits_on_first_former_wait(self):
+        monrace_definitions = find_monrace_definitions(Path(__file__), None)
+        self.assertIsNotNone(
+            monrace_definitions,
+            "Hengband monster definitions must be available for the Q2 incident replay",
+        )
+        edit_dir = monrace_definitions.parent
+        self.assertTrue(
+            (edit_dir / "MonraceDefinitions.jsonc").is_file(),
+            f"Hengband edit data must be available for the Q2 incident replay: {edit_dir}",
+        )
         fixture = (
             Path(__file__).parent
             / "fixtures"
@@ -6163,7 +6173,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             previous_cwd = Path.cwd()
             os.chdir(sandbox)
             try:
-                policy = _fresh_incident_policy(sandbox)
+                with patch.dict(
+                    os.environ,
+                    {"HENGBOT_TEST_GAME_EDIT_DIR": str(edit_dir)},
+                ):
+                    policy = _fresh_incident_policy(sandbox)
                 records = {}
                 perceived_at_196 = None
                 for row in rows:
