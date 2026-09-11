@@ -81,6 +81,20 @@ class SupplyMixin:
             )
         return None
 
+    def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
+        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        if equipped is None:
+            return True
+        if snapshot.in_town or not equipped.known:
+            return False
+        if equipped.sval > SV_LITE_LANTERN:
+            return False
+        if equipped.fuel > LANTERN_DIM_WARNING_FUEL:
+            return False
+        if self._light_refill_item(snapshot) is not None:
+            return False
+        return self._find_light(snapshot, include_unknown=False) is None
+
     def _supply_ledger(self, snapshot: Snapshot, depth: int) -> dict[str, SupplyStatus]:
         """Compute counts, thresholds and present-town obtainability once.
 

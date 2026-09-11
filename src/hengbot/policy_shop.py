@@ -153,6 +153,10 @@ class ShopMixin:
             for item in snapshot.inventory
             if not item.is_recall_scroll
             and self._entire_stack_is_surplus(snapshot, item)
+            and not (
+                item.is_digging_tool
+                and self._disposal_protected_by_identification(item)
+            )
             and item_base_cost(item, self._baseitem_costs) is not None
             and self._item_signature(item) not in self._undestroyable_sigs
         ]
@@ -208,15 +212,26 @@ class ShopMixin:
     ) -> bool:
         if not item.is_digging_tool:
             return False
+        if self._disposal_protected_by_identification(item):
+            return True
         quality = self._digging_tool_sale_quality(item)
         available = [
-            *[it for it in snapshot.inventory if it.is_digging_tool],
-            *[it for it in snapshot.equipment if it.is_digging_tool],
+            *[
+                it for it in snapshot.inventory
+                if it.is_digging_tool
+                and not self._equip_blocked_by_identification(it)
+            ],
+            *[
+                it for it in snapshot.equipment
+                if it.is_digging_tool
+                and not self._equip_blocked_by_identification(it)
+            ],
             *[
                 owned.item
                 for owned in self._equipment_catalog.items
                 if owned.origin == "home"
                 and owned.item.is_digging_tool
+                and not self._equip_blocked_by_identification(owned.item)
                 and self._item_signature(owned.item) not in self._deferred_home_items
             ],
         ]
@@ -351,6 +366,10 @@ class ShopMixin:
                 or (it.is_potion and it.aware and it.sval in DISPOSABLE_POTION_SVALS)
                 or (it.is_scroll and it.aware and it.sval in DISPOSABLE_SCROLL_SVALS)
                 or (it.known and it.is_ego and it.is_cursed and not it.is_artifact)
+            )
+            and not (
+                it.is_digging_tool
+                and self._sale_retains_digging_tool(snapshot, it)
             )
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
@@ -1840,6 +1859,28 @@ class ShopMixin:
                 )
                 if digger is not None:
                     return digger
+            if (
+                self._identification_need == "normal"
+                and self._fundraising_supplies_ready(snapshot)
+                and self._fundraising_light_ready(snapshot)
+                and not self._oil_below_departure_target(snapshot)
+                and self._find_identification_source(
+                    snapshot,
+                    full=False,
+                    reliable_only=self._identification_requires_reliable_source(snapshot),
+                ) is None
+            ):
+                scroll = next(
+                    (
+                        it for it in store.items
+                        if it.tval == TVAL_SCROLL
+                        and it.sval == SV_SCROLL_IDENTIFY
+                        and it.price <= gold
+                    ),
+                    None,
+                )
+                if scroll is not None:
+                    return scroll
             return None
 
         mandatory = self._mandatory_purchase(snapshot)
@@ -2780,6 +2821,7 @@ class ShopMixin:
                     item
                     for item in store.items
                     if item.is_digging_tool
+                    and not self._equip_blocked_by_identification(item)
                     and self._item_signature(item)
                     not in self._deferred_home_items
                 ),
@@ -3892,8 +3934,7 @@ class ShopMixin:
                 snapshot,
                 lambda item: item.is_equipment
                 and not item.is_digging_tool
-                and item.known
-                and not item.is_cursed
+                and not self._equip_blocked_by_identification(item)
                 and not item.is_broken
                 and not self._blocks_teleport(item)
                 and (

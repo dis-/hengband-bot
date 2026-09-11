@@ -503,6 +503,14 @@ class CalibrationMixin:
             )
             if target is None:
                 continue
+            if self._equip_blocked_by_identification(target):
+                worn_before = list(self._calibration_worn_before)
+                worn_before.remove(obligation)
+                self._calibration_worn_before = tuple(worn_before)
+                self._calibration_redress_attempts.pop(obligation, None)
+                self._persist_calibration_redress_obligation()
+                self.last_reason = "calibration:redress-skip-identify-first"
+                continue
             macro = self._equipment_wield(
                 snapshot, "calibration-redress", target, slot
             )

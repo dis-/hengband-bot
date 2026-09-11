@@ -446,6 +446,7 @@ class EquipmentMixin:
             owned.item.count
             for owned in self._equipment_catalog.items
             if owned.origin == "home" and owned.item.is_digging_tool
+            and not self._equip_blocked_by_identification(owned.item)
             and self._item_signature(owned.item) not in self._deferred_home_items
         )
         if (
@@ -469,6 +470,7 @@ class EquipmentMixin:
                 item
                 for item in store.items
                 if item.is_digging_tool
+                and not self._equip_blocked_by_identification(item)
                 and self._item_signature(item) not in self._deferred_home_items
             ),
             key=lambda item: item.sval,
@@ -2341,8 +2343,7 @@ class EquipmentMixin:
                 snapshot,
                 lambda it: it.is_equipment
                 and not it.is_digging_tool
-                and it.known
-                and not it.is_cursed
+                and not self._equip_blocked_by_identification(it)
                 and not it.is_broken
                 and not self._blocks_teleport(it)
                 and it.name == self._normal_weapon_name,
@@ -2352,8 +2353,7 @@ class EquipmentMixin:
                 snapshot,
                 lambda it: it.is_equipment
                 and it.is_melee_weapon
-                and it.known
-                and not it.is_cursed
+                and not self._equip_blocked_by_identification(it)
                 and not it.is_broken
                 and not self._blocks_teleport(it),
             )
@@ -2470,9 +2470,25 @@ class EquipmentMixin:
 
     def _equipment_wield(
         self, snapshot: Snapshot, goal: str, item: InventoryItem,
-        target_slot: str | None,
+        target_slot: str | None, *, quest_contract_exempt: bool = False,
     ) -> str | None:
         if target_slot is None:
+            return None
+        if (
+            not quest_contract_exempt
+            and self._equip_blocked_by_identification(item)
+            and not (
+                target_slot == "light"
+                and goal == "light-loadout"
+                and self._unknown_light_last_resort(snapshot)
+            )
+        ):
+            result = EquipmentMutationResult(
+                None, "equipment-mutation:identify-first"
+            )
+            self._equipment_mutation_result = result
+            self.last_reason = result.report
+            self._pending_mutation_report = result.report
             return None
         result = self._equipment_mutation.request_wield(
             snapshot, goal, item, target_slot, EQUIPMENT_SLOT_KEY
@@ -2607,7 +2623,11 @@ class EquipmentMixin:
             return key
 
         target_slot = "sub_hand" if main_hand is not None else "main_hand"
-        tool = self._first_item(snapshot, lambda it: it.is_digging_tool)
+        tool = self._first_item(
+            snapshot,
+            lambda it: it.is_digging_tool
+            and not self._equip_blocked_by_identification(it),
+        )
         if tool is None:
             return None
         if (

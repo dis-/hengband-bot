@@ -125,13 +125,15 @@ class FundraisingMixin:
         self, snapshot: Snapshot
     ) -> InventoryItem | None:
         """Return a carried light that can satisfy expedition readiness."""
-        candidate = self._find_light(snapshot)
-        if candidate is None:
-            return None
-        if candidate.known:
+        candidate = self._find_light(snapshot, include_unknown=False)
+        if candidate is not None:
             return candidate if self._is_usable_light(candidate) else None
+        if not self._unknown_light_last_resort(snapshot):
+            return None
+        candidate = self._find_light(snapshot)
         if (
-            candidate.is_lantern
+            candidate is not None
+            and candidate.is_lantern
             and not self._oil_below_departure_target(snapshot)
         ):
             return candidate

@@ -1754,7 +1754,8 @@ class QuestMixin:
             strong = self._first_item(
                 snapshot,
                 lambda item: item.is_digging_tool
-                and item.pval >= Q2_BREACH_MIN_DIGGING,
+                and item.pval >= Q2_BREACH_MIN_DIGGING
+                and not self._equip_blocked_by_identification(item),
             )
             if strong is None:
                 self.last_reason = "quest:blocked:q2-breach-tool"
@@ -2755,7 +2756,8 @@ class QuestMixin:
                 if carried_lantern is not None:
                     self.last_reason = "quest-strategy:equip-opening-lantern"
                     return self._equipment_wield(
-                        snapshot, "quest-launcher", carried_lantern, "light"
+                        snapshot, "quest-launcher", carried_lantern, "light",
+                        quest_contract_exempt=True,
                     )
 
                 light_position = Position(*opening_light["position"])

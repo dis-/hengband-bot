@@ -280,6 +280,7 @@ class HomeMixin:
     def _has_withdrawable_digging_tool(self, snapshot: Snapshot) -> bool:
         return self._has_digging_tool(snapshot) or any(
             owned.origin == "home" and owned.item.is_digging_tool
+            and not self._equip_blocked_by_identification(owned.item)
             for owned in self._equipment_catalog.items
         )
 

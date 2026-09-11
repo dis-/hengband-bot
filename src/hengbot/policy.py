@@ -3309,6 +3309,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # narrow path may only confirm/expire it; it cannot select or post
             # another Home item operation.
             key = self._equipment_transaction_home_key(snapshot)
+            if key is None and self.last_reason == "equipment-transaction:defer-identification":
+                key = LEAVE_STORE_KEY
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -3322,6 +3324,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # advance that existing plan or leave; it still cannot bind a new
             # item command from the store page.
             key = self._equipment_transaction_home_key(snapshot)
+            if key is None and self.last_reason == "equipment-transaction:defer-identification":
+                key = LEAVE_STORE_KEY
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -6064,9 +6068,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _has_light_equipped(self, snapshot: Snapshot) -> bool:
         return any(item.is_light for item in snapshot.equipment)
 
-    def _find_light(self, snapshot: Snapshot) -> InventoryItem | None:
+    def _find_light(
+        self, snapshot: Snapshot, *, include_unknown: bool = True
+    ) -> InventoryItem | None:
         light = max(
-            (item for item in snapshot.inventory if self._is_usable_light(item)),
+            (
+                item for item in snapshot.inventory
+                if self._is_usable_light(item)
+                and not self._equip_blocked_by_identification(item)
+            ),
             key=self._light_rank,
             default=None,
         )
@@ -6076,6 +6086,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # as 0). With nothing else to light the way, wielding one is strictly
         # better than walking in the dark — the exact failure mode that killed
         # the torch-carrying Half-Troll.
+        if not include_unknown:
+            return None
         return max(
             (item for item in snapshot.inventory if item.is_light and not item.known),
             key=self._light_rank,
@@ -6102,8 +6114,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
             return self._find_light(snapshot)
-        candidate = self._find_light(snapshot)
+        candidate = self._find_light(snapshot, include_unknown=False)
         if candidate is None:
+            if self._unknown_light_last_resort(snapshot):
+                return self._find_light(snapshot)
             return None
         # A nearly exhausted known lantern can strand the character in town:
         # native travel consumes the last fuel before reaching the General
@@ -6147,7 +6161,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             item
             for item in snapshot.inventory
             if item.is_lantern
-            and item.known
+            and not self._equip_blocked_by_identification(item)
             and item.fuel <= LANTERN_REFILL_FUEL
             and not item.is_cursed
             and not item.is_broken
@@ -6199,7 +6213,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for item in snapshot.inventory
                 if item.is_light
                 and item.sval == SV_LITE_TORCH
-                and item.known
+                and not self._equip_blocked_by_identification(item)
                 and item.fuel > 0
             ),
             key=lambda item: item.fuel,
@@ -6375,14 +6389,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _has_digging_tool(self, snapshot: Snapshot) -> bool:
-        return any(it.is_digging_tool for it in snapshot.inventory) or any(
-            it.is_digging_tool for it in snapshot.equipment
+        return any(
+            it.is_digging_tool and not self._equip_blocked_by_identification(it)
+            for it in snapshot.inventory
+        ) or any(
+            it.is_digging_tool and not self._equip_blocked_by_identification(it)
+            for it in snapshot.equipment
         )
 
-    @staticmethod
-    def _digging_tool_count(snapshot: Snapshot) -> int:
-        return sum(it.count for it in snapshot.inventory if it.is_digging_tool) + sum(
-            1 for it in snapshot.equipment if it.is_digging_tool
+    def _digging_tool_count(self, snapshot: Snapshot) -> int:
+        return sum(
+            it.count for it in snapshot.inventory
+            if it.is_digging_tool and not self._equip_blocked_by_identification(it)
+        ) + sum(
+            1 for it in snapshot.equipment
+            if it.is_digging_tool and not self._equip_blocked_by_identification(it)
         )
 
 
@@ -7357,10 +7378,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Keep the best two carried tools; permit excess deposit/disposal."""
         if not item.is_digging_tool:
             return False
+        if self._disposal_protected_by_identification(item):
+            return False
         diggers = [
             candidate
             for candidate in (*snapshot.equipment, *snapshot.inventory)
             if candidate.is_digging_tool
+            and not self._equip_blocked_by_identification(candidate)
         ]
         keep = sorted(
             diggers,
@@ -8830,8 +8854,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _pack_has_safe_melee_weapon(self, snapshot: Snapshot) -> bool:
         return any(
             item.is_melee_weapon
-            and item.known
-            and not item.is_cursed
+            and not self._equip_blocked_by_identification(item)
             and not item.is_broken
             and not self._blocks_teleport(item)
             for item in snapshot.inventory

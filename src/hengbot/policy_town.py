@@ -1389,6 +1389,7 @@ class TownMixin:
                     STORE_HOME not in self._town_store_attempted
                     and any(
                         owned.origin == "home" and owned.item.is_digging_tool
+                        and not self._equip_blocked_by_identification(owned.item)
                         for owned in self._equipment_catalog.items
                     )
                 ):

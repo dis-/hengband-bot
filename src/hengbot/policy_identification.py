@@ -48,6 +48,10 @@ from hengbot.policy_constants import (
     WAIT_KEY,
     ZAP_ROD_KEY,
 )
+
+PROTECTED_UNKNOWN_FEELINGS = frozenset(
+    {"", "none", "good", "excellent", "special"}
+)
 from hengbot.quest_navigator import PICKUP_KEY
 
 
@@ -535,6 +539,26 @@ class IdentificationMixin:
                 )
                 or (not item.known and item.pseudo_feeling != "average")
             )
+        )
+
+    @staticmethod
+    def _equip_blocked_by_identification(
+        item: InventoryItem | StoreItem,
+    ) -> bool:
+        """Return whether identify-first forbids equipping this item."""
+        return item.is_equipment and (not item.known or item.is_cursed)
+
+    @staticmethod
+    def _disposal_protected_by_identification(
+        item: InventoryItem | StoreItem,
+    ) -> bool:
+        """Protect promising unknown or full-identification-pending items."""
+        if not item.known:
+            return item.pseudo_feeling in PROTECTED_UNKNOWN_FEELINGS
+        return (
+            not item.fully_known
+            and not item.is_cursed
+            and item_requires_full_identification(item)
         )
 
     def _identification_flow_owns(
