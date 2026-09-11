@@ -35,6 +35,9 @@ class _Handler(socketserver.StreamRequestHandler):
             if action == "timeout":
                 time.sleep(0.1)
                 continue
+            if isinstance(action, tuple) and action[0] == "delay":
+                time.sleep(action[1])
+                action = action[2]
             if isinstance(action, str) and action.startswith("error:"):
                 self.wfile.write((json.dumps({
                     "id": request["id"], "ok": False, "error": action[6:],
@@ -162,10 +165,66 @@ class ControlClientTest(unittest.TestCase):
 
     def test_non_allowlisted_operations_are_refused_before_composition(self):
         client = self.client()
-        for operation in ("screen", "messages", "quit"):
+        for operation in ("messages", "quit"):
             with self.subTest(operation=operation), self.assertRaises(ValueError):
                 client.request(operation, keys="j" if operation == "keys" else None)
         self.assertEqual(self.server.requests, [])
+
+    def test_pin_d6_9_slow_screen_releases_gate_without_key_backoff(self):
+        from hengbot.cli import _release_prompt_gated_tail
+
+        prompt = "Use which staff? "
+        self.server.actions[:] = [
+            ("delay", 0.08, {"lines": ["(i, ESC) " + prompt]}),
+            {"pushed": 1},
+            {"pushed": 1},
+        ]
+        client = ControlClient(
+            self.server.server_address[1], request_budget=0.2,
+            backoff=0.2, retries=0,
+        )
+        self.addCleanup(client.close)
+        sent = []
+
+        def send(key, **_kwargs):
+            sent.append(key)
+            return client.send_keys(key, deadline=time.monotonic() + 0.2) == len(key)
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.jsonl"
+            path.write_text("", encoding="utf-8")
+            with path.open("r", encoding="utf-8") as stream:
+                result = _release_prompt_gated_tail(
+                    client, send, "ui", ((1, (prompt, prompt)),),
+                    file=stream, deadline=time.monotonic() + 0.15,
+                    poll_interval=0.05, prompt_japanese=False, decision=None,
+                )
+
+        self.assertEqual(result["outcome"], "released")
+        self.assertEqual(result["posted"], "ui")
+        self.assertEqual(sent, ["i"])
+        self.assertEqual(client.send_keys("5"), 1)
+        self.assertEqual(
+            [request["op"] for request in self.server.requests],
+            ["screen", "keys", "keys"],
+        )
+
+    def test_screen_timeout_does_not_backoff_timeout_escape(self):
+        self.server.actions[:] = ["timeout", {"pushed": 1}]
+        client = ControlClient(
+            self.server.server_address[1], request_budget=0.2,
+            backoff=0.2, retries=0,
+        )
+        self.addCleanup(client.close)
+        self.assertIsNone(
+            client.request("screen", deadline=time.monotonic() + 0.03)
+        )
+        self.assertEqual(client._retry_after, 0.0)
+        self.assertEqual(client.send_keys("\\e"), 1)
+        self.assertEqual(
+            [request["op"] for request in self.server.requests],
+            ["screen", "keys"],
+        )
 
     def test_send_keys_returns_acknowledged_count(self):
         self.server.actions[:] = [{"pushed": 4}]

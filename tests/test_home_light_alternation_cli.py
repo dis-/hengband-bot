@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import os
 import tempfile
+import threading
 import time
 import unittest
+from unittest.mock import Mock, patch
 
 from hengbot.cli import (
     NUDGE_KEY,
     PostingContract,
+    _capture_decision_facts,
     _send_decision_key_with_prompt_chain,
     _send_prompt_gated_decision_key,
+    _write_decision,
 )
 from hengbot.control_client import ControlClient
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, Snapshot, SV_STAFF_IDENTIFY
@@ -19,6 +24,7 @@ from hengbot.policy import USE_STAFF_KEY
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from tests.policy_fixtures import grid, item, player
 from tests.test_home_light_alternation import _fresh_policy
+from tests.run_follow_hygiene import run_follow as _run_follow
 
 
 class FakeControlClient:
@@ -91,6 +97,113 @@ class PromptGatedIdentificationPins(unittest.TestCase):
         chain = policy.peek_staged_prompt_chain()
         self.assertIs(chain, policy.peek_staged_prompt_chain())
         return policy, snap, key, chain
+
+    def _snapshot_json(self, turn, *, identify=True):
+        snap = self._snapshot()
+
+        def item_row(entry):
+            return {
+                "slot": entry.slot, "name": entry.name, "count": entry.count,
+                "tval": entry.tval, "sval": entry.sval, "aware": entry.aware,
+                "known": entry.known, "fully_known": entry.fully_known,
+                "charges": entry.charges, "is_equipment": entry.is_equipment,
+                "pseudo_feeling": entry.pseudo_feeling,
+            }
+
+        return json.dumps({
+            "type": "player_turn", "turn": turn,
+            "floor": {"dungeon_id": DUNGEON_YEEK_CAVE, "level": 3,
+                      "quest_id": 0, "in_town": False},
+            "player": {"y": 10, "x": 10, "hp": 20, "max_hp": 20,
+                       "level": 1, "class_id": 0, "gold": 3000,
+                       "food_state": "full"},
+            "inventory": [item_row(entry) for entry in snap.inventory]
+                         if identify else [],
+            "nearby_grids": [{
+                "y": 10, "x": 10, "known": True,
+                "terrain": {"floor": True, "move": True, "los": True},
+                "flags": {"lite": True, "view": True, "mark": True},
+            }],
+        }) + "\n"
+
+    def _drive_real_follow(self, *, identify):
+        from hengbot import cli
+
+        state = self.sandbox / ("chain-state.jsonl" if identify else "plain-state.jsonl")
+        decisions = self.sandbox / ("chain-decisions.jsonl" if identify else "plain-decisions.jsonl")
+        state.write_text(self._snapshot_json(1, identify=identify), encoding="utf-8")
+        args = cli._build_argument_parser().parse_args([
+            "--state-file", str(state), "--decision-log", str(decisions),
+            "--poll-interval", "0.001", "--stall-timeout", "0.2",
+        ])
+        args.wait_telemetry = Mock()
+        args.prompt_japanese = False
+        fake = FakeControlClient([
+            "(i, ESC) Use which staff? ".ljust(80),
+            "(a-w, ESC) Identify which item? ".ljust(80),
+        ])
+        args.shadow_client = fake
+        policy = _fresh_policy(self.sandbox)
+        choose_key = policy.choose_key
+
+        def choose(snapshot):
+            if snapshot.turn == 3:
+                policy._decision_sequence += 1
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+            return choose_key(snapshot)
+
+        policy.choose_key = Mock(side_effect=choose)
+        received = []
+        following = threading.Event()
+
+        def append_snapshots():
+            following.wait()
+            with state.open("a", encoding="utf-8") as stream:
+                stream.write(self._snapshot_json(2, identify=identify))
+                stream.flush()
+                time.sleep(0.03)
+                stream.write(self._snapshot_json(3, identify=identify))
+                stream.flush()
+
+        writer = threading.Thread(target=append_snapshots)
+        writer.start()
+        try:
+            with patch("hengbot.cli._arm_decision_watchdog", side_effect=following.set):
+                result = _run_follow(
+                    args, policy,
+                    lambda key, **_kwargs: received.append(key) or True, {},
+                )
+        finally:
+            writer.join()
+        rows = [json.loads(line) for line in decisions.read_text(encoding="utf-8").splitlines()]
+        return result, received, rows, policy, fake
+
+    def test_pin_d6_8_real_follow_posts_ordinary_non_chain_decision_once(self):
+        result, received, rows, policy, fake = self._drive_real_follow(identify=False)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received, [rows[0]["key"]])
+        self.assertNotIn("staged_prompt_chain", rows[0])
+        self.assertEqual(policy.choose_key.call_count, 2)
+        self.assertEqual(fake.index, 0)
+
+    def test_pin_d6_8_real_follow_releases_real_identify_chain(self):
+        result, received, rows, policy, fake = self._drive_real_follow(identify=True)
+        self.assertEqual(result, 0)
+        self.assertEqual(received, ["u", "i", "s"])
+        chain = rows[0]["staged_prompt_chain"]
+        self.assertEqual(
+            {name: chain[name] for name in
+             ("key", "gates", "outcome", "released_through", "posted")},
+            {"key": "uis", "gates": [
+                [1, ["どの杖を使いますか? ", "Use which staff? "]],
+                [2, ["どのアイテムを鑑定しますか? ", "Identify which item? "]],
+            ], "outcome": "released", "released_through": 2,
+             "posted": "uis"},
+        )
+        self.assertIsNone(policy.peek_staged_prompt_chain())
+        self.assertEqual(fake.index, 2)
 
     def _drive(self, script, *, prompt_japanese=True, deadline=0.12):
         policy, snap, key, chain = self._producer()
@@ -199,6 +312,16 @@ class PromptGatedIdentificationPins(unittest.TestCase):
         self.assertEqual(committed["key"], "uis")
         self.assertIsNone(policy._staged_prompt_chain)
         self.assertIsNone(policy.peek_staged_prompt_chain())
+        facts = _capture_decision_facts(snap, policy)
+        facts["staged_prompt_chain"] = committed
+        decision_log = self.sandbox / "misfire-decisions.jsonl"
+        _write_decision(
+            decision_log, snap, key, policy.last_reason, policy,
+            decision_facts=facts,
+        )
+        row = json.loads(decision_log.read_text(encoding="utf-8"))
+        self.assertEqual(row["staged_prompt_chain"]["posted"], "ui")
+        self.assertEqual(row["staged_prompt_chain"]["outcome"], "dropped")
 
     def test_pin_d6_5_commit_and_key_replacement_lifecycle(self):
         # The misfire sibling establishes exact-prefix commit behavior. This
@@ -235,6 +358,16 @@ class PromptGatedIdentificationPins(unittest.TestCase):
         self.assertEqual(committed["owner"], "identify:dungeon-equipment")
         self.assertEqual(committed["key"], "ruis")
         self.assertEqual(committed["posted"], "")
+        facts = _capture_decision_facts(snap, policy)
+        facts["staged_prompt_chain"] = committed
+        decision_log = self.sandbox / "replacement-decisions.jsonl"
+        _write_decision(
+            decision_log, snap, "ruis", policy.last_reason, policy,
+            decision_facts=facts,
+        )
+        row = json.loads(decision_log.read_text(encoding="utf-8"))
+        self.assertEqual(row["staged_prompt_chain"]["posted"], "")
+        self.assertEqual(row["staged_prompt_chain"]["outcome"], "not-posted")
 
     def test_pin_d6_6_prompt_constants_and_normalisation(self):
         self.assertIn("screen", ControlClient._READ_ONLY_OPS)

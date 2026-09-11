@@ -149,6 +149,12 @@ class ControlClient:
             ) as error:
                 last_error = error
                 self.close()
+                if op == "screen" and time.monotonic() >= deadline:
+                    # A screen observation may legitimately wait until the game
+                    # reaches inkey(). Its deadline is not a transport outage,
+                    # and must not suppress the timeout Escape send.
+                    self._report_failure_once(error)
+                    return None
                 if time.monotonic() >= deadline:
                     break
         assert last_error is not None

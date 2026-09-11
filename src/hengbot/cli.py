@@ -837,6 +837,7 @@ def _decision_record(
     retention_reservations: list[dict] | None = None,
     deposit_keep_conflict: dict | None = None,
     home_gate: dict | None = None,
+    staged_prompt_chain: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -946,6 +947,11 @@ def _decision_record(
         **({"escape_ladder": escape_ladder} if escape_ladder else {}),
         **({"shop_selector": shop_selector} if shop_selector else {}),
         **({"home_gate": home_gate} if home_gate else {}),
+        **(
+            {"staged_prompt_chain": staged_prompt_chain}
+            if staged_prompt_chain is not None
+            else {}
+        ),
         **(
             {"identification_source_reservation": identification_source_reservation}
             if identification_source_reservation
@@ -1342,6 +1348,7 @@ def _capture_decision_facts(snapshot, policy) -> dict:
             "departure_block": {}, "cross_town_shopping": {},
             "quest_strategy": None,
             "retention_reservations": [], "deposit_keep_conflict": None,
+            "staged_prompt_chain": None,
         }
     fixedquest_readiness = policy.fixed_quest_readiness_state()
     retention = policy.retention_reservation_state(snapshot)
@@ -1373,6 +1380,7 @@ def _capture_decision_facts(snapshot, policy) -> dict:
         ),
         "retention_reservations": retention["retention_reservations"],
         "deposit_keep_conflict": retention["deposit_keep_conflict"],
+        "staged_prompt_chain": None,
     }
 
 
@@ -1580,6 +1588,17 @@ def _write_decision(
                             "decision_sequence"
                         ) == getattr(policy, "_decision_sequence", None)
                         else {}
+                    ),
+                    (
+                        {
+                            name: facts["staged_prompt_chain"][name]
+                            for name in (
+                                "key", "gates", "outcome",
+                                "released_through", "posted",
+                            )
+                        }
+                        if facts.get("staged_prompt_chain") is not None
+                        else None
                     ),
                 ),
                 file,
@@ -1879,40 +1898,30 @@ def _release_prompt_gated_tail(
         next_index = gates[gate_index + 1][0] if gate_index + 1 < len(gates) else len(key)
         segment = key[index:next_index]
         prompt = prompts[0] if prompt_japanese else prompts[1]
-        while time.monotonic() < deadline:
-            if os.fstat(file.fileno()).st_size != file.tell():
-                return {
-                    "key": key,
-                    "outcome": "dropped",
-                    "released_through": released,
-                    "posted": posted,
-                    "drop_reason": "command-completed",
-                    "escape_posted": False,
-                }
-            poll_deadline = min(deadline, time.monotonic() + poll_interval)
-            screen = shadow_client.request(
-                "screen", term=0, attrs=False, deadline=poll_deadline
-            )
-            if screen is not None:
-                lines = screen.get("lines", [])
-                row0 = str(lines[0]) if lines else ""
-                if row0.rstrip().endswith(prompt.rstrip()):
-                    if not send(segment, in_store=False, decision=decision):
-                        return {
-                            "key": key,
-                            "outcome": "dropped",
-                            "released_through": released,
-                            "posted": posted,
-                            "drop_reason": "send-failed",
-                            "escape_posted": False,
-                        }
-                    posted += segment
-                    released += 1
-                    break
-            remaining = deadline - time.monotonic()
-            if remaining > 0:
-                time.sleep(min(poll_interval, remaining))
-        else:
+        if os.fstat(file.fileno()).st_size != file.tell():
+            return {
+                "key": key,
+                "outcome": "dropped",
+                "released_through": released,
+                "posted": posted,
+                "drop_reason": "command-completed",
+                "escape_posted": False,
+            }
+        screen = shadow_client.request(
+            "screen", term=0, attrs=False, deadline=deadline
+        )
+        if os.fstat(file.fileno()).st_size != file.tell():
+            return {
+                "key": key,
+                "outcome": "dropped",
+                "released_through": released,
+                "posted": posted,
+                "drop_reason": "command-completed",
+                "escape_posted": False,
+            }
+        lines = screen.get("lines", []) if screen is not None else []
+        row0 = str(lines[0]) if lines else ""
+        if screen is None or not row0.rstrip().endswith(prompt.rstrip()):
             escape_posted = send(NUDGE_KEY, in_store=False, decision=decision)
             return {
                 "key": key,
@@ -1922,6 +1931,17 @@ def _release_prompt_gated_tail(
                 "drop_reason": "prompt-timeout",
                 "escape_posted": escape_posted,
             }
+        if not send(segment, in_store=False, decision=decision):
+            return {
+                "key": key,
+                "outcome": "dropped",
+                "released_through": released,
+                "posted": posted,
+                "drop_reason": "send-failed",
+                "escape_posted": False,
+            }
+        posted += segment
+        released += 1
     return {
         "key": key,
         "outcome": "released",
@@ -2758,6 +2778,9 @@ def _run_follow(
     last_observed_home_page = None
     read_batch_ledger_path = read_batch_ledger_path or READ_BATCH_LEDGER_PATH
     knowledge_ledger_path = knowledge_ledger_path or KNOWLEDGE_RESPONSE_LEDGER_PATH
+    shadow_client = getattr(args, "shadow_client", None)
+    input_delays = _input_delay_values(args)
+    prompt_japanese = getattr(args, "prompt_japanese", True)
 
     def finish_pending_batch() -> None:
         nonlocal pending_batch_row
@@ -3296,7 +3319,7 @@ def _run_follow(
                         file=file,
                         deadline=time.monotonic() + args.stall_timeout,
                         poll_interval=input_delays["input_item_prompt_delay"],
-                        prompt_japanese=args.prompt_japanese,
+                        prompt_japanese=prompt_japanese,
                         in_store=snapshot.store is not None,
                         suppress=suppress_unconfirmed_store_leave,
                         decision=decision,
@@ -3391,7 +3414,7 @@ def _run_follow(
                             file=file,
                             deadline=time.monotonic() + args.stall_timeout,
                             poll_interval=input_delays["input_item_prompt_delay"],
-                            prompt_japanese=args.prompt_japanese,
+                            prompt_japanese=prompt_japanese,
                             in_store=snapshot.store is not None,
                             decision=decision,
                             snapshot=snapshot,
