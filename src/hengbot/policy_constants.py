@@ -482,6 +482,9 @@ Q2_BREACH_CORRIDOR = tuple(
 )
 
 Q2_BLUE_CONFIRM_POSITION = Position(13, 47)
+Q2_BLUE_RECOVERY_CELLS = frozenset(
+    Position(y, x) for y in range(7, 14) for x in range(45, 50)
+)
 
 Q2_POST_BLUE_SEQUENCE = (
     ("down-puddle", 885, (Position(18, 46),)),

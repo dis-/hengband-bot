@@ -638,9 +638,7 @@ class ObservationMixin:
             self._q2_breach_attempts = 0
             self._q2_breach_complete = False
             self._q2_blue_recovery_complete = False
-            self._q2_blue_recovery_pickup_prepared = None
-            self._q2_blue_recovery_pickup_posted = None
-            self._q2_blue_recovery_witnessed = False
+            self._q2_blue_recovery_perceived.clear()
             self._launcher_enchant_attempted.clear()
             self._launcher_enchant_watch = None
             self._visit_counts.clear()

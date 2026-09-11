@@ -233,6 +233,7 @@ from hengbot.policy_constants import (
     MORIVANT_TOWN_ID,
     PANIC_HP_RATIO,
     Q2_BLUE_CONFIRM_POSITION,
+    Q2_BLUE_RECOVERY_CELLS,
     Q2_BREACH_ATTEMPT_LIMIT,
     Q2_BREACH_CORRIDOR,
     Q2_BREACH_MIN_DIGGING,
@@ -1773,6 +1774,20 @@ class QuestMixin:
         self.last_reason = "quest-strategy:q2-breach-dig"
         return TUNNEL_KEY + direction
 
+    def _q2_cell_perceived(
+        self, snapshot: Snapshot, position: Position
+    ) -> bool:
+        if snapshot.player.blind:
+            return False
+        grid = snapshot.grid_at(position)
+        if grid is None or not grid.currently_observed:
+            return False
+        # Conservative approximation of the game's note_spot guard: noctovision
+        # is not exposed on the wire, and allows_los is an extra terrain check.
+        return grid.lit or grid.mnlt or (
+            grid.in_view and grid.glow and not grid.mndk and grid.allows_los
+        )
+
     def _q2_phase_key(
         self,
         snapshot: Snapshot,
@@ -1790,7 +1805,9 @@ class QuestMixin:
             if grid.enterable
             and battlefield.terrain.get((position.y, position.x)) == "wall"
         )
-
+        for position in Q2_BLUE_RECOVERY_CELLS:
+            if self._q2_cell_perceived(snapshot, position):
+                self._q2_blue_recovery_perceived.add(position)
         current_kind = battlefield.terrain.get(
             (snapshot.player.position.y, snapshot.player.position.x)
         )
@@ -2243,21 +2260,10 @@ class QuestMixin:
             252 in self._q2_cleared_races
             and not self._q2_blue_recovery_complete
         ):
-            posted = getattr(self, "_q2_blue_recovery_pickup_posted", None)
-            if posted is not None:
-                position, before = posted
-                observed = snapshot.grid_at(position)
-                after = (
-                    (observed.object_count, observed.object_tvals)
-                    if observed is not None else (0, ())
-                )
-                if after != before:
-                    self._q2_blue_recovery_witnessed = True
-                self._q2_blue_recovery_pickup_posted = None
             recovery_region = {
                 position: grid
                 for position, grid in snapshot.grids.items()
-                if 7 <= position.y <= 13 and 45 <= position.x <= 49
+                if position in Q2_BLUE_RECOVERY_CELLS
             }
             recovery_cells = {
                 position
@@ -2267,11 +2273,6 @@ class QuestMixin:
             }
             if snapshot.player.position in recovery_cells:
                 self.last_reason = "quest-strategy:q2-blue-recover-bolts"
-                here = snapshot.grid_at(snapshot.player.position)
-                self._q2_blue_recovery_pickup_prepared = (
-                    snapshot.player.position,
-                    (here.object_count, here.object_tvals),
-                )
                 return PICKUP_KEY
             if recovery_cells:
                 step = navigator.route_to_static_goals(
@@ -2288,8 +2289,27 @@ class QuestMixin:
             ):
                 self.last_reason = "quest:blocked:q2-blue-recovery-unidentified-pile"
                 return WAIT_KEY
-            if not getattr(self, "_q2_blue_recovery_witnessed", False):
-                self.last_reason = "quest:blocked:q2-blue-recovery-unwitnessed"
+            unperceived = {
+                position
+                for position, grid in recovery_region.items()
+                if grid.enterable
+                and position not in self._q2_blue_recovery_perceived
+            }
+            if unperceived:
+                if snapshot.player.blind:
+                    # Blindness is timed, and WAIT advances the game clock.
+                    self.last_reason = "quest:blocked:q2-blue-recovery-blind"
+                    return WAIT_KEY
+                step = navigator.route_to_static_goals(
+                    snapshot.player.position, unperceived
+                )
+                if step is not None:
+                    self.last_reason = "quest-strategy:q2-blue-recovery-survey"
+                    return self._step_toward(snapshot, step)
+                self._q2_blue_recovery_complete = True
+                self.last_reason = (
+                    "quest-strategy:q2-blue-recovery-complete-unroutable"
+                )
                 return WAIT_KEY
             self._q2_blue_recovery_complete = True
             self.last_reason = "quest-strategy:q2-blue-recovery-complete"

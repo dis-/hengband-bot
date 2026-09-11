@@ -1154,13 +1154,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._quest_strategy_recovery_pickup_posted: tuple[
             int, Position, tuple[int, tuple[int, ...]]
         ] | None = None
-        self._q2_blue_recovery_pickup_prepared: tuple[
-            Position, tuple[int, tuple[int, ...]]
-        ] | None = None
-        self._q2_blue_recovery_pickup_posted: tuple[
-            Position, tuple[int, tuple[int, ...]]
-        ] | None = None
-        self._q2_blue_recovery_witnessed = False
+        self._q2_blue_recovery_perceived: set[Position] = set()
         self._quest_strategy_initial_hold_turns: dict[int, int] = {}
         self._quest_strategy_surveyed_placements: dict[int, set[Position]] = {}
         self._quest_strategy_sweep_rounds: dict[int, int] = {}
@@ -7014,6 +7008,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
         self._confirm_staged_shopping_approach(key)
+        if key.startswith(FIRE_KEY):
+            # The ledger establishes that no bolt was visible on these cells
+            # since the last policy-composed launcher shot. It cannot prove
+            # absence after every possible source of a bolt.
+            self._q2_blue_recovery_perceived.clear()
         if (
             self._quest_strategy_recovery_pickup_prepared
             and key == getattr(
@@ -7025,13 +7024,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             self._quest_strategy_recovery_pickup_prepared = None
             self._quest_strategy_recovery_pickup_prepared_key = None
-        if key == PICKUP_KEY and getattr(
-            self, "_q2_blue_recovery_pickup_prepared", None
-        ):
-            self._q2_blue_recovery_pickup_posted = (
-                self._q2_blue_recovery_pickup_prepared
-            )
-            self._q2_blue_recovery_pickup_prepared = None
         mutation_committed = self._equipment_mutation.confirm_posted(key)
         pending_mutation_commit = self._equipment_mutation_post_commit
         if (

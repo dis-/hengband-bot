@@ -41,6 +41,7 @@ from hengbot.cli import (
 )
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
+from test_town_stall import _consume_response, _fresh_incident_policy, _game_edit_dir
 from hengbot.model import (
     AbilitySources,
     DUNGEON_ANGBAND,
@@ -143,6 +144,7 @@ from hengbot.quest_knowledge import (
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
+from hengbot.policy_constants import Q2_BLUE_RECOVERY_CELLS
 from hengbot.equipment_mutation import progress_core
 from hengbot.policy import (
     HengbotPolicy,
@@ -5810,10 +5812,16 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._q2_phase_key(on_bolts, self.profiles[2], navigator),
             PICKUP_KEY,
         )
-        policy.confirm_key_posted(PICKUP_KEY)
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recover-bolts"
+        )
         recovered = replace(
             confirmation,
-            grids={Position(13, 47): grid(13, 47)},
+            grids={
+                Position(13, 47): grid(
+                    13, 47, lit=True, in_view=True
+                )
+            },
         )
         self.assertEqual(
             policy._q2_phase_key(recovered, self.profiles[2], navigator),
@@ -5837,11 +5845,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             floor_key=(0, 15, 2),
         )
         policy._q2_phase_key(confirmation, self.profiles[2], navigator)
-        policy._q2_blue_recovery_witnessed = True
         snapshot = Snapshot(
             player(13, 47),
             {
-                Position(13, 47): grid(13, 47),
+                Position(13, 47): grid(13, 47, lit=True, in_view=True),
                 Position(14, 47): grid(14, 47, objects=1,
                                        object_tvals=(TVAL_BOLT,)),
             }, [], floor_key=(0, 15, 2),
@@ -5867,11 +5874,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             floor_key=(0, 15, 2),
         )
         policy._q2_phase_key(confirmation, self.profiles[2], navigator)
-        policy._q2_blue_recovery_witnessed = True
         snapshot = Snapshot(
             player(12, 47),
             {Position(12, 47): grid(12, 47, objects=1,
-                                    object_tvals=(TVAL_LITE,))},
+                                    object_tvals=(TVAL_LITE,), lit=True,
+                                    in_view=True)},
             [], floor_key=(0, 15, 2),
         )
 
@@ -5882,7 +5889,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
         )
 
-    def test_q2_blue_recovery_requires_identification_and_pickup_witness(self):
+    def test_q2_blue_recovery_requires_identification_then_completes_on_perceived_region(self):
         q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
         policy = self._policy()
         policy._quest_knowledge[2] = q2
@@ -5909,13 +5916,354 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest:blocked:q2-blue-recovery-unidentified-pile",
         )
         empty = replace(
-            unknown, grids={Position(13, 47): grid(13, 47)}
+            unknown,
+            grids={
+                Position(13, 47): grid(
+                    13, 47, lit=True, in_view=True
+                )
+            },
         )
         self.assertEqual(
             policy._q2_phase_key(empty, self.profiles[2], navigator), WAIT_KEY
         )
         self.assertEqual(
-            policy.last_reason, "quest:blocked:q2-blue-recovery-unwitnessed"
+            policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
+        )
+        self.assertTrue(policy._q2_blue_recovery_complete)
+
+    def test_q2_blue_recovery_surveys_then_completes_when_cells_are_perceived(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        confirmation = Snapshot(
+            player(13, 47),
+            {
+                Position(13, 47): grid(13, 47, lit=True, in_view=True),
+                Position(12, 47): grid(12, 47),
+                Position(11, 47): grid(11, 47),
+            },
+            [], floor_key=(0, 15, 2),
+        )
+
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-clear-confirmed"
+        )
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator), "8"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-survey"
+        )
+        perceived = Snapshot(
+            player(12, 47),
+            {
+                Position(12, 47): grid(12, 47, lit=True, in_view=True),
+                Position(11, 47): grid(11, 47, lit=True, in_view=True),
+                Position(13, 47): grid(13, 47),
+            },
+            [], floor_key=(0, 15, 2),
+        )
+        self.assertEqual(
+            policy._q2_phase_key(perceived, self.profiles[2], navigator),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
+        )
+        self.assertTrue(policy._q2_blue_recovery_complete)
+
+    def test_q2_blue_recovery_completes_when_unperceived_cells_are_unroutable(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        isolated = Position(8, 45)
+        confirmation = Snapshot(
+            player(13, 47),
+            {
+                Position(13, 47): grid(13, 47, lit=True, in_view=True),
+                isolated: grid(7, 45),
+            },
+            [], floor_key=(0, 15, 2),
+        )
+        self.assertIsNone(
+            navigator.route_to_static_goals(
+                confirmation.player.position, {isolated}
+            )
+        )
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-clear-confirmed"
+        )
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason,
+            "quest-strategy:q2-blue-recovery-complete-unroutable",
+        )
+        self.assertTrue(policy._q2_blue_recovery_complete)
+
+    def test_q2_blue_recovery_blind_waits_until_cell_can_be_perceived(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        blind = Snapshot(
+            player(13, 47, blind=True),
+            {Position(13, 47): grid(13, 47)},
+            [], floor_key=(0, 15, 2),
+        )
+        self.assertEqual(
+            policy._q2_phase_key(blind, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-clear-confirmed"
+        )
+        self.assertEqual(
+            policy._q2_phase_key(blind, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest:blocked:q2-blue-recovery-blind"
+        )
+        self.assertFalse(policy._q2_blue_recovery_complete)
+        sighted = replace(
+            blind,
+            player=player(13, 47, blind=False),
+            grids={
+                Position(13, 47): grid(
+                    13, 47, lit=True, in_view=True
+                )
+            },
+        )
+        self.assertEqual(
+            policy._q2_phase_key(sighted, self.profiles[2], navigator), WAIT_KEY
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
+        )
+
+    def test_q2_posted_fire_invalidates_blue_recovery_perception(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        policy = self._policy()
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "q2-blue-recovery-20260911.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            seed_rows = json.load(stream)
+        seed = parse_snapshot(
+            next(
+                row["snapshot"] for row in seed_rows
+                if row["decision"]["decision_sequence"] == 185
+            ),
+            load_monrace_knowledge(_game_edit_dir() / "MonraceDefinitions.jsonc"),
+        )
+        policy._monrace_knowledge = load_monrace_knowledge(
+            _game_edit_dir() / "MonraceDefinitions.jsonc"
+        )
+        grids = {
+            Position(y, 47): grid(y, 47, lit=True, in_view=True)
+            for y in (11, 12, 13)
+        }
+        before = replace(
+            seed,
+            player=replace(seed.player, position=Position(12, 47)),
+            grids=grids,
+            visible_monsters=[],
+        )
+        self.assertEqual(
+            policy._q2_phase_key(before, self.profiles[2], navigator), "2"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-confirm-approach"
+        )
+        target = replace(
+            next(monster for monster in seed.visible_monsters
+                 if monster.race_id == 885),
+            distance=6,
+        )
+        firing = replace(
+            before,
+            grids={
+                **grids,
+                Position(18, 46): grid(
+                    18, 46, monster=True, lit=True, in_view=True
+                ),
+            },
+            visible_monsters=[target],
+        )
+        key = policy._q2_phase_key(firing, self.profiles[2], navigator)
+        self.assertTrue(key.startswith("f"), key)
+        self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
+        policy.confirm_key_posted(key)
+        confirmation = Snapshot(
+            player(13, 47),
+            {
+                Position(13, 47): grid(13, 47, lit=True, in_view=True),
+                Position(12, 47): grid(12, 47),
+                Position(11, 47): grid(11, 47),
+            },
+            [], floor_key=(0, 15, 2),
+        )
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator),
+            WAIT_KEY,
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-clear-confirmed"
+        )
+        self.assertEqual(
+            policy._q2_phase_key(confirmation, self.profiles[2], navigator), "8"
+        )
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:q2-blue-recovery-survey"
+        )
+
+    def test_q2_blue_recovery_incident_exits_on_first_former_wait(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "q2-blue-recovery-20260911.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = json.load(stream)
+        previous_home_dir = os.environ.get("HENGBOT_HOME_HISTORY_DIR")
+        with TemporaryDirectory(prefix="hengbot-q2-blue-") as directory:
+            sandbox = Path(directory)
+            os.environ["HENGBOT_HOME_HISTORY_DIR"] = str(sandbox)
+            previous_cwd = Path.cwd()
+            os.chdir(sandbox)
+            try:
+                policy = _fresh_incident_policy(sandbox)
+                records = {}
+                perceived_at_196 = None
+                for row in rows:
+                    decision = row["decision"]
+                    snapshot = parse_snapshot(
+                        row["snapshot"], policy._monrace_knowledge
+                    )
+                    key = policy.choose_key(snapshot)
+                    sequence = decision["decision_sequence"]
+                    records[sequence] = (policy.last_reason, key)
+                    if sequence == 196:
+                        perceived_at_196 = set(
+                            policy._q2_blue_recovery_perceived
+                        )
+                    if key and decision["reason"] != (
+                        "posting-contract:identical-repost-unobserved"
+                    ):
+                        policy.confirm_key_posted(key)
+                    for response in row.get("responses", ()):
+                        _consume_response(policy, response)
+            finally:
+                os.chdir(previous_cwd)
+                if previous_home_dir is None:
+                    os.environ.pop("HENGBOT_HOME_HISTORY_DIR", None)
+                else:
+                    os.environ["HENGBOT_HOME_HISTORY_DIR"] = previous_home_dir
+
+        for row in rows:
+            decision = row["decision"]
+            sequence = decision["decision_sequence"]
+            if 118 <= sequence <= 195:
+                self.assertEqual(
+                    records[sequence],
+                    (decision["reason"], decision["key"]),
+                    sequence,
+                )
+        self.assertEqual(
+            records[196],
+            ("quest-strategy:q2-blue-recovery-complete", WAIT_KEY),
+        )
+        expected = {
+            Position(y, x)
+            for y, x in (
+                (7, 47), (8, 47), (9, 45), (9, 46), (9, 47),
+                (10, 45), (10, 46), (10, 47), (11, 45), (11, 46),
+                (11, 47), (12, 45), (12, 46), (12, 47), (13, 45),
+                (13, 46), (13, 47),
+            )
+        }
+        snapshot_196 = parse_snapshot(
+            next(
+                row["snapshot"] for row in rows
+                if row["decision"]["decision_sequence"] == 196
+            ),
+            policy._monrace_knowledge,
+        )
+        enterable = {
+            position for position, cell in snapshot_196.grids.items()
+            if position in Q2_BLUE_RECOVERY_CELLS
+            and cell.enterable
+        }
+        self.assertEqual(enterable, expected)
+        self.assertTrue(expected <= perceived_at_196)
+        self.assertTrue(records[197][0].startswith("quest-strategy:q2-post-blue-"))
+        self.assertNotIn(
+            "q2-blue-recovery-unwitnessed",
+            "\n".join(reason for reason, _ in records.values()),
+        )
+        self.assertTrue(policy._q2_blue_recovery_complete)
+
+    def test_q2_blue_recovery_removed_witness_state_and_bounded_writers(self):
+        root = Path(__file__).resolve().parents[1] / "src" / "hengbot"
+        sources = {
+            path.name: path.read_text(encoding="utf-8")
+            for path in root.glob("*.py")
+        }
+        joined = "\n".join(sources.values())
+        for banned in (
+            "_q2_blue_recovery_witnessed",
+            "_q2_blue_recovery_pickup_prepared",
+            "_q2_blue_recovery_pickup_posted",
+            "q2-blue-recovery-unwitnessed",
+            "quest:blocked:q2-blue-recovery-survey",
+        ):
+            self.assertNotIn(banned, joined)
+        writers = {
+            name for name, source in sources.items()
+            if "_q2_blue_recovery_perceived" in source
+        }
+        self.assertEqual(
+            writers, {"policy.py", "policy_observation.py", "policy_quest.py"}
+        )
+        self.assertEqual(
+            sources["policy.py"].count("_q2_blue_recovery_perceived"), 2
+        )
+        self.assertEqual(
+            sources["policy_observation.py"].count(
+                "_q2_blue_recovery_perceived"
+            ),
+            1,
+        )
+        self.assertEqual(
+            sources["policy_quest.py"].count("_q2_blue_recovery_perceived"),
+            2,
         )
 
     def test_q2_observation_route_does_not_reverse_at_worm_corner(self):
@@ -8165,19 +8513,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIsNone(policy._quest_strategy_recovery_pickup_posted)
 
     def test_q2_recovery_observation_state_is_cleared_on_floor_change(self):
+        q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
         policy = self._policy()
-        first = Snapshot(player(1, 1), {Position(1, 1): grid(1, 1)}, [],
-                         floor_key=(0, 5, 2))
-        policy.choose_key(first)
-        policy._q2_blue_recovery_pickup_prepared = (Position(1, 1), (1, ()))
-        policy._q2_blue_recovery_pickup_posted = (Position(1, 1), (1, ()))
-        policy._q2_blue_recovery_witnessed = True
+        policy._quest_knowledge[2] = q2
+        policy._q2_cleared_races.update({86, 153})
+        policy._q2_breach_complete = True
+        navigator = QuestFloorNavigator(2, q2.battlefield)
+        navigator.opened.update(Position(y, 47) for y in range(7, 12))
+        first = Snapshot(
+            player(13, 47),
+            {Position(13, 47): grid(13, 47, lit=True, in_view=True)},
+            [], floor_key=(0, 15, 2),
+        )
+        policy._q2_phase_key(first, self.profiles[2], navigator)
+        self.assertIn(Position(13, 47), policy._q2_blue_recovery_perceived)
 
         policy.choose_key(replace(first, floor_key=(0, 6, 0)))
 
-        self.assertIsNone(policy._q2_blue_recovery_pickup_prepared)
-        self.assertIsNone(policy._q2_blue_recovery_pickup_posted)
-        self.assertFalse(policy._q2_blue_recovery_witnessed)
+        self.assertEqual(policy._q2_blue_recovery_perceived, set())
+        self.assertFalse(policy._q2_blue_recovery_complete)
 
     def test_planned_throw_unreachable_reason_is_explicitly_q34_gated(self):
         policy = self._policy()
