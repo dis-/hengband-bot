@@ -41,7 +41,7 @@ from hengbot.cli import (
 )
 from hengbot.town_maps import TownMap, parse_town_map
 from hengbot.wilderness_map import WildernessMap
-from test_town_stall import _consume_response, _fresh_incident_policy, _game_edit_dir
+from test_town_stall import _consume_response, _fresh_incident_policy
 from hengbot.model import (
     AbilitySources,
     DUNGEON_ANGBAND,
@@ -132,7 +132,8 @@ from hengbot.equipment_optimizer import (
     OwnedEquipment, OwnedEquipmentCatalog, TR_TELEPORT, current_loadout,
 )
 from hengbot.monrace_knowledge import (
-    MonraceKnowledge, MonsterBlow, load_monrace_knowledge,
+    MonraceKnowledge, MonsterBlow, find_monrace_definitions,
+    load_monrace_knowledge,
 )
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE, QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER,
@@ -6063,6 +6064,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_q2_posted_fire_invalidates_blue_recovery_perception(self):
         q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
+        monrace_definitions = find_monrace_definitions(Path(__file__), None)
+        self.assertIsNotNone(
+            monrace_definitions,
+            "Hengband monster definitions must be available for the Q2 replay",
+        )
         policy = self._policy()
         policy._quest_knowledge[2] = q2
         policy._q2_cleared_races.update({86, 153})
@@ -6081,11 +6087,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 row["snapshot"] for row in seed_rows
                 if row["decision"]["decision_sequence"] == 185
             ),
-            load_monrace_knowledge(_game_edit_dir() / "MonraceDefinitions.jsonc"),
+            load_monrace_knowledge(monrace_definitions),
         )
-        policy._monrace_knowledge = load_monrace_knowledge(
-            _game_edit_dir() / "MonraceDefinitions.jsonc"
-        )
+        policy._monrace_knowledge = load_monrace_knowledge(monrace_definitions)
         grids = {
             Position(y, 47): grid(y, 47, lit=True, in_view=True)
             for y in (11, 12, 13)
@@ -6250,7 +6254,19 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             if "_q2_blue_recovery_perceived" in source
         }
         self.assertEqual(
-            writers, {"policy.py", "policy_observation.py", "policy_quest.py"}
+            writers,
+            {
+                "latch_onset_capture.py",
+                "policy.py",
+                "policy_observation.py",
+                "policy_quest.py",
+            },
+        )
+        self.assertEqual(
+            sources["latch_onset_capture.py"].count(
+                "_q2_blue_recovery_perceived"
+            ),
+            1,
         )
         self.assertEqual(
             sources["policy.py"].count("_q2_blue_recovery_perceived"), 2
