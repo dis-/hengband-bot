@@ -269,23 +269,33 @@ class IncidentConverterTest(unittest.TestCase):
         policy = HengbotPolicy()
         del policy._quest_strategy_recovery_pickup_prepared
         del policy._quest_strategy_recovery_pickup_posted
+        policy._floor_key = (0, 0, 0)
+        encoded_policy = checkpoint(policy)
+        old_state = pickle.loads(base64.b64decode(encoded_policy))
+        old_state.pop("_q2_blue_recovery_perceived")
+        encoded_policy = base64.b64encode(
+            pickle.dumps(old_state, protocol=5)
+        ).decode("ascii")
         encoded_snapshot = base64.b64encode(
             pickle.dumps(
                 fixture.Snapshot(
                     fixture.player(1, 1),
                     {Position(1, 1): fixture.grid(1, 1)},
                     [],
+                    floor_key=(1, 1, 0),
                 ),
                 protocol=5,
             )
         ).decode("ascii")
 
-        restored, _ = restore_incident_checkpoint(
-            HengbotPolicy, checkpoint(policy), encoded_snapshot
+        restored, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, encoded_policy, encoded_snapshot
         )
 
         self.assertIsNone(restored._quest_strategy_recovery_pickup_prepared)
         self.assertIsNone(restored._quest_strategy_recovery_pickup_posted)
+        restored.choose_key(snapshot)
+        self.assertEqual(restored._q2_blue_recovery_perceived, set())
 
 
 if __name__ == "__main__":
