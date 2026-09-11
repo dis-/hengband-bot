@@ -519,9 +519,9 @@ class DiggerQuestPins(unittest.TestCase):
         town = self._snapshot([unknown], town=True)
         town = replace(town, player=replace(town.player, class_id=-1))
         town_key = town_policy.choose_key(town)
-        self.assertFalse(
-            town_key.startswith("w") and "k" in town_key,
-            (town_policy.last_reason, town_key),
+        self.assertNotEqual(town_key, "wk", (town_policy.last_reason, town_key))
+        self.assertNotIn(
+            town_policy.last_reason, {"wield-light", "fundraise:wield-light"}
         )
         self.assertNotEqual(town_policy.last_reason, "wield-light")
 
