@@ -6111,6 +6111,14 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._shopping_approach_step(self._snapshot(), STORE_HOME)
         self.assertIn(STORE_HOME, policy._town_store_attempted)
 
+    def _settle_failed_store_walk(self, policy, snapshot, store_type):
+        step = policy._shopping_approach_step(snapshot, store_type)
+        self.assertIsNotNone(step)
+        policy.last_reason = "shop:approach"
+        key = policy._shopping_approach_key(snapshot, step, "shop:travel")
+        policy.confirm_key_posted(key)
+        policy._observe(snapshot)
+
     def test_calibration_home_oscillation_yields_to_entry_bound(self):
         needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
         policy = self._policy(needs)
@@ -6132,10 +6140,9 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
 
         for entry in range(CALIBRATION_HOME_VISIT_LIMIT):
+            self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
             policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-            self.assertIsNotNone(
-                policy._shopping_approach_step(snapshot, STORE_HOME)
-            )
+            self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
             self.assertNotIn(STORE_HOME, policy._town_store_attempted)
             self.assertEqual(
                 policy._town_visit_ledger.approach_fails[STORE_HOME], 0
@@ -6167,10 +6174,11 @@ class TownErrandPlanTest(unittest.TestCase):
             blockers=("home-scan-incomplete",), result=None,
         )
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
         self.assertIsNone(policy._calibration_phase)
-        self.assertIsNotNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
@@ -6190,9 +6198,10 @@ class TownErrandPlanTest(unittest.TestCase):
             blockers=("no-valid-loadout",), result=None,
         )
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
-        self.assertIsNotNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
@@ -6207,11 +6216,116 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._equipment_optimization_preparation = None
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
-        self.assertIsNone(policy._shopping_approach_step(snapshot, STORE_HOME))
+        self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         self.assertIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 1)
+
+    def test_identically_replaced_counterfactual_approach_is_discarded(self):
+        policy = self._policy([])
+        snapshot = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        snapshot = replace(
+            snapshot, grids={**snapshot.grids, home.position: home}, town_flag=True
+        )
+        step = policy._shopping_approach_step(snapshot, STORE_HOME)
+        self.assertIsNotNone(step)
+        policy.last_reason = "shop:approach"
+        staged = policy._shopping_approach_key(snapshot, step, "shop:travel")
+
+        replacement = "".join(staged)
+        self.assertEqual(replacement, staged)
+        self.assertFalse(hasattr(replacement, "approach_provenance"))
+        policy.confirm_key_posted(replacement)
+        policy._observe(snapshot)
+
+        self.assertIsNone(policy._pending_shop_approach)
+        self.assertEqual(policy._shop_approach_stuck_count, 0)
+
+    def test_store_episode_switch_clears_previous_origin(self):
+        policy = self._policy([])
+        base = self._snapshot(width=80, height=40)
+        home = replace(grid(10, 13), store_number=STORE_HOME)
+        general = replace(grid(13, 10), store_number=STORE_GENERAL)
+        base = replace(
+            base,
+            grids={**base.grids, home.position: home, general.position: general},
+            town_flag=True,
+        )
+
+        def emitted_walk(snapshot, store_type):
+            step = policy._shopping_approach_step(snapshot, store_type)
+            self.assertIsNotNone(step)
+            policy.last_reason = "shop:approach"
+            key = policy._shopping_approach_key(snapshot, step, "shop:travel")
+            policy.confirm_key_posted(key)
+            dy, dx = {
+                "1": (1, -1), "2": (1, 0), "3": (1, 1),
+                "4": (0, -1), "6": (0, 1),
+                "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+            }[key]
+            origin = snapshot.player.position
+            return Position(origin.y + dy, origin.x + dx)
+
+        first_step = emitted_walk(base, STORE_HOME)
+        after_home = replace(
+            base, player=replace(base.player, position=first_step), turn=base.turn + 1
+        )
+        policy._observe(after_home)
+        policy._arbiter_close_store_visit("town-errand", "test-store-switch")
+        second_step = emitted_walk(after_home, STORE_GENERAL)
+        after_general = replace(
+            after_home,
+            player=replace(after_home.player, position=second_step),
+            turn=base.turn + 2,
+        )
+        policy._observe(after_general)
+        policy._arbiter_close_store_visit("town-errand", "test-store-switch-back")
+        emitted_walk(after_general, STORE_HOME)
+        returned_to_prior_origin = replace(
+            after_general,
+            player=replace(after_general.player, position=after_home.player.position),
+            turn=base.turn + 3,
+        )
+        policy._observe(returned_to_prior_origin)
+
+        self.assertEqual(policy._shop_approach_stuck_store, STORE_HOME)
+        self.assertEqual(policy._shop_approach_stuck_count, 0)
+
+    def test_store_arrival_resets_approach_episode(self):
+        policy = self._policy([])
+        base = self._snapshot(width=80, height=40)
+        intermediate = Position(base.player.position.y, base.player.position.x + 1)
+        entrance = Position(base.player.position.y, base.player.position.x + 2)
+        store_grid = replace(grid(entrance.y, entrance.x), store_number=STORE_HOME)
+        base = replace(
+            base,
+            grids={
+                **base.grids,
+                intermediate: grid(intermediate.y, intermediate.x),
+                entrance: store_grid,
+            },
+            town_flag=True,
+        )
+
+        policy._shopping_approach_goal = entrance
+        policy._shopping_approach_store_type = STORE_HOME
+        policy.last_reason = "shop:approach"
+        key = policy._shopping_approach_key(base, entrance, "shop:travel")
+        policy.confirm_key_posted(key)
+        arrived = replace(
+            base,
+            player=replace(base.player, position=entrance),
+            turn=base.turn + 1,
+        )
+        policy._observe(arrived)
+
+        self.assertEqual(policy._shop_approach_stuck_count, 0)
+        self.assertIsNone(policy._shop_approach_stuck_store)
+        self.assertIsNone(policy._shop_approach_previous_origin)
+        self.assertIsNone(policy._pending_shop_approach)
 
     def test_blocked_home_releases_departure_latches(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]

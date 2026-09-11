@@ -836,12 +836,115 @@ class ShoppingTest(unittest.TestCase):
             ),
         }
         pol = HengbotPolicy()
+        latch_events = []
+        original_latch = pol._set_town_store_attempted
+
+        def record_latch(store_type, turn, reason, *args, **kwargs):
+            if reason == "shopping-stuck":
+                latch_events.append((store_type, turn))
+            return original_latch(store_type, turn, reason, *args, **kwargs)
+
+        pol._set_town_store_attempted = record_latch
         for index in range(SHOP_APPROACH_STUCK_LIMIT + STUCK_WINDOW + 2):
             x = 10 if index % 2 == 0 else 11
-            snap = Snapshot(player(10, x, gold=1000), grids, [], floor_key=(0, 0, 0))
-            pol.choose_key(snap)
+            snap = Snapshot(
+                player(
+                    10, x, food=1500, gold=1000,
+                    class_id=PLAYER_CLASS_WARRIOR,
+                ),
+                grids,
+                [],
+                floor_key=(0, 0, 0),
+            )
+            key = pol.choose_key(snap)
+            if key:
+                pol.confirm_key_posted(key)
         self.assertFalse(pol._shopping_stuck)
-        self.assertIn(STORE_GENERAL, pol._town_store_attempted)
+        self.assertEqual(latch_events, [])
+
+    def test_wall_bumped_survival_store_walk_latches_on_twelfth_settle(self):
+        origin = Position(10, 10)
+        grids = {
+            origin: grid(10, 10),
+            Position(10, 11): grid(10, 11),
+            Position(10, 12): GridState(
+                position=Position(10, 12), known=True, passable=True, wall=False,
+                has_monster=False, has_down_stairs=False, has_up_stairs=False,
+                unsafe=False, store_number=STORE_GENERAL,
+            ),
+        }
+        snap = Snapshot(
+            player(
+                10, 10, food=1500, gold=1000,
+                class_id=PLAYER_CLASS_WARRIOR,
+            ),
+            grids,
+            [],
+            floor_key=(0, 0, 0),
+        )
+        pol = HengbotPolicy()
+        latch_events = []
+        original_latch = pol._set_town_store_attempted
+
+        def record_latch(store_type, turn, reason, *args, **kwargs):
+            if reason == "shopping-stuck":
+                latch_events.append((store_type, turn))
+            return original_latch(store_type, turn, reason, *args, **kwargs)
+
+        pol._set_town_store_attempted = record_latch
+        counts = []
+        for index in range(SHOP_APPROACH_STUCK_LIMIT + 1):
+            key = pol.choose_key(snap)
+            if index:
+                counts.append(pol._shop_approach_stuck_count)
+            if key:
+                pol.confirm_key_posted(key)
+        self.assertEqual(
+            counts,
+            list(range(1, SHOP_APPROACH_STUCK_LIMIT)) + [0],
+        )
+        self.assertEqual(latch_events, [(STORE_GENERAL, snap.turn)])
+
+    def test_ping_pong_store_walk_latches_on_twelfth_settle(self):
+        grids = {Position(10, x): grid(10, x) for x in (10, 11, 12)}
+        grids[Position(10, 13)] = GridState(
+            position=Position(10, 13), known=True, passable=True, wall=False,
+            has_monster=False, has_down_stairs=False, has_up_stairs=False,
+            unsafe=False, store_number=STORE_GENERAL,
+        )
+        pol = HengbotPolicy()
+        latch_events = []
+        original_latch = pol._set_town_store_attempted
+
+        def record_latch(store_type, turn, reason, *args, **kwargs):
+            if reason == "shopping-stuck":
+                latch_events.append((store_type, turn))
+            return original_latch(store_type, turn, reason, *args, **kwargs)
+
+        pol._set_town_store_attempted = record_latch
+        counts = []
+        for index in range(SHOP_APPROACH_STUCK_LIMIT + 2):
+            x = 10 if index % 2 == 0 else 11
+            snap = Snapshot(
+                player(
+                    10, x, food=1500, gold=1000,
+                    class_id=PLAYER_CLASS_WARRIOR,
+                ),
+                grids,
+                [],
+                floor_key=(0, 0, 0),
+                turn=index,
+            )
+            key = pol.choose_key(snap)
+            if index >= 2:
+                counts.append(pol._shop_approach_stuck_count)
+            if key:
+                pol.confirm_key_posted(key)
+        self.assertEqual(
+            counts,
+            list(range(1, SHOP_APPROACH_STUCK_LIMIT)) + [0],
+        )
+        self.assertEqual(latch_events, [(STORE_GENERAL, SHOP_APPROACH_STUCK_LIMIT + 1)])
 
     def test_no_approach_without_gold(self):
         grids = {

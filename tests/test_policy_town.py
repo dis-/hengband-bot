@@ -13604,12 +13604,18 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._town_was_in_town = True
         policy._floor_key = snapshot.floor_key
         policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
-        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-
         key = policy.choose_key(snapshot)
+        emitted_key = key
+        emitted_reason = policy.last_reason
+        policy.confirm_key_posted(key)
+        policy._observe(snapshot)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        policy.confirm_key_posted(key)
+        policy._observe(replace(snapshot, turn=snapshot.turn + 1))
 
-        self.assertNotEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "equipment-transaction:approach-home")
+        self.assertNotEqual(emitted_key, WAIT_KEY)
+        self.assertEqual(emitted_reason, "equipment-transaction:approach-home")
         self.assertIs(policy._equipment_transaction_session, session)
         self.assertTrue(session.executable)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
@@ -14089,9 +14095,13 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy._recent.extend(
             [Position(45, 123), Position(45, 122)] * (STUCK_WINDOW // 2)
         )
-        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-
         key = policy.choose_key(snapshot)
+        policy.confirm_key_posted(key)
+        policy._observe(snapshot)
+        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
+        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        policy.confirm_key_posted(key)
+        policy._observe(replace(snapshot, turn=snapshot.turn + 1))
 
         self.assertNotEqual(key, WAIT_KEY)
         self.assertIsNone(policy._town_blocked_reason)
