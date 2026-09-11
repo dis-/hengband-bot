@@ -20,14 +20,23 @@ from hengbot.model import (
     Snapshot,
     StoreState,
     STORE_GENERAL,
+    STORE_ALCHEMIST,
     STORE_HOME,
+    SV_FLASK_OIL,
     SV_LITE_LANTERN,
+    SV_LITE_TORCH,
+    SV_LITE_FEANOR,
+    SV_SCROLL_IDENTIFY,
+    SV_SCROLL_STAR_IDENTIFY,
+    SV_STAFF_IDENTIFY,
     SV_SCROLL_DETECT_TREASURE,
     TVAL_DIGGING,
+    TVAL_FLASK,
     TVAL_FOOD,
     TVAL_LITE,
     TVAL_POTION,
     TVAL_SCROLL,
+    TVAL_STAFF,
     TVAL_SWORD,
     TVAL_WAND,
 )
@@ -35,7 +44,10 @@ from hengbot.monrace_knowledge import (
     find_monrace_definitions,
     load_monrace_knowledge,
 )
-from hengbot.policy import ConservativePolicy
+from hengbot.policy import (
+    ConservativePolicy, FULL_IDENTIFY_DISMISS_SUFFIX, READ_KEY, REFILL_KEY,
+    USE_STAFF_KEY, equipment_identity,
+)
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.quest_strategies import load_quest_strategies
@@ -44,7 +56,7 @@ from hengbot.town_maps import parse_town_map
 from hengbot.wilderness_map import load_wilderness_map
 from hengbot.policy import LEAVE_STORE_KEY, WAIT_KEY
 from hengbot.policy_constants import PACK_CAPACITY, Q2_BREACH_POSITION
-from tests.policy_fixtures import grid, item, player
+from tests.policy_fixtures import grid, item, player, store_item
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "home-light-loop-20260911.json.gz"
@@ -274,6 +286,279 @@ class DiggerQuestPins(unittest.TestCase):
         pick = item("y", TVAL_DIGGING, 4, pval=1, is_equipment=True)
         mattock = item("z", TVAL_DIGGING, 7, pval=2, is_equipment=True)
         return unknown, pick, mattock
+
+    @staticmethod
+    def _light(slot, sval, *, fuel, known=True, cursed=False):
+        return item(
+            slot, TVAL_LITE, sval, fuel=fuel, known=known,
+            is_cursed=cursed, is_equipment=True,
+        )
+
+    def _assert_light_not_removed(self, key, worn):
+        self.assertFalse(
+            key.startswith("t") and worn.slot in key,
+            (self.policy.last_reason, key),
+        )
+
+    def test_pin_a3_d5_last_resort_family(self):
+        unknown = self._light("f", SV_LITE_FEANOR, fuel=0, known=False)
+        cases = []
+
+        empty = self._snapshot([unknown])
+        empty = replace(empty, player=replace(empty.player, class_id=-1))
+        cases.append(("A3a", empty, "wf", "wield-light"))
+
+        for name, fuel, town, extras, expected, reason in (
+            ("A3b", 100, False, (), "wf", "wield-light"),
+            ("A3c", 101, False, (), None, None),
+            ("A3d", 100, False,
+             (item("o", TVAL_FLASK, SV_FLASK_OIL, name="Flask of oil", fuel=5000),),
+             REFILL_KEY + "o", "refill-light"),
+            ("A3e", 100, False,
+             (self._light("t", SV_LITE_TORCH, fuel=5000),),
+             "wt", "wield-light"),
+            ("A3f", 100, True, (), None, None),
+            ("A3g", 0, False, (), "wf", "wield-light"),
+        ):
+            worn = self._light("light", SV_LITE_LANTERN, fuel=fuel)
+            snap = self._snapshot([unknown, *extras], equipment=[worn], town=town)
+            snap = replace(snap, player=replace(snap.player, class_id=-1))
+            cases.append((name, snap, expected, reason))
+
+        for name, snap, expected, reason in cases:
+            with self.subTest(pin=name):
+                policy = _fresh_policy(Path(self.scratch.name))
+                key = policy.choose_key(snap)
+                if expected is None:
+                    self.assertNotEqual(key, "wf", (policy.last_reason, key))
+                    self.assertNotEqual(policy.last_reason, "wield-light")
+                else:
+                    self.assertEqual(key, expected, (policy.last_reason, key))
+                    self.assertEqual(policy.last_reason, reason)
+                worn = next((it for it in snap.equipment if it.is_light), None)
+                if worn is not None:
+                    self.assertFalse(key.startswith("t") and worn.slot in key)
+
+    def test_pin_a3h_unknown_empty_slot_is_dungeon_only(self):
+        unknown = self._light("k", SV_LITE_FEANOR, fuel=0, known=False)
+
+        town_policy = _fresh_policy(Path(self.scratch.name))
+        town = self._snapshot([unknown], town=True)
+        town = replace(town, player=replace(town.player, class_id=-1))
+        town_key = town_policy.choose_key(town)
+        self.assertFalse(
+            town_key.startswith("w") and "k" in town_key,
+            (town_policy.last_reason, town_key),
+        )
+        self.assertNotEqual(town_policy.last_reason, "wield-light")
+
+        dungeon_policy = _fresh_policy(Path(self.scratch.name))
+        dungeon = self._snapshot([unknown])
+        dungeon = replace(dungeon, player=replace(dungeon.player, class_id=-1))
+        dungeon_key = dungeon_policy.choose_key(dungeon)
+        self.assertEqual(dungeon_key, "wk", (dungeon_policy.last_reason, dungeon_key))
+        self.assertEqual(dungeon_policy.last_reason, "wield-light")
+
+    def test_pin_f1_f2_and_f2_prime_fundraising_light(self):
+        known_torch = self._light("t", SV_LITE_TORCH, fuel=5000)
+        unknown_lamp = self._light("f", SV_LITE_FEANOR, fuel=0, known=False)
+        worn_lantern = self._light("light", SV_LITE_LANTERN, fuel=99)
+        self.policy._fundraising_mode = "mine"
+        snap = self._snapshot(
+            [known_torch, unknown_lamp], equipment=[worn_lantern]
+        )
+        self.assertEqual(self.policy.choose_key(snap), "wt")
+        self.assertEqual(self.policy.last_reason, "fundraise:wield-light")
+
+        for fuel, expected in ((99, "wl"), (200, None)):
+            with self.subTest(pin="F2" if fuel == 99 else "F2-prime"):
+                policy = _fresh_policy(Path(self.scratch.name))
+                policy._fundraising_mode = "mine"
+                worn = self._light("light", SV_LITE_TORCH, fuel=fuel)
+                lantern = self._light("l", SV_LITE_LANTERN, fuel=0, known=False)
+                oils = item(
+                    "o", TVAL_FLASK, SV_FLASK_OIL, name="Flask of oil",
+                    count=5, fuel=5000
+                )
+                key = policy.choose_key(self._snapshot(
+                    [lantern, oils], equipment=[worn]
+                ))
+                if expected is None:
+                    self.assertNotEqual(key, "wl", (policy.last_reason, key))
+                    self.assertNotEqual(policy.last_reason, "fundraise:wield-light")
+                else:
+                    self.assertEqual(key, expected, (policy.last_reason, key))
+                    self.assertEqual(policy.last_reason, "fundraise:wield-light")
+
+    def test_pin_d3_1_restore_weapon_guard_equivalence(self):
+        digger = item(
+            "main_hand", TVAL_DIGGING, 1, is_equipment=True, known=True
+        )
+        variants = (
+            (item("s", TVAL_SWORD, 1, is_equipment=True, known=True,
+                  is_ego=True, fully_known=False), True),
+            (item("s", TVAL_SWORD, 1, is_equipment=True, known=False), False),
+            (item("s", TVAL_SWORD, 1, is_equipment=True, known=True,
+                  is_cursed=True), False),
+        )
+        for sword, should_wield in variants:
+            with self.subTest(known=sword.known, cursed=sword.is_cursed):
+                policy = _fresh_policy(Path(self.scratch.name))
+                policy._fundraising_mode = "mine"
+                snap = self._snapshot([sword], equipment=[digger], town=True)
+                key = policy.choose_key(snap)
+                if should_wield:
+                    self.assertTrue(key.startswith("ws"), (policy.last_reason, key))
+                    self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
+                else:
+                    self.assertFalse(
+                        key.startswith("ws") and
+                        policy.last_reason == "town:restore-combat-weapon",
+                        (policy.last_reason, key),
+                    )
+
+    def test_pin_d3_2_full_identify_does_not_start_alternation(self):
+        sword = item(
+            "main_hand", TVAL_SWORD, 1, is_equipment=True, known=True,
+            is_ego=True, fully_known=False,
+        )
+        scroll = item("i", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, known=True)
+        snap = self._snapshot([scroll], equipment=[sword], town=True)
+        key = self.policy.choose_key(snap)
+        self.assertEqual(key, READ_KEY + "i/a" + FULL_IDENTIFY_DISMISS_SUFFIX)
+        self.assertEqual(self.policy.last_reason, "identify:full-equipped")
+        self.assertNotIn("t", key)
+        self.assertFalse(self.policy._equip_blocked_by_identification(sword))
+        self.assertTrue(self.policy._identification_flow_candidate(sword))
+
+    def test_pin_c1_calibration_drops_identify_blocked_redress(self):
+        lamp = self._light("k", SV_LITE_FEANOR, fuel=0, known=False)
+        snap = self._snapshot([lamp], town=True)
+        self.policy._calibration_worn_before = (
+            ("light", equipment_identity(lamp)),
+        )
+        self.policy._calibration_stripped_unrestored = True
+        self.assertIsNone(self.policy._calibration_redress_key(snap))
+        self.assertEqual(self.policy._calibration_worn_before, ())
+        key = self.policy.choose_key(snap)
+        self.assertNotEqual(key, "wk", (self.policy.last_reason, key))
+
+    def test_pin_l1_darkness_torch_rejects_cursed(self):
+        cursed = self._light("c", SV_LITE_TORCH, fuel=3000, cursed=True)
+        dark = replace(
+            self._snapshot([cursed]), can_see_own_grid=False,
+        )
+        self.assertIsNone(self.policy._darkness_torch(dark))
+        key = self.policy.choose_key(dark)
+        self.assertNotEqual(key, "wc", (self.policy.last_reason, key))
+
+        safe = self._light("d", SV_LITE_TORCH, fuel=2000)
+        changed = replace(dark, inventory=[cursed, safe])
+        self.assertEqual(self.policy.choose_key(changed), "wd")
+        self.assertEqual(self.policy.last_reason, "wield-light")
+
+    def test_pin_q34_2_exemption_is_call_site_scoped(self):
+        lantern = self._light("l", SV_LITE_LANTERN, fuel=0, known=False)
+        torch = self._light("light", SV_LITE_TORCH, fuel=5000)
+        snap = self._snapshot(
+            [lantern], equipment=[torch], floor_key=(0, 34, 0)
+        )
+        self.assertIsNone(self.policy._equipment_wield(
+            snap, "quest-launcher", lantern, "light"
+        ))
+        self.assertEqual(
+            self.policy.last_reason, "equipment-mutation:identify-first"
+        )
+        key = self.policy.choose_key(snap)
+        self.assertNotEqual(key, "wl", (self.policy.last_reason, key))
+        occurrences = []
+        root = Path(__file__).resolve().parents[1] / "src" / "hengbot"
+        for source in root.glob("*.py"):
+            for number, line in enumerate(
+                source.read_text(encoding="utf-8").splitlines(), 1
+            ):
+                if "quest_contract_exempt=True" in line:
+                    occurrences.append((source.name, number, line.strip()))
+        self.assertEqual(len(occurrences), 1, occurrences)
+        self.assertEqual(occurrences[0][0], "policy_quest.py")
+
+    def _d4_inventory(self, detection_count, *, source=True, digger=True):
+        inventory = [
+            self._light("k", SV_LITE_FEANOR, fuel=0, known=False),
+            item("f", TVAL_FOOD, 35, count=5),
+        ]
+        if source:
+            inventory.extend((
+                item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=10),
+                item("j", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=10),
+            ))
+        if digger:
+            inventory.append(item(
+                "d", TVAL_DIGGING, 4, pval=1, is_equipment=True
+            ))
+        if detection_count:
+            inventory.append(item(
+                "r", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+                count=detection_count,
+            ))
+        return inventory
+
+    def test_pin_d4_1_and_d4_2_identification_gate_order(self):
+        worn = self._light("light", SV_LITE_LANTERN, fuel=5000)
+        for count, complete in ((5, True), (0, False)):
+            with self.subTest(pin="D4-1" if complete else "D4-2"):
+                policy = _fresh_policy(Path(self.scratch.name))
+                policy._fundraising_mode = "prepare"
+                snap = self._snapshot(
+                    self._d4_inventory(count), equipment=[worn], town=True
+                )
+                snap = replace(
+                    snap, player=replace(snap.player, device_skill=24)
+                )
+                key = policy.choose_key(snap)
+                if complete:
+                    self.assertEqual(key, USE_STAFF_KEY + "ik")
+                    self.assertEqual(policy.last_reason, "identify:normal")
+                    self.assertNotIn("wk", key)
+                else:
+                    self.assertFalse(
+                        policy.last_reason.startswith("identify:"),
+                        (policy.last_reason, key),
+                    )
+                    self.assertFalse(key.startswith("w"), (policy.last_reason, key))
+
+    def test_pin_d4_3_identify_purchase_uses_post_kit_gold(self):
+        worn = self._light("light", SV_LITE_LANTERN, fuel=5000)
+        oil = item(
+            "o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=5000
+        )
+        inventory = [*self._d4_inventory(5, source=False), oil]
+        self.policy._fundraising_mode = "prepare"
+        outside = self._snapshot(
+            inventory, equipment=[worn], town=True, gold=200
+        )
+        self.policy.choose_key(outside)
+        self.assertEqual(self.policy._identification_need, "normal")
+
+        identify = store_item(
+            "a", TVAL_SCROLL, SV_SCROLL_IDENTIFY, price=50,
+            name="Scroll of Identify",
+        )
+        alchemist = replace(
+            outside,
+            store=StoreState(STORE_ALCHEMIST, [identify]),
+        )
+        self.assertIs(self.policy._next_purchase(alchemist), identify)
+
+        incomplete = replace(
+            alchemist,
+            player=replace(alchemist.player, gold=30),
+            inventory=[
+                carried for carried in alchemist.inventory
+                if not carried.is_digging_tool
+            ],
+        )
+        self.assertIsNot(self.policy._next_purchase(incomplete), identify)
 
     def _assert_unknown_digger_fixture(self, snapshot, unknown) -> None:
         self.assertEqual(self.policy._retention_surplus(snapshot, unknown), unknown.count)

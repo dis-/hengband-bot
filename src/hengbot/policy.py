@@ -6113,7 +6113,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Wield the best usable light: torch < lantern < permanent light."""
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
-            return self._find_light(snapshot)
+            return self._find_light(
+                snapshot,
+                include_unknown=self._unknown_light_last_resort(snapshot),
+            )
         candidate = self._find_light(snapshot, include_unknown=False)
         if candidate is None:
             if self._unknown_light_last_resort(snapshot):

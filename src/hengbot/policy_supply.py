@@ -82,10 +82,12 @@ class SupplyMixin:
         return None
 
     def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
+        if snapshot.in_town:
+            return False
         equipped = next((it for it in snapshot.equipment if it.is_light), None)
         if equipped is None:
             return True
-        if snapshot.in_town or not equipped.known:
+        if not equipped.known:
             return False
         if equipped.sval > SV_LITE_LANTERN:
             return False
