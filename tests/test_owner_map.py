@@ -38,7 +38,7 @@ class OwnerMapTest(unittest.TestCase):
         truthy_producers = {
             site["function"] for site in fact["writes"] if site["truthiness"] is True
         }
-        self.assertEqual(truthy_producers, {"consume_home_knowledge"})
+        self.assertEqual(truthy_producers, {"_adopt_home_catalogue"})
         self.assertIn("_atomic_home_withdraw_key", fact["consumer_functions"])
         self.assertIn("_resolve_observed_uncomposable_stop", fact["consumer_functions"])
 
@@ -57,7 +57,7 @@ class OwnerMapTest(unittest.TestCase):
     def test_starvation_report_contains_home_knowledge(self):
         starvation = {item["fact"]: item for item in self.report["starvation_prone"]}
         self.assertIn("_home_knowledge_current", starvation)
-        self.assertEqual(starvation["_home_knowledge_current"]["producer"], "consume_home_knowledge")
+        self.assertEqual(starvation["_home_knowledge_current"]["producer"], "_adopt_home_catalogue")
         ordering = [(-item["consumer_count"], item["fact"]) for item in self.report["starvation_prone"]]
         self.assertEqual(ordering, sorted(ordering))
 

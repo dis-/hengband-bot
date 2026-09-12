@@ -207,6 +207,8 @@ def replay_checkpoint_trajectory(policy_type, path: Path, decision_indices,
         policy, snapshot = restore_incident_checkpoint(
             policy_type, policy_blob, snapshot_blob
         )
+        if snapshot.in_town and policy.__dict__.get("_town_visit_epoch") is None:
+            policy.__dict__["_town_visit_epoch"] = snapshot.turn
         if seed_policy is not None:
             seed_policy(policy)
         key = policy.choose_key(snapshot)
