@@ -109,6 +109,11 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_home_latch_active", None)
     restored.__dict__.setdefault("_home_latch_history", [])
     restored.__dict__.setdefault("_home_gate_telemetry", {})
+    restored.__dict__.setdefault("_town_visit_epoch", None)
+    token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
+    restored.__dict__.setdefault("_home_knowledge_scan_epoch", None)
+    if not token_was_present:
+        restored.__dict__["_home_knowledge_scan_inflight"] = False
     restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
     pending_deposit = restored.__dict__.get("_home_atomic_deposit_pending")
     if (

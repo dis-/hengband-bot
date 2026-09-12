@@ -887,6 +887,9 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertFalse(batch_rows[1]["decided"])
             self.assertTrue(knowledge_rows[0]["accepted"])
             self.assertTrue(knowledge_rows[0]["inflight_at_arrival"])
+            self.assertFalse(knowledge_rows[0]["outstanding_at_arrival"])
+            self.assertIsNone(knowledge_rows[0]["request_epoch"])
+            self.assertIsNone(knowledge_rows[0]["visit_epoch_at_arrival"])
             self.assertEqual(
                 knowledge_rows[0]["items"],
                 [

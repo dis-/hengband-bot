@@ -9,6 +9,17 @@ from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
 
 class ObservationMixin:
+    def observe_town_visit_epoch(self, in_town: bool, turn: int) -> None:
+        """Mint the town-visit identity on entry and end it on exit."""
+        if not in_town:
+            self._town_visit_epoch = None
+            self.settle_home_knowledge_request()
+        elif self._town_visit_epoch is None:
+            self._town_visit_epoch = turn
+            self._home_knowledge_scan_requested = False
+            self._home_knowledge_scan_retries_remaining = 1
+            self._home_knowledge_scan_leave_turn = None
+
     def observe_character_snapshot(self, character) -> None:
         """Consume a `C` character snapshot (naked capture or periodic dump).
 
@@ -41,6 +52,7 @@ class ObservationMixin:
     def _observe(
         self, snapshot: Snapshot, *, observation: Snapshot | None = None
     ) -> None:
+        self.observe_town_visit_epoch(snapshot.in_town, snapshot.turn)
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()

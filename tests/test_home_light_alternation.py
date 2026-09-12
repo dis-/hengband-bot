@@ -144,6 +144,7 @@ class HomeLightAlternationPins(unittest.TestCase):
             cls.policy = _fresh_policy(sandbox)
             cls.records = {}
             cls.snapshots = {}
+            cls.protocol_states = {}
             cls.home_refusals = []
             current_sequence = [None]
             original = cls.policy._equipment_transaction_home_key
@@ -173,6 +174,11 @@ class HomeLightAlternationPins(unittest.TestCase):
                     cls.policy.confirm_key_posted(key)
                 for response in row.get("responses", ()):
                     _consume_response(cls.policy, response)
+                cls.protocol_states[sequence] = (
+                    cls.policy._home_knowledge_current,
+                    cls.policy._home_scan_source,
+                    cls.policy._home_scan_item_count,
+                )
         finally:
             os.chdir(previous)
 
@@ -191,17 +197,39 @@ class HomeLightAlternationPins(unittest.TestCase):
         for sequence in range(452, 487):
             self.assertEqual(self.records[sequence], expected[sequence])
         self.assertFalse(self.records[487][1].startswith("w"))
-        self.assertEqual(self.records[496], expected[496])
-        self.assertEqual(self.records[497], expected[497])
+        self.assertEqual(self.records[496], ("shop:travel", "\x1b`n!."))
+        self.assertEqual(
+            self.records[497], ("store:entry-await-observation", "")
+        )
         self.assertEqual(
             self.records[499],
-            ("equipment-transaction:defer-identification", "\x1b"),
+            ("home:route-claim-unfulfilled", "\x1b"),
         )
         self.assertNotEqual(self.records[500][0], "wield-light")
         tail = [self.records[sequence][0] for sequence in range(487, 568)]
         self.assertNotIn("wield-light", tail)
         self.assertNotIn("policy:none-store-exit", tail)
-        self.assertIn(499, self.home_refusals)
+        self.assertTrue(any(487 <= sequence <= 567 for sequence in self.home_refusals))
+        self.assertIn(515, self.home_refusals)
+
+    def test_pin_late_home_response_is_recovered_at_decision_449(self):
+        """The fixture wall follows the real replay producer in ``setUpClass``."""
+        self.assertEqual(self.protocol_states[449], (True, "~9", 55))
+
+    def test_pin_wield_keys_identify_first_and_never_select_unknown_feanor(self):
+        """Every real wield key in the incident window names an eligible item."""
+        for sequence in range(487, 568):
+            key = self.records[sequence][1]
+            if not key.startswith("w"):
+                continue
+            item = next(
+                item
+                for item in self.snapshots[sequence].inventory
+                if item.slot == key[1]
+            )
+            with self.subTest(sequence=sequence, slot=item.slot):
+                self.assertFalse(self.policy._equip_blocked_by_identification(item))
+                self.assertNotEqual(item.sval, SV_LITE_FEANOR)
 
     def test_pin_a1_unknown_upgrade_is_not_selected(self):
         snapshot = self.snapshots[487]

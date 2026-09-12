@@ -8142,6 +8142,7 @@ class TownMapNightRoutingTest(unittest.TestCase):
         self.assertNotEqual(without.last_reason, "shop:approach")
         # With it, the bot uses the store landmark for native travel.
         with_map = HengbotPolicy(town_map=town_map)
+        with_map.prime(snap)
         with_map._home_knowledge_scan_requested = True
         self.assertEqual(with_map.choose_key(snap), "\x1b`n(.")
         self.assertEqual(with_map.last_reason, "shop:travel")
@@ -8150,6 +8151,7 @@ class TownMapNightRoutingTest(unittest.TestCase):
         town_map = self._outpost()
         snap = self._night_snapshot(town_map)
         policy = HengbotPolicy(town_map=town_map)
+        policy.prime(snap)
         policy._home_knowledge_scan_requested = True
 
         travel = policy.choose_key(snap)

@@ -7014,6 +7014,46 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
             ("shop:home-first-before-purchase", WAIT_KEY),
         )
 
+    def test_pin_fresh_home_catalogue_composes_one_shot_purchase(self):
+        fixture = _supply_test_case("QuestCarryVisitAbandonmentTest")
+        bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
+        outside = replace(
+            fixture._q2_town(),
+            grids={
+                Position(10, 10): replace(
+                    grid(10, 10), store_number=STORE_WEAPON
+                ),
+                Position(20, 20): replace(
+                    grid(20, 20), store_number=STORE_HOME
+                ),
+            },
+        )
+        policy = fixture._q2_policy()
+        policy.consume_home_knowledge(())
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_WEAPON],
+            need_categories={STORE_WEAPON: ("quest-ranged-kit",)},
+        )
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_WEAPON,
+            phase=StoreVisitPhase.LEAVING,
+        )
+        policy._shop_observation = (
+            StoreState(STORE_WEAPON, [bolts], page_top=0),
+            policy._decision_sequence,
+        )
+
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertTrue(policy.last_reason.endswith("shop:one-shot-buy"))
+        self.assertIsNone(
+            policy._shop_selector_diagnostics.get("composition_refusal")
+        )
+        self.assertEqual(policy._store_visit.operation_key, "pa99\r\r\x1b")
+        self.assertEqual(
+            policy.choose_key(replace(outside, turn=outside.turn + 1)), ""
+        )
+        self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
+
     def test_prior_generation_home_first_refusal_yields_at_shared_boundary(self):
         fixture = _supply_test_case("QuestCarryVisitAbandonmentTest")
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)

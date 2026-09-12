@@ -232,8 +232,8 @@ class HomeMixin:
             return False
         return visit.post_exit()
 
-    def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> bool:
-        """Consume the complete Home list returned by the emitter's ``~9``."""
+    def _adopt_home_catalogue(self, items: tuple[InventoryItem, ...]) -> bool:
+        """Adopt a complete Home catalogue from any observation source."""
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
@@ -246,9 +246,20 @@ class HomeMixin:
             and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
         )
         self._home_knowledge_scan_inflight = False
-        self._home_scan_source = "~9"
         self._home_scan_item_count = len(items)
         self._home_errand.observe_knowledge(True)
+        return True
+
+    def settle_home_knowledge_request(self) -> None:
+        """Settle the sole outstanding ``~9`` request, if any."""
+        self._home_knowledge_scan_epoch = None
+        self._home_knowledge_scan_inflight = False
+
+    def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> bool:
+        """Consume and settle the complete Home list returned by ``~9``."""
+        self._adopt_home_catalogue(items)
+        self._home_scan_source = "~9"
+        self.settle_home_knowledge_request()
         return True
 
     @staticmethod

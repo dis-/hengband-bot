@@ -1540,6 +1540,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_route_refusal: dict[str, object] | None = None
         self._home_route_refusal_sequence: int | None = None
         self._town_was_in_town = False
+        self._town_visit_epoch: int | None = None
         self._town_cycle_pending = False
         self._town_cycle_breaks = 0
         self._observed_town_id: int | None = None
@@ -1996,6 +1997,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False
         self._home_knowledge_scan_retries_remaining = 1
+        self._home_knowledge_scan_epoch: int | None = None
         # A Home leave can briefly yield an interleaved surface page while the
         # game still owns input in the store loop.  A later turn is positive
         # evidence that an ordinary command was processed after that leave.
@@ -3145,6 +3147,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # no Home existence, reachability, route, visit state, or other
             # outstanding equipment work may veto ``~9``.
             and not self._home_knowledge_scan_requested
+            and self._home_knowledge_scan_epoch is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
         ):
@@ -3153,19 +3156,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 self.last_reason = "home:request-knowledge-scan"
             return "~9\x1b\x1b"
-        if self._home_knowledge_scan_inflight:
-            # An ordinary board snapshot after the request means the response
-            # did not arrive (the CLI's bounded prompt recovery has returned to
-            # the command loop). Permit one more posted request during this
-            # Home visit, then let the existing page scan proceed unchanged.
-            self._home_knowledge_scan_inflight = False
-            if self._home_knowledge_scan_retries_remaining:
-                self._home_knowledge_scan_retries_remaining -= 1
-                self._home_knowledge_scan_requested = False
-            else:
-                self._home_errand.observe_scan_refused(
-                    "knowledge-response-missing"
-                )
         leaving_home = (
             self._store_leave_inflight is not None
             and self._store_leave_inflight[2] == STORE_HOME
@@ -3469,7 +3459,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     or self._home_knowledge_invalidated
                 )
             ):
-                self.consume_home_knowledge(tuple(
+                self._adopt_home_catalogue(tuple(
                     self._inventory_item_from_store_item(item)
                     for item in snapshot.store.items
                 ))
@@ -7082,6 +7072,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key == "~9\x1b\x1b":
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
+            self._home_knowledge_scan_epoch = self._town_visit_epoch
             return True
         if key == CHARACTER_DUMP_MACRO and self._calibration_naked_dump_prepared:
             self._calibration_naked_dump_prepared = False

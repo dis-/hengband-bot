@@ -1,6 +1,7 @@
 import json
 import inspect
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from unittest.mock import Mock, patch
 
 from hengbot.cli import (
     _consume_response_sequence,
+    _decoded_board_in_town,
     _decision_record,
     _dispatch_response_lines,
     _newest_snapshot,
@@ -15,9 +17,13 @@ from hengbot.cli import (
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import (
-    GridState, InventoryItem, PlayerState, Position, Snapshot, parse_snapshot,
+    GridState, InventoryItem, PlayerState, Position, Snapshot, StoreState,
+    parse_snapshot,
 )
 from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
+from hengbot.home_entry_capture import STATE_FIELDS
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+from policy_fixtures import store_item
 
 
 def setUpModule():
@@ -105,6 +111,19 @@ def home_response() -> dict:
     }
 
 
+def board_response(snapshot: Snapshot) -> dict:
+    return {
+        "type": "player_turn",
+        "turn": snapshot.turn,
+        "player": {"position": {"y": 10, "x": 10}},
+        "floor": {
+            "dungeon_id": 0 if snapshot.in_town else 1,
+            "level": 0 if snapshot.in_town else 1,
+            "in_town": snapshot.in_town,
+        },
+    }
+
+
 def home_digger_response() -> dict:
     response = home_response()
     response["knowledge"]["items"] = [
@@ -134,6 +153,254 @@ def home_digger_response() -> dict:
 
 
 class HomeKnowledgeScanTest(unittest.TestCase):
+    @staticmethod
+    def _scan_policy():
+        policy = HengbotPolicy()
+        policy._next_required_store_type = lambda _snapshot: STORE_HOME
+        policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
+        snapshot = town_with_home()
+        confirm_outside_after_home_leave(policy, snapshot)
+        return policy, snapshot
+
+    def test_pin_a1_one_loss_stops_then_new_visit_rearms(self):
+        policy, town = self._scan_policy()
+        self.assertEqual(policy.choose_key(town), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
+
+        decisions = []
+        for _ in range(8):
+            decisions.append((policy.last_reason, policy.choose_key(town)))
+            decisions[-1] = (policy.last_reason, decisions[-1][1])
+            if policy.last_reason.startswith("town:blocked"):
+                break
+        self.assertNotIn("~9\x1b\x1b", [key for _reason, key in decisions])
+        self.assertEqual(decisions[-1], ("town:blocked:owner-retired", "5"))
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy._home_knowledge_scan_epoch, town.turn)
+
+        dungeon = Snapshot(
+            town.player, town.grids, [], turn=town.turn + 10, town_flag=False,
+            floor_key=(1, 1, 0),
+        )
+        policy.choose_key(dungeon)
+        self.assertIsNone(policy._town_visit_epoch)
+        self.assertIsNone(policy._home_knowledge_scan_epoch)
+        self.assertFalse(policy._home_knowledge_scan_inflight)
+        town2 = Snapshot(
+            town.player, town.grids, [], turn=town.turn + 20, town_flag=True,
+        )
+        self.assertEqual(policy.choose_key(town2), "~9\x1b\x1b")
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertEqual(policy._town_visit_epoch, town2.turn)
+
+    def test_pin_a2_late_response_is_accepted_and_settled(self):
+        policy, town = self._scan_policy()
+        self.assertEqual(policy.choose_key(town), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
+        later = Snapshot(
+            town.player, town.grids, [], turn=town.turn + 1, town_flag=True,
+        )
+        _dispatch_response_lines(
+            [json.dumps(board_response(later))], policy, Mock(return_value=True)
+        )
+        self.assertNotEqual(policy.choose_key(later), "~9\x1b\x1b")
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            _dispatch_response_lines(
+                [json.dumps(home_response())], policy, Mock(return_value=True),
+                knowledge_ledger_path=ledger,
+            )
+            row = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertTrue(row["accepted"])
+        self.assertTrue(row["inflight_at_arrival"])
+        self.assertTrue(row["outstanding_at_arrival"])
+        self.assertTrue(row["settled"])
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_source, "~9")
+        self.assertIsNone(policy._home_knowledge_scan_epoch)
+
+    def test_pin_a2_exit_and_reentry_reject_prior_visit_response(self):
+        for reenter in (False, True):
+            with self.subTest(reenter=reenter):
+                policy, town = self._scan_policy()
+                self.assertEqual(policy.choose_key(town), "~9\x1b\x1b")
+                policy.confirm_key_posted("~9\x1b\x1b")
+                dungeon = Snapshot(
+                    town.player, town.grids, [], turn=town.turn + 10,
+                    town_flag=False, floor_key=(1, 1, 0),
+                )
+                lines = [json.dumps(board_response(dungeon))]
+                town2 = Snapshot(
+                    town.player, town.grids, [], turn=town.turn + 20,
+                    town_flag=True,
+                )
+                if reenter:
+                    lines.append(json.dumps(board_response(town2)))
+                lines.append(json.dumps(home_response()))
+                with TemporaryDirectory() as directory:
+                    ledger = Path(directory) / "knowledge.jsonl"
+                    _dispatch_response_lines(
+                        lines, policy, Mock(return_value=True),
+                        knowledge_ledger_path=ledger,
+                    )
+                    row = json.loads(ledger.read_text(encoding="utf-8"))
+                self.assertFalse(row["accepted"])
+                self.assertFalse(row["inflight_at_arrival"])
+                self.assertIsNone(row["request_epoch"])
+                self.assertFalse(policy._home_knowledge_current)
+                if reenter:
+                    self.assertEqual(row["visit_epoch_at_arrival"], town2.turn)
+                    self.assertEqual(policy.choose_key(town2), "~9\x1b\x1b")
+                else:
+                    self.assertIsNone(row["visit_epoch_at_arrival"])
+
+    def test_pin_a2_unsolicited_home_response_is_rejected(self):
+        policy = HengbotPolicy()
+        town = town_with_home()
+        policy.choose_key(town)
+        # The producer has proposed a request, but no key was posted.
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            _dispatch_response_lines(
+                [json.dumps(home_response())], policy, Mock(return_value=True),
+                knowledge_ledger_path=ledger,
+            )
+            row = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertFalse(row["accepted"])
+        self.assertFalse(row["settled"])
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(row["visit_epoch_at_arrival"], town.turn)
+
+    def test_pin_a2_superseded_response_settles_before_second_request(self):
+        """All protocol state comes from choose/confirm/dispatch; no fixture wall."""
+        policy, town = self._scan_policy()
+        self.assertEqual(policy.choose_key(town), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
+        token = policy._home_knowledge_scan_epoch
+
+        outside1 = replace(town, turn=town.turn + 1)
+        _dispatch_response_lines(
+            [json.dumps(board_response(outside1))], policy, Mock(return_value=True)
+        )
+        self.assertNotEqual(policy.choose_key(outside1), "~9\x1b\x1b")
+
+        one = store_item("a", 23, 17, name="Long Sword")
+        page1 = replace(
+            town, turn=town.turn + 2,
+            store=StoreState(STORE_HOME, [one], stock_num=1, page_top=0,
+                             page_size=12),
+        )
+        _dispatch_response_lines(
+            [json.dumps(board_response(page1))], policy, Mock(return_value=True)
+        )
+        policy.choose_key(page1)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_source, "observed-home-page")
+        self.assertFalse(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy._home_knowledge_scan_epoch, token)
+
+        two = store_item("b", 17, 1, name="Arrows", count=20)
+        page2 = replace(
+            page1, turn=town.turn + 3,
+            store=StoreState(STORE_HOME, [one, two], stock_num=2, page_top=0,
+                             page_size=12),
+        )
+        _dispatch_response_lines(
+            [json.dumps(board_response(page2))], policy, Mock(return_value=True)
+        )
+        policy.choose_key(page2)
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(policy._home_knowledge_items, ())
+        self.assertEqual(policy._home_knowledge_scan_epoch, token)
+
+        outside2 = replace(town, turn=town.turn + 4)
+        outside3 = replace(town, turn=town.turn + 5)
+        for outside in (outside2, outside3):
+            _dispatch_response_lines(
+                [json.dumps(board_response(outside))], policy,
+                Mock(return_value=True),
+            )
+            self.assertNotEqual(policy.choose_key(outside), "~9\x1b\x1b")
+
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            _dispatch_response_lines(
+                [json.dumps(home_response())], policy, Mock(return_value=True),
+                knowledge_ledger_path=ledger,
+            )
+            stale_row = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertFalse(stale_row["accepted"])
+        self.assertFalse(stale_row["inflight_at_arrival"])
+        self.assertTrue(stale_row["outstanding_at_arrival"])
+        self.assertTrue(stale_row["settled"])
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertTrue(policy._home_knowledge_invalidated)
+        self.assertEqual(policy._home_knowledge_items, ())
+        self.assertIsNone(policy._home_scan_item_count)
+        self.assertIsNone(policy._home_scan_source)
+        self.assertIsNone(policy._home_knowledge_scan_epoch)
+
+        outside4 = replace(town, turn=town.turn + 6)
+        self.assertEqual(policy.choose_key(outside4), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
+        _dispatch_response_lines(
+            [json.dumps(home_response())], policy, Mock(return_value=True)
+        )
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertEqual(policy._home_scan_source, "~9")
+        self.assertEqual(len(policy._home_knowledge_items), 2)
+
+    def test_pin_legacy_restore_rejects_uncorrelated_home_response(self):
+        """Fixture was emitted by HEAD's real checkpoint writer after choose/confirm."""
+        fixture = (
+            Path(__file__).parent / "fixtures"
+            / "legacy-town-owner-request-head.b64"
+        )
+        policy = restore_checkpoint(HengbotPolicy, fixture.read_text(encoding="ascii"))
+        self.assertIsNone(policy._home_knowledge_scan_epoch)
+        self.assertFalse(policy._home_knowledge_scan_inflight)
+        self.assertFalse(policy._home_knowledge_current)
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            _dispatch_response_lines(
+                [json.dumps(home_response())], policy, Mock(return_value=True),
+                knowledge_ledger_path=ledger,
+            )
+            row = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertFalse(row["accepted"])
+        self.assertFalse(policy._home_knowledge_current)
+
+    def test_pin_current_restore_preserves_correlated_request(self):
+        policy = HengbotPolicy()
+        town = town_with_home()
+        self.assertEqual(policy.choose_key(town), "~9\x1b\x1b")
+        policy.confirm_key_posted("~9\x1b\x1b")
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertEqual(restored._town_visit_epoch, town.turn)
+        self.assertEqual(restored._home_knowledge_scan_epoch, town.turn)
+        self.assertTrue(restored._home_knowledge_scan_inflight)
+        _dispatch_response_lines(
+            [json.dumps(home_response())], restored, Mock(return_value=True)
+        )
+        self.assertTrue(restored._home_knowledge_current)
+        self.assertIsNone(restored._home_knowledge_scan_epoch)
+
+    def test_pin_restore_fields_and_town_decoder_match_snapshot_contract(self):
+        self.assertIn("_town_visit_epoch", STATE_FIELDS)
+        self.assertIn("_home_knowledge_scan_epoch", STATE_FIELDS)
+        cases = (
+            ({"floor": {"dungeon_id": 0, "level": 0}}, True),
+            ({"floor": {"dungeon_id": 1, "level": 1}}, False),
+            ({"floor": {"dungeon_id": 0, "level": 0, "in_town": False}}, False),
+            ({}, True),
+        )
+        for data, expected in cases:
+            with self.subTest(data=data):
+                self.assertEqual(_decoded_board_in_town(data), expected)
+
     def test_plain_town_requests_home_knowledge_before_any_home_visit(self):
         policy = HengbotPolicy()
 
@@ -330,7 +597,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual(run(True), run(False))
         self.assertEqual(run(True), ["2:None", "1:2", "1:2"])
 
-    def test_missing_response_falls_back_to_existing_page_scan(self):
+    def test_board_after_post_keeps_request_pending(self):
         policy = HengbotPolicy()
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
@@ -339,12 +606,13 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
         policy.confirm_key_posted("~9\x1b\x1b")
 
-        # The next ordinary board is produced after bounded CLI prompt recovery.
+        # An ordinary board does not prove that the uncorrelated response was lost.
         policy.choose_key(snapshot)
 
-        self.assertFalse(policy._home_knowledge_scan_inflight)
-        self.assertFalse(policy._home_knowledge_scan_requested)
+        self.assertTrue(policy._home_knowledge_scan_inflight)
+        self.assertTrue(policy._home_knowledge_scan_requested)
         self.assertNotEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertEqual(policy._home_knowledge_scan_epoch, snapshot.turn)
 
     def test_real_capture_leave_barrier_clears_before_request_is_posted(self):
         policy = HengbotPolicy()
@@ -395,7 +663,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertFalse(policy._home_knowledge_scan_inflight)
         self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
 
-    def test_abandonment_allows_exactly_one_rerequest_per_home_visit(self):
+    def test_no_rerequest_while_request_is_unsettled(self):
         policy = HengbotPolicy()
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((('a', 'captured', 20, 4),))
@@ -404,12 +672,14 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
         policy.confirm_key_posted("~9\x1b\x1b")
-        policy.choose_key(snapshot)  # abandon the first posted request
-        self.assertEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
-        policy.confirm_key_posted("~9\x1b\x1b")
-        policy.choose_key(snapshot)  # abandon the one permitted re-request
+        policy.choose_key(snapshot)
+        self.assertNotEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
         self.assertTrue(policy._home_knowledge_scan_requested)
-        self.assertNotEqual(policy.choose_key(snapshot), "~9")
+        _dispatch_response_lines(
+            [json.dumps(home_response())], policy, Mock(return_value=True)
+        )
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertNotEqual(policy.choose_key(snapshot), "~9\x1b\x1b")
 
     def test_real_capture_interleaved_surface_page_does_not_request_scan(self):
         policy = HengbotPolicy()

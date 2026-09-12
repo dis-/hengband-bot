@@ -3859,6 +3859,17 @@ def _decode_response_lines(complete_lines):
     return decoded_lines
 
 
+def _decoded_board_in_town(data) -> bool:
+    """Read town status from a decoded board line like ``Snapshot.in_town``."""
+    floor = data.get("floor") or {}
+    if "in_town" in floor:
+        return bool(floor["in_town"])
+    return (
+        int(floor.get("dungeon_id", 0)) == 0
+        and int(floor.get("level", 0)) == 0
+    )
+
+
 def _append_capture_ledger(
     path: Path, row: Mapping, rotate_bytes=DEFAULT_LOG_ROTATE_BYTES,
     generations=DEFAULT_LOG_GENERATIONS,
@@ -3948,18 +3959,32 @@ def _dispatch_response_lines(
         except (AttributeError, TypeError):
             continue
         if response_type not in {"knowledge", "look", "character"}:
+            observe_visit = getattr(policy, "observe_town_visit_epoch", None)
+            if observe_visit is not None:
+                observe_visit(
+                    _decoded_board_in_town(data), int(data.get("turn", 0))
+                )
             continue
         consumed += 1
         knowledge = data.get("knowledge")
         inflight_at_arrival = bool(
             getattr(policy, "_home_knowledge_scan_inflight", False)
         )
-        requested_home_knowledge = (
+        request_epoch = getattr(policy, "_home_knowledge_scan_epoch", None)
+        visit_epoch = getattr(policy, "_town_visit_epoch", None)
+        outstanding_at_arrival = (
+            request_epoch is not None and request_epoch == visit_epoch
+        )
+        is_home9 = (
             response_type == "knowledge"
             and isinstance(knowledge, dict)
             and knowledge.get("category") == "home"
             and knowledge.get("menu_key") == "9"
-            and getattr(policy, "_home_knowledge_scan_inflight", False)
+        )
+        requested_home_knowledge = (
+            is_home9
+            and inflight_at_arrival
+            and (outstanding_at_arrival or request_epoch is None)
         )
         if response_type == "knowledge" and isinstance(knowledge, dict):
             knowledge_items = knowledge.get("items", ())
@@ -3976,6 +4001,10 @@ def _dispatch_response_lines(
                     ) else 0,
                     "accepted": requested_home_knowledge,
                     "inflight_at_arrival": inflight_at_arrival,
+                    "outstanding_at_arrival": outstanding_at_arrival,
+                    "request_epoch": request_epoch,
+                    "visit_epoch_at_arrival": visit_epoch,
+                    "settled": is_home9 and outstanding_at_arrival,
                     "items": _capture_item_rows(
                         parsed_knowledge_items,
                         page_size=getattr(policy, "_home_page_size", None),
@@ -3999,6 +4028,10 @@ def _dispatch_response_lines(
                 policy.observe_character_snapshot(character)
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)
+        if is_home9 and outstanding_at_arrival:
+            settle = getattr(policy, "settle_home_knowledge_request", None)
+            if settle is not None:
+                settle()
     return consumed
 
 

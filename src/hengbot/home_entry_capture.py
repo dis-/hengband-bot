@@ -48,6 +48,8 @@ STATE_FIELDS = (
     "_home_knowledge_scan_inflight",
     "_home_knowledge_scan_retries_remaining",
     "_home_knowledge_scan_leave_turn",
+    "_town_visit_epoch",
+    "_home_knowledge_scan_epoch",
     "_home_scan_source",
     "_home_scan_item_count",
 )
