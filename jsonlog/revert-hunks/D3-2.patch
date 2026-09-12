@@ -7,27 +7,29 @@ diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
              progress_reason = "shop:one-shot-buy"
 +            if self._progress_only_restores_consumed_resource(
 +                snapshot, key, proposed_reason,
-+                progress_selection=getattr(self, "_purchase_selection", None),
++                progress_selection=self._purchase_selection_for_key(snapshot, key),
 +            ):
 +                self.last_reason = proposed_reason
 +                return key
              self._town_progress_invariant_defect = {
                  "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
                  "winning_rung": proposed_reason,
-@@ -639,6 +645,12 @@
+@@ -639,6 +645,14 @@
          if not self._town_result_makes_progress(snapshot, progress_key):
              self.last_reason = proposed_reason
              return key
 +        if self._progress_only_restores_consumed_resource(
 +            snapshot, key, proposed_reason,
-+            progress_selection=getattr(self, "_purchase_selection", None),
++            progress_selection=self._purchase_selection_for_key(
++                snapshot, progress_key
++            ),
 +        ):
 +            self.last_reason = proposed_reason
 +            return key
          self._town_progress_invariant_defect = {
              "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
              "winning_rung": proposed_reason,
-@@ -654,6 +666,63 @@
+@@ -654,6 +668,63 @@
          )
          self._record_shop_selector_diagnostics(snapshot, progress_key)
          return progress_key

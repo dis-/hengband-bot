@@ -223,6 +223,10 @@ class TownTurnArbiter:
         retirement_key: object | None = None,
         retirement_key_for: Callable[[str], object] | None = None,
     ) -> dict[str, object] | None:
+        if probe:
+            # A refusal observation is a read-only anti-freeze refresh.  It must
+            # not spend budget, purge retirement state, or rewrite visit state.
+            return dict(self.telemetry) if self.telemetry is not None else None
         # Checkpoints written by ARB-1 contain a pickled advisory arbiter.
         # Upgrade those objects in place instead of invalidating the capture.
         if not hasattr(self, "_retired"):
@@ -277,10 +281,6 @@ class TownTurnArbiter:
         # attributed owner is the visit/errand owner in telemetry and at the
         # emit boundary; contributors do not inherit one another's budget.
         owner = self.owner_for_reason(reason)
-        if probe:
-            # A refusal observation is not an owner decision.  It cannot spend
-            # tenure/budget or overwrite the last decided owner's accounting.
-            return dict(self.telemetry) if self.telemetry is not None else None
         same_owner = owner == self._owner
         previous_vector = self._vector_by_owner.get(owner)
         recurrence_key = (owner, progress_vector)

@@ -22,7 +22,7 @@ diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
 +            progress_vector=vector,
 +            probe=True,
 +            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-+                snapshot, owner
++                snapshot, owner, self.last_reason
 +            ),
 +        )
 +        current_owner = arbiter.owner_for_reason(self.last_reason)
@@ -62,7 +62,7 @@ diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
 +                snapshot, arbiter.owner_for_reason(self.last_reason), self.last_reason
 +            ),
 +            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-+                snapshot, owner
++                snapshot, owner, self.last_reason
 +            ),
          )
          self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)

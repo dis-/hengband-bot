@@ -1577,6 +1577,9 @@ class ShopMixin:
         composition_refusal_sequence = self._shop_selector_diagnostics.get(
             "composition_refusal_sequence"
         )
+        purchase_provenance = self._shop_selector_diagnostics.get(
+            "purchase_provenance"
+        )
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -1593,6 +1596,10 @@ class ShopMixin:
             )
             self._shop_selector_diagnostics["composition_refusal_sequence"] = (
                 composition_refusal_sequence
+            )
+        if purchase_provenance is not None:
+            self._shop_selector_diagnostics["purchase_provenance"] = (
+                purchase_provenance
             )
         invariant_defect = getattr(
             self, "_town_progress_invariant_defect", {}
@@ -1703,17 +1710,23 @@ class ShopMixin:
             sval = RESTORE_POTION_SVAL_BY_STAT.get(stat)
             if sval is not None:
                 add(rung(f"restore:{stat}", "restore", lambda s=sval: not any(i.tval == TVAL_POTION and i.sval == s and i.aware for i in snapshot.inventory), lambda i, s=sval: i.tval == TVAL_POTION and i.sval == s))
+        add(rung("restore:proactive", "restore", lambda: True, lambda i: i.tval == TVAL_POTION and i.sval in set(RESTORE_POTION_SVAL_BY_STAT.values())))
         if strategy is not None:
             force = strategy.required_force
-            add(rung("quest:carry", "quest-carry", lambda: True, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
+            carry_live = lambda: any(
+                not bool(status["ready"])
+                for status in self._quest_carry_status(snapshot, force).values()
+            )
+            add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
             add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
-        add(rung("black-market:speed", "speed", lambda: True, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
-        add(rung("black-market:healing", "healing", lambda: True, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
+        black_market_pick = self._black_market_optional_purchase(snapshot)
+        add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
+        add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
         add(rung("black-market:stone-to-mud", "device", lambda: not self._has_charged_stone_to_mud(snapshot), lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
         add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and not self._food_ready(snapshot), lambda i: i.tval in {TVAL_WAND, TVAL_STAFF}))
-        add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.tval == TVAL_LITE and i.sval == SV_LITE_TORCH, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
+        add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         launcher = self._equipped_launcher(snapshot)
@@ -1791,18 +1804,35 @@ class ShopMixin:
     def _next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """Compatibility adapter retaining typed provenance to emission."""
         item = self._legacy_next_purchase_unreserved(snapshot)
-        self._purchase_selection = None
         if item is None or snapshot.store is None:
             return item
         matches = self._matching_live_purchase_rungs(snapshot, item)
         if not matches:
-            self.last_reason = "shop:purchase-provenance-invariant"
+            self._shop_selector_diagnostics["purchase_provenance"] = (
+                "unmatched-fail-open"
+            )
+        return item
+
+    def _purchase_selection_for_key(
+        self, snapshot: Snapshot, key: str
+    ) -> PurchaseSelection | None:
+        """Derive provenance from this decision's item, never retained state."""
+        store = snapshot.store
+        if store is None or not key.startswith(BUY_KEY) or len(key) < 2:
             return None
-        self._purchase_selection = PurchaseSelection(
-            matches[0], item, snapshot.store.store_type, PurchaseContext(snapshot),
+        item = next((ware for ware in store.items if ware.letter == key[1]), None)
+        if item is None:
+            return None
+        matches = self._matching_live_purchase_rungs(snapshot, item)
+        if not matches:
+            self._shop_selector_diagnostics["purchase_provenance"] = (
+                "unmatched-fail-open"
+            )
+            return None
+        return PurchaseSelection(
+            matches[0], item, store.store_type, PurchaseContext(snapshot),
             self._purchase_quantity(snapshot, item),
         )
-        return item
 
     def _legacy_next_purchase_unreserved(self, snapshot: Snapshot) -> StoreItem | None:
         """The next thing to buy from the current store, or None when done."""
@@ -3318,16 +3348,11 @@ class ShopMixin:
 
         item = self._next_purchase(snapshot)
         if item is not None:
-            selection = getattr(self, "_purchase_selection", None)
             live_matches = self._matching_live_purchase_rungs(snapshot, item)
-            if (
-                selection is None
-                or selection.item is not item
-                or selection.supplier != store.store_type
-                or selection.match.rung_id not in {match.rung_id for match in live_matches}
-            ):
-                self.last_reason = "shop:purchase-provenance-invariant"
-                return LEAVE_STORE_KEY
+            if not live_matches:
+                self._shop_selector_diagnostics["purchase_provenance"] = (
+                    "unmatched-fail-open"
+                )
             if (item.tval, item.sval) in self._town_visit_sale_signatures:
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"

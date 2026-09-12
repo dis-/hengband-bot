@@ -2392,7 +2392,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             progress_vector=vector,
             probe=True,
             retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner
+                snapshot, owner, self.last_reason
             ),
         )
         current_owner = arbiter.owner_for_reason(self.last_reason)
@@ -2471,7 +2471,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, arbiter.owner_for_reason(self.last_reason), self.last_reason
             ),
             retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner
+                snapshot, owner, self.last_reason
             ),
         )
         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
@@ -6035,9 +6035,41 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or self._equipment_slot_group(item) is not None
             or item.tval == TVAL_RING
         ):
-            return not (
-                self._is_disposable_item(item, food_type=snapshot.player.food_type)
-                or self._is_spare_lantern(snapshot, item)
+            if self._is_disposable_item(
+                item, food_type=snapshot.player.food_type
+            ) or self._is_spare_lantern(snapshot, item):
+                return False
+            item_group = self._equipment_slot_group(item)
+            item_slot = slot_for(item)
+            peers = [
+                candidate
+                for candidate in counterparts
+                if candidate.is_equipment
+                and candidate.known
+                and not candidate.is_cursed
+                and not candidate.is_broken
+                and (
+                    not item_requires_full_identification(candidate)
+                    or candidate.fully_known
+                )
+                and (
+                    (item.tval == TVAL_RING and candidate.tval == TVAL_RING)
+                    or (
+                        item.tval != TVAL_RING
+                        and item_slot is not None
+                        and slot_for(candidate) == item_slot
+                    )
+                    or (
+                        item.tval != TVAL_RING
+                        and item_slot is None
+                        and item_group is not None
+                        and self._equipment_slot_group(candidate) == item_group
+                    )
+                )
+            ]
+            return not any(
+                self._equipment_dominates(candidate, item)
+                for candidate in peers
             )
         return self._item_is_procurement_protected(snapshot, item)
 

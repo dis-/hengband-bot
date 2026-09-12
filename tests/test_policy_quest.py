@@ -9992,7 +9992,10 @@ class DungeonConquestTest(unittest.TestCase):
 
     def test_yeek_victory_full_pack_discards_junk_before_more_loot(self):
         pol = self._policy()
-        junk = item("a", TVAL_FOOD, 1, aware=False, known=False, name="mushroom")
+        junk = item(
+            "a", TVAL_BOTTLE, 1, aware=True, known=True,
+            fully_known=True, name="empty bottle",
+        )
         essentials = [
             item(
                 chr(ord("b") + index),

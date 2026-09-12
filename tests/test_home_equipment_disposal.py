@@ -5,6 +5,7 @@ import unittest
 
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
+    STORE_ARMOURY,
     STORE_HOME,
     STORE_WEAPON,
     SV_BOW_LIGHT_XBOW,
@@ -88,13 +89,22 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
             self.assertFalse(policy._is_disposable_dominated_armour(snap, reserved))
 
     def test_unsellable_dominated_item_falls_back_to_destroy(self):
-        target = item("a", TVAL_SWORD, 1, name="refused sword", known=True, fully_known=True, is_equipment=True)
-        snap = replace(self.snapshot([]), inventory=[target], store=None)
+        target = item(
+            "a", 37, 1, name="refused armour", known=True,
+            fully_known=True, is_equipment=True, ac=1,
+        )
+        superior = item(
+            "body", 37, 1, name="superior armour", known=True,
+            fully_known=True, is_equipment=True, ac=5, to_a=5,
+        )
+        snap = replace(
+            self.snapshot([]), inventory=[target], equipment=[superior], store=None
+        )
         policy = HengbotPolicy()
         policy._pending_disposal_slot = "a"
         policy._pending_disposal_item = policy._item_signature(target)
-        self.assertEqual(policy._dominated_disposal_store(target), STORE_WEAPON)
-        policy._disposal_store_attempts.add(STORE_WEAPON)
+        self.assertEqual(policy._dominated_disposal_store(target), STORE_ARMOURY)
+        policy._disposal_store_attempts.add(STORE_ARMOURY)
         policy._destroy_pending = True
         self.assertEqual(policy._town_destroy_key(snap), "01ka")
 

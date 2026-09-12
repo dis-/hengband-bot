@@ -8060,12 +8060,16 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
 
     def test_destroys_dominated_armour_after_armoury_refuses(self):
         inferior = item("a", 37, 1, known=True, is_equipment=True, ac=1)
+        superior = item(
+            "body", 37, 1, known=True, fully_known=True,
+            is_equipment=True, ac=5, to_a=5,
+        )
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
             [],
             inventory=[inferior],
-            equipment=[self._lantern()],
+            equipment=[superior, self._lantern()],
         )
         policy = HengbotPolicy()
         policy._pending_disposal_slot = "a"

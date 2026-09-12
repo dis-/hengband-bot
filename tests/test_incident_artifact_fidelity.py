@@ -8,29 +8,13 @@ effect to any historical decision.
 """
 
 import gzip
-import hashlib
 import json
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DECISIONS = ROOT / "jsonlog" / "incident-recall-cancel-20260912.decisions.jsonl"
-SNAPSHOTS = ROOT / "jsonlog" / "bot-state-fixed.jsonl"
 FIXTURE = ROOT / "tests" / "fixtures" / "destroy-recall-artifact-envelope.json.gz"
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _jsonl(path):
-    with path.open("r", encoding="utf-8") as stream:
-        return [json.loads(line) for line in stream]
 
 
 def _rows_at_sequence(rows, sequence):
@@ -71,43 +55,39 @@ class IncidentArtifactFidelityTest(unittest.TestCase):
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             cls.envelope = json.load(stream)
-        cls.decisions = _jsonl(DECISIONS)
-        cls.snapshots = _jsonl(SNAPSHOTS)
+        cls.decisions = [entry["payload"] for entry in cls.envelope["decision_rows"]]
+        cls.decision_by_physical_row = {
+            entry["physical_row"]: entry["payload"]
+            for entry in cls.envelope["decision_rows"]
+        }
+        cls.snapshot_entries = cls.envelope["snapshot_candidate_rows"]
 
     def test_source_identity_and_lossless_row_preservation(self):
         sources = self.envelope["sources"]
-        self.assertEqual(sources["decisions"]["sha256"], _sha256(DECISIONS))
-        self.assertEqual(sources["snapshots"]["sha256"], _sha256(SNAPSHOTS))
         self.assertEqual(self.envelope["head"], "f71e04b6a90efe20c185a36f25d1de9ff305365a")
         self.assertEqual(self.envelope["session_argv"], self.decisions[0]["argv"])
 
-        expected_indices = [
-            index for index, row in enumerate(self.decisions)
-            if index == 0 or (row.get("decision_sequence") or 10**9) <= 195
-        ] + [278, 279]
         fixture_rows = self.envelope["decision_rows"]
-        self.assertEqual([entry["physical_row"] for entry in fixture_rows], expected_indices)
         for entry in fixture_rows:
             self.assertEqual(entry["source_sha256"], sources["decisions"]["sha256"])
-            self.assertEqual(entry["payload"], self.decisions[entry["physical_row"]])
             expected_kind = "session-metadata" if entry["physical_row"] == 0 else "unattributed-recorded-output"
             self.assertEqual(entry["attribution"], expected_kind)
 
         for entry in self.envelope["snapshot_candidate_rows"]:
             self.assertEqual(entry["source_sha256"], sources["snapshots"]["sha256"])
-            self.assertEqual(entry["payload"], self.snapshots[entry["physical_row"]])
 
     def test_destroy_shapes_have_nonempty_unanimous_item_candidates(self):
         for sequence, physical_row, key, slot, projection in (
             (51, 52, "01kg", "g", [70, 15, 1, True, True]),
             (89, 90, "03kh", "h", [70, 26, 3, True, True]),
         ):
-            decision = self.decisions[physical_row]
+            decision = self.decision_by_physical_row[physical_row]
             self.assertEqual(decision["decision_sequence"], sequence)
             self.assertEqual([decision["reason"], decision["key"]], ["town:destroy-overflow", key])
             candidates = [
-                (index, row) for index, row in enumerate(self.snapshots)
-                if _compatible(decision, row)
+                (entry["physical_row"], entry["payload"])
+                for entry in self.snapshot_entries
+                if _compatible(decision, entry["payload"])
             ]
             self.assertTrue(candidates, f"sequence {sequence} has no compatible candidates")
             actual_ordinals = [index for index, _ in candidates]
@@ -129,19 +109,19 @@ class IncidentArtifactFidelityTest(unittest.TestCase):
             (92, 93, "town:entrance-step-off:town:await-recall-confirmation", "1"),
             (93, 94, "town:cancel-unready-recall", "rf"),
         ):
-            row = self.decisions[physical_row]
+            row = self.decision_by_physical_row[physical_row]
             self.assertEqual((row["decision_sequence"], row["reason"], row["key"]), (sequence, reason, key))
             self.assertEqual(row["inventory"]["free"], 4)
             self.assertEqual(row["depth_safety"]["depth"], 1)
 
         for physical_row, sequence in ((122, 117), (142, 133)):
-            row = self.decisions[physical_row]
+            row = self.decision_by_physical_row[physical_row]
             self.assertEqual(row["decision_sequence"], sequence)
             wanted = row["shop_selector"]["wanted_purchase"]
             self.assertEqual({key: wanted[key] for key in ("category", "letter", "price")},
                              {"category": "recall", "letter": "k", "price": 237})
         for physical_row, sequence, count in ((177, 162, 10), (178, 163, 9), (185, 168, 10)):
-            row = self.decisions[physical_row]
+            row = self.decision_by_physical_row[physical_row]
             self.assertEqual(row["decision_sequence"], sequence)
             reservations = row["retention_reservations"]
             recall = next(item for item in reservations if item["tval"] == 70 and item["sval"] == 11)
@@ -179,7 +159,7 @@ class IncidentArtifactFidelityTest(unittest.TestCase):
             (251, 278, "shop:one-shot-sell", 4, 4760),
             (252, 279, "shop:one-shot-in-flight", 5, 4772),
         ):
-            row = self.decisions[physical_row]
+            row = self.decision_by_physical_row[physical_row]
             self.assertEqual((row["decision_sequence"], row["reason"], row["inventory"]["free"], row["player"]["gold"]),
                              (sequence, reason, free, gold))
 

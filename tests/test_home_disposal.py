@@ -18,6 +18,7 @@ from hengbot.model import (
     InventoryItem, StoreItem,
 )
 from hengbot.policy import HengbotPolicy
+from tests.test_policy import Position, Snapshot, grid, player
 
 
 class HomeDisposalTests(unittest.TestCase):
@@ -232,9 +233,10 @@ class HomeDisposalTests(unittest.TestCase):
         potion = StoreItem("a", "a Potion", 1, TVAL_POTION, 3, 10, aware=False, known=False)
         staff = StoreItem("b", "a Staff", 1, TVAL_STAFF, 2, 10)
         undecided = StoreItem("c", "a Scroll", 1, TVAL_SCROLL, 9, 10)
-        snapshot = SimpleNamespace(
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
             store=SimpleNamespace(store_type=STORE_HOME, items=(potion, staff, undecided)),
-            inventory=(), turn=50,
+            inventory=[], turn=50, town_flag=True,
         )
         policy._home_disposal_pass = True
         self.assertEqual(policy._home_disposal_home_key(snapshot), "\x1b")
@@ -245,12 +247,19 @@ class HomeDisposalTests(unittest.TestCase):
 
         carried = InventoryItem("a", "a Staff", 1, TVAL_STAFF, 2, True, True)
         policy._home_disposal_pending = (policy._item_signature(staff), "destroy")
-        outside = SimpleNamespace(in_town=True, store=None, inventory=(carried,))
+        outside = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            store=None, inventory=[carried], town_flag=True,
+        )
         self.assertEqual(policy._home_disposal_processing_key(outside), "01ka")
         self.assertEqual(policy.last_reason, "home-disposal:destroy-approved")
 
         policy._home_disposal_pending = (policy._item_signature(undecided), "keep")
-        self.assertIsNone(policy._home_disposal_processing_key(SimpleNamespace(in_town=True, store=None, inventory=())))
+        empty = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            store=None, inventory=[], town_flag=True,
+        )
+        self.assertIsNone(policy._home_disposal_processing_key(empty))
 
     def test_identification_rename_keeps_approved_sale_attached(self):
         state = self.state()
@@ -268,19 +277,28 @@ class HomeDisposalTests(unittest.TestCase):
         undecided = InventoryItem("b", "a Cloudy Potion", 1, TVAL_POTION, 7, True, False)
         policy._home_disposal_pending = (approved, "destroy")
 
-        outside = SimpleNamespace(in_town=True, store=None, inventory=(undecided,))
+        outside = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            store=None, inventory=[undecided], town_flag=True,
+        )
         self.assertIsNone(policy._home_disposal_processing_key(outside))
         self.assertEqual(policy._home_disposal_pending, (approved, "destroy"))
 
-        home = SimpleNamespace(
+        home = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
             store=SimpleNamespace(store_type=STORE_HOME, items=()),
-            inventory=(undecided,),
+            inventory=[undecided], town_flag=True,
         )
         self.assertIsNone(policy._home_disposal_home_key(home))
         self.assertEqual(policy._home_disposal_pending, (approved, "destroy"))
 
-        withdrawn = InventoryItem("c", approved[0], 1, approved[1], approved[2], True, False)
-        appeared = SimpleNamespace(in_town=True, store=None, inventory=(undecided, withdrawn))
+        withdrawn = InventoryItem(
+            "c", approved[0], 1, approved[1], approved[2], True, True
+        )
+        appeared = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            store=None, inventory=[undecided, withdrawn], town_flag=True,
+        )
         self.assertEqual(policy._home_disposal_processing_key(appeared), "01kc")
 
 

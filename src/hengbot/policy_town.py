@@ -590,7 +590,7 @@ class TownMixin:
             progress_reason = "shop:one-shot-buy"
             if self._progress_only_restores_consumed_resource(
                 snapshot, key, proposed_reason,
-                progress_selection=getattr(self, "_purchase_selection", None),
+                progress_selection=self._purchase_selection_for_key(snapshot, key),
             ):
                 self.last_reason = proposed_reason
                 return key
@@ -647,7 +647,9 @@ class TownMixin:
             return key
         if self._progress_only_restores_consumed_resource(
             snapshot, key, proposed_reason,
-            progress_selection=getattr(self, "_purchase_selection", None),
+            progress_selection=self._purchase_selection_for_key(
+                snapshot, progress_key
+            ),
         ):
             self.last_reason = proposed_reason
             return key
