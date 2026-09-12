@@ -10,8 +10,8 @@ and execute the listed pin.  Constructed scenarios are not historical replays.
 | `D1-2.patch` | P1a, P2 | Removes typed shared rung matching and purchase-emission provenance. |
 | `D1-3.patch` | P1b | The verified destroy boundary again permits a protected candidate. |
 | `D1-4.patch` | P1c, P3c | Disposable/overflow selection can again nominate procurement-protected items. |
-| `D1-5.patch` | P3a | Town dominated-item disposal bypasses the verified gate and does not clear refusal state. |
-| `D1-6.patch` | P3b | Home disposal bypasses the verified gate and loses its refusal reason. |
+| `D1-5.patch` | P3a `test_p3a_town_producer_refuses_procurement_protected_nominee` (declared seam) | Town dominated-item disposal bypasses the verified gate and does not clear refusal state; public dominated selection excludes protected nominees before this producer. |
+| `D1-6.patch` | P3b `test_p3b_home_producer_refuses_procurement_protected_nominee` (declared seam) | Home disposal bypasses the verified gate and loses its refusal reason; public Home approval cannot nominate an identification-protected item. |
 | `D1-7.patch` | P3c producer and CLI assertions | Free<4 with no legal disposal falls through instead of producing the exact visible terminal. |
 | `D2-1.patch` | P4a, P5 | Active-recall blockers re-derive raw free slots and reject the valid four-slot certificate. |
 | `D2-2.patch` | docstring inspection only | Restores the false duplicate-authority premise; this is descriptive and has no behavioral failure claim. |

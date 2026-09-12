@@ -51,6 +51,46 @@ class DestroyProcurementGuardTest(unittest.TestCase):
              patch.object(policy, "_find_disposable_item", return_value=None):
             self.assertIsNone(policy._overflow_disposal_item(snapshot))
 
+    def test_p3a_town_producer_refuses_procurement_protected_nominee(self):
+        """SEAM: public dominated selection excludes protected nominees before this producer."""
+        policy = HengbotPolicy()
+        protected = item(
+            "a", TVAL_SCROLL, 1, name="Mysterious Scroll", count=1,
+            aware=False, known=False, fully_known=False,
+        )
+        snapshot = replace(self._public_overflow_snapshot(1), inventory=[protected])
+        self.assertTrue(policy._item_is_procurement_protected(snapshot, protected))
+        self.assertTrue(policy._entire_stack_is_surplus(snapshot, protected))
+        policy._pending_disposal_slot = protected.slot
+        policy._pending_disposal_item = policy._item_signature(protected)
+        policy._destroy_pending = True
+
+        key = policy._town_destroy_key(snapshot)
+
+        self.assertIsNone(key)
+        self.assertNotIn("k", key or "")
+        self.assertEqual(policy.last_reason, "equipment:destroy-refused-superior-item")
+
+    def test_p3b_home_producer_refuses_procurement_protected_nominee(self):
+        """SEAM: public Home approval cannot nominate an identification-protected item."""
+        policy = HengbotPolicy()
+        protected = item(
+            "a", TVAL_SCROLL, 1, name="Mysterious Scroll", count=1,
+            aware=False, known=False, fully_known=False,
+        )
+        snapshot = replace(self._public_overflow_snapshot(1), inventory=[protected])
+        self.assertTrue(policy._item_is_procurement_protected(snapshot, protected))
+        self.assertTrue(policy._entire_stack_is_surplus(snapshot, protected))
+        policy._home_disposal_pending = (
+            policy._item_signature(protected), "destroy",
+        )
+
+        key = policy._home_disposal_processing_key(snapshot)
+
+        self.assertIsNone(key)
+        self.assertNotIn("k", key or "")
+        self.assertEqual(policy.last_reason, "home-disposal:destroy-refused-superior-item")
+
     @staticmethod
     def _public_overflow_snapshot(count=20, *, legal_candidate=False):
         """Construct a quiet town observation; choose_key owns all policy state."""
