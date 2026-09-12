@@ -254,6 +254,7 @@ class PolicyHelpersMixin:
         return self._first_item(
             snapshot,
             lambda it: self._entire_stack_is_surplus(snapshot, it)
+            and not self._item_is_procurement_protected(snapshot, it)
             and (
                 self._is_disposable_item(it, food_type=snapshot.player.food_type)
                 or self._is_spare_lantern(snapshot, it)

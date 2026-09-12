@@ -220,6 +220,8 @@ class TownTurnArbiter:
         probe: bool = False,
         observation_wait: bool = False,
         close_visit: Callable[[str, str], None] | None = None,
+        retirement_key: object | None = None,
+        retirement_key_for: Callable[[str], object] | None = None,
     ) -> dict[str, object] | None:
         # Checkpoints written by ARB-1 contain a pickled advisory arbiter.
         # Upgrade those objects in place instead of invalidating the capture.
@@ -260,10 +262,14 @@ class TownTurnArbiter:
             self._transferred_visit = None
             self.telemetry = None
             return None
-        if self._visit_vector is not None and self._visit_vector != progress_vector:
+        if retirement_key_for is not None:
             self._retired = {
-                owner: vector
-                for owner, vector in self._retired.items()
+                owner: vector for owner, vector in self._retired.items()
+                if vector == retirement_key_for(owner)
+            }
+        elif self._visit_vector is not None and self._visit_vector != progress_vector:
+            self._retired = {
+                owner: vector for owner, vector in self._retired.items()
                 if vector == progress_vector
             }
         self._visit_vector = progress_vector
@@ -336,7 +342,7 @@ class TownTurnArbiter:
             and (remaining == 0 or recurrence_exhausted)
         )
         if would_retire:
-            self._retired[owner] = progress_vector
+            self._retired[owner] = retirement_key if retirement_key is not None else progress_vector
             if close_visit is not None:
                 close_visit(owner, "arbiter-retired")
         self.telemetry = {
@@ -363,7 +369,9 @@ class TownTurnArbiter:
         self._last_pair = recurrence_key
         return dict(self.telemetry)
 
-    def may_select(self, reason: str, progress_vector: object) -> bool:
+    def may_select(
+        self, reason: str, progress_vector: object, *, retirement_key=None
+    ) -> bool:
         """Return whether the reason's owner may acquire this town decision."""
         if not hasattr(self, "_retired"):
             self._retired = {}
@@ -380,7 +388,7 @@ class TownTurnArbiter:
         retired_at = self._retired.get(owner)
         if retired_at is None:
             return True
-        if retired_at != progress_vector:
+        if retired_at != (retirement_key if retirement_key is not None else progress_vector):
             del self._retired[owner]
             self._no_progress_by_owner[owner] = 0
             self._recurrences = Counter(

@@ -1,0 +1,18 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -8604,9 +8604,11 @@
+     ) -> list[str]:
+         """Return safety regressions that can justify cancelling an active recall.
+ 
+-        Pack, weapon, and deep-loadout readiness are already enforced by
+-        departure_ok before a recall is read.  Recheck them here only because
+-        genuinely new snapshot information may arrive while recall is active.
++        Pack readiness has exactly one authority: _town_pack_space_ready.  It
++        accepts the terminal four-slot certificate written by the town fallback
++        and must never be re-derived here (2026-09-12: the duplicate arithmetic
++        caused nine 237-gold recall replacements).  Other genuinely changed
++        readiness facts may still justify cancellation.
+         Optional surplus Home deposits deliberately gate neither departure nor
+         an active recall; they wait for the next town visit.
+         """

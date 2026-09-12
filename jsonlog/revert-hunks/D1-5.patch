@@ -1,0 +1,25 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -1212,9 +1212,18 @@
+             self._town_blocked_reason = "dominated-item-destroy-failed"
+             self.last_reason = "town:blocked:dominated-item-destroy-failed"
+             return WAIT_KEY
+-        self._destroy_attempts += 1
+-        self.last_reason = "equipment:destroy-unsellable-dominated"
+-        return self._destroy_item_key(target)
++        key = self._verified_destroy_key(
++            snapshot,
++            lambda current: target if self._pending_disposal(current) is not None else None,
++            "equipment:destroy-unsellable-dominated",
++        )
++        if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
++            self._clear_pending_disposal()
++            self.last_reason = "equipment:destroy-refused-superior-item"
++            return None
++        if key is not None:
++            self._destroy_attempts += 1
++        return key
+ 
+     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
+         """Mechanically evaluate the predicates backing the town need registry."""

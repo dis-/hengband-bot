@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -8613,7 +8613,7 @@
+         an active recall; they wait for the next town visit.
+         """
+         blockers: list[str] = []
+-        if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
++        if not self._town_pack_space_ready(snapshot):
+             blockers.append("pack-too-full")
+         if (
+             snapshot.player.class_id >= 0

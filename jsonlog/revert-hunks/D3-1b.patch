@@ -1,0 +1,68 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -110,22 +110,9 @@
+         ):
+             goal = self._shopping_approach_goal
+         elif owner == "departure":
+-            goal = self._descent_target_goal
+-            if goal is None:
+-                upward = (reason or self.last_reason or "").startswith(
+-                    ("return:", "recall", "town:recall")
+-                )
+-                candidates = (
+-                    self._remembered_upstairs if upward
+-                    else self._remembered_downstairs
+-                )
+-                if candidates:
+-                    goal = min(
+-                        candidates,
+-                        key=lambda pos: snapshot.player.position.distance_to(pos),
+-                    )
+-                elif snapshot.in_town and self._town_map_active(snapshot):
+-                    goal = self._town_map_descent_entrance(snapshot)
++            locomotion = self._town_departure_locomotion_clearance(snapshot, reason)
++            if locomotion is not None:
++                return durable + (locomotion,)
+         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
+             quest_id = self._fixed_quest_target(snapshot)
+             if quest_id is not None:
+@@ -172,6 +159,38 @@
+             + abs(snapshot.player.position.x - goal.x)
+         )
+         return durable + (("locomotion", owner, snapshot.floor_key, distance),)
++
++    def _town_departure_locomotion_clearance(
++        self, snapshot: Snapshot, reason: str | None = None
++    ) -> object | None:
++        goal = self._descent_target_goal
++        if goal is None:
++            upward = (reason or "").startswith(("return:", "recall", "town:recall"))
++            candidates = self._remembered_upstairs if upward else self._remembered_downstairs
++            if candidates:
++                goal = min(candidates, key=lambda pos: snapshot.player.position.distance_to(pos))
++            elif snapshot.in_town and self._town_map_active(snapshot):
++                goal = self._town_map_descent_entrance(snapshot)
++        if goal is None:
++            return None
++        distance = abs(snapshot.player.position.y - goal.y) + abs(snapshot.player.position.x - goal.x)
++        return ("locomotion", "departure", snapshot.floor_key, distance)
++
++    def _town_retirement_clearance_key(
++        self, snapshot: Snapshot, owner: str, reason: str | None = None
++    ) -> object:
++        vector = self._town_arbiter_progress_vector(snapshot, reason)
++        if owner != "departure":
++            return vector
++        return (
++            "departure",
++            snapshot.floor_key,
++            bool(snapshot.in_town),
++            snapshot.dungeon_level,
++            PACK_CAPACITY - len(snapshot.inventory),
++            tuple(sorted(self._recall_town_departure_conjuncts(snapshot).items())),
++            self._town_departure_locomotion_clearance(snapshot, reason),
++        )
+ 
+     def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
+         """Positively classify a town result by its effect, never its label."""

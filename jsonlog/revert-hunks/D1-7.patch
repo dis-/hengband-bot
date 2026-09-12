@@ -1,0 +1,45 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -995,11 +995,21 @@
+ 
+     def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
+         """Free town pack space without creating floor-item pickup loops."""
+-        return self._verified_destroy_key(
++        key = self._verified_destroy_key(
+             snapshot,
+             self._overflow_disposal_item,
+             "town:destroy-overflow",
+         )
++        if key is not None:
++            return key
++        if (
++            PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
++            and self._overflow_disposal_item(snapshot) is None
++        ):
++            self._town_blocked_reason = "overflow-no-legal-disposal"
++            self.last_reason = "town:blocked:overflow-no-legal-disposal"
++            return WAIT_KEY
++        return None
+ 
+     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
+         if not snapshot.in_town:
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -386,6 +386,7 @@
+         "town:blocked:procurement-home-unavailable",
+         "town:blocked:procurement-home-unroutable",
+         "town:blocked:survival-mana-no-charges",
++        "town:blocked:overflow-no-legal-disposal",
+         "town:blocked:recall-readiness-contradiction",
+         "quest:blocked:q34-recovery-no-progress",
+         "quest:blocked:q34-throw-point-unreachable",
+@@ -407,6 +408,7 @@
+         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
+         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
+         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
++        "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
+         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
+         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
+         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",

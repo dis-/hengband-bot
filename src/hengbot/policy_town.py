@@ -110,22 +110,9 @@ class TownMixin:
         ):
             goal = self._shopping_approach_goal
         elif owner == "departure":
-            goal = self._descent_target_goal
-            if goal is None:
-                upward = (reason or self.last_reason or "").startswith(
-                    ("return:", "recall", "town:recall")
-                )
-                candidates = (
-                    self._remembered_upstairs if upward
-                    else self._remembered_downstairs
-                )
-                if candidates:
-                    goal = min(
-                        candidates,
-                        key=lambda pos: snapshot.player.position.distance_to(pos),
-                    )
-                elif snapshot.in_town and self._town_map_active(snapshot):
-                    goal = self._town_map_descent_entrance(snapshot)
+            locomotion = self._town_departure_locomotion_clearance(snapshot, reason)
+            if locomotion is not None:
+                return durable + (locomotion,)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -172,6 +159,38 @@ class TownMixin:
             + abs(snapshot.player.position.x - goal.x)
         )
         return durable + (("locomotion", owner, snapshot.floor_key, distance),)
+
+    def _town_departure_locomotion_clearance(
+        self, snapshot: Snapshot, reason: str | None = None
+    ) -> object | None:
+        goal = self._descent_target_goal
+        if goal is None:
+            upward = (reason or "").startswith(("return:", "recall", "town:recall"))
+            candidates = self._remembered_upstairs if upward else self._remembered_downstairs
+            if candidates:
+                goal = min(candidates, key=lambda pos: snapshot.player.position.distance_to(pos))
+            elif snapshot.in_town and self._town_map_active(snapshot):
+                goal = self._town_map_descent_entrance(snapshot)
+        if goal is None:
+            return None
+        distance = abs(snapshot.player.position.y - goal.y) + abs(snapshot.player.position.x - goal.x)
+        return ("locomotion", "departure", snapshot.floor_key, distance)
+
+    def _town_retirement_clearance_key(
+        self, snapshot: Snapshot, owner: str, reason: str | None = None
+    ) -> object:
+        vector = self._town_arbiter_progress_vector(snapshot, reason)
+        if owner != "departure":
+            return vector
+        return (
+            "departure",
+            snapshot.floor_key,
+            bool(snapshot.in_town),
+            snapshot.dungeon_level,
+            PACK_CAPACITY - len(snapshot.inventory),
+            tuple(sorted(self._recall_town_departure_conjuncts(snapshot).items())),
+            self._town_departure_locomotion_clearance(snapshot, reason),
+        )
 
     def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
         """Positively classify a town result by its effect, never its label."""
@@ -569,6 +588,12 @@ class TownMixin:
             if visit.store_type == STORE_HOME:
                 return key
             progress_reason = "shop:one-shot-buy"
+            if self._progress_only_restores_consumed_resource(
+                snapshot, key, proposed_reason,
+                progress_selection=getattr(self, "_purchase_selection", None),
+            ):
+                self.last_reason = proposed_reason
+                return key
             self._town_progress_invariant_defect = {
                 "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
                 "winning_rung": proposed_reason,
@@ -620,6 +645,12 @@ class TownMixin:
         if not self._town_result_makes_progress(snapshot, progress_key):
             self.last_reason = proposed_reason
             return key
+        if self._progress_only_restores_consumed_resource(
+            snapshot, key, proposed_reason,
+            progress_selection=getattr(self, "_purchase_selection", None),
+        ):
+            self.last_reason = proposed_reason
+            return key
         self._town_progress_invariant_defect = {
             "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
             "winning_rung": proposed_reason,
@@ -635,6 +666,63 @@ class TownMixin:
         )
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
+
+    def _progress_only_restores_consumed_resource(
+        self, snapshot: Snapshot, proposed_key: str, proposed_reason: str,
+        *, progress_selection,
+    ) -> bool:
+        """Refuse a route that only re-buys the resource its winner consumes."""
+        if not proposed_key.startswith(READ_KEY) or len(proposed_key) < 2:
+            return False
+        binding = getattr(self, "_read_binding", None)
+        if binding is None or progress_selection is None:
+            return False
+        tval, sval, name, letter, resolved = binding
+        if letter != proposed_key[1] or resolved is None:
+            return False
+        bound = next((item for item in snapshot.inventory if item.slot == letter), None)
+        if bound is None or (bound.tval, bound.sval, bound.name) != (tval, sval, name):
+            return False
+        match = progress_selection.match
+        selected = progress_selection.item
+        if (selected.tval, selected.sval) != (bound.tval, bound.sval):
+            return False
+        quantity = progress_selection.quantity
+        target = match.target
+        if quantity is None or quantity <= 0 or target is None:
+            return False
+        stock = sum(
+            item.count for item in snapshot.inventory
+            if (item.tval, item.sval) == (bound.tval, bound.sval)
+        )
+        consumed = 1
+        before_shortage = max(0, target - stock)
+        after_shortage = max(0, target - (stock - consumed))
+        if bound.is_recall_scroll:
+            reserve = self._supply_ledger(snapshot, self._planned_depth())["recall"].required_departure
+            if stock < reserve or stock - consumed + quantity < reserve:
+                return False
+        matches = self._matching_live_purchase_rungs(snapshot, bound)
+        if any(
+            candidate.rung_id != match.rung_id
+            and (candidate.target is None or (candidate.shortage or 0) > 0)
+            for candidate in matches
+        ):
+            return False
+        refused = (
+            consumed > 0 and before_shortage == 0 and after_shortage > 0
+            and quantity <= after_shortage - before_shortage
+        )
+        if not refused:
+            return False
+        self._town_progress_invariant_defect = {
+            "marker": "TOWN_PROGRESS_INVARIANT_SELF_RESTORE_REFUSED",
+            "winning_rung": proposed_reason,
+            "refused_progress_action": self.last_reason,
+            "gold": snapshot.player.gold,
+        }
+        self._record_shop_selector_diagnostics(snapshot, proposed_key)
+        return True
 
     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
         """Probe a distinct-landmark escape without opening a store visit."""
@@ -907,11 +995,21 @@ class TownMixin:
 
     def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
         """Free town pack space without creating floor-item pickup loops."""
-        return self._verified_destroy_key(
+        key = self._verified_destroy_key(
             snapshot,
             self._overflow_disposal_item,
             "town:destroy-overflow",
         )
+        if key is not None:
+            return key
+        if (
+            PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
+            and self._overflow_disposal_item(snapshot) is None
+        ):
+            self._town_blocked_reason = "overflow-no-legal-disposal"
+            self.last_reason = "town:blocked:overflow-no-legal-disposal"
+            return WAIT_KEY
+        return None
 
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
@@ -1114,9 +1212,18 @@ class TownMixin:
             self._town_blocked_reason = "dominated-item-destroy-failed"
             self.last_reason = "town:blocked:dominated-item-destroy-failed"
             return WAIT_KEY
-        self._destroy_attempts += 1
-        self.last_reason = "equipment:destroy-unsellable-dominated"
-        return self._destroy_item_key(target)
+        key = self._verified_destroy_key(
+            snapshot,
+            lambda current: target if self._pending_disposal(current) is not None else None,
+            "equipment:destroy-unsellable-dominated",
+        )
+        if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
+            self._clear_pending_disposal()
+            self.last_reason = "equipment:destroy-refused-superior-item"
+            return None
+        if key is not None:
+            self._destroy_attempts += 1
+        return key
 
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
         """Mechanically evaluate the predicates backing the town need registry."""
@@ -2947,6 +3054,14 @@ class TownMixin:
             return None
         if not destination_changed and not blocks_teleport and not unready_blockers:
             return None
+        if not destination_changed and not blocks_teleport and all(
+            self._recall_town_departure_conjuncts(snapshot).values()
+        ):
+            # A recall still authorised by every departure leaf cannot safely
+            # be cancelled for a contradictory duplicate readiness predicate.
+            self._town_blocked_reason = "recall-readiness-contradiction"
+            self.last_reason = "town:blocked:recall-readiness-contradiction"
+            return self._town_blocked_key(snapshot)
         recall = self._find_recall_scroll(snapshot)
         if recall is None:
             return None

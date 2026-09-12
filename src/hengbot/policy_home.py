@@ -2122,9 +2122,15 @@ class HomeMixin:
             self._home_disposal_pending = None
             return None
         if decision == "destroy":
-            self.last_reason = "home-disposal:destroy-approved"
+            key = self._verified_destroy_key(
+                snapshot,
+                lambda current: target if self._home_disposal_inventory_item(current) is not None else None,
+                "home-disposal:destroy-approved",
+            )
             self._home_disposal_pending = None
-            return self._destroy_item_key(target)
+            if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
+                self.last_reason = "home-disposal:destroy-refused-superior-item"
+            return key
         if not target.known:
             source = self._find_identification_source(
                 snapshot, full=False, reliable_only=True

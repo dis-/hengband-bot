@@ -1,0 +1,37 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -3054,6 +3054,14 @@
+             return None
+         if not destination_changed and not blocks_teleport and not unready_blockers:
+             return None
++        if not destination_changed and not blocks_teleport and all(
++            self._recall_town_departure_conjuncts(snapshot).values()
++        ):
++            # A recall still authorised by every departure leaf cannot safely
++            # be cancelled for a contradictory duplicate readiness predicate.
++            self._town_blocked_reason = "recall-readiness-contradiction"
++            self.last_reason = "town:blocked:recall-readiness-contradiction"
++            return self._town_blocked_key(snapshot)
+         recall = self._find_recall_scroll(snapshot)
+         if recall is None:
+             return None
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -387,6 +387,7 @@
+         "town:blocked:procurement-home-unroutable",
+         "town:blocked:survival-mana-no-charges",
+         "town:blocked:overflow-no-legal-disposal",
++        "town:blocked:recall-readiness-contradiction",
+         "quest:blocked:q34-recovery-no-progress",
+         "quest:blocked:q34-throw-point-unreachable",
+         "wilderness:no-safe-route",
+@@ -408,6 +409,7 @@
+         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
+         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
+         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
++        "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
+         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
+         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
+         "wilderness:no-safe-route": "global-map route to town is unavailable",

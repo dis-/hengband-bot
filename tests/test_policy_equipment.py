@@ -3626,6 +3626,10 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         ), patch.object(
             policy, "_equipment_departure_ready", return_value=False
         ):
+            blockers = policy._recall_unready_blockers(
+                snapshot, DUNGEON_ANGBAND
+            )
+            self.assertEqual(blockers, ["deep-loadout-unconfirmed"])
             self.assertEqual(policy._town_cancel_unsafe_recall_key(snapshot), "rr")
 
         self.assertEqual(policy.last_reason, "town:cancel-unready-recall")

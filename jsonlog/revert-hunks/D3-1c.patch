@@ -1,0 +1,69 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2344,6 +2344,9 @@
+                         snapshot, refusal_owner
+                     ),
+                     probe=True,
++                    retirement_key_for=lambda owner: self._town_retirement_clearance_key(
++                        snapshot, owner
++                    ),
+                 )
+                 self.decision_attribution = arbiter.decision_owner_for_reason(
+                     decided_reason
+@@ -2382,9 +2385,25 @@
+             self._record_shop_selector_diagnostics(snapshot, key)
+         key = self._forbid_wait_while_damaged(snapshot, key)
+         vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
++        in_town = bool(snapshot.in_town or snapshot.store is not None)
++        arbiter.observe(
++            in_town=in_town,
++            reason=self.last_reason,
++            progress_vector=vector,
++            probe=True,
++            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
++                snapshot, owner
++            ),
++        )
++        current_owner = arbiter.owner_for_reason(self.last_reason)
++        current_retirement_key = self._town_retirement_clearance_key(
++            snapshot, current_owner, self.last_reason
++        )
+         if (
+-            bool(snapshot.in_town or snapshot.store is not None)
+-            and not arbiter.may_select(self.last_reason, vector)
++            in_town
++            and not arbiter.may_select(
++                self.last_reason, vector, retirement_key=current_retirement_key
++            )
+         ):
+             retired_owner = arbiter.owner_for_reason(self.last_reason)
+             self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
+@@ -2395,7 +2414,13 @@
+                     supplier is not None
+                     and snapshot.store is None
+                     and retired_owner != "store-router"
+-                    and arbiter.may_select("shop:approach", vector)
++                    and arbiter.may_select(
++                        "shop:approach", vector,
++                        retirement_key=self._town_retirement_clearance_key(
++                            snapshot, arbiter.owner_for_reason("shop:approach"),
++                            "shop:approach",
++                        ),
++                    )
+                 )
+                 else None
+             )
+@@ -2442,6 +2467,12 @@
+                 and not self._store_visit.operation_released
+             ),
+             close_visit=self._arbiter_close_store_visit,
++            retirement_key=self._town_retirement_clearance_key(
++                snapshot, arbiter.owner_for_reason(self.last_reason), self.last_reason
++            ),
++            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
++                snapshot, owner
++            ),
+         )
+         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
+         if (

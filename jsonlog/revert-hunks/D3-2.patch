@@ -1,0 +1,93 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -588,6 +588,12 @@
+             if visit.store_type == STORE_HOME:
+                 return key
+             progress_reason = "shop:one-shot-buy"
++            if self._progress_only_restores_consumed_resource(
++                snapshot, key, proposed_reason,
++                progress_selection=getattr(self, "_purchase_selection", None),
++            ):
++                self.last_reason = proposed_reason
++                return key
+             self._town_progress_invariant_defect = {
+                 "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+                 "winning_rung": proposed_reason,
+@@ -639,6 +645,12 @@
+         if not self._town_result_makes_progress(snapshot, progress_key):
+             self.last_reason = proposed_reason
+             return key
++        if self._progress_only_restores_consumed_resource(
++            snapshot, key, proposed_reason,
++            progress_selection=getattr(self, "_purchase_selection", None),
++        ):
++            self.last_reason = proposed_reason
++            return key
+         self._town_progress_invariant_defect = {
+             "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+             "winning_rung": proposed_reason,
+@@ -654,6 +666,63 @@
+         )
+         self._record_shop_selector_diagnostics(snapshot, progress_key)
+         return progress_key
++
++    def _progress_only_restores_consumed_resource(
++        self, snapshot: Snapshot, proposed_key: str, proposed_reason: str,
++        *, progress_selection,
++    ) -> bool:
++        """Refuse a route that only re-buys the resource its winner consumes."""
++        if not proposed_key.startswith(READ_KEY) or len(proposed_key) < 2:
++            return False
++        binding = getattr(self, "_read_binding", None)
++        if binding is None or progress_selection is None:
++            return False
++        tval, sval, name, letter, resolved = binding
++        if letter != proposed_key[1] or resolved is None:
++            return False
++        bound = next((item for item in snapshot.inventory if item.slot == letter), None)
++        if bound is None or (bound.tval, bound.sval, bound.name) != (tval, sval, name):
++            return False
++        match = progress_selection.match
++        selected = progress_selection.item
++        if (selected.tval, selected.sval) != (bound.tval, bound.sval):
++            return False
++        quantity = progress_selection.quantity
++        target = match.target
++        if quantity is None or quantity <= 0 or target is None:
++            return False
++        stock = sum(
++            item.count for item in snapshot.inventory
++            if (item.tval, item.sval) == (bound.tval, bound.sval)
++        )
++        consumed = 1
++        before_shortage = max(0, target - stock)
++        after_shortage = max(0, target - (stock - consumed))
++        if bound.is_recall_scroll:
++            reserve = self._supply_ledger(snapshot, self._planned_depth())["recall"].required_departure
++            if stock < reserve or stock - consumed + quantity < reserve:
++                return False
++        matches = self._matching_live_purchase_rungs(snapshot, bound)
++        if any(
++            candidate.rung_id != match.rung_id
++            and (candidate.target is None or (candidate.shortage or 0) > 0)
++            for candidate in matches
++        ):
++            return False
++        refused = (
++            consumed > 0 and before_shortage == 0 and after_shortage > 0
++            and quantity <= after_shortage - before_shortage
++        )
++        if not refused:
++            return False
++        self._town_progress_invariant_defect = {
++            "marker": "TOWN_PROGRESS_INVARIANT_SELF_RESTORE_REFUSED",
++            "winning_rung": proposed_reason,
++            "refused_progress_action": self.last_reason,
++            "gold": snapshot.player.gold,
++        }
++        self._record_shop_selector_diagnostics(snapshot, proposed_key)
++        return True
+ 
+     def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
+         """Probe a distinct-landmark escape without opening a store visit."""

@@ -2344,6 +2344,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         snapshot, refusal_owner
                     ),
                     probe=True,
+                    retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                        snapshot, owner
+                    ),
                 )
                 self.decision_attribution = arbiter.decision_owner_for_reason(
                     decided_reason
@@ -2382,9 +2385,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
         vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+        in_town = bool(snapshot.in_town or snapshot.store is not None)
+        arbiter.observe(
+            in_town=in_town,
+            reason=self.last_reason,
+            progress_vector=vector,
+            probe=True,
+            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                snapshot, owner
+            ),
+        )
+        current_owner = arbiter.owner_for_reason(self.last_reason)
+        current_retirement_key = self._town_retirement_clearance_key(
+            snapshot, current_owner, self.last_reason
+        )
         if (
-            bool(snapshot.in_town or snapshot.store is not None)
-            and not arbiter.may_select(self.last_reason, vector)
+            in_town
+            and not arbiter.may_select(
+                self.last_reason, vector, retirement_key=current_retirement_key
+            )
         ):
             retired_owner = arbiter.owner_for_reason(self.last_reason)
             self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
@@ -2395,7 +2414,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     supplier is not None
                     and snapshot.store is None
                     and retired_owner != "store-router"
-                    and arbiter.may_select("shop:approach", vector)
+                    and arbiter.may_select(
+                        "shop:approach", vector,
+                        retirement_key=self._town_retirement_clearance_key(
+                            snapshot, arbiter.owner_for_reason("shop:approach"),
+                            "shop:approach",
+                        ),
+                    )
                 )
                 else None
             )
@@ -2442,6 +2467,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not self._store_visit.operation_released
             ),
             close_visit=self._arbiter_close_store_visit,
+            retirement_key=self._town_retirement_clearance_key(
+                snapshot, arbiter.owner_for_reason(self.last_reason), self.last_reason
+            ),
+            retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                snapshot, owner
+            ),
         )
         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
         if (
@@ -5968,6 +5999,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, item: InventoryItem
     ) -> bool:
         """Fail closed when destruction would discard the best comparable gear."""
+        if self._item_is_procurement_protected(snapshot, item):
+            return True
         counterparts = [
             candidate
             for candidate in (*snapshot.equipment, *snapshot.inventory)
@@ -6006,7 +6039,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._is_disposable_item(item, food_type=snapshot.player.food_type)
                 or self._is_spare_lantern(snapshot, item)
             )
-        return False
+        return self._item_is_procurement_protected(snapshot, item)
+
+    def _item_is_procurement_protected(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> bool:
+        """Refuse disposal of anything the bot buys or reserves, any kind."""
+        if self._retention_reservation_detail(snapshot, item)[0] > 0:
+            return True
+        if self._disposal_protected_by_identification(item):
+            return True
+        return self._item_matches_purchase_rung(snapshot, item)
 
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
@@ -7483,6 +7526,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # A partially surplus stack still contains reserved supplies and
             # therefore cannot be an overflow victim.
             lambda item: self._entire_stack_is_surplus(snapshot, item)
+            and not self._item_is_procurement_protected(snapshot, item)
             and not self._survival_essential(item)
             and not self._is_useful_device(item)
             and not self._has_town_economic_path(item)
@@ -8560,14 +8604,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ) -> list[str]:
         """Return safety regressions that can justify cancelling an active recall.
 
-        Pack, weapon, and deep-loadout readiness are already enforced by
-        departure_ok before a recall is read.  Recheck them here only because
-        genuinely new snapshot information may arrive while recall is active.
+        Pack readiness has exactly one authority: _town_pack_space_ready.  It
+        accepts the terminal four-slot certificate written by the town fallback
+        and must never be re-derived here (2026-09-12: the duplicate arithmetic
+        caused nine 237-gold recall replacements).  Other genuinely changed
+        readiness facts may still justify cancellation.
         Optional surplus Home deposits deliberately gate neither departure nor
         an active recall; they wait for the next town visit.
         """
         blockers: list[str] = []
-        if PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS:
+        if not self._town_pack_space_ready(snapshot):
             blockers.append("pack-too-full")
         if (
             snapshot.player.class_id >= 0

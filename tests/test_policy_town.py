@@ -11506,6 +11506,9 @@ class TownCycleDetectorTest(unittest.TestCase):
         ), patch.object(
             pol, "_equipment_departure_ready", return_value=False
         ):
+            blockers = pol._recall_unready_blockers(snap, DUNGEON_ANGBAND)
+            self.assertNotIn("pack-too-full", blockers)
+            self.assertIn("deep-loadout-unconfirmed", blockers)
             self.assertEqual(
                 pol._town_cancel_unsafe_recall_key(snap), READ_KEY + "r"
             )

@@ -1,0 +1,21 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -5999,6 +5999,8 @@
+         self, snapshot: Snapshot, item: InventoryItem
+     ) -> bool:
+         """Fail closed when destruction would discard the best comparable gear."""
++        if self._item_is_procurement_protected(snapshot, item):
++            return True
+         counterparts = [
+             candidate
+             for candidate in (*snapshot.equipment, *snapshot.inventory)
+@@ -6037,7 +6039,7 @@
+                 self._is_disposable_item(item, food_type=snapshot.player.food_type)
+                 or self._is_spare_lantern(snapshot, item)
+             )
+-        return False
++        return self._item_is_procurement_protected(snapshot, item)
+ 
+     def _item_is_procurement_protected(
+         self, snapshot: Snapshot, item: InventoryItem
