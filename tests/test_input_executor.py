@@ -223,6 +223,14 @@ class ScreenClassifierTest(unittest.TestCase):
         moved["cursor"]["x"] -= 1
         self.assertEqual(classify_screen(moved).kind, ScreenKind.UNKNOWN)
 
+    def test_real_command_fixture_rejects_mismatched_fresh_state_position(self):
+        fixture = Path(__file__).with_name("fixtures") / "live-screens" / "00-command-idle.json"
+        payload = json.loads(fixture.read_text(encoding="utf-8"))
+        state = payload["state"]["result"]
+        state["player"]["x"] += 1
+        self.assertEqual(classify_screen(payload["screen"]["result"], state).kind,
+                         ScreenKind.UNKNOWN)
+
     def test_store_inner_prompt_and_complete_building(self):
         screen = prompt_screen("Quantity (1-3): 1")
         screen["lines"][20:23] = ["You may: ", " ESC) Exit from Building.     p) Purchase an item.", ""]
