@@ -1904,6 +1904,67 @@ class HomeMixin:
             )
         return tuple(selected)
 
+    def _open_home_deposit_key(self, snapshot: Snapshot) -> str | None:
+        """Compose one deposit operation from a barrier-bound open Home page."""
+        visit = self._store_visit
+        if (
+            snapshot.store is None
+            or snapshot.store.store_type != STORE_HOME
+            or visit is None
+            or visit.store_type != STORE_HOME
+            or visit.operation_posted
+            or self._home_atomic_deposit_pending is not None
+            or self._equipment_transaction_session is not None
+        ):
+            return None
+        first = self._find_home_deposit(snapshot)
+        if first is None or not self._prepare_home_visit_operation(
+            "put", self._item_signature(first),
+            (self._item_signature(first), first.slot, snapshot.turn),
+        ):
+            return None
+        operations = []
+        pending_by_signature = {}
+        for item, deposit_count in sorted(
+            self._home_deposit_batch(snapshot, first),
+            key=lambda entry: entry[0].slot, reverse=True,
+        ):
+            operation = self._home_deposit_key(
+                snapshot, item, forced_count=deposit_count)
+            if operation == LEAVE_STORE_KEY:
+                continue
+            operations.append(operation)
+            signature = self._item_signature(item)
+            before_count, expected_count = pending_by_signature.get(
+                signature,
+                (self._inventory_signature_count(snapshot, signature), 0),
+            )
+            pending_by_signature[signature] = (
+                before_count, expected_count + deposit_count)
+            self._equipment_catalog.record_home_deposit(
+                item,
+                intent=(snapshot.turn, item.slot, signature, deposit_count,
+                        item.charges, len(snapshot.inventory)),
+            )
+        if not operations:
+            return None
+        operation_key = "".join(operations) + LEAVE_STORE_KEY
+        self._home_entry_operation_posted = True
+        self._home_atomic_deposit_pending = (
+            tuple((signature, before_count, expected_count)
+                  for signature, (before_count, expected_count)
+                  in pending_by_signature.items()),
+            None, snapshot.turn, 0,
+        )
+        visit.operation_posted = True
+        visit.operation_key = operation_key
+        visit.operation_released = True
+        visit.composed_key = operation_key
+        visit.posted_sequence = self._decision_sequence
+        visit.posted_turn = snapshot.turn
+        self.last_reason = "home:atomic-deposit"
+        return operation_key
+
     def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> None:
         """Post Home entry now and release its bound tail on the fresh page."""
         if self._store_visit is None:

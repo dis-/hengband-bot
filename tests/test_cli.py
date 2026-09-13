@@ -3,6 +3,8 @@ from collections import Counter
 import json
 import inspect
 import os
+import subprocess
+import sys
 import argparse
 import threading
 import time
@@ -94,6 +96,7 @@ from hengbot.cli import (
     _bot_play_macros_ready,
     _build_argument_parser,
     _configure_policy_output_paths,
+    _acquire_control_owner,
     _ExecutorInputPort,
     _make_jsonl_barrier_drain,
     _valid_bot_play_macro_pref,
@@ -114,6 +117,19 @@ from hengbot.cli import _game_process_alive
 
 
 class Stage2aFollowBarrierPin(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows named mutex ownership")
+    def test_second_process_fails_fast_without_contacting_holder(self):
+        port = 40000 + os.getpid() % 20000
+        self.assertIsNotNone(_acquire_control_owner(port))
+        child = subprocess.run(
+            [sys.executable, "-c",
+             "from hengbot.cli import _acquire_control_owner; "
+             f"print(_acquire_control_owner({port}) is None)"],
+            cwd=Path(__file__).parents[1], capture_output=True, text=True,
+            env={**os.environ, "PYTHONPATH": "src;tests"}, timeout=5,
+        )
+        self.assertEqual((child.returncode, child.stdout.strip()), (0, "True"))
+
     def test_main_constructs_executor_with_production_jsonl_drain(self):
         source = inspect.getsource(__import__("hengbot.cli", fromlist=["main"]).main)
         tree = ast.parse(source)
@@ -132,10 +148,44 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             path = Path(directory) / "state.jsonl"
             record = json.loads(_snap_line(7, 5, 5))
             record["store"] = {"store_type": 7, "items": []}
-            path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+            older = dict(record, turn=6)
+            path.write_text(
+                json.dumps(older) + "\n" + json.dumps(record) + "\n",
+                encoding="utf-8",
+            )
             drain = _make_jsonl_barrier_drain(path)
             self.assertEqual(drain(), [record])
             self.assertEqual(drain(), [])
+
+    def test_follow_consumes_executor_board_without_second_reader_recomposition(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            state_path.write_text(_snap_line(3, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path), "--poll-interval", "0.001"])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            observed = []
+
+            def choose(snapshot):
+                observed.append((snapshot.turn, snapshot.messages))
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            executor = OperationExecutor(None)
+            board = json.loads(_snap_line(9, 5, 5))
+            board["messages"] = ["executor-bound-message"]
+            executor.ready_board = board
+            executor.barrier_sequence = 1
+            port = _ExecutorInputPort(
+                executor, tunnel_macros_ready=True, request_budget=1)
+            with patch("hengbot.cli._append_capture_ledger"), patch(
+                    "hengbot.cli._freeze_incident_safely"):
+                result = _run_follow(args, policy, port, {})
+            self.assertEqual((result, observed),
+                             (0, [(9, ("executor-bound-message",))]))
 
     def test_executor_port_uses_existing_long_rest_deadline(self):
         class CapturingExecutor:
@@ -152,6 +202,37 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         with patch("hengbot.cli.time.monotonic", return_value=100.0):
             self.assertTrue(port("R9999\r", decision={"reason": "rest"}))
         self.assertEqual(executor.deadline, 100.0 + REST_STALL_GRACE)
+
+    def test_executor_port_uses_existing_long_deadline_for_prompt_chain(self):
+        class CapturingExecutor:
+            client = object()
+
+            def submit(self, operation, *, deadline):
+                self.operation, self.deadline = operation, deadline
+                return SimpleNamespace(outcome="completed", reason=None)
+
+        executor = CapturingExecutor()
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=1.5)
+        with patch("hengbot.cli.time.monotonic", return_value=100.0):
+            self.assertTrue(port.submit_operation(
+                "rgl", decision={"reason": "identify:full"},
+                continuations=[object()],
+            ))
+        self.assertEqual(executor.deadline, 100.0 + COMMAND_RESPONSE_GRACE)
+
+    def test_executor_port_preserves_player_death_outcome(self):
+        class DeathExecutor:
+            client = object()
+
+            def submit(self, operation, *, deadline):
+                return SimpleNamespace(
+                    outcome="player-death", reason="<player-death> feature=tomb")
+
+        port = _ExecutorInputPort(
+            DeathExecutor(), tunnel_macros_ready=True, request_budget=1.5)
+        self.assertIs(
+            port("5", decision={"reason": "wait"}), SendResult.PLAYER_DEATH)
 
     def test_p8_follow_drains_mid_operation_board_without_policy_call(self):
         with TemporaryDirectory() as directory:
@@ -3327,7 +3408,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
 
         self.assertEqual(posted, [">y", "\x1b", ">y"])
 
-    def test_unsent_nudge_keeps_same_board_key_suppressed(self):
+    def test_unsent_nudge_allows_same_board_key_retry(self):
         line = _snap_line(1839609, 31, 150)
         posted = []
         posted_line = None
@@ -3539,7 +3620,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertGreaterEqual(count, STALLED_COMMAND_STATE_LIMIT)
         self.assertEqual(posted, [])
 
-    def test_real_rejected_shop_approach_keeps_deciding_without_resending(self):
+    def test_real_rejected_shop_approach_reposts_after_each_fresh_decision(self):
         # Live turn 1099696 at (45, 123): shop:approach "9" was silently
         # rejected, then the byte-identical line (empty messages, same turn)
         # repeated. Decisions must continue while the posted key stays unique.
@@ -3566,7 +3647,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertEqual(decisions, ["9", "9", "9", "9"])
         self.assertEqual(posted, ["9", "9", "9", "9"])
 
-    def test_real_fundraising_board_posts_each_key_at_most_once(self):
+    def test_real_fundraising_board_posts_each_intended_key_in_order(self):
         # The captured 1 1 T3 9 9 failure cannot be reproduced: repeated
         # decisions are recorded, but duplicate sends on one board are not.
         line = _snap_line(1021819, 16, 8)
@@ -3978,7 +4059,7 @@ class StallRecoveryTest(unittest.TestCase):
         self.assertTrue(_floor_transition_needs_prompt_clear(town, yeek_one))
         self.assertTrue(_floor_transition_needs_prompt_clear(yeek_one, town))
 
-    def test_command_response_grace_is_reserved_for_native_travel(self):
+    def test_command_response_grace_covers_every_multi_turn_repeat(self):
         self.assertGreater(COMMAND_RESPONSE_GRACE, 9.0)
         self.assertLess(COMMAND_RESPONSE_GRACE, REST_STALL_GRACE)
         self.assertEqual(
@@ -3987,6 +4068,14 @@ class StallRecoveryTest(unittest.TestCase):
         )
         self.assertEqual(
             _command_response_grace("\x1b`n>.", "town:travel-entrance"),
+            COMMAND_RESPONSE_GRACE,
+        )
+        self.assertEqual(
+            _command_response_grace("T3", "fundraise:mine-treasure"),
+            COMMAND_RESPONSE_GRACE,
+        )
+        self.assertEqual(
+            _command_response_grace(".6", "dungeon:run"),
             COMMAND_RESPONSE_GRACE,
         )
         self.assertEqual(_command_response_grace("dj\r", "home:deposit"), 0.0)

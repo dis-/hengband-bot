@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
+_CONTROL_OWNER_HANDLES: dict[int, object] = {}
+
 from hengbot.model import (
     STORE_HOME,
     MissingMonraceKnowledgeError,
@@ -683,7 +685,13 @@ def _intentional_action_wait_category(key: str, reason: str) -> str | None:
 
 def _command_response_grace(key: str, reason: str) -> float:
     """Extra snapshot silence allowed only for genuinely multi-turn commands."""
-    if key in TRAVEL_MACRO_TRIGGERS:
+    repeat_command = (
+        key in TRAVEL_MACRO_TRIGGERS
+        or key.startswith("T")
+        or (key.startswith("R") and len(key) > 1)
+        or key.startswith(".")
+    )
+    if repeat_command:
         if reason == "shop:travel":
             # A rejected symbol selection stays in point_target without
             # consuming a turn.  Do not grant that modal selector the full
@@ -1836,6 +1844,7 @@ class SendResult(str, Enum):
     SENT = "sent"
     DESIGNED_WAIT = "designed-wait"
     TERMINAL = "terminal"
+    PLAYER_DEATH = "player-death"
 
     def __bool__(self) -> bool:
         return self is SendResult.SENT
@@ -1875,6 +1884,8 @@ class _ExecutorInputPort:
             self.request_budget,
             _command_response_grace(key, str(decision.get("reason", "unknown"))),
         )
+        if continuations:
+            budget = max(budget, COMMAND_RESPONSE_GRACE)
         if key.startswith("R"):
             budget = max(budget, REST_STALL_GRACE)
         self.last_result = self.executor.submit(
@@ -1884,6 +1895,10 @@ class _ExecutorInputPort:
             return SendResult.SENT
         if self.last_result.outcome == "busy":
             return SendResult.DESIGNED_WAIT
+        if self.last_result.outcome == "player-death":
+            if self.last_result.reason:
+                print(self.last_result.reason, file=sys.stderr, flush=True)
+            return SendResult.PLAYER_DEATH
         if self.last_result.reason:
             print(self.last_result.reason, file=sys.stderr, flush=True)
         return SendResult.TERMINAL
@@ -2454,11 +2469,18 @@ def _make_jsonl_barrier_drain(path: Path):
     It deliberately retains a torn final line for the next call.  The follow
     loop remains responsible for delivering ordered observation effects.
     """
-    offset = 0
+    try:
+        offset = path.stat().st_size
+        seed = [row for row in _decode_response_lines(_read_last_line(path))
+                if isinstance(row, Mapping)]
+    except OSError:
+        offset, seed = 0, []
     pending = ""
+    seeded = False
 
     def drain():
-        nonlocal offset, pending
+        nonlocal offset, pending, seeded
+        initial, seeded = (() if seeded else seed), True
         try:
             size = path.stat().st_size
             if size < offset:
@@ -2468,10 +2490,10 @@ def _make_jsonl_barrier_drain(path: Path):
                 chunk = stream.read()
                 offset = stream.tell()
         except OSError:
-            return ()
+            return initial
         complete, pending = _split_complete_lines(pending + chunk)
-        return [row for row in _decode_response_lines(complete)
-                if isinstance(row, Mapping)]
+        return [*initial, *(row for row in _decode_response_lines(complete)
+                            if isinstance(row, Mapping))]
 
     return drain
 
@@ -2506,6 +2528,29 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     return home_entry_capture
 
 
+def _acquire_control_owner(port: int):
+    """Claim this control endpoint without contacting or disturbing its holder."""
+    if os.name != "nt":
+        return object()
+    if port in _CONTROL_OWNER_HANDLES:
+        return _CONTROL_OWNER_HANDLES[port]
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, ctypes.c_bool,
+                                      ctypes.c_wchar_p)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.CreateMutexW(None, False, f"Local\\hengbot-control-{port}")
+    if not handle or ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        if handle:
+            kernel32.CloseHandle(handle)
+        return None
+    atexit.register(kernel32.CloseHandle, handle)
+    _CONTROL_OWNER_HANDLES[port] = handle
+    return handle
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_argument_parser()
     args = parser.parse_args(argv)
@@ -2513,6 +2558,15 @@ def main(argv: list[str] | None = None) -> int:
     shadow_client = None
     if args.control_port is not None:
         from hengbot.control_client import ControlClient
+
+        control_owner = _acquire_control_owner(args.control_port)
+        if control_owner is None:
+            print(
+                f"<input-owner-busy> control_port={args.control_port} "
+                "another bot process owns the causal input barrier",
+                file=sys.stderr, flush=True,
+            )
+            return 3
 
         def log_shadow_failure(message: str) -> None:
             print(message, file=sys.stderr, flush=True)
@@ -3108,16 +3162,7 @@ def _run_follow(
                     look_barrier_seen = False
                     look_barrier_started_at = 0.0
                 elif executor is not None and executor.ready_board is not None:
-                    decision_board, _ = compose_barrier_board(
-                        executor.ready_board,
-                        executor.ready_screen_value or {},
-                        executor.ready_screen.kind if executor.ready_screen is not None else ScreenKind.COMMAND,
-                        unread_observation_records,
-                    )
-                    if decision_board is None:
-                        print("<stuck-prompt> current store page did not bind to fresh state",
-                              file=sys.stderr, flush=True)
-                        return incident_stop("stuck-prompt", snapshot)
+                    decision_board = executor.ready_board
                     phase_started_at = time.perf_counter()
                     try:
                         barrier_snapshot = parse_snapshot(decision_board, monrace_knowledge)
@@ -3186,8 +3231,12 @@ def _run_follow(
                         # interpreted at the command loop (often opening a menu).
                         # Escape clears the message under either option setting
                         # and is harmless if no prompt is present.
-                        if not send(NUDGE_KEY):
-                            return incident_stop("stuck-prompt", snapshot)
+                        floor_clear = send(NUDGE_KEY)
+                        if not floor_clear:
+                            return incident_stop(
+                                "player-death"
+                                if floor_clear is SendResult.PLAYER_DEATH
+                                else "stuck-prompt", snapshot)
                         print("<floor-transition:esc>", flush=True)
                         last_snapshot_floor_key = snapshot.floor_key
                         if executor is not None:
@@ -3590,7 +3639,9 @@ def _run_follow(
                     if not sent:
                         if sent is SendResult.DESIGNED_WAIT:
                             continue
-                        return incident_stop("stuck-prompt", snapshot)
+                        return incident_stop(
+                            "player-death" if sent is SendResult.PLAYER_DEATH
+                            else "stuck-prompt", snapshot)
                     if sent:
                         policy.confirm_key_posted(key)
                         if policy.last_reason == "periodic:game-save":

@@ -3595,6 +3595,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                and (open_page_deposit := self._open_home_deposit_key(snapshot))
+                is not None
+            ):
+                key = open_page_deposit
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
             ):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=False

@@ -15,9 +15,14 @@ from hengbot.model import (
     StoreItem, parse_snapshot,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot.cli import _consume_response_sequence
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "recall-stockout-surplus-incident.jsonl.gz"
+AUTO_ENTRY_FIXTURE = (
+    Path(__file__).parent / "fixtures" /
+    "barrier-home-auto-entry-lines-1-23.jsonl.gz"
+)
 
 
 def replay_to_home_return(policy: HengbotPolicy):
@@ -74,6 +79,47 @@ class RecallStockoutSurplusPins(unittest.TestCase):
             )
         self.assertEqual(decisions[-1][2:], ("5", "home:atomic-deposit"))
         self.assertEqual(snapshot.turn, 2856373)
+
+    def test_barrier_bound_open_home_page_posts_one_surplus_batch(self):
+        """Stage-2e lines 1-23 drive the real policy through Home auto-entry."""
+        with TemporaryDirectory() as directory:
+            policy = HengbotPolicy(
+                home_disposal_state=self._state(Path(directory)))
+            # pin_vacuity: calibration is an unrelated collaborator in this
+            # archived warrior save; the real route/Home/deposit producers run.
+            policy._calibration_active = lambda: False
+            knowledge = {}
+            decisions = []
+            with gzip.open(AUTO_ENTRY_FIXTURE, "rt", encoding="utf-8-sig") as stream:
+                for index, line in enumerate(stream, 1):
+                    raw = json.loads(line)
+                    _consume_response_sequence(
+                        [line], policy, lambda *_args, **_kwargs: True,
+                        knowledge, parse_snapshots=False,
+                        knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+                    )
+                    if raw.get("type") == "knowledge":
+                        knowledge.update(raw.get("knowledge", {}))
+                        continue
+                    snapshot = parse_snapshot(raw, knowledge)
+                    if index in (21, 22):
+                        # The production executor owns Home auto-entry here;
+                        # this outside JSONL observation is drained, not decided.
+                        continue
+                    key = policy.choose_key(snapshot)
+                    decisions.append((index, key, policy.last_reason))
+                    if key.startswith("~9"):
+                        policy.confirm_key_posted(key)
+
+        self.assertEqual(decisions[-1][0], 23)
+        self.assertEqual(decisions[-1][2], "home:atomic-deposit")
+        self.assertTrue(decisions[-1][1].startswith("d"))
+        self.assertTrue(decisions[-1][1].endswith("da6\r\x1b"))
+        self.assertEqual(decisions[-1][1].count("da6\r"), 1)
+        self.assertEqual(
+            policy._home_atomic_deposit_pending[0][-1][1:], (6, 6))
+        self.assertNotIn("home:route-claim-unfulfilled",
+                         [reason for _index, _key, reason in decisions])
 
     def test_future_history_does_not_suppress_surplus(self):
         """A future deposit record is history, not a surplus-selection veto."""
