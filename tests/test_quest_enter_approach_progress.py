@@ -3,6 +3,7 @@
 import copy
 import json
 import unittest
+from pathlib import Path
 
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import WAIT_KEY
@@ -10,11 +11,7 @@ from hengbot.policy_types import DecisionCandidate
 from test_quest_travel_progress import QuestTravelFixtureMixin
 
 
-INCIDENT = (
-    QuestTravelFixtureMixin.__module__ and
-    "jsonlog/incident-20260914-barrier-acceptance2-quest-enter-retired/"
-    "bot-state-fixed.jsonl"
-)
+INCIDENT = Path(__file__).with_name("fixtures") / "quest-enter-approach-stage2f.jsonl"
 TURNS = (2857031, 2857040, 2857052, 2857062, 2857071, 2857084, 2857092)
 
 

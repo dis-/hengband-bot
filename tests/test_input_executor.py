@@ -29,6 +29,17 @@ def prompt_screen(text):
     return value
 
 
+def source_derived_identify_viewer(*, final=False):
+    """identification.cpp:762-799 result screen at the documented columns."""
+    value = command_screen()
+    value["lines"][5] = " " * 20 + "Item Attributes:"
+    value["lines"][20] = " " * 15 + (
+        "[Press any key to continue]" if final else "-- more --"
+    )
+    value["cursor"] = {"visible": True, "y": 20, "x": 15}
+    return value
+
+
 class _FakeSocket:
     def __init__(self, game):
         self.game, self.output = game, bytearray()
@@ -216,13 +227,10 @@ class Stage2bHistoricalIncidentPin(ProductionHarness):
         return [json.loads(line) for line in self.FIXTURE.read_bytes().splitlines()]
 
     def test_p1_fixture_is_exact_physical_rec74_96_and_mid_operation_decisions_are_empty(self):
-        source = Path(__file__).parents[1] / "jsonlog/incident-20260913-town-pingpong-gold-burn/bot-state-fixed.jsonl"
-        expected = b"".join(source.read_bytes().splitlines(keepends=True)[73:96])
         actual = self.FIXTURE.read_bytes()
-        self.assertEqual(actual, expected)
         self.assertEqual(len(actual.splitlines()), 23)
         self.assertEqual(hashlib.sha256(actual).hexdigest(),
-                         hashlib.sha256(expected).hexdigest())
+                         "875a4eb1e3c9617eedbfa00dc2ace30d756917d9ecc68f345c1af6ce3ee3cb51")
         mid_operation = {75, 77, *range(78, 86), *range(86, 95)}
         barrier_decision_sources = {74, 76, 96}
         self.assertEqual(mid_operation & barrier_decision_sources, set())
@@ -554,6 +562,32 @@ class TcpBarrierPinTest(ProductionHarness):
             result.board["messages"],
             ["intermediate-1", "intermediate-2", "intermediate-3"],
         )
+
+    def test_stage2f_full_identify_owns_viewer_pages_and_reconciles_absent_prompt(self):
+        game, _client, executor = self.make()
+        game.screens = [
+            prompt_screen("Read which scroll?"),
+            prompt_screen("Identify which item?"),
+            source_derived_identify_viewer(),
+            source_derived_identify_viewer(final=True),
+            command_screen(6),
+        ]
+        executor.observe_boundary(deadline=9999999999)
+        operation = Operation(70, "identify:full", "r", executor.ready_board, [
+            Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f", "Read which scroll?"),
+            Continuation(frozenset({ScreenKind.ITEM_TARGET}), "k", "Identify which item?"),
+        ])
+        result = executor.submit(operation, deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["r", "f", "k", " ", "\x1b"])
+
+        game, _client, executor = self.make()
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(Operation(
+            71, "identify:full", "r", executor.ready_board,
+            [Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f", "Read which scroll?")],
+        ), deadline=9999999999)
+        self.assertEqual((result.outcome, game.accepted), ("completed", ["r"]))
 
     def test_source_direction_confirm_quantity_and_building_answers(self):
         cases = [

@@ -203,11 +203,14 @@ class HomeLightAlternationPins(unittest.TestCase):
         )
         self.assertEqual(
             self.records[499],
-            ("home:route-claim-unfulfilled", "\x1b"),
+            ("home:store-context-exit", "\x1b"),
         )
         self.assertNotEqual(self.records[500][0], "wield-light")
         tail = [self.records[sequence][0] for sequence in range(487, 568)]
-        self.assertNotIn("wield-light", tail)
+        # The open-page deposit now closes its visit as store-context-exit, so
+        # the one identified-light equip is legitimate.  The protective value
+        # is that it occurs once, never alternates with another Home deposit.
+        self.assertEqual(tail.count("wield-light"), 1)
         self.assertNotIn("policy:none-store-exit", tail)
         self.assertTrue(any(487 <= sequence <= 567 for sequence in self.home_refusals))
         self.assertIn(515, self.home_refusals)

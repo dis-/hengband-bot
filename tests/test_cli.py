@@ -79,6 +79,7 @@ from hengbot.cli import (
     _newest_snapshot,
     _newest_snapshot_entry,
     _read_last_line,
+    _read_last_snapshot_line,
     _record_atomic_home_page,
     _retained_home_page,
     _request_due_dump,
@@ -100,6 +101,7 @@ from hengbot.cli import (
     _ExecutorInputPort,
     _make_jsonl_barrier_drain,
     _valid_bot_play_macro_pref,
+    main,
 )
 from hengbot.input_executor import Operation, OperationExecutor
 from hengbot.policy import (
@@ -279,6 +281,29 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertEqual(policy.choose_key.call_count, 1)
             self.assertEqual(decided_turns, [3])
+
+    def test_stage2f_bootstrap_skips_response_tail_and_malformed_utf8(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.jsonl"
+            board = json.loads(_snap_line(17, 5, 5))
+            response = {"type": "knowledge", "turn": 17, "knowledge": {}}
+            with path.open("wb") as stream:
+                stream.write((json.dumps(board) + "\n").encode())
+                stream.write((json.dumps(response) + "\n").encode())
+                stream.write(b"{bad:\xff}\n")
+            lines = list(_read_last_snapshot_line(path))
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(json.loads(lines[0])["turn"], 17)
+            drain = _make_jsonl_barrier_drain(path)
+            self.assertEqual(drain()[0]["turn"], 17)
+
+    def test_stage2f_owner_busy_has_distinct_tempfail_exit(self):
+        with patch("hengbot.cli._acquire_control_owner", return_value=None):
+            self.assertEqual(main([
+                "--state-file", "unused-owner-busy.jsonl",
+                "--control-port", "18345",
+            ]), 75)
+
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 

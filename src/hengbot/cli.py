@@ -1761,6 +1761,24 @@ class PostingContract:
             }
             return False
         previous = self._posted_by_owner.get(owner)
+        # These commands have an observable success transition and historically
+        # produce a refusal without advancing the board.  Preserve that causal
+        # refusal protection without making byte identity a universal
+        # completion gate (ordinary, deliberately repeated no-ops remain legal
+        # after a fresh executor barrier).
+        refusal_sensitive = owner in {"return:recall", "wilderness:enter-town"}
+        if (
+            refusal_sensitive
+            and previous is not None
+            and previous[0] == key
+            and previous[1] == effect
+        ):
+            self.last_incident = {
+                "marker": "posting-contract:identical-repost-unobserved",
+                "owner": owner,
+                "key": key,
+            }
+            return False
         if (
             previous is not None
             and previous[0] == key
@@ -2051,7 +2069,17 @@ def _send_prompt_gated_decision_key(
                 if "Identify which item" in prompt or "荘螳壹" in prompt
                 else ScreenKind.ITEM_SOURCE
             )
-            continuations.append(Continuation(frozenset({kind}), key[index:next_index], prompt))
+            segment = key[index:next_index]
+            if (
+                decision is not None
+                and decision.get("reason") == "identify:full"
+                and kind is ScreenKind.ITEM_TARGET
+            ):
+                # The identify result viewer owns its own page/final answers;
+                # never bundle the historical blind ESC dismissal tail with
+                # the target selection.
+                segment = segment[:1]
+            continuations.append(Continuation(frozenset({kind}), segment, prompt))
         sent = send.submit_operation(
             prefix, decision=decision, continuations=continuations
         )
@@ -2471,12 +2499,13 @@ def _make_jsonl_barrier_drain(path: Path):
     """
     try:
         offset = path.stat().st_size
-        seed = [row for row in _decode_response_lines(_read_last_line(path))
+        seed = [row for row in _decode_response_lines(_read_last_snapshot_line(path))
                 if isinstance(row, Mapping)]
-    except OSError:
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
         offset, seed = 0, []
     pending = ""
     seeded = False
+    response_records: list[Mapping[str, object]] = []
 
     def drain():
         nonlocal offset, pending, seeded
@@ -2492,8 +2521,18 @@ def _make_jsonl_barrier_drain(path: Path):
         except OSError:
             return initial
         complete, pending = _split_complete_lines(pending + chunk)
-        return [*initial, *(row for row in _decode_response_lines(complete)
-                            if isinstance(row, Mapping))]
+        decoded = [row for row in _decode_response_lines(complete)
+                   if isinstance(row, Mapping)]
+        response_records.extend(row for row in decoded
+                                if row.get("type") in {"knowledge", "look", "character"})
+        return [*initial, *decoded]
+
+    def take_response_records():
+        records = list(response_records)
+        response_records.clear()
+        return records
+
+    drain.take_response_records = take_response_records
 
     return drain
 
@@ -2566,7 +2605,9 @@ def main(argv: list[str] | None = None) -> int:
                 "another bot process owns the causal input barrier",
                 file=sys.stderr, flush=True,
             )
-            return 3
+            # EX_TEMPFAIL: another live process owns the endpoint.  Keep exit
+            # 3 reserved for causal-barrier/bootstrap failure.
+            return 75
 
         def log_shadow_failure(message: str) -> None:
             print(message, file=sys.stderr, flush=True)
@@ -2954,7 +2995,7 @@ def _run_follow(
         time.sleep(args.poll_interval)
 
     initial_snapshot = _newest_snapshot(
-        list(_read_last_line(path)), monrace_knowledge
+        list(_read_last_snapshot_line(path)), monrace_knowledge
     )
     try:
         recorder.record_snapshot_lines(
@@ -2981,6 +3022,9 @@ def _run_follow(
     # UnicodeDecodeError and kill the loop. Replacement characters at a torn
     # boundary at worst spoil that one line, and drain-to-newest skips past it.
     with path.open("r", encoding="utf-8", errors="replace") as file:
+        # The executor drain may have consumed rows written after it attached.
+        # Those rows already participate in its authoritative board; response
+        # rows are handed off below instead of being lost at a second EOF seek.
         file.seek(0, 2)
         pending = ""
         last_activity = time.monotonic()
@@ -3023,7 +3067,6 @@ def _run_follow(
         look_barrier_started_at = 0.0
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         poll_wait_started_at = time.perf_counter()
-        unread_observation_records: list[Mapping[str, object]] = []
         barrier_board_seen = None
         while True:
             finish_pending_batch()
@@ -3069,9 +3112,6 @@ def _run_follow(
                 )
                 phase_started_at = time.perf_counter()
                 decoded_lines = _decode_response_lines(complete_lines)
-                unread_observation_records.extend(
-                    row for row in decoded_lines if isinstance(row, Mapping)
-                )
                 decision_timing["decode_ms"] = round(
                     (time.perf_counter() - phase_started_at) * 1000, 3
                 )
@@ -3162,6 +3202,15 @@ def _run_follow(
                     look_barrier_seen = False
                     look_barrier_started_at = 0.0
                 elif executor is not None and executor.ready_board is not None:
+                    take_responses = getattr(executor.drain, "take_response_records", None)
+                    if take_responses is not None:
+                        response_records = take_responses()
+                        _dispatch_response_lines(
+                            [json.dumps(row, ensure_ascii=False) + "\n"
+                             for row in response_records],
+                            policy, send, decoded_lines=response_records,
+                            knowledge_ledger_path=knowledge_ledger_path,
+                        )
                     decision_board = executor.ready_board
                     phase_started_at = time.perf_counter()
                     try:
@@ -3175,7 +3224,6 @@ def _run_follow(
                                                sort_keys=True, separators=(",", ":"))
                     entry = barrier_snapshot, snapshot_line
                     barrier_board_seen = executor.barrier_sequence
-                    unread_observation_records.clear()
                 else:
                     entry = _newest_snapshot_entry(
                         complete_lines,
@@ -4296,7 +4344,34 @@ def _read_last_line(path: Path) -> Iterable[str]:
         lines = lines[:-1]
     if not lines:
         return []
-    return [lines[-1].decode("utf-8")]
+    return [lines[-1].decode("utf-8", errors="replace")]
+
+
+def _read_last_snapshot_line(path: Path) -> Iterable[str]:
+    """Find the newest complete player board, skipping trailing response rows."""
+    if not path.exists():
+        return []
+    with path.open("rb") as file:
+        file.seek(0, 2)
+        position = file.tell()
+        suffix = b""
+        while position > 0:
+            size = min(64 * 1024, position)
+            position -= size
+            file.seek(position)
+            suffix = file.read(size) + suffix
+            lines = suffix.splitlines()
+            # The first row is partial until the scan reaches byte zero.
+            candidates = lines if position == 0 else lines[1:]
+            for raw in reversed(candidates):
+                try:
+                    value = json.loads(raw.decode("utf-8"))
+                except (UnicodeError, ValueError, json.JSONDecodeError):
+                    continue
+                if isinstance(value, Mapping) and isinstance(value.get("player"), Mapping) \
+                        and isinstance(value.get("floor"), Mapping):
+                    return [raw.decode("utf-8")]
+    return []
 
 
 def _split_complete_lines(data: str) -> tuple[list[str], str]:
