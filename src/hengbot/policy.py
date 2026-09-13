@@ -2385,7 +2385,34 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = self._town_blocked_reason
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
+        unresolved_quest_candidate = (
+            key
+            if isinstance(key, DecisionCandidate)
+            and key.reason in {
+                "fixedquest:q22-travel:route-unavailable",
+                "fixedquest:prepare-return:route-unavailable",
+                "quest:enter:approach:route-unavailable",
+            }
+            else None
+        )
         key = self._forbid_wait_while_damaged(snapshot, key)
+        if unresolved_quest_candidate is not None and key is not unresolved_quest_candidate:
+            unresolved_reason = unresolved_quest_candidate.reason
+            unresolved_vector = self._town_arbiter_progress_vector(
+                snapshot, unresolved_reason, unresolved_quest_candidate
+            )
+            unresolved_clearance = self._town_retirement_clearance_key(
+                snapshot, "quest-request", unresolved_reason,
+                unresolved_quest_candidate,
+            )
+            if not arbiter.preview_may_select(
+                unresolved_reason, unresolved_vector,
+                retirement_key=unresolved_clearance,
+            ):
+                # Safety may rewrite a WAIT, but it must not erase the exact
+                # unresolved claim once that claim has retired.
+                key = unresolved_quest_candidate
+                self.last_reason = unresolved_reason
         vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
         in_town = bool(snapshot.in_town or snapshot.store is not None)
         arbiter.observe(

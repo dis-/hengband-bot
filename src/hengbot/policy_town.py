@@ -384,6 +384,11 @@ class TownMixin:
         quest_id = self._fixed_quest_target(snapshot)
         if quest_id is None or not snapshot.in_town:
             return None
+        current_town = self._effective_town_id(snapshot)
+        if current_town != FIXED_QUEST_TOWNS.get(quest_id, 0):
+            # Cross-town travel owns the request until the entrance town is
+            # reached.  An entry key here would mask that producer's vector.
+            return None
         quest = self._known_fixed_quests(snapshot).get(quest_id)
         info = self._quest_knowledge.get(quest_id)
         strategy = self.approved_quest_strategy(quest_id)
@@ -391,20 +396,29 @@ class TownMixin:
                 or info is None or info.battlefield is None or strategy is None):
             return None
         positions = self._fixed_quest_entrance_positions(snapshot, quest_id)
-        routes = tuple(
-            route for route in (
-                self._town_map_goal_route(snapshot, position)
-                for position in positions
-                if position != snapshot.player.position
-            ) if route is not None
+        route = self._nearest_goal_route(
+            snapshot,
+            lambda grid: grid.has_quest_enter and grid.quest_id == quest_id,
         )
-        if snapshot.player.position in positions or routes:
+        if route is None:
+            route = min(
+                (candidate for candidate in (
+                    self._town_map_goal_route(snapshot, position)
+                    for position in positions
+                    if position != snapshot.player.position
+                ) if candidate is not None),
+                key=lambda candidate: snapshot.player.position.distance_to(
+                    candidate.first_step
+                ),
+                default=None,
+            )
+        if not positions or snapshot.player.position in positions or route is not None:
             return None
         return (
             "quest-enter-approach-route-unavailable", quest_id, quest.status,
             ("approved-strategy", strategy.quest_id, strategy.generated_at),
             ("battlefield", repr(info.battlefield)),
-            self._effective_town_id(snapshot), snapshot.floor_key,
+            current_town, snapshot.floor_key,
             ("entrance-obligation", tuple(sorted(positions))),
             "eligible-route-unavailable",
         )

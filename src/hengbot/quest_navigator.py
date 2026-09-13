@@ -72,10 +72,9 @@ class QuestFloorNavigator:
         )
         candidate_identity = object()
         if not positions:
-            return QuestFloorNavigator._unavailable_entry_candidate(
-                owner, snapshot, quest_id, quest, source, context,
-                candidate_identity,
-            )
+            # No public entrance fact exists yet.  Waiting cannot reveal one;
+            # hand control back to the existing town explorer instead.
+            return None
         if snapshot.player.position in positions:
             if not owner._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
