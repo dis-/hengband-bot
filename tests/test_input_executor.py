@@ -589,6 +589,20 @@ class TcpBarrierPinTest(ProductionHarness):
         ), deadline=9999999999)
         self.assertEqual((result.outcome, game.accepted), ("completed", ["r"]))
 
+    def test_full_equipped_identify_owns_viewer_pages(self):
+        game, _client, executor = self.make()
+        game.screens = [
+            source_derived_identify_viewer(),
+            source_derived_identify_viewer(final=True),
+            command_screen(6),
+        ]
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(Operation(
+            72, "identify:full-equipped", "r", executor.ready_board,
+        ), deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["r", " ", "\x1b"])
+
     def test_source_direction_confirm_quantity_and_building_answers(self):
         cases = [
             ("Read which scroll?", ScreenKind.ITEM_SOURCE, "r", "f"),

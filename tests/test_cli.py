@@ -152,12 +152,16 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             record["store"] = {"store_type": 7, "items": []}
             older = dict(record, turn=6)
             path.write_text(
-                json.dumps(older) + "\n" + json.dumps(record) + "\n",
+                json.dumps(older) + "\n",
                 encoding="utf-8",
             )
             drain = _make_jsonl_barrier_drain(path)
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record) + "\n")
             self.assertEqual(drain(), [record])
             self.assertEqual(drain(), [])
+            self.assertEqual(drain.take_handed_records(), [record])
+            self.assertEqual(drain.take_handed_records(), [])
 
     def test_follow_consumes_executor_board_without_second_reader_recomposition(self):
         with TemporaryDirectory() as directory:
@@ -295,7 +299,11 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             self.assertEqual(json.loads(lines[0])["turn"], 17)
             drain = _make_jsonl_barrier_drain(path)
-            self.assertEqual(drain()[0]["turn"], 17)
+            self.assertEqual(drain(), [])
+            later = {"type": "knowledge", "turn": 18, "knowledge": {"fresh": True}}
+            with path.open("ab") as stream:
+                stream.write((json.dumps(later) + "\n").encode())
+            self.assertEqual(drain(), [later])
 
     def test_stage2f_owner_busy_has_distinct_tempfail_exit(self):
         with patch("hengbot.cli._acquire_control_owner", return_value=None):
@@ -580,6 +588,21 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertTrue(sent)
         self.assertEqual(posted, ["7", "7"])
         self.assertIsNone(contract.last_incident)
+
+    def test_observed_refusal_blocks_same_command_for_every_owner(self):
+        for owner, key in (("return:recall", "rha"), ("ranged:fire", "fa6")):
+            with self.subTest(owner=owner):
+                contract = PostingContract()
+                posted = self.snapshot(turn=696710, messages=("before",))
+                contract.posted(posted, key, owner)
+                refused = self.snapshot(
+                    turn=696710, messages=("before", "The command is refused."),
+                )
+                self.assertFalse(contract.allow(refused, key, owner))
+                self.assertEqual(
+                    contract.last_incident["marker"],
+                    "posting-contract:identical-repost-unobserved",
+                )
 
     def test_suppressed_decision_clears_stale_contract_incident(self):
         contract = PostingContract()

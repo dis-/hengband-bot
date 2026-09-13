@@ -817,11 +817,12 @@ class NavigationInvariantTest(unittest.TestCase):
         policy._returning_to_town = True
         contract = PostingContract()
         contract.posted(snapshot, "rd", "return:recall")
+        refused = replace(snapshot, messages=("The recall command is refused.",))
 
-        proposed = policy.choose_key(snapshot)
+        proposed = policy.choose_key(refused)
         self.assertEqual((proposed, policy.last_reason), ("rd", "return:recall"))
         self.assertFalse(contract.allow(
-            snapshot, proposed, policy.last_reason
+            refused, proposed, policy.last_reason
         ))
         incident = contract.last_incident
         self.assertEqual(

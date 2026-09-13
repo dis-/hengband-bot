@@ -181,26 +181,6 @@ class HomeMixin:
         request = visit.request
         if visit.entry_pending:
             return False
-        protected_queued_withdraw = next((queued for queued in visit.queued
-            if queued.kind == HomeVisitKind.WITHDRAW
-            and queued.item_identity != identity), None)
-        if request is not None and request.item_identity != identity \
-                and protected_queued_withdraw is not None:
-            kind = HomeVisitKind.WITHDRAW if action == "take" else HomeVisitKind.DEPOSIT
-            try:
-                visit.file(PhysicalHomeVisitRequest(
-                    kind,
-                    "atomic-home-composer",
-                    identity,
-                    address=identity if action == "take" else None,
-                ))
-            except ValueError:
-                return False
-            # A different-identity visit may already be carrying a queued
-            # withdrawal and its approach/context evidence.  Queue this work;
-            # never report/supersede the active request merely because another
-            # composer ran first on the same board.
-            return False
         while (
             request is not None
             and request.item_identity != identity

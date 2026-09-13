@@ -78,9 +78,12 @@ class WorldMapKeyHygieneTest(unittest.TestCase):
         self.assertTrue(contract.allow(snapshot, first, policy.last_reason))
         contract.posted(snapshot, first, policy.last_reason)
 
-        refused = policy.choose_key(replace(snapshot))
+        refusal_board = replace(snapshot, messages=("You cannot enter the town.",))
+        refused = policy.choose_key(refusal_board)
         self.assertEqual(refused, ">")
-        self.assertFalse(contract.allow(snapshot, refused, policy.last_reason))
+        self.assertFalse(contract.allow(
+            refusal_board, refused, policy.last_reason
+        ))
         policy.refuse_key_posting("wilderness:enter-town", refused)
 
         probe = policy.choose_key(replace(snapshot))

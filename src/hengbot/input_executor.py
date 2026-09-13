@@ -472,7 +472,7 @@ class OperationExecutor:
             return self._death(self.active, match)
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline)
-        if self.active.owner == "identify:full":
+        if self.active.owner.startswith("identify:full"):
             if match.kind is ScreenKind.IDENTIFY_VIEWER_PAGE:
                 # screen_object() owns an arbitrary number of attribute pages.
                 return self._post_and_barrier(" ", deadline)
@@ -496,7 +496,7 @@ class OperationExecutor:
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
         # An absent expected prompt drops its tail; it is never posted opportunistically.
         if self.active.continuations:
-            if self.active.owner == "identify:full":
+            if self.active.owner.startswith("identify:full"):
                 # An already-known target can skip either selector, and an
                 # exhausted source can return directly to command.  The fresh
                 # command/store barrier positively reconciles that outcome;

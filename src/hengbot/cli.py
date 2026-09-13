@@ -1728,7 +1728,7 @@ class PostingContract:
     """Universal sender-side observation and prompt-ownership contract."""
 
     def __init__(self) -> None:
-        self._posted_by_owner: dict[str, tuple[str, tuple]] = {}
+        self._posted_by_owner: dict[str, tuple[str, tuple, tuple[str, ...]]] = {}
         self._last_posted_owner: str | None = None
         self._last_posted_key: str | None = None
         self._last_posted_effect: tuple | None = None
@@ -1761,17 +1761,13 @@ class PostingContract:
             }
             return False
         previous = self._posted_by_owner.get(owner)
-        # These commands have an observable success transition and historically
-        # produce a refusal without advancing the board.  Preserve that causal
-        # refusal protection without making byte identity a universal
-        # completion gate (ordinary, deliberately repeated no-ops remain legal
-        # after a fresh executor barrier).
-        refusal_sensitive = owner in {"return:recall", "wilderness:enter-town"}
+        messages = tuple(getattr(snapshot, "messages", ()))
         if (
-            refusal_sensitive
-            and previous is not None
+            previous is not None
             and previous[0] == key
             and previous[1] == effect
+            and len(messages) > len(previous[2])
+            and messages[:len(previous[2])] == previous[2]
         ):
             self.last_incident = {
                 "marker": "posting-contract:identical-repost-unobserved",
@@ -1800,7 +1796,9 @@ class PostingContract:
 
     def posted(self, snapshot, key: str, owner: str) -> None:
         effect = _posting_effect_signature(snapshot, owner, key)
-        self._posted_by_owner[owner] = (key, effect)
+        self._posted_by_owner[owner] = (
+            key, effect, tuple(getattr(snapshot, "messages", ()))
+        )
         self._last_posted_owner = owner
         self._last_posted_key = key
         self._last_posted_effect = effect
@@ -2072,7 +2070,7 @@ def _send_prompt_gated_decision_key(
             segment = key[index:next_index]
             if (
                 decision is not None
-                and decision.get("reason") == "identify:full"
+                and str(decision.get("reason", "")).startswith("identify:full")
                 and kind is ScreenKind.ITEM_TARGET
             ):
                 # The identify result viewer owns its own page/final answers;
@@ -2089,12 +2087,16 @@ def _send_prompt_gated_decision_key(
         )
         posted = "".join(accepted)
         released = max(0, len(accepted) - 1)
+        full_identify = str((decision or {}).get("reason", "")).startswith(
+            "identify:full"
+        )
+        logically_released = sent and (posted == key or full_identify)
         result = {
             "key": key,
-            "outcome": "released" if sent and posted == key else "dropped",
+            "outcome": "released" if logically_released else "dropped",
             "released_through": released,
             "posted": posted,
-            "drop_reason": None if sent and posted == key else "executor-barrier",
+            "drop_reason": None if logically_released else "executor-barrier",
             "escape_posted": False,
         }
         if sent:
@@ -2499,17 +2501,13 @@ def _make_jsonl_barrier_drain(path: Path):
     """
     try:
         offset = path.stat().st_size
-        seed = [row for row in _decode_response_lines(_read_last_snapshot_line(path))
-                if isinstance(row, Mapping)]
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
-        offset, seed = 0, []
+        offset = 0
     pending = ""
-    seeded = False
-    response_records: list[Mapping[str, object]] = []
+    handed_records: list[Mapping[str, object]] = []
 
     def drain():
-        nonlocal offset, pending, seeded
-        initial, seeded = (() if seeded else seed), True
+        nonlocal offset, pending
         try:
             size = path.stat().st_size
             if size < offset:
@@ -2519,20 +2517,20 @@ def _make_jsonl_barrier_drain(path: Path):
                 chunk = stream.read()
                 offset = stream.tell()
         except OSError:
-            return initial
+            return ()
         complete, pending = _split_complete_lines(pending + chunk)
         decoded = [row for row in _decode_response_lines(complete)
                    if isinstance(row, Mapping)]
-        response_records.extend(row for row in decoded
-                                if row.get("type") in {"knowledge", "look", "character"})
-        return [*initial, *decoded]
+        handed_records.extend(decoded)
+        return decoded
 
-    def take_response_records():
-        records = list(response_records)
-        response_records.clear()
+    def take_handed_records():
+        records = list(handed_records)
+        handed_records.clear()
         return records
 
-    drain.take_response_records = take_response_records
+    drain.take_handed_records = take_handed_records
+    drain.consumed_offset = lambda: offset
 
     return drain
 
@@ -3202,15 +3200,20 @@ def _run_follow(
                     look_barrier_seen = False
                     look_barrier_started_at = 0.0
                 elif executor is not None and executor.ready_board is not None:
-                    take_responses = getattr(executor.drain, "take_response_records", None)
-                    if take_responses is not None:
-                        response_records = take_responses()
+                    take_handed = getattr(executor.drain, "take_handed_records", None)
+                    if take_handed is not None:
+                        response_records = take_handed()
                         _dispatch_response_lines(
                             [json.dumps(row, ensure_ascii=False) + "\n"
                              for row in response_records],
                             policy, send, decoded_lines=response_records,
                             knowledge_ledger_path=knowledge_ledger_path,
                         )
+                        consumed_offset = getattr(
+                            executor.drain, "consumed_offset", lambda: file.tell()
+                        )()
+                        file.seek(consumed_offset)
+                        pending = ""
                     decision_board = executor.ready_board
                     phase_started_at = time.perf_counter()
                     try:
@@ -3836,7 +3839,6 @@ def _run_follow(
             )
             if (
                 executor is not None
-                and not args.send_to_window
                 and args.stall_timeout > 0
                 and now >= quiet_ok_until
                 and recovery_action != "wait"
@@ -3847,7 +3849,8 @@ def _run_follow(
                 )
                 return incident_stop("stuck-prompt", snapshot)
             if (
-                args.send_to_window
+                executor is None
+                and args.send_to_window
                 and args.stall_timeout > 0
                 and now >= quiet_ok_until
                 and recovery_action != "wait"
@@ -4359,9 +4362,11 @@ def _read_last_snapshot_line(path: Path) -> Iterable[str]:
             size = min(64 * 1024, position)
             position -= size
             file.seek(position)
-            suffix = file.read(size) + suffix
-            lines = suffix.splitlines()
-            # The first row is partial until the scan reaches byte zero.
+            block = file.read(size)
+            joined = block + suffix
+            lines = joined.splitlines()
+            # Retain only the leading partial row for the next earlier block.
+            suffix = b"" if position == 0 else lines[0]
             candidates = lines if position == 0 else lines[1:]
             for raw in reversed(candidates):
                 try:

@@ -890,7 +890,7 @@ class HomeVisitOwnershipTest(unittest.TestCase):
             policy.consume_pending_home_visit_report(),
         )
 
-    def test_prepare_operation_preserves_different_queued_withdrawal(self):
+    def test_prepare_operation_retires_stale_work_before_new_identity(self):
         policy = HengbotPolicy()
         visit = policy._home_visit
         active = HomeVisitRequest(HomeVisitKind.DEPOSIT, "first", ("active",))
@@ -899,11 +899,12 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertTrue(visit.begin_approach(1))
         self.assertEqual(visit.file(queued), "queued")
 
-        self.assertFalse(policy._prepare_home_visit_operation(
+        self.assertTrue(policy._prepare_home_visit_operation(
             "take", ("new",), ("fresh", 2)
         ))
-        self.assertIs(visit.request, active)
-        self.assertIn(queued, visit.queued)
+        self.assertEqual(visit.request.item_identity, ("new",))
+        self.assertNotIn(active, visit.queued)
+        self.assertNotIn(queued, visit.queued)
 
     def test_promoted_restore_request_composes_recorded_identify_staff(self):
         policy = HengbotPolicy()
