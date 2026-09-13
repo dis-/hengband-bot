@@ -1,4 +1,14 @@
+"""Quest-travel pins over a minimal retained-incident fixture.
+
+The fixture holds original records 4-11, 13-14, and 16-22 from
+``jsonlog/incident-quest-request-retired-20260913.snapshots.jsonl``: the Home
+request/response and q22 travel observations at turns 2856171, 2856179,
+2856191, 2856202, 2856214, 2856584, 2856596, 2856607, 2856615, 2856625,
+2856635, and 2856646.  Repeated turns retain distinct emitted record types.
+"""
+
 import copy
+import gzip
 import json
 import os
 import tempfile
@@ -20,7 +30,7 @@ from hengbot.town_maps import parse_town_map
 
 ROOT = Path(__file__).resolve().parents[1]
 EDIT = Path("C:/hengband/lib/edit")
-SNAPSHOTS = ROOT / "jsonlog/incident-quest-request-retired-20260913.snapshots.jsonl"
+SNAPSHOTS = ROOT / "tests/fixtures/quest-request-retired-stage1.jsonl.gz"
 PIN_RECORDS = (4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18, 19, 20, 21, 22)
 
 
@@ -68,13 +78,13 @@ class QuestTravelProgressPins(unittest.TestCase):
         )
 
     def _records(self):
-        wanted = set(PIN_RECORDS)
-        with SNAPSHOTS.open(encoding="utf-8") as stream:
-            return [
-                (number, json.loads(line), line)
-                for number, line in enumerate(stream, 1)
-                if number in wanted
-            ]
+        with gzip.open(SNAPSHOTS, mode="rt", encoding="utf-8") as stream:
+            lines = list(stream)
+        self.assertEqual(len(lines), len(PIN_RECORDS))
+        return [
+            (number, json.loads(line), line)
+            for number, line in zip(PIN_RECORDS, lines)
+        ]
 
     def _dispatch(self, policy, line):
         return _dispatch_response_lines(
