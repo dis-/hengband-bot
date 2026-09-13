@@ -255,7 +255,8 @@ class PromptGatedIdentificationPins(unittest.TestCase):
         policy.confirm_key_posted(key)
         committed = policy.commit_staged_prompt_chain(result)
         self.assertIsNone(policy._staged_prompt_chain)
-        self.assertFalse(contract.allow(snap, "uis", committed["owner"]))
+        # Section 7: the retained signature is diagnostic, not a generic gate.
+        self.assertTrue(contract.allow(snap, "uis", committed["owner"]))
         self.assertFalse(fake.send_keys_called)
 
     def test_pin_d6_1m_staff_misfire_never_posts_target(self):
@@ -301,7 +302,8 @@ class PromptGatedIdentificationPins(unittest.TestCase):
             )},
             {
                 "outcome": "dropped", "released_through": 1, "posted": "ui",
-                "drop_reason": "command-completed", "escape_posted": False,
+                # P5: JSONL growth cannot retire the still-open chain.
+                "drop_reason": "prompt-timeout", "escape_posted": False,
             },
         )
         self.assertNotIn("uis", posted)

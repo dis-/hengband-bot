@@ -378,7 +378,7 @@ class UniversalPostingContractTest(unittest.TestCase):
             ),
         )
 
-    def test_preserved_double_recall_shape_refuses_until_recalling_changes(self):
+    def test_generic_contract_does_not_decide_recall_completion(self):
         contract = PostingContract()
         first = self.snapshot(turn=4020825, recalling=False)
         posted = []
@@ -397,12 +397,9 @@ class UniversalPostingContractTest(unittest.TestCase):
             snapshot=self.snapshot(turn=4020833, recalling=False),
             posting_contract=contract,
         )
-        self.assertFalse(sent)
-        self.assertEqual(posted, ["rha"])
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:identical-repost-unobserved",
-        )
+        self.assertTrue(sent)
+        self.assertEqual(posted, ["rha", "rha"])
+        self.assertIsNone(contract.last_incident)
         self.assertTrue(contract.allow(
             self.snapshot(turn=4020833, recalling=True),
             "rha", "town:repetition-depart:recall",
@@ -415,7 +412,7 @@ class UniversalPostingContractTest(unittest.TestCase):
                 contract.posted(self.snapshot(turn=10), key, owner)
                 self.assertTrue(contract.allow(self.snapshot(turn=11), key, owner))
 
-    def test_identical_board_duplicate_is_suppressed_before_contract(self):
+    def test_fresh_barrier_may_post_an_identical_noop(self):
         contract = PostingContract()
         snapshot = self.snapshot(turn=696710)
         posted = []
@@ -434,8 +431,8 @@ class UniversalPostingContractTest(unittest.TestCase):
             decision=decision, snapshot=snapshot, posting_contract=contract,
         )
 
-        self.assertFalse(sent)
-        self.assertEqual(posted, ["7"])
+        self.assertTrue(sent)
+        self.assertEqual(posted, ["7", "7"])
         self.assertIsNone(contract.last_incident)
 
     def test_suppressed_decision_clears_stale_contract_incident(self):
@@ -443,7 +440,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertTrue(hasattr(contract, "flight_recorder"))
         snapshot = self.snapshot(turn=696738)
         contract.posted(snapshot, "4", "explore")
-        self.assertFalse(contract.allow(snapshot, "4", "explore"))
+        self.assertTrue(contract.allow(snapshot, "4", "explore"))
 
         sent, _ = _send_new_decision_key(
             lambda _key, **_kwargs: True,
@@ -455,7 +452,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertFalse(sent)
         self.assertIsNone(contract.last_incident)
 
-    def test_recovery_probe_does_not_rearm_real_burst_capture(self):
+    def test_generic_signature_diagnostics_do_not_gate_reposts(self):
         class Recorder:
             def __init__(self):
                 self.episodes = set()
@@ -480,12 +477,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         contract.posted(snapshot, "4", owner)
 
         for sequence in range(2):
-            self.assertFalse(contract.allow(snapshot, "4", owner))
-            incident = contract.last_incident
-            recorder.freeze(
-                incident["marker"], None, snapshot, None, [],
-                owner_reason=owner, key="4",
-            )
+            self.assertTrue(contract.allow(snapshot, "4", owner))
             sent, _ = _send_new_decision_key(
                 lambda _key, **_kwargs: True,
                 f"probe-{sequence}", "l\x1b", None, set(), in_store=False,
@@ -495,20 +487,17 @@ class UniversalPostingContractTest(unittest.TestCase):
             self.assertTrue(sent)
             contract.posted(snapshot, "4", owner)
 
-        self.assertEqual(recorder.captures, 1)
+        self.assertEqual(recorder.captures, 0)
 
-    def test_message_flicker_does_not_acknowledge_repost(self):
+    def test_message_flicker_is_not_a_generic_completion_gate(self):
         contract = PostingContract()
         owner = "explore"
         contract.posted(self.snapshot(turn=696738, messages=("noticed",)), "4", owner)
 
-        self.assertFalse(contract.allow(
+        self.assertTrue(contract.allow(
             self.snapshot(turn=696738, messages=()), "4", owner
         ))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:identical-repost-unobserved",
-        )
+        self.assertIsNone(contract.last_incident)
 
     def test_real_position_effect_acknowledges_repost(self):
         contract = PostingContract()
@@ -520,7 +509,7 @@ class UniversalPostingContractTest(unittest.TestCase):
 
         self.assertTrue(contract.allow(after, "4", owner))
 
-    def test_unobserved_volley_recovers_through_identity_breaking_probe(self):
+    def test_identical_volley_signature_remains_diagnostic_only(self):
         owner = "ranged:fire"
         key = "\x1bfa8"
         contract = PostingContract()
@@ -528,11 +517,8 @@ class UniversalPostingContractTest(unittest.TestCase):
         unchanged.inventory[0].slot = "a"
         contract.posted(unchanged, key, owner)
 
-        self.assertFalse(contract.allow(unchanged, key, owner))
-        self.assertEqual(
-            contract.last_incident["marker"],
-            "posting-contract:identical-repost-unobserved",
-        )
+        self.assertTrue(contract.allow(unchanged, key, owner))
+        self.assertIsNone(contract.last_incident)
 
         # The standard A11r2 refusal recovery posts a look/ESC observation
         # barrier under the refusing owner.  A fresh snapshot can then
@@ -3319,7 +3305,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             line, ">y", posted_line, posted_keys, in_store=False,
         )
 
-        self.assertEqual(posted, [">y"])
+        self.assertEqual(posted, [">y", ">y"])
 
     def test_store_leave_suppression_survives_sent_nudge(self):
         line = _snap_line(1099751, 45, 123)
@@ -3536,7 +3522,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
             )
 
         self.assertEqual(decisions, ["9", "9", "9", "9"])
-        self.assertEqual(posted, ["9"])
+        self.assertEqual(posted, ["9", "9", "9", "9"])
 
     def test_real_fundraising_board_posts_each_key_at_most_once(self):
         # The captured 1 1 T3 9 9 failure cannot be reproduced: repeated
@@ -3555,7 +3541,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
                 in_store=False,
             )
 
-        self.assertEqual(posted, ["1", "T3", "9"])
+        self.assertEqual(posted, ["1", "1", "T3", "9", "9"])
 
     def test_different_key_on_repeated_board_is_sent(self):
         line = _snap_line(1099696, 45, 123)
@@ -3572,7 +3558,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
                 in_store=False,
             )
 
-        self.assertEqual(posted, ["9", "7"])
+        self.assertEqual(posted, ["9", "9", "7"])
 
     def test_repeated_board_can_reach_existing_stalled_command_stop(self):
         line = _snap_line(1099696, 45, 123)
@@ -3737,14 +3723,12 @@ class InputDesynchronizationTest(unittest.TestCase):
                 _look_barrier_timed_release(
                     [board], False, LOOK_BARRIER_TIMEOUT_SECONDS
                 ),
-                ([board], False, True),
+                ([], False, True),
             )
-        print_mock.assert_called_once_with(
-            "<look-barrier:timeout>", flush=True
-        )
+        print_mock.assert_not_called()
 
-    def test_missing_look_response_makes_progress_without_reprobe(self):
-        self.assertTrue(_look_barrier_allows_decision([_snap_line(11, 5, 6)]))
+    def test_missing_look_response_never_promotes_a_board_to_ready(self):
+        self.assertFalse(_look_barrier_allows_decision([_snap_line(11, 5, 6)]))
 
 
 class ChestMovementAcknowledgementTest(unittest.TestCase):

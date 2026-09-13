@@ -1,4 +1,4 @@
-"""Stage-1 pins using a source-derived one-request-per-hook fake."""
+"""Input causal-barrier pins using a source-derived one-request-per-hook fake."""
 
 import json
 from pathlib import Path
@@ -496,6 +496,39 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual([x[1] for x in game.trace if x[0] == "issue"],
                          ["screen", "state", "keys", "screen", "state",
                           "keys", "screen", "state"])
+
+    def test_p5_source_then_target_ignore_intermediate_jsonl_and_release_once(self):
+        game, _client, executor = self.make()
+        source = "どの巻物を読みますか?"
+        target = "どのアイテムを鑑定しますか?"
+        game.screens = [prompt_screen(source), prompt_screen(target), command_screen(4)]
+        executor.observe_boundary(deadline=9999999999)
+        original = game.hook
+        screen_replies = 0
+
+        def write_before_each_screen(request):
+            nonlocal screen_replies
+            if request["op"] == "screen":
+                screen_replies += 1
+                game.jsonl.append({
+                    "turn": game.state["turn"], "type": "player_turn",
+                    "messages": [f"intermediate-{screen_replies}"],
+                })
+            return original(request)
+
+        game.hook = write_before_each_screen
+        operation = Operation(52, "identify", "r", executor.ready_board, [
+            Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f", source),
+            Continuation(frozenset({ScreenKind.ITEM_TARGET}), "k", target),
+        ])
+        result = executor.submit(operation, deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["r", "f", "k"])
+        self.assertEqual(result.operation.accepted_segments, ["r", "f", "k"])
+        self.assertEqual(
+            result.board["messages"],
+            ["intermediate-1", "intermediate-2", "intermediate-3"],
+        )
 
     def test_source_direction_confirm_quantity_and_building_answers(self):
         cases = [

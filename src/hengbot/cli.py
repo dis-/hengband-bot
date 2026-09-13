@@ -1759,13 +1759,6 @@ class PostingContract:
             }
             return False
         previous = self._posted_by_owner.get(owner)
-        if previous is not None and previous == (key, effect):
-            self.last_incident = {
-                "marker": "posting-contract:identical-repost-unobserved",
-                "owner": owner,
-                "key": key,
-            }
-            return False
         if previous is not None and previous[0] == key and previous[1] != effect:
             recorder = self.flight_recorder
             if recorder is not None:
@@ -1896,20 +1889,22 @@ def _send_new_decision_key(
     snapshot=None,
     posting_contract: PostingContract | None = None,
 ) -> tuple[bool, str]:
-    """Post each policy key at most once for a byte-identical board."""
+    """Post a policy key after ownership checks.
+
+    Causal completion belongs to ``OperationExecutor``.  ``posted_line`` and
+    ``posted_keys`` remain diagnostic inputs for older callers, but equal
+    serialized boards or keys are not completion evidence and cannot suppress
+    a command selected from a fresh barrier board.
+    """
     if posting_contract is not None:
         posting_contract.last_incident = None
-    if snapshot_line != posted_line:
-        posted_keys.clear()
-        posted_line = snapshot_line
+    posted_line = snapshot_line
     if suppress:
         return SendResult.DESIGNED_WAIT, posted_line
     if not key:
         return SendResult.DESIGNED_WAIT, posted_line
     owner = str((decision or {}).get("reason", "unknown"))
     prompt_owner_handoff = (decision or {}).get("prompt_owner_handoff")
-    if key in posted_keys:
-        return SendResult.DESIGNED_WAIT, posted_line
     if (
         posting_contract is not None
         and snapshot is not None
@@ -1962,27 +1957,9 @@ def _release_prompt_gated_tail(
         next_index = gates[gate_index + 1][0] if gate_index + 1 < len(gates) else len(key)
         segment = key[index:next_index]
         prompt = prompts[0] if prompt_japanese else prompts[1]
-        if os.fstat(file.fileno()).st_size != file.tell():
-            return {
-                "key": key,
-                "outcome": "dropped",
-                "released_through": released,
-                "posted": posted,
-                "drop_reason": "command-completed",
-                "escape_posted": False,
-            }
         screen = shadow_client.request(
             "screen", term=0, attrs=False, deadline=deadline
         )
-        if os.fstat(file.fileno()).st_size != file.tell():
-            return {
-                "key": key,
-                "outcome": "dropped",
-                "released_through": released,
-                "posted": posted,
-                "drop_reason": "command-completed",
-                "escape_posted": False,
-            }
         lines = screen.get("lines", []) if screen is not None else []
         row0 = str(lines[0]) if lines else ""
         if screen is None or not row0.rstrip().endswith(prompt.rstrip()):
@@ -2252,14 +2229,11 @@ def _look_barrier_release(
 def _look_barrier_timed_release(
     complete_lines: list[str], look_seen: bool, elapsed: float, decoded_lines=None
 ) -> tuple[list[str], bool, bool]:
-    """Apply the look barrier, escaping once if its response was lost."""
+    """Apply the look payload barrier without promoting timeout to readiness."""
     eligible_lines, look_seen = _look_barrier_release(
         complete_lines, look_seen, decoded_lines
     )
     timed_out = not look_seen and elapsed >= LOOK_BARRIER_TIMEOUT_SECONDS
-    if timed_out:
-        eligible_lines = complete_lines
-        print("<look-barrier:timeout>", flush=True)
     return eligible_lines, look_seen, timed_out
 
 
@@ -3140,7 +3114,7 @@ def _run_follow(
                     last_player_level = snapshot.player.level
                     now = time.monotonic()
                     last_activity = now
-                    if pending_direction is not None:
+                    if executor is None and pending_direction is not None:
                         command_snapshot, command_key = pending_direction
                         pending_direction = None
                         if _direction_desynchronized(
@@ -3170,8 +3144,13 @@ def _run_follow(
                         if not send(NUDGE_KEY):
                             return incident_stop("stuck-prompt", snapshot)
                         print("<floor-transition:esc>", flush=True)
+                        if executor is not None:
+                            # The Escape operation owns its own S -> T barrier.
+                            # Re-enter through that fresh board; never select a
+                            # second command from the pre-Escape snapshot.
+                            continue
                     last_snapshot_floor_key = snapshot.floor_key
-                    if _chest_movement_response_pending(
+                    if executor is None and _chest_movement_response_pending(
                         pending_chest_movement, snapshot, now
                     ):
                         continue
@@ -3413,11 +3392,6 @@ def _run_follow(
                         return incident_stop("loop-detected", snapshot)
                     if suppress_unconfirmed_store_leave:
                         print("<store-leave-key:suppressed>", flush=True)
-                    elif (
-                        snapshot_line == posted_decision_line
-                        and key in posted_decision_keys
-                    ):
-                        print(f"<duplicate-key:suppressed> {key}", flush=True)
                     else:
                         print(key, flush=True)
                     phase_started_at = time.perf_counter()
@@ -3576,9 +3550,11 @@ def _run_follow(
                         if policy.last_reason == "periodic:game-save":
                             save_archive.posted(time.monotonic())
                     last_activity = time.monotonic()
-                    if sent and key in DIRECTION_KEYS:
+                    if executor is None and sent and key in DIRECTION_KEYS:
                         pending_direction = (snapshot, key)
                     if (
+                        executor is None
+                        and
                         sent
                         and _movement_command_needs_ack(key, policy.last_reason)
                     ):
