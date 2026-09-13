@@ -7,9 +7,11 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from policy_fixtures import item
 from hengbot.home_disposal import HomeDisposalState
 from hengbot.model import (
-    STORE_ALCHEMIST, STORE_TEMPLE, SV_SCROLL_DETECT_TREASURE,
+    STORE_ALCHEMIST, STORE_TEMPLE, SV_LITE_TORCH,
+    SV_SCROLL_DETECT_TREASURE, SV_SCROLL_IDENTIFY, TVAL_LITE, TVAL_SCROLL,
     StoreItem, parse_snapshot,
 )
 from hengbot.policy import HengbotPolicy
@@ -140,7 +142,7 @@ class RecallStockoutSurplusPins(unittest.TestCase):
             policy = HengbotPolicy(
                 home_disposal_state=self._state(Path(directory))
             )
-            _decisions, snapshot = replay_to_home_return(policy)
+            snapshot = fixture_snapshot(24)
             recall = next(item for item in snapshot.inventory if item.is_recall_scroll)
             page = replace(snapshot, store=None)
             # StoreState is absent on the outside capture; reuse its public
@@ -170,6 +172,39 @@ class RecallStockoutSurplusPins(unittest.TestCase):
 
         self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs), ("prepare", 1))
         self.assertNotIn(STORE_TEMPLE, policy._town_restock_rechecked)
+
+    def test_reliable_identify_source_protects_unknown_surplus(self):
+        """M1 regression: a promising unknown cannot be deposited first."""
+        with TemporaryDirectory() as directory:
+            policy = HengbotPolicy(
+                home_disposal_state=self._state(Path(directory))
+            )
+            snapshot = fixture_snapshot(24)
+            unknown = item(
+                "z", TVAL_LITE, SV_LITE_TORCH, known=False,
+                fully_known=False, pseudo_feeling="excellent", fuel=0,
+                is_equipment=True,
+            )
+            identify = item("y", TVAL_SCROLL, SV_SCROLL_IDENTIFY, count=1)
+            protected = replace(
+                snapshot,
+                inventory=(*snapshot.inventory, identify, unknown),
+            )
+
+            before = policy._home_deposit_candidate(unknown, protected)
+            after = policy._home_deposit_candidate(
+                replace(unknown, known=True, fully_known=True),
+                replace(
+                    protected,
+                    inventory=tuple(
+                        replace(item, known=True, fully_known=True)
+                        if item.slot == unknown.slot else item
+                        for item in protected.inventory
+                    ),
+                ),
+            )
+
+        self.assertEqual((before, after), (False, True))
 
 
 if __name__ == "__main__":
