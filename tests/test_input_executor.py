@@ -566,7 +566,10 @@ class TcpBarrierPinTest(ProductionHarness):
                     continue
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 names = [target.id for target in targets if isinstance(target, ast.Name)]
-                if not any("PROMPT" in name or "QUESTION" in name for name in names):
+                if not any(
+                    "PROMPT" in name.upper() or "QUESTION" in name.upper()
+                    for name in names
+                ):
                     continue
                 for value in ast.walk(node.value):
                     if isinstance(value, ast.Constant) and isinstance(value.value, str):
