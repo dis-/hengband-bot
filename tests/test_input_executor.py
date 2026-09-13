@@ -6,12 +6,18 @@ from pathlib import Path
 import ast
 import hashlib
 import unittest
+from types import SimpleNamespace
 
 from hengbot.control_client import ControlClient, KeyPostStatus
 from hengbot.input_executor import (
     Continuation, Operation, OperationExecutor, ScreenKind, Transport,
     classify_screen, compose_barrier_board,
 )
+from hengbot.cli import (
+    PostingContract, _ExecutorInputPort, _send_new_decision_key,
+)
+from hengbot.model import Position, Snapshot
+from hengbot.quest_navigator import QuestFloorNavigator
 
 
 def command_screen(turn=1):
@@ -442,6 +448,74 @@ class ScreenClassifierTest(unittest.TestCase):
 
 
 class TcpBarrierPinTest(ProductionHarness):
+    def _quest_entry_snapshot(self):
+        start, entrance = Position(63, 98), Position(63, 99)
+        player = SimpleNamespace(position=start)
+        grids = {
+            start: SimpleNamespace(position=start, has_quest_enter=False, quest_id=0),
+            entrance: SimpleNamespace(
+                position=entrance, has_quest_enter=True, quest_id=22
+            ),
+        }
+        return Snapshot(player, grids, [], turn=2857339, floor_key=(0, 0, 0),
+                        town_flag=True, town_id=3), entrance
+
+    def _produce_quest_entry_move(self, snapshot, entrance):
+        owner = SimpleNamespace(last_reason=None)
+        owner._fixed_quest_entrance_positions = lambda *_args: {entrance}
+        owner._quest_equipment_entry_allowed = lambda *_args: True
+        owner._nearest_goal_step = lambda *_args: entrance
+        owner._step_toward = lambda *_args: "6"
+        return owner, QuestFloorNavigator.enter_from_town(owner, snapshot, 22)
+
+    def test_live_quest_entry_fixture_is_owned_and_reaches_quest_floor_before_release(self):
+        fixture = json.loads((Path(__file__).with_name("fixtures") / "live-screens" /
+                              "19-quest-entry-confirm-yn.json").read_text(encoding="utf-8"))
+        self.assertEqual(fixture["screen"]["result"]["cursor"],
+                         {"visible": True, "x": 27, "y": 0})
+        self.assertEqual(fixture["state"]["result"]["turn"], 2857339)
+        snapshot, entrance = self._quest_entry_snapshot()
+        owner, key = self._produce_quest_entry_move(snapshot, entrance)
+
+        class QuestEntryGame(FaithfulHookGame):
+            def _consume(self, *, pump_frontend=True):
+                super()._consume(pump_frontend=pump_frontend)
+                if self.accepted and self.accepted[-1] == "y":
+                    self.state["floor"] = {"quest_id": 22, "level": 15}
+
+        game = QuestEntryGame()
+        game.screens = [fixture["screen"]["result"], command_screen(2857340)]
+        _game, client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        posted = set()
+        sent, _line = _send_new_decision_key(
+            port, "incident-seq83", key, None, posted, in_store=False,
+            decision={"sequence": 83, "reason": owner.last_reason},
+            snapshot=snapshot, posting_contract=PostingContract(),
+        )
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["6", "y"])
+        self.assertEqual(port.last_result.operation.accepted_segments, ["6", "y"])
+        self.assertEqual(port.last_result.board["floor"],
+                         {"quest_id": 22, "level": 15})
+
+    def test_quest_entry_move_does_not_own_an_unrelated_yes_no(self):
+        snapshot, entrance = self._quest_entry_snapshot()
+        owner, key = self._produce_quest_entry_move(snapshot, entrance)
+        game, _client, executor = self.make()
+        game.screens = [prompt_screen("Enter the arena? [y/n]")]
+        executor.observe_boundary(deadline=9999999999)
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _line = _send_new_decision_key(
+            port, "incident-seq83", key, None, set(), in_store=False,
+            decision={"sequence": 83, "reason": owner.last_reason},
+            snapshot=snapshot, posting_contract=PostingContract(),
+        )
+        self.assertFalse(sent)
+        self.assertEqual(port.last_result.outcome, "stuck-prompt")
+        self.assertEqual(game.accepted, ["6"])
+
     def test_p1_mid_operation_jsonl_is_ordered_observation_not_decision(self):
         game, client, _ = self.make()
         observed = []

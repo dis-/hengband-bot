@@ -4654,7 +4654,7 @@ class QuestMixin:
             if not self._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
             self.last_reason = "fixedquest:enter"
-            return DOWN_STAIRS_KEY + "y"
+            return DOWN_STAIRS_KEY
         step = self._nearest_goal_step(
             snapshot,
             lambda grid: grid.has_quest_enter and grid.quest_id == quest_id,
@@ -4725,9 +4725,13 @@ class QuestMixin:
             )
         if step is None:
             return None
+        if step in positions and (
+            not self._kill_quest_descent_allowed(snapshot)
+            or not self._quest_equipment_entry_allowed(snapshot, quest_id)
+        ):
+            return None
         self.last_reason = "fixedquest:enter" if step in positions else "fixedquest:approach"
-        suffix = "y" if step in positions else ""
-        return self._step_toward(snapshot, step, tail=suffix)
+        return self._step_toward(snapshot, step)
 
     def _fixed_quest_exit_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         here = snapshot.grid_at(snapshot.player.position)

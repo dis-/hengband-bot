@@ -79,7 +79,7 @@ class QuestFloorNavigator:
             if not owner._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
             owner.last_reason = "quest:enter"
-            return ">y"
+            return ">"
         if context is None:
             step = owner._nearest_goal_step(
                 snapshot,
@@ -97,6 +97,10 @@ class QuestFloorNavigator:
             if step is None:
                 owner.last_reason = "quest:blocked:enter"
                 return WAIT_KEY
+            if step in positions and not owner._quest_equipment_entry_allowed(
+                snapshot, quest_id
+            ):
+                return None
             owner.last_reason = "quest:enter:approach"
             return owner._step_toward(snapshot, step)
         route = owner._nearest_goal_route(
@@ -117,6 +121,10 @@ class QuestFloorNavigator:
                 candidate_identity,
             )
         reason = "quest:enter:approach"
+        if route.first_step in positions and not owner._quest_equipment_entry_allowed(
+            snapshot, quest_id
+        ):
+            return None
         key = owner._step_toward(snapshot, route.first_step)
         owner.last_reason = reason
         if context is None or quest is None:

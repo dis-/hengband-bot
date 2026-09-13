@@ -1964,7 +1964,13 @@ def _send_new_decision_key(
         )
     ):
         return SendResult.DESIGNED_WAIT, posted_line
-    sent = send(key, in_store=in_store, decision=decision)
+    quest_continuations = _quest_entry_continuations(snapshot, key, owner)
+    if quest_continuations and isinstance(send, _ExecutorInputPort):
+        sent = send.submit_operation(
+            key, decision=decision, continuations=quest_continuations
+        )
+    else:
+        sent = send(key, in_store=in_store, decision=decision)
     if sent:
         posted_keys.add(key)
         if posting_contract is not None and snapshot is not None:
@@ -1973,6 +1979,31 @@ def _send_new_decision_key(
         if recorder is not None:
             recorder.note_successfully_posted_key(key)
     return sent, posted_line
+
+
+_QUEST_ENTRY_QUESTIONS = (
+    "クエストに入りますか？[y/n]",
+    "Do you enter? [y/n]",
+)
+
+
+def _quest_entry_continuations(snapshot, key: str, owner: str) -> list[Continuation]:
+    """Bind quest-entry confirmation only to its producing entrance action."""
+    if snapshot is None or owner not in {
+        "quest:enter", "quest:enter:approach", "fixedquest:enter",
+    }:
+        return []
+    here = snapshot.grid_at(snapshot.player.position)
+    enters = bool(here is not None and here.has_quest_enter and key == ">")
+    if key in DIRECTION_KEYS:
+        target = snapshot.grid_at(movement_destination(snapshot.player.position, key))
+        enters = bool(target is not None and target.has_quest_enter)
+    if not enters:
+        return []
+    return [Continuation(
+        frozenset({ScreenKind.CONFIRM}), "y", _QUEST_ENTRY_QUESTIONS,
+        exact_feature=True,
+    )]
 
 
 def _chain_matches(chain: dict, key: str) -> bool:

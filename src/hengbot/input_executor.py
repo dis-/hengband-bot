@@ -254,7 +254,8 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
 class Continuation:
     kinds: frozenset[ScreenKind]
     keys: str
-    feature: str | None = None
+    feature: str | tuple[str, ...] | None = None
+    exact_feature: bool = False
 
 
 @dataclass
@@ -480,10 +481,18 @@ class OperationExecutor:
                 return self._post_and_barrier("\x1b", deadline)
         if self.active.continuations:
             continuation = self.active.continuations[0]
-            feature_matches = (
-                continuation.feature is None
-                or match.feature == continuation.feature
-                or match.feature.rstrip().endswith(continuation.feature.rstrip())
+            expected_features = (
+                continuation.feature
+                if isinstance(continuation.feature, tuple)
+                else (continuation.feature,)
+            )
+            feature_matches = continuation.feature is None or any(
+                match.feature == feature
+                or (
+                    not continuation.exact_feature
+                    and match.feature.rstrip().endswith(feature.rstrip())
+                )
+                for feature in expected_features if feature is not None
             )
             if match.kind in continuation.kinds and feature_matches:
                 prompt_state = self._request("state", deadline, map=True)

@@ -88,6 +88,10 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         turn += 10
         current = self._advance(current, key, turn)
         continuation_steps = 0
+        # The captured warrior had unfinished equipment work.  Make the
+        # derived public player eligible before navigation can emit the final
+        # move onto the confirmation-triggering entrance grid.
+        current["player"]["class_id"] = 1
         while True:
             snapshot = parse_snapshot(current, self.monrace)
             positions = policy._fixed_quest_entrance_positions(snapshot, 22)
@@ -106,12 +110,8 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
             current = self._advance(current, key, turn)
             continuation_steps += 1
             self.assertLess(continuation_steps, 100)
-        # The captured warrior still had unfinished equipment work.  Derive a
-        # non-warrior public player at the reached tile so the entry boundary
-        # itself is eligible without assigning policy state.
-        current["player"]["class_id"] = 1
         enter = policy.choose_key(parse_snapshot(current, self.monrace))
-        self.assertEqual((enter, policy.last_reason), (">y", "quest:enter"))
+        self.assertEqual((enter, policy.last_reason), (">", "quest:enter"))
 
     def test_final_identity_staleness_and_arbiter_preview_are_read_only(self):
         policy, _ = self._seed_through_incident()
@@ -193,7 +193,7 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         on_entrance["player"]["class_id"] = 1
         entered, _ = self._seed_through_incident(maps=False)
         enter_key = entered.choose_key(parse_snapshot(on_entrance, self.monrace))
-        self.assertEqual((enter_key, entered.last_reason), (">y", "quest:enter"))
+        self.assertEqual((enter_key, entered.last_reason), (">", "quest:enter"))
 
         policy, _ = self._seed_through_incident(maps=False)
         boxed = self._boxed(source)

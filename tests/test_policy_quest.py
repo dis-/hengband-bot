@@ -1830,10 +1830,11 @@ class FixedQuestTest(unittest.TestCase):
             ),
         }
         policy = HengbotPolicy(self._town_map())
+        set_completed_equipment_optimization(policy)
 
         key = policy.choose_key(self._town_snapshot(35, 176, grids, 1))
 
-        self.assertEqual(key, "6y")
+        self.assertEqual(key, "6")
         self.assertEqual(policy.last_reason, "fixedquest:enter")
 
     def test_taken_q1_approach_does_not_enter_dead_end_town_loop(self):
@@ -1880,7 +1881,7 @@ class FixedQuestTest(unittest.TestCase):
                 )
             )
             if position == entrance:
-                self.assertEqual(key, ">y")
+                self.assertEqual(key, ">")
                 break
             dy, dx = offsets[key[0]]
             position = Position(position.y + dy, position.x + dx)
@@ -4016,7 +4017,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             places=1,
         )
 
-        self.assertEqual(QuestFloorNavigator.enter_from_town(policy, board, 34), ">y")
+        self.assertEqual(QuestFloorNavigator.enter_from_town(policy, board, 34), ">")
         self.assertEqual(policy.last_reason, "quest:enter")
 
     def test_current_q34_entrance_replay_refuses_failed_strategy_force(self):
@@ -10141,14 +10142,13 @@ class WarningGridComposedWalkTest(unittest.TestCase):
         )
 
     def test_latched_entrance_walk_is_blocked_while_supplies_remain(self):
-        # After a refusal, the composed quest-entry walk (direction + 'y')
-        # must not be issued while a movement scroll remains: the gate rules
-        # on the COMPLETE key, so the caller's tail cannot confirm the
-        # re-raised prompt.
+        # After a refusal, the quest-entry move must not be issued while a
+        # movement scroll remains; no blind confirmation byte accompanies it.
         supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         policy = HengbotPolicy(self._town_map())
+        set_completed_equipment_optimization(policy)
         self.assertEqual(
-            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6y"
+            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6"
         )
         self.assertEqual(policy.last_reason, "fixedquest:enter")
 
@@ -10185,20 +10185,18 @@ class WarningGridComposedWalkTest(unittest.TestCase):
         snapshot = self._snapshot(35, 177, inventory=[])
 
         self.assertEqual(
-            policy._fixed_quest_enter_key(snapshot, self.QUEST_ID), ">y"
+            policy._fixed_quest_enter_key(snapshot, self.QUEST_ID), ">"
         )
 
     def test_tail_answered_crossing_is_latched_not_silent(self):
-        # First encounter: the entrance is unlatched, so the composed walk
-        # goes out with its tail and the warning prompt (if it fires) is
-        # answered by that tail.  The next snapshot shows the player ON the
-        # target with the prompt message: the crossing was NOT sanctioned by
-        # the exhausted-supplies rule, so the grid must be latched — at most
-        # one such crossing per floor, never silent.
+        # First encounter: the entrance is unlatched, so the move is emitted
+        # without a blind answer.  The derived next snapshot still proves the
+        # warning refusal latches the crossed grid rather than going silent.
         supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         policy = HengbotPolicy(self._town_map())
+        set_completed_equipment_optimization(policy)
         self.assertEqual(
-            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6y"
+            policy.choose_key(self._snapshot(35, 176, inventory=supply)), "6"
         )
 
         policy.choose_key(

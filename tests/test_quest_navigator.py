@@ -116,7 +116,7 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertEqual(action, "6")
         self.assertEqual(owner.last_reason, "quest:enter:approach")
         action = QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
-        self.assertEqual(action, ">y")
+        self.assertEqual(action, ">")
         self.assertEqual(owner.last_reason, "quest:enter")
 
     def test_enter_from_town_obeys_dungeon_departure_gate(self):
@@ -128,6 +128,24 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         self.assertIsNone(
             QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
         )
+
+        # The same gate applies at the last step in both route branches, not
+        # only after the player is already standing on the trigger grid.
+        route_calls = []
+        owner._nearest_goal_step = lambda *_args: entrance
+        owner._step_toward = lambda *_args: route_calls.append("stepped")
+        self.assertIsNone(
+            QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
+        )
+        owner._decision_context = SimpleNamespace(identity=object())
+        owner._effective_town_id = lambda _snapshot: 3
+        owner._nearest_goal_route = lambda *_args: SimpleNamespace(
+            first_step=entrance, target=entrance, remaining_edges=1
+        )
+        self.assertIsNone(
+            QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
+        )
+        self.assertEqual(route_calls, [])
 
     def test_real_q31_trees_allow_routes_to_every_stationary_target_vantage(self):
         definitions = REAL_QUEST_DEFINITIONS
