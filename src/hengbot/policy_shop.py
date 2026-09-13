@@ -3894,14 +3894,39 @@ class ShopMixin:
             snapshot, self._step_toward(snapshot, step)
         )
 
-    def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
-        """Compose one transaction from the latest observed page, outside."""
+    def _can_compose_shop_observation(self, snapshot: Snapshot) -> bool:
+        """Whether the latest observed ordinary-shop page is composable now."""
         observation = self._shop_observation
         if (
             observation is None
             or snapshot.store is not None
             or observation[0].store_type == STORE_HOME
         ):
+            return False
+        here = snapshot.grid_at(snapshot.player.position)
+        return (
+            here is not None
+            and here.store_number == observation[0].store_type
+            and observation[0].page_top in (None, 0)
+        )
+
+    def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
+        """Compose one transaction from the latest observed page, outside."""
+        observation = self._shop_observation
+        if not self._can_compose_shop_observation(snapshot):
+            # Preserve the established malformed-page disposal at the same
+            # composition boundary.  The predicate itself remains pure.
+            if (
+                observation is not None
+                and snapshot.store is None
+                and observation[0].store_type != STORE_HOME
+                and snapshot.grid_at(snapshot.player.position) is not None
+                and snapshot.grid_at(snapshot.player.position).store_number
+                == observation[0].store_type
+                and observation[0].page_top not in (None, 0)
+            ):
+                self._shop_observation = None
+                self.last_reason = "shop:one-shot-page-not-zero"
             return None
         # Bind the one-shot to the page that was actually observed, not the
         # mutable town-plan cursor.  The ordinary shop handler advances that
@@ -3909,18 +3934,10 @@ class ShopMixin:
         # made the adjacent outside handoff reject the target store and travel
         # to the following stop without composing the purchase.
         store_type = observation[0].store_type
-        here = snapshot.grid_at(snapshot.player.position)
-        if here is None or here.store_number != store_type:
-            return None
-
         observed_store, generation = observation
         # Store item letters are relative to page zero.  Ordinary shops reset
         # to that page on every entry, so a non-zero observation is stale or
         # malformed and must never be used to compose an atomic transaction.
-        if observed_store.page_top not in (None, 0):
-            self._shop_observation = None
-            self.last_reason = "shop:one-shot-page-not-zero"
-            return None
         # Current inventory/gold are paired with exactly this latest page at
         # the composition boundary; no cached item candidate is trusted.
         reason_before_composition = self.last_reason

@@ -99,10 +99,17 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertIsNone(observations[0][3])
         step_off_vector = observations[0][4]
         self.assertEqual(len(step_off_vector), 8)
-        self.assertEqual(step_off_vector[0].position.y, 0)
-        self.assertEqual(step_off_vector[0].position.x, 0)
-        self.assertEqual(step_off_vector[0].turn, 0)
-        self.assertEqual(step_off_vector[0].decision_sequence, 0)
+        step_off_snapshot = observations[0][6]
+        self.assertEqual(step_off_vector[0].floor, step_off_snapshot.floor_key)
+        self.assertEqual(step_off_vector[0].hp, step_off_snapshot.player.hp)
+        self.assertEqual(step_off_vector[0].gold, step_off_snapshot.player.gold)
+        self.assertEqual(
+            step_off_vector[0].experience, step_off_snapshot.player.exp
+        )
+        town_fingerprint = step_off_vector[1]
+        self.assertEqual(town_fingerprint[0], step_off_snapshot.floor_key)
+        self.assertEqual(town_fingerprint[1], step_off_snapshot.player.gold)
+        self.assertEqual(town_fingerprint[4], step_off_snapshot.player.exp)
         self.assertEqual(step_off_vector[2], ())
         self.assertEqual(step_off_vector[3:], (False, False, None, None, False))
         self.assertEqual(
@@ -203,6 +210,68 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
                 restored_key = policy.choose_key(restored)
                 self.assertIsInstance(restored_key, DecisionCandidate)
                 self.assertEqual(restored_key.reason, "fixedquest:prepare-return")
+
+    def test_stale_shop_observation_does_not_mask_return_3_retirement(self):
+        rows = self._stage2_records()
+        policy = self._policy(maps=False)
+        for index, raw in enumerate(rows[:16]):
+            snapshot = parse_snapshot(raw, self.monrace)
+            if index == 0:
+                policy.prime(snapshot)
+            key = policy.choose_key(snapshot)
+            policy.confirm_key_posted(key)
+        self.assertIsNotNone(policy._shop_observation)
+
+        seed = self._route_failure(rows[18], "no-inn")
+        observed_store_type = policy._shop_observation[0].store_type
+        budgets = []
+        reasons = []
+        for offset in range(7):
+            current = copy.deepcopy(seed)
+            current["turn"] += offset * 10
+            snapshot = parse_snapshot(current, self.monrace)
+            here = snapshot.grid_at(snapshot.player.position)
+            self.assertNotEqual(here.store_number, observed_store_type)
+            key = policy.choose_key(snapshot)
+            policy.confirm_key_posted(key)
+            budgets.append(policy._town_turn_arbiter.telemetry[
+                "budget_remaining_estimate"
+            ])
+            reasons.append(policy.last_reason)
+        self.assertIsNotNone(policy._shop_observation)
+        self.assertEqual(budgets, [3, 2, 1, 0, 0, 0, 0])
+        self.assertEqual(
+            reasons,
+            ["fixedquest:prepare-return:route-unavailable"] * 4
+            + ["fixedquest:prepare-return:unsatisfiable"] * 3,
+        )
+        self.assertEqual(key, WAIT_KEY)
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+    def test_live_shop_observation_composition_wins_over_return_3_claim(self):
+        rows = self._stage2_records()
+        policy = self._policy()
+        for index, raw in enumerate(rows[:16]):
+            snapshot = parse_snapshot(raw, self.monrace)
+            if index == 0:
+                policy.prime(snapshot)
+            key = policy.choose_key(snapshot)
+            policy.confirm_key_posted(key)
+        self.assertIsNotNone(policy._shop_observation)
+
+        entrance = parse_snapshot(rows[17], self.monrace)
+        observed_store_type = policy._shop_observation[0].store_type
+        self.assertEqual(
+            entrance.grid_at(entrance.player.position).store_number,
+            observed_store_type,
+        )
+        key = policy.choose_key(entrance)
+        policy.confirm_key_posted(key)
+        self.assertEqual(key, "5")
+        self.assertEqual(policy.last_reason, "shop:observed-operation-uncomposable")
+        self.assertEqual(
+            policy._shop_selector_diagnostics["composition_refusal"], "shop:leave"
+        )
 
     def test_procurement_preserves_real_return_3_unavailable_candidate(self):
         raw = self._stage2_records()[-5]

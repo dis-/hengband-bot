@@ -190,18 +190,6 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(budgets, [3, 2, 1, 0, 0, 0])
         self.assertEqual(policy.last_reason, "fixedquest:q22-travel:unsatisfiable")
         self.assertEqual(key, WAIT_KEY)
-        at_fare = copy.deepcopy(board)
-        at_fare["turn"] += 100
-        at_fare["player"]["gold"] = 1000
-        fare_key = policy.choose_key(parse_snapshot(at_fare, self.monrace))
-        policy.confirm_key_posted(fare_key)
-        self.assertEqual(fare_key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "fixedquest:q22-travel:unsatisfiable")
-        self.assertEqual(
-            policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0
-        )
-        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
-
         damaged = copy.deepcopy(board)
         damaged["turn"] += 110
         damaged["player"]["hp"] = 1
@@ -227,6 +215,21 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
              policy._town_turn_arbiter.telemetry["budget_remaining_estimate"]),
             (WAIT_KEY, "fixedquest:q22-travel:unsatisfiable", 0),
         )
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+        below_fare = copy.deepcopy(board)
+        below_fare["turn"] += 130
+        below_fare["player"]["gold"] = 999
+        low_key = policy.choose_key(parse_snapshot(below_fare, self.monrace))
+        policy.confirm_key_posted(low_key)
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+        at_fare = copy.deepcopy(below_fare)
+        at_fare["turn"] += 10
+        at_fare["player"]["gold"] = 1000
+        fare_key = policy.choose_key(parse_snapshot(at_fare, self.monrace))
+        policy.confirm_key_posted(fare_key)
+        self.assertEqual(fare_key, "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
         restored = parse_snapshot(records[2][1], self.monrace)
         restored_key = policy.choose_key(restored)
