@@ -278,8 +278,10 @@ class OperationExecutor:
     """Own input until ACK/post fence, fresh screen, and fresh state complete."""
 
     def __init__(self, client=None, *, drain: Callable[[], object] | None = None,
-                 wm_post: Callable[[str], bool] | None = None) -> None:
+                 wm_post: Callable[[str], bool] | None = None,
+                 accepted: Callable[[Operation, str], None] | None = None) -> None:
         self.client, self.drain, self.wm_post = client, drain or (lambda: None), wm_post
+        self.accepted = accepted or (lambda _operation, _segment: None)
         self.active: Operation | None = None
         self.ready_board: Mapping[str, object] | None = None
         self.ready_screen: ScreenMatch | None = None
@@ -294,7 +296,12 @@ class OperationExecutor:
 
     def submit(self, operation: Operation, *, deadline: float) -> OperationResult:
         if self.active is not None:
-            return self._terminal(operation, "admission", "another operation owns input")
+            # Admission refusal must never retire or poison the owning operation.
+            # This is the causal gate used by every producer, not merely a check
+            # immediately in front of the transport.
+            return OperationResult(
+                "busy", operation, reason=f"input owned by {self.active.owner}"
+            )
         if self.ready_board is None:
             return self._terminal(operation, "admission", "no fresh ready observation")
         self.ready_board = None
@@ -357,6 +364,7 @@ class OperationExecutor:
         if outcome.status is not KeyPostStatus.ACCEPTED:
             return self._terminal(self.active, "keys", outcome.reason or outcome.status.value, transport=outcome)
         self.active.accepted_segments.append(keys)
+        self.accepted(self.active, keys)
         return self._after_post(deadline, outcome)
 
     def _post_wm(self, keys: str, deadline: float) -> OperationResult:
@@ -368,6 +376,7 @@ class OperationExecutor:
                 return self._terminal(self.active, "wm-post", f"partial PostMessage prefix={posted!r}", transport_name="wm")
             posted = posted + char
         self.active.accepted_segments.append(keys)
+        self.accepted(self.active, keys)
         self.state = ExecutorState.AWAITING_WM_FENCE
         if self.client.request("info", deadline=deadline) is None:
             return self._terminal(self.active, "wm-fence", "info request failed", transport_name="wm")
@@ -383,7 +392,12 @@ class OperationExecutor:
             return self._post_and_barrier(" ", deadline)
         if self.active.continuations:
             continuation = self.active.continuations[0]
-            if match.kind in continuation.kinds and continuation.feature == match.feature:
+            feature_matches = (
+                continuation.feature is None
+                or match.feature == continuation.feature
+                or match.feature.rstrip().endswith(continuation.feature.rstrip())
+            )
+            if match.kind in continuation.kinds and feature_matches:
                 prompt_state = self._request("state", deadline, map=True)
                 if prompt_state is None:
                     return self._terminal(self.active, "state", "prompt binding failed", match, outcome)

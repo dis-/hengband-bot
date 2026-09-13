@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import ast
 import unittest
 
 from hengbot.control_client import ControlClient, KeyPostStatus
@@ -155,6 +156,87 @@ class ProductionHarness(unittest.TestCase):
                                socket_factory=game.socket_factory)
         self.addCleanup(client.close)
         return game, client, OperationExecutor(client, drain=lambda: list(game.jsonl))
+
+
+class Stage2aProducerRoutingPin(ProductionHarness):
+    """P8: every former producer is fenced by executor ownership."""
+
+    def test_p8_bypass_matrix_and_authorized_continuation_values(self):
+        from hengbot.cli import SendResult, _ExecutorInputPort
+
+        game, client, executor = self.make()
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        executor.active = Operation(7, "owner:identify", "r", {"turn": 1})
+        executor.ready_board = None
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=2
+        )
+        producers = {
+            "policy:macro": "R10\r",
+            "movement": "6",
+            "store-home": "gayy",
+            "recall": "ra",
+            "periodic:save": "^S",
+            "periodic:dump": "C",
+            "periodic:knowledge": "~9\x1b",
+            "floor-clear": "\x1b",
+            "desync-clear": "l\x1b",
+            "stall-recovery": "\x1b",
+            "death-resync": "\x1bn\r",
+            "esc-look-recovery": "\x1bl\x1b",
+        }
+        measured = {}
+        for owner, keys in producers.items():
+            result = port(keys, decision={"sequence": 8, "reason": owner})
+            measured[owner] = result.value
+        self.assertEqual(set(measured.values()), {SendResult.DESIGNED_WAIT.value})
+        self.assertEqual(game.accepted, [])
+        self.assertEqual(executor.active.owner, "owner:identify")
+
+        # The owning operation may post only its prebound continuation.
+        game2, _client2, executor2 = self.make()
+        self.assertEqual(executor2.observe_boundary(deadline=9999999999).outcome, "ready")
+        game2.screens = [prompt_screen("Read which scroll?"), command_screen(3)]
+        operation = Operation(
+            9, "owner:identify", "r", {"turn": 1},
+            [Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "a", "Read which scroll?")],
+        )
+        result = executor2.submit(operation, deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game2.accepted, ["r", "a"])
+        self.assertEqual(result.operation.accepted_segments, ["r", "a"])
+
+    def test_p8_source_audit_only_executor_calls_transport_post(self):
+        root = Path(__file__).parents[1]
+        callers = []
+        for path in (root / "src" / "hengbot").glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                        and node.func.attr == "post_keys":
+                    callers.append(path.name)
+        self.assertEqual(
+            callers,
+            ["control_client.py", "input_executor.py", "input_executor.py"],
+        )
+
+    def test_accepted_callback_once_per_accepted_segment_unknown_is_zero(self):
+        accepted = []
+        game, client, _executor = self.make()
+        executor = OperationExecutor(
+            client, drain=lambda: list(game.jsonl),
+            accepted=lambda operation, segment: accepted.append((operation.owner, segment)),
+        )
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(Operation(1, "policy", "6", {}), deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(accepted, [("policy", "6")])
+
+        game.faults = ["ack-loss"]
+        executor.ready_board = game.state
+        result = executor.submit(Operation(2, "unknown", "4", {}), deadline=9999999999)
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(accepted, [("policy", "6")])
 
 
 class ScreenClassifierTest(unittest.TestCase):

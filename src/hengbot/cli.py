@@ -64,6 +64,13 @@ from hengbot.flight_recorder import (
     rotate_log,
 )
 from hengbot.save_archive import SaveArchiveCoordinator
+from hengbot.input_executor import (
+    Continuation,
+    Operation,
+    OperationExecutor,
+    ScreenKind,
+    Transport,
+)
 
 CAPTURE_LEDGER_ROOT = Path(__file__).resolve().parents[2] / "capture-ledger"
 READ_BATCH_LEDGER_PATH = CAPTURE_LEDGER_ROOT / "read-batches.jsonl"
@@ -1833,6 +1840,48 @@ class SendResult(str, Enum):
         return self is SendResult.SENT
 
 
+class _ExecutorInputPort:
+    """The sole producer-facing live input port.
+
+    Producers describe operations here; only ``OperationExecutor`` can reach
+    the private TCP/WM transport adapters.
+    """
+
+    def __init__(self, executor: OperationExecutor, *, tunnel_macros_ready: bool,
+                 request_budget: float) -> None:
+        self.executor = executor
+        self.tunnel_macros_ready = tunnel_macros_ready
+        self.request_budget = request_budget
+        self.last_result = None
+
+    def __call__(self, key: str, *, in_store: bool = False,
+                 decision: dict | None = None) -> SendResult:
+        return self.submit_operation(key, decision=decision)
+
+    def submit_operation(self, key: str, *, decision: dict | None = None,
+                         continuations: list[Continuation] | None = None) -> SendResult:
+        decision = decision or {}
+        operation = Operation(
+            decision.get("sequence"),
+            str(decision.get("reason", "unknown")),
+            _transport_key(key, self.tunnel_macros_ready),
+            decision.get("observation"),
+            continuations=list(continuations or ()),
+            transport=(Transport.TCP if self.executor.client is not None
+                       else Transport.WM),
+        )
+        self.last_result = self.executor.submit(
+            operation, deadline=time.monotonic() + self.request_budget
+        )
+        if self.last_result.outcome == "completed":
+            return SendResult.SENT
+        if self.last_result.outcome == "busy":
+            return SendResult.DESIGNED_WAIT
+        if self.last_result.reason:
+            print(self.last_result.reason, file=sys.stderr, flush=True)
+        return SendResult.TERMINAL
+
+
 def _send_new_decision_key(
     send,
     snapshot_line: str,
@@ -1983,6 +2032,46 @@ def _send_prompt_gated_decision_key(
     posting_contract: PostingContract | None,
 ) -> tuple[bool, str | None, dict]:
     prefix = key[: chain["gates"][0][0]]
+    if isinstance(send, _ExecutorInputPort):
+        continuations = []
+        for gate_index, (index, prompts) in enumerate(chain["gates"]):
+            next_index = (
+                chain["gates"][gate_index + 1][0]
+                if gate_index + 1 < len(chain["gates"]) else len(key)
+            )
+            prompt = prompts[0] if prompt_japanese else prompts[1]
+            kind = (
+                ScreenKind.ITEM_TARGET
+                if "Identify which item" in prompt or "荘螳壹" in prompt
+                else ScreenKind.ITEM_SOURCE
+            )
+            continuations.append(Continuation(frozenset({kind}), key[index:next_index], prompt))
+        sent = send.submit_operation(
+            prefix, decision=decision, continuations=continuations
+        )
+        accepted = list(
+            send.last_result.operation.accepted_segments
+            if send.last_result is not None else ()
+        )
+        posted = "".join(accepted)
+        released = max(0, len(accepted) - 1)
+        result = {
+            "key": key,
+            "outcome": "released" if sent and posted == key else "dropped",
+            "released_through": released,
+            "posted": posted,
+            "drop_reason": None if sent and posted == key else "executor-barrier",
+            "escape_posted": False,
+        }
+        if sent:
+            posted_keys.add(posted)
+            owner = str(chain["owner"])
+            if posting_contract is not None and snapshot is not None:
+                posting_contract.posted(snapshot, posted, owner)
+                recorder = getattr(posting_contract, "flight_recorder", None)
+                if recorder is not None:
+                    recorder.note_successfully_posted_key(posted)
+        return sent, posted_line, result
     sent, posted_line = _send_new_decision_key(
         send,
         snapshot_line,
@@ -2509,109 +2598,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.decision_log is not None
         else None
     )
-    def send(
-        key: str, *, in_store: bool = False, decision: dict | None = None
-    ) -> bool:
-        key = _transport_key(key, tunnel_macros_ready)
-        if shadow_client is not None:
-            from hengbot.control_client import (
-                KeyPostStatus, raw_keys_to_macro_notation,
-            )
-
-            try:
-                notation = raw_keys_to_macro_notation(key)
-            except ValueError as exc:
-                print(f"failed to encode TCP key: {exc}", file=sys.stderr)
-                return SendResult.TERMINAL
-            else:
-                deadline = time.monotonic() + shadow_client.request_budget
-                outcome = shadow_client.post_keys(
-                    notation, expected_count=len(key), deadline=deadline
-                )
-                if outcome.status is KeyPostStatus.ACCEPTED:
-                    for index, char in enumerate(key):
-                        _write_posted_character(
-                            posted_character_path, char, key, index, decision
-                        )
-                        if decision is not None and home_entry_capture is not None:
-                            try:
-                                home_entry_capture.record_posted_character(
-                                    decision["sequence"], char
-                                )
-                            except (KeyError, TypeError) as exc:
-                                home_entry_capture.report_failure(
-                                    "record_posted_character", exc,
-                                    "decision.sequence/character",
-                                )
-                    return SendResult.SENT
-                # A mutating TCP request is never followed by WM_CHAR.  Unknown
-                # acceptance could duplicate input; explicit rejection needs a
-                # fresh screen before any retry and is owned by the executor.
-                print(
-                    "<stuck-prompt> owner="
-                    f"{(decision or {}).get('reason', 'transport')} phase=keys "
-                    f"transport={outcome.status.value} request_id={outcome.request_id} "
-                    f"reason={outcome.reason}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                return SendResult.TERMINAL
-        if not args.send_to_window:
-            return SendResult.SENT if shadow_client is None else SendResult.TERMINAL
-        try:
-            from hengbot.input_windows import send_key_to_window
-
-            # A decision may be a multi-key macro (e.g. "qf" = quaff item f). Post
-            # each key in turn; the gap lets the game raise each successive
-            # prompt before the follow-up character arrives so it is not flushed.
-            multi = len(key) > 1
-            recorded_wait = False
-            for index, char in enumerate(key):
-                send_key_to_window(
-                    char,
-                    args.window_title,
-                    contains=args.window_title_contains,
-                    class_name=args.window_class,
-                    process_id=args.window_pid,
-                )
-                _write_posted_character(
-                    posted_character_path, char, key, index, decision
-                )
-                if decision is not None and home_entry_capture is not None:
-                    try:
-                        home_entry_capture.record_posted_character(
-                            decision["sequence"], char
-                        )
-                    except (KeyError, TypeError) as exc:
-                        home_entry_capture.report_failure(
-                            "record_posted_character", exc,
-                            "decision.sequence/character",
-                        )
-                delay, wait_category = (
-                    _delay_spec_after_macro_key(
-                        key,
-                        index,
-                        in_store=in_store,
-                        input_delays=input_delays,
-                    )
-                    if multi
-                    else (0.0, None)
-                )
-                if delay:
-                    started = time.monotonic()
-                    time.sleep(delay)
-                    wait_telemetry.record(
-                        wait_category or "input:uncategorized",
-                        time.monotonic() - started,
-                    )
-                    recorded_wait = True
-            if recorded_wait:
-                wait_telemetry.flush()
-            return SendResult.SENT
-        except RuntimeError as exc:
-            print(f"failed to send key: {exc}", file=sys.stderr)
-            return SendResult.TERMINAL
-
     # The static Outpost layout lets the bot route across a dark town to a store
     # (prior knowledge a returning player has). Optional: if it is not found the
     # bot still plays, just without night-town routing help.
@@ -2693,6 +2679,63 @@ def main(argv: list[str] | None = None) -> int:
     posting_contract = PostingContract()
     home_entry_capture = _configure_policy_output_paths(policy, args)
 
+    def accepted_segment(operation: Operation, segment: str) -> None:
+        decision = {
+            "sequence": operation.sequence,
+            "reason": operation.owner,
+            "key": operation.keys,
+        }
+        offset = sum(len(value) for value in operation.accepted_segments[:-1])
+        for segment_index, char in enumerate(segment):
+            _write_posted_character(
+                posted_character_path, char, operation.keys,
+                offset + segment_index, decision,
+            )
+            if home_entry_capture is not None and operation.sequence is not None:
+                try:
+                    home_entry_capture.record_posted_character(operation.sequence, char)
+                except (KeyError, TypeError) as exc:
+                    home_entry_capture.report_failure(
+                        "record_posted_character", exc,
+                        "decision.sequence/character",
+                    )
+
+    wm_post = None
+    if args.send_to_window and shadow_client is not None:
+        from hengbot.input_windows import send_key_to_window
+
+        def wm_post(char: str) -> bool:
+            try:
+                send_key_to_window(
+                    char, args.window_title,
+                    contains=args.window_title_contains,
+                    class_name=args.window_class,
+                    process_id=args.window_pid,
+                )
+                return True
+            except RuntimeError as exc:
+                print(f"failed to send key: {exc}", file=sys.stderr)
+                return False
+
+    executor = OperationExecutor(
+        shadow_client, wm_post=wm_post, accepted=accepted_segment
+    )
+    send = _ExecutorInputPort(
+        executor,
+        tunnel_macros_ready=tunnel_macros_ready,
+        request_budget=args.stall_timeout,
+    )
+
+    live_actuation = shadow_client is not None or args.send_to_window
+    if live_actuation:
+        boundary = executor.observe_boundary(
+            deadline=time.monotonic() + args.stall_timeout
+        )
+        if boundary.outcome != "ready":
+            if boundary.reason:
+                print(boundary.reason, file=sys.stderr, flush=True)
+            return 3
+
     if args.once:
         for line in _read_last_line(args.state_file):
             if not line.strip():
@@ -2718,6 +2761,10 @@ def main(argv: list[str] | None = None) -> int:
                 town_emit_ownership=emit_ownership,
             )
             print(key, flush=True)
+            if not live_actuation:
+                # Replay/print-only mode is deliberately non-actuating and does
+                # not fabricate an accepted or completed live operation.
+                return 0
             decision = {
                 "sequence": policy._decision_sequence,
                 "turn": snapshot.turn,
@@ -2979,6 +3026,14 @@ def _run_follow(
                 _observe_home_entry_capture(
                     home_entry_capture, ordered_snapshot_entries
                 )
+                if (
+                    isinstance(send, _ExecutorInputPort)
+                    and send.executor.active is not None
+                ):
+                    # Drain observations for the owning operation, but never
+                    # turn a mid-operation JSONL record into a general decision.
+                    pending_batch_row["input_owner"] = send.executor.active.owner
+                    continue
                 # Act ONLY on the newest complete snapshot in this batch. The game
                 # emits a snapshot then blocks on request_command, so the file's
                 # newest line is ALWAYS the current board the game is waiting on;

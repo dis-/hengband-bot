@@ -94,8 +94,10 @@ from hengbot.cli import (
     _bot_play_macros_ready,
     _build_argument_parser,
     _configure_policy_output_paths,
+    _ExecutorInputPort,
     _valid_bot_play_macro_pref,
 )
+from hengbot.input_executor import Operation, OperationExecutor
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
     HUNT_RANGE,
@@ -108,6 +110,54 @@ from hengbot.equipment_mutation import progress_core
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
 from hengbot.cli import _game_process_alive
+
+
+class Stage2aFollowBarrierPin(unittest.TestCase):
+    def test_p8_follow_drains_mid_operation_board_without_policy_call(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path), "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            decided_turns = []
+
+            def choose(chosen_snapshot):
+                decided_turns.append(chosen_snapshot.turn)
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            executor = OperationExecutor(None)
+            executor.active = Operation(1, "owner:open", "r", {"turn": 1})
+            port = _ExecutorInputPort(
+                executor, tunnel_macros_ready=True, request_budget=1,
+            )
+
+            def produce():
+                time.sleep(0.25)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5)); stream.flush()
+                time.sleep(0.25)
+                executor.active = None
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(3, 5, 5)); stream.flush()
+
+            thread = threading.Thread(target=produce)
+            thread.start()
+            try:
+                with patch("hengbot.cli._append_capture_ledger"), patch(
+                    "hengbot.cli._freeze_incident_safely"
+                ):
+                    result = _run_follow(args, policy, port, {})
+            finally:
+                thread.join()
+            self.assertEqual(result, 0)
+            self.assertEqual(policy.choose_key.call_count, 1)
+            self.assertEqual(decided_turns, [3])
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.model import MissingMonraceKnowledgeError, Position, parse_snapshot
 

@@ -348,6 +348,22 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
+    @staticmethod
+    def _barrier_request(_client, op, **_kwargs):
+        if op == "info":
+            return {"japanese": False}
+        if op == "state":
+            return json.loads(_snapshot_line(1))
+        lines = [""] * 24
+        lines[1] = "Human"
+        lines[5] = " " * 17 + "@"
+        lines[23] = " " * 72 + "Surf."
+        return {
+            "width": 80, "height": 24,
+            "cursor": {"visible": False, "y": 5, "x": 17},
+            "lines": lines,
+        }
+
     def _run_once_with_routes(self, tcp_result, events, *, control=True):
         from hengbot import cli
 
@@ -391,6 +407,10 @@ class DisabledCliPinTest(unittest.TestCase):
                             reason=None if tcp_result is not None else "lost ACK",
                         )
                     ),
+                ),
+                patch(
+                    "hengbot.control_client.ControlClient.request",
+                    autospec=True, side_effect=self._barrier_request,
                 ),
                 patch(
                     "hengbot.input_windows.send_key_to_window",
@@ -448,6 +468,10 @@ class DisabledCliPinTest(unittest.TestCase):
                     "hengbot.control_client.ControlClient.post_keys",
                     return_value=KeyPostOutcome(KeyPostStatus.ACCEPTED, 1, 1)
                 ) as send_keys,
+                patch(
+                    "hengbot.control_client.ControlClient.request",
+                    autospec=True, side_effect=self._barrier_request,
+                ),
             ):
                 result = cli.main([
                     "--state-file", str(state), "--once", "--control-port", "1",
@@ -493,6 +517,10 @@ class DisabledCliPinTest(unittest.TestCase):
                     "hengbot.control_client.ControlClient.post_keys",
                     return_value=KeyPostOutcome(KeyPostStatus.ACCEPTED, 1, 1),
                 ),
+                patch(
+                    "hengbot.control_client.ControlClient.request",
+                    autospec=True, side_effect=self._barrier_request,
+                ),
             ):
                 result = cli.main([
                     "--state-file", str(state), "--once", "--control-port", "1",
@@ -504,22 +532,17 @@ class DisabledCliPinTest(unittest.TestCase):
             self.assertEqual(shadow.call_args.args[1]["turn"], 1)
             self.assertEqual(shadow.call_args.args[2], 1)
 
-    def test_without_control_port_uses_wm_path_without_control_client(self):
+    def test_without_control_port_refuses_unfenced_wm_actuation(self):
         from hengbot import cli
 
         events = []
         with patch.dict("os.environ", {"HENGBOT_CONTROL_PORT": ""}, clear=False), patch(
-            "hengbot.control_client.ControlClient"
-        ) as control_client, patch(
             "hengbot.input_windows.send_key_to_window",
             side_effect=lambda *_a, **_k: events.append("wm"),
         ):
-            self.assertEqual(
-                self._run_once_with_routes(None, events, control=False), 0
-            )
+            self.assertEqual(self._run_once_with_routes(None, events, control=False), 3)
 
-        control_client.assert_not_called()
-        self.assertEqual(events, ["wm"])
+        self.assertEqual(events, [])
 
     def test_disabled_real_follow_cycle_has_no_shadow_side_effect_or_extra_decode(self):
         from hengbot import cli
