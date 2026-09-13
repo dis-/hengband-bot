@@ -256,15 +256,8 @@ class TownMixin:
     ) -> object | None:
         """Stable public-fact identity for the eligible unresolved q22 trip."""
         quest = self._fixed_quest_head(snapshot)
-        if (
-            quest is None
-            or quest.id != 22
-            or self.approved_quest_strategy(22) is None
-            or (
-                quest.status == QUEST_STATUS_UNTAKEN
-                and not self._fixed_quest_ready_for_travel(snapshot, 22)
-            )
-        ):
+        strategy = self.approved_quest_strategy(22)
+        if quest is None or quest.id != 22 or strategy is None:
             return None
         source = self._effective_town_id(snapshot)
         destination = FIXED_QUEST_TOWNS.get(22, 0)
@@ -278,8 +271,10 @@ class TownMixin:
         if result.failure is None:
             return None
         return (
-            "q22-route-unavailable", 22, quest.status, "travel", source,
-            snapshot.floor_key, destination, "eligible-route-unavailable",
+            "q22-route-unavailable", 22, quest.status,
+            ("approved-strategy", strategy.quest_id, strategy.generated_at),
+            source, snapshot.floor_key, destination,
+            ("visited-destination", destination), "eligible-route-unavailable",
         )
 
     def _prepare_return_route_unavailable_clearance_key(

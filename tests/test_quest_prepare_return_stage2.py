@@ -97,12 +97,14 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
             ["fixedquest:prepare-return"] * 4,
         )
         self.assertIsNone(observations[0][3])
-        self.assertEqual(
-            observations[0][4],
-            policy._town_arbiter_progress_vector(
-                observations[0][6], observations[0][2]
-            ),
-        )
+        step_off_vector = observations[0][4]
+        self.assertEqual(len(step_off_vector), 8)
+        self.assertEqual(step_off_vector[0].position.y, 0)
+        self.assertEqual(step_off_vector[0].position.x, 0)
+        self.assertEqual(step_off_vector[0].turn, 0)
+        self.assertEqual(step_off_vector[0].decision_sequence, 0)
+        self.assertEqual(step_off_vector[2], ())
+        self.assertEqual(step_off_vector[3:], (False, False, None, None, False))
         self.assertEqual(
             [item[3].producer_branch for item in observations[1:]],
             ["return-1", "return-1", "return-1"],
@@ -175,7 +177,12 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
                             "budget_remaining_estimate"
                         ])
                 self.assertTrue(all(vector == vectors[0] for vector in vectors))
-                self.assertEqual(budgets[:4], [3, 2, 1, 0])
+                expected_budgets = {
+                    "no-inn": [3, 2, 1, 0, 0, 0, 0],
+                    "known-no-path": [3, 2, 1, 0, 0, 0, 0],
+                    "on-inn-no-exit": [3, 2, 1, 0, 0, 0],
+                }
+                self.assertEqual(budgets, expected_budgets[variant])
                 self.assertEqual(key, WAIT_KEY)
                 self.assertEqual(
                     policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
@@ -302,7 +309,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         policy.confirm_key_posted(high_key)
         high = (str(high_key), policy.last_reason,
                 policy._town_turn_arbiter.telemetry["budget_remaining_estimate"])
-        self.assertEqual(budgets[:4], [3, 2, 1, 0])
+        self.assertEqual(budgets, [3, 2, 1, 0, 0, 0, 0])
         self.assertEqual(low[1], "identify:full")
         self.assertEqual(
             high,

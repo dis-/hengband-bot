@@ -187,23 +187,46 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
                 policy._town_turn_arbiter.telemetry["budget_remaining_estimate"]
             )
         self.assertTrue(all(vector == vectors[0] for vector in vectors[:4]))
-        self.assertEqual(budgets[:4], [3, 2, 1, 0])
+        self.assertEqual(budgets, [3, 2, 1, 0, 0, 0])
         self.assertEqual(policy.last_reason, "fixedquest:q22-travel:unsatisfiable")
         self.assertEqual(key, WAIT_KEY)
-        below_fare = copy.deepcopy(board)
-        below_fare["turn"] += 100
-        below_fare["player"]["gold"] = 999
-        low_key = policy.choose_key(parse_snapshot(below_fare, self.monrace))
-        policy.confirm_key_posted(low_key)
-        self.assertEqual(policy.last_reason, "shop:travel")
-        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
-        at_fare = copy.deepcopy(below_fare)
-        at_fare["turn"] += 10
+        at_fare = copy.deepcopy(board)
+        at_fare["turn"] += 100
         at_fare["player"]["gold"] = 1000
         fare_key = policy.choose_key(parse_snapshot(at_fare, self.monrace))
         policy.confirm_key_posted(fare_key)
-        self.assertEqual(fare_key, "")
-        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(fare_key, WAIT_KEY)
+        self.assertEqual(policy.last_reason, "fixedquest:q22-travel:unsatisfiable")
+        self.assertEqual(
+            policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0
+        )
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+        damaged = copy.deepcopy(board)
+        damaged["turn"] += 110
+        damaged["player"]["hp"] = 1
+        damaged_snapshot = parse_snapshot(damaged, self.monrace)
+        self.assertLess(damaged_snapshot.player.hp, damaged_snapshot.player.max_hp)
+        self.assertFalse(policy._fixed_quest_ready_for_travel(damaged_snapshot, 22))
+        damaged_key = policy.choose_key(damaged_snapshot)
+        policy.confirm_key_posted(damaged_key)
+        self.assertFalse(policy.fixed_quest_readiness_state()["verdict"])
+        self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "not-full-hp")
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+        healed = copy.deepcopy(board)
+        healed["turn"] += 120
+        healed_snapshot = parse_snapshot(healed, self.monrace)
+        self.assertEqual(healed_snapshot.player.hp, healed_snapshot.player.max_hp)
+        self.assertTrue(policy._fixed_quest_ready_for_travel(healed_snapshot, 22))
+        healed_key = policy.choose_key(healed_snapshot)
+        policy.confirm_key_posted(healed_key)
+        self.assertTrue(policy.fixed_quest_readiness_state()["verdict"])
+        self.assertEqual(
+            (str(healed_key), policy.last_reason,
+             policy._town_turn_arbiter.telemetry["budget_remaining_estimate"]),
+            (WAIT_KEY, "fixedquest:q22-travel:unsatisfiable", 0),
+        )
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
         restored = parse_snapshot(records[2][1], self.monrace)
         restored_key = policy.choose_key(restored)
