@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Mapping, Sequence
 import unicodedata
+import re
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
 
@@ -92,13 +93,15 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
     if found:
         return ScreenMatch(ScreenKind.CONFIRM, row0, 0, found[1])
     # core/asking-player.cpp:343-351. The editable default follows the colon.
-    if row0.startswith("Quantity (1-") or row0.startswith("いくつですか (1-"):
-        if "):" in row0:
-            return ScreenMatch(ScreenKind.QUANTITY, row0, 0, 0)
+    if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0):
+        return ScreenMatch(ScreenKind.QUANTITY, row0, 0, 0)
     # target/target-getter.cpp:56-61,118-120.
-    if row0 in ("Direction (Escape to cancel)?", "方向 (ESCで中断)?") or (
-        "Escape to cancel" in row0 and "'*'" in row0 and any(ch in row0 for ch in "12346789")
-    ):
+    direction_prompts = ("Direction (Escape to cancel)?", "方向 (ESCで中断)?",
+        "Direction ('5' for target, '*' to re-target, Escape to cancel)?",
+        "Direction ('*' to choose a target, Escape to cancel)?",
+        "方向 ('5'でターゲットへ, '*'でターゲット再選択, ESCで中断)?",
+        "方向 ('*'でターゲット選択, ESCで中断)?")
+    if row0 in direction_prompts:
         return ScreenMatch(ScreenKind.DIRECTION, row0, 0, 0)
     # inventory/floor-item-getter.cpp:460-461; spells-perception.cpp:125;
     # store/store.cpp:185. Require the exact prompt suffix, not history text.
@@ -146,7 +149,8 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
         if line in character_footers:
             return ScreenMatch(ScreenKind.CHARACTER, line, y, 0)
     # target/target-setter.cpp:196-198,434; target-describer.cpp:183,226.
-    if all(token in row0 for token in ("q", "p", "o", "+", "-")) and any(ch in row0 for ch in "12346789"):
+    if any(template in row0 for template in ("q,t,p,o,+,-,<dir>", "q,p,o,+,-,<dir>",
+                                               "q止 t決 p自 o現 +次 -前", "q止 p自 o現 +次 -前")):
         return ScreenMatch(ScreenKind.LOOK, row0, 0, 0)
 
     # store/cmd-store.cpp:124-151. Menu rows move together with xtra_stock.
@@ -158,7 +162,8 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
             continue
         actions = "\n".join(lines[menu_y:min(len(lines), menu_y + 4)])
         if any(value in actions for value in ("p) Purchase an item.", "s) Sell an item.",
-                                                   "g) Get an item.", "d) Drop an item.")):
+                "g) Get an item.", "d) Drop an item.", "p) 商品を買う", "s) アイテムを売る",
+                "g) アイテムを取る", "d) アイテムを置く")):
             return ScreenMatch(ScreenKind.STORE, "complete-store-menu", menu_y, 0)
     # market/building-service.cpp:89-90,109,127,141,144.
     if len(lines) >= 24 and lines[23] in (" ESC) Exit building", " ESC) 建物を出る") \
@@ -169,7 +174,8 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
     # core/player-processor.cpp:302-313; bot-screen.cpp:67-73. Supported bot UI
     # is the 80x24 main term, with the cursor on the rendered player glyph.
     width, height, cursor = screen.get("width"), screen.get("height"), screen.get("cursor")
-    if width == 80 and height == 24 and len(lines) == 24 and isinstance(cursor, Mapping):
+    if width == 80 and height == 24 and len(lines) == 24 and isinstance(cursor, Mapping) \
+            and not row0.endswith(":"):
         y, x = cursor.get("y"), cursor.get("x")
         if isinstance(y, int) and isinstance(x, int) and 1 <= y < 23 and 0 <= x < 80:
             cell = 0

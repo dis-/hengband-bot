@@ -167,7 +167,7 @@ class ScreenClassifierTest(unittest.TestCase):
         knowledge["lines"][21] = "ESC) Exit menu"
         self.assertEqual(classify_screen(knowledge).kind, ScreenKind.KNOWLEDGE)
         overlay = command_screen(); overlay["lines"][0] = "Unsupported text:"
-        self.assertEqual(classify_screen(overlay).kind, ScreenKind.COMMAND) # ordinary messages may remain
+        self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
         overlay["lines"][10] = " menu overlay"
         self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
 
