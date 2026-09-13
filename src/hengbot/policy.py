@@ -2429,14 +2429,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 else None
             )
-            if (
-                isinstance(rejected_candidate, DecisionCandidate)
-                and rejected_candidate.reason
-                in {
-                    "fixedquest:q22-travel:route-unavailable",
-                    "fixedquest:prepare-return:route-unavailable",
-                }
-                and rejected_candidate is key
+            if self._route_unavailable_terminal_candidate(
+                rejected_candidate, key
             ):
                 self.last_reason = (
                     "fixedquest:prepare-return:unsatisfiable"
@@ -2518,6 +2512,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._town_travel_state = None
             self._town_travel_fallback = None
         return key
+
+    @staticmethod
+    def _route_unavailable_terminal_candidate(rejected_candidate, key) -> bool:
+        """Route only the exact rejected unresolved quest claim to its terminal."""
+        return (
+            isinstance(rejected_candidate, DecisionCandidate)
+            and rejected_candidate.reason in {
+                "fixedquest:q22-travel:route-unavailable",
+                "fixedquest:prepare-return:route-unavailable",
+            }
+            and rejected_candidate is key
+        )
 
 
 

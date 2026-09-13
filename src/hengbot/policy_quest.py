@@ -3781,9 +3781,8 @@ class QuestMixin:
                     fixed_quest_head is not None
                     and fixed_quest_head.status == QUEST_STATUS_UNTAKEN
                 ):
-                    return self._prepare_return_candidate(
-                        snapshot, fixed_quest_head, "return-1",
-                        (fixed_quest_head.id,),
+                    return self._prepare_return_1_candidate(
+                        snapshot, fixed_quest_head
                     )
                 key = self._town_teleport_key(snapshot, 0)
                 if key is not None:
@@ -3806,10 +3805,7 @@ class QuestMixin:
                      if quest.status == QUEST_STATUS_UNTAKEN),
                     key=self._fixed_quest_order,
                 ))
-                return self._prepare_return_candidate(
-                    snapshot, untaken[0], "return-3",
-                    tuple(quest.id for quest in untaken),
-                )
+                return self._prepare_return_3_candidate(snapshot, untaken)
             target_town = (
                 FIXED_QUEST_TOWNS.get(travel_quest.id, 0)
                 if travel_quest is not None else None
@@ -3978,9 +3974,35 @@ class QuestMixin:
             )
         return None
 
+    def _prepare_return_1_candidate(
+        self, snapshot: Snapshot, quest: object
+    ) -> str | None:
+        """Publish the town-1 prepare-return branch independently."""
+        return self._prepare_return_candidate(
+            snapshot, quest, "return-1", (quest.id,),
+            retain_unavailable=self._retain_return_1_unavailable(snapshot),
+        )
+
+    def _prepare_return_3_candidate(
+        self, snapshot: Snapshot, quests: tuple[object, ...]
+    ) -> str | None:
+        """Publish the non-base-town prepare-return branch independently."""
+        return self._prepare_return_candidate(
+            snapshot, quests[0], "return-3", tuple(quest.id for quest in quests),
+            retain_unavailable=self._retain_return_3_unavailable(snapshot),
+        )
+
+    def _retain_return_1_unavailable(self, snapshot: Snapshot) -> bool:
+        """Return-1's independently revertable route-failure retention."""
+        return True
+
+    def _retain_return_3_unavailable(self, snapshot: Snapshot) -> bool:
+        """Return-3's independently revertable route-failure retention."""
+        return True
+
     def _prepare_return_candidate(
         self, snapshot: Snapshot, quest: object, producer_branch: str,
-        qualifying_quest_ids: tuple[int, ...],
+        qualifying_quest_ids: tuple[int, ...], *, retain_unavailable: bool,
     ) -> str | None:
         """Publish one exact prepare-return proposal after its caller gates."""
         if snapshot.player.gold < TOWN_TELEPORT_COST:
@@ -3995,6 +4017,8 @@ class QuestMixin:
         reason = "fixedquest:prepare-return"
         candidate_identity = object()
         if result.failure is not None:
+            if not retain_unavailable:
+                return None
             reason += ":route-unavailable"
             declaration = QuestTravelDeclaration(
                 quest_id=quest.id, quest_status=quest.status,

@@ -29,6 +29,11 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
         with gzip.open(path, "rt", encoding="utf-8") as stream:
             return [json.loads(line) for line in stream]
 
+    def _return_1_records(self):
+        path = self._root() / "tests/fixtures/quest-prepare-return-town1-recurrence-stage2.jsonl.gz"
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            return list(zip(range(292, 329), (json.loads(line) for line in stream)))
+
     @staticmethod
     def _root():
         from pathlib import Path
@@ -60,6 +65,41 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
             [rank for _key, rank in observed],
             [rank for _key, rank in observed][1:],
         )))
+
+    def test_q_return_1_recurrence_retires_without_step_off_credit(self):
+        policy = self._policy()
+        observations = []
+        for number, raw in self._return_1_records():
+            line = json.dumps(raw, ensure_ascii=False)
+            if raw.get("type") in {"character", "look", "knowledge", "store"}:
+                self._dispatch(policy, line)
+                continue
+            snapshot = parse_snapshot(raw, self.monrace)
+            if number == 292:
+                policy.prime(snapshot)
+            key = policy.choose_key(snapshot)
+            policy.confirm_key_posted(key)
+            if 309 <= number <= 312:
+                declaration = getattr(key, "route_declaration", None)
+                vector = policy._town_turn_arbiter._vector_by_owner.get("quest-request")
+                observations.append((number, key, declaration, vector))
+            if number == 312:
+                break
+        self.assertEqual([item[0] for item in observations], [309, 310, 311, 312])
+        self.assertEqual([item[1].reason if isinstance(item[1], DecisionCandidate)
+                          else "fixedquest:prepare-return" for item in observations],
+                         ["fixedquest:prepare-return"] * 4)
+        self.assertIsNone(observations[0][2])
+        self.assertEqual(len(observations[0][3]), 8)
+        self.assertEqual(
+            [item[2].producer_branch for item in observations[1:]],
+            ["return-1", "return-1", "return-1"],
+        )
+        # The existing recurrence detector has consumed its unchanged 3/2/1/0
+        # allowance by the fourth public producer observation.
+        self.assertEqual(policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0)
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+        self.assertEqual(snapshot.turn, 2855985)
 
     @staticmethod
     def _route_failure(raw, variant):
@@ -112,10 +152,39 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
                 self.assertEqual(
                     policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
                 )
+                incidental = copy.deepcopy(seed)
+                incidental["turn"] += 100
+                incidental["player"]["gold"] -= 1
+                incidental_key = policy.choose_key(
+                    parse_snapshot(incidental, self.monrace)
+                )
+                policy.confirm_key_posted(incidental_key)
+                self.assertEqual(incidental_key, WAIT_KEY)
+                self.assertEqual(
+                    policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
+                )
                 restored = parse_snapshot(raw, self.monrace)
                 restored_key = policy.choose_key(restored)
                 self.assertIsInstance(restored_key, DecisionCandidate)
                 self.assertEqual(restored_key.reason, "fixedquest:prepare-return")
+
+    def test_procurement_preserves_real_return_3_unavailable_candidate(self):
+        raw = self._stage2_records()[-5]
+        seed = self._route_failure(raw, "no-inn")
+        policy = self._policy(maps=False)
+        policy.prime(parse_snapshot(seed, self.monrace))
+        # These walls model an unrelated actionable procurement result.  They
+        # are consulted only after choose_key's real quest producer has made
+        # the candidate on this same policy instance.
+        policy._town_procurement_progress_key = lambda _snapshot: (
+            "7", "shop:approach"
+        )
+        policy._town_result_makes_progress = lambda _snapshot, key: key == "7"
+        key = policy.choose_key(parse_snapshot(seed, self.monrace))
+        policy.confirm_key_posted(key)
+        self.assertIsInstance(key, DecisionCandidate)
+        self.assertEqual(key.reason, "fixedquest:prepare-return:route-unavailable")
+        self.assertEqual(key.route_declaration.producer_branch, "return-3")
 
     def test_w_return_3_equal_key_distinct_candidate_has_no_authority(self):
         raw = self._stage2_records()[-5]

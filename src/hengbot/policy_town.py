@@ -216,7 +216,14 @@ class TownMixin:
                 and head.status == declaration.quest_status
             )
         if declaration.producer_branch == "return-1":
-            return (
+            return self._valid_return_1_declaration(candidate, declaration, head)
+        if declaration.producer_branch == "return-3":
+            return self._valid_return_3_declaration(snapshot, candidate, declaration)
+        return False
+
+    @staticmethod
+    def _valid_return_1_declaration(candidate, declaration, head) -> bool:
+        return (
                 declaration.stage == "prepare-return"
                 and candidate.reason == "fixedquest:prepare-return"
                 and declaration.source_town_id == 1
@@ -225,16 +232,17 @@ class TownMixin:
                 and head.status == declaration.quest_status == QUEST_STATUS_UNTAKEN
                 and declaration.qualifying_quest_ids == (head.id,)
             )
-        if declaration.producer_branch == "return-3":
-            eligible_quests = tuple(sorted(
+
+    def _valid_return_3_declaration(self, snapshot, candidate, declaration) -> bool:
+        eligible_quests = tuple(sorted(
                 (quest for quest in self._known_fixed_quests(snapshot).values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
                 and quest.status == QUEST_STATUS_UNTAKEN
                 and self.approved_quest_strategy(quest.id) is not None),
                 key=self._fixed_quest_order,
             ))
-            eligible = tuple(quest.id for quest in eligible_quests)
-            return (
+        eligible = tuple(quest.id for quest in eligible_quests)
+        return (
                 declaration.stage == "prepare-return"
                 and candidate.reason == "fixedquest:prepare-return"
                 and declaration.source_town_id not in {0, 1}
@@ -242,7 +250,6 @@ class TownMixin:
                 and declaration.qualifying_quest_ids == eligible
                 and declaration.quest_id in eligible
             )
-        return False
 
     def _q22_route_unavailable_clearance_key(
         self, snapshot: Snapshot
@@ -309,13 +316,12 @@ class TownMixin:
         source = self._effective_town_id(snapshot)
         untaken = tuple(quest for quest in candidates
                         if quest.status == QUEST_STATUS_UNTAKEN)
-        if source == 1 and head is not None and head.status == QUEST_STATUS_UNTAKEN:
-            branch, obligation, ids = "return-1", head, (head.id,)
-        elif source not in {0, 1} and untaken:
-            branch, obligation = "return-3", untaken[0]
-            ids = tuple(quest.id for quest in untaken)
-        else:
+        identity = self._return_1_unavailable_identity(source, head)
+        if identity is None:
+            identity = self._return_3_unavailable_identity(source, untaken)
+        if identity is None:
             return None
+        branch, obligation, ids = identity
         if self._town_teleport_route(snapshot, 0).failure is None:
             return None
         return (
@@ -323,6 +329,18 @@ class TownMixin:
             obligation.status, ids, source, snapshot.floor_key, 0,
             "eligible-route-unavailable",
         )
+
+    @staticmethod
+    def _return_1_unavailable_identity(source, head):
+        if source == 1 and head is not None and head.status == QUEST_STATUS_UNTAKEN:
+            return "return-1", head, (head.id,)
+        return None
+
+    @staticmethod
+    def _return_3_unavailable_identity(source, untaken):
+        if source not in {0, 1} and untaken:
+            return "return-3", untaken[0], tuple(quest.id for quest in untaken)
+        return None
 
     def _town_departure_locomotion_clearance(
         self, snapshot: Snapshot, reason: str | None = None
@@ -694,13 +712,9 @@ class TownMixin:
             return bool(departure_families.intersection(purchase_families))
         return purchase is not None and purchase.tval in {TVAL_WAND, TVAL_STAFF}
 
-    def _town_procurement_decision(
-        self, snapshot: Snapshot, key: str, *, enforce: bool = True
-    ) -> str:
-        """Enforce composable progress at the one downstream town-result seam."""
-        proposed_reason = self.last_reason or ""
-        self._town_begin_progress_decision(snapshot)
-        if (
+    @staticmethod
+    def _preserve_unavailable_quest_candidate(key: str) -> bool:
+        return (
             isinstance(key, DecisionCandidate)
             and key.reason in {
                 "fixedquest:q22-travel:route-unavailable",
@@ -710,7 +724,15 @@ class TownMixin:
             and key.route_declaration.stage in {
                 "travel-route-unavailable", "prepare-return-route-unavailable",
             }
-        ):
+        )
+
+    def _town_procurement_decision(
+        self, snapshot: Snapshot, key: str, *, enforce: bool = True
+    ) -> str:
+        """Enforce composable progress at the one downstream town-result seam."""
+        proposed_reason = self.last_reason or ""
+        self._town_begin_progress_decision(snapshot)
+        if self._preserve_unavailable_quest_candidate(key):
             return key
         if snapshot.store is not None and proposed_reason in {
             "store:entry-await-observation",
