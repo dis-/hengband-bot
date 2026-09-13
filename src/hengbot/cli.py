@@ -2505,7 +2505,9 @@ def main(argv: list[str] | None = None) -> int:
     ) -> bool:
         key = _transport_key(key, tunnel_macros_ready)
         if shadow_client is not None:
-            from hengbot.control_client import raw_keys_to_macro_notation
+            from hengbot.control_client import (
+                KeyPostStatus, raw_keys_to_macro_notation,
+            )
 
             try:
                 notation = raw_keys_to_macro_notation(key)
@@ -2513,27 +2515,37 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"failed to encode TCP key: {exc}", file=sys.stderr)
             else:
                 deadline = time.monotonic() + shadow_client.request_budget
-                while True:
-                    pushed = shadow_client.send_keys(notation, deadline=deadline)
-                    if pushed == len(key):
-                        for index, char in enumerate(key):
-                            _write_posted_character(
-                                posted_character_path, char, key, index, decision
-                            )
-                            if decision is not None and home_entry_capture is not None:
-                                try:
-                                    home_entry_capture.record_posted_character(
-                                        decision["sequence"], char
-                                    )
-                                except (KeyError, TypeError) as exc:
-                                    home_entry_capture.report_failure(
-                                        "record_posted_character", exc,
-                                        "decision.sequence/character",
-                                    )
-                        return True
-                    if not shadow_client.backpressured or time.monotonic() >= deadline:
-                        break
-                    time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+                outcome = shadow_client.post_keys(
+                    notation, expected_count=len(key), deadline=deadline
+                )
+                if outcome.status is KeyPostStatus.ACCEPTED:
+                    for index, char in enumerate(key):
+                        _write_posted_character(
+                            posted_character_path, char, key, index, decision
+                        )
+                        if decision is not None and home_entry_capture is not None:
+                            try:
+                                home_entry_capture.record_posted_character(
+                                    decision["sequence"], char
+                                )
+                            except (KeyError, TypeError) as exc:
+                                home_entry_capture.report_failure(
+                                    "record_posted_character", exc,
+                                    "decision.sequence/character",
+                                )
+                    return True
+                # A mutating TCP request is never followed by WM_CHAR.  Unknown
+                # acceptance could duplicate input; explicit rejection needs a
+                # fresh screen before any retry and is owned by the executor.
+                print(
+                    "<stuck-prompt> owner="
+                    f"{(decision or {}).get('reason', 'transport')} phase=keys "
+                    f"transport={outcome.status.value} request_id={outcome.request_id} "
+                    f"reason={outcome.reason}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return False
         if not args.send_to_window:
             return shadow_client is None
         try:
@@ -2716,7 +2728,7 @@ def main(argv: list[str] | None = None) -> int:
             if not send(
                 key, in_store=snapshot.store is not None, decision=decision
             ):
-                return 3
+                return 0
             posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
             if args.tcp_shadow:

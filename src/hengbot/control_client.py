@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import socket
 import time
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -21,6 +23,25 @@ class ControlClientError(RuntimeError):
 
 class ControlServerError(ControlClientError):
     """The server rejected a well-formed request."""
+
+
+class KeyPostStatus(str, Enum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    NOT_ATTEMPTED = "not-attempted"
+    ACCEPTANCE_UNKNOWN = "acceptance-unknown"
+
+
+@dataclass(frozen=True)
+class KeyPostOutcome:
+    status: KeyPostStatus
+    request_id: int | None = None
+    accepted_count: int | None = None
+    reason: str | None = None
+
+    @property
+    def accepted(self) -> bool:
+        return self.status is KeyPostStatus.ACCEPTED
 
 
 class ControlClient:
@@ -52,12 +73,20 @@ class ControlClient:
         self._retry_after = 0.0
         self._consecutive_failures = 0
         self._failure_visible = False
+        # Changes whenever a read-only request discards its connection and
+        # retries.  Barrier users use this to invalidate a prior screen/state
+        # pair rather than combining observations across reconnects.
+        self._observation_epoch = 0
         self.last_error: str | None = None
         self.backpressured = False
 
     @property
     def connected(self) -> bool:
         return self._socket is not None
+
+    @property
+    def observation_epoch(self) -> int:
+        return self._observation_epoch
 
     def close(self) -> None:
         if self._socket is not None:
@@ -125,6 +154,55 @@ class ControlClient:
         self._consecutive_failures = 0
         return result
 
+    def post_keys(
+        self, keys: str, *, expected_count: int | None, deadline: float | None = None
+    ) -> KeyPostOutcome:
+        """Attempt one mutating request exactly once.
+
+        A request that reached ``sendall`` has unknown acceptance unless its
+        matching, exact ACK is received.  In particular, mutation failures are
+        never reconnected and replayed.
+        """
+        self.last_error = None
+        self.backpressured = False
+        deadline = time.monotonic() + self.request_budget if deadline is None else deadline
+        request_id = self._next_id
+        if time.monotonic() >= deadline:
+            return KeyPostOutcome(KeyPostStatus.NOT_ATTEMPTED, reason="request budget exhausted")
+        attempted = False
+        try:
+            if self._socket is None:
+                self._connect(deadline)
+            attempted = True
+            result = self._request_once("keys", {"keys": keys}, deadline)
+        except ControlServerError as error:
+            self.last_error = str(error)
+            self.backpressured = self.last_error == self.BACKPRESSURE_ERROR
+            self.close()
+            return KeyPostOutcome(
+                KeyPostStatus.REJECTED, request_id=request_id, reason=self.last_error
+            )
+        except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError,
+                ControlClientError) as error:
+            self.last_error = str(error)
+            self.close()
+            status = (KeyPostStatus.ACCEPTANCE_UNKNOWN if attempted
+                      else KeyPostStatus.NOT_ATTEMPTED)
+            return KeyPostOutcome(status, request_id=request_id, reason=self.last_error)
+        pushed = result.get("pushed")
+        if (not isinstance(pushed, int) or isinstance(pushed, bool)
+                or (expected_count is not None and pushed != expected_count)):
+            self.last_error = f"control keys pushed {pushed!r}, expected {expected_count}"
+            self.close()
+            return KeyPostOutcome(
+                KeyPostStatus.ACCEPTANCE_UNKNOWN, request_id=request_id,
+                accepted_count=pushed if isinstance(pushed, int) else None,
+                reason=self.last_error,
+            )
+        return KeyPostOutcome(
+            KeyPostStatus.ACCEPTED, request_id=request_id, accepted_count=pushed
+        )
+
     def request(
         self, op: str, *, deadline: float | None = None, **fields: object
     ) -> dict | None:
@@ -148,6 +226,7 @@ class ControlClient:
                 ControlClientError,
             ) as error:
                 last_error = error
+                self._observation_epoch += 1
                 self.close()
                 if op == "screen" and time.monotonic() >= deadline:
                     # A screen observation may legitimately wait until the game
@@ -174,54 +253,36 @@ class ControlClient:
         separately identified by ``backpressured`` so callers can wait and
         retry without mistaking it for a broken transport.
         """
-        self.last_error = None
-        self.backpressured = False
-        deadline = (
-            time.monotonic() + self.request_budget if deadline is None else deadline
+        outcome = self.post_keys(
+            keys, expected_count=_macro_notation_count(keys), deadline=deadline
         )
-        last_transport_error: BaseException | None = None
-        result: dict | None = None
-        for _attempt in range(self.retries + 1):
-            try:
-                result = self._request_once("keys", {"keys": keys}, deadline)
-                break
-            except ControlServerError as error:
-                self.last_error = str(error)
-                self.backpressured = self.last_error == self.BACKPRESSURE_ERROR
-                if self.backpressured:
-                    self._log(f"tcp-input backpressure: {self.last_error}")
-                    return None
-                # Server rejections are definitive; reconnecting cannot fix them.
-                self._log(f"tcp-input rejected: {self.last_error}")
-                return None
-            except (
-                OSError,
-                ValueError,
-                UnicodeDecodeError,
-                json.JSONDecodeError,
-                ControlClientError,
-            ) as error:
-                last_transport_error = error
-                self.last_error = str(error)
-                self.close()
-                if time.monotonic() >= deadline:
-                    break
-        else:
-            result = None
-        if last_transport_error is not None and result is None:
-            self._consecutive_failures += 1
-            self._retry_after = time.monotonic() + min(
-                self.backoff * self._consecutive_failures,
-                self.request_budget * (self.retries + 1),
-            )
-            self._report_failure_once(last_transport_error)
-            return None
-        pushed = result.get("pushed")
-        if not isinstance(pushed, int) or isinstance(pushed, bool):
-            self.last_error = "control keys result has no integer pushed count"
-            self._log(f"tcp-input rejected: {self.last_error}")
-            return None
-        return pushed
+        if outcome.status is KeyPostStatus.REJECTED:
+            self._log(f"tcp-input rejected: {outcome.reason}")
+        elif outcome.status is KeyPostStatus.ACCEPTANCE_UNKNOWN:
+            self._report_failure_once(ControlClientError(outcome.reason or outcome.status.value))
+        return outcome.accepted_count if outcome.accepted else None
+
+
+def _macro_notation_count(value: str) -> int:
+    """Count bytes in the control server's text_to_ascii notation grammar."""
+    count = index = 0
+    while index < len(value):
+        if value[index] == "\\":
+            index += 1
+            if index >= len(value):
+                raise ValueError("trailing macro escape")
+            if value[index] == "x":
+                if index + 2 >= len(value):
+                    raise ValueError("short hexadecimal macro escape")
+                int(value[index + 1:index + 3], 16)
+                index += 2
+        elif value[index] == "^":
+            index += 1
+            if index >= len(value):
+                raise ValueError("trailing control macro escape")
+        count += 1
+        index += 1
+    return count
 
 
 def raw_keys_to_macro_notation(keys: str) -> str:

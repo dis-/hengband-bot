@@ -11,6 +11,8 @@ from tests.run_follow_hygiene import run_follow as _run_follow
 
 from hengbot.control_client import (
     ControlClient,
+    KeyPostOutcome,
+    KeyPostStatus,
     append_shadow_diff,
     raw_keys_to_macro_notation,
 )
@@ -252,6 +254,20 @@ class ControlClientTest(unittest.TestCase):
         self.assertEqual(client.send_keys("j"), 1)
         self.assertFalse(client.backpressured)
 
+    def test_mutating_ack_loss_is_not_retried(self):
+        self.server.actions[:] = ["disconnect", {"pushed": 3}]
+        client = self.client(retries=3)
+        outcome = client.post_keys("rfk", expected_count=3)
+        self.assertEqual(outcome.status, KeyPostStatus.ACCEPTANCE_UNKNOWN)
+        self.assertEqual(len(self.server.requests), 1)
+
+    def test_wrong_id_and_wrong_count_are_acceptance_unknown(self):
+        for action in ("wrong-id", {"pushed": 2}):
+            with self.subTest(action=action):
+                self.server.actions[:] = [action]
+                outcome = self.client(retries=3).post_keys("rfk", expected_count=3)
+                self.assertEqual(outcome.status, KeyPostStatus.ACCEPTANCE_UNKNOWN)
+
     def test_real_key_corpus_round_trips_text_to_ascii_grammar(self):
         corpus = ("\x1b", "~9\x1b\x1b", "5pj\x1b", "pe3\r\r\x1b", "R300\r",
                   "0123456789", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -365,8 +381,16 @@ class DisabledCliPinTest(unittest.TestCase):
                 patch("hengbot.cli._write_decision"),
                 patch("hengbot.cli._record_tcp_shadow"),
                 patch(
-                    "hengbot.control_client.ControlClient.send_keys",
-                    side_effect=lambda *_a, **_k: events.append("tcp") or tcp_result,
+                    "hengbot.control_client.ControlClient.post_keys",
+                    side_effect=lambda *_a, **_k: (
+                        events.append("tcp") or KeyPostOutcome(
+                            KeyPostStatus.ACCEPTED if tcp_result is not None
+                            else KeyPostStatus.ACCEPTANCE_UNKNOWN,
+                            request_id=1,
+                            accepted_count=tcp_result,
+                            reason=None if tcp_result is not None else "lost ACK",
+                        )
+                    ),
                 ),
                 patch(
                     "hengbot.input_windows.send_key_to_window",
@@ -383,10 +407,10 @@ class DisabledCliPinTest(unittest.TestCase):
         self.assertEqual(self._run_once_with_routes(1, events), 0)
         self.assertEqual(events, ["tcp"])
 
-    def test_tcp_transport_failure_falls_back_to_wm_char_in_order(self):
+    def test_tcp_transport_failure_never_falls_back_to_wm_char(self):
         events = []
         self.assertEqual(self._run_once_with_routes(None, events), 0)
-        self.assertEqual(events, ["tcp", "wm"])
+        self.assertEqual(events, ["tcp"])
 
     def test_control_port_without_tcp_shadow_sends_without_recording_shadow(self):
         from hengbot import cli
@@ -421,7 +445,8 @@ class DisabledCliPinTest(unittest.TestCase):
                 patch("hengbot.cli._write_decision"),
                 patch("hengbot.cli._record_tcp_shadow") as shadow,
                 patch(
-                    "hengbot.control_client.ControlClient.send_keys", return_value=1
+                    "hengbot.control_client.ControlClient.post_keys",
+                    return_value=KeyPostOutcome(KeyPostStatus.ACCEPTED, 1, 1)
                 ) as send_keys,
             ):
                 result = cli.main([
@@ -464,7 +489,10 @@ class DisabledCliPinTest(unittest.TestCase):
                 patch("hengbot.cli._capture_decision_facts", return_value={}),
                 patch("hengbot.cli._write_decision"),
                 patch("hengbot.cli._record_tcp_shadow") as shadow,
-                patch("hengbot.control_client.ControlClient.send_keys", return_value=1),
+                patch(
+                    "hengbot.control_client.ControlClient.post_keys",
+                    return_value=KeyPostOutcome(KeyPostStatus.ACCEPTED, 1, 1),
+                ),
             ):
                 result = cli.main([
                     "--state-file", str(state), "--once", "--control-port", "1",
