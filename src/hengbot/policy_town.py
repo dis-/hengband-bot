@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_TOWNS, MIN_FREE_PACK_SLOTS, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_TOWNS, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
 from hengbot.policy_types import (
     DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
     TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
@@ -117,7 +117,7 @@ class TownMixin:
             locomotion = self._town_departure_locomotion_clearance(snapshot, reason)
             if locomotion is not None:
                 return durable + (locomotion,)
-        elif owner == "quest-request" and self._valid_q22_travel_declaration(
+        elif owner == "quest-request" and self._valid_quest_travel_declaration(
             snapshot, candidate, reason
         ):
             declaration = candidate.route_declaration
@@ -180,31 +180,69 @@ class TownMixin:
         self, snapshot: Snapshot, candidate: DecisionCandidate | None,
         reason: str | None = None,
     ) -> bool:
+        return self._valid_quest_travel_declaration(snapshot, candidate, reason)
+
+    def _valid_quest_travel_declaration(
+        self, snapshot: Snapshot, candidate: DecisionCandidate | None,
+        reason: str | None = None,
+    ) -> bool:
         context = getattr(self, "_decision_context", None)
         if not isinstance(candidate, DecisionCandidate) or context is None:
             return False
         declaration = candidate.route_declaration
         if declaration is None:
             return False
-        return (
-            declaration.quest_id == 22
-            and declaration.stage == "travel"
-            and declaration.decision_identity == context.identity
+        common = (
+            declaration.decision_identity == context.identity
             and declaration.candidate_identity is candidate.identity
             and candidate.decision_identity == context.identity
             and str(candidate) == declaration.composed_key
             and candidate.reason == (reason or self.last_reason)
-            and candidate.reason == "fixedquest:q22-travel"
             and declaration.source_town_id == self._effective_town_id(snapshot)
-            and declaration.destination_town_id == 3
             and declaration.floor == snapshot.floor_key
             and declaration.goal is not None
             and declaration.first_step is not None
             and declaration.bfs_rank is not None
-            and (head := self._fixed_quest_head(snapshot)) is not None
-            and head.id == 22
-            and head.status == declaration.quest_status
         )
+        if not common:
+            return False
+        head = self._fixed_quest_head(snapshot)
+        if declaration.producer_branch == "q22-travel":
+            return (
+                declaration.quest_id == 22 and declaration.stage == "travel"
+                and candidate.reason == "fixedquest:q22-travel"
+                and declaration.destination_town_id == 3
+                and head is not None and head.id == 22
+                and head.status == declaration.quest_status
+            )
+        if declaration.producer_branch == "return-1":
+            return (
+                declaration.stage == "prepare-return"
+                and candidate.reason == "fixedquest:prepare-return"
+                and declaration.source_town_id == 1
+                and declaration.destination_town_id == 0
+                and head is not None and head.id == declaration.quest_id
+                and head.status == declaration.quest_status == QUEST_STATUS_UNTAKEN
+                and declaration.qualifying_quest_ids == (head.id,)
+            )
+        if declaration.producer_branch == "return-3":
+            eligible_quests = tuple(sorted(
+                (quest for quest in self._known_fixed_quests(snapshot).values()
+                if quest.id in FIXED_QUEST_ALLOWLIST
+                and quest.status == QUEST_STATUS_UNTAKEN
+                and self.approved_quest_strategy(quest.id) is not None),
+                key=self._fixed_quest_order,
+            ))
+            eligible = tuple(quest.id for quest in eligible_quests)
+            return (
+                declaration.stage == "prepare-return"
+                and candidate.reason == "fixedquest:prepare-return"
+                and declaration.source_town_id not in {0, 1}
+                and declaration.destination_town_id == 0
+                and declaration.qualifying_quest_ids == eligible
+                and declaration.quest_id in eligible
+            )
+        return False
 
     def _q22_route_unavailable_clearance_key(
         self, snapshot: Snapshot
@@ -238,6 +276,54 @@ class TownMixin:
             snapshot.floor_key, destination, "eligible-route-unavailable",
         )
 
+    def _prepare_return_route_unavailable_clearance_key(
+        self, snapshot: Snapshot
+    ) -> object | None:
+        """Stable identity of an eligible but structurally unroutable return."""
+        if (
+            not snapshot.in_town
+            or self._physical_adjacent_hostiles(snapshot)
+            or self._fixed_quest_reward_pending is not None
+            or self._inventory_overweight(snapshot)
+            or snapshot.player.gold < TOWN_TELEPORT_COST
+        ):
+            return None
+        candidates = tuple(sorted(
+            (quest for quest in self._known_fixed_quests(snapshot).values()
+             if quest.id in FIXED_QUEST_ALLOWLIST
+             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN,
+                                  QUEST_STATUS_COMPLETED}
+             and self.approved_quest_strategy(quest.id) is not None),
+            key=self._fixed_quest_order,
+        ))
+        head = self._fixed_quest_head(snapshot)
+        travel = head
+        if travel is not None and (
+            self.approved_quest_strategy(travel.id) is None
+            or (travel.status == QUEST_STATUS_UNTAKEN
+                and not self._fixed_quest_ready_for_travel(snapshot, travel.id))
+        ):
+            travel = None
+        if travel is not None:
+            return None
+        source = self._effective_town_id(snapshot)
+        untaken = tuple(quest for quest in candidates
+                        if quest.status == QUEST_STATUS_UNTAKEN)
+        if source == 1 and head is not None and head.status == QUEST_STATUS_UNTAKEN:
+            branch, obligation, ids = "return-1", head, (head.id,)
+        elif source not in {0, 1} and untaken:
+            branch, obligation = "return-3", untaken[0]
+            ids = tuple(quest.id for quest in untaken)
+        else:
+            return None
+        if self._town_teleport_route(snapshot, 0).failure is None:
+            return None
+        return (
+            "prepare-return-route-unavailable", branch, obligation.id,
+            obligation.status, ids, source, snapshot.floor_key, 0,
+            "eligible-route-unavailable",
+        )
+
     def _town_departure_locomotion_clearance(
         self, snapshot: Snapshot, reason: str | None = None
     ) -> object | None:
@@ -259,7 +345,10 @@ class TownMixin:
         candidate: DecisionCandidate | None = None,
     ) -> object:
         if owner == "quest-request":
-            unresolved = self._q22_route_unavailable_clearance_key(snapshot)
+            unresolved = (
+                self._q22_route_unavailable_clearance_key(snapshot)
+                or self._prepare_return_route_unavailable_clearance_key(snapshot)
+            )
             if unresolved is not None:
                 return unresolved
         vector = self._town_arbiter_progress_vector(snapshot, reason, candidate)
@@ -613,9 +702,14 @@ class TownMixin:
         self._town_begin_progress_decision(snapshot)
         if (
             isinstance(key, DecisionCandidate)
-            and key.reason == "fixedquest:q22-travel:route-unavailable"
+            and key.reason in {
+                "fixedquest:q22-travel:route-unavailable",
+                "fixedquest:prepare-return:route-unavailable",
+            }
             and key.route_declaration is not None
-            and key.route_declaration.stage == "travel-route-unavailable"
+            and key.route_declaration.stage in {
+                "travel-route-unavailable", "prepare-return-route-unavailable",
+            }
         ):
             return key
         if snapshot.store is not None and proposed_reason in {

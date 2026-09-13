@@ -65,6 +65,8 @@ class QuestTravelDeclaration:
     composed_key: str
     decision_identity: object
     candidate_identity: object
+    producer_branch: str = "q22-travel"
+    qualifying_quest_ids: tuple[int, ...] = ()
 
 
 class DecisionCandidate(str):

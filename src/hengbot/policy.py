@@ -2432,10 +2432,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (
                 isinstance(rejected_candidate, DecisionCandidate)
                 and rejected_candidate.reason
-                == "fixedquest:q22-travel:route-unavailable"
+                in {
+                    "fixedquest:q22-travel:route-unavailable",
+                    "fixedquest:prepare-return:route-unavailable",
+                }
                 and rejected_candidate is key
             ):
-                self.last_reason = "fixedquest:q22-travel:unsatisfiable"
+                self.last_reason = (
+                    "fixedquest:prepare-return:unsatisfiable"
+                    if rejected_candidate.reason.startswith(
+                        "fixedquest:prepare-return:"
+                    ) else "fixedquest:q22-travel:unsatisfiable"
+                )
                 key = WAIT_KEY
             elif step is not None:
                 transaction_owns_relocation = (

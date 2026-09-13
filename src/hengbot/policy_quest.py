@@ -3777,14 +3777,17 @@ class QuestMixin:
                 travel_quest = None
             current_town_id = self._effective_town_id(snapshot)
             if travel_quest is None and current_town_id == 1:
+                if (
+                    fixed_quest_head is not None
+                    and fixed_quest_head.status == QUEST_STATUS_UNTAKEN
+                ):
+                    return self._prepare_return_candidate(
+                        snapshot, fixed_quest_head, "return-1",
+                        (fixed_quest_head.id,),
+                    )
                 key = self._town_teleport_key(snapshot, 0)
                 if key is not None:
-                    self.last_reason = (
-                        "fixedquest:prepare-return"
-                        if fixed_quest_head is not None
-                        and fixed_quest_head.status == QUEST_STATUS_UNTAKEN
-                        else "fixedquest:q2-teleport"
-                    )
+                    self.last_reason = "fixedquest:q2-teleport"
                 return key
             if (
                 travel_quest is None
@@ -3798,10 +3801,15 @@ class QuestMixin:
                 # reviewed preparation contract was complete.  Once no fixed
                 # quest is ready here, return by inn to the base town instead
                 # of dropping through to generic town wandering.
-                key = self._town_teleport_key(snapshot, 0)
-                if key is not None:
-                    self.last_reason = "fixedquest:prepare-return"
-                return key
+                untaken = tuple(sorted(
+                    (quest for quest in fixed_quest_candidates
+                     if quest.status == QUEST_STATUS_UNTAKEN),
+                    key=self._fixed_quest_order,
+                ))
+                return self._prepare_return_candidate(
+                    snapshot, untaken[0], "return-3",
+                    tuple(quest.id for quest in untaken),
+                )
             target_town = (
                 FIXED_QUEST_TOWNS.get(travel_quest.id, 0)
                 if travel_quest is not None else None
@@ -3969,6 +3977,62 @@ class QuestMixin:
                 snapshot, quest_id, "fixedquest:request", set_reward_pending=False
             )
         return None
+
+    def _prepare_return_candidate(
+        self, snapshot: Snapshot, quest: object, producer_branch: str,
+        qualifying_quest_ids: tuple[int, ...],
+    ) -> str | None:
+        """Publish one exact prepare-return proposal after its caller gates."""
+        if snapshot.player.gold < TOWN_TELEPORT_COST:
+            return self._town_teleport_key(snapshot, 0)
+        context = self._decision_context
+        if context is None:
+            key = self._town_teleport_key(snapshot, 0)
+            if key is not None:
+                self.last_reason = "fixedquest:prepare-return"
+            return key
+        result = self._town_teleport_route(snapshot, 0)
+        reason = "fixedquest:prepare-return"
+        candidate_identity = object()
+        if result.failure is not None:
+            reason += ":route-unavailable"
+            declaration = QuestTravelDeclaration(
+                quest_id=quest.id, quest_status=quest.status,
+                stage="prepare-return-route-unavailable",
+                source_town_id=self._effective_town_id(snapshot),
+                destination_town_id=0, floor=snapshot.floor_key,
+                goal=None, first_step=None, bfs_rank=None,
+                composed_key=WAIT_KEY, decision_identity=context.identity,
+                candidate_identity=candidate_identity,
+                producer_branch=producer_branch,
+                qualifying_quest_ids=qualifying_quest_ids,
+            )
+            self.last_reason = reason
+            return DecisionCandidate(
+                WAIT_KEY, reason=reason, decision_identity=context.identity,
+                route_declaration=declaration, identity=candidate_identity,
+            )
+        if result.key is None:
+            return None
+        self.last_reason = reason
+        if result.route is None:
+            return result.key
+        route = result.route
+        declaration = QuestTravelDeclaration(
+            quest_id=quest.id, quest_status=quest.status,
+            stage="prepare-return", source_town_id=self._effective_town_id(snapshot),
+            destination_town_id=0, floor=snapshot.floor_key,
+            goal=route.target, first_step=route.first_step,
+            bfs_rank=route.remaining_edges, composed_key=result.key,
+            decision_identity=context.identity,
+            candidate_identity=candidate_identity,
+            producer_branch=producer_branch,
+            qualifying_quest_ids=qualifying_quest_ids,
+        )
+        return DecisionCandidate(
+            result.key, reason=reason, decision_identity=context.identity,
+            route_declaration=declaration, identity=candidate_identity,
+        )
 
     def _quest_target_race_id(self, quest: QuestState) -> int | None:
         """Join a fixed target from knowledge, otherwise use disclosed runtime data."""
