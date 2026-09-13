@@ -2841,8 +2841,6 @@ class TownMixin:
         """Require shelf evidence from every local supplier before escalation."""
         unobtainable: list[str] = []
         for category, _quantity in shortages:
-            if category == "recall":
-                continue
             suppliers = set(self._cross_town_supplier_types(snapshot, category))
             evidence = [
                 self._town_visit_ledger.shelf_observations.get(
