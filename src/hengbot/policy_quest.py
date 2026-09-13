@@ -74,6 +74,7 @@ from hengbot.policy_types import (
     DecisionCandidate,
     DecisionContext,
     QuestTravelDeclaration,
+    PreparationGap,
     TownTravelProgress,
     StoreVisitPhase,
     StoreVisit,
@@ -3774,6 +3775,18 @@ class QuestMixin:
                     )
                 )
             ):
+                if (
+                    travel_quest.status == QUEST_STATUS_UNTAKEN
+                    and getattr(self, "_fixed_quest_readiness", {}).get("reason")
+                ):
+                    self._preparation_gap_candidate = PreparationGap(
+                        quest_id=travel_quest.id,
+                        quest_status=travel_quest.status,
+                        source_town_id=self._effective_town_id(snapshot),
+                        destination_town_id=FIXED_QUEST_TOWNS.get(travel_quest.id, 0),
+                        failed_reason=str(self._fixed_quest_readiness["reason"]),
+                        readiness_projection=self._quest_readiness_projection(snapshot),
+                    )
                 travel_quest = None
             current_town_id = self._effective_town_id(snapshot)
             if travel_quest is None and current_town_id == 1:
@@ -3810,6 +3823,21 @@ class QuestMixin:
                 FIXED_QUEST_TOWNS.get(travel_quest.id, 0)
                 if travel_quest is not None else None
             )
+            gap = getattr(self, "_quest_preparation_gap", None)
+            if travel_quest is not None and gap is not None:
+                same_obligation = (
+                    travel_quest.id == gap.quest_id
+                    and travel_quest.status == gap.quest_status
+                )
+                if not same_obligation:
+                    self._quest_preparation_gap = None
+                elif (
+                    not self._fixed_quest_ready_for_travel(snapshot, travel_quest.id)
+                    or self._quest_readiness_projection(snapshot)
+                    == gap.readiness_projection
+                ):
+                    travel_quest = None
+                    target_town = None
             if target_town is not None and current_town_id != target_town:
                 if (
                     snapshot.visited_town_ids is None
@@ -4030,6 +4058,7 @@ class QuestMixin:
                 candidate_identity=candidate_identity,
                 producer_branch=producer_branch,
                 qualifying_quest_ids=qualifying_quest_ids,
+                preparation_gap=getattr(self, "_preparation_gap_candidate", None),
             )
             self.last_reason = reason
             return DecisionCandidate(
@@ -4052,6 +4081,7 @@ class QuestMixin:
             candidate_identity=candidate_identity,
             producer_branch=producer_branch,
             qualifying_quest_ids=qualifying_quest_ids,
+            preparation_gap=getattr(self, "_preparation_gap_candidate", None),
         )
         return DecisionCandidate(
             result.key, reason=reason, decision_identity=context.identity,
@@ -4267,6 +4297,21 @@ class QuestMixin:
         """Check the quest contract before travelling to its acceptance town."""
         return self._evaluate_fixed_quest_readiness(
             snapshot, quest_id, require_target_town=False
+        )
+
+    @staticmethod
+    def _quest_readiness_projection(snapshot: Snapshot) -> tuple[object, ...]:
+        def item(item):
+            return (
+                getattr(item, "tval", None), getattr(item, "sval", None),
+                getattr(item, "name", None), getattr(item, "count", None),
+                getattr(item, "charges", None), getattr(item, "known", None),
+            )
+        player = snapshot.player
+        return (
+            player.hp, player.max_hp, getattr(player, "gold", None),
+            tuple(item(value) for value in snapshot.inventory),
+            tuple(item(value) for value in snapshot.equipment),
         )
 
     def _evaluate_fixed_quest_readiness(

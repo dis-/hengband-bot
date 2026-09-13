@@ -79,6 +79,8 @@ from hengbot.equipment_mutation import (
 from hengbot.policy_types import (
     DecisionCandidate,
     DecisionContext,
+    PreparationGap,
+    TownTravelFlight,
     TownTravelProgress,
     StoreVisitPhase,
     StoreVisit,
@@ -1644,6 +1646,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "acquire_result": None,
         }
         self._decision_context: DecisionContext | None = None
+        self._quest_preparation_gap: PreparationGap | None = None
+        self._staged_quest_travel: DecisionCandidate | None = None
+        self._staged_quest_travel_gold = 0
+        self._town_travel_flight: TownTravelFlight | None = None
         self.decision_attribution = "unregistered"
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
@@ -2238,6 +2244,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def choose_key(self, snapshot: Snapshot) -> str:
         self._staged_prompt_chain = None
+        self._staged_quest_travel = None
+        self._staged_quest_travel_gold = 0
+        self._preparation_gap_candidate = None
         # Snapshot-derived answers must never survive a public decision
         # boundary, even when a caller reuses and mutates a Snapshot object.
         self._fixed_quest_offer_cache = {}
@@ -2282,6 +2291,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
             identity=self._decision_sequence + 1,
         )
+        flight = getattr(self, "_town_travel_flight", None)
+        if flight is not None:
+            if self._effective_town_id(snapshot) == flight.destination_town_id:
+                self._town_travel_flight = None
+                gap = getattr(self, "_quest_preparation_gap", None)
+                if (
+                    gap is not None
+                    and flight.destination_town_id != 0
+                    and gap.quest_id == flight.quest_id
+                ):
+                    self._quest_preparation_gap = None
+            else:
+                self._decision_sequence += 1
+                self.last_reason = "fixedquest:quest-travel:await-arrival"
+                self.decision_attribution = "quest-request"
+                return WAIT_KEY
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}
         if not hasattr(self, "_town_supplier_stock_observations"):
@@ -2472,6 +2497,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # This is the first mutating accounting point and follows every key
         # rewrite.  Only the exact surviving envelope can authorize a route.
         final_candidate = key if isinstance(key, DecisionCandidate) else None
+        if self._valid_quest_travel_declaration(
+            snapshot, final_candidate, self.last_reason
+        ):
+            self._staged_quest_travel = final_candidate
+            self._staged_quest_travel_gold = snapshot.player.gold
         vector = self._town_arbiter_progress_vector(
             snapshot, self.last_reason, final_candidate
         )
@@ -7142,6 +7172,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        staged_travel = getattr(self, "_staged_quest_travel", None)
+        if staged_travel is not None and key == str(staged_travel):
+            declaration = staged_travel.route_declaration
+            if declaration is not None and len(key) >= 3 and key[1] == "m":
+                self._town_travel_flight = TownTravelFlight(
+                    source_town_id=declaration.source_town_id,
+                    destination_town_id=declaration.destination_town_id,
+                    source_floor=declaration.floor,
+                    composed_key=key,
+                    quest_id=declaration.quest_id,
+                    quest_status=declaration.quest_status,
+                    producer_branch=declaration.producer_branch,
+                    pre_post_gold=self._staged_quest_travel_gold,
+                )
+                if declaration.preparation_gap is not None:
+                    self._quest_preparation_gap = declaration.preparation_gap
+                self._staged_quest_travel = None
         self._confirm_staged_shopping_approach(key)
         if key.startswith(FIRE_KEY):
             # The ledger establishes that no bolt was visible on these cells

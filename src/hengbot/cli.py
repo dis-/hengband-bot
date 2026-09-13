@@ -1668,6 +1668,26 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
             )
         )
 
+    # Item letters are ephemeral addresses.  Infer composition from the
+    # observed pack/equipment projection instead of maintaining a command
+    # taxonomy: any multi-key alphabetic command whose first argument names an
+    # observed item slot is letter-bound.  For those commands only an item
+    # projection or a newly serialized game message acknowledges the post;
+    # walking, turn advance and gold cannot make an old letter safe to reuse.
+    slots = {
+        str(getattr(item, "slot", ""))
+        for item in (*snapshot.inventory, *snapshot.equipment)
+    }
+    letter_bound = bool(
+        len(key) > 1 and key[0].isalpha() and key[1] in slots
+    )
+    if letter_bound:
+        return (
+            tuple(item_state(item) for item in snapshot.inventory),
+            tuple(item_state(item) for item in snapshot.equipment),
+            tuple(getattr(snapshot, "messages", ())),
+        )
+
     store = snapshot.store
     store_state = None if store is None else (
         getattr(store, "store_type", None),
@@ -2687,7 +2707,8 @@ def main(argv: list[str] | None = None) -> int:
             key = policy.choose_key(snapshot)
             key = policy.validate_read_key(snapshot, key)
             emit_ownership = emit_ownership_verdict(
-                emit_visit, snapshot, key, emit_approach_store
+                emit_visit, snapshot, key, emit_approach_store,
+                getattr(policy, "_town_travel_flight", None),
             ).as_dict()
             decision_facts = _capture_decision_facts(snapshot, policy)
             _write_decision(
@@ -3396,7 +3417,8 @@ def _run_follow(
                         )
                         key = policy.validate_read_key(snapshot, key)
                         emit_ownership = emit_ownership_verdict(
-                            emit_visit, snapshot, key, emit_approach_store
+                            emit_visit, snapshot, key, emit_approach_store,
+                            getattr(policy, "_town_travel_flight", None),
                         ).as_dict()
                         phase_started_at = time.perf_counter()
                         decision = {
