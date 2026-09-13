@@ -68,6 +68,7 @@ from hengbot.input_executor import (
     Continuation,
     Operation,
     OperationExecutor,
+    compose_barrier_board,
     ScreenKind,
     Transport,
 )
@@ -2949,6 +2950,8 @@ def _run_follow(
         look_barrier_started_at = 0.0
         next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
         poll_wait_started_at = time.perf_counter()
+        unread_observation_records: list[Mapping[str, object]] = []
+        barrier_board_seen = None
         while True:
             finish_pending_batch()
             _arm_decision_watchdog()
@@ -2957,6 +2960,11 @@ def _run_follow(
                 poll_wait_started_at = time.perf_counter()
             read_started_at = time.perf_counter()
             chunk = file.read()
+            executor = send.executor if isinstance(send, _ExecutorInputPort) else None
+            if not chunk and executor is not None and executor.ready_board is not None \
+                    and id(executor.ready_board) != barrier_board_seen:
+                # Bootstrap has no causal JSONL write to wake the old file loop.
+                chunk = "\n"
             read_finished_at = time.perf_counter()
             if chunk:
                 batch_seq += 1
@@ -2988,6 +2996,9 @@ def _run_follow(
                 )
                 phase_started_at = time.perf_counter()
                 decoded_lines = _decode_response_lines(complete_lines)
+                unread_observation_records.extend(
+                    row for row in decoded_lines if isinstance(row, Mapping)
+                )
                 decision_timing["decode_ms"] = round(
                     (time.perf_counter() - phase_started_at) * 1000, 3
                 )
@@ -3077,6 +3088,30 @@ def _run_follow(
                     look_barrier_pending = None
                     look_barrier_seen = False
                     look_barrier_started_at = 0.0
+                elif executor is not None and executor.ready_board is not None:
+                    decision_board, _ = compose_barrier_board(
+                        executor.ready_board,
+                        executor.ready_screen_value or {},
+                        executor.ready_screen.kind if executor.ready_screen is not None else ScreenKind.COMMAND,
+                        unread_observation_records,
+                    )
+                    if decision_board is None:
+                        print("<stuck-prompt> current store page did not bind to fresh state",
+                              file=sys.stderr, flush=True)
+                        return incident_stop("stuck-prompt", snapshot)
+                    phase_started_at = time.perf_counter()
+                    try:
+                        barrier_snapshot = parse_snapshot(decision_board, monrace_knowledge)
+                    except (KeyError, TypeError, ValueError) as exc:
+                        print(f"invalid barrier state: {exc}", file=sys.stderr)
+                        return 2
+                    decision_timing["parse_snapshot_ms"] = round(
+                        (time.perf_counter() - phase_started_at) * 1000, 3)
+                    snapshot_line = json.dumps(decision_board, ensure_ascii=False,
+                                               sort_keys=True, separators=(",", ":"))
+                    entry = barrier_snapshot, snapshot_line
+                    barrier_board_seen = id(executor.ready_board)
+                    unread_observation_records.clear()
                 else:
                     entry = _newest_snapshot_entry(
                         complete_lines,

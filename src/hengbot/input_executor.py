@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
+import copy
 import unicodedata
 import re
 
@@ -274,6 +275,62 @@ class OperationResult:
     reason: str | None = None
 
 
+def _same_barrier_value(
+        state: Mapping[str, object], record: Mapping[str, object], key: str) -> bool:
+    """Compare emitter values that bind a store record to the TCP state stop."""
+    return key in state and key in record and state[key] == record[key]
+
+
+def compose_barrier_board(
+        state: Mapping[str, object], screen: Mapping[str, object], kind: ScreenKind,
+        records: Iterable[Mapping[str, object]],
+) -> tuple[dict[str, object] | None, list[Mapping[str, object]]]:
+    """Build the sole policy board and preserve the physical observation order.
+
+    TCP ``state`` is the base.  JSONL contributes only unread message diffs and,
+    at a store command stop, the last fully bound current-page store payload.
+    State HISTORY is deliberately not copied into the policy message delta.
+    """
+    ordered = [record for record in records if isinstance(record, Mapping)]
+    board = copy.deepcopy(dict(state))
+    messages: list[str] = []
+    for record in ordered:
+        raw = record.get("messages", ())
+        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+            messages.extend(str(message) for message in raw)
+    board["messages"] = messages
+    if kind is not ScreenKind.STORE:
+        board.pop("store", None)
+        return board, ordered
+
+    candidates = [
+        record for record in ordered
+        if isinstance(record.get("store"), Mapping)
+    ]
+    if not candidates:
+        return None, ordered
+    candidate = candidates[-1]
+    # These whole structures include floor/town/location, inventory/equipment,
+    # gold, turn, and any page identity exported by either endpoint.
+    required = ("floor", "player", "inventory", "equipment", "turn")
+    if not all(_same_barrier_value(state, candidate, key) for key in required):
+        return None, ordered
+    store = candidate["store"]
+    state_store = state.get("store")
+    if isinstance(state_store, Mapping):
+        for key in ("store_type", "page", "page_index", "visible_start"):
+            if key in state_store and state_store.get(key) != store.get(key):
+                return None, ordered
+    visible = "\n".join(str(line) for line in screen.get("lines", ()))
+    items = store.get("items", ())
+    if isinstance(items, Sequence) and items:
+        names = [str(item.get("name", "")) for item in items if isinstance(item, Mapping)]
+        if names and not any(name and name in visible for name in names):
+            return None, ordered
+    board["store"] = copy.deepcopy(store)
+    return board, ordered
+
+
 class OperationExecutor:
     """Own input until ACK/post fence, fresh screen, and fresh state complete."""
 
@@ -285,9 +342,20 @@ class OperationExecutor:
         self.active: Operation | None = None
         self.ready_board: Mapping[str, object] | None = None
         self.ready_screen: ScreenMatch | None = None
+        self.ready_screen_value: Mapping[str, object] | None = None
         self._bound_screen_value: Mapping[str, object] | None = None
         self._bound_state_value: Mapping[str, object] | None = None
         self.state = ExecutorState.AWAITING_SCREEN
+
+    def _finish_board(self, state, screen_value, match):
+        records = self.drain()
+        if records is None:
+            records = ()
+        board, _ordered = compose_barrier_board(
+            state, screen_value, match.kind, records)
+        if board is None:
+            return None
+        return board
 
     def observe_boundary(self, *, deadline: float) -> OperationResult:
         if self.client is None:
@@ -330,11 +398,16 @@ class OperationExecutor:
         match = classify_screen(screen_value, state)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
-        self.drain()
-        self.ready_board, self.ready_screen, self.state = state, match, ExecutorState.READY
+        board = self._finish_board(state, screen_value, match)
+        if board is None:
+            return self._terminal(
+                operation, "store-state",
+                "missing or mismatching current store page", match)
+        self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
+            board, match, screen_value, ExecutorState.READY)
         self._bound_screen_value, self._bound_state_value = screen_value, state
         holder = operation or Operation(None, "bootstrap", "", state)
-        return OperationResult("ready" if operation is None else "completed", holder, state, match)
+        return OperationResult("ready" if operation is None else "completed", holder, board, match)
 
     def _post_and_barrier(self, keys: str, deadline: float) -> OperationResult:
         assert self.active is not None
@@ -428,16 +501,22 @@ class OperationExecutor:
         match = classify_screen(screen_value, state)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "classification", match.feature, match, outcome)
-        self.drain()
+        board = self._finish_board(state, screen_value, match)
+        if board is None:
+            return self._terminal(
+                self.active, "store-state",
+                "missing or mismatching current store page", match, outcome)
         operation = self.active
         self.active = None
-        self.ready_board, self.ready_screen, self.state = state, match, ExecutorState.READY
-        return OperationResult("completed", operation, state, match, outcome)
+        self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
+            board, match, screen_value, ExecutorState.READY)
+        return OperationResult("completed", operation, board, match, outcome)
 
     def _terminal(self, operation, phase, reason, screen=None, transport=None, transport_name=None):
         active = operation or self.active or Operation(None, "bootstrap", "", None)
         name = transport_name or active.transport.value
-        self.active, self.ready_board, self.state = None, None, ExecutorState.TERMINAL
+        self.active, self.ready_board, self.ready_screen_value, self.state = (
+            None, None, None, ExecutorState.TERMINAL)
         request_id = transport.request_id if transport is not None else None
         status = transport.status.value if transport is not None else name
         detail = (f"<stuck-prompt> owner={active.owner} phase={phase} transport={status} "

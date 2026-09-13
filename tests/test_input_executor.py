@@ -3,12 +3,13 @@
 import json
 from pathlib import Path
 import ast
+import hashlib
 import unittest
 
 from hengbot.control_client import ControlClient, KeyPostStatus
 from hengbot.input_executor import (
     Continuation, Operation, OperationExecutor, ScreenKind, Transport,
-    classify_screen,
+    classify_screen, compose_barrier_board,
 )
 
 
@@ -206,6 +207,41 @@ class Stage2aProducerRoutingPin(ProductionHarness):
         self.assertEqual(game2.accepted, ["r", "a"])
         self.assertEqual(result.operation.accepted_segments, ["r", "a"])
 
+
+class Stage2bHistoricalIncidentPin(ProductionHarness):
+    FIXTURE = Path(__file__).with_name("fixtures") / "input-barrier-stage2b-rec74-96.jsonl"
+
+    def rows(self):
+        return [json.loads(line) for line in self.FIXTURE.read_bytes().splitlines()]
+
+    def test_p1_fixture_is_exact_physical_rec74_96_and_mid_operation_decisions_are_empty(self):
+        source = Path(__file__).parents[1] / "jsonlog/incident-20260913-town-pingpong-gold-burn/bot-state-fixed.jsonl"
+        expected = b"".join(source.read_bytes().splitlines(keepends=True)[73:96])
+        actual = self.FIXTURE.read_bytes()
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual.splitlines()), 23)
+        self.assertEqual(hashlib.sha256(actual).hexdigest(),
+                         hashlib.sha256(expected).hexdigest())
+        mid_operation = {75, 77, *range(78, 86), *range(86, 95)}
+        barrier_decision_sources = {74, 76, 96}
+        self.assertEqual(mid_operation & barrier_decision_sources, set())
+
+    def test_p2_counterfactual_measured_values(self):
+        rows = dict(enumerate(self.rows(), 74))
+        self.assertEqual((rows[74]["player"]["gold"], rows[74]["floor"]["town_id"]),
+                         (1580, 3))
+        self.assertEqual((rows[76]["player"]["gold"], rows[76]["floor"]["town_id"]),
+                         (1080, 0))
+        self.assertEqual(rows[78]["player"]["gold"], 1080)
+        self.assertEqual(len(rows[78]["messages"]), 2)
+        self.assertEqual(len(rows[86]["messages"]), 2)
+        identify = [item for item in rows[78]["inventory"] if "*鑑定*" in item["name"]]
+        lights = [item for item in rows[86]["inventory"] if item.get("slot") == "g"]
+        target = [item for item in rows[78]["inventory"] if item.get("slot") == "k"]
+        self.assertEqual(identify, [])
+        self.assertEqual((len(lights), lights[0]["count"]), (1, 1))
+        self.assertTrue(target[0]["fully_known"])
+
     def test_p8_source_audit_only_executor_calls_transport_post(self):
         root = Path(__file__).parents[1]
         callers = []
@@ -373,6 +409,52 @@ class ScreenClassifierTest(unittest.TestCase):
 
 
 class TcpBarrierPinTest(ProductionHarness):
+    def test_p1_mid_operation_jsonl_is_ordered_observation_not_decision(self):
+        game, client, _ = self.make()
+        observed = []
+        executor = OperationExecutor(
+            client, drain=lambda: observed.extend(game.jsonl) or list(game.jsonl))
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        game.jsonl.extend([
+            {"turn": 1, "type": "character", "messages": ["same"]},
+            {"turn": 1, "type": "look", "messages": ["same"]},
+        ])
+        result = executor.submit(Operation(1, "move", "6", executor.ready_board),
+                                 deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual([row["type"] for row in observed[-3:-1]], ["character", "look"])
+        self.assertEqual(result.board["messages"], ["same", "same"])
+
+    def test_p4_state_is_base_messages_are_delta_and_prior_map_is_never_overlaid(self):
+        state = {"turn": 76, "floor": {"town_id": 0}, "player": {"gold": 1080},
+                 "inventory": [], "equipment": [], "grid_map": {"fresh": True},
+                 "messages": ["history"]}
+        records = [
+            {"turn": 75, "type": "player_turn", "grid_map": {"stale": True},
+             "messages": ["first", "first"]},
+            {"turn": 78, "type": "player_turn", "messages": ["identify", "no scroll"]},
+        ]
+        board, ordered = compose_barrier_board(
+            state, command_screen(), ScreenKind.COMMAND, records)
+        self.assertEqual(board["grid_map"], {"fresh": True})
+        self.assertEqual(board["messages"], ["first", "first", "identify", "no scroll"])
+        self.assertEqual([row["turn"] for row in ordered], [75, 78])
+
+    def test_p4_store_requires_latest_current_page_and_decreases_once(self):
+        screen = command_screen()
+        screen["lines"][20:23] = ["You may:", " ESC) Exit from Building. p) Purchase an item.", "Potion"]
+        state = {"turn": 9, "floor": {"town_id": 0}, "player": {"gold": 80},
+                 "inventory": [], "equipment": [], "grid_map": {"fresh": True}}
+        stale = {**state, "turn": 8, "store": {"store_type": 1, "page": 0,
+                                                "items": [{"name": "Potion", "count": 2}]}}
+        current = {**state, "store": {"store_type": 1, "page": 0,
+                                       "items": [{"name": "Potion", "count": 1}]}}
+        board, _ = compose_barrier_board(state, screen, ScreenKind.STORE, [stale, current])
+        self.assertEqual(board["store"]["items"][0]["count"], 1)
+        wrong = {**current, "turn": 8}
+        board, _ = compose_barrier_board(state, screen, ScreenKind.STORE, [wrong])
+        self.assertIsNone(board)
+
     def test_fragmented_responses_more_and_flush_are_real_protocol_paths(self):
         game, _client, executor = self.make()
         game.fragments = [[1, 2, 3], [2, 1], [1], [3, 2], [1], [2, 2], [1]]
