@@ -13,16 +13,11 @@ import unittest
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy_types import DecisionCandidate
-from tests.test_quest_travel_progress import QuestTravelProgressPins
+from tests.test_quest_travel_progress import QuestTravelFixtureMixin
 
 
-class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
+class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
     """Reuse only the real-policy fixture construction from the stage-1 pin."""
-
-    __unittest_skip__ = False
-    SNAPSHOTS = (
-        QuestTravelProgressPins.__module__  # keep unittest discovery explicit
-    )
 
     def _stage2_records(self):
         path = self._root() / "tests/fixtures/quest-prepare-return-town3-walk-stage2.jsonl.gz"
@@ -82,24 +77,43 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
             if 309 <= number <= 312:
                 declaration = getattr(key, "route_declaration", None)
                 vector = policy._town_turn_arbiter._vector_by_owner.get("quest-request")
-                observations.append((number, key, declaration, vector))
+                observations.append((
+                    number, key, policy.last_reason, declaration, vector,
+                    policy._town_turn_arbiter.telemetry[
+                        "budget_remaining_estimate"
+                    ], snapshot,
+                    "quest-request" in policy._town_turn_arbiter._retired,
+                ))
             if number == 312:
+                following = copy.deepcopy(raw)
+                following["turn"] += 1
+                terminal_key = policy.choose_key(parse_snapshot(following, self.monrace))
+                policy.confirm_key_posted(terminal_key)
+                terminal = (terminal_key, policy.last_reason)
                 break
         self.assertEqual([item[0] for item in observations], [309, 310, 311, 312])
-        self.assertEqual([item[1].reason if isinstance(item[1], DecisionCandidate)
-                          else "fixedquest:prepare-return" for item in observations],
-                         ["fixedquest:prepare-return"] * 4)
-        self.assertIsNone(observations[0][2])
-        self.assertEqual(len(observations[0][3]), 8)
         self.assertEqual(
-            [item[2].producer_branch for item in observations[1:]],
+            [item[2] for item in observations],
+            ["fixedquest:prepare-return"] * 4,
+        )
+        self.assertIsNone(observations[0][3])
+        self.assertEqual(
+            observations[0][4],
+            policy._town_arbiter_progress_vector(
+                observations[0][6], observations[0][2]
+            ),
+        )
+        self.assertEqual(
+            [item[3].producer_branch for item in observations[1:]],
             ["return-1", "return-1", "return-1"],
         )
-        # The existing recurrence detector has consumed its unchanged 3/2/1/0
-        # allowance by the fourth public producer observation.
-        self.assertEqual(policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0)
-        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
-        self.assertEqual(snapshot.turn, 2855985)
+        # The first step-off has no declaration and the two distinct declared
+        # route vectors do not consume recurrence allowance.  Only record 312
+        # repeats record 310, so the measured public sequence is 3/3/3/0.
+        self.assertEqual([item[5] for item in observations], [3, 3, 3, 0])
+        self.assertTrue(observations[-1][7])
+        self.assertEqual(observations[-1][6].turn, 2855985)
+        self.assertEqual(terminal, ("\x1b`n!.", "shop:travel"))
 
     @staticmethod
     def _route_failure(raw, variant):
@@ -110,18 +124,32 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
                 cell.pop("b")
                 cell.pop("p", None)
         if variant in {"known-no-path", "on-inn-no-exit"}:
-            cells.append({"x": 0, "y": 0, "b": 4, "p": 0})
-        if variant == "on-inn-no-exit":
-            derived["player"]["x"] = 0
-            derived["player"]["y"] = 0
+            cells.append({"x": 88, "y": 15, "b": 4, "p": 0})
+        if variant in {"known-no-path", "on-inn-no-exit"}:
+            if variant == "on-inn-no-exit":
+                derived["player"]["x"] = 88
+                derived["player"]["y"] = 15
             grid_map = derived["grid_map"]
-            floor_index = next(
+            wall_index = next(
                 index for index, entry in enumerate(grid_map["palette"])
-                if entry[2] & (1 << 5)
+                if entry[2] & (1 << 17)
             )
-            grid_map["runs"] = [[0, 0, 1, floor_index]]
-            grid_map["h"] = 1
-            grid_map["w"] = 1
+            blocked = {
+                (y, x) for y in range(14, 17) for x in range(87, 90)
+                if (y, x) != (15, 88)
+            }
+            rewritten = []
+            for y, x0, length, palette_index in grid_map["runs"]:
+                x1 = x0 + length
+                cursor = x0
+                for x in sorted(x for yy, x in blocked if yy == y and x0 <= x < x1):
+                    if cursor < x:
+                        rewritten.append([y, cursor, x - cursor, palette_index])
+                    rewritten.append([y, x, 1, wall_index])
+                    cursor = x + 1
+                if cursor < x1:
+                    rewritten.append([y, cursor, x1 - cursor, palette_index])
+            grid_map["runs"] = rewritten
         return derived
 
     def test_n_return_3_route_failure_variants_retire_and_restore(self):
@@ -146,7 +174,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
                         budgets.append(policy._town_turn_arbiter.telemetry[
                             "budget_remaining_estimate"
                         ])
-                self.assertTrue(all(vector == vectors[0] for vector in vectors[:4]))
+                self.assertTrue(all(vector == vectors[0] for vector in vectors))
                 self.assertEqual(budgets[:4], [3, 2, 1, 0])
                 self.assertEqual(key, WAIT_KEY)
                 self.assertEqual(
@@ -163,6 +191,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
                 self.assertEqual(
                     policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
                 )
+                self.assertIn("quest-request", policy._town_turn_arbiter._retired)
                 restored = parse_snapshot(raw, self.monrace)
                 restored_key = policy.choose_key(restored)
                 self.assertIsInstance(restored_key, DecisionCandidate)
@@ -173,18 +202,54 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
         seed = self._route_failure(raw, "no-inn")
         policy = self._policy(maps=False)
         policy.prime(parse_snapshot(seed, self.monrace))
-        # These walls model an unrelated actionable procurement result.  They
-        # are consulted only after choose_key's real quest producer has made
-        # the candidate on this same policy instance.
-        policy._town_procurement_progress_key = lambda _snapshot: (
-            "7", "shop:approach"
-        )
-        policy._town_result_makes_progress = lambda _snapshot, key: key == "7"
-        key = policy.choose_key(parse_snapshot(seed, self.monrace))
+        snapshot = parse_snapshot(seed, self.monrace)
+        key = policy.choose_key(snapshot)
         policy.confirm_key_posted(key)
         self.assertIsInstance(key, DecisionCandidate)
         self.assertEqual(key.reason, "fixedquest:prepare-return:route-unavailable")
         self.assertEqual(key.route_declaration.producer_branch, "return-3")
+        # Seam unit: this capture has no publicly observed affordable supplier,
+        # so the real downstream procurement consumer is invoked directly only
+        # after choose_key produced the provenance-bearing candidate.
+        self.assertIs(policy._town_procurement_decision(snapshot, key), key)
+
+    def test_n_return_3_hostile_suppression_does_not_resurrect_retirement(self):
+        raw = self._stage2_records()[-5]
+        seed = self._route_failure(raw, "no-inn")
+        policy = self._policy(maps=False)
+        policy.prime(parse_snapshot(seed, self.monrace))
+        for offset in range(4):
+            current = copy.deepcopy(seed)
+            current["turn"] += offset * 10
+            key = policy.choose_key(parse_snapshot(current, self.monrace))
+            policy.confirm_key_posted(key)
+        self.assertEqual(policy.last_reason, "fixedquest:prepare-return:route-unavailable")
+        self.assertEqual(
+            policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0
+        )
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+        hostile = copy.deepcopy(seed)
+        hostile["turn"] += 50
+        x, y = hostile["player"]["x"], hostile["player"]["y"]
+        hostile["grid_map"]["cells"].append({"x": x + 1, "y": y, "m": 1})
+        hostile["visible_monsters"] = [{"index": 1, "race_id": 1}]
+        hostile_key = policy.choose_key(parse_snapshot(hostile, self.monrace))
+        policy.confirm_key_posted(hostile_key)
+        self.assertEqual(policy.last_reason, "melee")
+        hostile_retained = "quest-request" in policy._town_turn_arbiter._retired
+
+        safe = copy.deepcopy(seed)
+        safe["turn"] += 60
+        safe_key = policy.choose_key(parse_snapshot(safe, self.monrace))
+        policy.confirm_key_posted(safe_key)
+        self.assertEqual(
+            (str(safe_key), policy.last_reason,
+             policy._town_turn_arbiter.telemetry["budget_remaining_estimate"]),
+            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable", 0),
+        )
+        self.assertTrue(hostile_retained)
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
     def test_w_return_3_equal_key_distinct_candidate_has_no_authority(self):
         raw = self._stage2_records()[-5]
@@ -202,9 +267,49 @@ class QuestPrepareReturnStage2Pins(QuestTravelProgressPins):
         self.assertFalse(policy._valid_quest_travel_declaration(
             snapshot, collision, collision.reason
         ))
-        self.assertEqual(len(policy._town_arbiter_progress_vector(
-            snapshot, collision.reason, collision
-        )), 8)
+        self.assertEqual(
+            policy._town_arbiter_progress_vector(
+                snapshot, collision.reason, collision
+            ),
+            policy._town_arbiter_progress_vector(snapshot, collision.reason),
+        )
+
+    def test_x_return_3_fare_crossing_after_retirement_is_measured(self):
+        raw = self._stage2_records()[-5]
+        seed = self._route_failure(raw, "no-inn")
+        policy = self._policy(maps=False)
+        policy.prime(parse_snapshot(seed, self.monrace))
+        budgets = []
+        for offset in range(7):
+            current = copy.deepcopy(seed)
+            current["turn"] += offset * 10
+            key = policy.choose_key(parse_snapshot(current, self.monrace))
+            policy.confirm_key_posted(key)
+            budgets.append(policy._town_turn_arbiter.telemetry[
+                "budget_remaining_estimate"
+            ])
+        crossed = copy.deepcopy(seed)
+        crossed["turn"] += 100
+        crossed["player"]["gold"] = 499
+        low_key = policy.choose_key(parse_snapshot(crossed, self.monrace))
+        policy.confirm_key_posted(low_key)
+        low = (str(low_key), policy.last_reason,
+               policy._town_turn_arbiter.telemetry["budget_remaining_estimate"])
+        low_retained = "quest-request" in policy._town_turn_arbiter._retired
+        crossed["turn"] += 10
+        crossed["player"]["gold"] = 500
+        high_key = policy.choose_key(parse_snapshot(crossed, self.monrace))
+        policy.confirm_key_posted(high_key)
+        high = (str(high_key), policy.last_reason,
+                policy._town_turn_arbiter.telemetry["budget_remaining_estimate"])
+        self.assertEqual(budgets[:4], [3, 2, 1, 0])
+        self.assertEqual(low[1], "identify:full")
+        self.assertEqual(
+            high,
+            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable", 0),
+        )
+        self.assertTrue(low_retained)
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
 
 if __name__ == "__main__":

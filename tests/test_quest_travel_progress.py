@@ -34,7 +34,7 @@ SNAPSHOTS = ROOT / "tests/fixtures/quest-request-retired-stage1.jsonl.gz"
 PIN_RECORDS = (4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18, 19, 20, 21, 22)
 
 
-class QuestTravelProgressPins(unittest.TestCase):
+class QuestTravelFixtureMixin:
     @classmethod
     def setUpClass(cls):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
@@ -89,6 +89,9 @@ class QuestTravelProgressPins(unittest.TestCase):
             [line], policy, lambda *_a, **_k: None,
             knowledge_ledger_path=Path(self.temp.name) / "knowledge.jsonl",
         )
+
+
+class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
 
     def test_pin_p_public_replay_uses_selected_bfs_route(self):
         policy = self._policy()
@@ -187,6 +190,21 @@ class QuestTravelProgressPins(unittest.TestCase):
         self.assertEqual(budgets[:4], [3, 2, 1, 0])
         self.assertEqual(policy.last_reason, "fixedquest:q22-travel:unsatisfiable")
         self.assertEqual(key, WAIT_KEY)
+        below_fare = copy.deepcopy(board)
+        below_fare["turn"] += 100
+        below_fare["player"]["gold"] = 999
+        low_key = policy.choose_key(parse_snapshot(below_fare, self.monrace))
+        policy.confirm_key_posted(low_key)
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+        at_fare = copy.deepcopy(below_fare)
+        at_fare["turn"] += 10
+        at_fare["player"]["gold"] = 1000
+        fare_key = policy.choose_key(parse_snapshot(at_fare, self.monrace))
+        policy.confirm_key_posted(fare_key)
+        self.assertEqual(fare_key, "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
         restored = parse_snapshot(records[2][1], self.monrace)
         restored_key = policy.choose_key(restored)
         self.assertIsInstance(restored_key, DecisionCandidate)
