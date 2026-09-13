@@ -94,8 +94,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual([item[0] for item in observations], [309, 310, 311, 312])
         self.assertEqual(
             [item[2] for item in observations],
-            ["fixedquest:prepare-return"] * 2
-            + ["fixedquest:quest-travel:await-arrival"] * 2,
+            ["fixedquest:prepare-return"] * 4,
         )
         self.assertIsNone(observations[0][3])
         step_off_vector = observations[0][4]
@@ -114,18 +113,16 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(step_off_vector[2], ())
         self.assertEqual(step_off_vector[3:], (False, False, None, None, False))
         self.assertEqual(
-            [item[3].producer_branch if item[3] is not None else None
-             for item in observations[1:]],
-            ["return-1", None, None],
+            [item[3].producer_branch for item in observations[1:]],
+            ["return-1", "return-1", "return-1"],
         )
-        # Posting the paid macro transfers exclusive ownership to its flight;
-        # stale source snapshots cannot spend or retire the quest claim.
-        self.assertEqual([item[5] for item in observations], [3, 3, 3, 3])
-        self.assertFalse(observations[-1][7])
+        # The first step-off has no declaration and the two distinct declared
+        # route vectors do not consume recurrence allowance.  Only record 312
+        # repeats record 310, so the measured public sequence is 3/3/3/0.
+        self.assertEqual([item[5] for item in observations], [3, 3, 3, 0])
+        self.assertTrue(observations[-1][7])
         self.assertEqual(observations[-1][6].turn, 2855985)
-        self.assertEqual(
-            terminal, (WAIT_KEY, "fixedquest:quest-travel:await-arrival")
-        )
+        self.assertEqual(terminal, ("\x1b`n!.", "shop:travel"))
 
     @staticmethod
     def _route_failure(raw, variant):

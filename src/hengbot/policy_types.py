@@ -52,32 +52,6 @@ class TownTeleportRoute:
 
 
 @dataclass(frozen=True)
-class PreparationGap:
-    """Observed quest-readiness failure that a paid return must repair."""
-
-    quest_id: int
-    quest_status: object
-    source_town_id: int
-    destination_town_id: int
-    failed_reason: str
-    readiness_projection: tuple[object, ...]
-
-
-@dataclass(frozen=True)
-class TownTravelFlight:
-    """A paid inn command whose destination has not yet been observed."""
-
-    source_town_id: int
-    destination_town_id: int
-    source_floor: tuple[int, int, int] | None
-    composed_key: str
-    quest_id: int
-    quest_status: object
-    producer_branch: str
-    pre_post_gold: int
-
-
-@dataclass(frozen=True)
 class QuestTravelDeclaration:
     quest_id: int
     quest_status: object
@@ -93,7 +67,6 @@ class QuestTravelDeclaration:
     candidate_identity: object
     producer_branch: str = "q22-travel"
     qualifying_quest_ids: tuple[int, ...] = ()
-    preparation_gap: PreparationGap | None = None
 
 
 class DecisionCandidate(str):

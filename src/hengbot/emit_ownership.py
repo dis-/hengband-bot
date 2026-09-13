@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
-from hengbot.policy_types import StoreVisit, StoreVisitPhase, TownTravelFlight
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
 
 
 _MOVEMENT_DELTAS = {
@@ -36,12 +36,8 @@ class EmitOwnershipVerdict:
         return asdict(self)
 
 
-def in_flight_clause(
-    visit: StoreVisit | None, flight: TownTravelFlight | None = None,
-) -> str | None:
+def in_flight_clause(visit: StoreVisit | None) -> str | None:
     """Name the first clause that makes a store visit in flight."""
-    if flight is not None:
-        return "quest-teleport-posted-arrival-unobserved"
     if visit is None:
         return None
     if visit.operation_posted and not visit.operation_released:
@@ -88,17 +84,16 @@ def derive_target_store(snapshot, key: str, approach_store: int | None) -> tuple
 
 def emit_ownership_verdict(
     visit: StoreVisit | None, snapshot, key: str, approach_store: int | None,
-    flight: TownTravelFlight | None = None,
 ) -> EmitOwnershipVerdict:
     """Evaluate form B without mutating the visit, snapshot, or decision."""
-    clause = in_flight_clause(visit, flight)
+    clause = in_flight_clause(visit)
     target_store, target_source = derive_target_store(snapshot, key, approach_store)
     visit_store = None if visit is None else visit.store_type
     return EmitOwnershipVerdict(
         blocked=bool(
-            flight is not None or (clause is not None
+            clause is not None
             and target_store is not None
-            and target_store != visit_store)
+            and target_store != visit_store
         ),
         target_store=target_store,
         visit_store=visit_store,
