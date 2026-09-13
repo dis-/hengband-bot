@@ -1,0 +1,43 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+index 3f9eec5..02413f8 100644
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -272,7 +272,6 @@ class TownMixin:
+             source == destination
+             or snapshot.visited_town_ids is None
+             or destination not in snapshot.visited_town_ids
+-            or snapshot.player.gold < 2 * TOWN_TELEPORT_COST
+         ):
+             return None
+         result = self._town_teleport_route(snapshot, destination)
+@@ -287,14 +286,6 @@ class TownMixin:
+         self, snapshot: Snapshot
+     ) -> object | None:
+         """Stable identity of an eligible but structurally unroutable return."""
+-        if (
+-            not snapshot.in_town
+-            or self._physical_adjacent_hostiles(snapshot)
+-            or self._fixed_quest_reward_pending is not None
+-            or self._inventory_overweight(snapshot)
+-            or snapshot.player.gold < TOWN_TELEPORT_COST
+-        ):
+-            return None
+         candidates = tuple(sorted(
+             (quest for quest in self._known_fixed_quests(snapshot).values()
+              if quest.id in FIXED_QUEST_ALLOWLIST
+@@ -304,15 +295,6 @@ class TownMixin:
+             key=self._fixed_quest_order,
+         ))
+         head = self._fixed_quest_head(snapshot)
+-        travel = head
+-        if travel is not None and (
+-            self.approved_quest_strategy(travel.id) is None
+-            or (travel.status == QUEST_STATUS_UNTAKEN
+-                and not self._fixed_quest_ready_for_travel(snapshot, travel.id))
+-        ):
+-            travel = None
+-        if travel is not None:
+-            return None
+         source = self._effective_town_id(snapshot)
+         untaken = tuple(quest for quest in candidates
+                         if quest.status == QUEST_STATUS_UNTAKEN)
