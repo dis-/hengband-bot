@@ -405,17 +405,17 @@ class PromptGatedIdentificationPins(unittest.TestCase):
             "(i, ESC) どの杖を使いますか?",
             "(i, ESC) どの杖を使いますか?",
         ], deadline=0.04)
-        self.assertEqual([x[0] for x in values[4]], ["u", "i", NUDGE_KEY])
+        self.assertEqual([x[0] for x in values[4]], ["u", "i"])
         self.assertNotIn("s", [x[0] for x in values[4]])
         self.assertEqual(values[8]["drop_reason"], "prompt-timeout")
 
-    def test_pin_d6_7_timeout_posts_direct_escape(self):
+    def test_prompt_timeout_ends_visibly_without_blind_escape(self):
         for script in ([""], [None]):
             with self.subTest(script=script):
                 values = self._drive(script, deadline=0.04)
                 received = [x[0] for x in values[4]]
                 result = values[8]
-                self.assertEqual(received, ["u", NUDGE_KEY])
+                self.assertEqual(received, ["u"])
                 self.assertNotIn("i", received)
                 self.assertFalse(values[7])
                 self.assertEqual(
@@ -426,7 +426,7 @@ class PromptGatedIdentificationPins(unittest.TestCase):
                     {
                         "outcome": "dropped", "released_through": 0,
                         "posted": "u", "drop_reason": "prompt-timeout",
-                        "escape_posted": True,
+                        "escape_posted": False,
                     },
                 )
 
