@@ -270,7 +270,9 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> object | None:
         """Stable public-fact identity for the eligible unresolved q22 trip."""
-        quest = self._fixed_quest_head(snapshot)
+        # Clearance identity is an obligation fact, not the transient eligible
+        # head (which disappears while hurt or otherwise unready).
+        quest = self._known_fixed_quests(snapshot).get(22)
         strategy = self.approved_quest_strategy(22)
         if quest is None or quest.id != 22 or strategy is None:
             return None
@@ -355,12 +357,37 @@ class TownMixin:
         candidate: DecisionCandidate | None = None,
     ) -> object:
         if owner == "quest-request":
-            entry_unresolved = self._quest_entry_route_unavailable_clearance_key(
-                snapshot
+            active_reason = reason or (candidate.reason if candidate else "")
+            entry_active = active_reason.startswith("quest:enter:approach")
+            q22_active = active_reason.startswith("fixedquest:q22-travel")
+            prepare_return_active = active_reason.startswith(
+                "fixedquest:prepare-return"
             )
-            q22_unresolved = self._q22_route_unavailable_clearance_key(snapshot)
+            quest_producer_active = entry_active or q22_active or prepare_return_active
+            retired_key = getattr(
+                getattr(self, "_town_turn_arbiter", None), "_retired", {}
+            ).get("quest-request")
+            retained_slots = (
+                retired_key
+                if not quest_producer_active
+                and isinstance(retired_key, tuple) and len(retired_key) == 3
+                else (True, True, True)
+            )
+            entry_unresolved = (
+                self._quest_entry_route_unavailable_clearance_key(snapshot)
+                if (entry_active or (not quest_producer_active
+                                     and retained_slots[0] is not None)) else None
+            )
+            q22_unresolved = (
+                self._q22_route_unavailable_clearance_key(snapshot)
+                if (q22_active or (not quest_producer_active
+                                   and retained_slots[1] is not None)) else None
+            )
             prepare_return_unresolved = (
                 self._prepare_return_route_unavailable_clearance_key(snapshot)
+                if (prepare_return_active or (not quest_producer_active
+                                              and retained_slots[2] is not None))
+                else None
             )
             if (entry_unresolved is not None or q22_unresolved is not None
                     or prepare_return_unresolved is not None):

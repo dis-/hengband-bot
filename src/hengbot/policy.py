@@ -2395,8 +2395,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             }
             else None
         )
+        unresolved_quest_reason = (
+            unresolved_quest_candidate.reason
+            if unresolved_quest_candidate is not None else None
+        )
         key = self._forbid_wait_while_damaged(snapshot, key)
-        if unresolved_quest_candidate is not None and key is not unresolved_quest_candidate:
+        if (
+            unresolved_quest_candidate is not None
+            and key is not unresolved_quest_candidate
+            and key == WAIT_KEY
+        ):
             unresolved_reason = unresolved_quest_candidate.reason
             unresolved_vector = self._town_arbiter_progress_vector(
                 snapshot, unresolved_reason, unresolved_quest_candidate
@@ -2409,8 +2417,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 unresolved_reason, unresolved_vector,
                 retirement_key=unresolved_clearance,
             ):
-                # Safety may rewrite a WAIT, but it must not erase the exact
-                # unresolved claim once that claim has retired.
+                # A no-op rewrite must not erase the exact unresolved claim
+                # once that claim has retired.  A real safety action keeps its
+                # detector ownership and always wins over quest arbitration.
                 key = unresolved_quest_candidate
                 self.last_reason = unresolved_reason
         vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
@@ -2525,7 +2534,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason, final_candidate,
             ),
             retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner, self.last_reason,
+                snapshot, owner,
+                unresolved_quest_reason
+                if owner == "quest-request" and unresolved_quest_reason is not None
+                else self.last_reason,
                 final_candidate if owner == arbiter.owner_for_reason(self.last_reason) else None,
             ),
         )

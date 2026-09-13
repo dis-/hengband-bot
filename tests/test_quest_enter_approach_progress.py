@@ -128,13 +128,21 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         self.assertFalse(policy._valid_quest_travel_declaration(snapshot, key))
         self.assertTrue(policy._valid_quest_travel_declaration(snapshot, fresh))
 
-        arbiter = policy._town_turn_arbiter
-        arbiter._retired["quest-request"] = ("fixed",)
+        retired_policy, _ = self._seed_through_incident(maps=False)
+        boxed_raw = self._boxed(self._incident_boards()[0])
+        for offset in range(4):
+            observed = copy.deepcopy(boxed_raw)
+            observed["turn"] += offset * 10
+            observed_snapshot = parse_snapshot(observed, self.monrace)
+            observed_key = retired_policy.choose_key(observed_snapshot)
+            retired_policy.confirm_key_posted(observed_key)
+        arbiter = retired_policy._town_turn_arbiter
+        self.assertIn("quest-request", arbiter._retired)
         before = (copy.deepcopy(arbiter._retired), copy.deepcopy(arbiter._recurrences))
         self.assertTrue(arbiter.preview_may_select(
             fresh.reason,
             policy._town_arbiter_progress_vector(snapshot, fresh.reason, fresh),
-            retirement_key=("changed",),
+            retirement_key=("restored-route",),
         ))
         self.assertEqual((arbiter._retired, arbiter._recurrences), before)
 
@@ -174,10 +182,10 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         unknown_policy, _ = self._seed_through_incident(maps=False)
         unknown = parse_snapshot(self._without_entrance(source), self.monrace)
         unknown_key = unknown_policy.choose_key(unknown)
-        self.assertNotEqual(
-            getattr(unknown_key, "reason", None),
-            "quest:enter:approach:route-unavailable",
-        )
+        self.assertEqual((str(unknown_key), unknown_policy.last_reason),
+                         ("7", "seek-loot"))
+        self.assertEqual(unknown_policy.decision_attribution, "town-plan")
+        self.assertNotIn("quest-request", unknown_policy._town_turn_arbiter._retired)
 
         # Derived on-entrance/no-exit: entry itself remains the legal action.
         on_entrance = copy.deepcopy(source)
@@ -218,10 +226,12 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         lowered_key = policy.choose_key(parse_snapshot(lowered, self.monrace))
         policy.confirm_key_posted(lowered_key)
         self.assertEqual((str(lowered_key), policy.last_reason),
-                         (WAIT_KEY, "quest:enter:approach:unsatisfiable"))
+                         ("rd", "no-wait:escape-scroll"))
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
-        restored = parse_snapshot(source, self.monrace)
+        restored_raw = copy.deepcopy(source)
+        restored_raw["turn"] = lowered["turn"] + 10
+        restored = parse_snapshot(restored_raw, self.monrace)
         restored_key = policy.choose_key(restored)
         self.assertIsInstance(restored_key, DecisionCandidate)
         self.assertEqual(restored_key.reason, "quest:enter:approach")
@@ -249,13 +259,53 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         budgets = []
         for _number, raw, _line in records[2:]:
             snapshot = parse_snapshot(taken_q22(raw), self.monrace)
-            self.assertIsNone(policy._quest_entry_route_unavailable_clearance_key(snapshot))
             key = policy.choose_key(snapshot)
             policy.confirm_key_posted(key)
             if policy.last_reason == "fixedquest:q22-travel":
                 budgets.append(policy._town_turn_arbiter.telemetry["budget_remaining_estimate"])
         self.assertTrue(budgets)
         self.assertEqual(budgets, [3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3])
+        self.assertNotIn("quest-request", policy._town_turn_arbiter._retired)
+
+    def test_prepare_return_failure_does_not_mask_active_entry_walk(self):
+        policy, _ = self._seed_through_incident(maps=False)
+        source = self._incident_boards()[0]
+        blocked_return = copy.deepcopy(source)
+        next(q for q in blocked_return["progress"]["quests"]
+             if q["id"] == 22)["status"] = QUEST_STATUS_COMPLETED
+        next(q for q in blocked_return["progress"]["quests"]
+             if q["id"] == 2)["status"] = 0
+        for cell in blocked_return["grid_map"]["cells"]:
+            if cell.get("b") == 4:
+                cell.pop("b")
+                cell.pop("p", None)
+        for offset in range(4):
+            observed = copy.deepcopy(blocked_return)
+            observed["turn"] += offset * 10
+            key = policy.choose_key(parse_snapshot(observed, self.monrace))
+            policy.confirm_key_posted(key)
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+        budgets = []
+        for raw in self._incident_boards():
+            derived = copy.deepcopy(raw)
+            # Public obligation variant from the incident: q22 remains TAKEN
+            # while the approved q2 request is newly UNTAKEN.
+            next(q for q in derived["progress"]["quests"]
+                 if q["id"] == 2)["status"] = 0
+            for cell in derived["grid_map"]["cells"]:
+                if cell.get("b") == 4:
+                    cell.pop("b")
+                    cell.pop("p", None)
+            snapshot = parse_snapshot(derived, self.monrace)
+            key = policy.choose_key(snapshot)
+            policy.confirm_key_posted(key)
+            self.assertIsInstance(key, DecisionCandidate)
+            self.assertEqual(key.reason, "quest:enter:approach")
+            budgets.append(policy._town_turn_arbiter.telemetry[
+                "budget_remaining_estimate"
+            ])
+        self.assertEqual(budgets, [3] * len(TURNS))
         self.assertNotIn("quest-request", policy._town_turn_arbiter._retired)
 
 
