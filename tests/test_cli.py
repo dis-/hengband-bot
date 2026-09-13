@@ -29,6 +29,7 @@ from hengbot.cli import (
     PostingContract,
     POLICY_FINAL_STOP_REASONS,
     REST_STALL_GRACE,
+    SendResult,
     STORE_ITEM_PROMPT_DELAY_SECONDS,
     STORE_QUANTITY_DIGIT_DELAY_SECONDS,
     STATIONARY_REASONS,
@@ -1105,6 +1106,73 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertEqual(policy.choose_key.call_count, 1)
             self.assertEqual(freeze.call_args.args[1], "stuck-prompt")
+
+    def test_stage1c_incident_stop_lone_revert_changes_follow_value(self):
+        """H-stage1c-incident-stop: designed wait is not misreported terminal."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            state.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state), "--decision-log", str(root / "d.jsonl"),
+                "--poll-interval", "0.001", "--stall-timeout", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            def choose(snapshot):
+                policy.last_reason = (
+                    "equipment-transaction:restore-blocked-terminal"
+                    if snapshot.turn == 3 else "pin:terminal-post"
+                )
+                return "" if snapshot.turn == 3 else "5"
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            def append_snapshot():
+                time.sleep(0.05)
+                with state.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5))
+                    stream.flush()
+                    time.sleep(0.05)
+                    stream.write(_snap_line(3, 5, 5))
+                    stream.flush()
+            producer = threading.Thread(target=append_snapshot)
+            producer.start()
+            try:
+                with (patch("hengbot.cli._append_capture_ledger"),
+                      patch("hengbot.cli._freeze_incident_safely")):
+                    result = _run_follow(
+                        args, policy, lambda *_a, **_k: SendResult.DESIGNED_WAIT, {}
+                    )
+            finally:
+                producer.join()
+            self.assertEqual((result, policy.choose_key.call_count), (0, 2))
+
+    def test_stage1c_stall_nudge_stop_lone_revert_changes_follow_value(self):
+        """H-stage1c-stall-nudge-stop: a refused recovery cannot call policy again."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / "state.jsonl"
+            state.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state), "--decision-log", str(root / "d.jsonl"),
+                "--poll-interval", "0.001", "--stall-timeout", "0.001",
+                "--send-to-window",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            policy.choose_key = unittest.mock.Mock(return_value=None)
+            policy.last_reason = "pin:stall"
+            calls = []
+            clock = iter(float(value) for value in range(10000))
+            with (patch("hengbot.cli.time.monotonic", side_effect=lambda: next(clock)),
+                  patch("hengbot.cli.time.sleep"),
+                  patch("hengbot.cli._append_capture_ledger"),
+                  patch("hengbot.cli._freeze_incident_safely")):
+                result = _run_follow(
+                    args, policy,
+                    lambda key, **_kwargs: calls.append(key) or SendResult.TERMINAL,
+                    {},
+                )
+            self.assertEqual((result, policy.choose_key.call_count, calls), (0, 0, ["\x1b"]))
 
     def test_follow_records_atomic_withdraw_observed_home_page(self):
         with TemporaryDirectory() as directory:
