@@ -2436,7 +2436,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "fixedquest:prepare-return:unsatisfiable"
                     if rejected_candidate.reason.startswith(
                         "fixedquest:prepare-return:"
-                    ) else "fixedquest:q22-travel:unsatisfiable"
+                    ) else (
+                        "quest:enter:approach:unsatisfiable"
+                        if rejected_candidate.reason.startswith(
+                            "quest:enter:approach:"
+                        ) else "fixedquest:q22-travel:unsatisfiable"
+                    )
                 )
                 key = WAIT_KEY
             elif step is not None:
@@ -2521,6 +2526,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and rejected_candidate.reason in {
                 "fixedquest:q22-travel:route-unavailable",
                 "fixedquest:prepare-return:route-unavailable",
+                "quest:enter:approach:route-unavailable",
             }
             and rejected_candidate is key
         )

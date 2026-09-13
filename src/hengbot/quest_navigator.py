@@ -8,6 +8,8 @@ from enum import Enum
 from typing import Any
 
 from hengbot.model import Position, Snapshot
+from hengbot.policy_constants import QUEST_STATUS_TAKEN, WAIT_KEY
+from hengbot.policy_types import DecisionCandidate, QuestTravelDeclaration
 from hengbot.quest_knowledge import QuestBattlefield
 
 
@@ -63,28 +65,100 @@ class QuestFloorNavigator:
     def enter_from_town(owner: Any, snapshot: Snapshot, quest_id: int) -> str | None:
         """Route to a fixed entrance using only reviewed town-map/BFS facts."""
         positions = owner._fixed_quest_entrance_positions(snapshot, quest_id)
+        context = getattr(owner, "_decision_context", None)
+        quest = snapshot.quests.get(quest_id)
+        source = (
+            owner._effective_town_id(snapshot) if context is not None else 0
+        )
+        candidate_identity = object()
         if not positions:
-            return None
+            return QuestFloorNavigator._unavailable_entry_candidate(
+                owner, snapshot, quest_id, quest, source, context,
+                candidate_identity,
+            )
         if snapshot.player.position in positions:
             if not owner._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
             owner.last_reason = "quest:enter"
             return ">y"
-        step = owner._nearest_goal_step(
+        if context is None:
+            step = owner._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.has_quest_enter and grid.quest_id == quest_id,
+            )
+            if step is None:
+                candidates = [
+                    owner._town_map_goal_step(snapshot, pos) for pos in positions
+                ]
+                step = min(
+                    (candidate for candidate in candidates if candidate is not None),
+                    key=lambda pos: snapshot.player.position.distance_to(pos),
+                    default=None,
+                )
+            if step is None:
+                owner.last_reason = "quest:blocked:enter"
+                return WAIT_KEY
+            owner.last_reason = "quest:enter:approach"
+            return owner._step_toward(snapshot, step)
+        route = owner._nearest_goal_route(
             snapshot, lambda grid: grid.has_quest_enter and grid.quest_id == quest_id
         )
-        if step is None:
-            candidates = [owner._town_map_goal_step(snapshot, pos) for pos in positions]
-            step = min(
+        if route is None:
+            candidates = [owner._town_map_goal_route(snapshot, pos) for pos in positions]
+            route = min(
                 (candidate for candidate in candidates if candidate is not None),
-                key=lambda pos: snapshot.player.position.distance_to(pos),
+                key=lambda candidate: snapshot.player.position.distance_to(
+                    candidate.first_step
+                ),
                 default=None,
             )
-        if step is None:
-            owner.last_reason = "quest:blocked:enter"
-            return "5"
-        owner.last_reason = "quest:enter:approach"
-        return owner._step_toward(snapshot, step)
+        if route is None:
+            return QuestFloorNavigator._unavailable_entry_candidate(
+                owner, snapshot, quest_id, quest, source, context,
+                candidate_identity,
+            )
+        reason = "quest:enter:approach"
+        key = owner._step_toward(snapshot, route.first_step)
+        owner.last_reason = reason
+        if context is None or quest is None:
+            return key
+        declaration = QuestTravelDeclaration(
+            quest_id=quest_id, quest_status=quest.status,
+            stage="enter-approach", source_town_id=source,
+            destination_town_id=source, floor=snapshot.floor_key,
+            goal=route.target, first_step=route.first_step,
+            bfs_rank=route.remaining_edges, composed_key=key,
+            decision_identity=context.identity,
+            candidate_identity=candidate_identity,
+            producer_branch="quest-enter-approach",
+        )
+        return DecisionCandidate(
+            key, reason=reason, decision_identity=context.identity,
+            route_declaration=declaration, identity=candidate_identity,
+        )
+
+    @staticmethod
+    def _unavailable_entry_candidate(
+        owner: Any, snapshot: Snapshot, quest_id: int, quest: Any,
+        source: int, context: Any, candidate_identity: object,
+    ) -> str | None:
+        if context is None or quest is None or quest.status != QUEST_STATUS_TAKEN:
+            return None
+        reason = "quest:enter:approach:route-unavailable"
+        declaration = QuestTravelDeclaration(
+            quest_id=quest_id, quest_status=quest.status,
+            stage="enter-approach-route-unavailable", source_town_id=source,
+            destination_town_id=source, floor=snapshot.floor_key,
+            goal=None, first_step=None, bfs_rank=None, composed_key=WAIT_KEY,
+            decision_identity=context.identity,
+            candidate_identity=candidate_identity,
+            producer_branch="quest-enter-approach",
+        )
+        owner.last_reason = reason
+        return DecisionCandidate(
+            WAIT_KEY, reason=reason, decision_identity=context.identity,
+            route_declaration=declaration, identity=candidate_identity,
+        )
 
     def decide(self, owner: Any, snapshot: Snapshot, hostiles: list[Any], adjacent: list[Any]) -> str:
         self.reset_for_floor(snapshot.floor_key)

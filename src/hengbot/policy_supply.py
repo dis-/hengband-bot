@@ -23,7 +23,7 @@ from hengbot.policy_constants import (
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, UP_STAIRS_KEY, USE_DEVICE_MIN, WAIT_KEY,
 )
-from hengbot.policy_types import SupplyStatus
+from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
 
 
@@ -1212,6 +1212,11 @@ class SupplyMixin:
         downstairs is walkable, but a "tile adjacent to a monster" goal lands on
         a normal floor).
         """
+        route = self._nearest_goal_route(snapshot, predicate)
+        return route.first_step if route is not None else None
+
+    def _nearest_goal_route(self, snapshot: Snapshot, predicate) -> TownMapRoute | None:
+        """Return the nearest emitted goal, first step, and exact BFS rank."""
         start = snapshot.player.position
         entrance_cells = self._town_entrance_cells(snapshot)
         entrance_cells.difference_update(
@@ -1223,12 +1228,15 @@ class SupplyMixin:
         for blocked_entrances in (entrance_cells, set()):
             for allow_damaging in (False, True):
                 seen = {start}
-                queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+                queue: deque[tuple[Position, Position | None, int]] = deque(
+                    [(start, None, 0)]
+                )
                 while queue:
-                    pos, first_step = queue.popleft()
+                    pos, first_step, edges = queue.popleft()
                     grid = snapshot.grids.get(pos)
                     if pos != start and grid is not None and predicate(grid):
-                        return first_step
+                        assert first_step is not None
+                        return TownMapRoute(pos, first_step, edges)
                     for neighbor in self._walkable_neighbors(
                         snapshot, pos, allow_damaging=allow_damaging, goal=predicate
                     ):
@@ -1240,7 +1248,11 @@ class SupplyMixin:
                             continue
                         seen.add(neighbor)
                         queue.append(
-                            (neighbor, neighbor if first_step is None else first_step)
+                            (
+                                neighbor,
+                                neighbor if first_step is None else first_step,
+                                edges + 1,
+                            )
                         )
         return None
 

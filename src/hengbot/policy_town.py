@@ -219,6 +219,21 @@ class TownMixin:
             return self._valid_return_1_declaration(candidate, declaration, head)
         if declaration.producer_branch == "return-3":
             return self._valid_return_3_declaration(snapshot, candidate, declaration)
+        if declaration.producer_branch == "quest-enter-approach":
+            quest = self._known_fixed_quests(snapshot).get(declaration.quest_id)
+            info = self._quest_knowledge.get(declaration.quest_id)
+            return (
+                declaration.stage == "enter-approach"
+                and candidate.reason == "quest:enter:approach"
+                and declaration.source_town_id == declaration.destination_town_id
+                and quest is not None
+                and quest.status == declaration.quest_status == QUEST_STATUS_TAKEN
+                and self.approved_quest_strategy(declaration.quest_id) is not None
+                and info is not None and info.battlefield is not None
+                and declaration.goal in self._fixed_quest_entrance_positions(
+                    snapshot, declaration.quest_id
+                )
+            )
         return False
 
     @staticmethod
@@ -340,12 +355,16 @@ class TownMixin:
         candidate: DecisionCandidate | None = None,
     ) -> object:
         if owner == "quest-request":
+            entry_unresolved = self._quest_entry_route_unavailable_clearance_key(
+                snapshot
+            )
             q22_unresolved = self._q22_route_unavailable_clearance_key(snapshot)
             prepare_return_unresolved = (
                 self._prepare_return_route_unavailable_clearance_key(snapshot)
             )
-            if q22_unresolved is not None or prepare_return_unresolved is not None:
-                return q22_unresolved, prepare_return_unresolved
+            if (entry_unresolved is not None or q22_unresolved is not None
+                    or prepare_return_unresolved is not None):
+                return entry_unresolved, q22_unresolved, prepare_return_unresolved
         vector = self._town_arbiter_progress_vector(snapshot, reason, candidate)
         if owner != "departure":
             return vector
@@ -357,6 +376,37 @@ class TownMixin:
             PACK_CAPACITY - len(snapshot.inventory),
             tuple(sorted(self._recall_town_departure_conjuncts(snapshot).items())),
             self._town_departure_locomotion_clearance(snapshot, reason),
+        )
+
+    def _quest_entry_route_unavailable_clearance_key(
+        self, snapshot: Snapshot
+    ) -> object | None:
+        quest_id = self._fixed_quest_target(snapshot)
+        if quest_id is None or not snapshot.in_town:
+            return None
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        info = self._quest_knowledge.get(quest_id)
+        strategy = self.approved_quest_strategy(quest_id)
+        if (quest is None or quest.status != QUEST_STATUS_TAKEN
+                or info is None or info.battlefield is None or strategy is None):
+            return None
+        positions = self._fixed_quest_entrance_positions(snapshot, quest_id)
+        routes = tuple(
+            route for route in (
+                self._town_map_goal_route(snapshot, position)
+                for position in positions
+                if position != snapshot.player.position
+            ) if route is not None
+        )
+        if snapshot.player.position in positions or routes:
+            return None
+        return (
+            "quest-enter-approach-route-unavailable", quest_id, quest.status,
+            ("approved-strategy", strategy.quest_id, strategy.generated_at),
+            ("battlefield", repr(info.battlefield)),
+            self._effective_town_id(snapshot), snapshot.floor_key,
+            ("entrance-obligation", tuple(sorted(positions))),
+            "eligible-route-unavailable",
         )
 
     def _town_result_makes_progress(self, snapshot: Snapshot, key: str) -> bool:
@@ -696,10 +746,12 @@ class TownMixin:
             and key.reason in {
                 "fixedquest:q22-travel:route-unavailable",
                 "fixedquest:prepare-return:route-unavailable",
+                "quest:enter:approach:route-unavailable",
             }
             and key.route_declaration is not None
             and key.route_declaration.stage in {
                 "travel-route-unavailable", "prepare-return-route-unavailable",
+                "enter-approach-route-unavailable",
             }
         )
 
