@@ -327,6 +327,52 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertTrue(hostile_retained)
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
+    def test_return_3_obligation_change_clears_q22_masked_retirement(self):
+        raw = self._stage2_records()[-5]
+        seed = self._route_failure(raw, "no-inn")
+        seed["floor"]["town_id"] = 4
+        seed["floor"]["town_index"] = 5
+        policy = self._policy(maps=False)
+        policy.prime(parse_snapshot(seed, self.monrace))
+        budgets = []
+        for offset in range(7):
+            current = copy.deepcopy(seed)
+            current["turn"] += offset * 10
+            key = policy.choose_key(parse_snapshot(current, self.monrace))
+            policy.confirm_key_posted(key)
+            budgets.append(policy._town_turn_arbiter.telemetry[
+                "budget_remaining_estimate"
+            ])
+        self.assertEqual(budgets, [3, 2, 1, 0, 0, 0, 0])
+        self.assertEqual(
+            (str(key), policy.last_reason),
+            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable"),
+        )
+        self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+
+        changed = copy.deepcopy(seed)
+        changed["turn"] += 100
+        changed["progress"]["quests"].append({
+            "fixed": True,
+            "id": 31,
+            "level": 38,
+            "name": "古い城",
+            "status": 4,
+            "type": 6,
+        })
+        changed_snapshot = parse_snapshot(changed, self.monrace)
+        self.assertEqual(changed_snapshot.quests[31].status, 4)
+        fresh_key = policy.choose_key(changed_snapshot)
+        policy.confirm_key_posted(fresh_key)
+        self.assertIsInstance(fresh_key, DecisionCandidate)
+        self.assertEqual(
+            fresh_key.reason, "fixedquest:prepare-return:route-unavailable"
+        )
+        self.assertEqual(fresh_key.route_declaration.producer_branch, "return-3")
+        self.assertEqual(
+            policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0
+        )
+
     def test_w_return_3_equal_key_distinct_candidate_has_no_authority(self):
         raw = self._stage2_records()[-5]
         policy = self._policy()

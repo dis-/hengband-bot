@@ -340,12 +340,12 @@ class TownMixin:
         candidate: DecisionCandidate | None = None,
     ) -> object:
         if owner == "quest-request":
-            unresolved = (
-                self._q22_route_unavailable_clearance_key(snapshot)
-                or self._prepare_return_route_unavailable_clearance_key(snapshot)
+            q22_unresolved = self._q22_route_unavailable_clearance_key(snapshot)
+            prepare_return_unresolved = (
+                self._prepare_return_route_unavailable_clearance_key(snapshot)
             )
-            if unresolved is not None:
-                return unresolved
+            if q22_unresolved is not None or prepare_return_unresolved is not None:
+                return q22_unresolved, prepare_return_unresolved
         vector = self._town_arbiter_progress_vector(snapshot, reason, candidate)
         if owner != "departure":
             return vector
