@@ -142,12 +142,6 @@ def _modal_recovery_action(recovery_attempts: int) -> str:
 def _silent_game_incident(window_pid) -> str:
     """Give process death priority when terminal modal recovery is exhausted."""
     return "stuck-prompt" if _game_process_alive(window_pid) else "player-death"
-# Keys that march through close_game: Escape clears the tombstone and aborts the
-# death-info dump, "n" answers the NO_ESCAPE "stand by for score registration?"
-# prompt, Return confirms anything else. Repeated to cover every screen.
-DEATH_EXIT_KEYS = ("\x1b", "n", "\r")
-DEATH_EXIT_ROUNDS = 8
-
 # Every tenth level Hengband blocks outside the command loop and asks for a stat
 # (a-f), then confirmation. The screen ignores Escape and emits no snapshot.
 # After two harmless Esc nudges, alternate Strength and confirmation only when
@@ -1759,6 +1753,19 @@ class PostingContract:
             }
             return False
         previous = self._posted_by_owner.get(owner)
+        if (
+            previous is not None
+            and previous[0] == key
+            and "recall" in owner
+            and key.startswith("r")
+            and getattr(getattr(snapshot, "player", None), "recalling", False)
+        ):
+            self.last_incident = {
+                "marker": "posting-contract:recall-already-active",
+                "owner": owner,
+                "key": key,
+            }
+            return False
         if previous is not None and previous[0] == key and previous[1] != effect:
             recorder = self.flight_recorder
             if recorder is not None:
@@ -1864,8 +1871,14 @@ class _ExecutorInputPort:
             transport=(Transport.TCP if self.executor.client is not None
                        else Transport.WM),
         )
+        budget = max(
+            self.request_budget,
+            _command_response_grace(key, str(decision.get("reason", "unknown"))),
+        )
+        if key.startswith("R"):
+            budget = max(budget, REST_STALL_GRACE)
         self.last_result = self.executor.submit(
-            operation, deadline=time.monotonic() + self.request_budget
+            operation, deadline=time.monotonic() + budget
         )
         if self.last_result.outcome == "completed":
             return SendResult.SENT
@@ -2435,6 +2448,34 @@ def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -
     )
 
 
+def _make_jsonl_barrier_drain(path: Path):
+    """Return a production JSONL drain used only to bind barrier observations.
+
+    It deliberately retains a torn final line for the next call.  The follow
+    loop remains responsible for delivering ordered observation effects.
+    """
+    offset = 0
+    pending = ""
+
+    def drain():
+        nonlocal offset, pending
+        try:
+            size = path.stat().st_size
+            if size < offset:
+                offset, pending = 0, ""
+            with path.open("r", encoding="utf-8", errors="replace") as stream:
+                stream.seek(offset)
+                chunk = stream.read()
+                offset = stream.tell()
+        except OSError:
+            return ()
+        complete, pending = _split_complete_lines(pending + chunk)
+        return [row for row in _decode_response_lines(complete)
+                if isinstance(row, Mapping)]
+
+    return drain
+
+
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     if args.decision_log is None:
         return None
@@ -2693,7 +2734,8 @@ def main(argv: list[str] | None = None) -> int:
                 return False
 
     executor = OperationExecutor(
-        shadow_client, wm_post=wm_post, accepted=accepted_segment
+        shadow_client, drain=_make_jsonl_barrier_drain(args.state_file),
+        wm_post=wm_post, accepted=accepted_segment,
     )
     send = _ExecutorInputPort(
         executor,
@@ -2712,7 +2754,10 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     if args.once:
-        for line in _read_last_line(args.state_file):
+        once_lines = _read_last_line(args.state_file)
+        if live_actuation and executor.ready_board is not None:
+            once_lines = [json.dumps(executor.ready_board, ensure_ascii=False)]
+        for line in once_lines:
             if not line.strip():
                 continue
             try:
@@ -2936,7 +2981,7 @@ def _run_follow(
             chunk = file.read()
             executor = send.executor if isinstance(send, _ExecutorInputPort) else None
             if not chunk and executor is not None and executor.ready_board is not None \
-                    and id(executor.ready_board) != barrier_board_seen:
+                    and executor.barrier_sequence != barrier_board_seen:
                 # Bootstrap has no causal JSONL write to wake the old file loop.
                 chunk = "\n"
             read_finished_at = time.perf_counter()
@@ -3084,7 +3129,7 @@ def _run_follow(
                     snapshot_line = json.dumps(decision_board, ensure_ascii=False,
                                                sort_keys=True, separators=(",", ":"))
                     entry = barrier_snapshot, snapshot_line
-                    barrier_board_seen = id(executor.ready_board)
+                    barrier_board_seen = executor.barrier_sequence
                     unread_observation_records.clear()
                 else:
                     entry = _newest_snapshot_entry(
@@ -3144,6 +3189,7 @@ def _run_follow(
                         if not send(NUDGE_KEY):
                             return incident_stop("stuck-prompt", snapshot)
                         print("<floor-transition:esc>", flush=True)
+                        last_snapshot_floor_key = snapshot.floor_key
                         if executor is not None:
                             # The Escape operation owns its own S -> T barrier.
                             # Re-enter through that fresh board; never select a
@@ -3690,6 +3736,18 @@ def _run_follow(
                 send_failed=recovery_send_failed,
             )
             if (
+                executor is not None
+                and not args.send_to_window
+                and args.stall_timeout > 0
+                and now >= quiet_ok_until
+                and recovery_action != "wait"
+            ):
+                print(
+                    "<stuck-prompt> no progress and window recovery is disabled",
+                    file=sys.stderr, flush=True,
+                )
+                return incident_stop("stuck-prompt", snapshot)
+            if (
                 args.send_to_window
                 and args.stall_timeout > 0
                 and now >= quiet_ok_until
@@ -3735,37 +3793,11 @@ def _run_follow(
                     and args.send_to_window
                 ):
                     if nudge_streak == TERMINAL_NUDGE_LIMIT:
-                        for _ in range(DEATH_EXIT_ROUNDS):
-                            for exit_key in DEATH_EXIT_KEYS:
-                                if not send(exit_key, decision={
-                                    "sequence": None,
-                                    "turn": getattr(snapshot, "turn", None),
-                                    "reason": "recovery:terminal-resync",
-                                    "key": exit_key,
-                                }):
-                                    return incident_stop("stuck-prompt", snapshot)
-                                started = time.monotonic()
-                                time.sleep(0.3)
-                                wait_telemetry.record(
-                                    "recovery:terminal-key-gap",
-                                    time.monotonic() - started,
-                                )
-                        started = time.monotonic()
-                        time.sleep(2.0)
-                        wait_telemetry.record(
-                            "recovery:shutdown-grace",
-                            time.monotonic() - started,
-                            force_flush=True,
+                        # Never type through an unclassified terminal screen:
+                        # in the original keyset `n` repeats the last command.
+                        return incident_stop(
+                            _silent_game_incident(args.window_pid), snapshot
                         )
-                        if _silent_game_incident(args.window_pid) == "player-death":
-                            print("<dead>", flush=True)
-                            return incident_stop("player-death", snapshot)
-                        print(
-                            "<stuck-prompt> terminal resync exhausted; game "
-                            "process alive",
-                            flush=True,
-                        )
-                        continue
                     if _modal_recovery_action(nudge_streak) == "esc-look":
                         # This recovery must not consume or invalidate policy's
                         # floor-look state.  A store can interpret `l` as a menu

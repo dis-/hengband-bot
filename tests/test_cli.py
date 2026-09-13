@@ -95,6 +95,7 @@ from hengbot.cli import (
     _build_argument_parser,
     _configure_policy_output_paths,
     _ExecutorInputPort,
+    _make_jsonl_barrier_drain,
     _valid_bot_play_macro_pref,
 )
 from hengbot.input_executor import Operation, OperationExecutor
@@ -113,6 +114,45 @@ from hengbot.cli import _game_process_alive
 
 
 class Stage2aFollowBarrierPin(unittest.TestCase):
+    def test_main_constructs_executor_with_production_jsonl_drain(self):
+        source = inspect.getsource(__import__("hengbot.cli", fromlist=["main"]).main)
+        tree = ast.parse(source)
+        calls = [node for node in ast.walk(tree)
+                 if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name)
+                 and node.func.id == "OperationExecutor"]
+        self.assertEqual(len(calls), 1)
+        drain = next(keyword.value for keyword in calls[0].keywords
+                     if keyword.arg == "drain")
+        self.assertIsInstance(drain, ast.Call)
+        self.assertEqual(drain.func.id, "_make_jsonl_barrier_drain")
+
+    def test_production_jsonl_drain_supplies_store_record_once(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.jsonl"
+            record = json.loads(_snap_line(7, 5, 5))
+            record["store"] = {"store_type": 7, "items": []}
+            path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+            drain = _make_jsonl_barrier_drain(path)
+            self.assertEqual(drain(), [record])
+            self.assertEqual(drain(), [])
+
+    def test_executor_port_uses_existing_long_rest_deadline(self):
+        class CapturingExecutor:
+            client = object()
+
+            def submit(self, operation, *, deadline):
+                self.operation, self.deadline = operation, deadline
+                return SimpleNamespace(outcome="completed", reason=None)
+
+        executor = CapturingExecutor()
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=1.5,
+        )
+        with patch("hengbot.cli.time.monotonic", return_value=100.0):
+            self.assertTrue(port("R9999\r", decision={"reason": "rest"}))
+        self.assertEqual(executor.deadline, 100.0 + REST_STALL_GRACE)
+
     def test_p8_follow_drains_mid_operation_board_without_policy_call(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -378,7 +418,7 @@ class UniversalPostingContractTest(unittest.TestCase):
             ),
         )
 
-    def test_generic_contract_does_not_decide_recall_completion(self):
+    def test_recall_specific_contract_blocks_a_second_read_while_recalling(self):
         contract = PostingContract()
         first = self.snapshot(turn=4020825, recalling=False)
         posted = []
@@ -400,7 +440,7 @@ class UniversalPostingContractTest(unittest.TestCase):
         self.assertTrue(sent)
         self.assertEqual(posted, ["rha", "rha"])
         self.assertIsNone(contract.last_incident)
-        self.assertTrue(contract.allow(
+        self.assertFalse(contract.allow(
             self.snapshot(turn=4020833, recalling=True),
             "rha", "town:repetition-depart:recall",
         ))
@@ -3397,7 +3437,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
         self.assertEqual(actions[-1], "stop")
         self.assertEqual(_modal_recovery_action(0), "nudge")
 
-    def test_loop_modal_escalation_prioritizes_dead_and_live_outcomes(self):
+    def test_unclassified_terminal_never_posts_unsafe_exit_keys(self):
         for alive, expected in ((False, "player-death"), (True, "stuck-prompt")):
             with TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -3422,7 +3462,7 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
                     patch("hengbot.cli.time.sleep"),
                     patch(
                         "hengbot.cli._game_process_alive",
-                        side_effect=([True, True] if alive else [True, False]),
+                        return_value=alive,
                     ),
                     patch(
                         "hengbot.cli._freeze_incident_safely",
@@ -3438,8 +3478,10 @@ class DuplicateSnapshotThrottleTest(unittest.TestCase):
                         ),
                         0,
                     )
+                self.assertNotIn("n", sent)
+                self.assertNotIn("\r", sent)
                 probes = [key for key in sent if key == "\x1bl\x1b"]
-                self.assertEqual(len(probes), 1)
+                self.assertEqual(len(probes), 0)
                 self.assertEqual(incidents, [expected])
 
     def test_captured_home_leave_posts_nothing_until_context_confirms(self):

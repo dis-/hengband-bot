@@ -80,11 +80,13 @@ def _char_at_cell(row: str, column: int) -> str | None:
 
 def _state_player_matches_cursor(
         state: Mapping[str, object] | None, cursor_x: int, cursor_y: int) -> bool | None:
-    """Corroborate rendered coordinates without consulting sparse map glyphs.
+    """Validate that state contains a player, without assuming a panel origin.
 
-    The main map starts at COL_MAP=12 (main-window-row-column.h:72-73).
-    An entrance, object, or monster may occupy the state player's cell, and
-    sparse cells need not carry a glyph at all.
+    ``cursor.cpp`` projects dungeon coordinates through the current panel and
+    ``verify_panel``/``center_player`` may change that panel at any command
+    boundary.  The hidden cursor and rendered ``@`` are therefore the measured,
+    panel-independent evidence; state coordinates are useful only for optional
+    neighbourhood corroboration when panel bounds are eventually exported.
     """
     if not isinstance(state, Mapping):
         return None
@@ -94,7 +96,7 @@ def _state_player_matches_cursor(
     y, x = player.get("y"), player.get("x")
     if not isinstance(y, int) or not isinstance(x, int):
         return None
-    return cursor_x == x + 12 and cursor_y == y
+    return None
 
 
 def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | None = None) -> ScreenMatch:
@@ -109,6 +111,7 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
 
     # player/player-damage.cpp:471,503; core/game-closer.cpp:53.
     terminal = ("You die.", "You are broken.", "Stand by for later score registration?",
+                "あなたは死にました。", "あなたは壊れました。",
                 "後でスコアを登録するために待機しますか？")
     for y, line in enumerate(lines):
         for literal in terminal:
@@ -345,6 +348,7 @@ class OperationExecutor:
         self.ready_screen_value: Mapping[str, object] | None = None
         self._bound_screen_value: Mapping[str, object] | None = None
         self._bound_state_value: Mapping[str, object] | None = None
+        self.barrier_sequence = 0
         self.state = ExecutorState.AWAITING_SCREEN
 
     def _finish_board(self, state, screen_value, match):
@@ -385,6 +389,8 @@ class OperationExecutor:
         if screen_value is None:
             return self._terminal(operation, "screen", "read-only request failed")
         match = classify_screen(screen_value)
+        if match.kind is ScreenKind.DEATH:
+            return self._death(operation, match)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
         screen_epoch = self.client.observation_epoch
@@ -405,6 +411,7 @@ class OperationExecutor:
                 "missing or mismatching current store page", match)
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)
+        self.barrier_sequence += 1
         self._bound_screen_value, self._bound_state_value = screen_value, state
         holder = operation or Operation(None, "bootstrap", "", state)
         return OperationResult("ready" if operation is None else "completed", holder, board, match)
@@ -461,6 +468,8 @@ class OperationExecutor:
             return self._terminal(self.active, "screen", "read-only request failed", transport=outcome)
         match = classify_screen(screen_value)
         self.state = ExecutorState.CONTINUATION
+        if match.kind is ScreenKind.DEATH:
+            return self._death(self.active, match)
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline)
         if self.active.continuations:
@@ -510,15 +519,25 @@ class OperationExecutor:
         self.active = None
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)
+        self.barrier_sequence += 1
         return OperationResult("completed", operation, board, match, outcome)
 
     def _terminal(self, operation, phase, reason, screen=None, transport=None, transport_name=None):
         active = operation or self.active or Operation(None, "bootstrap", "", None)
         name = transport_name or active.transport.value
-        self.active, self.ready_board, self.ready_screen_value, self.state = (
-            None, None, None, ExecutorState.TERMINAL)
+        self.active, self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
+            None, None, None, None, ExecutorState.TERMINAL)
         request_id = transport.request_id if transport is not None else None
         status = transport.status.value if transport is not None else name
         detail = (f"<stuck-prompt> owner={active.owner} phase={phase} transport={status} "
                   f"request_id={request_id} reason={reason}")
         return OperationResult("stuck-prompt", active, None, screen, transport, detail)
+
+    def _death(self, operation, screen):
+        active = operation or self.active or Operation(None, "bootstrap", "", None)
+        self.active, self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
+            None, None, None, None, ExecutorState.TERMINAL)
+        return OperationResult(
+            "player-death", active, None, screen,
+            reason=f"<player-death> feature={screen.feature}",
+        )

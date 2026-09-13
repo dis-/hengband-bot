@@ -1,6 +1,7 @@
 """Input causal-barrier pins using a source-derived one-request-per-hook fake."""
 
 import json
+import copy
 from pathlib import Path
 import ast
 import hashlib
@@ -294,7 +295,7 @@ class ScreenClassifierTest(unittest.TestCase):
             "12-read-item-prompt.json": ScreenKind.ITEM_SOURCE,
             "13-after-read-esc.json": ScreenKind.COMMAND,
             "14-before-home.json": ScreenKind.COMMAND,
-            "15-home-store-screen.json": ScreenKind.UNKNOWN,
+            "15-auto-pickup-editor.json": ScreenKind.UNKNOWN,
             "16-after-home-esc.json": ScreenKind.UNKNOWN,
             "17-editor-menu-before-exit.json": ScreenKind.UNKNOWN,
             "18-after-editor-quit-nosave.json": ScreenKind.COMMAND,
@@ -341,13 +342,20 @@ class ScreenClassifierTest(unittest.TestCase):
         moved["cursor"]["x"] -= 1
         self.assertEqual(classify_screen(moved).kind, ScreenKind.UNKNOWN)
 
-    def test_real_command_fixture_rejects_mismatched_fresh_state_position(self):
+    def test_real_command_fixture_accepts_panel_independent_state_positions(self):
         fixture = Path(__file__).with_name("fixtures") / "live-screens" / "00-command-idle.json"
         payload = json.loads(fixture.read_text(encoding="utf-8"))
+        screen = payload["screen"]["result"]
         state = payload["state"]["result"]
-        state["player"]["x"] += 1
-        self.assertEqual(classify_screen(payload["screen"]["result"], state).kind,
-                         ScreenKind.UNKNOWN)
+        # Derived variants model panel origin zero and a shifted/centered panel.
+        # Both retain the measured hidden-cursor + rendered-@ evidence.
+        for y, x in ((screen["cursor"]["y"] - 1, screen["cursor"]["x"] - 13),
+                     (state["player"]["y"] + 17, state["player"]["x"] + 41)):
+            with self.subTest(player=(y, x)):
+                variant = copy.deepcopy(state)
+                variant["player"]["y"], variant["player"]["x"] = y, x
+                self.assertEqual(classify_screen(screen, variant).kind,
+                                 ScreenKind.COMMAND)
 
     def test_store_inner_prompt_and_complete_building(self):
         screen = prompt_screen("Quantity (1-3): 1")
@@ -389,6 +397,23 @@ class ScreenClassifierTest(unittest.TestCase):
         knowledge["lines"][17] = "-more-"; knowledge["lines"][20] = "Command:"
         knowledge["lines"][21] = " ESC) Exit menu"
         self.assertEqual(classify_screen(knowledge).kind, ScreenKind.KNOWLEDGE)
+
+    def test_japanese_and_english_death_screens_are_player_death(self):
+        class Client:
+            observation_epoch = 0
+
+            def __init__(self, screen):
+                self.screen = screen
+
+            def request(self, op, **_kwargs):
+                return self.screen if op == "screen" else command_state(1)
+
+        for literal in ("You die.", "You are broken.", "あなたは死にました。",
+                        "後でスコアを登録するために待機しますか？"):
+            with self.subTest(literal=literal):
+                executor = OperationExecutor(Client(prompt_screen(literal)))
+                result = executor.observe_boundary(deadline=9999999999)
+                self.assertEqual(result.outcome, "player-death")
         overlay = command_screen(); overlay["lines"][0] = "Unsupported text:"
         overlay["cursor"]["visible"] = True
         self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
