@@ -2728,7 +2728,9 @@ def main(argv: list[str] | None = None) -> int:
             if not send(
                 key, in_store=snapshot.store is not None, decision=decision
             ):
-                return 0
+                # A terminal transport outcome is an incident, not a successful
+                # once-mode completion. The marker was emitted by send().
+                return 3
             posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
             if args.tcp_shadow:
@@ -3053,6 +3055,8 @@ def _run_follow(
                                 look_barrier_pending = "desync"
                                 look_barrier_seen = False
                                 look_barrier_started_at = time.monotonic()
+                            else:
+                                return incident_stop("stuck-prompt", snapshot)
                             last_activity = time.monotonic()
                             continue
                     if floor_changed:
@@ -3063,8 +3067,9 @@ def _run_follow(
                         # interpreted at the command loop (often opening a menu).
                         # Escape clears the message under either option setting
                         # and is harmless if no prompt is present.
-                        if send(NUDGE_KEY):
-                            print("<floor-transition:esc>", flush=True)
+                        if not send(NUDGE_KEY):
+                            return incident_stop("stuck-prompt", snapshot)
+                        print("<floor-transition:esc>", flush=True)
                     last_snapshot_floor_key = snapshot.floor_key
                     if _chest_movement_response_pending(
                         pending_chest_movement, snapshot, now
@@ -3462,6 +3467,8 @@ def _run_follow(
                             decision_facts=decision_facts,
                             town_emit_ownership=emit_ownership,
                         )
+                    if not sent:
+                        return incident_stop("stuck-prompt", snapshot)
                     if sent:
                         policy.confirm_key_posted(key)
                         if policy.last_reason == "periodic:game-save":
@@ -3650,12 +3657,13 @@ def _run_follow(
                     if nudge_streak == TERMINAL_NUDGE_LIMIT:
                         for _ in range(DEATH_EXIT_ROUNDS):
                             for exit_key in DEATH_EXIT_KEYS:
-                                send(exit_key, decision={
+                                if not send(exit_key, decision={
                                     "sequence": None,
                                     "turn": getattr(snapshot, "turn", None),
                                     "reason": "recovery:terminal-resync",
                                     "key": exit_key,
-                                })
+                                }):
+                                    return incident_stop("stuck-prompt", snapshot)
                                 started = time.monotonic()
                                 time.sleep(0.3)
                                 wait_telemetry.record(
@@ -3683,12 +3691,13 @@ def _run_follow(
                         # floor-look state.  A store can interpret `l` as a menu
                         # command, so only Escape is modal-safe there.
                         probe = NUDGE_KEY if snapshot is not None and snapshot.store is not None else NUDGE_KEY + "l" + NUDGE_KEY
-                        send(probe, in_store=False, decision={
+                        if not send(probe, in_store=False, decision={
                             "sequence": None,
                             "turn": getattr(snapshot, "turn", None),
                             "reason": "recovery:stuck-prompt-probe",
                             "key": probe,
-                        })
+                        }):
+                            return incident_stop("stuck-prompt", snapshot)
                         print("<stuck-prompt:esc-look-probe>", flush=True)
                         time.sleep(args.poll_interval)
                         continue

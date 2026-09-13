@@ -409,7 +409,7 @@ class DisabledCliPinTest(unittest.TestCase):
 
     def test_tcp_transport_failure_never_falls_back_to_wm_char(self):
         events = []
-        self.assertEqual(self._run_once_with_routes(None, events), 0)
+        self.assertEqual(self._run_once_with_routes(None, events), 3)
         self.assertEqual(events, ["tcp"])
 
     def test_control_port_without_tcp_shadow_sends_without_recording_shadow(self):

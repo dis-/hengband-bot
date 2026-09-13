@@ -66,7 +66,42 @@ def _suffix_match(row: str, suffixes: Sequence[str]) -> tuple[str, int] | None:
     return None
 
 
-def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
+def _char_at_cell(row: str, column: int) -> str | None:
+    cell = 0
+    for char in row:
+        if cell == column:
+            return char
+        cell += _cell_width(char)
+        if cell > column:
+            return None
+    return None
+
+
+def _state_has_player(state: Mapping[str, object] | None) -> bool | None:
+    """Corroborate @ from a fresh state map when that representation is present."""
+    if not isinstance(state, Mapping):
+        return None
+    player, grid_map = state.get("player"), state.get("grid_map")
+    if not isinstance(player, Mapping) or not isinstance(grid_map, Mapping):
+        return None
+    y, x, cells = player.get("y"), player.get("x"), grid_map.get("cells")
+    palette = grid_map.get("palette")
+    if not isinstance(y, int) or not isinstance(x, int) or not isinstance(cells, Sequence):
+        return None
+    for cell in cells:
+        if not isinstance(cell, Mapping) or cell.get("y") != y or cell.get("x") != x:
+            continue
+        glyph = cell.get("char", cell.get("glyph"))
+        if glyph is None and isinstance(palette, Sequence):
+            index = cell.get("palette")
+            if isinstance(index, int) and 0 <= index < len(palette):
+                entry = palette[index]
+                glyph = entry.get("char", entry.get("glyph")) if isinstance(entry, Mapping) else entry
+        return glyph == "@"
+    return None
+
+
+def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | None = None) -> ScreenMatch:
     """Pure, conservative classifier for source-derived main-term templates."""
     raw = screen.get("lines")
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
@@ -113,10 +148,14 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
     if row0.startswith("(Items ") and "ESC to exit)" in row0:
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    # store/store.cpp:181-185. Japanese selects either 商品 or アイテム.
+    if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", row0):
+        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
 
-    # perception/identification.cpp:762-799. These markers are at cell x=15.
+    # perception/identification.cpp:762-799. prt() starts at x=15 and the
+    # heading literal itself begins with five spaces, so its text starts at 20.
     attr_rows = [(y, line) for y, line in enumerate(lines)
-                 if line.startswith(" " * 15 + "Item Attributes:") or
+                 if line.startswith(" " * 20 + "Item Attributes:") or
                  line.startswith(" " * 15 + "アイテムの能力:")]
     if attr_rows:
         for y, line in enumerate(lines):
@@ -129,7 +168,7 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
     # cmd-io/cmd-knowledge.cpp:32-69: fixed logical rows, including row-17 more.
     if len(lines) > 21 and lines[3] in ("Display current knowledge", "現在の知識を確認する") \
             and lines[20].startswith(("Command:", "コマンド:")) \
-            and lines[21].startswith(("ESC) Exit menu", "ESC) メニューを終了")):
+            and lines[21].startswith((" ESC) Exit menu", " ESC) 抜ける")):
         return ScreenMatch(ScreenKind.KNOWLEDGE, lines[3], 3, 0)
     # core/show-file.cpp:304-323 and knowledge/knowledge-self.cpp:201-205.
     viewer_footers = ("[Press ESC to exit.]",
@@ -149,40 +188,54 @@ def classify_screen(screen: Mapping[str, object]) -> ScreenMatch:
         if line in character_footers:
             return ScreenMatch(ScreenKind.CHARACTER, line, y, 0)
     # target/target-setter.cpp:196-198,434; target-describer.cpp:183,226.
-    if any(template in row0 for template in ("q,t,p,o,+,-,<dir>", "q,p,o,+,-,<dir>",
-                                               "q止 t決 p自 o現 +次 -前", "q止 p自 o現 +次 -前")):
+    if any(template in row0 for template in ("q,t,p,m,+,-,<dir>", "q,p,m,+,-,<dir>",
+                                               "q止 t決 p自 m近 +次 -前", "q止 p自 m近 +次 -前")):
         return ScreenMatch(ScreenKind.LOOK, row0, 0, 0)
 
-    # store/cmd-store.cpp:124-151. Menu rows move together with xtra_stock.
-    for menu_y in range(max(0, len(lines) - 5)):
-        if lines[menu_y] not in ("You may:", "コマンド:"):
-            continue
-        if menu_y + 1 >= len(lines) or lines[menu_y + 1] not in (
-                " ESC) Exit from Building.", " ESC) 建物から出る"):
-            continue
-        actions = "\n".join(lines[menu_y:min(len(lines), menu_y + 4)])
+    # store/cmd-store.cpp:58-60,123-151; z-term.cpp:89-103. Stores use a
+    # centered logical width of 80, full physical height, and height-derived
+    # xtra_stock. Several commands intentionally share each physical row.
+    width, height = screen.get("width"), screen.get("height")
+    if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
+        menu_y = 20 + min(40, height - 24)
+        offset_x = (width - 80) // 2
+        command = lines[menu_y][offset_x:] if menu_y < len(lines) else ""
+        exit_row = lines[menu_y + 1][offset_x:] if menu_y + 1 < len(lines) else ""
+        actions = "\n".join(line[offset_x:] for line in lines[menu_y:min(len(lines), menu_y + 4)])
+        complete = command.startswith(("You may:", "コマンド:")) and exit_row.startswith((
+            " ESC) Exit from Building.", " ESC) 建物から出る"))
+    else:
+        menu_y, offset_x, actions, complete = 0, 0, "", False
+    if complete:
         if any(value in actions for value in ("p) Purchase an item.", "s) Sell an item.",
                 "g) Get an item.", "d) Drop an item.", "p) 商品を買う", "s) アイテムを売る",
                 "g) アイテムを取る", "d) アイテムを置く")):
-            return ScreenMatch(ScreenKind.STORE, "complete-store-menu", menu_y, 0)
-    # market/building-service.cpp:89-90,109,127,141,144.
-    if len(lines) >= 24 and lines[23] in (" ESC) Exit building", " ESC) 建物を出る") \
-            and lines[1].strip() and any(lines[y].startswith(" ") and ") " in lines[y]
-                                         for y in range(19, 23)):
-        return ScreenMatch(ScreenKind.BUILDING, "complete-building-menu", 23, 0)
+            return ScreenMatch(ScreenKind.STORE, "complete-store-menu", menu_y, offset_x)
+    # market/building-service.cpp:89-90,109,127,141,144 and
+    # cmd-building/cmd-building.cpp:342: logical 80x24 is centered both ways.
+    if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
+        ox, oy = (width - 80) // 2, (height - 24) // 2
+        if oy + 23 < len(lines) and lines[oy + 23][ox:].startswith((
+                " ESC) Exit building", " ESC) 建物を出る")) \
+                and lines[oy + 1][ox:].strip() \
+                and any(") " in lines[y][ox:] for y in range(oy + 19, oy + 23)):
+            return ScreenMatch(ScreenKind.BUILDING, "complete-building-menu", oy + 23, ox)
 
-    # core/player-processor.cpp:302-313; bot-screen.cpp:67-73. Supported bot UI
-    # is the 80x24 main term, with the cursor on the rendered player glyph.
-    width, height, cursor = screen.get("width"), screen.get("height"), screen.get("cursor")
-    if width == 80 and height == 24 and len(lines) == 24 and isinstance(cursor, Mapping) \
-            and not row0.endswith(":"):
+    # core/player-processor.cpp:302-313; window/main-window-util.h:7-8;
+    # main-window-row-column.h:72-73; main-window-left-frame.cpp:168-181.
+    # Map cells begin after COL_MAP=12 and depth is at (width-8,height-1).
+    # Windows hides the cursor at command wait, so visibility is irrelevant.
+    cursor = screen.get("cursor")
+    if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24 \
+            and len(lines) == height and isinstance(cursor, Mapping) and row0 == "":
         y, x = cursor.get("y"), cursor.get("x")
-        if isinstance(y, int) and isinstance(x, int) and 1 <= y < 23 and 0 <= x < 80:
-            cell = 0
-            for char in lines[y]:
-                if cell == x and char == "@":
-                    return ScreenMatch(ScreenKind.COMMAND, "80x24-player-cursor", y, x)
-                cell += _cell_width(char)
+        status = any(lines[row][:12].strip() for row in range(1, min(15, height - 1)))
+        depth = lines[height - 1]
+        depth_anchor = bool(depth.strip()) and _cell_width(depth) >= width - 8
+        corroborated = _state_has_player(state)
+        if isinstance(y, int) and isinstance(x, int) and 1 <= y < height - 1 and 12 < x < width - 1 \
+                and status and depth_anchor and _char_at_cell(lines[y], x) == "@" and corroborated is not False:
+            return ScreenMatch(ScreenKind.COMMAND, "layout-player-cursor", y, x)
     return ScreenMatch(ScreenKind.UNKNOWN, "unrecognized")
 
 
@@ -258,6 +311,9 @@ class OperationExecutor:
             # The state retry invalidated S. Restart S -> T within the original
             # caller deadline; the deadline selects failure, never readiness.
             return self._observe_decidable(operation, deadline)
+        match = classify_screen(screen_value, state)
+        if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+            return self._terminal(operation, "classification", match.feature, match)
         self.drain()
         self.ready_board, self.ready_screen, self.state = state, match, ExecutorState.READY
         holder = operation or Operation(None, "bootstrap", "", state)
@@ -274,11 +330,13 @@ class OperationExecutor:
         self.state = ExecutorState.AWAITING_KEYS_ACK
         outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
         if outcome.status is KeyPostStatus.REJECTED and outcome.reason == self.client.BACKPRESSURE_ERROR:
-            # Atomic rejection inserted zero bytes. Re-observe the same compatible stop
-            # before the sole retry, retaining the operation's original deadline.
+            # Atomic rejection inserted zero bytes. Re-observe the screen and the
+            # state-bound item/operation premise before the sole retry, retaining
+            # the operation's original deadline (spec section 4 backpressure row).
             screen_value = self._request("screen", deadline, term=0, attrs=False)
             match = classify_screen(screen_value) if screen_value is not None else None
-            if match != self.ready_screen:
+            state_value = self._request("state", deadline, map=True) if match == self.ready_screen else None
+            if match != self.ready_screen or state_value != self.active.observation:
                 return self._terminal(self.active, "backpressure", "prompt changed before retry", match, outcome)
             self.state = ExecutorState.AWAITING_KEYS_ACK
             outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
@@ -309,9 +367,10 @@ class OperationExecutor:
         self.state = ExecutorState.CONTINUATION
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline)
-        for index, continuation in enumerate(self.active.continuations):
-            if match.kind in continuation.kinds and (continuation.feature is None or continuation.feature == match.feature):
-                self.active.continuations.pop(index)
+        if self.active.continuations:
+            continuation = self.active.continuations[0]
+            if match.kind in continuation.kinds and continuation.feature == match.feature:
+                self.active.continuations.pop(0)
                 return self._post_and_barrier(continuation.keys, deadline)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
@@ -334,6 +393,9 @@ class OperationExecutor:
             state = self._request("state", deadline, map=True)
             if state is None or self.client.observation_epoch != screen_epoch:
                 return self._terminal(self.active, "state", "incoherent read-only retry", match, outcome)
+        match = classify_screen(screen_value, state)
+        if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+            return self._terminal(self.active, "classification", match.feature, match, outcome)
         self.drain()
         operation = self.active
         self.active = None

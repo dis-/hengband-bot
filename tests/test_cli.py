@@ -1072,6 +1072,40 @@ class DecisionTimingTest(unittest.TestCase):
                 ],
             )
 
+    def test_follow_transport_failure_incident_stops_before_second_policy_call(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path), "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            policy.choose_key = unittest.mock.Mock(return_value="6")
+
+            def append_snapshot():
+                time.sleep(0.05)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5))
+                    stream.flush()
+
+            producer = threading.Thread(target=append_snapshot)
+            producer.start()
+            try:
+                with (
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._freeze_incident_safely") as freeze,
+                ):
+                    result = _run_follow(args, policy, lambda *_a, **_k: False, {})
+            finally:
+                producer.join()
+            self.assertEqual(result, 0)
+            self.assertEqual(policy.choose_key.call_count, 1)
+            self.assertEqual(freeze.call_args.args[1], "stuck-prompt")
+
     def test_follow_records_atomic_withdraw_observed_home_page(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

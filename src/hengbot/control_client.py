@@ -228,7 +228,9 @@ class ControlClient:
                 last_error = error
                 self._observation_epoch += 1
                 self.close()
-                if op == "screen" and time.monotonic() >= deadline:
+                if op == "screen" and (
+                    isinstance(error, TimeoutError) or time.monotonic() >= deadline
+                ):
                     # A screen observation may legitimately wait until the game
                     # reaches inkey(). Its deadline is not a transport outage,
                     # and must not suppress the timeout Escape send.
