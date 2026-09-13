@@ -4017,9 +4017,9 @@ class QuestMixin:
         reason = "fixedquest:prepare-return"
         candidate_identity = object()
         if result.failure is not None:
-            if not retain_unavailable:
+            if not retain_unavailable or self._shop_observation is not None:
                 return None
-            reason += ":route-unavailable"
+            reason = "fixedquest:prepare-return:route-unavailable"
             declaration = QuestTravelDeclaration(
                 quest_id=quest.id, quest_status=quest.status,
                 stage="prepare-return-route-unavailable",
