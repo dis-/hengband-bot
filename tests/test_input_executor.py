@@ -6,6 +6,7 @@ from pathlib import Path
 import ast
 import hashlib
 import unittest
+from io import StringIO
 from types import SimpleNamespace
 
 from hengbot.control_client import ControlClient, KeyPostStatus
@@ -15,8 +16,11 @@ from hengbot.input_executor import (
 )
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _send_new_decision_key,
+    _send_prompt_gated_decision_key,
 )
-from hengbot.model import Position, Snapshot
+from hengbot.model import Position, Snapshot, parse_snapshot
+from hengbot.policy import ConservativePolicy
+from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.quest_navigator import QuestFloorNavigator
 
 
@@ -448,6 +452,131 @@ class ScreenClassifierTest(unittest.TestCase):
 
 
 class TcpBarrierPinTest(ProductionHarness):
+    def _identify_incident_fixture(self):
+        return json.loads((Path(__file__).with_name("fixtures") / "live-screens" /
+                           "20-sweep-identify-item-target.json").read_text(
+                               encoding="utf-8"))
+
+    def _produce_identify_chain(self, *, scroll=False):
+        fixture = self._identify_incident_fixture()
+        raw = copy.deepcopy(fixture["state"]["result"])
+        if scroll:
+            for item in raw["inventory"]:
+                if item["slot"] in {"m", "n"}:
+                    item["charges"] = 0
+                if item["slot"] == "f":
+                    item.update(sval=12, count=1, name="鑑定の巻物")
+        snapshot = parse_snapshot(raw, {})
+        policy = ConservativePolicy()
+        policy._decision_sequence = 649
+        key = policy._identify_carried_item_key(
+            snapshot, lambda item: item.slot == "g", "quest:sweep:identify"
+        )
+        return fixture, snapshot, policy, key, policy.peek_staged_prompt_chain()
+
+    def _drive_identify_chain(self, *, scroll=False, target_screen=None):
+        fixture, snapshot, policy, key, chain = self._produce_identify_chain(
+            scroll=scroll
+        )
+        self.assertIsNotNone(chain)
+        source_prompt = chain["gates"][0][1][0].rstrip()
+        game = FaithfulHookGame()
+        game.screens = [
+            prompt_screen(source_prompt),
+            target_screen or fixture["screen"]["result"],
+            command_screen(2863066),
+        ]
+        _game, _client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        sent, _line, result = _send_prompt_gated_decision_key(
+            port, "incident-seq649", key, None, set(), chain,
+            shadow_client=_client, file=StringIO(), deadline=9999999999,
+            poll_interval=0, prompt_japanese=True,
+            decision={"sequence": 649, "reason": policy.last_reason},
+            snapshot=snapshot, posting_contract=PostingContract(),
+        )
+        return game, port, sent, result, key
+
+    def test_japanese_staff_identify_incident_chain_owns_fixture_target_once(self):
+        game, port, sent, result, key = self._drive_identify_chain()
+        self.assertEqual(key, "umg")
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["u", "m", "g"])
+        self.assertEqual(port.last_result.operation.accepted_segments,
+                         ["u", "m", "g"])
+        self.assertEqual(result["outcome"], "released")
+        self.assertNotEqual(port.last_result.outcome, "stuck-prompt")
+
+    def test_japanese_scroll_identify_chain_owns_fixture_target_once(self):
+        game, port, sent, result, key = self._drive_identify_chain(scroll=True)
+        self.assertEqual(key, "rfg")
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["r", "f", "g"])
+        self.assertEqual(port.last_result.operation.accepted_segments,
+                         ["r", "f", "g"])
+        self.assertEqual(result["outcome"], "released")
+
+    def test_japanese_identify_chain_rejects_different_target_question(self):
+        game, port, sent, result, _key = self._drive_identify_chain(
+            target_screen=prompt_screen("Identify which item?")
+        )
+        self.assertFalse(sent)
+        self.assertEqual(game.accepted, ["u", "m"])
+        self.assertEqual(port.last_result.outcome, "stuck-prompt")
+        self.assertEqual(
+            port.last_result.reason,
+            "<stuck-prompt> owner=quest:sweep:identify phase=continuation "
+            "transport=accepted request_id=6 reason=unowned item-target: "
+            "Identify which item?",
+        )
+        self.assertEqual(result["outcome"], "dropped")
+
+    def test_prompt_tables_match_captured_rows_and_contain_no_mojibake(self):
+        fixture_dir = Path(__file__).with_name("fixtures") / "live-screens"
+        fixtures = {
+            path.stem: json.loads(path.read_text(encoding="utf-8"))
+            for path in fixture_dir.glob("*.json")
+        }
+        row12 = fixtures["12-read-item-prompt"]["screen"]["result"]["lines"][0]
+        row20 = fixtures["20-sweep-identify-item-target"]["screen"]["result"]["lines"][0]
+        self.assertTrue(row12.rstrip().endswith(SOURCE_PROMPT["r"][0].rstrip()))
+        self.assertTrue(row20.rstrip().endswith(IDENTIFY_ITEM_PROMPT[0].rstrip()))
+        prompt_values = [value for pair in SOURCE_PROMPT.values() for value in pair]
+        prompt_values.extend(IDENTIFY_ITEM_PROMPT)
+        for value in prompt_values:
+            with self.subTest(value=value):
+                value.encode("utf-8").decode("utf-8")
+                self.assertNotRegex(value, r"[縺繧荳螳蜿譁闕楜]")
+
+        prompt_sources = [
+            Path(__file__).resolve().parents[1] / "src" / "hengbot" / "cli.py",
+            Path(__file__).resolve().parents[1] / "src" / "hengbot" /
+            "input_executor.py",
+            *sorted((Path(__file__).resolve().parents[1] / "src" /
+                     "hengbot").glob("policy_*.py")),
+        ]
+        audited = []
+        for path in prompt_sources:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    continue
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                names = [target.id for target in targets if isinstance(target, ast.Name)]
+                if not any("PROMPT" in name or "QUESTION" in name for name in names):
+                    continue
+                for value in ast.walk(node.value):
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                        audited.append((path, value.lineno, value.value))
+        self.assertTrue(audited)
+        for path, lineno, value in audited:
+            with self.subTest(path=path.name, lineno=lineno, value=value):
+                value.encode("utf-8").decode("utf-8")
+                self.assertNotRegex(value, r"[縺繧荳螳蜿譁闕楜]")
+
     def _quest_entry_snapshot(self):
         start, entrance = Position(63, 98), Position(63, 99)
         player = SimpleNamespace(position=start)

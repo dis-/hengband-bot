@@ -52,6 +52,7 @@ from hengbot.policy_constants import (
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     TERMINAL_NUDGE_LIMIT,
 )
+from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.emit_ownership import emit_ownership_verdict, movement_destination
 from hengbot.flight_recorder import (
@@ -2093,9 +2094,13 @@ def _send_prompt_gated_decision_key(
                 if gate_index + 1 < len(chain["gates"]) else len(key)
             )
             prompt = prompts[0] if prompt_japanese else prompts[1]
+            # Identification chains already carry the authoritative prompt
+            # tuple from policy_identification.  Its identity distinguishes
+            # the target gate from device/source selection without guessing
+            # from localized substrings.
             kind = (
                 ScreenKind.ITEM_TARGET
-                if "Identify which item" in prompt or "荘螳壹" in prompt
+                if prompts == IDENTIFY_ITEM_PROMPT
                 else ScreenKind.ITEM_SOURCE
             )
             segment = key[index:next_index]
