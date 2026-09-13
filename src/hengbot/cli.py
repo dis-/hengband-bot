@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from enum import Enum
 import atexit
 import copy
 import faulthandler
@@ -1823,6 +1824,15 @@ def _freeze_incident_safely(
     return capture
 
 
+class SendResult(str, Enum):
+    SENT = "sent"
+    DESIGNED_WAIT = "designed-wait"
+    TERMINAL = "terminal"
+
+    def __bool__(self) -> bool:
+        return self is SendResult.SENT
+
+
 def _send_new_decision_key(
     send,
     snapshot_line: str,
@@ -1843,13 +1853,13 @@ def _send_new_decision_key(
         posted_keys.clear()
         posted_line = snapshot_line
     if suppress:
-        return False, posted_line
+        return SendResult.DESIGNED_WAIT, posted_line
     if not key:
-        return False, posted_line
+        return SendResult.DESIGNED_WAIT, posted_line
     owner = str((decision or {}).get("reason", "unknown"))
     prompt_owner_handoff = (decision or {}).get("prompt_owner_handoff")
     if key in posted_keys:
-        return False, posted_line
+        return SendResult.DESIGNED_WAIT, posted_line
     if (
         posting_contract is not None
         and snapshot is not None
@@ -1864,7 +1874,7 @@ def _send_new_decision_key(
             ),
         )
     ):
-        return False, posted_line
+        return SendResult.DESIGNED_WAIT, posted_line
     sent = send(key, in_store=in_store, decision=decision)
     if sent:
         posted_keys.add(key)
@@ -1926,14 +1936,13 @@ def _release_prompt_gated_tail(
         lines = screen.get("lines", []) if screen is not None else []
         row0 = str(lines[0]) if lines else ""
         if screen is None or not row0.rstrip().endswith(prompt.rstrip()):
-            escape_posted = send(NUDGE_KEY, in_store=False, decision=decision)
             return {
                 "key": key,
                 "outcome": "dropped",
                 "released_through": released,
                 "posted": posted,
                 "drop_reason": "prompt-timeout",
-                "escape_posted": escape_posted,
+                "escape_posted": False,
             }
         if not send(segment, in_store=False, decision=decision):
             return {
@@ -1986,7 +1995,7 @@ def _send_prompt_gated_decision_key(
         posting_contract=posting_contract,
     )
     if not sent:
-        return False, posted_line, {
+        return sent, posted_line, {
             "key": key,
             "outcome": "not-posted",
             "released_through": 0,
@@ -2054,7 +2063,7 @@ def _send_decision_key_with_prompt_chain(
         )
         return sent, posted_line, chain, result
     if chain is not None:
-        return False, posted_line, chain, {
+        return SendResult.DESIGNED_WAIT, posted_line, chain, {
             "key": key,
             "outcome": "not-posted",
             "released_through": 0,
@@ -2513,6 +2522,7 @@ def main(argv: list[str] | None = None) -> int:
                 notation = raw_keys_to_macro_notation(key)
             except ValueError as exc:
                 print(f"failed to encode TCP key: {exc}", file=sys.stderr)
+                return SendResult.TERMINAL
             else:
                 deadline = time.monotonic() + shadow_client.request_budget
                 outcome = shadow_client.post_keys(
@@ -2533,7 +2543,7 @@ def main(argv: list[str] | None = None) -> int:
                                     "record_posted_character", exc,
                                     "decision.sequence/character",
                                 )
-                    return True
+                    return SendResult.SENT
                 # A mutating TCP request is never followed by WM_CHAR.  Unknown
                 # acceptance could duplicate input; explicit rejection needs a
                 # fresh screen before any retry and is owned by the executor.
@@ -2545,9 +2555,9 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                     flush=True,
                 )
-                return False
+                return SendResult.TERMINAL
         if not args.send_to_window:
-            return shadow_client is None
+            return SendResult.SENT if shadow_client is None else SendResult.TERMINAL
         try:
             from hengbot.input_windows import send_key_to_window
 
@@ -2597,10 +2607,10 @@ def main(argv: list[str] | None = None) -> int:
                     recorded_wait = True
             if recorded_wait:
                 wait_telemetry.flush()
-            return True
+            return SendResult.SENT
         except RuntimeError as exc:
             print(f"failed to send key: {exc}", file=sys.stderr)
-            return False
+            return SendResult.TERMINAL
 
     # The static Outpost layout lets the bot route across a dark town to a store
     # (prior knowledge a returning player has). Optional: if it is not found the
@@ -3468,6 +3478,8 @@ def _run_follow(
                             town_emit_ownership=emit_ownership,
                         )
                     if not sent:
+                        if sent is SendResult.DESIGNED_WAIT:
+                            continue
                         return incident_stop("stuck-prompt", snapshot)
                     if sent:
                         policy.confirm_key_posted(key)
@@ -3629,6 +3641,8 @@ def _run_follow(
                     in_store=False,
                 )
                 recovery_send_failed = not recovery_sent
+                if not recovery_sent:
+                    return incident_stop("stuck-prompt", snapshot)
                 if recovery_sent:
                     print(
                         "<instrument:store-one-shot-abort-escape>"

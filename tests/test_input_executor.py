@@ -97,12 +97,12 @@ class FaithfulHookGame:
             i += 1
         return out
 
-    def _consume(self):
-        if self.frontend_fifo:
+    def _consume(self, *, pump_frontend=True):
+        if pump_frontend and self.frontend_fifo:
             self.term_fifo.extend(self.frontend_fifo); self.frontend_fifo.clear()
         if not self.term_fifo:
             return
-        raw = "".join(self.term_fifo); self.term_fifo.clear(); self.accepted.append(raw)
+        raw = "".join(self.term_fifo); self.term_fifo.clear()
         self.state = {"turn": self.state["turn"] + 1, "grid_map": {"runs": []}}
         self.screen = self.screens.pop(0) if self.screens else command_screen(self.state["turn"])
         # Source-derived inner prompts are raised inside a command and emit no JSONL.
@@ -111,7 +111,13 @@ class FaithfulHookGame:
 
     def hook(self, request):
         # A response is flushed and at most this one new request is dispatched.
-        op = request["op"]; self.trace.append(("issue", op, request["id"]))
+        op = request["op"]
+        self.hook_waiting = True
+        if op not in ("keys", "info") and self.term_fifo:
+            # A later hook is reachable only after the ACK hook returned and
+            # the interpreter consumed the pending Term FIFO at its next read.
+            self._consume(pump_frontend=False)
+        self.trace.append(("issue", op, request["id"]))
         fault = self.faults.pop(0) if self.faults else None
         if op == "keys":
             raw = self._decode(request["keys"])
@@ -120,6 +126,7 @@ class FaithfulHookGame:
                             "error": ControlClient.BACKPRESSURE_ERROR}
             else:
                 self.term_fifo.extend(raw) # atomic insertion; consumed after ACK hook returns
+                self.accepted.append(raw)
                 response = {"id": request["id"], "ok": True, "result": {"pushed": len(raw)}}
         elif op == "info":
             # The fence reply is deliberately old. Its hook return permits the
@@ -137,8 +144,7 @@ class FaithfulHookGame:
         if op == "keys" and fault == "flush":
             self.term_fifo.clear()
             self.screen = command_screen(self.state["turn"])
-        elif op == "keys":
-            self._consume()
+        self.hook_waiting = not self.term_fifo
         return response, fault
 
 
@@ -152,6 +158,50 @@ class ProductionHarness(unittest.TestCase):
 
 
 class ScreenClassifierTest(unittest.TestCase):
+    def test_real_live_screen_table_through_classifier_and_executor_boundary(self):
+        fixture_dir = Path(__file__).with_name("fixtures") / "live-screens"
+        expected = {
+            "00-command-idle.json": ScreenKind.COMMAND,
+            "01-after-ctrlF.json": ScreenKind.COMMAND,
+            "02-knowledge-menu.json": ScreenKind.KNOWLEDGE,
+            "03-after-knowledge-esc.json": ScreenKind.COMMAND,
+            "04-character-screen.json": ScreenKind.CHARACTER,
+            "05-after-character-esc.json": ScreenKind.COMMAND,
+            "06-inventory.json": ScreenKind.UNKNOWN,
+            "07-after-inventory-esc.json": ScreenKind.COMMAND,
+            "08-look.json": ScreenKind.LOOK,
+            "09-after-look-esc.json": ScreenKind.COMMAND,
+            "10-rest-prompt.json": ScreenKind.QUANTITY,
+            "11-after-rest-esc.json": ScreenKind.COMMAND,
+            "12-read-item-prompt.json": ScreenKind.ITEM_SOURCE,
+            "13-after-read-esc.json": ScreenKind.COMMAND,
+            "14-before-home.json": ScreenKind.COMMAND,
+            "15-home-store-screen.json": ScreenKind.UNKNOWN,
+            "16-after-home-esc.json": ScreenKind.UNKNOWN,
+            "17-editor-menu-before-exit.json": ScreenKind.UNKNOWN,
+            "18-after-editor-quit-nosave.json": ScreenKind.COMMAND,
+        }
+
+        class FixtureClient:
+            observation_epoch = 0
+
+            def __init__(self, payload):
+                self.payload = payload
+
+            def request(self, op, **_kwargs):
+                return self.payload[op]["result"]
+
+        for name, kind in expected.items():
+            with self.subTest(name=name):
+                payload = json.loads((fixture_dir / name).read_text(encoding="utf-8"))
+                screen, state = payload["screen"]["result"], payload["state"]["result"]
+                self.assertEqual(classify_screen(screen, state).kind, kind)
+                result = OperationExecutor(FixtureClient(payload)).observe_boundary(
+                    deadline=9999999999)
+                self.assertEqual(result.screen.kind, kind)
+                self.assertEqual(result.outcome,
+                                 "ready" if kind is ScreenKind.COMMAND else "stuck-prompt")
+
     def test_real_211x67_command_fixture_and_derived_negative_variants(self):
         fixture = Path(__file__).with_name("fixtures") / "live-screen-idle-town0-20260913.json"
         payload = json.loads(fixture.read_bytes())
@@ -178,7 +228,7 @@ class ScreenClassifierTest(unittest.TestCase):
         screen["lines"][20:23] = ["You may: ", " ESC) Exit from Building.     p) Purchase an item.", ""]
         self.assertEqual(classify_screen(screen).kind, ScreenKind.QUANTITY)
         building = {"width": 80, "height": 24, "cursor": {"y": 23, "x": 0}, "lines": [""] * 24}
-        building["lines"][1] = "  The Innkeeper"; building["lines"][19] = " a) Rest 10 gold"
+        building["lines"][2] = "  The Innkeeper"; building["lines"][19] = " a) Rest 10 gold"
         building["lines"][23] = " ESC) Exit building"
         self.assertEqual(classify_screen(building).kind, ScreenKind.BUILDING)
 
@@ -195,7 +245,7 @@ class ScreenClassifierTest(unittest.TestCase):
     def test_japanese_store_selector_and_look_prompt(self):
         self.assertEqual(classify_screen(prompt_screen("(商品:a-z, ESCで中断) どれにしますか?" )).kind,
                          ScreenKind.ITEM_SOURCE)
-        look = prompt_screen("q,t,p,m,+,-,<dir>")
+        look = prompt_screen("q,t,p,o,+,-,<dir>")
         self.assertEqual(classify_screen(look).kind, ScreenKind.LOOK)
 
     def test_exact_prompt_kinds_and_full_width_coordinate(self):
@@ -214,6 +264,7 @@ class ScreenClassifierTest(unittest.TestCase):
         knowledge["lines"][21] = " ESC) Exit menu"
         self.assertEqual(classify_screen(knowledge).kind, ScreenKind.KNOWLEDGE)
         overlay = command_screen(); overlay["lines"][0] = "Unsupported text:"
+        overlay["cursor"]["visible"] = True
         self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
         overlay["lines"][10] = " menu overlay"
         self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
@@ -248,7 +299,7 @@ class TcpBarrierPinTest(ProductionHarness):
         op = Operation(3, "identify", "rf", executor.ready_board, [
             Continuation(frozenset({ScreenKind.ITEM_TARGET}), "k", "Identify which item?")])
         self.assertEqual(executor.submit(op, deadline=9999999999).outcome, "stuck-prompt")
-        self.assertEqual(game.accepted, [])
+        self.assertEqual(game.accepted, ["rf"])
 
     def test_ack_loss_partial_send_id_and_count_never_repost_or_wm(self):
         for fault in ("ack-loss", "partial-send", "wrong-id", "wrong-pushed"):
@@ -271,7 +322,8 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["rf", "k"])
         self.assertEqual([x[1] for x in game.trace if x[0] == "issue"],
-                         ["screen", "state", "keys", "screen", "keys", "screen", "state"])
+                         ["screen", "state", "keys", "screen", "state",
+                          "keys", "screen", "state"])
 
     def test_source_direction_confirm_quantity_and_building_answers(self):
         cases = [
@@ -281,7 +333,7 @@ class TcpBarrierPinTest(ProductionHarness):
             ("Quantity (1-9): 1", ScreenKind.QUANTITY, "p", "2\r"),
         ]
         building = {"width": 80, "height": 24, "cursor": {"y": 23, "x": 0}, "lines": [""] * 24}
-        building["lines"][1] = " The Innkeeper"; building["lines"][19] = " a) Rest 10 gold"
+        building["lines"][2] = " The Innkeeper"; building["lines"][19] = " a) Rest 10 gold"
         building["lines"][23] = " ESC) Exit building"
         cases.append((building, ScreenKind.BUILDING, "8", "a"))
         for prompt, kind, prefix, answer in cases:
@@ -333,6 +385,29 @@ class TcpBarrierPinTest(ProductionHarness):
         result = executor.submit(Operation(5, "move", "6", executor.ready_board), deadline=9999999999)
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["6"])
+
+    def test_backpressure_rebinds_current_item_prompt_and_fresh_state(self):
+        game, _client, executor = self.make()
+        game.screens = [prompt_screen("Read which scroll?"), command_screen(3)]
+        executor.observe_boundary(deadline=9999999999)
+        original = game.hook
+        key_calls = 0
+
+        def reject_continuation_once(request):
+            nonlocal key_calls
+            if request["op"] == "keys":
+                key_calls += 1
+                if key_calls == 2:
+                    game.faults.insert(0, "backpressure")
+            return original(request)
+
+        game.hook = reject_continuation_once
+        prompt = classify_screen(prompt_screen("Read which scroll?")).feature
+        operation = Operation(51, "read", "r", executor.ready_board, [
+            Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f", prompt)])
+        result = executor.submit(operation, deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["r", "f"])
 
     def test_state_timeout_is_terminal_not_wait(self):
         game, _client, executor = self.make(); executor.observe_boundary(deadline=9999999999)
