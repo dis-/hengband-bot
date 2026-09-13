@@ -266,28 +266,17 @@ class TownTurnArbiter:
             self._transferred_visit = None
             self.telemetry = None
             return None
-        cleared_owners: set[str] = set()
         if retirement_key_for is not None:
-            previous_retired = self._retired
             self._retired = {
                 owner: vector for owner, vector in self._retired.items()
                 if vector == retirement_key_for(owner)
             }
-            cleared_owners = set(previous_retired) - set(self._retired)
         elif self._visit_vector is not None and self._visit_vector != progress_vector:
             self._retired = {
                 owner: vector for owner, vector in self._retired.items()
                 if vector == progress_vector
             }
         self._visit_vector = progress_vector
-        for cleared_owner in cleared_owners:
-            self._no_progress_by_owner[cleared_owner] = 0
-            self._recurrences = Counter({
-                pair: count for pair, count in self._recurrences.items()
-                if pair[0] != cleared_owner
-            })
-            if self._last_pair is not None and self._last_pair[0] == cleared_owner:
-                self._last_pair = None
         # Keep per-producer progress budgets independent.  The externally
         # attributed owner is the visit/errand owner in telemetry and at the
         # emit boundary; contributors do not inherit one another's budget.
@@ -381,36 +370,39 @@ class TownTurnArbiter:
         return dict(self.telemetry)
 
     def may_select(
-        self, reason: str, progress_vector: object, *, retirement_key=None
+        self, reason: str, progress_vector: object, *, retirement_key=None,
+        _mutate: bool = True,
     ) -> bool:
         """Return whether the reason's owner may acquire this town decision."""
-        if not hasattr(self, "_retired"):
+        if _mutate and not hasattr(self, "_retired"):
             self._retired = {}
-        if not hasattr(self, "_recurrences"):
+        if _mutate and not hasattr(self, "_recurrences"):
             self._recurrences = Counter()
         owner = self.owner_for_reason(reason)
-        if self._transfer_exhausted:
+        if getattr(self, "_transfer_exhausted", False):
             return False
+        recurrences = getattr(self, "_recurrences", Counter())
         if (
-            self._recurrences[(owner, progress_vector)]
+            recurrences[(owner, progress_vector)]
             >= self.registry["detectors"].budget
         ):
             return False
-        retired_at = self._retired.get(owner)
+        retired_at = getattr(self, "_retired", {}).get(owner)
         if retired_at is None:
             return True
         if retired_at != (retirement_key if retirement_key is not None else progress_vector):
-            del self._retired[owner]
-            self._no_progress_by_owner[owner] = 0
-            self._recurrences = Counter(
-                {
-                    pair: count
-                    for pair, count in self._recurrences.items()
-                    if pair[0] != owner
-                }
-            )
-            if self._last_pair is not None and self._last_pair[0] == owner:
-                self._last_pair = None
+            if _mutate:
+                del self._retired[owner]
+                self._no_progress_by_owner[owner] = 0
+                self._recurrences = Counter(
+                    {
+                        pair: count
+                        for pair, count in self._recurrences.items()
+                        if pair[0] != owner
+                    }
+                )
+                if self._last_pair is not None and self._last_pair[0] == owner:
+                    self._last_pair = None
             return True
         return False
 
@@ -418,17 +410,8 @@ class TownTurnArbiter:
         self, reason: str, progress_vector: object, *, retirement_key=None
     ) -> bool:
         """Read-only form of may_select for a candidate not yet emitted."""
-        owner = self.owner_for_reason(reason)
-        if getattr(self, "_transfer_exhausted", False):
-            return False
-        recurrences = getattr(self, "_recurrences", Counter())
-        if recurrences[(owner, progress_vector)] >= self.registry["detectors"].budget:
-            return False
-        retired_at = getattr(self, "_retired", {}).get(owner)
-        if retired_at is None:
-            return True
-        return retired_at != (
-            retirement_key if retirement_key is not None else progress_vector
+        return self.may_select(
+            reason, progress_vector, retirement_key=retirement_key, _mutate=False
         )
 
 

@@ -1,7 +1,7 @@
 diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
 --- a/src/hengbot/policy_town.py
 +++ b/src/hengbot/policy_town.py
-@@ -119,3 +119,3 @@ class TownMixin:
+@@ -120,3 +120,3 @@ class TownMixin:
                  return durable + (locomotion,)
 -        elif owner == "quest-request" and False and self._valid_q22_travel_declaration(
 +        elif owner == "quest-request" and self._valid_q22_travel_declaration(

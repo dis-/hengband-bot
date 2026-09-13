@@ -2280,6 +2280,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             equipment_transaction_owned=(
                 self._equipment_transaction_session is not None
             ),
+            identity=self._decision_sequence + 1,
         )
         if not hasattr(self, "_town_supplier_stock"):
             self._town_supplier_stock = {}

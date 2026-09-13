@@ -24,7 +24,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy_types import DecisionCandidate
 from hengbot.quest_knowledge import load_quest_knowledge
-from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
+from hengbot.quest_strategies import load_quest_strategies
 from hengbot.town_maps import parse_town_map
 
 
@@ -70,9 +70,7 @@ class QuestTravelProgressPins(unittest.TestCase):
                 EDIT / "DungeonDefinitions.jsonc"
             ),
             quest_knowledge=load_quest_knowledge(EDIT / "quests"),
-            quest_strategies=load_quest_strategies(
-                find_quest_strategies(ROOT / "jsonlog/bot-state-fixed.jsonl")
-            ),
+            quest_strategies=load_quest_strategies(ROOT / "strategy" / "quests"),
             baseitem_costs=load_baseitem_costs(EDIT / "BaseitemDefinitions.jsonc"),
             exploration_ledger_path=Path(self.temp.name) / "exploration.json",
         )

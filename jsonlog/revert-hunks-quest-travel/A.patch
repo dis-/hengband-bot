@@ -1,7 +1,7 @@
 diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
 --- a/src/hengbot/policy_town.py
 +++ b/src/hengbot/policy_town.py
-@@ -4506,7 +4506,7 @@ class TownMixin:
+@@ -4510,7 +4510,7 @@ class TownMixin:
                  pos, first_step, edges = queue.popleft()
                  if pos == target:
                      assert first_step is not None

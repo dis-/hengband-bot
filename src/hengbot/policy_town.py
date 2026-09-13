@@ -189,9 +189,9 @@ class TownMixin:
         return (
             declaration.quest_id == 22
             and declaration.stage == "travel"
-            and declaration.decision_identity is context.identity
+            and declaration.decision_identity == context.identity
             and declaration.candidate_identity is candidate.identity
-            and candidate.decision_identity is context.identity
+            and candidate.decision_identity == context.identity
             and str(candidate) == declaration.composed_key
             and candidate.reason == (reason or self.last_reason)
             and candidate.reason == "fixedquest:q22-travel"

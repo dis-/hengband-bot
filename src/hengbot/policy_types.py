@@ -30,7 +30,7 @@ class DecisionContext:
     """Immutable latch captured once at the public decision boundary."""
 
     equipment_transaction_owned: bool
-    identity: object = field(default_factory=object)
+    identity: int = 0
 
 
 @dataclass(frozen=True)
@@ -88,6 +88,34 @@ class DecisionCandidate(str):
         value.decision_identity = decision_identity
         value.route_declaration = route_declaration
         return value
+
+    def __reduce__(self):
+        return (
+            _restore_decision_candidate,
+            (
+                str(self),
+                self.reason,
+                self.decision_identity,
+                self.route_declaration,
+                self.identity,
+            ),
+        )
+
+
+def _restore_decision_candidate(
+    key: str,
+    reason: str,
+    decision_identity: object,
+    route_declaration: QuestTravelDeclaration | None,
+    identity: object,
+) -> DecisionCandidate:
+    return DecisionCandidate(
+        key,
+        reason=reason,
+        decision_identity=decision_identity,
+        route_declaration=route_declaration,
+        identity=identity,
+    )
 
 
 @dataclass
