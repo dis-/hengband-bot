@@ -8088,19 +8088,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _observe_restock_supplier_page(self, snapshot: Snapshot) -> None:
-        """Record a recheck only from an observed, unaffordable supplier page."""
+        """Record a recall recheck only when the observed shelf is empty."""
         store = snapshot.store
         waiting_for = self._town_restock_waiting_for
         if not waiting_for or store is None or store.store_type not in waiting_for:
             return
         if set(waiting_for) == {STORE_TEMPLE, STORE_ALCHEMIST}:
-            affordable = any(
-                item.tval == TVAL_SCROLL
-                and item.sval == SV_SCROLL_WORD_OF_RECALL
-                and item.price <= snapshot.player.gold
+            recall_prices = [
+                item.price
                 for item in store.items
-            )
-            if not affordable:
+                if item.tval == TVAL_SCROLL
+                and item.sval == SV_SCROLL_WORD_OF_RECALL
+            ]
+            stocked = bool(recall_prices)
+            if stocked and min(recall_prices) > snapshot.player.gold:
+                # Price, not turnover, is the blocker.  Leave the restock
+                # cycle and let the established preparation owners acquire a
+                # one-run mining kit and earn the missing gold locally.
+                self._town_restock_waiting_for = ()
+                self._town_restock_wait_until = None
+                self._planned_mining_runs = 1
+                self._mining_runs_completed = 0
+                self._fundraising_mode = "prepare"
+                self._town_store_attempted.clear()
+                self._retire_town_errand_plan_for_rebuild()
+            elif not stocked:
                 self._town_restock_rechecked.add(store.store_type)
         elif self._next_purchase(snapshot) is None:
             self._town_restock_rechecked.add(store.store_type)
@@ -8136,38 +8148,41 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and all(store in self._town_restock_rechecked for store in recall_stores)
         ):
             self._town_restock_waiting_for = ()
-            recall = self._supply_ledger(
-                snapshot, self._planned_depth()
-            )["recall"]
-            if recall.obtainable:
-                for store_type in recall_stores:
-                    remembered = getattr(
-                        self, "_town_supplier_stock", {}
-                    ).get(store_type)
-                    if remembered is not None and any(
+            stocked_stores = []
+            for store_type in recall_stores:
+                remembered = getattr(
+                    self, "_town_supplier_stock", {}
+                ).get(store_type)
+                if remembered is not None and any(
                         item.tval == TVAL_SCROLL
                         and item.sval == SV_SCROLL_WORD_OF_RECALL
                         and item.price <= snapshot.player.gold
                         for item in remembered.items
-                    ):
-                        self._town_store_attempted.pop(store_type, None)
+                ):
+                    stocked_stores.append(store_type)
+                    self._town_store_attempted.pop(store_type, None)
+            if stocked_stores:
                 return self._released_restock_store_key(
-                    snapshot, recall_stores
+                    snapshot, tuple(stocked_stores)
                 )
             if not self._food_ready(snapshot):
                 return self._released_restock_store_key(snapshot, recall_stores)
-            # Prefer one real, safely gated Yeek Cave 1F mining run.  The
-            # fundraising owner supplies the established light/food/HP/MP/
-            # status and entrance invariants.  If its complete kit is not
-            # usable, stay in town and begin another R300 turnover cycle.
-            self._planned_mining_runs = None
-            self._fundraising_mode = "mine"
-            if self._fundraising_departure_ready(snapshot):
+            # Prefer exactly one safely gated Yeek Cave 1F mining run.  Start
+            # in preparation mode so the ordinary Home/shop owners can fetch
+            # an owned kit instead of requiring it to be carried already.
+            owned_kit = (
+                self._has_withdrawable_digging_tool(snapshot)
+                and self._has_withdrawable_treasure_detection(snapshot)
+            )
+            if owned_kit:
+                self._planned_mining_runs = 1
+                self._fundraising_mode = "prepare"
                 self._mining_runs_completed = 0
                 self._town_restock_rechecked.difference_update(recall_stores)
+                self._town_store_attempted.clear()
+                self._retire_town_errand_plan_for_rebuild()
                 self.last_reason = "town:recall-stockout-mining"
                 return WAIT_KEY
-            self._fundraising_mode = None
             self._town_restock_rechecked.difference_update(recall_stores)
             self._town_restock_wait_until = None
         released_store = self._retry_after_store_restock(snapshot, recall_stores)

@@ -298,10 +298,14 @@ class HomeMixin:
     def _has_withdrawable_treasure_detection(self, snapshot: Snapshot) -> bool:
         if self._count_treasure_detection_scrolls(snapshot) > 0:
             return True
-        return bool(
-            snapshot.store is not None
-            and snapshot.store.store_type == STORE_HOME
-            and any(it.is_treasure_detection_scroll for it in snapshot.store.items)
+        return any(
+            it.is_treasure_detection_scroll
+            for it in (
+                snapshot.store.items
+                if snapshot.store is not None
+                and snapshot.store.store_type == STORE_HOME
+                else self._home_knowledge_items
+            )
         )
 
     def consume_pending_home_visit_report(self) -> str | None:
@@ -911,6 +915,14 @@ class HomeMixin:
             and not self._star_remove_curse_reserve_withdraw_pending
         ):
             return True
+        if (
+            snapshot is not None
+            and self._disposal_protected_by_identification(item)
+            and self._find_identification_source(
+                snapshot, full=False, reliable_only=True
+            ) is not None
+        ):
+            return False
         if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
             return False
         # A GOOD melee weapon — identified ego/artifact or one with real +to-hit/+to-dam/
