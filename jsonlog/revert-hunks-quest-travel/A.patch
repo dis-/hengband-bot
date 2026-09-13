@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -4506,7 +4506,7 @@ class TownMixin:
+                 pos, first_step, edges = queue.popleft()
+                 if pos == target:
+                     assert first_step is not None
+-                    return TownMapRoute(target, first_step, start.distance_to(target))
++                    return TownMapRoute(target, first_step, edges)
+                 for neighbor in self._walkable_neighbors(snapshot, pos):
+                     if neighbor in seen or neighbor in route_blocked:
+                         continue

@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/policy_quest.py b/src/hengbot/policy_quest.py
+--- a/src/hengbot/policy_quest.py
++++ b/src/hengbot/policy_quest.py
+@@ -3842,3 +3842,3 @@ class QuestMixin:
+                 candidate_identity = object()
+-                if route_result.failure is not None and False:
++                if route_result.failure is not None:
+                     reason = "fixedquest:q22-travel:route-unavailable"

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS, REST_MACRO, TOWN_TELEPORT_COST
-from hengbot.policy_types import TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_TOWNS, MIN_FREE_PACK_SLOTS, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_types import (
+    DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
+    TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
+)
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
 from dataclasses import replace
@@ -71,7 +74,8 @@ class TownMixin:
         )
 
     def _town_arbiter_progress_vector(
-        self, snapshot: Snapshot, reason: str | None = None
+        self, snapshot: Snapshot, reason: str | None = None,
+        candidate: DecisionCandidate | None = None,
     ) -> tuple[object, ...]:
         """Read durable facts plus the registered locomotion owner's distance."""
         departure = getattr(self, "_departure_block", {}) or {}
@@ -113,6 +117,18 @@ class TownMixin:
             locomotion = self._town_departure_locomotion_clearance(snapshot, reason)
             if locomotion is not None:
                 return durable + (locomotion,)
+        elif owner == "quest-request" and self._valid_q22_travel_declaration(
+            snapshot, candidate, reason
+        ):
+            declaration = candidate.route_declaration
+            if declaration is None or declaration.bfs_rank is None:
+                return durable
+            return durable + ((
+                "locomotion", "quest-request", declaration.source_town_id,
+                declaration.floor, declaration.quest_id, declaration.stage,
+                declaration.destination_town_id, declaration.goal,
+                declaration.bfs_rank,
+            ),)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -160,6 +176,68 @@ class TownMixin:
         )
         return durable + (("locomotion", owner, snapshot.floor_key, distance),)
 
+    def _valid_q22_travel_declaration(
+        self, snapshot: Snapshot, candidate: DecisionCandidate | None,
+        reason: str | None = None,
+    ) -> bool:
+        context = getattr(self, "_decision_context", None)
+        if not isinstance(candidate, DecisionCandidate) or context is None:
+            return False
+        declaration = candidate.route_declaration
+        if declaration is None:
+            return False
+        return (
+            declaration.quest_id == 22
+            and declaration.stage == "travel"
+            and declaration.decision_identity is context.identity
+            and declaration.candidate_identity is candidate.identity
+            and candidate.decision_identity is context.identity
+            and str(candidate) == declaration.composed_key
+            and candidate.reason == (reason or self.last_reason)
+            and candidate.reason == "fixedquest:q22-travel"
+            and declaration.source_town_id == self._effective_town_id(snapshot)
+            and declaration.destination_town_id == 3
+            and declaration.floor == snapshot.floor_key
+            and declaration.goal is not None
+            and declaration.first_step is not None
+            and declaration.bfs_rank is not None
+            and (head := self._fixed_quest_head(snapshot)) is not None
+            and head.id == 22
+            and head.status == declaration.quest_status
+        )
+
+    def _q22_route_unavailable_clearance_key(
+        self, snapshot: Snapshot
+    ) -> object | None:
+        """Stable public-fact identity for the eligible unresolved q22 trip."""
+        quest = self._fixed_quest_head(snapshot)
+        if (
+            quest is None
+            or quest.id != 22
+            or self.approved_quest_strategy(22) is None
+            or (
+                quest.status == QUEST_STATUS_UNTAKEN
+                and not self._fixed_quest_ready_for_travel(snapshot, 22)
+            )
+        ):
+            return None
+        source = self._effective_town_id(snapshot)
+        destination = FIXED_QUEST_TOWNS.get(22, 0)
+        if (
+            source == destination
+            or snapshot.visited_town_ids is None
+            or destination not in snapshot.visited_town_ids
+            or snapshot.player.gold < 2 * TOWN_TELEPORT_COST
+        ):
+            return None
+        result = self._town_teleport_route(snapshot, destination)
+        if result.failure is None:
+            return None
+        return (
+            "q22-route-unavailable", 22, quest.status, "travel", source,
+            snapshot.floor_key, destination, "eligible-route-unavailable",
+        )
+
     def _town_departure_locomotion_clearance(
         self, snapshot: Snapshot, reason: str | None = None
     ) -> object | None:
@@ -177,9 +255,14 @@ class TownMixin:
         return ("locomotion", "departure", snapshot.floor_key, distance)
 
     def _town_retirement_clearance_key(
-        self, snapshot: Snapshot, owner: str, reason: str | None = None
+        self, snapshot: Snapshot, owner: str, reason: str | None = None,
+        candidate: DecisionCandidate | None = None,
     ) -> object:
-        vector = self._town_arbiter_progress_vector(snapshot, reason)
+        if owner == "quest-request":
+            unresolved = self._q22_route_unavailable_clearance_key(snapshot)
+            if unresolved is not None:
+                return unresolved
+        vector = self._town_arbiter_progress_vector(snapshot, reason, candidate)
         if owner != "departure":
             return vector
         return (
@@ -528,6 +611,13 @@ class TownMixin:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
         self._town_begin_progress_decision(snapshot)
+        if (
+            isinstance(key, DecisionCandidate)
+            and key.reason == "fixedquest:q22-travel:route-unavailable"
+            and key.route_declaration is not None
+            and key.route_declaration.stage == "travel-route-unavailable"
+        ):
+            return key
         if snapshot.store is not None and proposed_reason in {
             "store:entry-await-observation",
             "home:route-claim-unfulfilled",
@@ -3965,11 +4055,23 @@ class TownMixin:
             }
             self.last_reason = "town:teleport-refused-fare"
             return None
-        inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(
-            current_town_id
-        )
+        result = self._town_teleport_route(snapshot, destination_town_id)
+        if result.key is not None:
+            self.last_reason = (
+                "town:teleport" if result.route is not None
+                else "town:teleport-step-off"
+            )
+            return result.key
+        return None
+
+    def _town_teleport_route(
+        self, snapshot: Snapshot, destination_town_id: int
+    ) -> TownTeleportRoute:
+        """Select the exact teleport route and retain its graph rank."""
+        current_town_id = self._effective_town_id(snapshot)
+        inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(current_town_id)
         if inn_type is None:
-            return None
+            return TownTeleportRoute(failure="no-inn-type")
         positions = frozenset(
             grid.position for grid in snapshot.grids.values()
             if grid.building_type == inn_type
@@ -3980,21 +4082,31 @@ class TownMixin:
         if snapshot.player.position in positions:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
-                self.last_reason = "town:teleport-step-off"
-                return self._step_toward(snapshot, neighbors[0])
-            return None
-        step = min(
+                return TownTeleportRoute(
+                    key=self._step_toward(snapshot, neighbors[0])
+                )
+            return TownTeleportRoute(failure="no-legal-exit")
+        route = min(
             (candidate for candidate in (
-                self._town_map_goal_step(snapshot, position) for position in positions
+                self._town_map_goal_route(snapshot, position) for position in positions
             ) if candidate is not None),
-            key=lambda pos: snapshot.player.position.distance_to(pos),
+            key=lambda candidate: snapshot.player.position.distance_to(
+                candidate.first_step
+            ),
             default=None,
         )
-        if step is None:
-            return None
-        self.last_reason = "town:teleport"
-        suffix = "m" + chr(ord("a") + destination_town_id) if step in positions else ""
-        return self._step_toward(snapshot, step, tail=suffix)
+        if route is None:
+            return TownTeleportRoute(
+                failure="no-inn-target" if not positions else "no-legal-path"
+            )
+        suffix = (
+            "m" + chr(ord("a") + destination_town_id)
+            if route.first_step in positions else ""
+        )
+        return TownTeleportRoute(
+            route=route,
+            key=self._step_toward(snapshot, route.first_step, tail=suffix),
+        )
 
     def _read_dungeon_recall_scroll_key(
         self, snapshot: Snapshot, recall: InventoryItem
@@ -4359,6 +4471,21 @@ class TownMixin:
         is and merged it into the walkable set. Returns the first step, or None if
         already there / unreachable across the remembered walkable tiles.
         """
+        route = self._town_map_goal_route(
+            snapshot, target, blocked=blocked,
+            allow_entrance_fallback=allow_entrance_fallback,
+        )
+        return route.first_step if route is not None else None
+
+    def _town_map_goal_route(
+        self,
+        snapshot: Snapshot,
+        target: Position | None,
+        *,
+        blocked: set[Position] | None = None,
+        allow_entrance_fallback: bool = True,
+    ) -> TownMapRoute | None:
+        """Return the selected target, first step and remaining BFS edges."""
         if target is None:
             return None
         start = snapshot.player.position
@@ -4373,17 +4500,24 @@ class TownMixin:
             route_attempts = route_attempts[:1]
         for route_blocked in route_attempts:
             seen = {start}
-            queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+            queue: deque[tuple[Position, Position | None, int]] = deque(
+                [(start, None, 0)]
+            )
             while queue:
-                pos, first_step = queue.popleft()
+                pos, first_step, edges = queue.popleft()
                 if pos == target:
-                    return first_step
+                    assert first_step is not None
+                    return TownMapRoute(target, first_step, edges)
                 for neighbor in self._walkable_neighbors(snapshot, pos):
                     if neighbor in seen or neighbor in route_blocked:
                         continue
                     seen.add(neighbor)
                     queue.append(
-                        (neighbor, neighbor if first_step is None else first_step)
+                        (
+                            neighbor,
+                            neighbor if first_step is None else first_step,
+                            edges + 1,
+                        )
                     )
         return None
 

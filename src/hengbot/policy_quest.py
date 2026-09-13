@@ -71,7 +71,9 @@ from hengbot.home_visit import (
 )
 from hengbot.equipment_mutation import EquipmentMutationExecutor, EquipmentMutationResult
 from hengbot.policy_types import (
+    DecisionCandidate,
     DecisionContext,
+    QuestTravelDeclaration,
     TownTravelProgress,
     StoreVisitPhase,
     StoreVisit,
@@ -3818,10 +3820,76 @@ class QuestMixin:
                     self._town_travel_rumor_pending = None
                 if travel_quest is not None and travel_quest.id == 2:
                     self._telmora_q2_errand = True
-                key = self._town_teleport_key(snapshot, target_town)
-                if key is not None:
-                    self.last_reason = f"fixedquest:q{travel_quest.id}-travel"
-                return key
+                if travel_quest.id != 22:
+                    key = self._town_teleport_key(snapshot, target_town)
+                    if key is not None:
+                        self.last_reason = f"fixedquest:q{travel_quest.id}-travel"
+                    return key
+                required_gold = (
+                    TOWN_TELEPORT_COST if target_town == 0
+                    else 2 * TOWN_TELEPORT_COST
+                )
+                if snapshot.player.gold < required_gold:
+                    return self._town_teleport_key(snapshot, target_town)
+                reason = "fixedquest:q22-travel"
+                context = self._decision_context
+                if context is None:
+                    key = self._town_teleport_key(snapshot, target_town)
+                    if key is not None:
+                        self.last_reason = reason
+                    return key
+                route_result = self._town_teleport_route(snapshot, target_town)
+                candidate_identity = object()
+                if route_result.failure is not None:
+                    reason = "fixedquest:q22-travel:route-unavailable"
+                    declaration = QuestTravelDeclaration(
+                        quest_id=22,
+                        quest_status=travel_quest.status,
+                        stage="travel-route-unavailable",
+                        source_town_id=current_town_id,
+                        destination_town_id=target_town,
+                        floor=snapshot.floor_key,
+                        goal=None,
+                        first_step=None,
+                        bfs_rank=None,
+                        composed_key=WAIT_KEY,
+                        decision_identity=context.identity,
+                        candidate_identity=candidate_identity,
+                    )
+                    self.last_reason = reason
+                    return DecisionCandidate(
+                        WAIT_KEY, reason=reason,
+                        decision_identity=context.identity,
+                        route_declaration=declaration,
+                        identity=candidate_identity,
+                    )
+                key = route_result.key
+                if key is None:
+                    return None
+                self.last_reason = reason
+                if route_result.route is None:
+                    return key
+                route = route_result.route
+                declaration = QuestTravelDeclaration(
+                    quest_id=22,
+                    quest_status=travel_quest.status,
+                    stage="travel",
+                    source_town_id=current_town_id,
+                    destination_town_id=target_town,
+                    floor=snapshot.floor_key,
+                    goal=route.target,
+                    first_step=route.first_step,
+                    bfs_rank=route.remaining_edges,
+                    composed_key=key,
+                    decision_identity=context.identity,
+                    candidate_identity=candidate_identity,
+                )
+                return DecisionCandidate(
+                    key, reason=reason,
+                    decision_identity=context.identity,
+                    route_declaration=declaration,
+                    identity=candidate_identity,
+                )
         quest_id = self._fixed_quest_target(snapshot)
         if quest_id is None:
             return None

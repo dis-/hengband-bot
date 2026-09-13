@@ -30,6 +30,64 @@ class DecisionContext:
     """Immutable latch captured once at the public decision boundary."""
 
     equipment_transaction_owned: bool
+    identity: object = field(default_factory=object)
+
+
+@dataclass(frozen=True)
+class TownMapRoute:
+    """Pure result of selecting one route through the remembered town graph."""
+
+    target: Position
+    first_step: Position
+    remaining_edges: int
+
+
+@dataclass(frozen=True)
+class TownTeleportRoute:
+    """A teleport-building route, or its structural unavailability category."""
+
+    route: TownMapRoute | None = None
+    failure: str | None = None
+    key: str | None = None
+
+
+@dataclass(frozen=True)
+class QuestTravelDeclaration:
+    quest_id: int
+    quest_status: object
+    stage: str
+    source_town_id: int
+    destination_town_id: int
+    floor: tuple[int, int, int] | None
+    goal: Position | None
+    first_step: Position | None
+    bfs_rank: int | None
+    composed_key: str
+    decision_identity: object
+    candidate_identity: object
+
+
+class DecisionCandidate(str):
+    """A string-compatible immutable decision carrying unforgeable provenance."""
+
+    __slots__ = ("reason", "identity", "decision_identity", "route_declaration")
+
+    def __new__(
+        cls,
+        key: str,
+        *,
+        reason: str,
+        decision_identity: object,
+        route_declaration: QuestTravelDeclaration | None = None,
+        identity: object | None = None,
+    ) -> "DecisionCandidate":
+        value = str.__new__(cls, key)
+        candidate_identity = object() if identity is None else identity
+        value.reason = reason
+        value.identity = candidate_identity
+        value.decision_identity = decision_identity
+        value.route_declaration = route_declaration
+        return value
 
 
 @dataclass

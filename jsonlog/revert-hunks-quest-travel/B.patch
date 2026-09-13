@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/policy_quest.py b/src/hengbot/policy_quest.py
+--- a/src/hengbot/policy_quest.py
++++ b/src/hengbot/policy_quest.py
+@@ -3835,3 +3835,3 @@ class QuestMixin:
+                 context = self._decision_context
+-                if context is None or travel_quest.id == 22:
++                if context is None:
+                     key = self._town_teleport_key(snapshot, target_town)

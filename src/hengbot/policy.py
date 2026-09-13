@@ -77,6 +77,7 @@ from hengbot.equipment_mutation import (
     EquipmentMutationState,
 )
 from hengbot.policy_types import (
+    DecisionCandidate,
     DecisionContext,
     TownTravelProgress,
     StoreVisitPhase,
@@ -2384,7 +2385,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         key = self._forbid_wait_while_damaged(snapshot, key)
-        vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+        vector = self._town_arbiter_progress_vector(snapshot, self.last_reason, key)
         in_town = bool(snapshot.in_town or snapshot.store is not None)
         arbiter.observe(
             in_town=in_town,
@@ -2397,14 +2398,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         current_owner = arbiter.owner_for_reason(self.last_reason)
         current_retirement_key = self._town_retirement_clearance_key(
-            snapshot, current_owner, self.last_reason
+            snapshot, current_owner, self.last_reason,
+            key if isinstance(key, DecisionCandidate) else None,
         )
         if (
             in_town
-            and not arbiter.may_select(
+            and not arbiter.preview_may_select(
                 self.last_reason, vector, retirement_key=current_retirement_key
             )
         ):
+            rejected_candidate = key
             retired_owner = arbiter.owner_for_reason(self.last_reason)
             self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
             supplier = self._departure_supplier_counterfactual(snapshot)
@@ -2414,8 +2417,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     supplier is not None
                     and snapshot.store is None
                     and retired_owner != "store-router"
-                    and arbiter.may_select(
-                        "shop:approach", vector,
+                    and arbiter.preview_may_select(
+                        "shop:approach",
+                        self._town_arbiter_progress_vector(snapshot, "shop:approach"),
                         retirement_key=self._town_retirement_clearance_key(
                             snapshot, arbiter.owner_for_reason("shop:approach"),
                             "shop:approach",
@@ -2424,7 +2428,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 else None
             )
-            if step is not None:
+            if (
+                isinstance(rejected_candidate, DecisionCandidate)
+                and rejected_candidate.reason
+                == "fixedquest:q22-travel:route-unavailable"
+                and rejected_candidate is key
+            ):
+                self.last_reason = "fixedquest:q22-travel:unsatisfiable"
+                key = WAIT_KEY
+            elif step is not None:
                 transaction_owns_relocation = (
                     self._equipment_transaction_owns_town_relocation(snapshot)
                 )
@@ -2454,6 +2466,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "store:direction-refused-leave"
             key = LEAVE_STORE_KEY
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
+        # This is the first mutating accounting point and follows every key
+        # rewrite.  Only the exact surviving envelope can authorize a route.
+        final_candidate = key if isinstance(key, DecisionCandidate) else None
+        vector = self._town_arbiter_progress_vector(
+            snapshot, self.last_reason, final_candidate
+        )
         terminal = self._town_arbiter_terminal_result(key)
         arbiter.observe(
             in_town=bool(snapshot.in_town or snapshot.store is not None),
@@ -2468,10 +2486,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
             close_visit=self._arbiter_close_store_visit,
             retirement_key=self._town_retirement_clearance_key(
-                snapshot, arbiter.owner_for_reason(self.last_reason), self.last_reason
+                snapshot, arbiter.owner_for_reason(self.last_reason),
+                self.last_reason, final_candidate,
             ),
             retirement_key_for=lambda owner: self._town_retirement_clearance_key(
-                snapshot, owner, self.last_reason
+                snapshot, owner, self.last_reason,
+                final_candidate if owner == arbiter.owner_for_reason(self.last_reason) else None,
             ),
         )
         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
