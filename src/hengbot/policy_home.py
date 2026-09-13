@@ -1792,22 +1792,6 @@ class HomeMixin:
             self._stage_home_operation(snapshot, operation_key)
             self.last_reason = "equipment-transaction:atomic-deposit"
             return key
-        plan = self._town_errand_plan
-        if (
-            plan is not None
-            and plan.index < len(plan.stops)
-            and plan.stops[plan.index] == STORE_HOME
-            and STORE_HOME not in plan.completed_this_visit
-            and STORE_HOME not in plan.blocked_this_visit
-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
-            and any(
-                category not in {"deposit", "weight-overload", "equipment-work"}
-                and (STORE_HOME, category)
-                not in self._town_visit_ledger.satisfied_needs
-                for category in plan.need_categories.get(STORE_HOME, ())
-            )
-        ):
-            return None
         deposit = self._find_home_deposit(snapshot)
         if deposit is None:
             self.last_reason = ""

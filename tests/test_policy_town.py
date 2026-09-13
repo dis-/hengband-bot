@@ -9012,8 +9012,13 @@ class TownRecallReturnTest(unittest.TestCase):
                     lambda _snapshot, values=candidate: dict(values)
                 )
                 with patch.object(current, "_town_claims_active", return_value=False):
-                    self.assertEqual(current.choose_key(current_snap), WAIT_KEY)
-                self.assertEqual(current.last_reason, "town:blocked:departure-unsatisfiable")
+                    key = current.choose_key(current_snap)
+                if failed_leaf == "recall_departure_ready":
+                    self.assertEqual(key, "R300\r")
+                    self.assertEqual(current.last_reason, "town:wait-restock:temple")
+                else:
+                    self.assertEqual(key, WAIT_KEY)
+                    self.assertEqual(current.last_reason, "town:blocked:departure-unsatisfiable")
                 block = current.departure_block_state()
                 self.assertEqual(block["values"], candidate)
                 self.assertEqual(block["failed"], [failed_leaf])

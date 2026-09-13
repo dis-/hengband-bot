@@ -496,8 +496,8 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             policy._shopping_approach_step(snapshot, STORE_ALCHEMIST)
         )
 
-    def test_restock_wait_has_cumulative_visible_terminal(self):
-        """D3 pin: repeated re-arms consume a finite game-turn allowance."""
+    def test_recall_restock_wait_rearms_without_terminal(self):
+        """Recall-only waits remain live across repeated public turn advances."""
         path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
         _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
         policy, snapshot = restore_incident_checkpoint(
@@ -509,11 +509,10 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
         policy._town_restock_rechecked.clear()
         policy._town_restock_waited_turns = 0
         policy._town_restock_last_wait_turn = None
-        cap = STORE_RESTOCK_WAIT_TURNS * 4
         turn = snapshot.turn
         rests = 0
 
-        while policy._town_blocked_reason != "restock-wait-exhausted":
+        for _ in range(12):
             current = replace(snapshot, turn=turn)
             key = policy._recall_restock_key(current)
             if key == RESTOCK_WAIT_MACRO:
@@ -521,13 +520,13 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
                 turn += STORE_RESTOCK_WAIT_TURNS
             else:
                 policy._town_restock_wait_until = None
-            self.assertLessEqual(rests, 4)
+            if rests >= 6:
+                break
 
-        self.assertLessEqual(policy._town_restock_waited_turns, cap)
-        self.assertEqual(policy.last_reason, "town:blocked:restock-wait-exhausted")
+        self.assertEqual(rests, 6)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy.last_reason, "town:wait-restock:temple")
         self.assertNotIn("town:wait-restock", TOWN_CYCLE_IGNORED_REASONS)
-        policy._release_stale_town_block(snapshot)
-        self.assertEqual(policy._town_blocked_reason, "restock-wait-exhausted")
 
     def test_productive_gap_charges_only_one_restock_rest(self):
         """A3a: unrelated elapsed turns cannot consume the cumulative cap."""

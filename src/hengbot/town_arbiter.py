@@ -68,7 +68,7 @@ class TownTurnArbiter:
             registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta"),
             registration("calibration", ("calibration:",), "calibration phase advance"),
             registration("identification", ("identify:", "identification:", "item-processing:", "inventory:"), "known item or failure-set delta"),
-            registration("fundraising", ("fundraise:", "fundraising:", "mining:"), "gold or vein delta"),
+            registration("fundraising", ("fundraise:", "fundraising:", "mining:", "town:recall-stockout-mining"), "gold or vein delta"),
             registration("curse-enchant", ("town:remove-curse", "town:enchant-launcher-", "curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
             registration("cross-town", ("town:cross-town", "town:morivant"), "expedition state advance"),
             registration("survival", ("survival:", "weak-fainting", "status-threat:", "town:kill-mob", "town:eat-before-travel", "town:recover", "town:seek-shelter", "confused:", "item:", "mana-food:", "stat-gain:", "wilderness:escape-scroll", "wilderness:flee", "refill-light", "restore-lantern", "eat", "rest"), "survival supply or status delta"),

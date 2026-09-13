@@ -3353,7 +3353,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             is not None
         ):
-            # Home has an earlier store-context owner than ordinary shops.
+            # Home has an earlier store-context owner than ordinary shops.  A
+            # surplus tail staged by another Home-purpose visit is already
+            # pack-letter-bound here; never derive a new letter from this page.
             # Release through the same StoreVisit fields at that seam so its
             # legacy leave-after-one-operation branch cannot steal the fresh
             # page that authorizes this two-stage tail.
@@ -8127,7 +8129,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _recall_restock_key(self, snapshot: Snapshot) -> str:
-        """Bound recall waiting to one observed stock-turnover cycle."""
+        """Pass time locally, then re-observe both recall suppliers."""
         recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
         if (
             self._town_restock_wait_until is None
@@ -8154,17 +8156,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
             if not self._food_ready(snapshot):
                 return self._released_restock_store_key(snapshot, recall_stores)
-            self._town_blocked_reason = "restocked-recall-unavailable"
-            return self._town_blocked_key(snapshot)
+            # Prefer one real, safely gated Yeek Cave 1F mining run.  The
+            # fundraising owner supplies the established light/food/HP/MP/
+            # status and entrance invariants.  If its complete kit is not
+            # usable, stay in town and begin another R300 turnover cycle.
+            self._planned_mining_runs = None
+            self._fundraising_mode = "mine"
+            if self._fundraising_departure_ready(snapshot):
+                self._mining_runs_completed = 0
+                self._town_restock_rechecked.difference_update(recall_stores)
+                self.last_reason = "town:recall-stockout-mining"
+                return WAIT_KEY
+            self._fundraising_mode = None
+            self._town_restock_rechecked.difference_update(recall_stores)
+            self._town_restock_wait_until = None
         released_store = self._retry_after_store_restock(snapshot, recall_stores)
         if released_store is not None:
             return self._released_restock_store_key(snapshot, recall_stores)
-        wait_cap = (
-            STORE_RESTOCK_WAIT_TURNS * max(1, len(recall_stores)) * 2
-        )
-        if self._town_restock_waited_turns >= wait_cap:
-            self._town_blocked_reason = "restock-wait-exhausted"
-            return self._town_blocked_key(snapshot)
         self.last_reason = self._restock_wait_reason(snapshot)
         self._town_restock_last_wait_turn = snapshot.turn
         return RESTOCK_WAIT_MACRO

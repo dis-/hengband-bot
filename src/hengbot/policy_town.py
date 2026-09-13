@@ -2802,7 +2802,11 @@ class TownMixin:
         }
         for status in ledger.values():
             missing = max(0, status.required_departure - status.count)
-            if missing:
+            # Recall stock-out is a current-town restock problem.  Sending it
+            # through the generic expedition owner can strand the character in
+            # another town without recall, so only the other supply categories
+            # are eligible for cross-town shopping.
+            if missing and status.kind != "recall":
                 shortages.append((category[status.kind], missing))
         if self._identification_need is not None:
             shortages.append(
@@ -2837,6 +2841,8 @@ class TownMixin:
         """Require shelf evidence from every local supplier before escalation."""
         unobtainable: list[str] = []
         for category, _quantity in shortages:
+            if category == "recall":
+                continue
             suppliers = set(self._cross_town_supplier_types(snapshot, category))
             evidence = [
                 self._town_visit_ledger.shelf_observations.get(
@@ -3963,6 +3969,21 @@ class TownMixin:
         else:
             self._departure_block = {}
         self._departure_block_sequence = self._decision_sequence
+        recall_only_block = (
+            recall_dest is not None
+            and not snapshot.player.recalling
+            and tuple(
+                name for name, ready in departure_conjuncts.items() if not ready
+            ) == ("recall_departure_ready",)
+        )
+        if recall_only_block:
+            # This owner is deliberately selected before cross-town shopping
+            # and the generic unsatisfiable terminal.  It waits/mines in the
+            # current town and re-observes the two local recall suppliers.
+            expedition = self._cross_town_shopping
+            if expedition is not None and "recall" in expedition.blocking_categories:
+                self._cross_town_shopping = None
+            return self._recall_restock_key(snapshot)
         if (
             recall_dest is not None
             and not snapshot.player.recalling
