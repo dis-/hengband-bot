@@ -1695,6 +1695,17 @@ class TownMixin:
         if self._town_space_deposit_actionable(snapshot):
             add(STORE_HOME, "space-deposit", "home-first")
 
+        launcher = self._equipped_launcher(snapshot)
+        ammo_short = (
+            launcher is not None
+            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+        )
+        if ammo_short and self._home_available(snapshot):
+            if not self._home_knowledge_current:
+                add(STORE_HOME, "ammo-home-first", "home-first")
+            elif self._queue_home_ammo_top_up(snapshot):
+                add(STORE_HOME, "ammo-home-first", "home-first")
+
         # The approved fresh-character route is intentionally tiny: acquire
         # Q34's complete throwing-torch stock, then let _fixed_quest_key accept
         # it on the next decision.  In particular, do not let low-gold
@@ -2286,6 +2297,7 @@ class TownMixin:
             ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
             ("light", "normal", 1, True),  # Expedition light gates departure.
             ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
+            ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
             ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
@@ -2604,6 +2616,7 @@ class TownMixin:
         """Order mandatory town work before convenience and speculative buys."""
         if need.category in {
             "black-market",
+            "ammo-home-first",
             "ammo",
             "throwing-torches",
             "launcher-enchant",

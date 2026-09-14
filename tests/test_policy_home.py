@@ -2633,6 +2633,95 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             WAIT_KEY,
         )
 
+    def test_ammo_top_up_queues_only_merging_home_stack_and_exact_quantity(self):
+        launcher = item(
+            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="light crossbow", is_equipment=True,
+        )
+        plain = item(
+            "q", TVAL_BOLT, 1, count=10, name="plain bolts",
+            fully_known=True,
+        )
+        power = item(
+            "w", TVAL_BOLT, 2, count=18, name="power bolts",
+            fully_known=True, to_h=7, to_d=6,
+        )
+        merging = store_item(
+            "a", TVAL_BOLT, 1, count=80, name="plain bolts",
+        )
+        nonmerging = store_item(
+            "b", TVAL_BOLT, 3, count=99, name="other bolts",
+            to_h=1,
+        )
+        policy = self._catalogued_withdrawal_policy([merging, nonmerging])
+        entrance = replace(
+            self._entrance_snapshot([plain, power]), equipment=[launcher]
+        )
+
+        needs = policy._town_need_candidates(entrance)
+
+        self.assertIn(
+            policy_module.TownNeed(STORE_HOME, "ammo-home-first", "home-first"),
+            needs,
+        )
+        self.assertEqual(policy._home_pending_item, policy._item_signature(merging))
+        self.assertEqual(policy._home_pending_quantity, 71)
+        self._assert_staged_home_operation(
+            policy,
+            self._choose_atomic_withdrawal(policy, entrance),
+            "pa71\r\x1b",
+        )
+
+    def test_ammo_top_up_rejects_nonmerging_home_stack(self):
+        launcher = item(
+            "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW,
+            name="light crossbow", is_equipment=True,
+        )
+        plain = item(
+            "q", TVAL_BOLT, 1, count=10, name="plain bolts",
+            fully_known=True,
+        )
+        nonmerging = store_item(
+            "a", TVAL_BOLT, 2, count=99, name="other bolts", to_d=1,
+        )
+        policy = self._catalogued_withdrawal_policy([nonmerging])
+        entrance = replace(
+            self._entrance_snapshot([plain]), equipment=[launcher]
+        )
+
+        self.assertIsNone(policy._home_ammo_top_up(entrance))
+        self.assertNotIn(
+            "ammo-home-first",
+            [need.category for need in policy._town_need_candidates(entrance)],
+        )
+
+    def test_recorded_full_pack_withdrawn_merge_remains_kept_not_deposited(self):
+        capture = json.loads(Path(
+            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
+        ).read_text(encoding="utf-8"))
+        before = parse_snapshot(capture["state"]["result"])
+        policy = HengbotPolicy()
+        plain = next(item for item in before.inventory if item.slot == "q")
+        after = replace(
+            before,
+            turn=before.turn + 1,
+            inventory=[
+                replace(item, count=81) if item.slot == plain.slot else item
+                for item in before.inventory
+            ],
+        )
+        policy.consume_home_knowledge((replace(plain, slot="a", count=9),))
+
+        plan = ammo_carry_plan(after, policy._equipped_launcher(after), 99)
+
+        self.assertEqual(before.turn, 2866604)
+        self.assertEqual(plan.carried_count, 99)
+        self.assertIn("q", plan.kept_slots)
+        self.assertFalse(policy._home_deposit_candidate(
+            next(item for item in after.inventory if item.slot == "q"), after
+        ))
+        self.assertIsNone(policy._home_ammo_top_up(after))
+
     def test_public_home_composer_to_sender_completes_stack_deposit_without_invalid_character(self):
         from hengbot.cli import _send_new_decision_key
 

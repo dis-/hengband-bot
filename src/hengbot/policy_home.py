@@ -2513,6 +2513,53 @@ class HomeMixin:
             None,
         )
 
+    def _home_ammo_top_up(
+        self, snapshot: Snapshot
+    ) -> tuple[InventoryItem, int] | None:
+        """Return Home ammo that extends a kept stack without creating a third."""
+        if not self._home_knowledge_current:
+            return None
+        launcher = self._equipped_launcher(snapshot)
+        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        shortage = AMMO_CARRY_TARGET - plan.carried_count
+        if launcher is None or shortage <= 0 or not plan.kept_slots:
+            return None
+        kept = [
+            item for item in snapshot.inventory if item.slot in plan.kept_slots
+        ]
+        # Prefer replenishing the ordinary stack; if Home has none, an
+        # identical copy of the highest-power stack is equally merge-safe.
+        kept.sort(key=lambda item: (item.slot != plan.plain_slot, item.slot))
+        addressable = self._home_knowledge_items[
+            : self._home_knowledge_valid_before
+        ]
+        for pack in kept:
+            candidate = next(
+                (
+                    item for item in addressable
+                    if item.count > 0
+                    and self._item_signature(item) not in self._deferred_home_items
+                    and self._store_item_stacks_with_inventory(pack, item)
+                ),
+                None,
+            )
+            if candidate is not None:
+                return candidate, min(candidate.count, shortage)
+        return None
+
+    def _queue_home_ammo_top_up(self, snapshot: Snapshot) -> bool:
+        top_up = self._home_ammo_top_up(snapshot)
+        if top_up is None:
+            return False
+        candidate, quantity = top_up
+        signature = self._item_signature(candidate)
+        self._home_pending_item = signature
+        self._home_pending_quantity = quantity
+        self._home_pending_quantities[signature] = quantity
+        self._home_withdrawal_queued = True
+        self._home_procurement_probe = self._procurement_class(candidate)
+        return True
+
     def _home_procurement_viable_class_matches(
         self, item_class: tuple[int, int]
     ) -> int:

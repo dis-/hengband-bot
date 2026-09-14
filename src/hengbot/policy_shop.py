@@ -1184,6 +1184,27 @@ class ShopMixin:
                 )
                 return self._record_home_gate(snapshot, item, ProcurementHomeGate.BLOCKED, "wrapper-home-unroutable")
             return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-stale-knowledge-route-home")
+        if item.is_ammo:
+            top_up = self._home_ammo_top_up(snapshot)
+            if top_up is None:
+                self._home_procurement_probe = None
+                self._home_procurement_fallthrough = "fresh-catalogue-absence"
+                return self._record_home_gate(
+                    snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                    "wrapper-fresh-catalogue-absence",
+                    wrapper_fallthrough="fresh-catalogue-absence",
+                )
+            candidate, quantity = top_up
+            signature = self._item_signature(candidate)
+            self._home_procurement_probe = item_class
+            self._home_pending_item = signature
+            self._home_pending_quantity = quantity
+            self._home_pending_quantities[signature] = quantity
+            self._home_withdrawal_queued = True
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.HOME_FIRST,
+                "wrapper-candidate-home-first",
+            )
         candidate = self._home_procurement_candidate(item_class)
         failure = getattr(self, "_home_procurement_withdraw_failure", None)
         viable_class_matches = self._home_procurement_viable_class_matches(
@@ -1360,6 +1381,22 @@ class ShopMixin:
             result = ProcurementHomeGate.HOME_FIRST if step is not None else ProcurementHomeGate.BLOCKED
             return self._record_home_gate(snapshot, item, result, "evaluate-stale-route-found" if step is not None else "evaluate-stale-route-missing")
         item_class = self._procurement_class(item)
+        if item.is_ammo:
+            top_up = self._home_ammo_top_up(snapshot)
+            return self._record_home_gate(
+                snapshot,
+                item,
+                (
+                    ProcurementHomeGate.HOME_FIRST
+                    if top_up is not None
+                    else ProcurementHomeGate.ALLOW_PURCHASE
+                ),
+                (
+                    "evaluate-candidate-home-first"
+                    if top_up is not None
+                    else "evaluate-no-candidate"
+                ),
+            )
         candidate = self._home_procurement_candidate(item_class)
         failure = getattr(self, "_home_procurement_withdraw_failure", None)
         viable_class_matches = self._home_procurement_viable_class_matches(

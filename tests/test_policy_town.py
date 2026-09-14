@@ -13179,6 +13179,54 @@ class RangedAttackTest(unittest.TestCase):
         policy._town_departure_ready = lambda candidate: True
         self.assertFalse(policy._town_claims_active(snap))
 
+    def test_home_ammo_and_store_stock_select_home_before_purchase(self):
+        plain = replace(self._shots(count=10), fully_known=True)
+        shelf = StoreItem("j", plain.name, 99, TVAL_SHOT, plain.sval, price=1)
+        home = StoreItem(
+            "a", plain.name, 99, TVAL_SHOT, plain.sval, price=0,
+            fully_known=plain.fully_known,
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[plain, *self._strict_supplies_for_ammo()],
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, [shelf]),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((home,))
+
+        key = policy._shop(snap)
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:home-first-before-purchase")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(home))
+        self.assertEqual(policy._home_pending_quantity, 89)
+
+    def test_fresh_home_without_merging_ammo_uses_existing_purchase(self):
+        arrows = StoreItem("j", "arrows", 99, TVAL_ARROW, 1, price=1)
+        carried = item(
+            "a", TVAL_ARROW, 1, name="arrows", count=3, fully_known=True,
+        )
+        snap = Snapshot(
+            player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[*self._strict_supplies_for_ammo(), carried],
+            equipment=[
+                item("b", TVAL_BOW, SV_BOW_SHORT, name="short bow", is_equipment=True),
+                self._lantern(),
+            ],
+            store=StoreState(STORE_WEAPON, [arrows]),
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((
+            StoreItem("a", "different arrows", 50, TVAL_ARROW, 2, price=0),
+        ))
+
+        self.assertEqual(policy._shop(snap), "pj96\r\r")
+
     def test_missing_96_arrows_are_bought_in_one_prompt_complete_macro(self):
         arrows = StoreItem("j", "arrows", 99, TVAL_ARROW, 1, price=1)
         snap = Snapshot(
@@ -14257,7 +14305,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         )
         # E6 re-judgement: the arbiter exhausts the ineffective owner before
         # the legacy cycle detector needs to emit its marker.
-        self.assertIn((WAIT_KEY, "town:blocked:owner-retired"), decisions)
+        self.assertIn(("4", "town:blocked:owner-retired"), decisions)
         self.assertNotIn(
             (LEAVE_STORE_KEY, "home:atomic-withdraw-await-confirmation"),
             decisions,
