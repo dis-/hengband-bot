@@ -3382,6 +3382,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # outstanding equipment work may veto ``~9``.
             and not self._home_knowledge_scan_requested
             and self._home_knowledge_scan_epoch is None
+            and self._equipment_transaction_session is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
             and (
@@ -3469,7 +3470,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == STORE_HOME
             and self._equipment_transaction_session is not None
             and self._equipment_transaction_session.pending_action is not None
-            and not self._home_entry_operation_posted
             and self._store_leave_inflight is None
         )
         if (
@@ -3549,7 +3549,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._equipment_transaction_session is not None
-            and not self._home_entry_operation_posted
             and self._store_leave_inflight is None
         ):
             # An independently observed Home page is not transaction failure:
@@ -3564,6 +3563,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._home_entry_operation_posted
+            and self._equipment_transaction_session is None
         ):
             # The combined command already completed this entry's sole input
             # operation.  Leave immediately; confirmation comes from the next
@@ -3798,6 +3798,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and not self._home_entry_operation_posted
+            and self._equipment_transaction_session is None
             # Released owners return None so the common fallback below can
             # choose the safe context-specific action.  The sell guard only
             # classifies concrete commands; it does not own that sentinel.
@@ -4279,6 +4280,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._release_choke_plan("floor-change")
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # Admission of an already-built Home transaction precedes evaluators
+        # that may ask whether town departure is ready.  Those evaluators are
+        # allowed to build a plan only when no transaction owns the character;
+        # rebuilding here would discard its recorded pack-letter continuation.
+        admitted_session = self._equipment_transaction_session
+        if (
+            snapshot.in_town
+            and admitted_session is not None
+            and admitted_session.executable
+            and admitted_session.required_context == "home"
+            and admitted_session.physical_context == "home"
+            and self._home_pending_item is None
+            and not self._home_pending_batch
+            and self._home_atomic_withdraw_pending is None
+            and any(
+                grid.store_number == STORE_HOME
+                for grid in (snapshot.grid_at(snapshot.player.position),)
+                if grid is not None
+            )
+        ):
+            return self._equipment_transaction_town_key(snapshot) or WAIT_KEY
         self._evaluate_cross_decision_latches(snapshot)
 
         # A TR_WARNING prompt reported by this snapshot is disposed of before

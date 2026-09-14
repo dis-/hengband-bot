@@ -8,6 +8,8 @@ incident transcript adapter.
 """
 import json
 
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+
 
 def _screen(line0="", store=True, items=()):
     lines = [""] * 24
@@ -112,7 +114,10 @@ class FaithfulHomeGame:
             else: self.message = "That command does not work in stores."
         self.turn += 1
     def _takeoff(self, letter):
-        slots = self._letters(sorted(self.equipment))
+        slots = {
+            key: slot for slot, key in EQUIPMENT_SLOT_KEY.items()
+            if slot in self.equipment
+        }
         if letter not in slots: self.message = "Illegal equipment choice"; return
         item = self.equipment.pop(slots[letter])
         if len(self.pack) < self.pack_limit: self.pack.append(item); return
@@ -126,8 +131,13 @@ class FaithfulHomeGame:
         choices = self._letters(self.pack)
         if letter not in choices: self.message = "Illegal inventory choice"; return
         item = choices[letter]; self.pack.remove(item)
-        old = self.equipment.get(item["slot"])
-        self.equipment[item["slot"]] = item
+        equipment_slot = {
+            19: "bow", 30: "feet", 35: "outer", 36: "body",
+            39: "light",
+        }.get(item.get("tval"), item.get("slot"))
+        old = self.equipment.get(equipment_slot)
+        item["slot"] = equipment_slot
+        self.equipment[equipment_slot] = item
         if old: self.pack.append(old)
     def _deposit(self, letter):
         choices = self._letters(self.pack)
@@ -142,10 +152,15 @@ class FaithfulHomeGame:
         item = choices[letter]; self.pages[self.page].remove(item); self.pack.append(item)
     def _state(self):
         state = dict(self.state_template)
+        pack = []
+        for index, item in enumerate(self.pack):
+            current = dict(item)
+            current["slot"] = chr(97 + index)
+            pack.append(current)
         state.update({"turn": self.turn,
                       "floor": state.get("floor", {"dungeon_id": 0, "level": 0}),
                       "player": state.get("player", {"gold": 0}),
-                      "inventory": self.pack,
+                      "inventory": pack,
                       "equipment": list(self.equipment.values()),
                       "grid_map": state.get("grid_map", {"runs": []}),
                       "messages": [self.message] if self.message else []})

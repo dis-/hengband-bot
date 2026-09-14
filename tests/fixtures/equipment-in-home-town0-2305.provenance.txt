@@ -1,0 +1,11 @@
+Source: C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl
+Selection: physical lines 1125-1146 inclusive, copied byte-for-byte before gzip compression.
+Source byte range: [29538021, 30239281) (zero-based start, exclusive end).
+Turns/types: player_turn and knowledge from 2866918 through 2866955;
+player_turn/store records from 2867117 through 2867154; final character response.
+Home STORE records: turns 2867117, 2867132, and 2867154, including repeated
+same-turn emissions. The embedded store object records store_type 7,
+page_top 0, page_size 52, and stock_num 62.
+
+The gzip header timestamp is fixed to zero. Decompression yields the exact
+701,260 selected source bytes, including original record order and LF endings.

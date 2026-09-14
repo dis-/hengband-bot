@@ -1,10 +1,16 @@
 import json
 import unittest
 import copy
+import gzip
+import tempfile
 from collections import Counter
 from pathlib import Path
 
+from hengbot.cli import _dispatch_response_lines
 from hengbot.control_client import ControlClient
+from hengbot.equipment_optimizer import Loadout, current_loadout
+from hengbot.equipment_transaction_planner import plan_equipment_transactions
+from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.input_executor import Operation, OperationExecutor
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -13,6 +19,7 @@ from tests.support.faithful_home import FaithfulHomeGame
 ROOT = Path(__file__).resolve().parents[1]
 INCIDENT = ROOT / "jsonlog" / "incident-20260914-town0-resume-2305" / "decisions.jsonl"
 CAPTURE = ROOT / "jsonlog" / "live-screens" / "25-town0-home-equip-leave-loop.json"
+RECORDED = ROOT / "tests" / "fixtures" / "equipment-in-home-town0-2305.jsonl.gz"
 
 
 class EquipmentInHomeArtifactFacts(unittest.TestCase):
@@ -39,22 +46,28 @@ class EquipmentInHomeArtifactFacts(unittest.TestCase):
     def test_fake_models_prompt_consumption_reorder_refusal_and_overflow(self):
         worn = {"id": "worn", "slot": "outer"}; carried = {"id": "carry", "slot": "outer"}
         game = FaithfulHomeGame(pack=[carried], equipment={"outer": worn}, pages=[[{"id": "z"}]], pack_limit=1)
-        game._consume("ta")
+        game._consume("ti")
         self.assertNotIn("outer", game.equipment)
         self.assertEqual([x["id"] for x in game.pages[0]], ["worn", "z"])
         self.assertTrue(game.inside)
         full = FaithfulHomeGame(pack=[carried], equipment={"outer": worn}, pages=[[{"id": "z"}]], pack_limit=1, home_limit=1)
-        full._consume("ta")
+        full._consume("ti")
         self.assertFalse(full.inside)
 
 
 class EquipmentInHomeBehaviorPins(unittest.TestCase):
     """Public behavior pins; every mutation is downstream of accepted bytes."""
 
+    @staticmethod
+    def _recorded_rows():
+        with gzip.open(RECORDED, "rt", encoding="utf-8") as stream:
+            lines = stream.readlines()
+        return lines, [json.loads(line) for line in lines]
+
     def _recorded_game(self, *, inside=True, pack=None, equipment=None, pages=None,
                        pack_limit=23, home_limit=80):
-        raw = copy.deepcopy(json.loads(CAPTURE.read_text(encoding="utf-8"))["state"]["result"])
-        raw["turn"] = 2867154
+        _lines, rows = self._recorded_rows()
+        raw = copy.deepcopy(rows[8])
         raw["nearby_grids"] = [{
             "y": raw["player"]["y"], "x": raw["player"]["x"], "known": True,
             "terrain": {"passable": True}, "store_number": 7,
@@ -63,18 +76,76 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
             pack=raw["inventory"] if pack is None else pack,
             equipment={item["slot"]: item for item in raw["equipment"]}
             if equipment is None else equipment,
-            pages=pages or [[]], pack_limit=pack_limit, home_limit=home_limit,
+            pages=pages or [copy.deepcopy(rows[9]["store"]["items"])],
+            pack_limit=pack_limit, home_limit=home_limit,
             inside=inside, state_template=raw,
         )
 
-    def _drive(self, game, decisions=1):
+    def _recorded_policy(self):
+        """Replay the recorded ~9 producer/consumer, then the real planner.
+
+        The incident decision records name the two preserved pack identities;
+        applying that recorded constraint to the recorded catalogue recovers
+        the exact three-action continuation and target id.
+        """
+        lines, rows = self._recorded_rows()
+        policy = HengbotPolicy()
+        outside = parse_snapshot(rows[0], {})
+        policy.prime(outside)
+        scan_key = policy.choose_key(outside)
+        self.assertEqual((scan_key, policy.last_reason),
+                         ("~9\x1b\x1b", "home:request-knowledge-scan"))
+        policy.confirm_key_posted(scan_key)
+        with tempfile.TemporaryDirectory() as directory:
+            consumed = _dispatch_response_lines(
+                [lines[1]], policy, lambda _keys: None,
+                knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+            )
+        self.assertEqual(consumed, 1)
+        self.assertEqual(policy._home_scan_item_count, 62)
+
+        incident = parse_snapshot(rows[8], {})
+        policy.prime(incident)
+        catalog = policy._equipment_catalog.items
+        current = current_loadout(catalog)
+        target_outer = next(
+            item for item in catalog if item.id == "pack:dceeaad31f2254f4:0"
+        )
+        target = Loadout(tuple(
+            (slot, target_outer if slot == "outer" else item)
+            for slot, item in current.slots
+        ), current.hand_mode)
+        plan = plan_equipment_transactions(
+            catalog, current, target,
+            current_pack_items=len(incident.inventory),
+            home_scan_complete=policy._equipment_catalog.home_scan_complete,
+            preserve_pack_item_ids=frozenset({
+                "pack:c610faea8130c1c2:0",
+                "pack:e35d3b7107774db3:0",
+            }),
+        )
+        session = EquipmentTransactionSession(plan, physical_context="home")
+        self.assertEqual(session.target_loadout_id, "8dfe4c9a8212d725")
+        self.assertEqual(
+            (session.current_action.kind, session.current_action.item_id,
+             session.current_action.target_slot),
+            ("takeoff", "equipped:0838f45775733b5d:0", "outer"),
+        )
+        policy._set_equipment_transaction_session(session)
+        return policy
+
+    def _drive(self, game, decisions=1, policy=None):
         client = ControlClient(1, request_budget=2, retries=1, backoff=0,
                                socket_factory=game.socket_factory)
         self.addCleanup(client.close)
         # Source emitter writes the bound STORE record before the next command
         # wait; the drain supplies that independent JSONL consumer channel.
         executor = OperationExecutor(client, drain=lambda: [game._state()])
-        policy = HengbotPolicy()
+        policy = policy or HengbotPolicy()
+        transaction_target = (
+            policy._equipment_transaction_session.target_loadout_id
+            if policy._equipment_transaction_session is not None else None
+        )
         result = executor.observe_boundary(deadline=9999999999)
         reasons = []
         for sequence in range(decisions):
@@ -90,6 +161,12 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
             )
             if result.outcome == "completed":
                 policy.confirm_key_posted(key)
+            if (
+                transaction_target is not None
+                and policy._equipment_transaction_session is None
+                and not game.inside
+            ):
+                break
         return policy, result, reasons
 
     @staticmethod
@@ -134,14 +211,14 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         self.assertEqual(accepted.count("\x1b"), 1, accepted)
         self.assertEqual(accepted[-1], "\x1b", "the only Home exit must be final")
 
-    @unittest.expectedFailure  # Measured at ad340f9 after strengthening: entries=2, reentries=1, exits=2; no recorded takeoff.
     def test_h1_incident_finishes_with_one_exit_and_zero_reentries(self):
         # Public counterfactual starts outside at the recorded town-0 position.
         # The missing STORE stock is source-derived by the fake; optimization
         # and routing are produced normally by one persistent HengbotPolicy.
         game = self._recorded_game(inside=False)
         before = copy.deepcopy(game)
-        _policy, _result, reasons = self._drive(game, 12)
+        _policy, _result, reasons = self._drive(
+            game, 12, policy=self._recorded_policy())
         self._assert_completed_recorded_outer_plan(
             game, before, self._accepted(game), reasons,
         )
@@ -217,11 +294,11 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0].startswith("d"), (accepted, reasons))
 
-    @unittest.expectedFailure  # Measured at ad340f9: accepted ends by reopening with '5'; completion/loadout absent.
     def test_h10_completed_operations_continue_visit_without_attempt_reset(self):
         game = self._recorded_game(inside=False)
         before = copy.deepcopy(game)
-        _policy, _result, reasons = self._drive(game, 8)
+        _policy, _result, reasons = self._drive(
+            game, 8, policy=self._recorded_policy())
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0] == "5", (accepted, reasons))
         self._assert_completed_recorded_outer_plan(game, before, accepted, reasons)
@@ -234,7 +311,7 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         # source-text-only acceptance test.  ACK queues; the screen hook acts.
         item = {"name": "record-shaped cloak", "slot": "outer"}
         game = FaithfulHomeGame(pack=[], equipment={"outer": item})
-        ack = game.request({"id": 1, "op": "keys", "keys": "ta"})
+        ack = game.request({"id": 1, "op": "keys", "keys": "ti"})
         self.assertTrue(ack["ok"])
         self.assertIn("outer", game.equipment)
         game.request({"id": 2, "op": "screen"})
