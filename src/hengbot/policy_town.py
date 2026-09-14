@@ -1701,9 +1701,10 @@ class TownMixin:
             and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
         )
         if ammo_short and self._home_available(snapshot):
-            if not self._home_knowledge_current:
-                add(STORE_HOME, "ammo-home-first", "home-first")
-            elif self._queue_home_ammo_top_up(snapshot):
+            if (
+                self._home_knowledge_current
+                and self._queue_home_ammo_top_up(snapshot)
+            ):
                 add(STORE_HOME, "ammo-home-first", "home-first")
 
         # The approved fresh-character route is intentionally tiny: acquire

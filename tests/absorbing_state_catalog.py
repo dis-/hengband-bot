@@ -210,12 +210,9 @@ def _captured_home_deferral_retry():
     added = policy._deferred_home_items - before
     if (
         producer["decision_index"] != 26
-        # 縲・繧ｹ繧ｿ繝・け莉･蜀・〒蜷郁ｨ・9譛ｬ縲阪御ｸｦ・区怙繧ょｨ∝鴨縺ｮ鬮倥＞1繧ｹ繧ｿ繝・け縲・;
-        # merged fixture frees five slots, changing only the approach producer.
         # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the captured producer key is part of the required faithful replay identity
-        or producer_key != "\x1b`n&."
-        or policy.last_reason
-        != "town-progress-invariant:defect:=>town-progress-invariant:approach"
+        or producer_key != "\x1b`n!."
+        or policy.last_reason != "shop:travel"
         or target_signature not in added
     ):
         raise AssertionError(

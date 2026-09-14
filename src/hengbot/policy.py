@@ -3337,7 +3337,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_knowledge_scan_epoch is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
-            and self._equipment_mutation.state.name == "IDLE"
+            and (
+                self._equipment_mutation.state.name == "IDLE"
+                or self._equipment_mutation.goal == "transaction-apply"
+            )
             and not self._town_space_deposit_actionable(snapshot)
         ):
             if self._home_errand.needs_knowledge:
