@@ -2238,6 +2238,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def choose_key(self, snapshot: Snapshot) -> str:
         self._staged_prompt_chain = None
+        self._intentional_entrance_activation = False
         pending_reward = self._fixed_quest_reward_pending
         if pending_reward is not None:
             town_reward = FIXED_QUEST_REWARD_POSITIONS.get(pending_reward)
@@ -2583,6 +2584,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or here.store_number >= 0
                 or here.building_special >= 0
             )
+            and not self._intentional_entrance_activation
         ):
             # This is the final emitted-envelope seam, after every owner and
             # stage-2 accounting mutation has observed the producer's original
@@ -2749,6 +2751,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.read_telemetry = {}
         self._store_entry_wait_owner = None
         self._store_entry_wait_key = None
+        self._intentional_entrance_activation = False
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None

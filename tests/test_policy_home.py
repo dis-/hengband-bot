@@ -2667,6 +2667,52 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             [owned.item.name for owned in preserved._equipment_catalog.items],
         )
 
+    def test_production_executor_home_atomic_deposit_enters_then_posts_once(self):
+        from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+        from tests.test_input_executor import (
+            FaithfulHookGame, ProductionHarness, command_screen, store_screen,
+        )
+
+        deposited = item(
+            "n", TVAL_SWORD, 3, name="proven deposited sword",
+            known=True, fully_known=True, is_equipment=True,
+        )
+        entrance = self._entrance_snapshot([deposited], turn=2247460)
+        policy = HengbotPolicy()
+        policy._equipment_catalog.complete_home_scan(())
+        policy._calibration_phase = "deposit"
+        policy._shopping_approach_store_type = STORE_HOME
+        entry = policy.choose_key(entrance)
+        self.assertEqual((entry, policy.last_reason), ("5", "home:atomic-deposit"))
+
+        game = FaithfulHookGame()
+        home_state = ProductionHarness.store_state(2247461)
+        home_state["store"]["store_type"] = STORE_HOME
+        game.screens = [store_screen(), command_screen(2247462)]
+        game.states = [home_state, {"turn": 2247462, "grid_map": {"runs": []}}]
+        _game, _client, executor = ProductionHarness.make(self, game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        posted = set()
+        sent, _ = _send_new_decision_key(
+            port, "home-entrance", entry, None, posted, in_store=False,
+            decision={"sequence": 1, "reason": policy.last_reason},
+            snapshot=entrance, posting_contract=PostingContract(),
+        )
+        self.assertTrue(sent)
+        self.assertEqual(executor.ready_board["store"]["store_type"], STORE_HOME)
+
+        inside = self._snapshot([deposited], turn=2247461)
+        operation = policy.choose_key(inside)
+        self.assertEqual(operation, "dn\x1b")
+        sent, _ = _send_new_decision_key(
+            port, "home", operation, None, posted, in_store=True,
+            decision={"sequence": 2, "reason": policy.last_reason},
+            snapshot=inside, posting_contract=PostingContract(),
+        )
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["5", "dn\x1b"])
+
         incomplete = HengbotPolicy()
         incomplete._calibration_phase = "deposit"
         incomplete._shopping_approach_store_type = STORE_HOME
@@ -2838,10 +2884,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         outside = replace(entrance, turn=entrance.turn + 1)
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: failed atomic-withdrawal reporting is isolated from the downstream town decision
         policy._decide = Mock(return_value=WAIT_KEY)
-        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(policy.choose_key(outside), "4")
         self.assertEqual(
             policy.last_reason,
-            "home:atomic-withdraw-failed",
+            "town:entrance-step-off:home:atomic-withdraw-failed",
         )
         self.assertIsNone(policy._home_atomic_withdraw_pending)
         self.assertIn(signature, policy._deferred_home_items)

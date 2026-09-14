@@ -7393,7 +7393,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
         surface = replace(snap, store=None, turn=snap.turn + 1)
         entry = policy.choose_key(surface)
-        self.assertEqual(entry, "")
+        self.assertEqual(entry, "5")
         operation = policy.choose_key(replace(snap, turn=surface.turn + 1))
         key = entry + operation
         posted = []
@@ -7403,8 +7403,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             decision={"reason": policy.last_reason, "key": key},
         )
         self.assertTrue(sent)
-        self.assertEqual(key, "d0y\x1b")
-        state = "store"
+        self.assertEqual(key, "5d0y\x1b")
+        state = "surface"
         for character in posted:
             if state == "surface" and character == "5":
                 state = "store"
@@ -7428,7 +7428,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(state, "surface")
         self.assertEqual(applied.player.gold - snap.player.gold, 125)
         self.assertEqual(len(snap.inventory) - len(applied.inventory), 1)
-        self.assertEqual("".join(posted), "d0y\x1b")
+        self.assertEqual("".join(posted), "5d0y\x1b")
 
     def test_keeps_useful_devices(self):
         devices = [
@@ -11114,7 +11114,7 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         outside = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(pol.choose_key(outside), "")
+        self.assertEqual(pol.choose_key(outside), WAIT_KEY)
         posted = pol.choose_key(replace(inside, turn=inside.turn + 2))
 
         self.assertTrue(posted.startswith(BUY_KEY + "i"), posted)
@@ -11209,7 +11209,7 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         outside = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(pol.choose_key(outside), "")
+        self.assertEqual(pol.choose_key(outside), WAIT_KEY)
         visit = pol._store_visit
         self.assertIsNotNone(visit)
         posted = pol.choose_key(replace(inside, turn=inside.turn + 2))
@@ -14154,11 +14154,11 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
         self.assertFalse(any(key == LEAVE_STORE_KEY for key, _ in decisions))
         self.assertIn(
-            ("4", "town:entrance-step-off:home:atomic-deposit"), decisions
+            (WAIT_KEY, "home:atomic-deposit"), decisions
         )
         # E6 re-judgement: the arbiter exhausts the ineffective owner before
         # the legacy cycle detector needs to emit its marker.
-        self.assertNotIn(WAIT_KEY, [key for key, _ in decisions])
+        self.assertIn((WAIT_KEY, "town:blocked:owner-retired"), decisions)
         self.assertNotIn(
             (LEAVE_STORE_KEY, "home:atomic-withdraw-await-confirmation"),
             decisions,

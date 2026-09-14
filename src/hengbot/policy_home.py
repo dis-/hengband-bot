@@ -1989,6 +1989,7 @@ class HomeMixin:
         visit.posted_turn = snapshot.turn
         self._store_entry_wait_owner = STORE_HOME
         self._store_entry_wait_key = WAIT_KEY
+        self._intentional_entrance_activation = True
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_deposit_abandoned:

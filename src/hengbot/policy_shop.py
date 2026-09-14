@@ -3881,6 +3881,7 @@ class ShopMixin:
             self.last_reason = f"{travel_reason}:await-entry"
             self._store_entry_wait_owner = self._shopping_approach_store_type
             self._store_entry_wait_key = WAIT_KEY
+            self._intentional_entrance_activation = True
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._stage_shopping_approach_key(
@@ -4000,6 +4001,7 @@ class ShopMixin:
                 self._store_visit.posted_turn = snapshot.turn
                 self._store_entry_wait_owner = observed_store.store_type
                 self._store_entry_wait_key = key
+                self._intentional_entrance_activation = True
             self._shop_selector_diagnostics.pop("composition_refusal", None)
             self._shop_selector_diagnostics.pop(
                 "composition_refusal_sequence", None
