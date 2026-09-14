@@ -36,6 +36,7 @@ from hengbot.model import (
 )
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
+    HOME_CHARACTER_DUMP_MACRO,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     PACK_CAPACITY,
     STORE_STUCK_LIMIT,
@@ -636,6 +637,7 @@ class CalibrationMixin:
         )
         session = EquipmentTransactionSession(
             plan,
+            physical_context=("home" if snapshot.store is not None else "legacy"),
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
         )
         self._equipment_transaction_session = session
@@ -679,6 +681,7 @@ class CalibrationMixin:
         plan = EquipmentTransactionPlan(actions, (), len(snapshot.inventory))
         session = EquipmentTransactionSession(
             plan,
+            physical_context=("home" if snapshot.store is not None else "legacy"),
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
         )
         self._equipment_transaction_session = session
@@ -764,7 +767,9 @@ class CalibrationMixin:
                 # the phase: treat as interruption and restore.
                 self._abort_character_calibration(snapshot, "session-lost")
                 return
-        if phase == "capture" and snapshot.store is None:
+        if phase == "capture" and (
+            snapshot.store is None or snapshot.store.store_type == STORE_HOME
+        ):
             if not self._calibration_naked_dump_requested:
                 # The town key posts the naked `C` first; its characteristics
                 # and mutation set belong in the captured constants.
@@ -862,9 +867,10 @@ class CalibrationMixin:
 
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
+        in_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         if (
             not snapshot.in_town
-            or snapshot.store is not None
+            or (snapshot.store is not None and not in_home)
             or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
         ):
             return None
@@ -956,7 +962,7 @@ class CalibrationMixin:
                 # are outside any store, and no store leave is in flight, so
                 # the status-screen keys cannot land in a store command loop.
                 and self._store_leave_inflight is None
-                and not self._last_snapshot_was_store
+                and (in_home or not self._last_snapshot_was_store)
             ):
                 # The character is naked: post `C` so the capture records the
                 # characteristics table (permanent vulnerabilities,
@@ -966,7 +972,7 @@ class CalibrationMixin:
                 # confirm_key_posted owns the request.
                 self._calibration_naked_dump_prepared = True
                 self.last_reason = "calibration:request-naked-character"
-                return CHARACTER_DUMP_MACRO
+                return HOME_CHARACTER_DUMP_MACRO if in_home else CHARACTER_DUMP_MACRO
             self.last_reason = "calibration:await-capture"
             return WAIT_KEY
         return None

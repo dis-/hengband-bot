@@ -50,6 +50,8 @@ from hengbot.policy import (
 )
 from hengbot.policy_constants import (
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
+    HOME_CHARACTER_DUMP_MACRO,
+    HOME_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
@@ -1966,8 +1968,14 @@ def _send_new_decision_key(
     ):
         return SendResult.DESIGNED_WAIT, posted_line
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
+    home_modal = _home_modal_continuation(snapshot, key, owner)
     store_buy = _store_buy_continuations(key, owner)
-    if store_buy is not None and isinstance(send, _ExecutorInputPort):
+    if home_modal is not None and isinstance(send, _ExecutorInputPort):
+        prefix, continuations = home_modal
+        sent = send.submit_operation(
+            prefix, decision=decision, continuations=continuations
+        )
+    elif store_buy is not None and isinstance(send, _ExecutorInputPort):
         prefix, continuations = store_buy
         sent = send.submit_operation(
             prefix, decision=decision, continuations=continuations
@@ -1986,6 +1994,30 @@ def _send_new_decision_key(
         if recorder is not None:
             recorder.note_successfully_posted_key(key)
     return sent, posted_line
+
+
+def _home_modal_continuation(snapshot, key: str, owner: str):
+    """Split Home modal work at its visible boundary and return to STORE.
+
+    The one closing ESC belongs to the recognized nested viewer.  Completion
+    is the subsequently observed STORE board; no second, padded ESC is owned.
+    """
+    if (
+        snapshot is None
+        or snapshot.store is None
+        or snapshot.store.store_type != STORE_HOME
+    ):
+        return None
+    if key == HOME_KNOWLEDGE_MACRO:
+        return "~9", [Continuation(
+            frozenset({ScreenKind.FILE_VIEWER}), "\x1b", "home-inventory",
+            exact_feature=True,
+        )]
+    if key == HOME_CHARACTER_DUMP_MACRO:
+        return "C", [Continuation(
+            frozenset({ScreenKind.CHARACTER}), key[1:],
+        )]
+    return None
 
 
 _QUEST_ENTRY_QUESTIONS = (

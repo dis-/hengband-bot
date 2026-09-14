@@ -160,6 +160,8 @@ from hengbot.policy_constants import (
     BUY_CONFIRM_SUFFIX,
     CARDINAL_OFFSETS,
     CHARACTER_DUMP_MACRO,
+    HOME_CHARACTER_DUMP_MACRO,
+    HOME_KNOWLEDGE_MACRO,
     CHEST_COLLECT_BUDGET,
     CHEST_DISARM_BUDGET,
     CHEST_DISARM_KEY,
@@ -2784,6 +2786,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and (
+                not self._equipment_catalog.home_scan_complete
+                or self._home_knowledge_invalidated
+            )
+            and (
+                self._home_errand.needs_knowledge
+                or "home-scan-incomplete" in getattr(
+                    self._equipment_optimization_preparation, "blockers", ()
+                )
+            )
+            and not self._home_knowledge_scan_requested
+            and self._home_knowledge_scan_epoch is None
+            and self._equipment_transaction_session is None
+            and not self._calibration_active()
+            and not self._town_space_deposit_actionable(snapshot)
+        ):
+            self.last_reason = (
+                self._home_errand.reason("request-knowledge")
+                if self._home_errand.needs_knowledge
+                else "home:request-knowledge-scan"
+            )
+            return HOME_KNOWLEDGE_MACRO
+        if (
             snapshot.store is None
             and snapshot.in_town
             and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
@@ -4286,6 +4313,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for grid in (snapshot.grid_at(snapshot.player.position),)
                 if grid is not None
             )
+            and snapshot.player.hp >= snapshot.player.max_hp
+            and not any(monster.hostile for monster in snapshot.visible_monsters)
         ):
             return self._equipment_transaction_town_key(snapshot) or WAIT_KEY
         self._evaluate_cross_decision_latches(snapshot)
@@ -7415,12 +7444,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._store_entry_posted_owner = self._store_entry_wait_owner
             if key != self._equipment_transaction_prepared_key:
                 return True
-        if key == "~9\x1b\x1b":
+        if key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}:
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             self._home_knowledge_scan_epoch = self._town_visit_epoch
             return True
-        if key == CHARACTER_DUMP_MACRO and self._calibration_naked_dump_prepared:
+        if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO} and self._calibration_naked_dump_prepared:
             self._calibration_naked_dump_prepared = False
             self._calibration_naked_dump_requested = True
             self._calibration_naked_dump_inflight = True

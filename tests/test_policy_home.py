@@ -4145,6 +4145,48 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertNotEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "emergency:cornered-attack")
 
+    def test_home_transaction_admission_never_outranks_entrance_hostile(self):
+        worn = item(
+            "main_hand", TVAL_SWORD, 77, name="admission sword",
+            is_equipment=True, known=True, fully_known=True,
+        )
+        calm = replace(
+            self._entrance_snapshot([], turn=711), equipment=[worn]
+        )
+
+        def armed_policy():
+            policy = HengbotPolicy()
+            seed_character_calibration(policy, calm)
+            action = policy_module.EquipmentTransaction(
+                policy_module.PHASE_EQUIP, "takeoff", "equipped:admission:0",
+                "main_hand", policy_module.equipment_identity(worn),
+            )
+            policy._equipment_transaction_session = (
+                policy_module.EquipmentTransactionSession(
+                    policy_module.EquipmentTransactionPlan((action,), (), 1),
+                    physical_context="home",
+                )
+            )
+            return policy
+
+        calm_policy = armed_policy()
+        calm_key = calm_policy.choose_key(calm)
+        self.assertEqual(
+            (calm_key, calm_policy.last_reason),
+            ("5", "equipment-transaction:travel-home:await-entry"),
+        )
+
+        threatened = replace(
+            calm,
+            visible_monsters=[hostile(
+                1, 45, 122, max_melee_damage=calm.player.max_hp
+            )],
+        )
+        threat_policy = armed_policy()
+        threat_key = threat_policy.choose_key(threatened)
+        self.assertNotEqual(threat_key, calm_key)
+        self.assertEqual(threat_policy.last_reason, "emergency:cornered-attack")
+
     def test_pending_withdraw_hold_is_legitimate_town_progress(self):
         policy = HengbotPolicy()
         entrance = self._entrance_snapshot([], turn=720)

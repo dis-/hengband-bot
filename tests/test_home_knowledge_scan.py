@@ -13,6 +13,7 @@ from hengbot.cli import (
     _decision_record,
     _dispatch_response_lines,
     _newest_snapshot,
+    _home_modal_continuation,
 )
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
@@ -21,6 +22,8 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
+from hengbot.input_executor import ScreenKind
 from hengbot.home_entry_capture import STATE_FIELDS
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from policy_fixtures import store_item
@@ -109,6 +112,32 @@ def home_response() -> dict:
         },
         "player": {"position": {"y": 10, "x": 10}},
     }
+
+
+class HomeOwnedModalTest(unittest.TestCase):
+    def test_home_knowledge_has_one_viewer_close_and_store_terminal(self):
+        policy = HengbotPolicy()
+        policy._home_errand.file(
+            HomeErrandRequest(("wanted", 23, 17), 1, "test", "weapon"),
+            knowledge_current=False,
+        )
+        inside = replace(
+            town_with_home(),
+            store=StoreState(STORE_HOME, [store_item("a", 23, 17)]),
+        )
+
+        key = policy.choose_key(inside)
+
+        self.assertEqual(key, HOME_KNOWLEDGE_MACRO)
+        self.assertEqual(key.count("\x1b"), 1)
+        prefix, continuations = _home_modal_continuation(
+            inside, key, policy.last_reason
+        )
+        self.assertEqual(prefix, "~9")
+        self.assertEqual(len(continuations), 1)
+        self.assertEqual(continuations[0].kinds, frozenset({ScreenKind.FILE_VIEWER}))
+        self.assertEqual(continuations[0].keys, "\x1b")
+        self.assertEqual(continuations[0].feature, "home-inventory")
 
 
 def board_response(snapshot: Snapshot) -> dict:

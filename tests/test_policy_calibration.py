@@ -373,6 +373,33 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self.assertNotIn("calibration-required", preparation.blockers)
             self.assertIsNone(policy._calibration_phase)
 
+    def test_in_home_strip_and_character_capture_remain_home_owned(self):
+        policy = self._scan_complete_policy()
+        sword = item(
+            "main_hand", 23, 4, name="long sword", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        inside = self._snapshot(
+            equipment=(sword,), store=StoreState(STORE_HOME, [])
+        )
+        policy._begin_character_calibration(inside)
+
+        self.assertEqual(policy._calibration_town_key(inside), "5")
+        session = policy._equipment_transaction_session
+        self.assertEqual(session.required_context, "home")
+
+        policy._equipment_transaction_session = None
+        policy._calibration_phase = "capture"
+        policy._calibration_naked_dump_prepared = False
+        key = policy._calibration_town_key(
+            self._snapshot(
+                inventory=(replace(sword, slot="a"),),
+                store=StoreState(STORE_HOME, []),
+            )
+        )
+        self.assertEqual(key, policy_module.HOME_CHARACTER_DUMP_MACRO)
+        self.assertEqual(key.count("\x1b"), 1)
+
     def test_foreign_equipment_errand_defers_calibration_redress(self):
         policy = self._scan_complete_policy()
         snapshot = self._snapshot()
