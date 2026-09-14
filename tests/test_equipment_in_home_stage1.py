@@ -1,8 +1,12 @@
 import json
 import unittest
+import copy
 from pathlib import Path
 
-from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest
+from hengbot.control_client import ControlClient
+from hengbot.input_executor import Operation, OperationExecutor
+from hengbot.model import parse_snapshot
+from hengbot.policy import HengbotPolicy
 from tests.support.faithful_home import FaithfulHomeGame
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,49 +48,156 @@ class EquipmentInHomeArtifactFacts(unittest.TestCase):
 
 
 class EquipmentInHomeBehaviorPins(unittest.TestCase):
-    def _visit(self):
-        visit = HomeVisitExecutor(3)
-        visit.file(HomeVisitRequest(HomeVisitKind.EQUIPMENT_MUTATION, "equipment-transaction", ("target",)))
-        visit.begin_approach(1); visit.post_entry(1); visit.observe_inside("page", 2)
-        return visit
+    """Public behavior pins; every mutation is downstream of accepted bytes."""
 
-    @unittest.expectedFailure  # Stage 2 must remove: H1 persistent public visit.
+    def _recorded_game(self, *, inside=True, pack=None, equipment=None, pages=None,
+                       pack_limit=23, home_limit=80):
+        raw = copy.deepcopy(json.loads(CAPTURE.read_text(encoding="utf-8"))["state"]["result"])
+        raw["turn"] = 2867154
+        raw["nearby_grids"] = [{
+            "y": raw["player"]["y"], "x": raw["player"]["x"], "known": True,
+            "terrain": {"passable": True}, "store_number": 7,
+        }]
+        return FaithfulHomeGame(
+            pack=raw["inventory"] if pack is None else pack,
+            equipment={item["slot"]: item for item in raw["equipment"]}
+            if equipment is None else equipment,
+            pages=pages or [[]], pack_limit=pack_limit, home_limit=home_limit,
+            inside=inside, state_template=raw,
+        )
+
+    def _drive(self, game, decisions=1):
+        client = ControlClient(1, request_budget=2, retries=1, backoff=0,
+                               socket_factory=game.socket_factory)
+        self.addCleanup(client.close)
+        # Source emitter writes the bound STORE record before the next command
+        # wait; the drain supplies that independent JSONL consumer channel.
+        executor = OperationExecutor(client, drain=lambda: [game._state()])
+        policy = HengbotPolicy()
+        result = executor.observe_boundary(deadline=9999999999)
+        reasons = []
+        for sequence in range(decisions):
+            if result.outcome not in ("ready", "completed"):
+                break
+            snapshot = parse_snapshot(result.board, {})
+            policy.prime(snapshot)
+            key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            result = executor.submit(
+                Operation(sequence, f"policy:{policy.last_reason}", key, result.board),
+                deadline=9999999999,
+            )
+            if result.outcome == "completed":
+                policy.confirm_key_posted(key)
+        return policy, result, reasons
+
+    @staticmethod
+    def _accepted(game):
+        return [entry[1] for entry in game.trace
+                if isinstance(entry, tuple) and entry[0] == "accepted"]
+
+    @unittest.expectedFailure  # Stage 3 must remove: H1 one physical visit.
     def test_h1_incident_finishes_with_one_exit_and_zero_reentries(self):
-        visit = self._visit(); self.assertTrue(visit.record_operation("takeoff", ("old",), 2)); self.assertTrue(visit.record_operation("wear", ("target",), 3))
+        # Public counterfactual starts outside at the recorded town-0 position.
+        # The missing STORE stock is source-derived by the fake; optimization
+        # and routing are produced normally by one persistent HengbotPolicy.
+        game = self._recorded_game(inside=False)
+        _policy, _result, reasons = self._drive(game, 12)
+        self.assertEqual(
+            (game.entries, game.reentries, game.exits), (1, 0, 1),
+            (game.trace, reasons),
+        )
 
     @unittest.expectedFailure  # Stage 4 must remove: H2 prompt-owned ring suffix.
     def test_h2_pack_letter_is_not_store_letter_and_ring_suffix_is_prompt_owned(self):
-        self.assertEqual(getattr(self._visit(), "prompt_owned_ring_suffix", None), True)
+        game = self._recorded_game(pages=[[{"id": "shelf-a", "name": "shelf decoy"}]])
+        _policy, _result, reasons = self._drive(game, 3)
+        accepted = self._accepted(game)
+        rings = tuple(sorted((slot, item["name"]) for slot, item in game.equipment.items() if "ring" in slot))
+        self.assertTrue(any(key.startswith("w") and len(key) > 2 for key in accepted), (accepted, rings, reasons))
 
     @unittest.expectedFailure  # Stage 4 must remove: H3 full two-hand reconciliation.
     def test_h3_weapon_switch_confirms_both_hands(self):
-        self.assertEqual(getattr(self._visit(), "confirmed_hand_slots", ()), ("main_hand", "sub_hand"))
+        before = self._recorded_game().equipment
+        game = self._recorded_game()
+        _policy, _result, reasons = self._drive(game, 3)
+        pair = tuple(game.equipment.get(slot, {}).get("name") for slot in ("main_hand", "sub_hand"))
+        target = tuple(before.get(slot, {}).get("name") for slot in ("sub_hand", "main_hand"))
+        self.assertEqual(pair, target, (game.trace, reasons))
 
     @unittest.expectedFailure  # Stage 4 must remove: H4 curse refusal outcome.
     def test_h4_curse_more_refusal_is_terminal_without_repost(self):
-        self.assertEqual(getattr(self._visit(), "operation_outcome", None), "curse-refused")
+        game = self._recorded_game()
+        before = copy.deepcopy(game.equipment)
+        _policy, result, reasons = self._drive(game, 4)
+        accepted = self._accepted(game)
+        self.assertTrue(result.outcome == "stuck-prompt" and game.equipment == before
+                        and sum(key.startswith("w") for key in accepted) == 1
+                        and any("curse" in reason for reason in reasons),
+                        (result.outcome, accepted, reasons))
 
     @unittest.expectedFailure  # Stage 2 must remove: H5 implicit shelving confirmation.
     def test_h5_takeoff_accepts_source_proven_home_overflow_destination(self):
-        self.assertIn("home", getattr(self._visit(), "confirmation_destinations", ()))
+        game = self._recorded_game(pack_limit=19)
+        worn = game.equipment["outer"]
+        _policy, _result, reasons = self._drive(game, 3)
+        self.assertTrue(game.inside and "outer" not in game.equipment
+                        and any(item["name"] == worn["name"] for page in game.pages for item in page),
+                        (game.trace, reasons))
 
     @unittest.expectedFailure  # Stage 2 must remove: H6 full refusal/rebind result.
     def test_h6_home_full_is_no_effect_and_invalidates_stale_address(self):
-        self.assertEqual(getattr(self._visit(), "operation_outcome", None), "home-full")
+        game = self._recorded_game(pages=[[{"id": "only", "name": "only slot"}]], home_limit=1)
+        before = copy.deepcopy(game.pack)
+        _policy, result, reasons = self._drive(game, 4)
+        deposits = [value for value in self._accepted(game) if value.startswith("d")]
+        self.assertTrue(game.pack == before and len(deposits) == 1 and result.outcome == "stuck-prompt",
+                        (deposits, result.outcome, reasons))
 
     @unittest.expectedFailure  # Stage 4 must remove: H7 in-Home calibration lifecycle.
     def test_h7_calibration_strip_capture_restore_and_rearm_stays_inside(self):
-        self.assertTrue(getattr(self._visit(), "calibration_completed_inside", False))
+        game = self._recorded_game()
+        before = sorted((slot, item["name"]) for slot, item in game.equipment.items())
+        _policy, _result, reasons = self._drive(game, 8)
+        accepted = self._accepted(game)
+        after = sorted((slot, item["name"]) for slot, item in game.equipment.items())
+        self.assertTrue(any("C" in key for key in accepted) and before == after
+                        and game.entries == 1 and game.exits == 0, (accepted, reasons))
 
     @unittest.expectedFailure  # Stage 4 must remove: H8 owned viewer settlement.
     def test_h8_owned_knowledge_viewer_settles_once_or_stops_unknown_modal(self):
-        self.assertEqual(getattr(self._visit(), "knowledge_settlements", 0), 1)
+        game = self._recorded_game(pages=[[], [{"id": "page-b", "name": "page b"}]])
+        _policy, result, reasons = self._drive(game, 5)
+        scans = [value for value in self._accepted(game) if value.startswith("~9")]
+        self.assertTrue(len(scans) == 1 and (game.inside or result.outcome == "stuck-prompt"),
+                        (scans, game.inside, result.outcome, reasons))
 
     @unittest.expectedFailure  # Stage 4 must remove: H9 operation-boundary priority.
     def test_h9_known_surplus_precedes_unknown_identification_and_ammo_topup(self):
-        self.assertEqual(getattr(self._visit(), "next_operation", None), "deposit-known-surplus")
+        game = self._recorded_game(pack_limit=19)
+        _policy, _result, reasons = self._drive(game, 2)
+        accepted = self._accepted(game)
+        self.assertTrue(accepted and accepted[0].startswith("d"), (accepted, reasons))
 
     @unittest.expectedFailure  # Stage 3 must remove: H10 entry WAIT and lifecycle.
     def test_h10_completed_operations_continue_visit_without_attempt_reset(self):
-        visit = self._visit(); before = visit.attempts_used; visit.record_operation("take", ("target",), 2)
-        self.assertEqual(visit.state.value, "inside"); self.assertEqual(visit.attempts_used, before)
+        game = self._recorded_game(inside=False)
+        _policy, _result, reasons = self._drive(game, 8)
+        accepted = self._accepted(game)
+        self.assertTrue(accepted and accepted[0] == "5" and game.entries == 1
+                        and game.exits == 1 and accepted[-1] != "5", (accepted, reasons))
+
+    def test_behavior_pins_do_not_assert_defaulted_policy_or_visit_attributes(self):
+        source = Path(__file__).read_text(encoding="utf-8")
+        forbidden = "get" + "attr("
+        self.assertNotIn(forbidden, source)
+        # Also prove the ACK/consumption causal seam so this is not a
+        # source-text-only acceptance test.  ACK queues; the screen hook acts.
+        item = {"name": "record-shaped cloak", "slot": "outer"}
+        game = FaithfulHomeGame(pack=[], equipment={"outer": item})
+        ack = game.request({"id": 1, "op": "keys", "keys": "ta"})
+        self.assertTrue(ack["ok"])
+        self.assertIn("outer", game.equipment)
+        game.request({"id": 2, "op": "screen"})
+        self.assertNotIn("outer", game.equipment)
+        self.assertEqual(game.pack, [item])
