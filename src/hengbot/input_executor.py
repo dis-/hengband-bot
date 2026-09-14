@@ -127,9 +127,9 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     found = _suffix_match(row0, ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]"))
     if found:
         return ScreenMatch(ScreenKind.CONFIRM, row0, 0, found[1])
-    # cmd-visual/cmd-draw.cpp:112 calls input_string("File name: ", ...),
-    # which core/asking-player.cpp:174-188 renders on row zero.
-    if row0.startswith(("File name: ", "繝輔ぃ繧､繝ｫ蜷・ ")):
+    # cmd-visual/cmd-draw.cpp:112 calls input_string("ファイル名: ", "File name: "),
+    # which core/asking-player.cpp:182-188 renders with the default on row zero.
+    if row0.startswith(("ファイル名: ", "File name: ")):
         return ScreenMatch(ScreenKind.FILE_NAME, row0, 0, 0)
     # core/asking-player.cpp:343-351. The editable default follows the colon.
     if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0) or \
@@ -262,6 +262,7 @@ class Continuation:
     feature: str | tuple[str, ...] | None = None
     exact_feature: bool = False
     optional: bool = False
+    feature_pattern: bool = False
 
 
 @dataclass
@@ -621,7 +622,8 @@ class OperationExecutor:
                 else (continuation.feature,)
             )
             feature_matches = continuation.feature is None or any(
-                match.feature == feature
+                (continuation.feature_pattern and re.fullmatch(feature, match.feature) is not None)
+                or match.feature == feature
                 or (
                     not continuation.exact_feature
                     and match.feature.rstrip().endswith(feature.rstrip())

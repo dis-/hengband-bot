@@ -44,7 +44,8 @@ class _Socket:
 class FaithfulHomeGame:
     """Small Home interpreter: prompts consume tails; effects follow commands."""
     def __init__(self, *, pack=None, equipment=None, pages=None, pack_limit=23,
-                 home_limit=80, inside=True, state_template=None):
+                 home_limit=80, inside=True, state_template=None,
+                 dump_exists=False, dump_language="en", overwrite_question=None):
         self.pack = list(pack or [])
         self.equipment = dict(equipment or {})
         self.pages = [list(p) for p in (pages or [[]])]
@@ -61,6 +62,9 @@ class FaithfulHomeGame:
         self.turn = 1
         self.message = ""
         self.modal = None
+        self.dump_exists = dump_exists
+        self.dump_language = dump_language
+        self.overwrite_question = overwrite_question
 
     def socket_factory(self, *args, **kwargs): return _Socket(self)
     @staticmethod
@@ -97,8 +101,22 @@ class FaithfulHomeGame:
             if self.modal == "home-viewer":
                 if key == "\x1b": self.modal = "knowledge-menu"
                 continue
+            if self.modal == "character":
+                if key == "f": self.modal = "file-name"
+                elif key == "\x1b": self.modal = None
+                continue
+            if self.modal == "file-name":
+                if key == "\r":
+                    self.modal = "overwrite" if self.dump_exists else "character"
+                continue
+            if self.modal == "overwrite":
+                if key == "y": self.modal = "character"
+                continue
             if key == "~" and self.inside:
                 self.modal = "knowledge-menu"
+                continue
+            if key == "C" and self.inside:
+                self.modal = "character"
                 continue
             if self.pending:
                 kind = self.pending
@@ -203,6 +221,17 @@ class FaithfulHomeGame:
                 result = _screen("", False)
                 result["lines"][0] = "[Home Inventory, Line 1/1]"
                 result["lines"][-1] = "[Press ESC to exit.]"
+            elif self.modal == "character":
+                result = _screen("", False)
+                result["lines"][22] = "['c' to change name, 'f' to file, 'h' to change mode, or ESC]"
+            elif self.modal == "file-name":
+                prompt = "ファイル名: hero.txt" if self.dump_language == "jp" else "File name: hero.txt"
+                result = _screen(prompt, False)
+            elif self.modal == "overwrite":
+                default = ("現存するファイル C:\\save\\hero.txt に上書きしますか? [y/n]"
+                           if self.dump_language == "jp" else
+                           "Replace existing file C:\\save\\hero.txt? [y/n]")
+                result = _screen(self.overwrite_question or default, False)
             else:
                 result = _screen(prompt, self.inside, self.pages[self.page] if self.inside else ())
         else: result = self._state()

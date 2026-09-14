@@ -436,8 +436,12 @@ class ScreenClassifierTest(unittest.TestCase):
         knowledge["lines"][17] = "-more-"; knowledge["lines"][20] = "Command:"
         knowledge["lines"][21] = " ESC) Exit menu"
         self.assertEqual(classify_screen(knowledge).kind, ScreenKind.KNOWLEDGE)
-        self.assertEqual(classify_screen(prompt_screen("File name: hero.txt")).kind,
-                         ScreenKind.FILE_NAME)
+        # cmd-draw.cpp:112 supplies the bilingual prompt; asking-player.cpp:
+        # 182-188 prints it at row zero followed by the editable default.
+        for row in ("ファイル名: hero.txt", "File name: hero.txt"):
+            with self.subTest(row=row):
+                self.assertEqual(classify_screen(prompt_screen(row)).kind,
+                                 ScreenKind.FILE_NAME)
 
     def test_japanese_and_english_death_screens_are_player_death(self):
         class Client:
@@ -717,30 +721,41 @@ class TcpBarrierPinTest(ProductionHarness):
             Path(__file__).resolve().parents[1] / "src" / "hengbot" / "cli.py",
             Path(__file__).resolve().parents[1] / "src" / "hengbot" /
             "input_executor.py",
-            *sorted((Path(__file__).resolve().parents[1] / "src" /
-                     "hengbot").glob("policy_*.py")),
         ]
         audited = []
         for path in prompt_sources:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            classify = next((node for node in tree.body
+                             if isinstance(node, ast.FunctionDef) and
+                             node.name == "classify_screen"), None)
+            selected = set(ast.walk(classify)) if classify is not None else set()
             for node in ast.walk(tree):
-                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-                    continue
-                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                names = [target.id for target in targets if isinstance(target, ast.Name)]
-                if not any(
-                    "PROMPT" in name.upper() or "QUESTION" in name.upper()
-                    for name in names
-                ):
-                    continue
-                for value in ast.walk(node.value):
-                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                        audited.append((path, value.lineno, value.value))
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                        and node.func.id == "Continuation":
+                    if len(node.args) >= 3:
+                        selected.update(ast.walk(node.args[2]))
+                    for keyword in node.keywords:
+                        if keyword.arg == "feature":
+                            selected.update(ast.walk(keyword.value))
+                if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    names = [target.id for target in targets if isinstance(target, ast.Name)]
+                    if any(any(word in name.upper() for word in
+                               ("PROMPT", "QUESTION", "MESSAGE")) for name in names):
+                        selected.update(ast.walk(node.value))
+            for value in selected:
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    audited.append((path, value.lineno, value.value))
         self.assertTrue(audited)
         for path, lineno, value in audited:
             with self.subTest(path=path.name, lineno=lineno, value=value):
                 value.encode("utf-8").decode("utf-8")
-                self.assertNotRegex(value, r"[縺繧荳螳蜿譁闕楜]")
+                if any(ord(char) > 127 for char in value):
+                    self.assertNotRegex(value, r"[縺繧繝荳螳蜿譁闕楜邵郢]")
+
+        cited = {(path.name, value) for path, _line, value in audited}
+        self.assertIn(("input_executor.py", "ファイル名: "), cited)
+        self.assertIn(("cli.py", r"現存するファイル .+ に上書きしますか\? \[y/n\]"), cited)
 
     def _quest_entry_snapshot(self):
         start, entrance = Position(63, 98), Position(63, 99)

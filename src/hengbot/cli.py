@@ -2016,9 +2016,13 @@ def _home_modal_continuation(snapshot, key: str, owner: str):
         return "C", [
             Continuation(frozenset({ScreenKind.CHARACTER}), "f"),
             Continuation(frozenset({ScreenKind.FILE_NAME}), "\r"),
-            # files-util.cpp:65-73 asks only when the default file exists.
+            # files-util.cpp:65-73 and asking-player.cpp:226-246: only the path
+            # may vary in these complete rendered questions, and the question
+            # is absent when the default file does not exist.
             Continuation(frozenset({ScreenKind.CONFIRM}), "y",
-                         ("[y/n]", "[Y/n]"), optional=True),
+                         (r"現存するファイル .+ に上書きしますか\? \[y/n\]",
+                          r"Replace existing file .+\? \[y/n\]"),
+                         optional=True, feature_pattern=True),
             # files-util.cpp:88-101 reports status via msg_print/msg_erase;
             # OperationExecutor owns MORE, then this closes cmd-draw.cpp:143.
             Continuation(frozenset({ScreenKind.CHARACTER}), "\x1b"),

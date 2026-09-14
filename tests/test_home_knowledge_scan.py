@@ -133,6 +133,38 @@ class HomeOwnedModalTest(unittest.TestCase):
             ],
         )
 
+    def test_home_character_dump_existing_file_answers_exact_overwrite_once(self):
+        for language in ("en", "jp"):
+            with self.subTest(language=language):
+                self._drive_character_dump(
+                    FaithfulHomeGame(dump_exists=True, dump_language=language),
+                    "completed", ["C", "f", "\r", "y", "\x1b"])
+
+    def test_home_character_dump_absent_file_posts_no_yes(self):
+        self._drive_character_dump(FaithfulHomeGame(dump_exists=False), "completed",
+                                   ["C", "f", "\r", "\x1b"])
+
+    def test_home_character_dump_unrelated_question_stops_without_yes(self):
+        game = FaithfulHomeGame(dump_exists=True,
+                                overwrite_question="Delete every save? [y/n]")
+        self._drive_character_dump(game, "stuck-prompt", ["C", "f", "\r"])
+
+    def _drive_character_dump(self, game, outcome, trace):
+        client = ControlClient(1, request_budget=2, retries=1, backoff=0,
+                               socket_factory=game.socket_factory)
+        self.addCleanup(client.close)
+        executor = OperationExecutor(client, drain=lambda: [game._state()])
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
+        prefix, continuations = _home_modal_continuation(
+            inside, HOME_CHARACTER_DUMP_MACRO, "calibration:capture")
+        result = executor.submit(Operation(
+            1, "calibration:capture", prefix, executor.ready_board, continuations),
+            deadline=9999999999)
+        self.assertEqual(result.outcome, outcome)
+        self.assertEqual([entry for entry in game.trace if isinstance(entry, str)], trace)
+
     def test_home_knowledge_has_one_viewer_close_and_store_terminal(self):
         policy = HengbotPolicy()
         policy._home_errand.file(
