@@ -8,6 +8,7 @@ from hengbot.town_arbiter import _new_town_turn_arbiter
 from math import ceil
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.purchase_rungs import (
@@ -1767,7 +1768,7 @@ class ShopMixin:
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         launcher = self._equipped_launcher(snapshot)
-        add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET, lambda i: launcher is not None and i.tval == launcher.ammo_tval, current=lambda: self._count_matching_ammo(snapshot), target=lambda: AMMO_CARRY_TARGET))
+        add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET, lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: AMMO_CARRY_TARGET))
         add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
         add(rung("curse:normal", "remove-curse", lambda: self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE}))
         add(rung("curse:star-reserve", "star-remove-curse", lambda: self._has_unremovable_curse_target(snapshot) or self._star_remove_curse_reserve_purchase_needed(snapshot), lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_REMOVE_CURSE))
@@ -1777,6 +1778,30 @@ class ShopMixin:
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
         context = PurchaseContext(snapshot)
         return tuple(match for rung in self._purchase_rungs(context) if (match := rung.match(context, item)) is not None)
+
+    def _ammo_purchase_preserves_plan(self, snapshot: Snapshot, item: StoreItem) -> bool:
+        launcher = self._equipped_launcher(snapshot)
+        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        if launcher is None or item.tval != launcher.ammo_tval:
+            return False
+        if plan.plain_slot is None:
+            return len(plan.kept_slots) < 2 and len(snapshot.inventory) < PACK_CAPACITY
+        plain = next(it for it in snapshot.inventory if it.slot == plan.plain_slot)
+        return self._store_item_stacks_with_inventory(plain, item)
+
+    @staticmethod
+    def _store_item_stacks_with_inventory(pack: InventoryItem, item: StoreItem) -> bool:
+        fields = (
+            "tval", "sval", "aware", "known", "fully_known", "pval",
+            "fuel", "timeout", "is_ego", "is_artifact", "is_cursed",
+            "is_broken", "to_h", "to_d", "to_a", "ac",
+            "damage_dice_num", "damage_dice_sides", "known_flags",
+        )
+        defaults = {"known_flags": frozenset()}
+        return all(
+            getattr(pack, field) == getattr(item, field, defaults.get(field, 0))
+            for field in fields
+        ) and (not pack.inscription or pack.inscription == item.inscription)
 
     def _item_matches_purchase_rung(self, snapshot: Snapshot, item) -> bool:
         return bool(self._matching_live_purchase_rungs(snapshot, item))
@@ -2191,7 +2216,10 @@ class ShopMixin:
                 (
                     it
                     for it in store.items
-                    if it.tval == launcher.ammo_tval and it.price <= gold
+                    if it.tval == launcher.ammo_tval
+                    and is_plain_store_ammo(it)
+                    and self._ammo_purchase_preserves_plan(snapshot, it)
+                    and it.price <= gold
                 ),
                 None,
             )

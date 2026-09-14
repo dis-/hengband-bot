@@ -21,6 +21,7 @@ from hengbot.latch_onset_capture import (
 
 from hengbot.town_maps import TownMap
 from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.ammo_carry import ammo_carry_plan
 from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import (
@@ -101,7 +102,6 @@ from hengbot.policy_types import (
 from hengbot.policy_constants import (
     ADJ_STR_WEIGHT_LIMIT,
     AMMO_CARRY_TARGET,
-    AMMO_CARRY_STACK_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
     DESTRUCTION_GATE_DEPTH,
@@ -5890,11 +5890,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _count_matching_ammo(self, snapshot: Snapshot) -> int:
         launcher = self._equipped_launcher(snapshot)
-        if launcher is None:
-            return 0
-        return sum(
-            it.count for it in snapshot.inventory if it.tval == launcher.ammo_tval
-        )
+        return ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET).carried_count
 
 
 

@@ -13187,7 +13187,10 @@ class RangedAttackTest(unittest.TestCase):
             [], floor_key=(0, 0, 0), town_flag=True,
             inventory=[
                 *self._strict_supplies_for_ammo(),
-                item("a", TVAL_ARROW, 1, name="arrows", count=3),
+                item(
+                    "a", TVAL_ARROW, 1, name="arrows", count=3,
+                    fully_known=True,
+                ),
             ],
             equipment=[
                 item("b", TVAL_BOW, SV_BOW_SHORT, name="short bow", is_equipment=True),

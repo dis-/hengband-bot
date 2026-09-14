@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hengbot.ammo_carry import ammo_carry_plan
+
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
@@ -414,70 +416,9 @@ class HomeMixin:
         ):
             return baseline
 
-        matching = [
-            candidate for candidate in snapshot.inventory
-            if candidate.tval == launcher.ammo_tval and candidate.count > 0
-        ]
-        def ammo_damage(candidate: InventoryItem) -> float:
-            average = (
-                candidate.damage_dice_num * (candidate.damage_dice_sides + 1) / 2
-                if candidate.damage_dice_num > 0 and candidate.damage_dice_sides > 0
-                else 0.0
-            )
-            return average + candidate.to_d
-
-        strategy = self._carry_procurement_strategy(snapshot)
-        if strategy is not None:
-            status = self._quest_carry_status(snapshot, strategy.required_force)
-            ammo_status = status.get("throwing_items.launcher_ammo")
-            damage_status = status.get("launcher.average_damage")
-            if ammo_status is not None and damage_status is not None:
-                required = int(ammo_status["required"])
-                minimum_damage = float(damage_status["required"])
-                first_fired = matching[0] if matching else None
-                first_average = self._quest_launcher_average_damage(
-                    snapshot, launcher, require_carried_ammo=True
-                )
-                excluded_slot = (
-                    first_fired.slot
-                    if first_fired is not None and first_average < minimum_damage
-                    else None
-                )
-                pack_order = {
-                    candidate.slot: index for index, candidate in enumerate(matching)
-                }
-                ranked = sorted(
-                    (
-                        candidate for candidate in matching
-                        if candidate.slot != excluded_slot
-                    ),
-                    key=lambda candidate: (
-                        -ammo_damage(candidate), pack_order[candidate.slot]
-                    ),
-                )
-                remaining = required
-                reservations: dict[str, int] = {}
-                for candidate in ranked:
-                    reservation = min(candidate.count, max(0, remaining))
-                    reservations[candidate.slot] = reservation
-                    remaining -= reservation
-                reservation = reservations.get(item.slot, 0)
-                return (
-                    reservation,
-                    "carry-strategy:launcher_ammo" if reservation > 0 else None,
-                )
-
-        ranked = sorted(
-            matching,
-            key=lambda candidate: (ammo_damage(candidate), candidate.slot),
-        )
-        if not ranked or ammo_damage(ranked[0]) >= ammo_damage(ranked[-1]):
-            return baseline
-        return (
-            (0, None)
-            if ranked[0] is item
-            else (item.count, "ammo:retained-better")
-        )
+        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        reservation = plan.reservation(item.slot)
+        return reservation, "ammo:carry-plan" if reservation > 0 else None
 
     def _retention_reservation_baseline_detail(
         self, snapshot: Snapshot, item: InventoryItem

@@ -143,6 +143,7 @@ from hengbot.quest_knowledge import (
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
+from hengbot.ammo_carry import ammo_carry_plan
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.equipment_mutation import progress_core
@@ -477,7 +478,7 @@ class WeightOverloadTownTest(unittest.TestCase):
             },
         )
 
-    def test_matches_game_weight_limit_and_preserves_one_ammo_stack(self):
+    def test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo(self):
         snapshot = self._snapshot()
         policy = HengbotPolicy(
             quest_strategies=load_quest_strategies(Path("strategy/quests"))
@@ -488,7 +489,7 @@ class WeightOverloadTownTest(unittest.TestCase):
         self.assertTrue(policy._inventory_overweight(snapshot))
         self.assertEqual(
             [policy._retention_reservation(snapshot, item) for item in snapshot.inventory[1:4]],
-            [99, 0, 0],
+            [72, 0, 27],
         )
         self.assertEqual(
             policy.approved_quest_strategy(31).required_force["throwing_items"]["launcher_ammo"],
@@ -1111,7 +1112,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._find_home_deposit(snap), torches)
         self.assertEqual(policy._home_deposit_key(snap, torches), "dj10\r")
 
-    def test_matching_ammo_is_limited_to_two_dense_pack_stacks(self):
+    def test_matching_ammo_keeps_plain_and_single_highest_power_stack(self):
         sling = item(
             "bow", TVAL_BOW, SV_BOW_SLING,
             name="Sling", is_equipment=True,
@@ -1131,10 +1132,43 @@ class RetentionAuthorityTest(unittest.TestCase):
 
         self.assertEqual(
             [policy._retention_reservation(snap, shot) for shot in shots],
-            [0, 51, 3, 3, 6, 6],
+            [14, 0, 0, 0, 6, 0],
         )
-        self.assertEqual(policy._find_home_deposit(snap), shots[0])
-        self.assertEqual(policy._home_deposit_key(snap, shots[0]), "dm14\r")
+        self.assertEqual(policy._find_home_deposit(snap), shots[1])
+
+    def test_recorded_turn_2866604_plan_keeps_q_and_w_totalling_28(self):
+        capture = json.loads(Path(
+            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
+        ).read_text(encoding="utf-8"))
+        snap = parse_snapshot(capture["state"]["result"])
+        policy = HengbotPolicy()
+        launcher = policy._equipped_launcher(snap)
+
+        plan = ammo_carry_plan(snap, launcher, 99)
+
+        self.assertEqual(snap.turn, 2866604)
+        self.assertEqual((plan.plain_slot, plan.power_slot), ("q", "w"))
+        self.assertEqual(dict(plan.reservations), {"w": 18, "q": 10})
+        self.assertEqual(policy._count_matching_ammo(snap), 28)
+        self.assertEqual(
+            [
+                item.slot for item in snap.inventory
+                if item.tval == TVAL_BOLT
+                and policy._retention_surplus(snap, item) > 0
+            ],
+            ["r", "s", "t", "u", "v"],
+        )
+
+    def test_highest_power_plain_collapses_to_one_stack(self):
+        sling = item("bow", TVAL_BOW, SV_BOW_SLING, is_equipment=True)
+        plain = item("m", TVAL_SHOT, 1, count=99, name="plain")
+        weaker = item("n", TVAL_SHOT, 1, count=20, to_d=-1, name="weak")
+        snap = self._town([plain, weaker], equipment=[sling])
+
+        plan = ammo_carry_plan(snap, sling, 99)
+
+        self.assertEqual(plan.kept_slots, frozenset({"m"}))
+        self.assertEqual(plan.carried_count, 99)
 
     def test_quest_ammo_target_does_not_reopen_a_third_pack_slot(self):
         sling = item(
@@ -1157,7 +1191,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             self.assertEqual(
                 [policy._retention_reservation(snap, shot) for shot in shots],
-                [0, 50, 30],
+                [69, 0, 30],
             )
 
     def test_inferior_crossbow_system_is_deposited_when_sling_is_selected(self):

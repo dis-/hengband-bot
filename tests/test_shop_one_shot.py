@@ -21,6 +21,7 @@ from hengbot.model import (
     SV_SCROLL_TELEPORT,
     SV_SCROLL_WORD_OF_RECALL,
     TVAL_BOW,
+    TVAL_BOLT,
     TVAL_DIGGING,
     TVAL_FLASK,
     TVAL_FOOD,
@@ -33,6 +34,7 @@ from hengbot.model import (
     SV_LITE_TORCH,
     SV_STAFF_IDENTIFY,
     TVAL_STAFF,
+    parse_snapshot,
 )
 from hengbot.policy import (
     FOOD_MIN_SVAL, FOOD_TYPE_MANA, OIL_TARGET, HengbotPolicy,
@@ -687,6 +689,29 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertIn(policy._item_signature(ware), policy._town_visit_purchases)
         later = [policy.choose_key(replace(completed, turn=turn)) for turn in range(3, 6)]
         self.assertFalse(any("pd" in value for value in later))
+
+    def test_recorded_ammo_top_up_buys_71_plain_bolts_into_q(self):
+        capture = json.loads(Path(
+            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
+        ).read_text(encoding="utf-8"))
+        snap = parse_snapshot(capture["state"]["result"])
+        plain = next(item for item in snap.inventory if item.slot == "q")
+        ware = StoreItem(
+            "a", "plain bolts", 99, TVAL_BOLT, plain.sval, 3,
+            aware=plain.aware, known=plain.known,
+            fully_known=plain.fully_known, to_h=plain.to_h, to_d=plain.to_d,
+            damage_dice_num=plain.damage_dice_num,
+            damage_dice_sides=plain.damage_dice_sides,
+            known_flags=plain.known_flags,
+        )
+        snap = replace(snap, store=StoreState(STORE_WEAPON, [ware]))
+        policy = HengbotPolicy()
+
+        self.assertTrue(policy._matching_live_purchase_rungs(snap, ware))
+        self.assertEqual(policy._purchase_quantity(snap, ware), 71)
+        self.assertTrue(policy._store_purchase_fits_pack(snap, ware))
+        enhanced = replace(ware, letter="b", to_d=1)
+        self.assertFalse(policy._matching_live_purchase_rungs(snap, enhanced))
 
     def test_choose_key_purchase_watch_records_only_confirmed_buy(self):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hengbot.ammo_carry import ammo_carry_plan
+
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
 from heapq import heappop, heappush
@@ -91,7 +93,7 @@ from hengbot.policy_types import (
     TownErrandPlan,
 )
 from hengbot.policy_constants import (
-    AMMO_CARRY_STACK_LIMIT,
+    AMMO_CARRY_TARGET,
     DEPTH_ABILITY_REQUIREMENTS,
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
@@ -1858,27 +1860,11 @@ class EquipmentMixin:
 
     @staticmethod
     def _retained_ammo_slots(snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:
-        """Choose at most two dense stacks for the active ranged system.
-
-        Count is the primary key because the purpose of this rule is pack-slot
-        efficiency.  Damage and accuracy break ties so an equally dense,
-        stronger recovered stack replaces a weaker one deterministically.
-        """
-        matching = [item for item in snapshot.inventory if item.tval == ammo_tval]
-        matching.sort(
-            key=lambda item: (
-                item.count,
-                item.to_d,
-                item.to_h,
-                int(item.is_artifact),
-                int(item.is_ego),
-                item.slot,
-            ),
-            reverse=True,
+        launcher = next(
+            (item for item in snapshot.equipment if item.ammo_tval == ammo_tval),
+            None,
         )
-        return frozenset(
-            item.slot for item in matching[:AMMO_CARRY_STACK_LIMIT]
-        )
+        return ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET).kept_slots
 
     def _is_wanted_jewelry(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # Keep a ring / amulet in the pack (do NOT stash it at Home) while it could
