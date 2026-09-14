@@ -1,6 +1,7 @@
 import json
 import unittest
 import copy
+from collections import Counter
 from pathlib import Path
 
 from hengbot.control_client import ControlClient
@@ -96,15 +97,53 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         return [entry[1] for entry in game.trace
                 if isinstance(entry, tuple) and entry[0] == "accepted"]
 
+    @staticmethod
+    def _ledger(game):
+        def identity(item):
+            return (item.get("name"), item.get("tval"), item.get("sval"))
+        return Counter(
+            identity(item)
+            for item in (
+                list(game.pack) + list(game.equipment.values())
+                + [item for page in game.pages for item in page]
+            )
+        )
+
+    def _assert_completed_recorded_outer_plan(self, game, before, accepted, reasons):
+        recorded_outer = before.equipment["outer"]
+        recorded_identity = (recorded_outer.get("name"), recorded_outer.get("tval"),
+                             recorded_outer.get("sval"))
+        final_outer = game.equipment.get("outer")
+        self.assertTrue(any(key.startswith("t") for key in accepted),
+                        ("recorded next takeoff was not posted", accepted, reasons))
+        self.assertIsNotNone(final_outer, (game.equipment, reasons))
+        self.assertNotEqual(
+            (final_outer.get("name"), final_outer.get("tval"), final_outer.get("sval")),
+            recorded_identity, ("target outer loadout was not applied", game.equipment),
+        )
+        displaced = [item for item in game.pack] + [item for page in game.pages for item in page]
+        self.assertIn(recorded_identity, [
+            (item.get("name"), item.get("tval"), item.get("sval")) for item in displaced
+        ], ("displaced outer was not stored", displaced))
+        self.assertEqual(self._ledger(game), self._ledger(before), "item conservation")
+        self.assertFalse(any(
+            reason.startswith("town:blocked:") or "unsatisfiable" in reason
+            or "stuck-prompt" in reason for reason in reasons
+        ), reasons)
+        self.assertEqual((game.entries, game.reentries, game.exits), (1, 0, 1))
+        self.assertEqual(accepted.count("\x1b"), 1, accepted)
+        self.assertEqual(accepted[-1], "\x1b", "the only Home exit must be final")
+
+    @unittest.expectedFailure  # Measured at ad340f9 after strengthening: entries=2, reentries=1, exits=2; no recorded takeoff.
     def test_h1_incident_finishes_with_one_exit_and_zero_reentries(self):
         # Public counterfactual starts outside at the recorded town-0 position.
         # The missing STORE stock is source-derived by the fake; optimization
         # and routing are produced normally by one persistent HengbotPolicy.
         game = self._recorded_game(inside=False)
+        before = copy.deepcopy(game)
         _policy, _result, reasons = self._drive(game, 12)
-        self.assertEqual(
-            (game.entries, game.reentries, game.exits), (1, 0, 1),
-            (game.trace, reasons),
+        self._assert_completed_recorded_outer_plan(
+            game, before, self._accepted(game), reasons,
         )
 
     @unittest.expectedFailure  # Stage 4 must remove: H2 prompt-owned ring suffix.
@@ -178,12 +217,14 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0].startswith("d"), (accepted, reasons))
 
+    @unittest.expectedFailure  # Measured at ad340f9: accepted ends by reopening with '5'; completion/loadout absent.
     def test_h10_completed_operations_continue_visit_without_attempt_reset(self):
         game = self._recorded_game(inside=False)
+        before = copy.deepcopy(game)
         _policy, _result, reasons = self._drive(game, 8)
         accepted = self._accepted(game)
-        self.assertTrue(accepted and accepted[0] == "5" and game.entries == 1
-                        and game.exits == 1 and accepted[-1] != "5", (accepted, reasons))
+        self.assertTrue(accepted and accepted[0] == "5", (accepted, reasons))
+        self._assert_completed_recorded_outer_plan(game, before, accepted, reasons)
 
     def test_behavior_pins_do_not_assert_defaulted_policy_or_visit_attributes(self):
         source = Path(__file__).read_text(encoding="utf-8")
