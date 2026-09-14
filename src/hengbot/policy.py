@@ -2392,6 +2392,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             key = WAIT_KEY
             self.last_reason = self._town_blocked_reason
+        if (
+            key == WAIT_KEY
+            and snapshot.store is None
+            and self._equipment_catalog.home_scan_complete
+            and snapshot.grid_at(snapshot.player.position) is None
+        ):
+            # The post-exit player board can omit the entrance grid.  Reusing
+            # WAIT there intentionally activates Home again; an empty command
+            # yields ownership without input until ordinary routing has a
+            # visible step, preserving the completed visit boundary.
+            self.last_reason = "town:blocked:home-known-empty-withdrawal"
+            key = LEAVE_STORE_KEY
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         unresolved_quest_candidate = (
@@ -2630,6 +2642,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = (
                         f"town:entrance-wait-refused:{wait_reason or 'wait'}"
                     )
+        if (
+            key in {WAIT_KEY, ""}
+            and snapshot.store is None
+            and here is None
+            and self._equipment_catalog.home_scan_complete
+        ):
+            self.last_reason = "town:blocked:home-known-empty-withdrawal"
+            key = LEAVE_STORE_KEY
         return key
 
     @staticmethod
@@ -2784,6 +2804,29 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if (
+            snapshot.store is None
+            and snapshot.in_town
+            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and self._active_quest_id(snapshot) is None
+            and "quest-request" not in self._town_turn_arbiter._retired
+            and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
+            and not self._town_space_deposit_actionable(snapshot)
+            and (not self._equipment_catalog.home_scan_complete
+                 or self._home_knowledge_invalidated)
+        ):
+            here = snapshot.grid_at(snapshot.player.position)
+            if (
+                (here is not None and here.store_number == STORE_HOME)
+                or (here is None and self._current_town_has_home(snapshot))
+            ):
+                self._ensure_home_visit_request(snapshot)
+                self._shopping_approach_store_type = STORE_HOME
+                self.last_reason = "equipment-transaction:acquire-home-catalog"
+                return self._shopping_approach_key(
+                    snapshot, snapshot.player.position,
+                    "equipment-transaction:travel-home",
+                )
+        if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._home_knowledge_current
@@ -2800,6 +2843,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.page_size > 0
         ):
             self._home_page_size = snapshot.store.page_size
+        if (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and not snapshot.store.items
+        ):
+            # An empty STORE board is a complete catalogue in its own right;
+            # do not leave to ask ``~9`` for the same absence evidence.
+            self._equipment_catalog.observe_home_page((), allow_wrap=False)
+            self._home_knowledge_items = ()
+            self._home_knowledge_valid_before = 0
+            self._home_scan_item_count = 0
+            self._home_scan_source = "observed-home-page"
+            self._home_knowledge_current = True
+            self._home_knowledge_invalidated = False
+            self._prepare_equipment_optimization(snapshot)
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -3465,7 +3523,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=True,
                 )
-                self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                self.last_reason = "home:scan-complete-from-open-page"
             else:
                 self.last_reason = (
                     "home:store-context-exit"
@@ -5175,6 +5233,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Identification can consume the same scarce gold as the mining setup.
         # While fundraising, finish Treasure Detection scrolls and a digging
         # tool first; retain any pending identification request for afterwards.
+        if (
+            snapshot.store is None
+            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and self._active_quest_id(snapshot) is None
+            and "quest-request" not in self._town_turn_arbiter._retired
+            and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
+            and not self._town_space_deposit_actionable(snapshot)
+            and (not self._equipment_catalog.home_scan_complete
+                 or self._home_knowledge_invalidated)
+            and self._ensure_home_visit_request(snapshot)
+        ):
+            step = self._shopping_approach_step(snapshot, STORE_HOME)
+            here = snapshot.grid_at(snapshot.player.position)
+            if step is None and here is not None and here.store_number == STORE_HOME:
+                # Acquiring an initial visit while already standing on the
+                # entrance is the intentional WAIT activation, not a failed
+                # route and not authority to step off/re-enter.
+                step = snapshot.player.position
+            if step is not None and self._shopping_approach_store_type == STORE_HOME:
+                self.last_reason = "equipment-transaction:acquire-home-catalog"
+                return self._shopping_approach_key(
+                    snapshot, step, "equipment-transaction:travel-home"
+                )
+
         if not (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not self._fundraising_supplies_ready(snapshot)

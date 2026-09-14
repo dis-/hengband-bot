@@ -1242,6 +1242,11 @@ class EquipmentMixin:
         return EquipmentTransactionSession(
             plan,
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+            physical_context=(
+                "home"
+                if any(action.kind == "withdraw" for action in plan.actions)
+                else "legacy"
+            ),
         )
 
     @staticmethod
@@ -1444,6 +1449,11 @@ class EquipmentMixin:
             self._equipment_transaction_session = EquipmentTransactionSession(
                 EquipmentTransactionPlan(tuple(restore_actions), (), 0),
                 max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+                physical_context=(
+                    "home"
+                    if any(action.kind == "withdraw" for action in restore_actions)
+                    else "legacy"
+                ),
             )
             self._equipment_transaction_restoring = True
             return
@@ -1504,20 +1514,72 @@ class EquipmentMixin:
             self.last_reason = "equipment-transaction:abandon-blocked-home"
             return LEAVE_STORE_KEY
         if session.pending_action is not None:
-            # The store command loop rejects the normal rest command ("5").
-            # The dispatched transaction has already been processed by the time
-            # this snapshot arrives, so leave Home and confirm it from town.
-            self.last_reason = "equipment-transaction:await-confirmation-leave-home"
-            return LEAVE_STORE_KEY
-        if session.required_context == "outside_home":
-            self.last_reason = "equipment-transaction:leave-home-to-equip"
-            return LEAVE_STORE_KEY
+            # A STORE board is the causal post-command barrier.  ``prime``
+            # reconciles it before policy dispatch; never leave merely to make
+            # the same inventory/equipment observation outside.
+            self.last_reason = "equipment-transaction:await-home-barrier"
+            return None
 
         action = session.current_action
         store = snapshot.store
         if action is None or store is None or store.store_type != STORE_HOME:
             return None
         observation = observe_equipment_transactions(snapshot)
+        if action.kind == "takeoff":
+            slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
+            if slot_key is None:
+                self._block_equipment_transaction(
+                    f"unknown-equipment-slot:{action.target_slot}"
+                )
+                return None
+            observed_identity = observation.equipped_identity(action.target_slot)
+            if observed_identity != action.item_identity:
+                self._invalidate_stale_equipment_transaction(
+                    snapshot, action, observed_identity
+                )
+                return ""
+            key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
+            if key is None:
+                return None
+            if not self._prepare_equipment_transaction_command(
+                session, action, observation, key,
+                ("home", snapshot.turn, action.target_slot, action.item_identity),
+            ):
+                self._block_equipment_transaction("takeoff-dispatch-rejected")
+                return None
+            self.last_reason = "equipment-transaction:takeoff"
+            return key
+
+        if action.kind in {"equip", "reposition"}:
+            target = next((
+                item for item in snapshot.inventory
+                if item.is_equipment
+                and equipment_identity(item) == action.item_identity
+            ), None)
+            if target is None:
+                self._block_equipment_transaction(
+                    f"equip-item-missing:{action.item_id}"
+                )
+                return None
+            key = self._equipment_wield(
+                snapshot, "transaction-apply", target, action.target_slot
+            )
+            if key is None:
+                refusal = getattr(self._equipment_mutation_result, "report", None)
+                self._block_equipment_transaction(
+                    refusal or f"unknown-equipment-slot:{action.target_slot}"
+                )
+                return None
+            if not self._prepare_equipment_transaction_command(
+                session, action, observation, key,
+                ("home", snapshot.turn, target.slot, action.target_slot,
+                 action.item_identity),
+            ):
+                self._block_equipment_transaction("equip-dispatch-rejected")
+                return None
+            self.last_reason = f"equipment-transaction:{action.kind}"
+            return key
+
         if action.kind == "deposit":
             target = next(
                 (
@@ -1599,6 +1661,27 @@ class EquipmentMixin:
             return key
 
         if action.kind == "withdraw":
+            selected = next((
+                (index, item) for index, item in enumerate(store.items)
+                if item.is_equipment
+                and equipment_identity(item) == action.item_identity
+            ), None)
+            if selected is not None and session.physical_context == "home":
+                index, target = selected
+                letter = self._home_page_letter(index)
+                quantity = "1\r" if target.count > 1 else ""
+                key = BUY_KEY + letter + quantity
+                if not self._prepare_equipment_transaction_command(
+                    session, action, observation, key,
+                    ("home", snapshot.turn, letter,
+                     action.item_identity, target.count),
+                ):
+                    self._block_equipment_transaction(
+                        "withdraw-dispatch-rejected"
+                    )
+                    return None
+                self.last_reason = "equipment-transaction:withdraw"
+                return key
             target_observed = any(
                 item.is_equipment
                 and equipment_identity(item) == action.item_identity

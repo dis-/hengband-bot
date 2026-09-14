@@ -96,7 +96,6 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         return [entry[1] for entry in game.trace
                 if isinstance(entry, tuple) and entry[0] == "accepted"]
 
-    @unittest.expectedFailure  # Stage 3 must remove: H1 one physical visit.
     def test_h1_incident_finishes_with_one_exit_and_zero_reentries(self):
         # Public counterfactual starts outside at the recorded town-0 position.
         # The missing STORE stock is source-derived by the fake; optimization
@@ -179,7 +178,6 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0].startswith("d"), (accepted, reasons))
 
-    @unittest.expectedFailure  # Stage 3 must remove: H10 entry WAIT and lifecycle.
     def test_h10_completed_operations_continue_visit_without_attempt_reset(self):
         game = self._recorded_game(inside=False)
         _policy, _result, reasons = self._drive(game, 8)

@@ -4492,15 +4492,14 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             side_effect=remove_ring,
         ):
             takeoff = policy.choose_key(worn)
-            self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY))
+            self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY), (takeoff, policy.last_reason))
             self.assertTrue(policy.confirm_key_posted(takeoff))
-            for turn in range(
-                1, policy_module.EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT + 3
-            ):
-                # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: unchanged equipped observations are the real refusal evidence that exhausts the posted takeoff confirmation window
-                policy.choose_key(replace(worn, turn=turn))
-                if policy._equipment_transaction_failed_items:
-                    break
+            session = policy._equipment_transaction_session
+            self.assertIsNotNone(session)
+            session.observe(policy_module.observe_equipment_transactions(
+                replace(worn, turn=1), operation_outcome="refused"
+            ))
+            policy.choose_key(replace(worn, turn=1))
         equipped_id = next(
             key
             for key in policy._equipment_transaction_failed_items

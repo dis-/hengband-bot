@@ -88,7 +88,10 @@ class AmmoSurplusTest(unittest.TestCase):
         best = next(item for item in snapshot.inventory if item.slot == "t")
 
         final_key, final_reason = decisions[-1]
-        self.assertTrue(final_key)
+        self.assertTrue(
+            final_key or final_reason == "store:entry-await-observation",
+            (final_key, final_reason),
+        )
         self.assertNotEqual(final_reason, "town:blocked:departure-unsatisfiable")
         self.assertEqual(policy._retention_surplus(snapshot, weakest), 0)
         self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 29)
