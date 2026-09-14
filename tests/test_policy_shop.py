@@ -7277,7 +7277,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         policy._town_store_attempted[STORE_BLACK] = 0
         self.assertIsNone(policy._next_required_store_type(snapshot))
 
-    def test_existing_stockpile_does_not_cap_black_market_purchases(self):
+    def test_existing_stockpile_does_not_cap_bounded_black_market_stack(self):
         inventory = [
             *self._supplies(),
             item("s", TVAL_POTION, SV_POTION_SPEED, count=20),
@@ -7297,7 +7297,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         self.assertEqual(policy._next_required_store_type(replace(town, store=None)), STORE_BLACK)
         purchase = policy._next_purchase(town)
         self.assertIsNotNone(purchase)
-        self.assertEqual(policy._purchase_quantity(town, purchase), 1)
+        self.assertEqual(policy._purchase_quantity(town, purchase), 5)
 
     def test_speed_and_healing_surplus_is_deposited_to_carry_ten(self):
         speed = item("s", TVAL_POTION, SV_POTION_SPEED, count=21)
@@ -7333,7 +7333,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
 
         self.assertEqual(policy._next_purchase(town).sval, SV_POTION_HEALING)
         self.assertEqual(
-            policy._purchase_quantity(town, policy._next_purchase(town)), 1
+            policy._purchase_quantity(town, policy._next_purchase(town)), 5
         )
 
     def test_newly_bought_potion_surplus_is_not_protected_from_home(self):

@@ -2384,9 +2384,10 @@ class ShopMixin:
             SV_POTION_SPEED,
             SV_POTION_HEALING,
         }:
-            # Re-evaluate after every bottle so the two capped field stocks stay
-            # balanced and the other type can use the remaining gold.
-            needed = 1
+            # An optional shelf is one bounded opportunity.  Empty the selected
+            # stack now so spending cannot reset visit retirement and turn one
+            # shelf into repeated cross-town one-bottle visits.
+            needed = item.count
         else:
             needed = 1
         needed = max(needed, quest_needed)

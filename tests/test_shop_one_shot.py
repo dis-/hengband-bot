@@ -1,5 +1,6 @@
 import unittest
 import json
+import gzip
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +17,7 @@ from hengbot.model import (
     SV_BOW_SLING,
     SV_DIGGING_SHOVEL,
     SV_POTION_CURE_CRITICAL,
+    SV_POTION_SPEED,
     SV_POTION_RESIST_COLD,
     SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_TELEPORT,
@@ -38,7 +40,7 @@ from hengbot.model import (
 )
 from hengbot.policy import (
     FOOD_MIN_SVAL, FOOD_TYPE_MANA, OIL_TARGET, HengbotPolicy,
-    LEAVE_STORE_KEY, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
+    LEAVE_STORE_KEY, STORE_BLACK, STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
     STORE_STUCK_LIMIT, TownErrandPlan, ProcurementHomeGate, StoreVisit,
     StoreVisitPhase,
 )
@@ -165,6 +167,96 @@ class ShopOneShotTest(unittest.TestCase):
         )
         self.assertTrue(sent)
         self.assertEqual(game.accepted, ["5", "pa", "\r", "\x1b"])
+
+    def test_recorded_speed_shelf_posts_one_bounded_quantity_through_executor(self):
+        from hengbot.cli import _store_buy_continuations
+        from hengbot.input_executor import Operation
+        from tests.test_input_executor import (
+            FaithfulHookGame, ProductionHarness, command_screen, prompt_screen,
+            store_screen,
+        )
+
+        fixture = Path(
+            "tests/fixtures/speed-potion-shuttle-20260915.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        first_shelf = next(
+            row for row in rows
+            if row.get("type") == "store"
+            and row["store"]["store_type"] == STORE_BLACK
+            and any(
+                item["letter"] == "h" and item["sval"] == SV_POTION_SPEED
+                and item["count"] == 3 and item["price"] == 392
+                for item in row["store"]["items"]
+            )
+        )
+        outside_raw = next(
+            row for row in rows
+            if row["turn"] == 2869238 and row["type"] == "player_turn"
+        )
+        final_raw = next(
+            row for row in rows
+            if row["turn"] == 2870178 and row["type"] == "player_turn"
+        )
+        emptied_store_raw = next(
+            row for row in rows
+            if row["turn"] == 2870169 and row["type"] == "store"
+            and row["player"]["gold"] == 3011
+        )
+        inside = parse_snapshot(first_shelf, {})
+        outside = parse_snapshot(outside_raw, {})
+        reentered_raw = next(
+            row for row in rows
+            if row["turn"] == 2869238 and row["type"] == "store"
+            and row["player"]["gold"] == 4187
+        )
+        final = parse_snapshot(final_raw, {})
+        policy = HengbotPolicy()
+
+        self.assertEqual((policy.choose_key(inside), policy.last_reason),
+                         (LEAVE_STORE_KEY,
+                          "town-progress-invariant:continue-observed-shop"))
+        # The fixture starts after the live Home scan.  Wall off only that
+        # independently proven absence gate after the recorded observation has
+        # created the purchase session on this same policy instance.
+        with mock.patch.object(
+            policy, "_purchase_has_fresh_home_absence",
+            return_value=ProcurementHomeGate.ALLOW_PURCHASE,
+        ):
+            self.assertEqual(policy.choose_key(outside), "5")
+            self.assertTrue(policy.confirm_key_posted("5"))
+            operation = policy.choose_key(parse_snapshot(reentered_raw, {}))
+        self.assertEqual((operation, policy.last_reason),
+                         ("ph3\r\r\x1b", "shop:one-shot-buy"))
+
+        game = FaithfulHookGame()
+        game.screens = [
+            prompt_screen("Quantity (1-3): 1"),
+            prompt_screen("Buy it? [Y/n]"), store_screen(),
+            command_screen(final.turn),
+        ]
+        game.states = [first_shelf, first_shelf, emptied_store_raw, final_raw]
+        _game, _client, executor = ProductionHarness.make(self, game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        prefix, continuations = _store_buy_continuations(
+            operation, "shop:one-shot-buy"
+        )
+        result = executor.submit(Operation(
+            1, "shop:one-shot-buy", prefix, executor.ready_board,
+            continuations,
+        ), deadline=9999999999)
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(game.accepted, ["ph", "3\r", "\r", "\x1b"])
+        self.assertEqual(inside.player.gold - final.player.gold, 3 * 392)
+        self.assertEqual(
+            policy._exact_potion_count(final, SV_POTION_SPEED)
+            - policy._exact_potion_count(inside, SV_POTION_SPEED),
+            3,
+        )
+        self.assertNotEqual(policy.choose_key(final), "")
+        self.assertNotEqual(policy.last_reason, "town:blocked:owner-retired")
 
     def _consume_buy(self, outside, key, ware):
         state, gold, inventory = "surface", outside.player.gold, list(outside.inventory)
