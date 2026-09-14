@@ -6,9 +6,20 @@ switch come from store-key-processor.cpp; overflow/refusal outcomes come from
 cmd-store.cpp:170-184 and sell-order.cpp:69-118.  This is deliberately not an
 incident transcript adapter.
 """
+import copy
 import json
+from pathlib import Path
 
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+
+
+_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "live-screens"
+
+
+def _recorded_screen(name):
+    """Return an untouched control-port screen result from the live incident."""
+    payload = json.loads((_FIXTURES / name).read_text(encoding="utf-8"))
+    return copy.deepcopy(payload["result"])
 
 
 def _screen(line0="", store=True, items=()):
@@ -211,16 +222,11 @@ class FaithfulHomeGame:
             prompt = {"takeoff": "Take off which item?", "wield": "Wear/Wield which item?",
                       "deposit": "Drop which item?", "withdraw": "Get which item?"}.get(self.pending, self.message)
             if self.modal == "knowledge-menu":
-                result = _screen("", False)
-                result["lines"][3] = "Display current knowledge"
-                result["lines"][14] = "     (9) Display home inventory"
-                result["lines"][17] = "        -more-"
-                result["lines"][20] = "Command: "
-                result["lines"][21] = " ESC) Exit menu"
+                result = _recorded_screen(
+                    "27-knowledge-menu-after-viewer-esc-20260915.json")
             elif self.modal == "home-viewer":
-                result = _screen("", False)
-                result["lines"][0] = "[Home Inventory, Line 1/1]"
-                result["lines"][-1] = "[Press ESC to exit.]"
+                result = _recorded_screen(
+                    "26-knowledge-viewer-stuck-20260915-0534.json")
             elif self.modal == "character":
                 result = _screen("", False)
                 result["lines"][22] = "['c' to change name, 'f' to file, 'h' to change mode, or ESC]"
@@ -233,6 +239,9 @@ class FaithfulHomeGame:
                            "Replace existing file C:\\save\\hero.txt? [y/n]")
                 result = _screen(self.overwrite_question or default, False)
             else:
-                result = _screen(prompt, self.inside, self.pages[self.page] if self.inside else ())
+                result = (_recorded_screen("28-after-menu-esc-20260915.json")
+                          if self.inside and self.modal is None and self.trace[-1:] == ["\x1b"]
+                          else _screen(prompt, self.inside,
+                                       self.pages[self.page] if self.inside else ()))
         else: result = self._state()
         return {"id": request["id"], "ok": True, "result": result}

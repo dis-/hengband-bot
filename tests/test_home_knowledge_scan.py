@@ -207,6 +207,12 @@ class HomeOwnedModalTest(unittest.TestCase):
             deadline=9999999999)
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.trace.count("\x1b"), 2)
+        self.assertEqual([entry for entry in game.trace if isinstance(entry, str)],
+                         ["~", "9", "\x1b", "\x1b"])
+        self.assertEqual(result.screen.kind, ScreenKind.STORE)
+        self.assertEqual(result.screen.column, 65)
+        self.assertEqual(result.operation.accepted_segments,
+                         ["~9", "\x1b", "\x1b"])
         self.assertTrue(game.inside)
         self.assertEqual(game.exits, 0)
 

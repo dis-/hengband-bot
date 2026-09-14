@@ -466,9 +466,33 @@ class ScreenClassifierTest(unittest.TestCase):
         self.assertEqual(classify_screen(overlay).kind, ScreenKind.UNKNOWN)
 
     def test_viewer_subtemplates(self):
-        file_view = command_screen(); file_view["lines"][0] = "[Home Inventory, Line 1/2]"
-        file_view["lines"][-1] = "[Press ESC to exit.]"
-        self.assertEqual(classify_screen(file_view).kind, ScreenKind.FILE_VIEWER)
+        fixtures = Path(__file__).with_name("fixtures") / "live-screens"
+        expected = [
+            ("26-knowledge-viewer-stuck-20260915-0534.json",
+             ScreenKind.FILE_VIEWER, "home-inventory", 0, 65),
+            ("27-knowledge-menu-after-viewer-esc-20260915.json",
+             ScreenKind.KNOWLEDGE, None, 24, 65),
+            ("28-after-menu-esc-20260915.json",
+             ScreenKind.STORE, "complete-store-menu", 60, 65),
+        ]
+        for name, kind, feature, row, column in expected:
+            with self.subTest(name=name):
+                screen = json.loads((fixtures / name).read_text(
+                    encoding="utf-8"))["result"]
+                match = classify_screen(screen)
+                self.assertEqual((match.kind, match.row, match.column),
+                                 (kind, row, column))
+                if feature is not None:
+                    self.assertEqual(match.feature, feature)
+
+        # No source path renders logical column zero at physical column zero on
+        # a 211-column term; the former fake is not an acceptable substitute.
+        uncentered = command_screen()
+        uncentered.update(width=211, height=67, lines=[""] * 67)
+        uncentered["lines"][0] = "[Home Inventory, Line 1/2]"
+        uncentered["lines"][-1] = "[Press ESC to exit.]"
+        self.assertNotEqual(classify_screen(uncentered).kind,
+                            ScreenKind.FILE_VIEWER)
         for marker, kind in [("-- more --", ScreenKind.IDENTIFY_VIEWER_PAGE),
                              ("[Press any key to continue]", ScreenKind.IDENTIFY_VIEWER_FINAL)]:
             view = command_screen(); view["lines"][1] = " " * 20 + "Item Attributes:"

@@ -180,13 +180,34 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
                 and lines[koy + 20][kox:].startswith(("Command:", "コマンド:")) \
                 and lines[koy + 21][kox:].startswith((" ESC) Exit menu", " ESC) 抜ける")):
             return ScreenMatch(ScreenKind.KNOWLEDGE, lines[koy + 3][kox:].strip(), koy + 3, kox)
-    # core/show-file.cpp:304-323 and knowledge/knowledge-self.cpp:201-205.
+    # core/show-file.cpp:300-321 and knowledge/knowledge-self.cpp:201-205.
+    # FileDisplayer installs TermCenteredOffsetSetter(MAIN_TERM_MIN_COLS, nullopt)
+    # at show-file.cpp:131-135. z-term.cpp:85-90 therefore shifts logical
+    # column zero by (physical width - 80) // 2 and leaves rows unshifted.
     viewer_footers = ("[Press ESC to exit.]",
         "[Press Return, Space, -, =, /, |, or ESC to exit.]",
         "[キー:(?)ヘルプ (ESC)終了]",
         "[キー:(RET/スペース)↑ (-)↓ (?)ヘルプ (ESC)終了]",
         "[キー:(RET/スペース)↓ (-)↑ (?)ヘルプ (ESC)終了]")
-    title = row0.startswith("[") and row0.endswith("]") and (
+    if isinstance(width, int) and width >= 80 and lines:
+        viewer_x = (width - 80) // 2
+        viewer_title = lines[0][viewer_x:].rstrip()
+        viewer_footer = lines[-1][viewer_x:].rstrip()
+        # show-file.cpp:300-307 builds these title shapes. knowledge-self.cpp:
+        # 201-205 supplies the exact bilingual Home caption.
+        english_home_title = re.fullmatch(
+            r"\[[^,\[\]]+, Home Inventory, Line \d+/\d+\]", viewer_title)
+        japanese_home_title = re.fullmatch(
+            r"\[[^,\[\]]+, 我が家のアイテム, \d+/\d+\]", viewer_title)
+        source_title = re.fullmatch(
+            r"\[[^\[\]]+, (?:Line )?\d+/\d+\]", viewer_title)
+        if source_title and viewer_footer in viewer_footers:
+            feature = ("home-inventory" if english_home_title or japanese_home_title
+                       else viewer_title)
+            return ScreenMatch(ScreenKind.FILE_VIEWER, feature, 0, viewer_x)
+
+    # At an actual 80-column term the source-derived offset is zero.
+    title = width == 80 and row0.startswith("[") and row0.endswith("]") and (
         ", Line " in row0 or ("/" in row0 and "Line" not in row0))
     if title and lines[-1] in viewer_footers:
         feature = "home-inventory" if ("Home Inventory" in row0 or "我が家のアイテム" in row0) else row0
