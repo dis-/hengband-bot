@@ -2857,13 +2857,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # An empty STORE board is a complete catalogue in its own right;
             # do not leave to ask ``~9`` for the same absence evidence.
-            self._equipment_catalog.observe_home_page((), allow_wrap=False)
-            self._home_knowledge_items = ()
-            self._home_knowledge_valid_before = 0
+            self._adopt_home_catalogue(())
             self._home_scan_item_count = 0
             self._home_scan_source = "observed-home-page"
-            self._home_knowledge_current = True
-            self._home_knowledge_invalidated = False
             self._prepare_equipment_optimization(snapshot)
         if (
             snapshot.store is not None
@@ -4294,6 +4290,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._release_choke_plan("floor-change")
 
     def _decide(self, snapshot: Snapshot) -> str:
+        self._evaluate_cross_decision_latches(snapshot)
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;
@@ -4317,8 +4314,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not any(monster.hostile for monster in snapshot.visible_monsters)
         ):
             return self._equipment_transaction_town_key(snapshot) or WAIT_KEY
-        self._evaluate_cross_decision_latches(snapshot)
-
         # A TR_WARNING prompt reported by this snapshot is disposed of before
         # any other purpose is pursued: a refused movement is latched so it is
         # not re-chosen (the loop this handler removes), and an unsanctioned

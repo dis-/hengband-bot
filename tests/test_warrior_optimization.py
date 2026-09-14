@@ -902,7 +902,7 @@ class WarriorOptimizationTest(unittest.TestCase):
         ))
         for _ in range(EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT - 1):
             self.assertFalse(session.observe(unchanged_home))
-            self.assertEqual(policy._equipment_transaction_home_key(home), "\x1b")
+            self.assertIsNone(policy._equipment_transaction_home_key(home))
             self.assertIs(policy._equipment_transaction_session, session)
 
         self.assertFalse(session.observe(unchanged_home))

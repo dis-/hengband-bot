@@ -270,7 +270,7 @@ def observe_equipment_transactions(
     )
     home: list[str] = []
     if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
-        for item in snapshot.store.items:
+        for item in getattr(snapshot.store, "items", ()):
             if item.is_equipment:
                 home.extend([equipment_identity(item)] * max(1, item.count))
     return EquipmentTransactionObservation.create(
