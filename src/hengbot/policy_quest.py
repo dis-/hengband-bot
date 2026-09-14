@@ -4940,23 +4940,83 @@ class QuestMixin:
             self.last_reason = "fixedquest:reward-complete"
             return None
         target_positions = visible_reward or list(positions)
-        step = min(
+        context = getattr(self, "_decision_context", None)
+        if context is None:
+            step = min(
+                (candidate for candidate in (
+                    self._town_map_goal_step(snapshot, pos)
+                    for pos in target_positions
+                ) if candidate is not None),
+                key=lambda pos: snapshot.player.position.distance_to(pos),
+                default=None,
+            )
+            if step is None:
+                if not positions:
+                    self._fixed_quest_reward_pending = None
+                return None
+            self.last_reason = "fixedquest:reward-approach"
+            return self._step_toward(snapshot, step)
+        route = min(
             (
                 candidate
                 for candidate in (
-                    self._town_map_goal_step(snapshot, pos) for pos in target_positions
+                    self._town_map_goal_route(snapshot, pos)
+                    for pos in target_positions
                 )
                 if candidate is not None
             ),
-            key=lambda pos: snapshot.player.position.distance_to(pos),
+            key=lambda candidate: snapshot.player.position.distance_to(
+                candidate.first_step
+            ),
             default=None,
         )
-        if step is None:
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        if route is None:
             if not positions:
                 self._fixed_quest_reward_pending = None
-            return None
-        self.last_reason = "fixedquest:reward-approach"
-        return self._step_toward(snapshot, step)
+                return None
+            if context is None or quest is None:
+                return None
+            reason = "fixedquest:reward-approach:route-unavailable"
+            identity = object()
+            declaration = QuestTravelDeclaration(
+                quest_id=quest_id, quest_status=quest.status,
+                stage="reward-approach-route-unavailable",
+                source_town_id=reward_town_id,
+                destination_town_id=reward_town_id,
+                floor=snapshot.floor_key, goal=None, first_step=None,
+                bfs_rank=None, composed_key=WAIT_KEY,
+                decision_identity=context.identity,
+                candidate_identity=identity,
+                producer_branch="quest-reward-approach",
+            )
+            self.last_reason = reason
+            return DecisionCandidate(
+                WAIT_KEY, reason=reason,
+                decision_identity=context.identity,
+                route_declaration=declaration, identity=identity,
+            )
+        reason = "fixedquest:reward-approach"
+        key = self._step_toward(snapshot, route.first_step)
+        if context is None or quest is None:
+            self.last_reason = reason
+            return key
+        identity = object()
+        declaration = QuestTravelDeclaration(
+            quest_id=quest_id, quest_status=quest.status,
+            stage="reward-approach", source_town_id=reward_town_id,
+            destination_town_id=reward_town_id, floor=snapshot.floor_key,
+            goal=route.target, first_step=route.first_step,
+            bfs_rank=route.remaining_edges, composed_key=key,
+            decision_identity=context.identity,
+            candidate_identity=identity,
+            producer_branch="quest-reward-approach",
+        )
+        self.last_reason = reason
+        return DecisionCandidate(
+            key, reason=reason, decision_identity=context.identity,
+            route_declaration=declaration, identity=identity,
+        )
 
     def _guardian_fight_viable(
         self, snapshot: Snapshot, info: DungeonInfo

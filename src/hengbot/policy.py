@@ -2403,6 +2403,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "quest:enter:approach:route-unavailable",
                 "fixedquest:claim:approach:route-unavailable",
                 "fixedquest:request:approach:route-unavailable",
+                "fixedquest:reward-approach:route-unavailable",
             }
             else None
         )
@@ -2492,7 +2493,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 ":route-unavailable", ":unsatisfiable"
                             ) if rejected_candidate.reason.startswith(
                                 ("fixedquest:claim:approach:",
-                                 "fixedquest:request:approach:")
+                                 "fixedquest:request:approach:",
+                                 "fixedquest:reward-approach:")
                             ) else "fixedquest:q22-travel:unsatisfiable"
                         )
                     )
@@ -2641,6 +2643,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "quest:enter:approach:route-unavailable",
                 "fixedquest:claim:approach:route-unavailable",
                 "fixedquest:request:approach:route-unavailable",
+                "fixedquest:reward-approach:route-unavailable",
             }
             and rejected_candidate is key
         )

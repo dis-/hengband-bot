@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_TOWNS, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
 from hengbot.policy_types import (
     DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
     TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
@@ -255,6 +255,19 @@ class TownMixin:
                     else self._walkable_neighbors(snapshot, snapshot.player.position)
                 )
             )
+        if declaration.producer_branch == "quest-reward-approach":
+            quest = self._known_fixed_quests(snapshot).get(declaration.quest_id)
+            return (
+                declaration.stage == "reward-approach"
+                and candidate.reason == "fixedquest:reward-approach"
+                and declaration.source_town_id == declaration.destination_town_id
+                and quest is not None
+                and quest.status == declaration.quest_status
+                and self._fixed_quest_reward_pending == declaration.quest_id
+                and declaration.goal in self._fixed_quest_reward_positions(
+                    snapshot, declaration.quest_id
+                )
+            )
         return False
 
     @staticmethod
@@ -388,8 +401,10 @@ class TownMixin:
                 active_reason.startswith("fixedquest:claim:approach")
                 or active_reason.startswith("fixedquest:request:approach")
             )
+            reward_active = active_reason.startswith("fixedquest:reward-approach")
             quest_producer_active = (
-                entry_active or q22_active or prepare_return_active or building_active
+                entry_active or q22_active or prepare_return_active
+                or building_active or reward_active
             )
             retired_key = getattr(
                 getattr(self, "_town_turn_arbiter", None), "_retired", {}
@@ -409,6 +424,10 @@ class TownMixin:
                 entry_unresolved = self._quest_building_route_unavailable_clearance_key(
                     snapshot
                 )
+            elif reward_active:
+                entry_unresolved = self._quest_reward_route_unavailable_clearance_key(
+                    snapshot
+                )
             elif not quest_producer_active and retained_slots[0] is not None:
                 if (isinstance(retained_slots[0], tuple)
                         and retained_slots[0]
@@ -416,6 +435,13 @@ class TownMixin:
                         == "quest-building-approach-route-unavailable"):
                     entry_unresolved = (
                         self._quest_building_route_unavailable_clearance_key(snapshot)
+                    )
+                elif (isinstance(retained_slots[0], tuple)
+                      and retained_slots[0]
+                      and retained_slots[0][0]
+                      == "quest-reward-approach-route-unavailable"):
+                    entry_unresolved = (
+                        self._quest_reward_route_unavailable_clearance_key(snapshot)
                     )
                 else:
                     entry_unresolved = (
@@ -524,6 +550,40 @@ class TownMixin:
             "quest-building-approach-route-unavailable", quest_id, quest.status,
             self._effective_town_id(snapshot), snapshot.floor_key,
             ("building-obligation", tuple(sorted(positions))),
+            "eligible-route-unavailable",
+        )
+
+    def _quest_reward_route_unavailable_clearance_key(self, snapshot):
+        quest_id = self._fixed_quest_reward_pending
+        if quest_id is None or not snapshot.in_town:
+            return None
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        if quest is None or quest.status not in {
+            QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED,
+        }:
+            return None
+        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        visible = tuple(
+            position for position in positions
+            if (grid := snapshot.grid_at(position)) is not None
+            and grid.object_count > 0
+        )
+        targets = visible or tuple(positions)
+        route = min(
+            (candidate for candidate in (
+                self._town_map_goal_route(snapshot, position)
+                for position in targets
+            ) if candidate is not None),
+            key=lambda candidate: snapshot.player.position.distance_to(
+                candidate.first_step
+            ), default=None,
+        )
+        if not positions or snapshot.player.position in positions or route is not None:
+            return None
+        return (
+            "quest-reward-approach-route-unavailable", quest_id, quest.status,
+            self._effective_town_id(snapshot), snapshot.floor_key,
+            ("reward-obligation", tuple(sorted(positions))),
             "eligible-route-unavailable",
         )
 
@@ -865,11 +925,13 @@ class TownMixin:
                 "fixedquest:q22-travel:route-unavailable",
                 "fixedquest:prepare-return:route-unavailable",
                 "quest:enter:approach:route-unavailable",
+                "fixedquest:reward-approach:route-unavailable",
             }
             and key.route_declaration is not None
             and key.route_declaration.stage in {
                 "travel-route-unavailable", "prepare-return-route-unavailable",
                 "enter-approach-route-unavailable",
+                "reward-approach-route-unavailable",
             }
         )
 
