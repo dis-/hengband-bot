@@ -1319,6 +1319,32 @@ class TownMixin:
             snapshot
         )
 
+    @staticmethod
+    def _town_pack_space_shortage(snapshot: Snapshot) -> bool:
+        """Whether the pack lacks the existing reserve for upcoming town work."""
+        return PACK_CAPACITY - len(snapshot.inventory) < MIN_FREE_PACK_SLOTS
+
+    def _town_space_deposit_actionable(self, snapshot: Snapshot) -> bool:
+        """Whether an identified surplus can restore the town-work pack reserve."""
+        return (
+            snapshot.in_town
+            and not snapshot.player.recalling
+            and self._town_pack_space_shortage(snapshot)
+            and self._home_available(snapshot)
+            and self._find_home_deposit(snapshot) is not None
+        )
+
+    def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
+        """Route shortage relief before any transaction that may need a slot."""
+        if not self._town_space_deposit_actionable(snapshot):
+            return None
+        self._town_claims_active(snapshot)
+        step = self._shopping_approach_step(snapshot)
+        if step is None or self._shopping_approach_store_type != STORE_HOME:
+            return None
+        self.last_reason = "shop:approach"
+        return self._shopping_approach_key(snapshot, step, "shop:travel")
+
     def _recall_town_departure_conjuncts(self, snapshot: Snapshot) -> dict[str, bool]:
         """Return the complete leaf set consumed by a town recall decision."""
         values = self._town_departure_conjuncts(snapshot)
@@ -1649,6 +1675,15 @@ class TownMixin:
                         "birth-supplies",
                     )
             return needs
+
+        # A depositable surplus is the least destructive way to restore the
+        # existing pack reserve needed by purchases, rewards, and identify
+        # stack splits.  This shortage owner is intentionally independent of
+        # identification, fundraising, and prior-visit store latches.  The Home
+        # visit machinery still protects unknown/reserved items and bounds a
+        # visit that can no longer compose a deposit.
+        if self._town_space_deposit_actionable(snapshot):
+            add(STORE_HOME, "space-deposit", "home-first")
 
         # The approved fresh-character route is intentionally tiny: acquire
         # Q34's complete throwing-torch stock, then let _fixed_quest_key accept
@@ -2207,6 +2242,7 @@ class TownMixin:
             ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
             ("organization-sale", "normal", 1, True),  # Recognized surplus gates departure.
             ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
+            ("space-deposit", "home-first", 1, True),  # Pack reserve gates all later town transactions.
             ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
             ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
             ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
@@ -2569,6 +2605,8 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> int:
         """Put concretely affordable curse service ahead of ordinary errands."""
+        if need.category == "space-deposit":
+            return -3
         if (
             need.category == "remove-curse"
             and self._normal_remove_curse_actionable_this_visit(snapshot)

@@ -519,7 +519,9 @@ class ShopMixin:
             return [
                 claim
                 for claim in claims
-                if claim.category in {"combat-weapon", "quest-throwing-items"}
+                if claim.category in {
+                    "combat-weapon", "space-deposit", "quest-throwing-items"
+                }
             ]
         post_alchemist_home = any(
             claim.ordering_class == "post-alchemist-home"

@@ -3313,6 +3313,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_knowledge_scan_epoch is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
+            and not self._town_space_deposit_actionable(snapshot)
         ):
             if self._home_errand.needs_knowledge:
                 self.last_reason = self._home_errand.reason("request-knowledge")
@@ -4984,6 +4985,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ) and player.food_state in {"normal", "full", "gorged"}:
                 self.last_reason = "town:recover"
                 return REST_MACRO
+
+        space_deposit = self._town_space_deposit_key(snapshot)
+        if space_deposit is not None:
+            return space_deposit
 
         victory_loot = self._victory_loot_key(snapshot)
         if victory_loot is not None:

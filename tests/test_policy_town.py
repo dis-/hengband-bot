@@ -8103,6 +8103,102 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertFalse(policy._home_candidate_waiting)
         self.assertEqual(policy.last_reason, "equipment:destroy-complete")
 
+class FullPackDepositPriorityTest(unittest.TestCase):
+    """Pins derived from the 2026-09-14 q22 town captures."""
+
+    @staticmethod
+    def _capture_shape(*, free_slots=0, surplus=True, turn=2866604):
+        count = PACK_CAPACITY - free_slots
+        inventory = [
+            item(
+                chr(ord("a") + index), TVAL_FOOD, -1,
+                name=f"capture unknown {index}", aware=False, known=False,
+            )
+            for index in range(count - (1 if surplus else 0))
+        ]
+        if surplus:
+            inventory.append(item(
+                chr(ord("a") + count - 1), TVAL_LITE, SV_LITE_TORCH,
+                count=14, name="Wooden Torches", fuel=5000,
+                known=True, fully_known=True,
+            ))
+        home = Position(10, 11)
+        snapshot = Snapshot(
+            player(10, 10, hp=432, max_hp=432, gold=4983,
+                   class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                home: replace(grid(home.y, home.x), store_number=STORE_HOME),
+            },
+            [], inventory=inventory,
+            equipment=[item(
+                "light", TVAL_LITE, SV_LITE_FEANOR,
+                name="Feanorian Lamp", fuel=5000, is_equipment=True,
+            )],
+            floor_key=(0, 0, 0), width=198, height=66,
+            town_flag=True, town_id=0, turn=turn,
+        )
+        return snapshot
+
+    def test_recorded_town0_full_pack_routes_identified_surplus_to_home_first(self):
+        policy = HengbotPolicy()
+        snapshot = self._capture_shape()
+        candidate = policy._find_home_deposit(snapshot)
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(snapshot.turn, 2866604)
+        self.assertEqual(len(snapshot.inventory), PACK_CAPACITY)
+        self.assertEqual((candidate.slot, candidate.count), ("w", 14))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        self.assertIn(policy.last_reason, {"shop:approach", "shop:travel"})
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertIn(
+            "space-deposit",
+            [need.category for need in policy._departure_blocking_town_needs(snapshot)],
+        )
+
+    def test_active_identification_and_prior_home_attempt_do_not_hide_shortage(self):
+        policy = HengbotPolicy()
+        snapshot = self._capture_shape(turn=2866399)
+        policy._request_identification("full")
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn - 1
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(policy._identification_need, "full")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        self.assertIn(policy.last_reason, {"shop:approach", "shop:travel"})
+        self.assertNotEqual(key, WAIT_KEY)
+
+    def test_full_unknown_only_pack_never_creates_a_home_deposit_loop(self):
+        policy = HengbotPolicy()
+        snapshot = self._capture_shape(surplus=False, turn=2865424)
+
+        self.assertIsNone(policy._find_home_deposit(snapshot))
+        self.assertNotIn(
+            "space-deposit",
+            [need.category for need in policy._enumerate_town_needs(snapshot)],
+        )
+        first = policy.choose_key(snapshot)
+        second = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        self.assertNotEqual(policy._shopping_approach_store_type, STORE_HOME)
+        self.assertNotEqual((first, second), ("5", "5"))
+
+    def test_non_shortage_keeps_identification_ahead_of_convenience_deposit(self):
+        policy = HengbotPolicy()
+        snapshot = self._capture_shape(free_slots=MIN_FREE_PACK_SLOTS)
+        policy._request_identification("full")
+        policy._town_store_attempted[STORE_HOME] = snapshot.turn - 1
+
+        self.assertNotIn(
+            "space-deposit",
+            [need.category for need in policy._enumerate_town_needs(snapshot)],
+        )
+        self.assertNotEqual(policy.choose_key(snapshot), WAIT_KEY)
+        self.assertNotEqual(policy._shopping_approach_store_type, STORE_HOME)
+
+
 class TownMapNightRoutingTest(unittest.TestCase):
     def _outpost(self):
         from hengbot.town_maps import find_outpost_map, parse_town_map

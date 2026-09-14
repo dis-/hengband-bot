@@ -77,7 +77,9 @@ class RecallStockoutSurplusPins(unittest.TestCase):
             decisions, snapshot = replay_to_home_return(
                 HengbotPolicy(home_disposal_state=self._state(Path(directory)))
             )
-        self.assertEqual(decisions[-1][2:], ("5", "home:atomic-deposit"))
+        deposits = [row for row in decisions if row[3] == "home:atomic-deposit"]
+        self.assertEqual(deposits[-2][2:], ("5", "home:atomic-deposit"))
+        self.assertTrue(deposits[-1][2].startswith("d"))
         self.assertEqual(snapshot.turn, 2856373)
 
     def test_barrier_bound_open_home_page_posts_one_surplus_batch(self):
@@ -102,10 +104,6 @@ class RecallStockoutSurplusPins(unittest.TestCase):
                         knowledge.update(raw.get("knowledge", {}))
                         continue
                     snapshot = parse_snapshot(raw, knowledge)
-                    if index in (21, 22):
-                        # The production executor owns Home auto-entry here;
-                        # this outside JSONL observation is drained, not decided.
-                        continue
                     key = policy.choose_key(snapshot)
                     decisions.append((index, key, policy.last_reason))
                     if key.startswith("~9"):
@@ -134,8 +132,12 @@ class RecallStockoutSurplusPins(unittest.TestCase):
                     home_disposal_state=self._state(Path(future_dir), future)
                 )
             )
-        self.assertEqual(ordinary[-1][2:], ("5", "home:atomic-deposit"))
-        self.assertEqual(with_history[-1][2:], ordinary[-1][2:])
+        ordinary_deposits = [row[2:] for row in ordinary
+                             if row[3] == "home:atomic-deposit"]
+        history_deposits = [row[2:] for row in with_history
+                            if row[3] == "home:atomic-deposit"]
+        self.assertEqual(ordinary_deposits[-2][0], "5")
+        self.assertEqual(history_deposits, ordinary_deposits)
 
     def test_identify_first_and_no_open_home_unbound_deposit(self):
         """The captured pre-Home producer acts before the later bound deposit."""
