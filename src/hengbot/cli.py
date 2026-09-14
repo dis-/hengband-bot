@@ -2123,10 +2123,13 @@ def _send_prompt_gated_decision_key(
         )
         posted = "".join(accepted)
         released = max(0, len(accepted) - 1)
-        full_identify = str((decision or {}).get("reason", "")).startswith(
-            "identify:full"
+        # A source-proven command-ending effect may legitimately drop an
+        # unused prompt tail.  Executor completion, not byte equality with the
+        # planned chain, is the semantic release authority.
+        logically_released = bool(
+            sent and send.last_result is not None
+            and send.last_result.outcome == "completed"
         )
-        logically_released = sent and (posted == key or full_identify)
         result = {
             "key": key,
             "outcome": "released" if logically_released else "dropped",

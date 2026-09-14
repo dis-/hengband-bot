@@ -279,6 +279,102 @@ class OperationResult:
     reason: str | None = None
 
 
+# Exact command-ending messages emitted by the device/read implementations.
+# Keep this table deliberately closed: an unrelated message must never turn an
+# absent owned prompt into success.  Anchors are in the sibling Hengband tree.
+_ABSENT_PROMPT_MESSAGES = {
+    "u": {
+        "杖をうまく使えなかった。", "You failed to use the staff properly.",  # use-execution.cpp:79
+        "この杖にはもう魔力が残っていない。", "The staff has no charges left.",  # :89
+        "まずは杖を拾わなければ。", "You must first pick up the staffs.",  # :50
+        "朦朧としていて杖を振れなかった！", "You are too stunned to use it!",  # :159
+    },
+    "a": {
+        "魔法棒をうまく使えなかった。", "You failed to use the wand properly.",  # zapwand-execution.cpp:83
+        "この魔法棒にはもう魔力が残っていない。", "The wand has no charges left.",  # :94
+        "まずは魔法棒を拾わなければ。", "You must first pick up the wands.",  # :42
+        "朦朧としていて魔法棒を振れなかった！", "You are too stunned to zap it!",  # :150
+    },
+    "z": {
+        "うまくロッドを使えなかった。", "You failed to use the rod properly.",  # zaprod-execution.cpp:101
+        "このロッドはまだ魔力を充填している最中だ。", "The rod is still charging.",  # :112
+        "そのロッドはまだ充填中です。", "The rods are all still charging.",  # :119
+        "まずはロッドを拾わなければ。", "You must first pick up the rods.",  # :49
+        "朦朧としていてロッドを振れなかった！", "You are too stunned to zap it!",  # :163
+    },
+    "r": {
+        "目が見えない。", "You can't see anything.",  # action-limited.cpp:91
+        "明かりがないので見えない。", "You have no light.",  # :96
+        "混乱していてできない！", "You are too confused!",  # :50
+        "巻物なんて読めない。", "You cannot read.",  # read-execution.cpp:96
+        "朦朧としていて読めなかった！", "You too stunned to read it!",  # :100
+        "読める巻物がない。", "You have no scrolls to read.",  # cmd-read.cpp:42
+    },
+}
+_TIMEWALK_MESSAGES = {
+    "止まった時の中ではうまく働かないようだ。", "It shows no reaction.",
+}  # action-limited.cpp:110; reached by all four execution paths.
+
+
+def _operation_messages(screen: Mapping[str, object], board: Mapping[str, object]) -> list[str]:
+    """Return only evidence obtained at this operation's successful barrier."""
+    rows = screen.get("lines", ())
+    messages = [str(rows[0]).rstrip()] if isinstance(rows, Sequence) and rows else []
+    delta = board.get("messages", ())
+    if isinstance(delta, Sequence) and not isinstance(delta, (str, bytes)):
+        messages.extend(str(message).rstrip() for message in delta)
+    return [message for message in messages if message]
+
+
+def _expected_prompt_absence_is_complete(
+        operation: Operation, screen: Mapping[str, object], board: Mapping[str, object]) -> bool:
+    """Classify only source-proven terminal outcomes for an unused tail."""
+    command = operation.accepted_segments[0][:1] if operation.accepted_segments else operation.keys[:1]
+    if command not in _ABSENT_PROMPT_MESSAGES:
+        return False
+    endings = _ABSENT_PROMPT_MESSAGES.get(command, set()) | _TIMEWALK_MESSAGES
+    if any(message in endings for message in _operation_messages(screen, board)):
+        return True
+
+    # Full-identify may legitimately omit the target prompt when the bound
+    # target is already known, or after its selected one-shot source vanishes.
+    # Compare the operation's originating board with this barrier state; a
+    # mere command boundary or unchanged board is not positive evidence.
+    if not operation.owner.startswith("identify:full"):
+        return False
+    before = operation.observation if isinstance(operation.observation, Mapping) else {}
+    before_items = {
+        str(item.get("slot")): item for item in before.get("inventory", ())
+        if isinstance(item, Mapping)
+    }
+    after_items = {
+        str(item.get("slot")): item for item in board.get("inventory", ())
+        if isinstance(item, Mapping)
+    }
+    pending = operation.continuations[0] if operation.continuations else None
+    if pending is not None and ScreenKind.ITEM_TARGET in pending.kinds:
+        old_target = before_items.get(pending.keys[:1])
+        target = after_items.get(pending.keys[:1])
+        if old_target is not None and not bool(old_target.get("fully_known")) \
+                and target is not None and bool(target.get("fully_known")):
+            return True
+    accepted_source = operation.accepted_segments[-1][:1] if len(operation.accepted_segments) > 1 else ""
+    if accepted_source and accepted_source in before_items:
+        old = before_items[accepted_source]
+        identity = tuple(old.get(key) for key in ("tval", "sval", "name"))
+        old_count = sum(
+            int(item.get("count", 0)) for item in before_items.values()
+            if tuple(item.get(key) for key in ("tval", "sval", "name")) == identity
+        )
+        new_count = sum(
+            int(item.get("count", 0)) for item in after_items.values()
+            if tuple(item.get(key) for key in ("tval", "sval", "name")) == identity
+        )
+        if new_count < old_count:
+            return True
+    return False
+
+
 def _same_barrier_value(
         state: Mapping[str, object], record: Mapping[str, object], key: str) -> bool:
     """Compare emitter values that bind a store record to the TCP state stop."""
@@ -503,16 +599,6 @@ class OperationExecutor:
                 return self._post_and_barrier(continuation.keys, deadline)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
-        # An absent expected prompt drops its tail; it is never posted opportunistically.
-        if self.active.continuations:
-            if self.active.owner.startswith("identify:full"):
-                # An already-known target can skip either selector, and an
-                # exhausted source can return directly to command.  The fresh
-                # command/store barrier positively reconciles that outcome;
-                # none of the unobserved tail is posted.
-                self.active.continuations.clear()
-            else:
-                return self._terminal(self.active, "continuation", "expected prompt absent", match, outcome)
         screen_epoch = self.client.observation_epoch
         state = self._request("state", deadline, map=True)
         if state is None:
@@ -537,6 +623,16 @@ class OperationExecutor:
             return self._terminal(
                 self.active, "store-state",
                 "missing or mismatching current store page", match, outcome)
+        # Spec section 4: at a successful command/store barrier an unused tail
+        # is dropped only when fresh effects positively establish that the
+        # source command ended.  Ambiguous absence remains a visible terminal.
+        if self.active.continuations:
+            if not _expected_prompt_absence_is_complete(
+                    self.active, screen_value, board):
+                return self._terminal(
+                    self.active, "continuation", "expected prompt absent",
+                    match, outcome)
+            self.active.continuations.clear()
         operation = self.active
         self.active = None
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (

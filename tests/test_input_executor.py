@@ -96,7 +96,7 @@ class FaithfulHookGame:
         self.frontend_fifo, self.term_fifo = [], []
         self.accepted, self.wm_posts, self.jsonl, self.trace = [], [], [], []
         self.screen, self.state = command_screen(1), {"turn": 1, "grid_map": {"runs": []}}
-        self.screens = []
+        self.screens, self.states = [], []
         self.faults, self.fragments, self.recv_chunks = [], [], []
         self.pending_prompt = None
         self.hook_waiting = True
@@ -127,7 +127,9 @@ class FaithfulHookGame:
         if not self.term_fifo:
             return
         raw = "".join(self.term_fifo); self.term_fifo.clear()
-        self.state = {"turn": self.state["turn"] + 1, "grid_map": {"runs": []}}
+        self.state = self.states.pop(0) if self.states else {
+            "turn": self.state["turn"] + 1, "grid_map": {"runs": []}
+        }
         self.screen = self.screens.pop(0) if self.screens else command_screen(self.state["turn"])
         # Source-derived inner prompts are raised inside a command and emit no JSONL.
         if not self.screen["lines"][0].rstrip():
@@ -457,6 +459,11 @@ class TcpBarrierPinTest(ProductionHarness):
                            "20-sweep-identify-item-target.json").read_text(
                                encoding="utf-8"))
 
+    def _identify_failure_fixture(self):
+        return json.loads((Path(__file__).with_name("fixtures") / "live-screens" /
+                           "21-identify-prompt-absent.json").read_text(
+                               encoding="utf-8"))
+
     def _produce_identify_chain(self, *, scroll=False):
         fixture = self._identify_incident_fixture()
         raw = copy.deepcopy(fixture["state"]["result"])
@@ -509,6 +516,135 @@ class TcpBarrierPinTest(ProductionHarness):
                          ["u", "m", "g"])
         self.assertEqual(result["outcome"], "released")
         self.assertNotEqual(port.last_result.outcome, "stuck-prompt")
+
+    def _drive_absent_target(self, message, *, mutate_final_state=None, owner=None):
+        fixture = self._identify_failure_fixture()
+        raw = copy.deepcopy(fixture["state"]["result"])
+        raw["messages"] = []
+        final = copy.deepcopy(raw)
+        if mutate_final_state is not None:
+            mutate_final_state(final)
+        snapshot = parse_snapshot(raw, {})
+        policy = ConservativePolicy()
+        policy._decision_sequence = 656
+        key = policy._identify_carried_item_key(
+            snapshot, lambda item: item.slot == "i", "quest:sweep:identify"
+        )
+        self.assertEqual(key, "uni")
+        chain = policy.peek_staged_prompt_chain()
+        screen = copy.deepcopy(fixture["screen"]["result"])
+        screen["lines"][0] = message + " " * max(0, screen["width"] - len(message))
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screens = [prompt_screen(chain["gates"][0][1][0].rstrip()), screen]
+        game.states = [copy.deepcopy(raw), final]
+        _game, client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        sent, _line, result = _send_prompt_gated_decision_key(
+            port, "incident-seq656", key, None, set(), chain,
+            shadow_client=client, file=StringIO(), deadline=9999999999,
+            poll_interval=0, prompt_japanese=True,
+            decision={"sequence": 656, "reason": owner or policy.last_reason},
+            snapshot=snapshot, posting_contract=PostingContract(),
+        )
+        return game, executor, port, policy, raw, sent, result
+
+    def test_device_failure_retires_real_incident_operation_and_allows_fresh_retry(self):
+        game, executor, _port, policy, raw, sent, result = self._drive_absent_target(
+            "杖をうまく使えなかった。"
+        )
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["u", "n"])
+        self.assertEqual(executor.active, None)
+        self.assertEqual(result["outcome"], "released")
+        self.assertEqual(executor.ready_board["turn"], 2863152)
+        fresh = parse_snapshot(executor.ready_board, {})
+        retry = policy._identify_carried_item_key(
+            fresh, lambda item: item.slot == "i", "quest:sweep:identify"
+        )
+        self.assertEqual(retry, "uni")
+
+    def test_empty_staff_retires_and_is_not_reselected_on_fresh_board(self):
+        def empty_staff(raw):
+            next(item for item in raw["inventory"] if item["slot"] == "n")["charges"] = 0
+
+        game, executor, _port, policy, _raw, sent, _result = self._drive_absent_target(
+            "この杖にはもう魔力が残っていない。",
+            mutate_final_state=empty_staff
+        )
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["u", "n"])
+        fresh = parse_snapshot(executor.ready_board, {})
+        next_key = policy._identify_carried_item_key(
+            fresh, lambda item: item.slot == "i", "quest:sweep:identify"
+        )
+        self.assertFalse(next_key and next_key.startswith("un"))
+
+    def test_rod_charging_retires_and_is_not_reselected_on_fresh_board(self):
+        fixture = self._identify_failure_fixture()
+        raw = copy.deepcopy(fixture["state"]["result"])
+        for item in raw["inventory"]:
+            if item["slot"] == "n":
+                item["charges"] = 0
+            if item["slot"] == "i":
+                item.update(aware=True, known=True, sval=2, timeout=10,
+                            name="鑑定のロッド")
+        snapshot = parse_snapshot(raw, {})
+        policy = ConservativePolicy()
+        self.assertIsNone(policy._find_identification_source(snapshot, full=False))
+
+        game = FaithfulHookGame(); game.state = copy.deepcopy(raw)
+        screen = copy.deepcopy(fixture["screen"]["result"])
+        screen["lines"][0] = "このロッドはまだ魔力を充填している最中だ。"
+        game.screens = [screen]; game.states = [copy.deepcopy(raw)]
+        _game, _client, executor = self.make(game)
+        executor.observe_boundary(deadline=9999999999)
+        operation = Operation(657, "identify", "zi", executor.ready_board, [
+            Continuation(frozenset({ScreenKind.ITEM_TARGET}), "o",
+                         "どのアイテムを鑑定しますか?")])
+        result = executor.submit(operation, deadline=9999999999)
+        self.assertEqual((result.outcome, game.accepted), ("completed", ["zi"]))
+        self.assertIsNone(policy._find_identification_source(
+            parse_snapshot(result.board, {}), full=False))
+
+    def test_bilingual_source_proven_command_endings_drop_no_tail(self):
+        cases = [
+            ("u", "杖をうまく使えなかった。"),
+            ("u", "You failed to use the staff properly."),
+            ("a", "魔法棒をうまく使えなかった。"),
+            ("a", "The wand has no charges left."),
+            ("z", "うまくロッドを使えなかった。"),
+            ("z", "The rod is still charging."),
+            ("r", "目が見えない。"),
+            ("r", "You have no light."),
+        ]
+        for command, message in cases:
+            with self.subTest(command=command, message=message):
+                game, _client, executor = self.make()
+                screen = command_screen(2); screen["lines"][0] = message
+                game.screens = [screen]
+                executor.observe_boundary(deadline=9999999999)
+                operation = Operation(658, "owned", command + "a",
+                                      executor.ready_board, [
+                    Continuation(frozenset({ScreenKind.ITEM_TARGET}), "b",
+                                 "Identify which item?")])
+                result = executor.submit(operation, deadline=9999999999)
+                self.assertEqual((result.outcome, game.accepted),
+                                 ("completed", [command + "a"]))
+
+    def test_absent_prompt_without_causal_message_or_with_unrelated_message_stops(self):
+        for message in ("", "ブラック・オークの骨がある。"):
+            with self.subTest(message=message):
+                game, executor, port, _policy, _raw, sent, result = \
+                    self._drive_absent_target(message)
+                self.assertEqual(sent.value, "terminal")
+                self.assertEqual(game.accepted, ["u", "n"])
+                self.assertEqual(executor.state.value, "terminal")
+                self.assertEqual(result["outcome"], "dropped")
+                self.assertIn("expected prompt absent", port.last_result.reason)
 
     def test_japanese_scroll_identify_chain_owns_fixture_target_once(self):
         game, port, sent, result, key = self._drive_identify_chain(scroll=True)
@@ -793,7 +929,39 @@ class TcpBarrierPinTest(ProductionHarness):
             71, "identify:full", "r", executor.ready_board,
             [Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f", "Read which scroll?")],
         ), deadline=9999999999)
-        self.assertEqual((result.outcome, game.accepted), ("completed", ["r"]))
+        self.assertEqual((result.outcome, game.accepted), ("stuck-prompt", ["r"]))
+        self.assertIn("expected prompt absent", result.reason)
+
+        for effect in ("source-exhausted", "target-already-known"):
+            with self.subTest(effect=effect):
+                before = {
+                    "turn": 1, "grid_map": {"runs": []},
+                    "inventory": [
+                        {"slot": "f", "count": 1, "fully_known": True,
+                         "tval": 70, "sval": 13, "name": "*Identify*"},
+                        {"slot": "k", "count": 1, "fully_known": False,
+                         "tval": 22, "sval": 1, "name": "Axe"},
+                    ],
+                }
+                after = copy.deepcopy(before); after["turn"] = 2
+                if effect == "source-exhausted":
+                    after["inventory"] = [after["inventory"][1]]
+                else:
+                    after["inventory"][1]["fully_known"] = True
+                game, _client, executor = self.make()
+                game.state = copy.deepcopy(before)
+                game.screens = [prompt_screen("Read which scroll?"), command_screen(2)]
+                game.states = [copy.deepcopy(before), after]
+                executor.observe_boundary(deadline=9999999999)
+                operation = Operation(73, "identify:full", "r", before, [
+                    Continuation(frozenset({ScreenKind.ITEM_SOURCE}), "f",
+                                 "Read which scroll?"),
+                    Continuation(frozenset({ScreenKind.ITEM_TARGET}), "k",
+                                 "Identify which item?"),
+                ])
+                result = executor.submit(operation, deadline=9999999999)
+                self.assertEqual((result.outcome, game.accepted),
+                                 ("completed", ["r", "f"]))
 
     def test_full_equipped_identify_owns_viewer_pages(self):
         game, _client, executor = self.make()
