@@ -4605,30 +4605,44 @@ class QuestMixin:
         positions = self._fixed_quest_building_positions(snapshot, quest_id)
         if not positions:
             return None
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        context = self._decision_context
+        source = self._effective_town_id(snapshot)
         if snapshot.player.position in positions:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
-                self.last_reason = f"{reason}:step-off"
-                return self._step_toward(snapshot, neighbors[0])
-            return None
-        step = self._nearest_goal_step(
+                step_reason = f"{reason}:step-off"
+                key = self._step_toward(snapshot, neighbors[0])
+                return self._fixed_quest_building_candidate(
+                    snapshot, quest_id, quest, step_reason, key,
+                    neighbors[0], neighbors[0], 1, context, source,
+                )
+            return self._fixed_quest_building_unavailable_candidate(
+                snapshot, quest_id, quest, reason, context, source,
+            )
+        route = self._nearest_goal_route(
             snapshot,
             lambda grid: grid.building_special == quest_id,
         )
-        if step is None:
-            step = min(
+        if route is None:
+            route = min(
                 (
                     candidate
                     for candidate in (
-                        self._town_map_goal_step(snapshot, pos) for pos in positions
+                        self._town_map_goal_route(snapshot, pos) for pos in positions
                     )
                     if candidate is not None
                 ),
-                key=lambda pos: snapshot.player.position.distance_to(pos),
+                key=lambda candidate: snapshot.player.position.distance_to(
+                    candidate.first_step
+                ),
                 default=None,
             )
-        if step is None:
-            return None
+        if route is None:
+            return self._fixed_quest_building_unavailable_candidate(
+                snapshot, quest_id, quest, reason, context, source,
+            )
+        step = route.first_step
         step_grid = snapshot.grid_at(step)
         if step in positions or (
             step_grid is not None and step_grid.building_special == quest_id
@@ -4640,9 +4654,58 @@ class QuestMixin:
         owner = f"{reason}:approach"
         if not self._owner_may_select(snapshot, owner):
             return None
-        self.last_reason = owner
         self._post_owner_expectation(snapshot, owner, "position", "floor")
-        return self._step_toward(snapshot, step)
+        key = self._step_toward(snapshot, step)
+        return self._fixed_quest_building_candidate(
+            snapshot, quest_id, quest, owner, key, route.target,
+            route.first_step, route.remaining_edges, context, source,
+        )
+
+    def _fixed_quest_building_candidate(
+        self, snapshot, quest_id, quest, reason, key, goal, first_step,
+        bfs_rank, context, source,
+    ):
+        self.last_reason = reason
+        if context is None or quest is None:
+            return key
+        identity = object()
+        declaration = QuestTravelDeclaration(
+            quest_id=quest_id, quest_status=quest.status,
+            stage="building-step-off" if reason.endswith(":step-off")
+            else "building-approach",
+            source_town_id=source, destination_town_id=source,
+            floor=snapshot.floor_key, goal=goal, first_step=first_step,
+            bfs_rank=bfs_rank, composed_key=key,
+            decision_identity=context.identity, candidate_identity=identity,
+            producer_branch="quest-building-approach",
+        )
+        return DecisionCandidate(
+            key, reason=reason, decision_identity=context.identity,
+            route_declaration=declaration, identity=identity,
+        )
+
+    def _fixed_quest_building_unavailable_candidate(
+        self, snapshot, quest_id, quest, reason, context, source,
+    ):
+        if context is None or quest is None:
+            return None
+        unavailable_reason = f"{reason}:approach:route-unavailable"
+        identity = object()
+        declaration = QuestTravelDeclaration(
+            quest_id=quest_id, quest_status=quest.status,
+            stage="building-approach-route-unavailable",
+            source_town_id=source, destination_town_id=source,
+            floor=snapshot.floor_key, goal=None, first_step=None, bfs_rank=None,
+            composed_key=WAIT_KEY, decision_identity=context.identity,
+            candidate_identity=identity,
+            producer_branch="quest-building-approach",
+        )
+        self.last_reason = unavailable_reason
+        return DecisionCandidate(
+            WAIT_KEY, reason=unavailable_reason,
+            decision_identity=context.identity,
+            route_declaration=declaration, identity=identity,
+        )
 
     def _fixed_quest_enter_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         positions = self._fixed_quest_entrance_positions(snapshot, quest_id)

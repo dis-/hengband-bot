@@ -213,6 +213,9 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         self.assertEqual((str(key), policy.last_reason),
                          (WAIT_KEY, "quest:enter:approach:unsatisfiable"))
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
+        previous_retirement = copy.deepcopy(
+            policy._town_turn_arbiter._retired["quest-request"]
+        )
 
         # A public max-HP transition makes _took_damage true while the lower
         # board is still at full HP, reaching the damaged-WAIT rewrite seam.
@@ -240,7 +243,12 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         changed = copy.deepcopy(boxed)
         next(q for q in changed["progress"]["quests"] if q["id"] == 22)["status"] = QUEST_STATUS_COMPLETED
         policy.choose_key(parse_snapshot(changed, self.monrace))
-        self.assertNotIn("quest-request", policy._town_turn_arbiter._retired)
+        # Completion durably clears the entry obligation; the same blocked
+        # board may immediately retire the distinct reward-building claim.
+        self.assertNotEqual(
+            policy._town_turn_arbiter._retired.get("quest-request"),
+            previous_retirement,
+        )
 
     def test_taken_q22_cross_town_uses_stage1_clearance_values(self):
         policy = self._policy()
@@ -271,8 +279,9 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         policy, _ = self._seed_through_incident(maps=False)
         source = self._incident_boards()[0]
         blocked_return = copy.deepcopy(source)
-        next(q for q in blocked_return["progress"]["quests"]
-             if q["id"] == 22)["status"] = QUEST_STATUS_COMPLETED
+        blocked_return["progress"]["quests"] = [
+            q for q in blocked_return["progress"]["quests"] if q["id"] != 22
+        ]
         next(q for q in blocked_return["progress"]["quests"]
              if q["id"] == 2)["status"] = 0
         for cell in blocked_return["grid_map"]["cells"]:

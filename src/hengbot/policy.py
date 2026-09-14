@@ -2392,6 +2392,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "fixedquest:q22-travel:route-unavailable",
                 "fixedquest:prepare-return:route-unavailable",
                 "quest:enter:approach:route-unavailable",
+                "fixedquest:claim:approach:route-unavailable",
+                "fixedquest:request:approach:route-unavailable",
             }
             else None
         )
@@ -2476,7 +2478,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         "quest:enter:approach:unsatisfiable"
                         if rejected_candidate.reason.startswith(
                             "quest:enter:approach:"
-                        ) else "fixedquest:q22-travel:unsatisfiable"
+                        ) else (
+                            rejected_candidate.reason.replace(
+                                ":route-unavailable", ":unsatisfiable"
+                            ) if rejected_candidate.reason.startswith(
+                                ("fixedquest:claim:approach:",
+                                 "fixedquest:request:approach:")
+                            ) else "fixedquest:q22-travel:unsatisfiable"
+                        )
                     )
                 )
                 key = WAIT_KEY
@@ -2566,6 +2575,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "fixedquest:q22-travel:route-unavailable",
                 "fixedquest:prepare-return:route-unavailable",
                 "quest:enter:approach:route-unavailable",
+                "fixedquest:claim:approach:route-unavailable",
+                "fixedquest:request:approach:route-unavailable",
             }
             and rejected_candidate is key
         )

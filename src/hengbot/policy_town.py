@@ -234,6 +234,27 @@ class TownMixin:
                     snapshot, declaration.quest_id
                 )
             )
+        if declaration.producer_branch == "quest-building-approach":
+            quest = self._known_fixed_quests(snapshot).get(declaration.quest_id)
+            expected = (
+                "fixedquest:claim" if quest is not None
+                and quest.status == QUEST_STATUS_COMPLETED
+                else "fixedquest:request"
+            )
+            return (
+                quest is not None
+                and quest.status == declaration.quest_status
+                and declaration.source_town_id == declaration.destination_town_id
+                and candidate.reason.startswith(expected + ":")
+                and declaration.stage in {"building-approach", "building-step-off"}
+                and declaration.goal in (
+                    self._fixed_quest_building_positions(
+                        snapshot, declaration.quest_id
+                    )
+                    if declaration.stage == "building-approach"
+                    else self._walkable_neighbors(snapshot, snapshot.player.position)
+                )
+            )
         return False
 
     @staticmethod
@@ -363,7 +384,13 @@ class TownMixin:
             prepare_return_active = active_reason.startswith(
                 "fixedquest:prepare-return"
             )
-            quest_producer_active = entry_active or q22_active or prepare_return_active
+            building_active = (
+                active_reason.startswith("fixedquest:claim:approach")
+                or active_reason.startswith("fixedquest:request:approach")
+            )
+            quest_producer_active = (
+                entry_active or q22_active or prepare_return_active or building_active
+            )
             retired_key = getattr(
                 getattr(self, "_town_turn_arbiter", None), "_retired", {}
             ).get("quest-request")
@@ -373,11 +400,27 @@ class TownMixin:
                 and isinstance(retired_key, tuple) and len(retired_key) == 3
                 else (True, True, True)
             )
-            entry_unresolved = (
-                self._quest_entry_route_unavailable_clearance_key(snapshot)
-                if (entry_active or (not quest_producer_active
-                                     and retained_slots[0] is not None)) else None
-            )
+            entry_unresolved = None
+            if entry_active:
+                entry_unresolved = self._quest_entry_route_unavailable_clearance_key(
+                    snapshot
+                )
+            elif building_active:
+                entry_unresolved = self._quest_building_route_unavailable_clearance_key(
+                    snapshot
+                )
+            elif not quest_producer_active and retained_slots[0] is not None:
+                if (isinstance(retained_slots[0], tuple)
+                        and retained_slots[0]
+                        and retained_slots[0][0]
+                        == "quest-building-approach-route-unavailable"):
+                    entry_unresolved = (
+                        self._quest_building_route_unavailable_clearance_key(snapshot)
+                    )
+                else:
+                    entry_unresolved = (
+                        self._quest_entry_route_unavailable_clearance_key(snapshot)
+                    )
             q22_unresolved = (
                 self._q22_route_unavailable_clearance_key(snapshot)
                 if (q22_active or (not quest_producer_active
@@ -447,6 +490,40 @@ class TownMixin:
             ("battlefield", repr(info.battlefield)),
             current_town, snapshot.floor_key,
             ("entrance-obligation", tuple(sorted(positions))),
+            "eligible-route-unavailable",
+        )
+
+    def _quest_building_route_unavailable_clearance_key(self, snapshot):
+        quest_id = self._fixed_quest_target(snapshot)
+        if quest_id is None or not snapshot.in_town:
+            return None
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        if quest is None or quest.status not in {
+            QUEST_STATUS_UNTAKEN, QUEST_STATUS_COMPLETED,
+        }:
+            return None
+        positions = self._fixed_quest_building_positions(snapshot, quest_id)
+        if not positions or snapshot.player.position in positions:
+            return None
+        route = self._nearest_goal_route(
+            snapshot, lambda grid: grid.building_special == quest_id
+        )
+        if route is None:
+            route = min(
+                (candidate for candidate in (
+                    self._town_map_goal_route(snapshot, position)
+                    for position in positions
+                ) if candidate is not None),
+                key=lambda candidate: snapshot.player.position.distance_to(
+                    candidate.first_step
+                ), default=None,
+            )
+        if route is not None:
+            return None
+        return (
+            "quest-building-approach-route-unavailable", quest_id, quest.status,
+            self._effective_town_id(snapshot), snapshot.floor_key,
+            ("building-obligation", tuple(sorted(positions))),
             "eligible-route-unavailable",
         )
 
