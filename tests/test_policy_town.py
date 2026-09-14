@@ -13224,13 +13224,9 @@ class RangedAttackTest(unittest.TestCase):
         outside = replace(snap, store=None)
         policy._fundraising_mode = "scavenge"
         policy._town_restock_suppressed = True
-        policy.last_reason = "seek-downstairs"
-        with patch.object(policy, "_fundraising_departure_ready", return_value=True):
-            self.assertIsNone(policy._town_special_key(outside))
-        departure_key = policy._step_toward(outside, Position(10, 11))
-        self.assertEqual(departure_key, "6")
-        self.assertNotEqual(departure_key, WAIT_KEY)
-        self.assertFalse((policy.last_reason or "").startswith("town:blocked:"))
+        departure_key = policy.choose_key(outside)
+        self.assertEqual((departure_key, policy.last_reason),
+                         ("6", "seek-downstairs"))
 
     def test_home_ammo_and_store_stock_select_home_before_purchase(self):
         plain = replace(self._shots(count=10), fully_known=True)

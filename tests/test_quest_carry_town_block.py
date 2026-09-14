@@ -11,7 +11,7 @@ from hengbot.ammo_carry import ammo_carry_plan
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _parse_items
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
-from hengbot.model import STORE_WEAPON, StoreState, parse_snapshot
+from hengbot.model import STORE_HOME, STORE_WEAPON, StoreState, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import load_quest_knowledge
@@ -95,17 +95,24 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         self.assertEqual(readiness["resists"],
                          {"ready": False, "required": ["free_action"]})
 
-        # Counterfactual continuation of the recorded board through one real
-        # dungeon/town transition: only location and later turns differ.  The
-        # public selector produces both observations on the same policy.
+        # This character's only dungeon-to-town transition in the state log is
+        # 2864676 -> 2864686.  Replay those recorded boards at monotonic turns
+        # on the same policy; only their historical turn numbers are advanced.
         dungeon = replace(
-            outside,
+            parse_snapshot(self.recorded(2864676, "player_turn"), self.monrace),
             turn=outside.turn + 1,
-            floor_key=(1, 19, 0), town_flag=False, town_id=-1,
         )
-        policy.choose_key(dungeon)
-        arrival = replace(outside, turn=outside.turn + 2, town_flag=True)
-        policy.choose_key(arrival)
+        dungeon_key = policy.choose_key(dungeon)
+        self.assertIsNotNone(dungeon_key)
+        arrival = replace(
+            parse_snapshot(self.recorded(2864686, "player_turn"), self.monrace),
+            turn=outside.turn + 2,
+        )
+        arrival_key = policy.choose_key(arrival)
+        self.assertEqual(
+            (str(arrival_key), policy.last_reason),
+            ("\x1b`n(.", "shop:travel"),
+        )
         self.assertEqual(policy._abandoned_quest_carry_requirements, {})
         status = policy._quest_carry_status(
             arrival, strategy.required_force
@@ -115,7 +122,9 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         )
         self.assertEqual(retry.stores, (STORE_WEAPON,))
         self.assertTrue(retry.obtainable)
-        self.assertEqual(policy._town_visit_ledger.store_visits.get(7, 0), 0)
+        self.assertEqual(
+            policy._town_visit_ledger.store_visits.get(STORE_HOME, 0), 0
+        )
 
     def test_fresh_purchasable_page_keeps_ammo_claim_actionable(self):
         policy = self.policy()

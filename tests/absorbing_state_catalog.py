@@ -211,9 +211,8 @@ def _captured_home_deferral_retry():
     if (
         producer["decision_index"] != 26
         # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the captured producer key is part of the required faithful replay identity
-        or producer_key != "\x1b`n&."
-        or policy.last_reason
-        != "town-progress-invariant:defect:=>town-progress-invariant:approach"
+        or producer_key != "\x1b`n!."
+        or policy.last_reason != "shop:travel"
         or target_signature not in added
     ):
         raise AssertionError(

@@ -12,6 +12,7 @@ SOURCE = ROOT / "jsonlog" / "bot-state-fixed.jsonl"
 TARGET = ROOT / "tests" / "fixtures" / "quest-carry-town-block-20260915.jsonl.gz"
 FIRST_TURN = 2_870_615
 LAST_TURN = 2_873_626
+RECORDED_ARRIVAL_TURNS = {2_864_676, 2_864_686}
 
 
 def main() -> None:
@@ -19,7 +20,8 @@ def main() -> None:
     with SOURCE.open("rt", encoding="utf-8-sig", newline="") as stream:
         for line in stream:
             record = json.loads(line)
-            if FIRST_TURN <= int(record.get("turn", -1)) <= LAST_TURN:
+            turn = int(record.get("turn", -1))
+            if FIRST_TURN <= turn <= LAST_TURN or turn in RECORDED_ARRIVAL_TURNS:
                 rows.append(line.rstrip("\r\n"))
     if not rows:
         raise AssertionError("recorded quest-carry town-block window is empty")

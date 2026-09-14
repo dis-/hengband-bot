@@ -792,13 +792,6 @@ class QuestMixin:
     def _quest_carry_suppliers(name: str) -> tuple[int, ...]:
         if name == "throwing_items.lit_torch":
             return (STORE_GENERAL,)
-        if name in {
-            "throwing_items.shot",
-            "throwing_items.arrow",
-            "throwing_items.bolt",
-            "throwing_items.launcher_ammo",
-        }:
-            return (STORE_WEAPON,)
         if name.startswith("launcher") or name.startswith("throwing_items."):
             return (STORE_WEAPON,)
         if name.startswith("required_scrolls."):
