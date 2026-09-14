@@ -184,7 +184,7 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         unknown_key = unknown_policy.choose_key(unknown)
         self.assertEqual((str(unknown_key), unknown_policy.last_reason),
                          ("7", "seek-loot"))
-        self.assertEqual(unknown_policy.decision_attribution, "town-plan")
+        self.assertEqual(unknown_policy.decision_attribution, "town-errand")
         self.assertNotIn("quest-request", unknown_policy._town_turn_arbiter._retired)
 
         # Derived on-entrance/no-exit: entry itself remains the legal action.

@@ -1187,6 +1187,24 @@ class ShopMixin:
         if item.is_ammo:
             top_up = self._home_ammo_top_up(snapshot)
             if top_up is None:
+                deferred_top_up = self._home_ammo_top_up(
+                    snapshot, include_deferred=True
+                )
+                if deferred_top_up is not None:
+                    signature = self._item_signature(deferred_top_up[0])
+                    retried_deferred = getattr(
+                        self, "_retried_deferred_home_items", set()
+                    )
+                    if signature not in retried_deferred:
+                        if not hasattr(self, "_retried_deferred_home_items"):
+                            self._retried_deferred_home_items = retried_deferred
+                        self._retried_deferred_home_items.add(signature)
+                        self._deferred_home_items.discard(signature)
+                        getattr(self, "_deferred_home_item_sites", {}).pop(
+                            signature, None
+                        )
+                        top_up = deferred_top_up
+            if top_up is None:
                 self._home_procurement_probe = None
                 self._home_procurement_fallthrough = "fresh-catalogue-absence"
                 return self._record_home_gate(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot.ammo_carry import ammo_carry_plan
+from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
@@ -2514,9 +2514,9 @@ class HomeMixin:
         )
 
     def _home_ammo_top_up(
-        self, snapshot: Snapshot
+        self, snapshot: Snapshot, *, include_deferred: bool = False
     ) -> tuple[InventoryItem, int] | None:
-        """Return Home ammo that extends a kept stack without creating a third."""
+        """Return Home ammo that fills either of the two kept-stack roles."""
         if not self._home_knowledge_current:
             return None
         launcher = self._equipped_launcher(snapshot)
@@ -2538,8 +2538,29 @@ class HomeMixin:
                 (
                     item for item in addressable
                     if item.count > 0
-                    and self._item_signature(item) not in self._deferred_home_items
+                    and (
+                        include_deferred
+                        or self._item_signature(item)
+                        not in self._deferred_home_items
+                    )
                     and self._store_item_stacks_with_inventory(pack, item)
+                ),
+                None,
+            )
+            if candidate is not None:
+                return candidate, min(candidate.count, shortage)
+        if plan.plain_slot is None and len(plan.kept_slots) < 2:
+            candidate = next(
+                (
+                    item for item in addressable
+                    if item.count > 0
+                    and (
+                        include_deferred
+                        or self._item_signature(item)
+                        not in self._deferred_home_items
+                    )
+                    and item.tval == launcher.ammo_tval
+                    and is_plain_store_ammo(item)
                 ),
                 None,
             )

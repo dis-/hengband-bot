@@ -23,6 +23,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import hengbot.policy as policy_module
+from hengbot.ammo_carry import ammo_carry_plan
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
@@ -176,6 +177,26 @@ def _captured_home_deferral_retry():
         pickle.loads(base64.b64decode(encoded))
         for encoded in capture["snapshots_pickle_b64"]
     ]
+    # User decision: q22 still needs 99 shots in the two kept stacks (plain
+    # plus highest-power).  Merge only the capture's launcher-ammo stack
+    # shapes/counts from (2,18,28,13,5,14,19) into plain 80 + power 19.
+    derived = []
+    for snapshot in decoded:
+        bolts = [item for item in snapshot.inventory if item.tval == 18]
+        if len(bolts) == 7:
+            if [item.count for item in bolts] != [2, 18, 28, 13, 5, 14, 19]:
+                raise AssertionError("unexpected captured launcher-ammo stacks")
+            inventory = [
+                replace(item, count=80) if item is bolts[0] else item
+                for item in snapshot.inventory
+                if item.tval != 18 or item is bolts[0] or item is bolts[-1]
+            ]
+            snapshot = replace(snapshot, inventory=inventory)
+            launcher = policy._equipped_launcher(snapshot)
+            if ammo_carry_plan(snapshot, launcher, 99).carried_count != 99:
+                raise AssertionError("derived q22 fixture carry plan is not 99")
+        derived.append(snapshot)
+    decoded = derived
     sequence = capture["sequence"]
     target_signature = next(
         item
@@ -189,9 +210,19 @@ def _captured_home_deferral_retry():
     added = policy._deferred_home_items - before
     if (
         producer["decision_index"] != 26
+        # 縲・繧ｹ繧ｿ繝・け莉･蜀・〒蜷郁ｨ・9譛ｬ縲阪御ｸｦ・区怙繧ょｨ∝鴨縺ｮ鬮倥＞1繧ｹ繧ｿ繝・け縲・;
+        # merged fixture frees five slots, changing only the approach producer.
+        # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the captured producer key is part of the required faithful replay identity
+        or producer_key != "\x1b`n&."
+        or policy.last_reason
+        != "town-progress-invariant:defect:=>town-progress-invariant:approach"
         or target_signature not in added
     ):
-        raise AssertionError("captured Home deferral producer no longer replays")
+        raise AssertionError(
+            "captured Home deferral producer no longer replays: "
+            f"key={producer_key!r} reason={policy.last_reason!r} "
+            f"added={target_signature in added}"
+        )
     retry_start = next(
         index
         for index, entry in enumerate(sequence)

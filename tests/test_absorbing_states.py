@@ -250,25 +250,39 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             signature, getattr(policy, "_retried_deferred_home_items", set())
         )
 
-        for decision in range(1, state.decisions + 1):
+        retry_trace = []
+        for decision in range(1, 121):
             key = policy.choose_key(world.snapshot(decision))
+            retry_trace.append((decision, str(key), policy.last_reason))
             policy.confirm_key_posted(key)
             world.apply(key)
+            if signature in policy._retried_deferred_home_items:
+                break
 
-        self.assertIn(signature, policy._deferred_home_items)
-        self.assertNotIn(
+        self.assertEqual(
+            retry_trace,
+            [(1, "\x1b`n(.", "shop:travel")],
+            "the bounded faithful drive must stop at the first Home retry",
+        )
+        self.assertNotEqual(key, "", "the retry is visible town progress")
+
+        self.assertNotIn(signature, policy._deferred_home_items)
+        self.assertIn(
             signature, getattr(policy, "_retried_deferred_home_items", set())
         )
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
-            "wrapper-fresh-catalogue-absence",
+            "wrapper-candidate-home-first",
         )
-        self.assertNotEqual(key, WAIT_KEY)
-        return
         self.assertEqual(
             policy._home_pending_item, signature,
             "Home re-entry must not replenish the one-retry budget",
         )
+
+        for decision in range(2, state.decisions + 1):
+            key = policy.choose_key(world.snapshot(decision))
+            policy.confirm_key_posted(key)
+            world.apply(key)
 
         catalogue = tuple(policy._home_knowledge_items)
         for inside in (world.snapshots[-2], world.snapshots[-2]):
@@ -285,9 +299,15 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             "q", 18, 1, name="shop bolts", price=3, is_equipment=True
         )
 
+        retried_before_gate = set(policy._retried_deferred_home_items)
         gate = policy._purchase_has_fresh_home_absence(failed_outside, offered)
 
-        self.assertIs(gate, cat.policy_module.ProcurementHomeGate.BLOCKED)
+        self.assertIs(
+            gate, cat.policy_module.ProcurementHomeGate.ALLOW_PURCHASE,
+            "after the sole Home retry fails, purchase remains progress",
+        )
+        self.assertEqual(policy._retried_deferred_home_items, retried_before_gate)
+        self.assertIn(signature, policy._deferred_home_items)
         self.assertEqual(
             policy._home_gate_telemetry["candidate_absence_census"],
             {
@@ -301,8 +321,8 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             policy._home_gate_telemetry["deferred_retry"],
             {
                 "attempted_signatures": [list(signature)],
-                "fresh_attempt_made": True,
-                "fresh_attempt_failed": True,
+                "fresh_attempt_made": False,
+                "fresh_attempt_failed": False,
             },
         )
 
