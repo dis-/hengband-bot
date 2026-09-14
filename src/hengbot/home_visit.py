@@ -63,6 +63,16 @@ class HomeVisitReport:
     defect: str | None = None
 
 
+@dataclass(frozen=True)
+class HomeOperationReport:
+    action: str
+    identity: Hashable | None
+    outcome: str
+    visit_id: int
+    posted_generation: int
+    observed_generation: int
+
+
 @dataclass
 class HomeVisitExecutor:
     """Own approach, context, one operation, exit, and explicit reporting.
@@ -92,6 +102,9 @@ class HomeVisitExecutor:
     ] | None = None
     semantic_churn_cooldown: bool = False
     context_token: tuple[str, int] | None = None
+    operation_generation: int | None = None
+    operation_reports: list[HomeOperationReport] = field(default_factory=list)
+    visit_effect_observed: bool = False
 
     @property
     def active(self) -> bool:
@@ -124,6 +137,8 @@ class HomeVisitExecutor:
         self.report = None
         self.fresh_evidence = None
         self.operation = None
+        self.operation_generation = None
+        self.visit_effect_observed = False
         self.context_token = None
         self.state = HomeVisitState.FILED
         return "filed"
@@ -213,8 +228,37 @@ class HomeVisitExecutor:
         if not self.may_post_inside(generation):
             return False
         self.operation = (action, identity)
+        self.operation_generation = generation
         self.operation_history.append(self.operation)
         self.state = HomeVisitState.OPERATING
+        return True
+
+    def observe_operation(
+        self, *, outcome: str, generation: int, evidence: Hashable
+    ) -> bool:
+        """Settle one semantic operation while retaining the physical visit."""
+        if (
+            self.state != HomeVisitState.OPERATING
+            or self.operation is None
+            or self.operation_generation is None
+            or generation <= self.operation_generation
+        ):
+            return False
+        action, identity = self.operation
+        self.operation_reports.append(HomeOperationReport(
+            action, identity, outcome, self.visit_id,
+            self.operation_generation, generation,
+        ))
+        if outcome != "completed":
+            self._defect(f"operation-{outcome}:{action}:{identity!r}")
+            return False
+        self._record_completed_delta(action, identity)
+        self.visit_effect_observed = True
+        self.operation = None
+        self.operation_generation = None
+        self.fresh_evidence = evidence
+        self.context_token = ("inside", generation)
+        self.state = HomeVisitState.OBSERVING
         return True
 
     def post_exit(self) -> bool:
@@ -224,6 +268,15 @@ class HomeVisitExecutor:
         self.context_token = None
         return True
 
+    def _record_completed_delta(
+        self, action: str, identity: Hashable | None
+    ) -> None:
+        assert self.request is not None
+        delta = self.request.quantity * (1 if action == "take" else -1)
+        self.previous_completed_delta = (
+            delta, identity, self.request.kind, self.request.requester
+        )
+
     def observe_outside(self, *, effect_observed: bool) -> None:
         if self.state != HomeVisitState.EXIT_PENDING or self.request is None:
             return
@@ -231,7 +284,8 @@ class HomeVisitExecutor:
             HomeVisitKind.SCAN, HomeVisitKind.RECOVERY
         }
         outcome = "completed" if (
-            effect_observed or (self.operation is None and empty_ok)
+            effect_observed or getattr(self, "visit_effect_observed", False)
+            or (self.operation is None and empty_ok)
         ) else "unfulfilled"
         if effect_observed and self.operation is not None:
             action, identity = self.operation
@@ -274,7 +328,11 @@ class HomeVisitExecutor:
         self.request = None
         self.fresh_evidence = None
         self.operation = None
+        self.operation_generation = None
         self.operation_history.clear()
+        if hasattr(self, "operation_reports"):
+            self.operation_reports.clear()
+        self.visit_effect_observed = False
         self.context_token = None
         self.state = HomeVisitState.IDLE
         if self.queued:

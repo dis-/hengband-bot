@@ -17,6 +17,59 @@ def request(kind=HomeVisitKind.WITHDRAW, identity=("shovel", 3, 8), **kwargs):
 
 
 class HomeVisitExecutorTest(unittest.TestCase):
+    def test_completed_operation_continues_same_visit_on_new_generation(self):
+        executor = HomeVisitExecutor(3)
+        self.assertEqual(executor.file(request()), "filed")
+        self.assertTrue(executor.begin_approach(10))
+        self.assertTrue(executor.post_entry(10))
+        executor.observe_inside(("page", 1), 11)
+        self.assertTrue(executor.record_operation("take", ("shovel", 3, 8), 11))
+        self.assertFalse(executor.observe_operation(
+            outcome="completed", generation=11, evidence=("page", 2)
+        ))
+        self.assertTrue(executor.observe_operation(
+            outcome="completed", generation=12, evidence=("page", 2)
+        ))
+        self.assertEqual(executor.state, HomeVisitState.OBSERVING)
+        self.assertEqual(executor.visit_id, 1)
+        self.assertEqual(executor.attempts_used, 1)
+        self.assertTrue(executor.record_operation("take", ("shovel", 1, 5), 12))
+        self.assertEqual(len(executor.operation_reports), 1)
+        self.assertIsNone(executor.report)
+
+    def test_one_final_report_after_semantic_completion_and_real_exit(self):
+        executor = HomeVisitExecutor(3)
+        executor.file(request())
+        executor.begin_approach(1)
+        executor.post_entry(1)
+        executor.observe_inside("page-1", 2)
+        executor.record_operation("take", ("shovel", 3, 8), 2)
+        self.assertTrue(executor.observe_operation(
+            outcome="completed", generation=3, evidence="page-2"
+        ))
+        self.assertIsNone(executor.report)
+        self.assertTrue(executor.post_exit())
+        executor.observe_outside(effect_observed=False)
+        report = executor.consume_report()
+        self.assertEqual(report.outcome, "completed")
+        self.assertEqual(report.visit_id, 1)
+        self.assertIsNone(executor.consume_report())
+
+    def test_failed_operation_is_visible_without_posting_exit(self):
+        executor = HomeVisitExecutor(3)
+        executor.file(request())
+        executor.begin_approach(1)
+        executor.post_entry(1)
+        executor.observe_inside("page", 2)
+        executor.record_operation("take", ("shovel", 3, 8), 2)
+        self.assertFalse(executor.observe_operation(
+            outcome="refused", generation=3, evidence="same-page"
+        ))
+        self.assertEqual(executor.state, HomeVisitState.DEFECT)
+        report = executor.consume_report()
+        self.assertEqual(report.outcome, "defect")
+        self.assertIn("operation-refused", report.defect)
+
     def test_equipment_withdrawal_at_budget_composes_final_deposit(self):
         """Turn 1411422: the 300th visit must not strand its final shelving."""
         withdrawn = "9141dc0b22af47b4"

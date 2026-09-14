@@ -20,6 +20,9 @@ class EquipmentTransactionObservation:
     in_home: bool
     pack: tuple[tuple[str, int], ...]
     equipped: tuple[tuple[str, str], ...]
+    home: tuple[tuple[str, int], ...] = ()
+    barrier_generation: int | None = None
+    operation_outcome: str | None = None
 
     @classmethod
     def create(
@@ -28,11 +31,17 @@ class EquipmentTransactionObservation:
         in_home: bool,
         pack_identities: tuple[str, ...] = (),
         equipped_identities: tuple[tuple[str, str], ...] = (),
+        home_identities: tuple[str, ...] = (),
+        barrier_generation: int | None = None,
+        operation_outcome: str | None = None,
     ) -> "EquipmentTransactionObservation":
         return cls(
             in_home,
             tuple(sorted(Counter(pack_identities).items())),
             tuple(sorted(equipped_identities)),
+            tuple(sorted(Counter(home_identities).items())),
+            barrier_generation,
+            operation_outcome,
         )
 
     def pack_count(self, identity: str) -> int:
@@ -43,6 +52,9 @@ class EquipmentTransactionObservation:
             return None
         return dict(self.equipped).get(slot)
 
+    def home_count(self, identity: str) -> int:
+        return dict(self.home).get(identity, 0)
+
 
 class EquipmentTransactionSession:
     """Advance only after the last requested operation is visible in a snapshot."""
@@ -52,11 +64,15 @@ class EquipmentTransactionSession:
         plan: EquipmentTransactionPlan,
         *,
         max_unconfirmed_observations: int = 2,
+        physical_context: str = "legacy",
     ) -> None:
         self.plan = plan
         self.index = 0
         self.blockers = list(plan.blockers)
         self.max_unconfirmed_observations = max_unconfirmed_observations
+        if physical_context not in {"legacy", "home"}:
+            raise ValueError("physical_context must be 'legacy' or 'home'")
+        self.physical_context = physical_context
         self._dispatched: EquipmentTransaction | None = None
         self._before: EquipmentTransactionObservation | None = None
         self._unconfirmed = 0
@@ -92,6 +108,8 @@ class EquipmentTransactionSession:
         action = self.current_action
         if action is None:
             return None
+        if self.physical_context == "home":
+            return "home"
         return "outside_home" if action.phase == PHASE_EQUIP else "home"
 
     @property
@@ -133,7 +151,7 @@ class EquipmentTransactionSession:
         """Bind a command to observed context without claiming it was posted."""
         if not self.executable or action != self.current_action:
             return False
-        needs_home = action.phase != PHASE_EQUIP
+        needs_home = self.physical_context == "home" or action.phase != PHASE_EQUIP
         if observation.in_home != needs_home:
             return False
         candidate = (action, observation, command_id, context_identity)
@@ -160,7 +178,7 @@ class EquipmentTransactionSession:
         """Record one emitted command; reject stale or wrong-context dispatches."""
         if not self.executable or action != self.current_action:
             return False
-        needs_home = action.phase != PHASE_EQUIP
+        needs_home = self.physical_context == "home" or action.phase != PHASE_EQUIP
         if observation.in_home != needs_home:
             return False
         self._dispatched = action
@@ -175,6 +193,15 @@ class EquipmentTransactionSession:
         action = self._dispatched
         before = self._before
         if action is None or before is None:
+            return False
+        if (
+            before.barrier_generation is not None
+            and observation.barrier_generation is not None
+            and observation.barrier_generation <= before.barrier_generation
+        ):
+            return False
+        if observation.operation_outcome in {"refused", "cancelled", "failed"}:
+            self.block(f"{action.kind}-{observation.operation_outcome}")
             return False
         if self._confirmed(action, before, observation):
             self.index += 1
@@ -205,11 +232,19 @@ class EquipmentTransactionSession:
                 action.item_identity
             )
         if action.kind == "takeoff":
-            return (
+            slot_cleared = (
                 after.equipped_identity(action.target_slot) != action.item_identity
-                and after.pack_count(action.item_identity)
-                > before.pack_count(action.item_identity)
             )
+            reached_pack = after.pack_count(action.item_identity) > before.pack_count(
+                action.item_identity
+            )
+            shelved_by_home = (
+                before.in_home
+                and after.in_home
+                and after.home_count(action.item_identity)
+                > before.home_count(action.item_identity)
+            )
+            return slot_cleared and (reached_pack or shelved_by_home)
         if action.kind in {"equip", "reposition"}:
             return (
                 after.equipped_identity(action.target_slot) == action.item_identity
@@ -220,6 +255,9 @@ class EquipmentTransactionSession:
 
 def observe_equipment_transactions(
     snapshot: Snapshot,
+    *,
+    barrier_generation: int | None = None,
+    operation_outcome: str | None = None,
 ) -> EquipmentTransactionObservation:
     pack: list[str] = []
     for item in snapshot.inventory:
@@ -230,6 +268,11 @@ def observe_equipment_transactions(
         for item in snapshot.equipment
         if item.is_equipment
     )
+    home: list[str] = []
+    if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+        for item in snapshot.store.items:
+            if item.is_equipment:
+                home.extend([equipment_identity(item)] * max(1, item.count))
     return EquipmentTransactionObservation.create(
         in_home=(
             snapshot.store is not None
@@ -237,4 +280,7 @@ def observe_equipment_transactions(
         ),
         pack_identities=tuple(pack),
         equipped_identities=equipped,
+        home_identities=tuple(home),
+        barrier_generation=barrier_generation,
+        operation_outcome=operation_outcome,
     )

@@ -12,15 +12,68 @@ from hengbot.equipment_transaction_session import (
 )
 
 
-def observation(*, home, pack=(), equipped=()):
+def observation(*, home, pack=(), equipped=(), shelved=(), generation=None,
+                outcome=None):
     return EquipmentTransactionObservation.create(
         in_home=home,
         pack_identities=pack,
         equipped_identities=equipped,
+        home_identities=shelved,
+        barrier_generation=generation,
+        operation_outcome=outcome,
     )
 
 
 class EquipmentTransactionSessionTest(unittest.TestCase):
+    def test_home_physical_context_keeps_equip_phase_inside(self):
+        action = EquipmentTransaction(
+            PHASE_EQUIP, "takeoff", "equipped:item:0", "outer", "item"
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1),
+            physical_context="home",
+        )
+        inside = observation(
+            home=True, equipped=(("outer", "item"),), generation=7
+        )
+        self.assertEqual(session.required_context, "home")
+        self.assertTrue(session.prepare(action, inside, "ta", ("home", 7)))
+        self.assertTrue(session.confirm_posted("ta"))
+
+    def test_takeoff_confirms_source_proven_home_overflow_on_new_barrier(self):
+        action = EquipmentTransaction(
+            PHASE_EQUIP, "takeoff", "equipped:item:0", "outer", "item"
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1),
+            physical_context="home",
+        )
+        before = observation(
+            home=True, equipped=(("outer", "item"),), generation=10
+        )
+        self.assertTrue(session.dispatch(action, before))
+        stale = observation(home=True, shelved=("item",), generation=10)
+        self.assertFalse(session.observe(stale))
+        after = observation(home=True, shelved=("item",), generation=11)
+        self.assertTrue(session.observe(after))
+        self.assertTrue(session.complete)
+
+    def test_semantic_refusal_blocks_instead_of_waiting_for_more_boards(self):
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "deposit", "pack:item:0",
+            item_identity="item",
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1)
+        )
+        before = observation(home=True, pack=("item",), generation=3)
+        self.assertTrue(session.dispatch(action, before))
+        self.assertFalse(session.observe(observation(
+            home=True, pack=("item",), generation=4, outcome="refused"
+        )))
+        self.assertEqual(session.blockers, ["deposit-refused"])
+        self.assertIs(session.pending_action, action)
+
     def test_confirms_deposit_by_pack_count(self):
         action = EquipmentTransaction(
             PHASE_HOME_PREPARE, "deposit", "pack:item:0",
