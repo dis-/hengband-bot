@@ -20,6 +20,7 @@ from hengbot.model import (
 from hengbot.policy import (
     FUNDRAISING_START_GOLD, INSCRIBE_KEY, LEAVE_STORE_KEY, WAIT_KEY,
 )
+from hengbot.policy_constants import DIRECTION_KEYS
 
 def store_item(letter, tval, sval, *, price=100, count=1, name="wares", **kwargs):
     return StoreItem(
@@ -123,9 +124,37 @@ def _public_shop_inner(testcase, policy, snapshot):
     # Outside pack inscription is intentionally not wrapped in a store visit.
     if composed.startswith(INSCRIBE_KEY):
         return composed
+    if composed in DIRECTION_KEYS.values():
+        delta = next(delta for delta, key in DIRECTION_KEYS.items() if key == composed)
+        destination = Position(position.y + delta[0], position.x + delta[1])
+        moved = replace(
+            outside,
+            player=replace(outside.player, position=destination),
+            grids={**outside.grids, destination: grid(destination.y, destination.x)},
+            turn=outside.turn + 1,
+        )
+        policy.choose_key(moved)
+        outside = replace(moved, player=replace(moved.player, position=position),
+                          turn=moved.turn + 1)
+        composed = policy.choose_key(outside)
+    elif not composed:
+        # A collapsed fixture with no disclosed safe neighbor models the
+        # refusal half of the entrance guard.  Disclose one, then drive the
+        # ordinary approach back to the same entrance.
+        destination = Position(position.y, position.x - 1)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=destination),
+            grids={**outside.grids, destination: grid(destination.y, destination.x)},
+            turn=outside.turn + 1,
+        )
+        policy.choose_key(outside)
+        outside = replace(outside, player=replace(outside.player, position=position),
+                          turn=outside.turn + 1)
+        composed = policy.choose_key(outside)
     if policy._store_visit is None or not policy._store_visit.operation_posted:
         return composed
-    testcase.assertEqual(composed, WAIT_KEY)
+    testcase.assertIn(composed, {WAIT_KEY, ""})
     operation = policy.choose_key(replace(observed, turn=outside.turn + 1))
     testcase.assertTrue(operation.endswith(LEAVE_STORE_KEY))
     return operation[:-1]

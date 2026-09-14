@@ -2238,6 +2238,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def choose_key(self, snapshot: Snapshot) -> str:
         self._staged_prompt_chain = None
+        pending_reward = self._fixed_quest_reward_pending
+        if pending_reward is not None:
+            town_reward = FIXED_QUEST_REWARD_POSITIONS.get(pending_reward)
+            if (
+                town_reward is None
+                or snapshot.town_id not in {-1, town_reward[0]}
+            ):
+                self._fixed_quest_reward_pending = None
         # Snapshot-derived answers must never survive a public decision
         # boundary, even when a caller reuses and mutates a Snapshot object.
         self._fixed_quest_offer_cache = {}
@@ -2564,6 +2572,36 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._shopping_approach_goal = None
             self._town_travel_state = None
             self._town_travel_fallback = None
+        here = snapshot.grid_at(snapshot.player.position)
+        if (
+            key == WAIT_KEY
+            and snapshot.in_town
+            and snapshot.store is None
+            and here is not None
+            and (
+                here.has_entrance
+                or here.store_number >= 0
+                or here.building_special >= 0
+            )
+        ):
+            # This is the final emitted-envelope seam, after every owner and
+            # stage-2 accounting mutation has observed the producer's original
+            # WAIT claim.  Hengband interprets that byte as entrance activation.
+            wait_reason = self.last_reason
+            key = self._town_entrance_step_off_key(snapshot, wait_reason)
+            if (wait_reason or "").startswith("fixedquest:prepare-return"):
+                # Stage-2 quest-travel arbitration/accounting remains owned by
+                # its original producer even though the emitted byte is the
+                # safety step-off envelope.
+                self.last_reason = wait_reason
+            if key == WAIT_KEY:
+                key = ""
+                if not (wait_reason or "").startswith(
+                    "fixedquest:prepare-return"
+                ):
+                    self.last_reason = (
+                        f"town:entrance-wait-refused:{wait_reason or 'wait'}"
+                    )
         return key
 
     @staticmethod

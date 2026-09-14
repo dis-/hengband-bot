@@ -929,6 +929,42 @@ class IdentifyPurchaseBatchingTest(unittest.TestCase):
             policy._outstanding_identification_count(town, full=True), 0
         )
 
+class IdentifyStaffStackOverflowIncidentTest(unittest.TestCase):
+    def test_full_pack_rejects_stacked_staff_but_keeps_nonsplitting_source(self):
+        fixture_path = (
+            Path(__file__).with_name("fixtures") / "live-screens" /
+            "24-town3-reward-pack-full-stop.json"
+        )
+        payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+        snapshot = parse_snapshot(payload["state"]["result"], {})
+        self.assertEqual(len(snapshot.inventory), PACK_CAPACITY)
+        self.assertEqual((snapshot.player.position.y, snapshot.player.position.x),
+                         (37, 119))
+
+        target = next(item for item in snapshot.inventory if item.slot == "n")
+        staff = next(item for item in snapshot.inventory if item.slot == "m")
+        scroll = next(item for item in snapshot.inventory if item.slot == "h")
+        # The captured post-overflow board has the surviving one-staff stack.
+        # Reconstruct the immediately preceding measured source count (2) from
+        # the incident messages while preserving every other captured field.
+        before_split = replace(
+            snapshot,
+            inventory=tuple(
+                replace(item, count=2, charges=11) if item.slot == staff.slot else item
+                for item in snapshot.inventory
+            ),
+        )
+        policy = HengbotPolicy()
+        command = policy._carried_identify_command(before_split, target, full=False)
+
+        self.assertNotEqual(command, "umn")
+        self.assertEqual(command, "r" + scroll.slot + target.slot)
+
+        # A genuinely single staff does not split and remains a valid source.
+        safe_command = policy._carried_identify_command(snapshot, target, full=False)
+        self.assertEqual(safe_command, "u" + staff.slot + target.slot)
+
+
 class ChestProcessingTest(unittest.TestCase):
     """Drop → step beside → search → disarm → open, on fixed key budgets."""
 

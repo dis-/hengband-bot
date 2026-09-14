@@ -92,7 +92,7 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         # derived public player eligible before navigation can emit the final
         # move onto the confirmation-triggering entrance grid.
         current["player"]["class_id"] = 1
-        while True:
+        for _ in iter(int, 1):
             snapshot = parse_snapshot(current, self.monrace)
             positions = policy._fixed_quest_entrance_positions(snapshot, 22)
             if snapshot.player.position in positions:

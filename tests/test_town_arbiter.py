@@ -615,7 +615,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
     def test_store_visit_alternation_reaches_named_terminal_within_bound(self):
         reason, acquisitions, bound, key = measure_visit_alternation()
         self.assertEqual(reason, "town:blocked:owner-retired")
-        self.assertEqual(key, "5")
+        self.assertEqual(key, "1")
         self.assertLessEqual(acquisitions, bound)
 
     def test_terminal_is_never_scored_as_owner_progress(self):

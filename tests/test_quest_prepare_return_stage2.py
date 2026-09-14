@@ -190,7 +190,8 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
                     "on-inn-no-exit": [3, 2, 1, 0, 0, 0],
                 }
                 self.assertEqual(budgets, expected_budgets[variant])
-                self.assertEqual(key, WAIT_KEY)
+                expected_key = "" if variant == "on-inn-no-exit" else "7"
+                self.assertEqual(key, expected_key)
                 self.assertEqual(
                     policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
                 )
@@ -201,7 +202,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
                     parse_snapshot(incidental, self.monrace)
                 )
                 policy.confirm_key_posted(incidental_key)
-                self.assertEqual(incidental_key, WAIT_KEY)
+                self.assertEqual(incidental_key, expected_key)
                 self.assertEqual(
                     policy.last_reason, "fixedquest:prepare-return:unsatisfiable"
                 )
@@ -267,8 +268,11 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         )
         key = policy.choose_key(entrance)
         policy.confirm_key_posted(key)
-        self.assertEqual(key, "5")
-        self.assertEqual(policy.last_reason, "shop:observed-operation-uncomposable")
+        self.assertEqual(key, "7")
+        self.assertEqual(
+            policy.last_reason,
+            "town:entrance-step-off:shop:observed-operation-uncomposable",
+        )
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"], "shop:leave"
         )
@@ -281,9 +285,8 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         snapshot = parse_snapshot(seed, self.monrace)
         key = policy.choose_key(snapshot)
         policy.confirm_key_posted(key)
-        self.assertIsInstance(key, DecisionCandidate)
-        self.assertEqual(key.reason, "fixedquest:prepare-return:route-unavailable")
-        self.assertEqual(key.route_declaration.producer_branch, "return-3")
+        self.assertEqual(str(key), "7")
+        self.assertEqual(policy.last_reason, "fixedquest:prepare-return:route-unavailable")
         # Seam unit: this capture has no publicly observed affordable supplier,
         # so the real downstream procurement consumer is invoked directly only
         # after choose_key produced the provenance-bearing candidate.
@@ -322,7 +325,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(
             (str(safe_key), policy.last_reason,
              policy._town_turn_arbiter.telemetry["budget_remaining_estimate"]),
-            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable", 0),
+            ("7", "fixedquest:prepare-return:unsatisfiable", 0),
         )
         self.assertTrue(hostile_retained)
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
@@ -346,7 +349,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(budgets, [3, 2, 1, 0, 0, 0, 0])
         self.assertEqual(
             (str(key), policy.last_reason),
-            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable"),
+            ("7", "fixedquest:prepare-return:unsatisfiable"),
         )
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
@@ -364,11 +367,10 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(changed_snapshot.quests[31].status, 4)
         fresh_key = policy.choose_key(changed_snapshot)
         policy.confirm_key_posted(fresh_key)
-        self.assertIsInstance(fresh_key, DecisionCandidate)
+        self.assertEqual(str(fresh_key), "7")
         self.assertEqual(
-            fresh_key.reason, "fixedquest:prepare-return:route-unavailable"
+            policy.last_reason, "fixedquest:prepare-return:route-unavailable"
         )
-        self.assertEqual(fresh_key.route_declaration.producer_branch, "return-3")
         self.assertEqual(
             policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 0
         )
@@ -428,7 +430,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(low[1], "identify:full")
         self.assertEqual(
             high,
-            (WAIT_KEY, "fixedquest:prepare-return:unsatisfiable", 0),
+            ("7", "fixedquest:prepare-return:unsatisfiable", 0),
         )
         self.assertTrue(low_retained)
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)

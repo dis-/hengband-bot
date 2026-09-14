@@ -664,6 +664,46 @@ class FixedQuestTest(unittest.TestCase):
         self.assertIsNone(policy._fixed_quest_reward_pending)
         self.assertEqual(policy.last_reason, "fixedquest:reward-complete")
 
+    def test_claim_pickup_travel_sequence_releases_reward_owner_in_town_zero(self):
+        reward = Position(31, 99)
+        town_map = TownMap(
+            name="Telmora", width=198, height=66,
+            walkable=frozenset({Position(31, 98), reward}),
+            quest_buildings={}, quest_entrances={},
+            reward_positions=frozenset({reward}),
+        )
+        policy = HengbotPolicy(town_map)
+        rewarded = Snapshot(
+            player(31, 99), {reward: grid(31, 99, objects=1)}, [],
+            floor_key=(0, 0, 0), town_flag=True, town_id=3,
+            quests={22: QuestState(22, status=QUEST_STATUS_REWARDED, fixed=True)},
+        )
+        self.assertEqual(policy.choose_key(rewarded), "g")
+        self.assertEqual(policy._fixed_quest_reward_pending, 22)
+        self.assertEqual(policy.last_reason, "fixedquest:reward-pickup")
+
+        # Recorded ordering: reward pickup in its quest town, inn travel, then
+        # town 0 at (119,37) with a full 23-slot pack.  The quest-town mapping
+        # is authoritative even though the old in-memory latch still exists.
+        arrived = replace(
+            rewarded,
+            town_id=0,
+            player=player(119, 37, gold=4983),
+            inventory=tuple(
+                item(chr(ord("a") + index), TVAL_SCROLL, SV_SCROLL_IDENTIFY)
+                for index in range(23)
+            ),
+            grids={
+                Position(119, 37): grid(119, 37, building_special=1),
+                Position(119, 36): grid(119, 36, objects=1),
+            },
+            turn=2866604,
+        )
+        policy.choose_key(arrived)
+        self.assertIsNone(policy._fixed_quest_reward_pending)
+        self.assertFalse((policy.last_reason or "").startswith("fixedquest:reward"))
+
+
     def test_q2_outbound_travel_is_enabled_after_executor_lands(self):
         snapshot = replace(
             self._town_snapshot(26, 97, {}, QUEST_STATUS_UNTAKEN),

@@ -650,6 +650,14 @@ class IdentificationMixin:
         self._bind_identification_source_reservation(snapshot)
 
         def available(item: InventoryItem) -> bool:
+            if (
+                item.tval == TVAL_STAFF
+                and item.count > 1
+                and len(snapshot.inventory) >= PACK_CAPACITY
+            ):
+                # Hengband un-stacks a used staff into a fresh inventory slot.
+                # With no free slot that transient item overflows to the floor.
+                return False
             reservation = self._identification_source_reservation
             if reservation is None or reservation.get("state") == "awaiting-source":
                 return True

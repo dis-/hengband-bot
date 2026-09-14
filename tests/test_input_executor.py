@@ -337,6 +337,7 @@ class ScreenClassifierTest(unittest.TestCase):
             "16-after-home-esc.json": ScreenKind.UNKNOWN,
             "17-editor-menu-before-exit.json": ScreenKind.UNKNOWN,
             "18-after-editor-quit-nosave.json": ScreenKind.COMMAND,
+            "24-town3-reward-pack-full-stop.json": ScreenKind.BUILDING,
         }
 
         class FixtureClient:
@@ -539,6 +540,11 @@ class TcpBarrierPinTest(ProductionHarness):
         fixture = self._identify_failure_fixture()
         raw = copy.deepcopy(fixture["state"]["result"])
         raw["messages"] = []
+        # These pins exercise missing-target continuation handling, not pack
+        # overflow.  Make their captured Identify staff a non-splitting
+        # single source; the full-pack stacked-source case is pinned in
+        # test_policy_identification.
+        next(item for item in raw["inventory"] if item["slot"] == "n")["count"] = 1
         final = copy.deepcopy(raw)
         if mutate_final_state is not None:
             mutate_final_state(final)

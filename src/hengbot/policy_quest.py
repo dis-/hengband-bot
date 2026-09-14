@@ -4824,13 +4824,24 @@ class QuestMixin:
         return self._town_map.reward_positions & expected
 
     def _fixed_quest_reward_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        town_reward = FIXED_QUEST_REWARD_POSITIONS.get(quest_id)
+        if town_reward is None:
+            self._fixed_quest_reward_pending = None
+            return None
+        reward_town_id, _ = town_reward
+        if snapshot.town_id not in {-1, reward_town_id}:
+            # A fixed reward is owned by its allowlisted quest-town
+            # coordinates.  Once travel has reached another town, this latch
+            # cannot safely claim either a pack-space WAIT or locomotion.
+            self._fixed_quest_reward_pending = None
+            return None
+        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
         if len(snapshot.inventory) >= PACK_CAPACITY:
             destroy = self._full_pack_destroy_key(snapshot)
             if destroy is not None:
                 return destroy
             self.last_reason = "fixedquest:reward-pack-full"
             return WAIT_KEY
-        positions = self._fixed_quest_reward_positions(snapshot, quest_id)
         here = snapshot.grid_at(snapshot.player.position)
         if (
             snapshot.player.position in positions
