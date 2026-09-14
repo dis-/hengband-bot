@@ -13179,6 +13179,57 @@ class RangedAttackTest(unittest.TestCase):
         policy._town_departure_ready = lambda candidate: True
         self.assertFalse(policy._town_claims_active(snap))
 
+    def test_unobtainable_q22_ammo_defers_to_fundraising_departure(self):
+        entrance = Position(10, 11)
+        snap = Snapshot(
+            player(10, 10, gold=0, class_id=PLAYER_CLASS_WARRIOR),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): grid(10, 11),
+                entrance: grid(
+                    10, 11, entrance=True,
+                    entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+                ),
+            },
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[
+                self._shots(count=28),
+                *self._strict_supplies_for_ammo(),
+                item("y", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True),
+            ],
+            equipment=[self._sling(), self._lantern()],
+            store=StoreState(STORE_WEAPON, []),
+            quests={
+                22: QuestState(
+                    22, status=QUEST_STATUS_UNTAKEN, fixed=True, level=15
+                )
+            },
+        )
+        profiles = load_quest_strategies(Path("strategy/quests"))
+        policy = HengbotPolicy(quest_strategies=profiles)
+        policy.consume_home_knowledge(())
+        policy._town_store_attempted[STORE_WEAPON] = snap.turn
+
+        carry = policy._quest_carry_status(
+            snap, profiles[22].required_force
+        )["throwing_items.launcher_ammo"]
+        self.assertEqual(carry, {"measured": 28, "required": 99, "ready": False})
+        supply = policy._quest_carry_obtainability(
+            snap, profiles[22], "throwing_items.launcher_ammo", carry
+        )
+        self.assertFalse(supply.obtainable)
+
+        outside = replace(snap, store=None)
+        policy._fundraising_mode = "scavenge"
+        policy._town_restock_suppressed = True
+        policy.last_reason = "seek-downstairs"
+        with patch.object(policy, "_fundraising_departure_ready", return_value=True):
+            self.assertIsNone(policy._town_special_key(outside))
+        departure_key = policy._step_toward(outside, Position(10, 11))
+        self.assertEqual(departure_key, "6")
+        self.assertNotEqual(departure_key, WAIT_KEY)
+        self.assertFalse((policy.last_reason or "").startswith("town:blocked:"))
+
     def test_home_ammo_and_store_stock_select_home_before_purchase(self):
         plain = replace(self._shots(count=10), fully_known=True)
         shelf = StoreItem("j", plain.name, 99, TVAL_SHOT, plain.sval, price=1)

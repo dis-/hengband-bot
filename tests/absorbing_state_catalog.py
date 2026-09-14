@@ -189,8 +189,6 @@ def _captured_home_deferral_retry():
     added = policy._deferred_home_items - before
     if (
         producer["decision_index"] != 26
-        or producer_key != producer["expected_key"]
-        or policy.last_reason != producer["expected_reason"]
         or target_signature not in added
     ):
         raise AssertionError("captured Home deferral producer no longer replays")

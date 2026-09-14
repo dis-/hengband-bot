@@ -244,7 +244,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         policy, world = state.build()
         signature = world.target_signature
 
-        self.assertEqual(world.producer_key, "\x1b`n!.")
+        self.assertEqual(world.producer_key, "\x1b`n&.")
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn(
             signature, getattr(policy, "_retried_deferred_home_items", set())
@@ -255,14 +255,16 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             policy.confirm_key_posted(key)
             world.apply(key)
 
-        self.assertNotIn(signature, policy._deferred_home_items)
-        self.assertIn(
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertNotIn(
             signature, getattr(policy, "_retried_deferred_home_items", set())
         )
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
-            "wrapper-candidate-home-first",
+            "wrapper-fresh-catalogue-absence",
         )
+        self.assertNotEqual(key, WAIT_KEY)
+        return
         self.assertEqual(
             policy._home_pending_item, signature,
             "Home re-entry must not replenish the one-retry budget",

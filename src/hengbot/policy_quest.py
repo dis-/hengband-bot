@@ -10,6 +10,7 @@ import re
 from enum import Enum
 from typing import Callable, Iterable, Literal
 from pathlib import Path
+from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
     assignment_provenance,
@@ -772,9 +773,14 @@ class QuestMixin:
                 continue
             for name, value in requirements.items():
                 required = int(value)
-                current = self._quest_named_item_count(
-                    snapshot, category, str(name)
-                )
+                if category == "throwing_items" and name == "launcher_ammo":
+                    current = ammo_carry_plan(
+                        snapshot, self._equipped_launcher(snapshot), required
+                    ).carried_count
+                else:
+                    current = self._quest_named_item_count(
+                        snapshot, category, str(name)
+                    )
                 status[f"{category}.{name}"] = {
                     "measured": current,
                     "required": required,
@@ -887,9 +893,18 @@ class QuestMixin:
                     )
                 )
                 if matches:
-                    return str(name), self._quest_named_item_count(
-                        snapshot, "throwing_items", str(name)
-                    ), int(value)
+                    current = (
+                        ammo_carry_plan(
+                            snapshot,
+                            self._equipped_launcher(snapshot),
+                            int(value),
+                        ).carried_count
+                        if name == "launcher_ammo"
+                        else self._quest_named_item_count(
+                            snapshot, "throwing_items", str(name)
+                        )
+                    )
+                    return str(name), current, int(value)
         scrolls = force.get("required_scrolls", {})
         if isinstance(scrolls, dict):
             for name, value in scrolls.items():
@@ -1403,6 +1418,11 @@ class QuestMixin:
             if target is None:
                 continue
             name, current, required = target
+            if name == "launcher_ammo" and not (
+                is_plain_store_ammo(item)
+                and self._ammo_purchase_preserves_plan(snapshot, item)
+            ):
+                continue
             if (
                 name == "launcher"
                 and self._preferred_home_quest_launcher(snapshot, profile)

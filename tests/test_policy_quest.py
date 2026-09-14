@@ -6625,6 +6625,66 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             crossbow_status["throwing_items.launcher_ammo"]["ready"]
         )
 
+    def test_q22_recorded_ammo_readiness_counts_only_the_kept_plan(self):
+        capture = json.loads(Path(
+            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
+        ).read_text(encoding="utf-8"))
+        snapshot = parse_snapshot(capture["state"]["result"])
+        policy = self._policy()
+        profile = self.profiles[22]
+
+        before = policy._quest_carry_status(snapshot, profile.required_force)[
+            "throwing_items.launcher_ammo"
+        ]
+        topped_up = replace(
+            snapshot,
+            inventory=[
+                replace(candidate, count=81)
+                if candidate.slot == "q"
+                else candidate
+                for candidate in snapshot.inventory
+            ],
+        )
+        after = policy._quest_carry_status(topped_up, profile.required_force)[
+            "throwing_items.launcher_ammo"
+        ]
+
+        self.assertEqual(snapshot.turn, 2866604)
+        self.assertEqual(
+            before, {"measured": 28, "required": 99, "ready": False}
+        )
+        self.assertEqual(
+            after, {"measured": 99, "required": 99, "ready": True}
+        )
+
+    def test_q22_ammo_procurement_claim_rejects_nonplain_third_stack(self):
+        capture = json.loads(Path(
+            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
+        ).read_text(encoding="utf-8"))
+        snapshot = parse_snapshot(capture["state"]["result"])
+        policy = self._policy()
+        profile = self.profiles[22]
+        nonplain = StoreItem(
+            "a", "Bolts (+1,+1)", 99, TVAL_BOLT, 1,
+            price=1, known=True, fully_known=True, to_h=1, to_d=1,
+        )
+        plain = StoreItem(
+            "b", "Bolts", 99, TVAL_BOLT, 1,
+            price=1, known=True, fully_known=True,
+        )
+        store = replace(
+            snapshot,
+            store=StoreState(STORE_WEAPON, [nonplain, plain]),
+        )
+
+        target = policy._quest_carry_target_for_item(
+            store, nonplain, profile.required_force
+        )
+        purchase = policy._quest_carry_purchase(store, profile)
+
+        self.assertEqual(target, ("launcher_ammo", 28, 99))
+        self.assertIsNone(purchase)
+
     def test_q2_prefers_superior_home_crossbow_over_store_plain_crossbow(self):
         policy = self._policy()
         profile = self.profiles[2]

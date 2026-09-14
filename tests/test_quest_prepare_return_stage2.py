@@ -271,7 +271,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertEqual(key, "7")
         self.assertEqual(
             policy.last_reason,
-            "town:entrance-step-off:shop:observed-operation-uncomposable",
+            "fixedquest:prepare-return",
         )
         self.assertEqual(
             policy._shop_selector_diagnostics["composition_refusal"], "shop:leave"
