@@ -3465,13 +3465,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                 )
             self._home_entry_operation_posted = False
-        pending_home_transaction = (
-            snapshot.store is not None
-            and snapshot.store.store_type == STORE_HOME
-            and self._equipment_transaction_session is not None
-            and self._equipment_transaction_session.pending_action is not None
-            and self._store_leave_inflight is None
-        )
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -3538,17 +3531,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if key.lstrip().startswith(BUY_KEY)
                 else "home:atomic-deposit"
             )
-        elif pending_home_transaction:
-            # Observation above already accounts for the posted action.  This
-            # narrow path may only confirm/expire it; it cannot select or post
-            # another Home item operation.
-            key = self._equipment_transaction_home_key(snapshot)
-            if key is None and self.last_reason == "equipment-transaction:defer-identification":
-                key = LEAVE_STORE_KEY
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and self._equipment_transaction_session is not None
+            and not self._home_entry_operation_posted
             and self._store_leave_inflight is None
         ):
             # An independently observed Home page is not transaction failure:

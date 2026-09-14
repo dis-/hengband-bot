@@ -1505,10 +1505,8 @@ class EquipmentMixin:
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
             return LEAVE_STORE_KEY
+        self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
-        if session is None:
-            self._prepare_equipment_optimization(snapshot)
-            session = self._equipment_transaction_session
         if session is None:
             return None
         if not session.executable:
@@ -1737,10 +1735,8 @@ class EquipmentMixin:
             return None
         if self._release_stalled_equipment_transaction(snapshot):
             return WAIT_KEY
+        self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
-        if session is None:
-            self._prepare_equipment_optimization(snapshot)
-            session = self._equipment_transaction_session
         if session is None:
             return None
         if not session.executable:
