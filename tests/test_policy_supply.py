@@ -3452,6 +3452,15 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         policy = HengbotPolicy()
         profile = SimpleNamespace(required_force=self.FORCE, engagement_plan={})
         town = self._town()
+        self.assertEqual(
+            policy.choose_key(replace(town, store=StoreState(STORE_HOME, []))),
+            LEAVE_STORE_KEY,
+        )
+        policy.consume_home_knowledge(())
+        self.assertEqual(
+            policy.choose_key(replace(town, store=StoreState(STORE_WEAPON, []))),
+            LEAVE_STORE_KEY,
+        )
         policy._town_store_attempted[STORE_WEAPON] = town.turn
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):

@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from dataclasses import replace
+import gzip
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from hengbot.ammo_carry import ammo_carry_plan
+from hengbot.baseitem_knowledge import load_baseitem_costs
+from hengbot.cli import _parse_items
+from hengbot.dungeon_knowledge import load_dungeon_knowledge
+from hengbot.model import STORE_WEAPON, StoreState, parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from hengbot.quest_knowledge import load_quest_knowledge
+from hengbot.quest_strategies import load_quest_strategies
+
+
+ROOT = Path(__file__).resolve().parents[1]
+EDIT = Path("C:/hengband/lib/edit")
+FIXTURE = ROOT / "tests/fixtures/quest-carry-town-block-20260915.jsonl.gz"
+
+
+class QuestCarryTownBlockPins(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+            self.rows = [json.loads(line) for line in stream]
+
+    def policy(self):
+        return HengbotPolicy(
+            monrace_knowledge=self.monrace,
+            dungeon_knowledge=load_dungeon_knowledge(
+                EDIT / "DungeonDefinitions.jsonc"
+            ),
+            quest_knowledge=load_quest_knowledge(EDIT / "quests"),
+            quest_strategies=load_quest_strategies(ROOT / "strategy/quests"),
+            baseitem_costs=load_baseitem_costs(EDIT / "BaseitemDefinitions.jsonc"),
+            exploration_ledger_path=Path(self.temp.name) / "exploration.json",
+        )
+
+    def recorded(self, turn, record_type):
+        return next(
+            row for row in self.rows
+            if row["turn"] == turn and row["type"] == record_type
+        )
+
+    def drive_recorded_exhaustion(self):
+        policy = self.policy()
+        home = parse_snapshot(self.recorded(2871154, "store"), self.monrace)
+        self.assertEqual(str(policy.choose_key(home)), "\x1b")
+        knowledge = self.recorded(2871154, "knowledge")
+        self.assertTrue(
+            policy.consume_home_knowledge(
+                tuple(_parse_items(knowledge["knowledge"]["items"]))
+            )
+        )
+        smith = parse_snapshot(self.recorded(2873348, "store"), self.monrace)
+        self.assertEqual(smith.store.store_type, STORE_WEAPON)
+        self.assertEqual(str(policy.choose_key(smith)), "\x1b")
+        outside = parse_snapshot(
+            self.recorded(2873354, "player_turn"), self.monrace
+        )
+        needs = policy._departure_blocking_town_needs(outside)
+        return policy, smith, outside, needs
+
+    def test_recorded_home_and_store_exhaustion_waives_only_town_departure(self):
+        policy, smith, outside, needs = self.drive_recorded_exhaustion()
+        launcher = policy._equipped_launcher(outside)
+        self.assertEqual(ammo_carry_plan(outside, launcher, 99).carried_count, 28)
+        self.assertIsNone(policy._quest_carry_purchase(smith,
+                                                       policy._carry_procurement_strategy(smith)))
+        self.assertEqual(needs, [])
+        self.assertEqual(
+            policy._abandoned_quest_carry_requirements,
+            {"throwing_items.launcher_ammo":
+             "all-suppliers-visited-without-affordable-stock"},
+        )
+        self.assertTrue(policy._town_departure_conjuncts(outside)["quest_carry_ready"])
+        self.assertNotEqual(policy.last_reason,
+                            "town:blocked:no-actionable-claim-owner")
+
+        self.assertFalse(policy._fixed_quest_ready_for_travel(outside, 31))
+        readiness = policy.fixed_quest_readiness_state()["strategy_force"]
+        strategy = policy.approved_quest_strategy(31)
+        self.assertEqual(readiness["carries"]["throwing_items.launcher_ammo"],
+                         {"measured": 28, "required": 99, "ready": False})
+        self.assertEqual(readiness["resists"],
+                         {"ready": False, "required": ["free_action"]})
+
+        # Counterfactual continuation of the recorded board through one real
+        # dungeon/town transition: only location and later turns differ.  The
+        # public selector produces both observations on the same policy.
+        dungeon = replace(
+            outside,
+            turn=outside.turn + 1,
+            floor_key=(1, 19, 0), town_flag=False, town_id=-1,
+        )
+        policy.choose_key(dungeon)
+        arrival = replace(outside, turn=outside.turn + 2, town_flag=True)
+        policy.choose_key(arrival)
+        self.assertEqual(policy._abandoned_quest_carry_requirements, {})
+        status = policy._quest_carry_status(
+            arrival, strategy.required_force
+        )["throwing_items.launcher_ammo"]
+        retry = policy._quest_carry_obtainability(
+            arrival, strategy, "throwing_items.launcher_ammo", status
+        )
+        self.assertEqual(retry.stores, (STORE_WEAPON,))
+        self.assertTrue(retry.obtainable)
+        self.assertEqual(policy._town_visit_ledger.store_visits.get(7, 0), 0)
+
+    def test_fresh_purchasable_page_keeps_ammo_claim_actionable(self):
+        policy = self.policy()
+        home = parse_snapshot(self.recorded(2871154, "store"), self.monrace)
+        self.assertEqual(str(policy.choose_key(home)), "\x1b")
+        knowledge = self.recorded(2871154, "knowledge")
+        policy.consume_home_knowledge(
+            tuple(_parse_items(knowledge["knowledge"]["items"]))
+        )
+        raw = self.recorded(2873348, "store")
+        smith = parse_snapshot(raw, self.monrace)
+        plain = next(item for item in smith.inventory if item.slot == "n")
+        shelf = next(item for item in smith.store.items if item.letter == "p")
+        purchasable = replace(
+            shelf,
+            damage_dice_num=plain.damage_dice_num,
+            damage_dice_sides=plain.damage_dice_sides,
+            known_flags=plain.known_flags,
+        )
+        smith = replace(smith, store=StoreState(
+            store_type=smith.store.store_type,
+            items=tuple(purchasable if item is shelf else item
+                        for item in smith.store.items),
+        ))
+        selected = policy._quest_carry_purchase(
+            smith, policy._carry_procurement_strategy(smith)
+        )
+        self.assertIsNotNone(selected)
+        self.assertTrue(policy._ammo_purchase_preserves_plan(smith, selected))
+        policy.choose_key(smith)
+        outside = parse_snapshot(
+            self.recorded(2873354, "player_turn"), self.monrace
+        )
+        needs = policy._departure_blocking_town_needs(outside)
+        self.assertNotIn("throwing_items.launcher_ammo",
+                         policy._abandoned_quest_carry_requirements)
+        self.assertIn(STORE_WEAPON, {need.store_type for need in needs})
+
+
+if __name__ == "__main__":
+    unittest.main()

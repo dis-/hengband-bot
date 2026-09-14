@@ -244,7 +244,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         policy, world = state.build()
         signature = world.target_signature
 
-        self.assertEqual(world.producer_key, "\x1b`n!.")
+        self.assertEqual(world.producer_key, "\x1b`n&.")
         self.assertIn(signature, policy._deferred_home_items)
         self.assertNotIn(
             signature, getattr(policy, "_retried_deferred_home_items", set())

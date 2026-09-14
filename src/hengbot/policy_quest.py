@@ -792,6 +792,13 @@ class QuestMixin:
     def _quest_carry_suppliers(name: str) -> tuple[int, ...]:
         if name == "throwing_items.lit_torch":
             return (STORE_GENERAL,)
+        if name in {
+            "throwing_items.shot",
+            "throwing_items.arrow",
+            "throwing_items.bolt",
+            "throwing_items.launcher_ammo",
+        }:
+            return (STORE_WEAPON,)
         if name.startswith("launcher") or name.startswith("throwing_items."):
             return (STORE_WEAPON,)
         if name.startswith("required_scrolls."):
@@ -809,14 +816,44 @@ class QuestMixin:
     ) -> SupplyStatus:
         """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
         stores = self._quest_carry_suppliers(name)
+        launcher_ammo = name in {
+            "throwing_items.shot",
+            "throwing_items.arrow",
+            "throwing_items.bolt",
+            "throwing_items.launcher_ammo",
+        }
         obtainable = False
+        if launcher_ammo and (
+            self._town_visit_ledger.store_visits.get(STORE_HOME, 0) == 0
+            or not self._home_knowledge_current
+            or not self._equipment_catalog.home_scan_complete
+            or self._home_ammo_top_up(snapshot, include_deferred=True) is not None
+        ):
+            obtainable = True
         for current_supplier in stores:
+            if obtainable:
+                break
             if self._quest_carry_remembered_affordable(
                 snapshot, strategy, name, current_supplier
             ):
                 obtainable = True
             if obtainable:
                 break
+            if launcher_ammo:
+                observation = self._town_supplier_stock_observations.get(
+                    current_supplier
+                )
+                observed_this_visit = bool(
+                    observation is not None
+                    and observation[0] == self._effective_town_id(snapshot)
+                    and observation[1] <= snapshot.turn
+                    and snapshot.turn - observation[1]
+                    < STORE_RESTOCK_WAIT_TURNS
+                )
+                if not observed_this_visit:
+                    obtainable = True
+                    break
+                continue
             if current_supplier not in self._town_store_attempted:
                 obtainable = True
                 break
@@ -858,6 +895,13 @@ class QuestMixin:
                 snapshot, item, strategy.required_force
             )) is not None
             and target[0] == expected_target
+            and (
+                expected_target != "launcher_ammo"
+                or (
+                    is_plain_store_ammo(item)
+                    and self._ammo_purchase_preserves_plan(snapshot, item)
+                )
+            )
             for item in page.items
         )
 

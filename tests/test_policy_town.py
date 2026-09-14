@@ -13207,8 +13207,10 @@ class RangedAttackTest(unittest.TestCase):
         )
         profiles = load_quest_strategies(Path("strategy/quests"))
         policy = HengbotPolicy(quest_strategies=profiles)
+        home_page = replace(snap, store=StoreState(STORE_HOME, []))
+        self.assertEqual(policy.choose_key(home_page), LEAVE_STORE_KEY)
         policy.consume_home_knowledge(())
-        policy._town_store_attempted[STORE_WEAPON] = snap.turn
+        self.assertEqual(policy.choose_key(snap), LEAVE_STORE_KEY)
 
         carry = policy._quest_carry_status(
             snap, profiles[22].required_force

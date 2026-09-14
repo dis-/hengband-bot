@@ -2147,6 +2147,12 @@ class TownMixin:
                 "throwing_items.bolt",
                 "throwing_items.launcher_ammo",
             } or ("launcher" in missing_carries and home_launcher is None):
+                if (
+                    "throwing_items.launcher_ammo" in missing_carries
+                    and self._town_visit_ledger.store_visits.get(STORE_HOME, 0)
+                    == 0
+                ):
+                    add(STORE_HOME, "quest-ranged-kit", "home-first")
                 remembered_affordable = any(
                     self._quest_carry_remembered_affordable(
                         snapshot, quest_strategy, name, STORE_WEAPON
