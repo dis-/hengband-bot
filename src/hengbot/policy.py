@@ -2576,6 +2576,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         here = snapshot.grid_at(snapshot.player.position)
         if (
             key == WAIT_KEY
+            and here is not None
+            and here.store_number == STORE_HOME
+            and self._home_pending_item is not None
+            and self._shopping_approach_store_type == STORE_HOME
+            and self._shopping_approach_goal == snapshot.player.position
+            and not (self.last_reason or "").startswith("town:blocked:")
+        ):
+            self._intentional_entrance_activation = True
+        if (
+            key == WAIT_KEY
+            and (self.last_reason or "") == "calibration:strip-installed"
+            and here is not None
+            and (here.store_number >= 0 or here.building_special >= 0)
+        ):
+            # The transaction was installed in memory; it needs a new policy
+            # boundary, not a game command or a relocation away from Home.
+            key = ""
+        if (self.last_reason or "").startswith("town:blocked:"):
+            self._intentional_entrance_activation = False
+        if (
+            key == WAIT_KEY
             and snapshot.in_town
             and snapshot.store is None
             and here is not None
@@ -2585,6 +2606,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or here.building_special >= 0
             )
             and not self._intentional_entrance_activation
+            and not (self.last_reason or "").startswith(
+                "quest:enter:approach:unsatisfiable"
+            )
         ):
             # This is the final emitted-envelope seam, after every owner and
             # stage-2 accounting mutation has observed the producer's original
@@ -3313,6 +3337,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._home_knowledge_scan_epoch is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None
+            and self._equipment_mutation.state.name == "IDLE"
             and not self._town_space_deposit_actionable(snapshot)
         ):
             if self._home_errand.needs_knowledge:
@@ -4986,6 +5011,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "town:recover"
                 return REST_MACRO
 
+        # An already-required combat-weapon restoration is an equipment safety
+        # continuation, not new town work.  Finish it before pack-pressure
+        # routing can relocate the player and invalidate the prepared mutation.
+        restore_weapon = self._town_restore_weapon_key(snapshot)
+        if restore_weapon is not None:
+            return restore_weapon
+
+        if (
+            "quest-request" not in self._town_turn_arbiter._retired
+            and self._fixed_quest_prepare_return_required(snapshot)
+        ):
+            fixed_quest = self._fixed_quest_key(snapshot, strategic_hostiles)
+            if fixed_quest is not None:
+                return fixed_quest
+
         space_deposit = self._town_space_deposit_key(snapshot)
         if space_deposit is not None:
             return space_deposit
@@ -5154,10 +5194,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # bind its exact catalogue signature to the Home executor before
             # town-plan projection is allowed to approach Home.
             self._bind_catalogued_home_identification_withdrawal(snapshot)
-
-        restore_weapon = self._town_restore_weapon_key(snapshot)
-        if restore_weapon is not None:
-            return restore_weapon
 
         mark_heavy_curse = self._heavy_curse_inscription_key(snapshot)
         if mark_heavy_curse is not None:

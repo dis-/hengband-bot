@@ -1329,6 +1329,11 @@ class TownMixin:
         return (
             snapshot.in_town
             and not snapshot.player.recalling
+            and self._equipment_mutation.state.name == "IDLE"
+            and not (
+                self._effective_town_id(snapshot) != 1
+                and self._fixed_quest_prepare_return_required(snapshot)
+            )
             and self._town_pack_space_shortage(snapshot)
             and self._home_available(snapshot)
             and self._find_home_deposit(snapshot) is not None
@@ -1337,6 +1342,11 @@ class TownMixin:
     def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Route shortage relief before any transaction that may need a slot."""
         if not self._town_space_deposit_actionable(snapshot):
+            return None
+        if self._fixed_quest_prepare_return_required(snapshot):
+            # Stage-2 travel is an already-owned continuation.  Keep the
+            # shortage actionable for earlier scan suppression and departure
+            # gating, but do not replace the quest candidate with a Home route.
             return None
         self._town_claims_active(snapshot)
         step = self._shopping_approach_step(snapshot)

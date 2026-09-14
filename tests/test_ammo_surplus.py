@@ -57,7 +57,7 @@ class AmmoSurplusTest(unittest.TestCase):
         ))
         self.assertIn(policy._find_home_deposit(snapshot), bolts)
 
-    def test_weakest_stack_is_surplus_away_from_exact_carry_target(self):
+    def test_plain_stack_is_retained_with_highest_power_stack(self):
         policy, snapshot, _decisions = drive_captured_window()
         weakest = next(item for item in snapshot.inventory if item.slot == "o")
 
@@ -74,11 +74,11 @@ class AmmoSurplusTest(unittest.TestCase):
             )
             self.assertEqual(
                 policy._count_matching_ammo(changed_snapshot),
-                24 + count,
+                min(99, 24 + count),
             )
             self.assertEqual(
                 policy._retention_surplus(changed_snapshot, changed),
-                count,
+                max(0, count - (99 - best.count)),
             )
 
     def test_captured_inferior_stack_routes_to_home(self):
@@ -90,8 +90,8 @@ class AmmoSurplusTest(unittest.TestCase):
         final_key, final_reason = decisions[-1]
         self.assertTrue(final_key)
         self.assertNotEqual(final_reason, "town:blocked:departure-unsatisfiable")
-        self.assertEqual(policy._retention_surplus(snapshot, weakest), 3)
-        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 0)
+        self.assertEqual(policy._retention_surplus(snapshot, weakest), 0)
+        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 29)
         self.assertEqual(policy._retention_surplus(snapshot, best), 0)
         self.assertEqual(
             [
@@ -99,17 +99,22 @@ class AmmoSurplusTest(unittest.TestCase):
                 for item in snapshot.inventory
                 if item.slot in "opqrst"
             ],
-            [3, 0, 0, 0, 0, 0],
+            [0, 9, 29, 19, 15, 0],
         )
-        self.assertIs(policy._find_home_deposit(snapshot), weakest)
+        self.assertIn(
+            policy._item_signature(inferior_dense),
+            policy._home_rejected_deposits,
+        )
+        self.assertIsNone(policy._find_home_deposit(snapshot))
         self.assertIsNone(policy._full_pack_destroy_key(snapshot))
 
     def test_post_shed_shortfall_reaches_normal_supplier(self):
         policy, snapshot, _decisions = drive_captured_window()
         weakest = next(item for item in snapshot.inventory if item.slot == "o")
-        inferior_dense = next(item for item in snapshot.inventory if item.slot == "q")
-        self.assertIs(policy._find_home_deposit(snapshot), weakest)
-        self.assertEqual(policy._retention_surplus(snapshot, inferior_dense), 0)
+        first_surplus = next(item for item in snapshot.inventory if item.slot == "p")
+        fresh = HengbotPolicy()
+        self.assertIs(fresh._find_home_deposit(snapshot), first_surplus)
+        self.assertEqual(fresh._retention_surplus(snapshot, weakest), 0)
 
         # Apply the inventory observation produced by that whole-stack Home
         # deposit.  Store routing is outside this pin; the real normal-purchase
@@ -121,10 +126,16 @@ class AmmoSurplusTest(unittest.TestCase):
             tval=weakest.tval,
             sval=weakest.sval,
             price=2,
+            damage_dice_num=weakest.damage_dice_num,
+            damage_dice_sides=weakest.damage_dice_sides,
+            known_flags=weakest.known_flags,
         )
         after_deposit = replace(
             snapshot,
-            inventory=[item for item in snapshot.inventory if item is not weakest],
+            inventory=[
+                item for item in snapshot.inventory
+                if item.slot in {weakest.slot, "t"}
+            ],
             store=StoreState(
                 STORE_WEAPON,
                 [offered],
@@ -133,9 +144,9 @@ class AmmoSurplusTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(policy._count_matching_ammo(after_deposit), 96)
-        self.assertIs(policy._next_purchase_unreserved(after_deposit), offered)
-        self.assertEqual(policy._purchase_quantity(after_deposit, offered), 3)
+        self.assertEqual(fresh._count_matching_ammo(after_deposit), 27)
+        self.assertIs(fresh._next_purchase_unreserved(after_deposit), offered)
+        self.assertEqual(fresh._purchase_quantity(after_deposit, offered), 20)
 
 
 if __name__ == "__main__":

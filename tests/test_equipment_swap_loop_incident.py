@@ -62,6 +62,18 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             )
         )
 
+    def _assert_safe_nonactivation(self, snapshot, key):
+        self.assertIn(key, DIRECTIONS)
+        dy, dx = DIRECTIONS[key]
+        destination = replace(
+            snapshot.player.position,
+            y=snapshot.player.position.y + dy,
+            x=snapshot.player.position.x + dx,
+        )
+        grid = snapshot.grid_at(destination)
+        self.assertIsNotNone(grid)
+        self.assertLess(grid.store_number, 0)
+
     def _apply_posted_key(self, snapshot, key, action):
         """Apply the incident's command-loop physics to the replay state."""
         here = snapshot.grid_at(snapshot.player.position)
@@ -310,7 +322,7 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
                  return_value=(travel, "town-progress-invariant:approach"),
              ):
             key = policy.choose_key(snapshot)
-        self.assertEqual(key, WAIT_KEY)
+        self._assert_safe_nonactivation(snapshot, key)
         self.assertNotEqual(key, travel)
 
     def test_owned_equip_only_restore_cannot_relocate_to_foreign_store(self):
@@ -328,7 +340,7 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             return_value=(travel, "town-progress-invariant:approach"),
         ):
             key = policy.choose_key(snapshot)
-        self.assertEqual(key, WAIT_KEY)
+        self._assert_safe_nonactivation(snapshot, key)
         self.assertNotEqual(key, travel)
 
     def test_unowned_equip_only_session_cannot_relocate_to_foreign_store(self):
@@ -345,7 +357,7 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
             return_value=(travel, "town-progress-invariant:approach"),
         ):
             key = policy.choose_key(snapshot)
-        self.assertEqual(key, WAIT_KEY)
+        self._assert_safe_nonactivation(snapshot, key)
         self.assertNotEqual(key, travel)
 
     def test_retired_claim_refuses_foreign_store_without_mutating_transaction(self):
@@ -370,9 +382,10 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
              patch.object(policy, "_departure_supplier_counterfactual", return_value=5), \
              patch.object(policy, "_shopping_approach_step", return_value=snapshot.player.position):
             key = policy.choose_key(snapshot)
-        self.assertEqual(key, WAIT_KEY)
+        self._assert_safe_nonactivation(snapshot, key)
         self.assertEqual(
-            policy.last_reason, "equipment-transaction:await-confirmation"
+            policy.last_reason,
+            "town:entrance-step-off:equipment-transaction:await-confirmation",
         )
         self.assertIsNotNone(policy._equipment_transaction_session)
         self.assertEqual(policy._equipment_transaction_failed_items, failed_before)
@@ -383,7 +396,7 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
 
         for supplier, expected_key, expected_reason in (
             (STORE_HOME, "6", "equipment-transaction:approach-home"),
-            (0, WAIT_KEY, "town:blocked:owner-retired"),
+            (0, "9", "town:blocked:owner-retired"),
         ):
             with self.subTest(supplier=supplier):
                 policy = HengbotPolicy()
@@ -441,9 +454,12 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
                     policy, "_choose_key_with_latch_capture", candidate_probe
                 ):
                     key = policy.choose_key(snapshot)
-                self.assertEqual(key, WAIT_KEY)
+                self._assert_safe_nonactivation(snapshot, key)
                 self.assertIs(policy._equipment_transaction_session, session)
-                self.assertEqual(policy.last_reason, "candidate-probe")
+                self.assertEqual(
+                    policy.last_reason,
+                    "town:entrance-step-off:candidate-probe",
+                )
                 self.assertEqual(
                     policy._equipment_transaction_failed_items, failed_before
                 )

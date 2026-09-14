@@ -1590,6 +1590,18 @@ class NavigationMixin:
         _step_toward's result."""
         if step == snapshot.player.position:
             self.last_reason = "nav:step-self"
+            here = snapshot.grid_at(snapshot.player.position)
+            if (
+                here is not None
+                and (
+                    here.store_number >= 0
+                    or here.building_special >= 0
+                )
+            ):
+                # A route whose destination is the entrance underfoot is an
+                # activation, not an idle WAIT.  Preserve the producer's byte
+                # through the final entrance-WAIT safety envelope.
+                self._intentional_entrance_activation = True
             return WAIT_KEY + tail
         if step in self._paralyzer_avoid_cells:
             walkable = self._walkable_neighbors(

@@ -3974,6 +3974,48 @@ class QuestMixin:
             )
         return None
 
+    def _fixed_quest_prepare_return_required(self, snapshot: Snapshot) -> bool:
+        """Whether stage-2 quest travel, rather than new town work, owns now."""
+        if not snapshot.in_town or self._inventory_overweight(snapshot):
+            return False
+        candidates = [
+            quest for quest in self._known_fixed_quests(snapshot).values()
+            if quest.id in FIXED_QUEST_ALLOWLIST
+            and quest.status in {
+                QUEST_STATUS_UNTAKEN,
+                QUEST_STATUS_TAKEN,
+                QUEST_STATUS_COMPLETED,
+            }
+            and self.approved_quest_strategy(quest.id) is not None
+        ]
+        head = self._fixed_quest_head(snapshot)
+        travel = head
+        if (
+            travel is not None
+            and (
+                self.approved_quest_strategy(travel.id) is None
+                or (
+                    travel.status == QUEST_STATUS_UNTAKEN
+                    and not self._fixed_quest_ready_for_travel(snapshot, travel.id)
+                )
+            )
+        ):
+            travel = None
+        town_id = self._effective_town_id(snapshot)
+        return bool(
+            travel is None
+            and (
+                town_id == 1
+                or (
+                    town_id != 0
+                    and any(
+                        quest.status == QUEST_STATUS_UNTAKEN
+                        for quest in candidates
+                    )
+                )
+            )
+        )
+
     def _prepare_return_1_candidate(
         self, snapshot: Snapshot, quest: object
     ) -> str | None:

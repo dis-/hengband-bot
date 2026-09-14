@@ -716,7 +716,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         # Real 17:43:56-17:44:08 shape: a Home page was followed by a
         # store=None page on (45,123), with the post-leave turn unchanged.
         self.assertEqual(snapshot.player.position, Position(45, 123))
-        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.choose_key(snapshot), "")
         self.assertNotEqual(policy.choose_key(snapshot), "~9")
         self.assertFalse(policy._home_knowledge_scan_requested)
 
