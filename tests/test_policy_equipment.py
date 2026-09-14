@@ -4494,11 +4494,9 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             takeoff = policy.choose_key(worn)
             self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY), (takeoff, policy.last_reason))
             self.assertTrue(policy.confirm_key_posted(takeoff))
-            session = policy._equipment_transaction_session
-            self.assertIsNotNone(session)
-            session.observe(policy_module.observe_equipment_transactions(
-                replace(worn, turn=1), operation_outcome="refused"
-            ))
+            policy.reconcile_input_operation(
+                "equipment-transaction:takeoff", "refused"
+            )
             policy.choose_key(replace(worn, turn=1))
         equipped_id = next(
             key

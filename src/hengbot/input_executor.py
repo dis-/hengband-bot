@@ -327,6 +327,27 @@ _PURCHASE_REFUSAL_MESSAGES = {
     "You do not have enough gold.",
 }
 
+# cmd-item/cmd-equipment.cpp:229-234,383-386 and
+# store/store-key-processor.cpp:269-277.  These messages return to the outer
+# store command wait without applying the requested equipment mutation.
+_HOME_EQUIPMENT_REFUSAL_MESSAGES = {
+    "ふーむ、どうやら呪われているようだ。",
+    "Hmmm, it seems to be cursed.",
+    "そのコマンドは店の中では使えません。",
+    "That command does not work in stores.",
+}
+
+
+def _unchanged_equipment_operation(operation: Operation,
+                                   board: Mapping[str, object]) -> bool:
+    before = operation.observation
+    if not isinstance(before, Mapping):
+        return False
+    return (
+        before.get("inventory") == board.get("inventory")
+        and before.get("equipment") == board.get("equipment")
+    )
+
 def _operation_messages(screen: Mapping[str, object], board: Mapping[str, object]) -> list[str]:
     """Return only evidence obtained at this operation's successful barrier."""
     rows = screen.get("lines", ())
@@ -641,6 +662,16 @@ class OperationExecutor:
             self.active.continuations.clear()
             if match.kind is ScreenKind.STORE:
                 return self._post_and_barrier("\x1b", deadline)
+        if (
+            self.active.owner.startswith("equipment-transaction:")
+            and match.kind is ScreenKind.STORE
+            and _unchanged_equipment_operation(self.active, board)
+            and any(
+                message in _HOME_EQUIPMENT_REFUSAL_MESSAGES
+                for message in _operation_messages(screen_value, board)
+            )
+        ):
+            self.active.business_outcome = "refused"
         # Spec section 4: at a successful command/store barrier an unused tail
         # is dropped only when fresh effects positively establish that the
         # source command ended.  Ambiguous absence remains a visible terminal.

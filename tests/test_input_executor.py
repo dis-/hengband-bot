@@ -1098,6 +1098,31 @@ class TcpBarrierPinTest(ProductionHarness):
 
 
 class StorePurchaseOwnershipPin(ProductionHarness):
+    def test_completed_home_curse_refusal_has_concrete_business_outcome(self):
+        game = FaithfulHookGame()
+        before = self.store_state(1)
+        game.screen = store_screen()
+        game.state = before
+        game.jsonl = [copy.deepcopy(before)]
+        game.screens = [store_screen("Hmmm, it seems to be cursed.")]
+        game.states = [self.store_state(
+            2, ["Hmmm, it seems to be cursed."]
+        )]
+        game, _client, executor = self.make(game)
+
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        game.jsonl[:] = [copy.deepcopy(game.states[0])]
+        result = executor.submit(Operation(
+            26, "equipment-transaction:takeoff", "tA",
+            copy.deepcopy(executor.ready_board),
+        ), deadline=9999999999)
+
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(result.operation.business_outcome, "refused")
+        self.assertEqual(game.accepted, ["tA"])
+
     def test_refused_buy_drops_blind_tail_then_owned_escape(self):
         game, _client, executor = self.make()
         refusal = "\u305d\u3093\u306a\u306b\u30a2\u30a4\u30c6\u30e0\u3092\u6301\u3066\u306a\u3044\u3002"

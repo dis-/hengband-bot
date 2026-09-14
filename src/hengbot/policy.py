@@ -2392,18 +2392,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             key = WAIT_KEY
             self.last_reason = self._town_blocked_reason
-        if (
-            key == WAIT_KEY
-            and snapshot.store is None
-            and self._equipment_catalog.home_scan_complete
-            and snapshot.grid_at(snapshot.player.position) is None
-        ):
-            # The post-exit player board can omit the entrance grid.  Reusing
-            # WAIT there intentionally activates Home again; an empty command
-            # yields ownership without input until ordinary routing has a
-            # visible step, preserving the completed visit boundary.
-            self.last_reason = "town:blocked:home-known-empty-withdrawal"
-            key = LEAVE_STORE_KEY
         if self._withdrawal_unfulfilled_defect:
             self._record_shop_selector_diagnostics(snapshot, key)
         unresolved_quest_candidate = (
@@ -2642,14 +2630,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = (
                         f"town:entrance-wait-refused:{wait_reason or 'wait'}"
                     )
-        if (
-            key in {WAIT_KEY, ""}
-            and snapshot.store is None
-            and here is None
-            and self._equipment_catalog.home_scan_complete
-        ):
-            self.last_reason = "town:blocked:home-known-empty-withdrawal"
-            key = LEAVE_STORE_KEY
         return key
 
     @staticmethod
@@ -3322,7 +3302,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._equipment_transaction_session is not None:
             session = self._equipment_transaction_session
             pending = session.pending_action
-            advanced = session.observe(observe_equipment_transactions(snapshot))
+            operation_outcome = getattr(
+                self, "_equipment_transaction_operation_outcome", None
+            )
+            advanced = session.observe(observe_equipment_transactions(
+                snapshot, operation_outcome=operation_outcome,
+            ))
+            self._equipment_transaction_operation_outcome = None
             if advanced and pending is not None:
                 if (
                     pending.kind == "takeoff"
@@ -3644,7 +3630,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         self._report_town_stop_pass(
                             snapshot, STORE_HOME, goal_satisfied=True,
                         )
-                        self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                        self.last_reason = "home:scan-complete-from-open-page"
                     else:
                         self.last_reason = "home:store-context-exit"
                     key = LEAVE_STORE_KEY
@@ -3701,7 +3687,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=True,
                 )
-                self.last_reason = "town:blocked:home-known-empty-withdrawal"
+                self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
             elif (
                 not self._calibration_active()
@@ -7444,6 +7430,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def reconcile_input_operation(self, owner: str, business_outcome: str | None) -> None:
         """Apply an executor-proven business result before the next decision."""
+        if (
+            owner.startswith("equipment-transaction:")
+            and business_outcome in {"refused", "cancelled", "failed"}
+        ):
+            self._equipment_transaction_operation_outcome = business_outcome
         if owner == "shop:one-shot-buy" and business_outcome == "failed:purchase-refused":
             self._store_buy_inflight = None
             self._close_store_visit("one-shot-buy-refused")

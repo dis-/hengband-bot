@@ -3419,7 +3419,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: wrapper behavior is the subject; the supplied downstream decision is not asserted as its own behavior
         with patch.object(policy, "_decide", return_value=SELL_KEY + "f40\r"):
             self.assertEqual(policy.choose_key(arrival), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:home-known-empty-withdrawal")
+        self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
         key = self._post_atomic(policy, entrance, target)
 
         self.assertEqual(key, WAIT_KEY)
@@ -3842,7 +3842,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._decide = Mock(return_value=SELL_KEY + "f40\r")
 
         self.assertEqual(policy.choose_key(home), policy_module.LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:home-known-empty-withdrawal")
+        self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
 
     def test_real_pack_teleport_and_recall_slots_cannot_be_side_effect_deposits(self):
         policy = HengbotPolicy()

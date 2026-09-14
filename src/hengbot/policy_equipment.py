@@ -1707,13 +1707,25 @@ class EquipmentMixin:
                 return LEAVE_STORE_KEY
             if self._home_atomic_withdraw_pending is not None:
                 self._equipment_atomic_withdraw_leave_count = 0
-            if self._equipment_atomic_withdraw_leave_count >= 2:
-                self._block_equipment_transaction("atomic-withdraw-unreachable")
-                self.last_reason = "equipment-transaction:atomic-withdraw-unreachable"
+            if session.physical_context != "home":
+                if self._equipment_atomic_withdraw_leave_count >= 2:
+                    self._block_equipment_transaction(
+                        "atomic-withdraw-unreachable"
+                    )
+                    self.last_reason = (
+                        "equipment-transaction:atomic-withdraw-unreachable"
+                    )
+                    return LEAVE_STORE_KEY
+                self._equipment_atomic_withdraw_leave_count += 1
+                self.last_reason = (
+                    "equipment-transaction:leave-for-atomic-withdraw"
+                )
                 return LEAVE_STORE_KEY
-            self._equipment_atomic_withdraw_leave_count += 1
-            self.last_reason = "equipment-transaction:leave-for-atomic-withdraw"
-            return LEAVE_STORE_KEY
+            self._block_equipment_transaction("withdraw-not-on-current-home-page")
+            self.last_reason = (
+                "equipment-transaction:withdraw-not-on-current-home-page"
+            )
+            return None
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
         return LEAVE_STORE_KEY
