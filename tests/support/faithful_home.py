@@ -60,6 +60,7 @@ class FaithfulHomeGame:
         self.exits = 0
         self.turn = 1
         self.message = ""
+        self.modal = None
 
     def socket_factory(self, *args, **kwargs): return _Socket(self)
     @staticmethod
@@ -89,6 +90,16 @@ class FaithfulHomeGame:
     def _consume(self, keys):
         for key in keys:
             self.trace.append(key)
+            if self.modal == "knowledge-menu":
+                if key == "9": self.modal = "home-viewer"
+                elif key == "\x1b": self.modal = None
+                continue
+            if self.modal == "home-viewer":
+                if key == "\x1b": self.modal = "knowledge-menu"
+                continue
+            if key == "~" and self.inside:
+                self.modal = "knowledge-menu"
+                continue
             if self.pending:
                 kind = self.pending
                 self.pending = None
@@ -181,6 +192,18 @@ class FaithfulHomeGame:
                 self._consume(queued)
             prompt = {"takeoff": "Take off which item?", "wield": "Wear/Wield which item?",
                       "deposit": "Drop which item?", "withdraw": "Get which item?"}.get(self.pending, self.message)
-            result = _screen(prompt, self.inside, self.pages[self.page] if self.inside else ())
+            if self.modal == "knowledge-menu":
+                result = _screen("", False)
+                result["lines"][3] = "Display current knowledge"
+                result["lines"][14] = "     (9) Display home inventory"
+                result["lines"][17] = "        -more-"
+                result["lines"][20] = "Command: "
+                result["lines"][21] = " ESC) Exit menu"
+            elif self.modal == "home-viewer":
+                result = _screen("", False)
+                result["lines"][0] = "[Home Inventory, Line 1/1]"
+                result["lines"][-1] = "[Press ESC to exit.]"
+            else:
+                result = _screen(prompt, self.inside, self.pages[self.page] if self.inside else ())
         else: result = self._state()
         return {"id": request["id"], "ok": True, "result": result}

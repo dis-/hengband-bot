@@ -1997,11 +1997,7 @@ def _send_new_decision_key(
 
 
 def _home_modal_continuation(snapshot, key: str, owner: str):
-    """Split Home modal work at its visible boundary and return to STORE.
-
-    The one closing ESC belongs to the recognized nested viewer.  Completion
-    is the subsequently observed STORE board; no second, padded ESC is owned.
-    """
+    """Own each source-proven Home modal boundary through the STORE return."""
     if (
         snapshot is None
         or snapshot.store is None
@@ -2009,14 +2005,24 @@ def _home_modal_continuation(snapshot, key: str, owner: str):
     ):
         return None
     if key == HOME_KNOWLEDGE_MACRO:
-        return "~9", [Continuation(
-            frozenset({ScreenKind.FILE_VIEWER}), "\x1b", "home-inventory",
-            exact_feature=True,
-        )]
+        return "~9", [
+            Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
+                         "home-inventory", exact_feature=True),
+            # cmd-knowledge.cpp:27-72,111-114: '9' returns to the menu loop;
+            # only this menu ESC returns to the calling store.
+            Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
+        ]
     if key == HOME_CHARACTER_DUMP_MACRO:
-        return "C", [Continuation(
-            frozenset({ScreenKind.CHARACTER}), key[1:],
-        )]
+        return "C", [
+            Continuation(frozenset({ScreenKind.CHARACTER}), "f"),
+            Continuation(frozenset({ScreenKind.FILE_NAME}), "\r"),
+            # files-util.cpp:65-73 asks only when the default file exists.
+            Continuation(frozenset({ScreenKind.CONFIRM}), "y",
+                         ("[y/n]", "[Y/n]"), optional=True),
+            # files-util.cpp:88-101 reports status via msg_print/msg_erase;
+            # OperationExecutor owns MORE, then this closes cmd-draw.cpp:143.
+            Continuation(frozenset({ScreenKind.CHARACTER}), "\x1b"),
+        ]
     return None
 
 

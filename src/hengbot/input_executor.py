@@ -28,6 +28,7 @@ class ScreenKind(str, Enum):
     IDENTIFY_VIEWER_PAGE = "identify-viewer-page"
     IDENTIFY_VIEWER_FINAL = "identify-viewer-final"
     CHARACTER = "character"
+    FILE_NAME = "file-name"
     DEATH = "death"
     UNKNOWN = "unknown"
 
@@ -126,6 +127,10 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     found = _suffix_match(row0, ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]"))
     if found:
         return ScreenMatch(ScreenKind.CONFIRM, row0, 0, found[1])
+    # cmd-visual/cmd-draw.cpp:112 calls input_string("File name: ", ...),
+    # which core/asking-player.cpp:174-188 renders on row zero.
+    if row0.startswith(("File name: ", "繝輔ぃ繧､繝ｫ蜷・ ")):
+        return ScreenMatch(ScreenKind.FILE_NAME, row0, 0, 0)
     # core/asking-player.cpp:343-351. The editable default follows the colon.
     if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0) or \
             re.search(r"^(?:Rest|休憩) \(0-9999, .+\):(?: .*)?$", row0):
@@ -256,6 +261,7 @@ class Continuation:
     keys: str
     feature: str | tuple[str, ...] | None = None
     exact_feature: bool = False
+    optional: bool = False
 
 
 @dataclass
@@ -607,7 +613,7 @@ class OperationExecutor:
                 return self._post_and_barrier(" ", deadline)
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
                 return self._post_and_barrier("\x1b", deadline)
-        if self.active.continuations:
+        while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (
                 continuation.feature
@@ -629,6 +635,10 @@ class OperationExecutor:
                 self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
                 self.active.continuations.pop(0)
                 return self._post_and_barrier(continuation.keys, deadline)
+            if continuation.optional:
+                self.active.continuations.pop(0)
+                continue
+            break
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
         screen_epoch = self.client.observation_epoch

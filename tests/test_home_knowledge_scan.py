@@ -22,11 +22,13 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.policy import CHARACTER_DUMP_MACRO, HengbotPolicy, STORE_HOME
-from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
-from hengbot.input_executor import ScreenKind
+from hengbot.policy_constants import HOME_CHARACTER_DUMP_MACRO, HOME_KNOWLEDGE_MACRO
+from hengbot.control_client import ControlClient
+from hengbot.input_executor import Operation, OperationExecutor, ScreenKind
 from hengbot.home_entry_capture import STATE_FIELDS
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from policy_fixtures import store_item
+from support.faithful_home import FaithfulHomeGame
 
 
 def setUpModule():
@@ -115,6 +117,22 @@ def home_response() -> dict:
 
 
 class HomeOwnedModalTest(unittest.TestCase):
+    def test_home_character_dump_owns_each_prompt_and_store_return(self):
+        inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
+        prefix, continuations = _home_modal_continuation(
+            inside, HOME_CHARACTER_DUMP_MACRO, "calibration:capture")
+        self.assertEqual(prefix, "C")
+        self.assertEqual(
+            [(continuation.kinds, continuation.keys, continuation.optional)
+             for continuation in continuations],
+            [
+                (frozenset({ScreenKind.CHARACTER}), "f", False),
+                (frozenset({ScreenKind.FILE_NAME}), "\r", False),
+                (frozenset({ScreenKind.CONFIRM}), "y", True),
+                (frozenset({ScreenKind.CHARACTER}), "\x1b", False),
+            ],
+        )
+
     def test_home_knowledge_has_one_viewer_close_and_store_terminal(self):
         policy = HengbotPolicy()
         policy._home_errand.file(
@@ -134,10 +152,31 @@ class HomeOwnedModalTest(unittest.TestCase):
             inside, key, policy.last_reason
         )
         self.assertEqual(prefix, "~9")
-        self.assertEqual(len(continuations), 1)
+        self.assertEqual(len(continuations), 2)
         self.assertEqual(continuations[0].kinds, frozenset({ScreenKind.FILE_VIEWER}))
         self.assertEqual(continuations[0].keys, "\x1b")
         self.assertEqual(continuations[0].feature, "home-inventory")
+        self.assertEqual(continuations[1].kinds, frozenset({ScreenKind.KNOWLEDGE}))
+        self.assertEqual(continuations[1].keys, "\x1b")
+
+    def test_home_knowledge_executor_closes_viewer_then_menu_once(self):
+        game = FaithfulHomeGame(pages=[[]])
+        client = ControlClient(1, request_budget=2, retries=1, backoff=0,
+                               socket_factory=game.socket_factory)
+        self.addCleanup(client.close)
+        executor = OperationExecutor(client, drain=lambda: [game._state()])
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
+        prefix, continuations = _home_modal_continuation(
+            inside, HOME_KNOWLEDGE_MACRO, "home:test")
+        result = executor.submit(Operation(
+            1, "home:test", prefix, executor.ready_board, continuations),
+            deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.trace.count("\x1b"), 2)
+        self.assertTrue(game.inside)
+        self.assertEqual(game.exits, 0)
 
 
 def board_response(snapshot: Snapshot) -> dict:

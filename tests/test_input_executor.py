@@ -436,6 +436,8 @@ class ScreenClassifierTest(unittest.TestCase):
         knowledge["lines"][17] = "-more-"; knowledge["lines"][20] = "Command:"
         knowledge["lines"][21] = " ESC) Exit menu"
         self.assertEqual(classify_screen(knowledge).kind, ScreenKind.KNOWLEDGE)
+        self.assertEqual(classify_screen(prompt_screen("File name: hero.txt")).kind,
+                         ScreenKind.FILE_NAME)
 
     def test_japanese_and_english_death_screens_are_player_death(self):
         class Client:
