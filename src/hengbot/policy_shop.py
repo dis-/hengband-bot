@@ -1430,6 +1430,9 @@ class ShopMixin:
     def _next_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
         item = self._next_purchase_unreserved(snapshot)
+        if item is not None and not self._store_purchase_fits_pack(snapshot, item):
+            self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
+            return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
         if (
@@ -1448,6 +1451,38 @@ class ShopMixin:
         if snapshot.player.gold - item.price * quantity < reserve:
             return None
         return item
+
+    def _store_purchase_fits_pack(self, snapshot: Snapshot, item: StoreItem) -> bool:
+        """Mirror the emitted portion of Hengband's full-pack carry predicate.
+
+        ``purchase-order.cpp:204`` calls ``check_store_item_to_inventory``;
+        ``inventory-object.cpp:341-355`` accepts a full pack only when
+        ``ItemEntity::is_similar`` accepts the incoming stack.  The comparison
+        below covers every identity/modifier field exported for both shelf and
+        pack items and the game's ordinary 99-item stack ceiling
+        (``item-entity.cpp:994-1013``).  Being conservative when an unexported
+        flag differs is safe: it can only defer a purchase, never type one into
+        a pack which the game will refuse.
+        """
+        if len(snapshot.inventory) < PACK_CAPACITY:
+            return True
+        quantity = min(item.count, max(1, self._purchase_quantity(snapshot, item)))
+        fields = (
+            "tval", "sval", "aware", "known", "fully_known", "pval",
+            "fuel", "timeout", "is_ego", "is_artifact", "is_cursed",
+            "is_broken", "to_h", "to_d", "to_a", "ac",
+            "damage_dice_num", "damage_dice_sides", "known_flags",
+        )
+        defaults = {"known_flags": frozenset()}
+        return any(
+            pack.count + quantity <= 99
+            and all(
+                getattr(pack, field) == getattr(item, field, defaults.get(field, 0))
+                for field in fields
+            )
+            and (not pack.inscription or pack.inscription == item.inscription)
+            for pack in snapshot.inventory
+        )
 
     @staticmethod
     def _purchase_diagnostic_category(item: StoreItem) -> str:

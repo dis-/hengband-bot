@@ -1966,7 +1966,13 @@ def _send_new_decision_key(
     ):
         return SendResult.DESIGNED_WAIT, posted_line
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
-    if quest_continuations and isinstance(send, _ExecutorInputPort):
+    store_buy = _store_buy_continuations(key, owner)
+    if store_buy is not None and isinstance(send, _ExecutorInputPort):
+        prefix, continuations = store_buy
+        sent = send.submit_operation(
+            prefix, decision=decision, continuations=continuations
+        )
+    elif quest_continuations and isinstance(send, _ExecutorInputPort):
         sent = send.submit_operation(
             key, decision=decision, continuations=quest_continuations
         )
@@ -2005,6 +2011,23 @@ def _quest_entry_continuations(snapshot, key: str, owner: str) -> list[Continuat
         frozenset({ScreenKind.CONFIRM}), "y", _QUEST_ENTRY_QUESTIONS,
         exact_feature=True,
     )]
+
+
+def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuation]] | None:
+    """Split the historical buy macro into prompt-owned executor segments."""
+    if owner != "shop:one-shot-buy" or not key.startswith("p") or len(key) < 4:
+        return None
+    body = key[:-1] if key.endswith("\x1b") else key
+    prefix = body[:2]
+    tail = body[2:]
+    continuations: list[Continuation] = []
+    if tail.endswith("\r\r") and len(tail) > 2:
+        continuations.append(Continuation(frozenset({ScreenKind.QUANTITY}), tail[:-1]))
+        continuations.append(Continuation(frozenset({ScreenKind.CONFIRM}), "\r"))
+    else:
+        continuations.append(Continuation(frozenset({ScreenKind.CONFIRM}), tail))
+    continuations.append(Continuation(frozenset({ScreenKind.STORE}), "\x1b"))
+    return prefix, continuations
 
 
 def _chain_matches(chain: dict, key: str) -> bool:
@@ -3733,6 +3756,14 @@ def _run_follow(
                             "player-death" if sent is SendResult.PLAYER_DEATH
                             else "stuck-prompt", snapshot)
                     if sent:
+                        if (
+                            isinstance(send, _ExecutorInputPort)
+                            and send.last_result is not None
+                        ):
+                            policy.reconcile_input_operation(
+                                send.last_result.operation.owner,
+                                send.last_result.operation.business_outcome,
+                            )
                         policy.confirm_key_posted(key)
                         if policy.last_reason == "periodic:game-save":
                             save_archive.posted(time.monotonic())

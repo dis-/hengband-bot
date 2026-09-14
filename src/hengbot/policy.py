@@ -4205,6 +4205,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is None
             and self._store_visit is not None
             and self._store_visit.operation_posted
+            and not self._store_visit.operation_released
             and (
                 self._store_visit.store_type != STORE_HOME
                 or self._store_visit.phase == StoreVisitPhase.ENTERING
@@ -7207,6 +7208,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
         self._confirm_staged_shopping_approach(key)
+        if (
+            self._store_visit is not None
+            and self._store_visit.operation_posted
+            and key == self._store_visit.operation_key
+        ):
+            # Executor completion means every owned segment has retired and a
+            # fresh board is ready for same-loop business reconciliation.
+            self._store_visit.operation_released = True
         if key.startswith(FIRE_KEY):
             # The ledger establishes that no bolt was visible on these cells
             # since the last policy-composed launcher shot. It cannot prove
@@ -7266,6 +7275,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed or mutation_committed
+
+    def reconcile_input_operation(self, owner: str, business_outcome: str | None) -> None:
+        """Apply an executor-proven business result before the next decision."""
+        if owner == "shop:one-shot-buy" and business_outcome == "failed:purchase-refused":
+            self._store_buy_inflight = None
+            self._close_store_visit("one-shot-buy-refused")
 
     def peek_staged_prompt_chain(self) -> dict | None:
         """Return the current decision's prompt chain without consuming it."""

@@ -16,7 +16,7 @@ from hengbot.input_executor import (
 )
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _send_new_decision_key,
-    _send_prompt_gated_decision_key,
+    _send_prompt_gated_decision_key, _store_buy_continuations,
 )
 from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.policy import ConservativePolicy
@@ -36,6 +36,15 @@ def command_screen(turn=1):
 def prompt_screen(text):
     value = command_screen()
     value["lines"][0] = text
+    return value
+
+
+def store_screen(message=""):
+    value = command_screen()
+    value["cursor"] = {"visible": True, "y": 20, "x": 0}
+    value["lines"][0] = message
+    value["lines"][20] = "You may: p) Purchase an item. s) Sell an item."
+    value["lines"][21] = " ESC) Exit from Building."
     return value
 
 
@@ -181,6 +190,15 @@ class ProductionHarness(unittest.TestCase):
                                socket_factory=game.socket_factory)
         self.addCleanup(client.close)
         return game, client, OperationExecutor(client, drain=lambda: list(game.jsonl))
+
+    @staticmethod
+    def store_state(turn, messages=()):
+        return {
+            "turn": turn, "floor": {"dungeon_id": 0, "level": 0},
+            "player": {"gold": 5483}, "inventory": [], "equipment": [],
+            "grid_map": {"runs": []}, "messages": list(messages),
+            "store": {"store_type": 4, "items": []},
+        }
 
 
 class Stage2aProducerRoutingPin(ProductionHarness):
@@ -1071,6 +1089,32 @@ class TcpBarrierPinTest(ProductionHarness):
         result = executor.submit(Operation(6, "wait", "5", executor.ready_board), deadline=9999999999)
         self.assertEqual(result.outcome, "stuck-prompt")
         self.assertIn("phase=state", result.reason)
+
+
+class StorePurchaseOwnershipPin(ProductionHarness):
+    def test_refused_buy_drops_blind_tail_then_owned_escape(self):
+        game, _client, executor = self.make()
+        refusal = "\u305d\u3093\u306a\u306b\u30a2\u30a4\u30c6\u30e0\u3092\u6301\u3066\u306a\u3044\u3002"
+        game.screens = [store_screen(), command_screen(3)]
+        game.states = [self.store_state(2, [refusal]), {
+            "turn": 3, "floor": {"dungeon_id": 0, "level": 0},
+            "player": {"gold": 5483}, "inventory": [], "equipment": [],
+            "grid_map": {"runs": []},
+        }]
+        executor.observe_boundary(deadline=9999999999)
+        split = _store_buy_continuations("pq1\r\r\x1b", "shop:one-shot-buy")
+        self.assertIsNotNone(split)
+        prefix, continuations = split
+        result = executor.submit(Operation(
+            25, "shop:one-shot-buy", prefix, executor.ready_board,
+            continuations,
+        ), deadline=9999999999)
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(result.operation.business_outcome,
+                         "failed:purchase-refused")
+        self.assertEqual(game.accepted, ["pq", "\x1b"])
+        self.assertNotIn("1", "".join(game.accepted))
+        self.assertNotIn("\r", "".join(game.accepted))
 
 
 class WmFencePinTest(ProductionHarness):

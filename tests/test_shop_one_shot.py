@@ -69,6 +69,52 @@ class ShopOneShotTest(unittest.TestCase):
             store=StoreState(store_type, wares), town_flag=True,
         )
 
+    def test_full_pack_accepts_only_game_similar_purchase_stack(self):
+        arrow = item("a", 18, 1, name="arrow", count=10)
+        pack = [arrow] + [
+            item(chr(ord("b") + index), TVAL_POTION, index + 100,
+                 name=f"filler-{index}")
+            for index in range(22)
+        ]
+        stackable = StoreItem(
+            "a", "arrow", 5, arrow.tval, arrow.sval, 3,
+            aware=arrow.aware, known=arrow.known,
+            fully_known=arrow.fully_known, is_equipment=arrow.is_equipment,
+            is_ego=arrow.is_ego, is_artifact=arrow.is_artifact,
+            is_cursed=arrow.is_cursed, inscription=arrow.inscription,
+            is_broken=arrow.is_broken, to_h=arrow.to_h, to_d=arrow.to_d,
+            to_a=arrow.to_a, ac=arrow.ac,
+            damage_dice_num=arrow.damage_dice_num,
+            damage_dice_sides=arrow.damage_dice_sides,
+            known_flags=arrow.known_flags,
+        )
+        nonstacking = replace(stackable, letter="q", tval=TVAL_SCROLL,
+                              sval=SV_SCROLL_WORD_OF_RECALL, name="light scroll")
+        snapshot = self._inside(STORE_WEAPON, pack, [nonstacking, stackable])
+        policy = HengbotPolicy()
+        self.assertFalse(policy._store_purchase_fits_pack(snapshot, nonstacking))
+        self.assertTrue(policy._store_purchase_fits_pack(snapshot, stackable))
+        with mock.patch.object(policy, "_next_purchase_unreserved",
+                               return_value=nonstacking):
+            self.assertIsNone(policy._next_purchase(snapshot))
+
+    def test_executor_completion_releases_refused_buy_for_fresh_town_decision(self):
+        policy = HengbotPolicy()
+        inside = self._inside(STORE_ALCHEMIST, self._ammo_supplies(), [])
+        visit = StoreVisit(
+            owner="shop-one-shot", purpose="observed-transaction",
+            store_type=STORE_ALCHEMIST, opened_sequence=1,
+            phase=StoreVisitPhase.OPERATING, operation_posted=True,
+            operation_key="pq1\r\r\x1b",
+        )
+        policy._store_visit = visit
+        policy.confirm_key_posted("pq1\r\r\x1b")
+        self.assertTrue(visit.operation_released)
+        outside = replace(inside, store=None, turn=inside.turn + 1)
+        decision = policy.choose_key(outside)
+        self.assertNotEqual((decision, policy.last_reason),
+                            ("", "shop:one-shot-in-flight"))
+
     def _outside(self, policy, inside):
         return replace(inside, store=None, turn=inside.turn + 1)
 

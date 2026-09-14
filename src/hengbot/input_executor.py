@@ -267,6 +267,7 @@ class Operation:
     continuations: list[Continuation] = field(default_factory=list)
     transport: Transport = Transport.TCP
     accepted_segments: list[str] = field(default_factory=list)
+    business_outcome: str | None = None
 
 
 @dataclass(frozen=True)
@@ -315,6 +316,16 @@ _TIMEWALK_MESSAGES = {
     "止まった時の中ではうまく働かないようだ。", "It shows no reaction.",
 }  # action-limited.cpp:110; reached by all four execution paths.
 
+# store/purchase-order.cpp:204-260.  Each message returns directly to the store
+# command loop and therefore positively terminates an owned purchase prompt.
+_PURCHASE_REFUSAL_MESSAGES = {
+    "\u305d\u3093\u306a\u306b\u30a2\u30a4\u30c6\u30e0\u3092\u6301\u3066\u306a\u3044\u3002",
+    "You cannot carry that many different items.",
+    "\u30b6\u30c3\u30af\u306b\u305d\u306e\u30a2\u30a4\u30c6\u30e0\u3092\u5165\u308c\u308b\u9699\u9593\u304c\u306a\u3044\u3002",
+    "You cannot carry that many items.",
+    "\u304a\u91d1\u304c\u8db3\u308a\u307e\u305b\u3093\u3002",
+    "You do not have enough gold.",
+}
 
 def _operation_messages(screen: Mapping[str, object], board: Mapping[str, object]) -> list[str]:
     """Return only evidence obtained at this operation's successful barrier."""
@@ -623,6 +634,13 @@ class OperationExecutor:
             return self._terminal(
                 self.active, "store-state",
                 "missing or mismatching current store page", match, outcome)
+        if self.active.owner == "shop:one-shot-buy" and any(
+                message in _PURCHASE_REFUSAL_MESSAGES
+                for message in _operation_messages(screen_value, board)):
+            self.active.business_outcome = "failed:purchase-refused"
+            self.active.continuations.clear()
+            if match.kind is ScreenKind.STORE:
+                return self._post_and_barrier("\x1b", deadline)
         # Spec section 4: at a successful command/store barrier an unused tail
         # is dropped only when fresh effects positively establish that the
         # source command ended.  Ambiguous absence remains a visible terminal.
