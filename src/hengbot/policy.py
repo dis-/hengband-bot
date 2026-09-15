@@ -4499,44 +4499,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # Its queued tail is the only input; policy contributes none.
                 self.last_reason = "shop:one-shot-in-flight"
                 return ""
-            visit = self._store_visit
-            if (
-                visit is not None
-                and visit.owner == "town-errand"
-                and visit.store_type == snapshot.store.store_type
-                and visit.store_type == STORE_ALCHEMIST
-            ):
-                # The errand that opened this exact page owns its first
-                # actionable result. Binding the transaction here prevents a
-                # detector ESC from releasing the page to a router re-entry.
-                inner = self._shop(snapshot)
-                if inner.startswith((BUY_KEY, SELL_KEY)):
-                    operation_key = inner + LEAVE_STORE_KEY
-                    visit.operation_posted = True
-                    visit.operation_key = operation_key
-                    visit.operation_released = True
-                    visit.composed_key = operation_key
-                    visit.posted_sequence = self._decision_sequence
-                    visit.posted_turn = snapshot.turn
-                    visit.transition(StoreVisitPhase.OPERATING)
-                    self.last_reason = (
-                        "shop:one-shot-buy"
-                        if inner.startswith(BUY_KEY)
-                        else "shop:one-shot-sell"
-                    )
-                    return operation_key
-                # No transaction is itself the owner's observed outcome. The
-                # stop ledger advances or blocks the visit before the ordinary
-                # leave, so this page cannot be approached again.
-                self._report_town_stop_pass(
-                    snapshot,
-                    snapshot.store.store_type,
-                    goal_satisfied=False,
-                    operation_completed=False,
-                )
-                self._close_store_visit("observed-no-operation")
-                self.last_reason = "shop:observe-and-leave"
-                return inner
             # Observation visit: never select or answer an item prompt here.
             self._shop_observation = (snapshot.store, self._decision_sequence)
             self.last_reason = "shop:observe-and-leave"
