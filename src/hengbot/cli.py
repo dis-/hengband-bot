@@ -1744,6 +1744,7 @@ class PostingContract:
         self._accepted_reference: tuple[object, ...] | None = None
         self._accepted_key: str | None = None
         self._settled_post: tuple[str, str] | None = None
+        self._settled_transport_by_owner: dict[str, str] = {}
 
     def prepare(self, snapshot, key: str, owner: str, sequence: int | None) -> None:
         """Capture sender facts without imposing an accepted-input wait."""
@@ -1798,13 +1799,13 @@ class PostingContract:
         if record.result == "not-applicable":
             return False
         owner = str(receipt.get("owner"))
-        self._posted_by_owner.pop(owner, None)
         if self._last_posted_owner == owner and self._last_posted_key == self._accepted_key:
             self._last_posted_owner = None
             self._last_posted_key = None
             self._last_posted_effect = None
         self._accepted_reference = None
         self._settled_post = (owner, self._accepted_key or "")
+        self._settled_transport_by_owner[owner] = self._accepted_key or ""
         self._accepted_key = None
         return True
 
@@ -1839,6 +1840,7 @@ class PostingContract:
         if (
             previous is not None
             and previous[0] == key
+            and self._settled_transport_by_owner.get(owner) != key
             and previous[1] == effect
             and len(messages) > len(previous[2])
             and messages[:len(previous[2])] == previous[2]
@@ -1875,7 +1877,6 @@ class PostingContract:
         if self._accepted_reference is not None and self._accepted_key == key:
             return
         if self._settled_post == (owner, key):
-            self._settled_post = None
             return
         effect = _posting_effect_signature(snapshot, owner, key)
         self._posted_by_owner[owner] = (

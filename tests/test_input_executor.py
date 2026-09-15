@@ -323,6 +323,69 @@ class BarrierProvenanceS3Pin(ProductionHarness):
         self.assertEqual(contract.last_incident["marker"],
                          "posting-contract:recall-already-active")
 
+    def test_executor_settlement_keeps_active_recall_business_guard(self):
+        game, _client, executor = self.make()
+        contract = PostingContract()
+        executor.accepted = contract.accepted
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        before = self.posting_snapshot()
+        sent, posted_line = _send_new_decision_key(
+            port, "recall-first", "rha", None, set(), in_store=False,
+            decision={"sequence": 7, "reason": "town:recall"},
+            snapshot=before, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        receipt = port.last_result.board["_completed_operation_receipt"]
+        self.assertEqual(
+            (receipt["sequence"], receipt["owner"],
+             receipt["accepted_segments"][0]["keys"],
+             receipt["terminal_kind"]),
+            (7, "town:recall", "rha", "command"),
+        )
+        active = self.posting_snapshot(receipt=receipt, recalling=True)
+        accepted_before = tuple(game.accepted)
+        sent, _ = _send_new_decision_key(
+            port, "recall-second", "rha", posted_line, set(), in_store=False,
+            decision={"sequence": 8, "reason": "town:recall"},
+            snapshot=active, posting_contract=contract,
+        )
+        self.assertFalse(sent)
+        self.assertEqual(contract.last_incident["marker"],
+                         "posting-contract:recall-already-active")
+        self.assertEqual(tuple(game.accepted), accepted_before)
+        self.assertEqual(game.accepted, ["rha"])
+
+    def test_executor_settlement_discharges_identical_repost_transport_guard(self):
+        game, _client, executor = self.make()
+        contract = PostingContract()
+        executor.accepted = contract.accepted
+        executor.observe_boundary(deadline=9999999999)
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        before = self.posting_snapshot(messages=("before",))
+        sent, posted_line = _send_new_decision_key(
+            port, "recall-first", "rha", None, set(), in_store=False,
+            decision={"sequence": 9, "reason": "town:recall"},
+            snapshot=before, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        receipt = port.last_result.board["_completed_operation_receipt"]
+        settled = self.posting_snapshot(
+            messages=("before", "later"), receipt=receipt, recalling=False,
+        )
+        sent, _ = _send_new_decision_key(
+            port, "recall-reselection", "rha", posted_line, set(),
+            in_store=False,
+            decision={"sequence": 10, "reason": "town:recall"},
+            snapshot=settled, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        self.assertIsNone(contract.last_incident)
+        self.assertEqual(game.accepted, ["rha", "rha"])
+
 
 class Stage2aProducerRoutingPin(ProductionHarness):
     """P8: every former producer is fenced by executor ownership."""
