@@ -93,8 +93,8 @@ class ControlClientTest(unittest.TestCase):
         self.assertEqual(self.client().request("state", map=False), {"turn": 7})
         self.assertEqual(len(self.server.requests), 2)
 
-    def test_executor_read_only_timeout_reconnects_until_operation_deadline(self):
-        self.server.actions[:] = ["timeout", {"turn": 7}]
+    def test_executor_read_only_disconnect_reconnects_until_operation_deadline(self):
+        self.server.actions[:] = ["disconnect", {"turn": 7}]
         client = ControlClient(
             self.server.server_address[1], request_budget=0.02,
             retries=0, backoff=0,
@@ -110,6 +110,25 @@ class ControlClientTest(unittest.TestCase):
         self.assertEqual(
             [request["op"] for request in self.server.requests],
             ["state", "state"],
+        )
+
+    def test_executor_slow_reply_keeps_full_operation_deadline(self):
+        self.server.actions[:] = [("delay", 0.04, {"turn": 7})]
+        client = ControlClient(
+            self.server.server_address[1], request_budget=0.02,
+            retries=0, backoff=0,
+        )
+        self.addCleanup(client.close)
+        self.assertEqual(
+            client.request(
+                "state", map=True, deadline=time.monotonic() + 0.15,
+                retry_until_deadline=True,
+            ),
+            {"turn": 7},
+        )
+        self.assertEqual(
+            [request["op"] for request in self.server.requests],
+            ["state"],
         )
 
     def test_timeout_is_bounded_and_logged_once(self):

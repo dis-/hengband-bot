@@ -224,14 +224,10 @@ class ControlClient:
                 last_error = TimeoutError("control request budget exhausted")
                 break
             try:
-                # An executor operation can outlive one ordinary control
-                # request.  Preserve that outer deadline while bounding each
-                # reconnectable observation attempt by the existing request
-                # budget.
-                attempt_deadline = min(
-                    deadline, time.monotonic() + self.request_budget
-                )
-                return self._request_once(op, fields, attempt_deadline)
+                # The caller's deadline is the granted observation budget.
+                # A transport failure that arrives before it may reconnect;
+                # a slow valid reply retains the entire remaining budget.
+                return self._request_once(op, fields, deadline)
             except (
                 OSError,
                 ValueError,

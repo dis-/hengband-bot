@@ -1,0 +1,22 @@
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -224,10 +224,14 @@ class ControlClient:
+                 last_error = TimeoutError("control request budget exhausted")
+                 break
+             try:
+-                # The caller's deadline is the granted observation budget.
+-                # A transport failure that arrives before it may reconnect;
+-                # a slow valid reply retains the entire remaining budget.
+-                return self._request_once(op, fields, deadline)
++                # An executor operation can outlive one ordinary control
++                # request.  Preserve that outer deadline while bounding each
++                # reconnectable observation attempt by the existing request
++                # budget.
++                attempt_deadline = min(
++                    deadline, time.monotonic() + self.request_budget
++                )
++                return self._request_once(op, fields, attempt_deadline)
+             except (
+                 OSError,
+                 ValueError,
