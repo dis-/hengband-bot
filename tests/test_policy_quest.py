@@ -6678,7 +6678,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             after, {"measured": 99, "required": 99, "ready": True}
         )
 
-    def test_q22_ammo_procurement_claim_rejects_nonplain_third_stack(self):
+    def test_q22_ammo_procurement_claim_merges_plain_and_rejects_nonplain(self):
         capture = json.loads(Path(
             "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
         ).read_text(encoding="utf-8"))
@@ -6704,7 +6704,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         purchase = policy._quest_carry_purchase(store, profile)
 
         self.assertEqual(target, ("launcher_ammo", 28, 99))
-        self.assertIsNone(purchase)
+        self.assertEqual(purchase, plain)
 
     def test_q2_prefers_superior_home_crossbow_over_store_plain_crossbow(self):
         policy = self._policy()

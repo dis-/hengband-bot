@@ -1,0 +1,7 @@
+Source: C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl at task base f925ed2
+Selection: every raw JSONL row whose integer turn is in [3025481, 3026062]
+Rows: 25
+First/last source lines: 8512/8536
+Decompressed bytes: 800069
+Decompressed sha256: ef31616dec9def997553ad88bc2624ebb72731f70a879629c4c25b76de4ca908
+

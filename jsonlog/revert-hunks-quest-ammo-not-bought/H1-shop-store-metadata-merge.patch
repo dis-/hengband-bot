@@ -1,0 +1,26 @@
+diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
+--- a/src/hengbot/policy_shop.py
++++ b/src/hengbot/policy_shop.py
+@@ -1947,22 +1947,6 @@ class ShopMixin:
+ 
+     @staticmethod
+     def _store_item_stacks_with_inventory(pack: InventoryItem, item: StoreItem) -> bool:
+-        # Ordinary-shop JSON does not export base dice or known flags (unlike
+-        # inventory/Home rows).  Treating those omitted fields as literal
+-        # zero/empty values rejects the exact plain ammunition which the game
+-        # will merge into an existing plain stack.  The visible store identity
+-        # and every exported modifier still have to agree.  Home candidates
+-        # are InventoryItems and retain the full comparison below.
+-        if isinstance(item, StoreItem):
+-            fields = (
+-                "tval", "sval", "aware", "known", "fully_known", "pval",
+-                "is_ego", "is_artifact", "is_cursed", "is_broken",
+-                "to_h", "to_d", "to_a", "ac",
+-            )
+-            return all(
+-                getattr(pack, field) == getattr(item, field)
+-                for field in fields
+-            ) and (not pack.inscription or pack.inscription == item.inscription)
+         fields = (
+             "tval", "sval", "aware", "known", "fully_known", "pval",
+             "fuel", "timeout", "is_ego", "is_artifact", "is_cursed",
