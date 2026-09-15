@@ -1,0 +1,16 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -471,6 +472,7 @@ class OperationResult:
+     screen: ScreenMatch | None = None
+     transport: KeyPostOutcome | None = None
+     reason: str | None = None
++    timing: dict[str, object] = field(default_factory=dict)
+ 
+ 
+ # Exact command-ending messages emitted by the device/read implementations.
+

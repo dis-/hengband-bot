@@ -1,0 +1,32 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..4b59e8c 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -79,6 +79,23 @@ class ControlClient:
+         self._observation_epoch = 0
+         self.last_error: str | None = None
+         self.backpressured = False
++        self._request_timings: list[dict[str, object]] = []
++        self._current_attempt = 1
++        self._timing_request_id = 0
++        self._timing_connected = False
++        self._timing_started_at: float | None = None
++        self._collect_request_timings = False
++
++    def start_request_timings(self) -> None:
++        self._request_timings = []
++        self._collect_request_timings = True
++
++    def take_request_timings(self) -> list[dict[str, object]]:
++        """Return and clear observational timings collected since the last take."""
++        timings = self._request_timings
++        self._request_timings = []
++        self._collect_request_timings = False
++        return timings
+ 
+     @property
+     def connected(self) -> bool:
+

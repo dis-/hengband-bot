@@ -219,6 +219,60 @@ class ProductionHarness(unittest.TestCase):
 
 
 class AcceptedObservationRetryPins(ProductionHarness):
+    def test_send_instrumentation_preserves_request_sequence_and_board(self):
+        game, _client, executor = self.make()
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        expected_state = {
+            "turn": 2,
+            "grid_map": {
+                "palette": [[1, 0, 0, True], [2, 0, 0, False]],
+                "runs": [[1, 2, 3, 0], [1, 5, 2, 1]],
+            },
+        }
+        game.states = [copy.deepcopy(expected_state)]
+        result = executor.submit(
+            Operation(78, "timing:test", "6", executor.ready_board),
+            deadline=9999999999,
+        )
+        expected_board = copy.deepcopy(expected_state)
+        expected_board.update({
+            "messages": [],
+            "_completed_operation_sequence": 78,
+            "_completed_operation_owner": "timing:test",
+            "_completed_operation_receipt": result.board["_completed_operation_receipt"],
+        })
+        self.assertEqual(
+            json.dumps(result.board, sort_keys=True, separators=(",", ":")),
+            json.dumps(expected_board, sort_keys=True, separators=(",", ":")),
+        )
+        self.assertEqual(
+            [entry[1] for entry in game.trace if entry[0] == "issue"],
+            ["screen", "state", "keys", "screen", "state"],
+        )
+        numeric_keys = {
+            "ack_wait_ms", "screen_wait_ms", "screen_classification_ms",
+            "state_wait_ms", "jsonl_drain_ms", "jsonl_drain_bytes",
+            "jsonl_drain_records", "jsonl_decode_ms", "state_deepcopy_ms",
+            "board_compose_ms", "posting_contract_settlement_ms", "segments",
+            "requests", "observation_epoch_refreshes", "known_cells",
+            "request_first_byte_ms", "first_last_byte_ms",
+            "request_json_decode_ms", "response_bytes",
+        }
+        self.assertTrue(numeric_keys.issubset(result.timing))
+        self.assertTrue(all(result.timing[key] >= 0 for key in numeric_keys))
+        self.assertEqual(result.timing["known_cells"], 3)
+        self.assertEqual(result.timing["requests"], 3)
+        self.assertEqual(len(result.timing["control_requests"]), 3)
+        self.assertTrue(all({
+            "request", "kind", "attempt_count", "connect_count",
+            "retry_count", "response_bytes", "attempts",
+        }.issubset(item) for item in result.timing["control_requests"]))
+        self.assertTrue(all({
+            "request_first_byte_ms", "first_last_byte_ms", "json_decode_ms",
+            "response_bytes", "connected",
+        }.issubset(attempt) for item in result.timing["control_requests"]
+            for attempt in item["attempts"]))
+
     def test_single_segment_ack_gets_post_ack_observation_grace(self):
         game = FaithfulHookGame()
         client = ControlClient(
@@ -277,6 +331,12 @@ class AcceptedObservationRetryPins(ProductionHarness):
             [entry[1] for entry in game.trace if entry[0] == "issue"],
             ["screen", "state", "keys", "screen", "screen", "state"],
         )
+        retried = next(
+            item for item in result.timing["control_requests"]
+            if item["kind"] == "screen"
+        )
+        self.assertEqual(retried["attempt_count"], 2)
+        self.assertEqual(retried["retry_count"], 1)
 
     def test_screen_failure_through_deadline_is_same_visible_terminal(self):
         game, _client, executor = self.make()

@@ -1556,6 +1556,26 @@ class DecisionTimingTest(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertEqual({key: value for key, value in before.items() if key != "timing"}, original)
 
+    def test_send_timing_decision_row_schema_accepts_new_keys(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(7, 5, 6)), {})
+        timing = {
+            key: 0 for key in (
+                "ack_wait_ms", "screen_wait_ms", "screen_classification_ms",
+                "state_wait_ms", "jsonl_drain_ms", "jsonl_drain_bytes",
+                "jsonl_drain_records", "jsonl_decode_ms", "state_deepcopy_ms",
+                "board_compose_ms", "posting_contract_settlement_ms", "segments",
+                "requests", "observation_epoch_refreshes", "known_cells",
+                "request_first_byte_ms", "first_last_byte_ms",
+                "request_json_decode_ms", "response_bytes",
+            )
+        }
+        timing.update({
+            "retry_send_added": False, "post_ack_grace_extended": True,
+            "control_requests": [],
+        })
+        row = _decision_record(snapshot, "6", "timing:schema", timing=timing)
+        self.assertEqual(row["timing"], timing)
+
     def test_follow_accounts_for_idle_gap_between_two_decision_batches(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

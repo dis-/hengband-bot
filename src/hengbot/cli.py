@@ -2075,7 +2075,11 @@ def _send_new_decision_key(
             and hasattr(posting_contract, "settle")):
         board = getattr(send.last_result, "board", None)
         if sent and board is not None:
+            settlement_started = time.perf_counter()
             posting_contract.settle(board)
+            send.last_result.timing["posting_contract_settlement_ms"] = round(
+                (time.perf_counter() - settlement_started) * 1000, 3
+            )
         elif not sent and hasattr(posting_contract, "cancel_prepared"):
             posting_contract.cancel_prepared()
     if sent:
@@ -2086,6 +2090,37 @@ def _send_new_decision_key(
         if recorder is not None:
             recorder.note_successfully_posted_key(key)
     return sent, posted_line
+
+
+def _merge_send_timing(decision_timing: dict, send) -> None:
+    """Fold one executor operation into its decision; request detail is capped at 12."""
+    result = getattr(send, "last_result", None)
+    operation_timing = getattr(result, "timing", None)
+    if not isinstance(operation_timing, Mapping):
+        return
+    additive = (
+        "ack_wait_ms", "screen_wait_ms", "screen_classification_ms",
+        "state_wait_ms", "jsonl_drain_ms", "jsonl_drain_bytes",
+        "jsonl_drain_records", "jsonl_decode_ms", "state_deepcopy_ms",
+        "board_compose_ms", "posting_contract_settlement_ms", "segments",
+        "requests", "observation_epoch_refreshes", "request_first_byte_ms",
+        "first_last_byte_ms", "request_json_decode_ms", "response_bytes",
+    )
+    for key in additive:
+        decision_timing[key] = round(
+            float(decision_timing.get(key, 0)) + float(operation_timing.get(key, 0)),
+            3,
+        )
+    for key in ("retry_send_added", "post_ack_grace_extended"):
+        decision_timing[key] = bool(decision_timing.get(key)) or bool(
+            operation_timing.get(key)
+        )
+    decision_timing["known_cells"] = operation_timing.get(
+        "known_cells", decision_timing.get("known_cells", 0)
+    )
+    details = list(decision_timing.get("control_requests", ()))
+    details.extend(operation_timing.get("control_requests", ()))
+    decision_timing["control_requests"] = details[:12]
 
 
 def _home_modal_continuation(snapshot, key: str, owner: str):
@@ -2710,6 +2745,7 @@ def _make_jsonl_barrier_drain(path: Path):
 
     def drain():
         nonlocal offset, pending
+        started = time.perf_counter()
         try:
             size = path.stat().st_size
             if size < offset:
@@ -2719,10 +2755,17 @@ def _make_jsonl_barrier_drain(path: Path):
                 chunk = stream.read()
                 offset = stream.tell()
         except OSError:
+            drain.last_timing = {"bytes": 0, "decode_ms": 0.0}
             return ()
         complete, pending = _split_complete_lines(pending + chunk)
+        decode_started = time.perf_counter()
         decoded = [row for row in _decode_response_lines(complete)
                    if isinstance(row, Mapping)]
+        drain.last_timing = {
+            "bytes": len(chunk.encode("utf-8")),
+            "decode_ms": (time.perf_counter() - decode_started) * 1000,
+            "total_ms": (time.perf_counter() - started) * 1000,
+        }
         handed_records.extend(decoded)
         return decoded
 
@@ -2733,6 +2776,7 @@ def _make_jsonl_barrier_drain(path: Path):
 
     drain.take_handed_records = take_handed_records
     drain.consumed_offset = lambda: offset
+    drain.last_timing = {"bytes": 0, "decode_ms": 0.0, "total_ms": 0.0}
 
     return drain
 
@@ -3787,6 +3831,7 @@ def _run_follow(
                         _commit_prompt_chain_result(
                             policy, decision_facts, chain_result
                         )
+                    _merge_send_timing(decision_timing, send)
                     decision_timing["send_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
@@ -3891,6 +3936,7 @@ def _run_follow(
                             _commit_prompt_chain_result(
                                 policy, decision_facts, chain_result
                             )
+                        _merge_send_timing(decision_timing, send)
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,

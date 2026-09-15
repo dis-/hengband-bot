@@ -1,0 +1,42 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -754,25 +820,31 @@ class OperationExecutor:
+         except ValueError as error:
+             return self._terminal(self.active, "encoding", str(error))
+         self.state = ExecutorState.AWAITING_KEYS_ACK
++        ack_started = time.perf_counter()
+         outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
++        self.active.timing["ack_wait_ms"] += (time.perf_counter() - ack_started) * 1000
+         if outcome.status is KeyPostStatus.REJECTED and outcome.reason == self.client.BACKPRESSURE_ERROR:
+             # Atomic rejection inserted zero bytes. Re-observe the screen and the
+             # state-bound item/operation premise before the sole retry, retaining
+             # the operation's original deadline (spec section 4 backpressure row).
+             screen_value = self._request("screen", deadline, term=0, attrs=False)
+-            match = classify_screen(screen_value) if screen_value is not None else None
++            match = self._classify(screen_value) if screen_value is not None else None
+             state_value = self._request("state", deadline, map=True) if match is not None else None
+-            rebound = classify_screen(screen_value, state_value) \
++            rebound = self._classify(screen_value, state_value) \
+                 if screen_value is not None and state_value is not None else None
+             if screen_value != self._bound_screen_value \
+                     or state_value != self._bound_state_value \
+                     or rebound != match:
+                 return self._terminal(self.active, "backpressure", "prompt changed before retry", match, outcome)
+             self.state = ExecutorState.AWAITING_KEYS_ACK
++            self.active.timing["retry_send_added"] = True
++            ack_started = time.perf_counter()
+             outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
++            self.active.timing["ack_wait_ms"] += (time.perf_counter() - ack_started) * 1000
+         if outcome.status is not KeyPostStatus.ACCEPTED:
+             return self._terminal(self.active, "keys", outcome.reason or outcome.status.value, transport=outcome)
+         self.active.accepted_segments.append(keys)
++        self.active.timing["segments"] += 1
+         self.active.accepted_segment_records.append(AcceptedSegment(
+             len(self.active.accepted_segment_records), role, keys,
+         ))
+

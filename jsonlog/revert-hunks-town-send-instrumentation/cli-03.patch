@@ -1,0 +1,16 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+index ec136a2..029c953 100644
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2710,6 +2745,7 @@ def _make_jsonl_barrier_drain(path: Path):
+ 
+     def drain():
+         nonlocal offset, pending
++        started = time.perf_counter()
+         try:
+             size = path.stat().st_size
+             if size < offset:
+

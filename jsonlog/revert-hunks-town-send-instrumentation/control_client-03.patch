@@ -1,0 +1,39 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..4b59e8c 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -139,10 +185,30 @@ class ControlClient:
+             chunk = self._socket.recv(65536)
+             if not chunk:
+                 raise ConnectionError("control server disconnected")
++            if first_byte_at is None:
++                first_byte_at = time.perf_counter()
++            response_bytes += len(chunk)
+             self._buffer.extend(chunk)
+         line, _, remainder = self._buffer.partition(b"\n")
+         self._buffer = bytearray(remainder)
++        last_byte_at = time.perf_counter()
++        decode_started = time.perf_counter()
+         response = json.loads(line.decode("utf-8"))
++        decoded_at = time.perf_counter()
++        if self._collect_request_timings:
++            self._request_timings.append({
++                "kind": op,
++                "request_first_byte_ms": round(
++                    ((first_byte_at or last_byte_at) - started) * 1000, 3),
++                "first_last_byte_ms": round(
++                    (last_byte_at - (first_byte_at or last_byte_at)) * 1000, 3),
++                "json_decode_ms": round((decoded_at - decode_started) * 1000, 3),
++                "response_bytes": response_bytes,
++                "connected": connected,
++                "attempt": self._current_attempt,
++                "retry_count": self._current_attempt - 1,
++                "request": self._timing_request_id,
++            })
+         if not isinstance(response, dict) or response.get("id") != request_id:
+             raise ControlClientError("control response id mismatch")
+         if response.get("ok") is not True:
+

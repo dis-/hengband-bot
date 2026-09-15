@@ -1,0 +1,16 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -335,6 +335,7 @@ class Operation:
+     operation_reference: "OperationReference | None" = None
+     accepted_segment_records: list["AcceptedSegment"] = field(default_factory=list)
+     dropped_continuations: list[str] = field(default_factory=list)
++    timing: dict[str, object] = field(default_factory=dict)
+ 
+ 
+ @dataclass(frozen=True)
+

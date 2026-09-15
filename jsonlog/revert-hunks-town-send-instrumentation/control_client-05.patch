@@ -1,0 +1,19 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..4b59e8c 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -218,8 +288,10 @@ class ControlClient:
+             return None
+         last_error: BaseException | None = None
+         attempt = 0
++        self._timing_request_id += 1
+         while retry_until_deadline or attempt < self.retries + 1:
+             attempt += 1
++            self._current_attempt = attempt
+             if time.monotonic() >= deadline:
+                 last_error = TimeoutError("control request budget exhausted")
+                 break
+
