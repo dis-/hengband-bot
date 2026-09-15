@@ -30,29 +30,15 @@ CONTINUATION_FIXTURE = (
     / "fixtures"
     / "town-priority-stage1-live-boards-20260915.jsonl.gz"
 )
-LIVE_1716_DECISIONS = Path(
-    "jsonlog/incident-20260915-1714-blackmarket-heal-gold-starve-decisions.jsonl"
-)
-LIVE_1953_DECISIONS = Path(
-    "jsonlog/incident-20260915-1953-restart-poverty-wander-decisions.jsonl"
-)
+# Frozen R4 evidence: incident 1714 decision line 865, turn 2911106;
+# incident 1953 decision line 4, turn 2911809.
+LIVE_ROUTE_CLAIM_UNFULFILLED = ("\x1b", "home:route-claim-unfulfilled")
 MONRACE_DEFINITIONS = Path(
     r"C:\hengband\.worktrees\bot-json-output\lib\edit\MonraceDefinitions.jsonc"
 )
 
 
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
-    @staticmethod
-    def _live_decision(path: Path, turn: int, reason: str):
-        with path.open(encoding="utf-8") as stream:
-            rows = [json.loads(line) for line in stream]
-        matches = [
-            row for row in rows
-            if row.get("turn") == turn and row.get("reason") == reason
-        ]
-        assert len(matches) == 1
-        return matches[0]["key"], matches[0]["reason"]
-
     def _replay_restart(self, *, funded: bool = False):
         with gzip.open(RESTART_FIXTURE, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]
@@ -137,9 +123,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             ),
         ])
         self.assertEqual(
-            self._live_decision(
-                LIVE_1953_DECISIONS, 2_911_809, "home:route-claim-unfulfilled"
-            ),
+            LIVE_ROUTE_CLAIM_UNFULFILLED,
             ("\x1b", "home:route-claim-unfulfilled"),
         )
 
@@ -149,9 +133,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
 
         self.assertEqual(decisions[-3][1:], ("5", "home:atomic-deposit"))
         self.assertEqual(
-            self._live_decision(
-                LIVE_1953_DECISIONS, 2_911_809, "home:route-claim-unfulfilled"
-            ),
+            LIVE_ROUTE_CLAIM_UNFULFILLED,
             ("\x1b", "home:route-claim-unfulfilled"),
         )
         self.assertEqual(policy._town_order_operation, "calibration")
@@ -230,9 +212,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             ),
         ])
         self.assertEqual(
-            self._live_decision(
-                LIVE_1716_DECISIONS, 2_911_106, "home:route-claim-unfulfilled"
-            ),
+            LIVE_ROUTE_CLAIM_UNFULFILLED,
             ("\x1b", "home:route-claim-unfulfilled"),
         )
         self.assertFalse(policy._dungeon_entry_allowed(

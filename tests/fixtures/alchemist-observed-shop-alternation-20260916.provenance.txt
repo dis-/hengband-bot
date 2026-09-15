@@ -1,0 +1,7 @@
+Source: C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl at task base 4f6a523
+Selection: all 17 records whose turns are 3024656 through 3024766 inclusive,
+copied byte-for-byte before gzip compression.
+Turns: the first record is 3024656 and the last record is 3024766.
+Decompressed sha256: 2c5d15a4d35a3955d295b57d919bb04d3c281df0486f74f3934aa58c2e81ca9d
+The gzip header timestamp is fixed to zero by
+tests/extract_alchemist_observed_shop_alternation_fixture.py.

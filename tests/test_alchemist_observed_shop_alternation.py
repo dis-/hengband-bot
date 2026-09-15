@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import unittest
 from dataclasses import replace
@@ -17,8 +18,18 @@ FIXTURE = (
     ROOT / "tests" / "fixtures" /
     "alchemist-observed-shop-alternation-20260916.jsonl.gz"
 )
-SOURCE = ROOT / "jsonlog" / "bot-state-fixed.jsonl"
-DECISIONS = ROOT / "jsonlog" / "bot-decisions.jsonl"
+PROVENANCE = FIXTURE.with_suffix("").with_suffix(".provenance.txt")
+
+# Frozen from bot-decisions.jsonl lines 8623-8627 at HEAD 4f6a523.
+# The R4 comparisons use turns 3024656, 3024665, 3024720, and 3024728;
+# turn 3024676 is retained because the fixture commentary refers to its retry.
+RECORDED_DECISIONS = {
+    3_024_656: ("\x1b", "shop:observe-and-leave"),
+    3_024_665: ("\x1b`n%.", "shop:travel"),
+    3_024_676: ("\x1b`n%.", "store:entry-interrupted-replan"),
+    3_024_720: ("\x1b", "town-progress-invariant:continue-observed-shop"),
+    3_024_728: ("7", "shop:approach"),
+}
 
 
 def recorded_rows() -> list[dict]:
@@ -26,27 +37,17 @@ def recorded_rows() -> list[dict]:
         return [json.loads(line) for line in stream]
 
 
-def live_decision(turn: int) -> tuple[str, str]:
-    with DECISIONS.open(encoding="utf-8") as stream:
-        matches = [
-            row for row in map(json.loads, stream)
-            if row.get("turn") == turn
-        ]
-    assert len(matches) == 1, (turn, matches)
-    return matches[0]["key"], matches[0]["reason"]
-
-
 class AlchemistObservedShopAlternationTest(unittest.TestCase):
     def test_fixture_is_the_byte_faithful_incident_window(self):
         with gzip.open(FIXTURE, "rb") as stream:
             frozen = stream.read()
-        selected = []
-        with SOURCE.open("rb") as stream:
-            for line in stream:
-                turn = int(json.loads(line).get("turn", -1))
-                if 3_024_656 <= turn <= 3_024_766:
-                    selected.append(line)
-        self.assertEqual(frozen, b"".join(selected))
+        provenance = PROVENANCE.read_text(encoding="utf-8")
+        recorded_sha256 = next(
+            line.split(":", 1)[1].strip()
+            for line in provenance.splitlines()
+            if line.startswith("Decompressed sha256:")
+        )
+        self.assertEqual(hashlib.sha256(frozen).hexdigest(), recorded_sha256)
         rows = recorded_rows()
         self.assertEqual(len(rows), 17)
         self.assertEqual((rows[0]["turn"], rows[-1]["turn"]), (
@@ -75,10 +76,10 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             if row["turn"] == 3_024_720 and "store" not in row
         )
         self.assertEqual(prompt["messages"], ["トラベルを継続しますか？[y/n]"])
-        self.assertEqual(live_decision(3_024_665), (
+        self.assertEqual(RECORDED_DECISIONS[3_024_665], (
             "\x1b`n%.", "shop:travel",
         ))
-        self.assertEqual(live_decision(3_024_676), (
+        self.assertEqual(RECORDED_DECISIONS[3_024_676], (
             "\x1b`n%.", "store:entry-interrupted-replan",
         ))
 
@@ -101,13 +102,13 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             replay.append((snapshot.turn, policy.choose_key(snapshot), policy.last_reason))
 
         self.assertEqual(replay[:2], [
-            (3_024_656, *live_decision(3_024_656)),
-            (3_024_665, *live_decision(3_024_665)),
+            (3_024_656, *RECORDED_DECISIONS[3_024_656]),
+            (3_024_665, *RECORDED_DECISIONS[3_024_665]),
         ])
         self.assertEqual(replay[2], (
-            3_024_720, *live_decision(3_024_720),
+            3_024_720, *RECORDED_DECISIONS[3_024_720],
         ))
-        live = live_decision(3_024_728)
+        live = RECORDED_DECISIONS[3_024_728]
         self.assertEqual(live, (
             "7", "shop:approach",
         ))
