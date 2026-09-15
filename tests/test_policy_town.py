@@ -13278,11 +13278,19 @@ class RangedAttackTest(unittest.TestCase):
         plain = replace(
             self._shots(count=10), fully_known=True,
             name="shots (1d3) (+0,+0)",
+            damage_dice_num=1, damage_dice_sides=3,
         )
         shelf = StoreItem("j", plain.name, 99, TVAL_SHOT, plain.sval, price=1)
         home = StoreItem(
             "a", plain.name, 99, TVAL_SHOT, plain.sval, price=0,
             fully_known=plain.fully_known,
+            damage_dice_num=1, damage_dice_sides=3,
+            exported_fields=frozenset({
+                "aware", "known", "fully_known", "pval", "fuel", "timeout",
+                "is_ego", "is_artifact", "is_cursed", "is_broken",
+                "inscription", "to_h", "to_d", "to_a", "ac",
+                "damage_dice", "known_flags",
+            }),
         )
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -13307,6 +13315,7 @@ class RangedAttackTest(unittest.TestCase):
         arrows = StoreItem("j", ammo_name, 99, TVAL_ARROW, 1, price=1)
         carried = item(
             "a", TVAL_ARROW, 1, name=ammo_name, count=3, fully_known=True,
+            damage_dice_num=1, damage_dice_sides=4,
         )
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -13337,7 +13346,7 @@ class RangedAttackTest(unittest.TestCase):
                 *self._strict_supplies_for_ammo(),
                 item(
                     "a", TVAL_ARROW, 1, name=ammo_name, count=3,
-                    fully_known=True,
+                    fully_known=True, damage_dice_num=1, damage_dice_sides=4,
                 ),
             ],
             equipment=[

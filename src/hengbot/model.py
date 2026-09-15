@@ -568,6 +568,12 @@ class StoreItem:
     pseudo_feeling: str = ""
     weight: int = 0
     weapon_proficiency: int = 0
+    fuel: int = 0
+    timeout: int = 0
+    # JSON omission is semantically different from an exported zero/false.
+    # Hand-built StoreItems must opt in to whatever structured evidence their
+    # test or caller intends to model.
+    exported_fields: frozenset[str] = frozenset()
 
     @property
     def is_lantern(self) -> bool:
@@ -1363,6 +1369,9 @@ def _parse_store(store_data: Any) -> "StoreState | None":
             pseudo_feeling=str(it.get("pseudo_feeling", "")),
             weight=int(it.get("weight", 0)),
             weapon_proficiency=int(it.get("weapon_proficiency", 0)),
+            fuel=int(it.get("fuel", 0)),
+            timeout=int(it.get("timeout", 0)),
+            exported_fields=frozenset(str(key) for key in it),
         ))
     return StoreState(
         store_type=int(store_data.get("store_type", -1)),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
 import gzip
 import hashlib
@@ -14,7 +15,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _parse_items
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
-from hengbot.model import STORE_WEAPON, parse_snapshot
+from hengbot.model import STORE_WEAPON, StoreItem, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import load_quest_knowledge
@@ -142,6 +143,84 @@ class QuestAmmoNotBoughtPins(unittest.TestCase):
             "quest:carry", "tail:ammo",
         ])
         self.assertEqual(needs, ["quest-ranged-kit", "ammo"])
+
+    def test_store_parser_preserves_old_row_omissions(self):
+        snapshot = parse_snapshot(
+            self.recorded(3_025_841, "store"), self.monrace
+        )
+        ware = next(item for item in snapshot.store.items if item.letter == "o")
+
+        self.assertEqual(ware.exported_fields, frozenset({
+            "letter", "name", "count", "tval", "sval", "price", "aware",
+            "known", "fully_known", "charges", "pval",
+        }))
+        self.assertNotIn("to_h", ware.exported_fields)
+        self.assertEqual((ware.to_h, ware.to_d), (0, 0))
+
+    def test_full_emitter_ammo_uses_structured_merge_fields(self):
+        old_row = self.recorded(3_025_841, "store")
+        snapshot = parse_snapshot(old_row, self.monrace)
+        policy = self.policy()
+        pack = next(item for item in snapshot.inventory if item.slot == "l")
+        new_row = copy.deepcopy(old_row)
+        ware_json = next(
+            item for item in new_row["store"]["items"] if item["letter"] == "o"
+        )
+        ware_json.update({
+            "is_equipment": pack.is_equipment, "weight": pack.weight,
+            "is_bounty": False, "fuel": pack.fuel, "timeout": pack.timeout,
+            "is_ego": pack.is_ego, "is_artifact": pack.is_artifact,
+            "is_cursed": pack.is_cursed, "is_broken": pack.is_broken,
+            "inscription": pack.inscription, "to_h": pack.to_h,
+            "to_d": pack.to_d, "to_a": pack.to_a, "ac": pack.ac,
+            "damage_dice": {
+                "num": pack.damage_dice_num, "sides": pack.damage_dice_sides,
+            },
+            "known_flags": sorted(pack.known_flags),
+        })
+        full_snapshot = parse_snapshot(new_row, self.monrace)
+        matching = next(
+            item for item in full_snapshot.store.items if item.letter == "o"
+        )
+        enchanted = replace(matching, to_h=3, to_d=4)
+
+        self.assertTrue(
+            policy._store_item_stacks_with_inventory(pack, matching)
+        )
+        self.assertFalse(
+            policy._store_item_stacks_with_inventory(pack, enchanted)
+        )
+        self.assertIn("damage_dice", matching.exported_fields)
+        self.assertIn("is_bounty", matching.exported_fields)
+
+    def test_full_home_consumable_stack_does_not_require_ammo_name_text(self):
+        snapshot = parse_snapshot(
+            self.recorded(3_025_841, "store"), self.monrace
+        )
+        policy = self.policy()
+        pack = next(item for item in snapshot.inventory if not item.is_ammo)
+        home = StoreItem(
+            "a", pack.name, 2, pack.tval, pack.sval, 0,
+            aware=pack.aware, known=pack.known,
+            fully_known=pack.fully_known, is_equipment=pack.is_equipment,
+            is_ego=pack.is_ego, is_artifact=pack.is_artifact,
+            is_cursed=pack.is_cursed, inscription=pack.inscription,
+            is_broken=pack.is_broken, to_h=pack.to_h, to_d=pack.to_d,
+            to_a=pack.to_a, ac=pack.ac,
+            damage_dice_num=pack.damage_dice_num,
+            damage_dice_sides=pack.damage_dice_sides,
+            known_flags=pack.known_flags, charges=pack.charges, pval=pack.pval,
+            fuel=pack.fuel, timeout=pack.timeout, weight=pack.weight,
+            exported_fields=frozenset({
+                "aware", "known", "fully_known", "is_equipment", "is_ego",
+                "is_artifact", "is_cursed", "inscription", "is_broken",
+                "to_h", "to_d", "to_a", "ac", "damage_dice",
+                "known_flags", "charges", "pval", "fuel", "timeout", "weight",
+            }),
+        )
+
+        self.assertNotRegex(home.name, r"\(\d+d\d+\)\s*\([+-]\d+,[+-]\d+\)")
+        self.assertTrue(policy._store_item_stacks_with_inventory(pack, home))
 
     def test_recorded_public_replay_diverges_to_composed_ten_bolt_buy(self):
         policy, _inside, _outside, inside_key, outside_key = (

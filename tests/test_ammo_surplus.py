@@ -129,6 +129,12 @@ class AmmoSurplusTest(unittest.TestCase):
             damage_dice_num=weakest.damage_dice_num,
             damage_dice_sides=weakest.damage_dice_sides,
             known_flags=weakest.known_flags,
+            exported_fields=frozenset({
+                "aware", "known", "fully_known", "pval", "fuel", "timeout",
+                "is_ego", "is_artifact", "is_cursed", "is_broken",
+                "inscription", "to_h", "to_d", "to_a", "ac",
+                "damage_dice", "known_flags",
+            }),
         )
         after_deposit = replace(
             snapshot,

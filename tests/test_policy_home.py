@@ -2641,7 +2641,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         plain = item(
             "q", TVAL_BOLT, 1, count=10,
             name="plain bolts (1d5) (+0,+0)",
-            fully_known=True,
+            fully_known=True, damage_dice_num=1, damage_dice_sides=5,
         )
         power = item(
             "w", TVAL_BOLT, 2, count=18, name="power bolts",
@@ -2650,6 +2650,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         merging = store_item(
             "a", TVAL_BOLT, 1, count=80,
             name="plain bolts (1d5) (+0,+0)",
+            damage_dice_num=1, damage_dice_sides=5,
+            exported_fields=frozenset({
+                "aware", "known", "fully_known", "pval", "fuel", "timeout",
+                "is_ego", "is_artifact", "is_cursed", "is_broken",
+                "inscription", "to_h", "to_d", "to_a", "ac",
+                "damage_dice", "known_flags",
+            }),
         )
         nonmerging = store_item(
             "b", TVAL_BOLT, 3, count=99, name="other bolts",
