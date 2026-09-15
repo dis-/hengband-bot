@@ -4011,6 +4011,7 @@ class ShopMixin:
             # store command across the entry flush.
             self._store_entry_wait_owner = store_type
             self._store_entry_wait_key = travel
+            self._store_entry_wait_turn = snapshot.turn
             return travel
         return self._stage_shopping_approach_key(
             snapshot, self._step_toward(snapshot, step)

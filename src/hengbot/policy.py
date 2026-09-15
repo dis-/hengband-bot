@@ -2927,6 +2927,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or "ドアに鍵がかかっている" in message
                 for message in snapshot.messages
             )
+            here = snapshot.grid_at(snapshot.player.position)
+            interrupted_travel_entry = bool(
+                snapshot.store is None
+                and self._store_visit is not None
+                and (self._store_entry_wait_key or "").startswith("\x1b`")
+                and here is not None
+                and here.store_number != posted_entry_owner
+                and (
+                    (
+                        self._store_visit.posted_turn is not None
+                        and snapshot.turn > self._store_visit.posted_turn
+                    )
+                    or bool(snapshot.messages)
+                )
+            )
             # Failure requires positive message evidence; a lagged store=None
             # is not evidence.  Termination is nevertheless total: both
             # branches discharge the one-shot owner in this decision.  The
@@ -2936,6 +2951,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if observed_failed_entry:
                 self._store_entry_posted_owner = None
                 self._store_entry_failed_owner = posted_entry_owner
+            elif interrupted_travel_entry:
+                # The executor has established a fresh COMMAND board.  Native
+                # travel can be disturbed before reaching its landmark; a
+                # non-entrance player cell plus an advanced turn or delivered
+                # disturbance message is positive state evidence that entry
+                # was not achieved.  Release only the entry post and let the
+                # existing approach owner re-plan in this same decision.
+                self._store_entry_posted_owner = None
+                if self._store_visit is not None:
+                    self._store_visit.transition(StoreVisitPhase.APPROACHING)
+                self._town_travel_state = None
+                step = self._shopping_approach_step(
+                    snapshot, posted_entry_owner
+                )
+                if step is not None:
+                    self.last_reason = "store:entry-interrupted-replan"
+                    return self._shopping_approach_key(
+                        snapshot, step, self.last_reason
+                    )
             else:
                 visit = self._store_visit
                 entry_observation_pending = bool(
@@ -7437,6 +7471,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and key == (self._store_entry_wait_key or WAIT_KEY)
         ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
+            armed_turn = getattr(self, "_store_entry_wait_turn", None)
+            if armed_turn is not None:
+                self._store_visit.posted_turn = armed_turn
             if key != self._equipment_transaction_prepared_key:
                 return True
         if key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}:
