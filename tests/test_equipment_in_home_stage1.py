@@ -325,7 +325,7 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         self.assertTrue(accepted and accepted[0] == "5", (accepted, reasons))
         self._assert_completed_recorded_outer_plan(game, before, accepted, reasons)
 
-    def test_recorded_planner_admits_pack_space_deposit_inside_home(self):
+    def test_supplementary_planner_admits_pack_space_deposit_inside_home(self):
         policy = self._recorded_policy()
         catalog = policy._equipment_catalog.items
         current = current_loadout(catalog)
@@ -352,8 +352,7 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         self.assertEqual(accepted, ["do\r", "\x1b"])
         self.assertEqual(
             reasons,
-            ["equipment-transaction:deposit",
-             "equipment-transaction:home-work-complete"],
+            ["equipment-transaction:deposit", "home:leave-after-one-operation"],
         )
         self.assertEqual((game.entries, game.reentries, game.exits), (1, 0, 1))
         outside = parse_snapshot(game._state(), {})

@@ -3611,13 +3611,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The combined command already completed this entry's sole input
             # operation.  Leave immediately; confirmation comes from the next
             # ordinary outside snapshot, never from waiting or retrying inside.
-            self.last_reason = (
-                "equipment-transaction:home-work-complete"
-                if self._store_visit is not None
-                and self._store_visit.owner == "equipment-transaction"
-                and self._store_visit.purpose == "equipment-work"
-                else "home:leave-after-one-operation"
-            )
+            self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
         elif self._store_leave_inflight is not None:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
