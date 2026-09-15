@@ -1,0 +1,26 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -850,18 +925,19 @@ class OperationExecutor:
+         if state is None:
+             return self._terminal(self.active, "state", "read-only request failed", match, outcome)
+         if self.client.observation_epoch != screen_epoch:
++            self.active.timing["observation_epoch_refreshes"] += 1
+             # Re-establish S -> T without reposting the accepted segment.
+             screen_value = self._request("screen", deadline, term=0, attrs=False)
+             if screen_value is None:
+                 return self._terminal(self.active, "screen", "read-only retry failed", transport=outcome)
+-            match = classify_screen(screen_value)
++            match = self._classify(screen_value)
+             if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+                 return self._terminal(self.active, "classification", match.feature, match, outcome)
+             screen_epoch = self.client.observation_epoch
+             state = self._request("state", deadline, map=True)
+             if state is None or self.client.observation_epoch != screen_epoch:
+                 return self._terminal(self.active, "state", "incoherent read-only retry", match, outcome)
+-        match = classify_screen(screen_value, state)
++        match = self._classify(screen_value, state)
+         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+             return self._terminal(self.active, "classification", match.feature, match, outcome)
+         board = self._finish_board(state, screen_value, match)

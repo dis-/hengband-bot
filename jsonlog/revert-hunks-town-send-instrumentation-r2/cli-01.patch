@@ -1,0 +1,16 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+index ec136a2..029c953 100644
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2075,7 +2075,11 @@ def _send_new_decision_key(
+             and hasattr(posting_contract, "settle")):
+         board = getattr(send.last_result, "board", None)
+         if sent and board is not None:
++            settlement_started = time.perf_counter()
+             posting_contract.settle(board)
++            send.last_result.timing["posting_contract_settlement_ms"] = round(
++                (time.perf_counter() - settlement_started) * 1000, 3
++            )
+         elif not sent and hasattr(posting_contract, "cancel_prepared"):
+             posting_contract.cancel_prepared()
+     if sent:

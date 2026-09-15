@@ -158,14 +158,15 @@ class ControlClient:
     def _perform_request_once(self, op: str, fields: Mapping[str, object], deadline: float) -> dict:
         if op not in self._ALLOWED_OPS:
             raise ValueError(f"control operation is forbidden: {op}")
-        connected = self._timing_connected or self._socket is None
+        connected = self._timing_connected
         started = self._timing_started_at or time.perf_counter()
         self._timing_connected = False
         self._timing_started_at = None
         first_byte_at: float | None = None
         response_bytes = 0
-        if connected:
+        if self._socket is None:
             self._connect(deadline)
+            connected = True
         request_id = self._next_id
         self._next_id += 1
         payload = {"id": request_id, "op": op, **fields}

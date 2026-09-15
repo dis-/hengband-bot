@@ -1,0 +1,16 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -616,8 +619,11 @@ def compose_barrier_board(
+     at a store command stop, the last fully bound current-page store payload.
+     State HISTORY is deliberately not copied into the policy message delta.
+     """
++    compose_started = time.perf_counter()
+     ordered = [record for record in records if isinstance(record, Mapping)]
++    deepcopy_started = time.perf_counter()
+     board = copy.deepcopy(dict(state))
++    deepcopy_ms = (time.perf_counter() - deepcopy_started) * 1000
+     messages: list[str] = []
+     for record in ordered:
+         raw = record.get("messages", ())
