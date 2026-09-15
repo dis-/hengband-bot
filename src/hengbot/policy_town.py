@@ -4083,6 +4083,33 @@ class TownMixin:
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
 
         if (
+            self._fundraising_mode == "prepare"
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+            and not self._town_departure_ready(snapshot)
+        ):
+            # Preparation can be entered by the ordinary poverty owner before
+            # every mandatory departure purchase is affordable.  Once its
+            # store owners are exhausted, a detection-less shallow scavenge is
+            # the established fundraising fallback; leaving the mode at
+            # ``prepare`` hides both the mining walk-in entrance and the normal
+            # departure terminal, handing control to generic stuck:wander.
+            self._fundraising_mode = "scavenge"
+            self._scavenge_entry_gold = snapshot.player.gold
+            safe_walk_in = (
+                self._fundraising_departure_ready(snapshot)
+                and self._dungeon_entry_allowed(
+                    snapshot, via_recall=False, destination_depth=1
+                )
+            )
+            if safe_walk_in:
+                self.last_reason = "fundraise:unaffordable-supplies"
+                return WAIT_KEY
+            self._fundraising_mode = "prepare"
+            self._scavenge_entry_gold = None
+            self._town_blocked_reason = "departure-unsatisfiable"
+            return self._town_blocked_key(snapshot)
+
+        if (
             not self._town_restock_suppressed
             and self._town_restock_wait_until is not None
             and snapshot.turn < self._town_restock_wait_until

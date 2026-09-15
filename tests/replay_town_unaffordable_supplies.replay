@@ -1,0 +1,55 @@
+"""Value-level recorded replay for the unaffordable town-supply incident."""
+
+from __future__ import annotations
+
+import gzip
+import json
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
+from hengbot.model import parse_snapshot
+from hengbot.policy import HengbotPolicy
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = ROOT / "tests/fixtures/town-unaffordable-supplies-20260915.jsonl.gz"
+
+
+def replay(gold: int | None = None) -> tuple[str, str, str | None]:
+    with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+        boards = [parse_snapshot(json.loads(line), {}) for line in stream]
+    policy = HengbotPolicy()
+    for board in boards[:-1]:
+        policy.choose_key(board)
+    assert policy._fundraising_mode == "prepare"
+    board = boards[-1]
+    if gold is not None:
+        board = replace(board, player=replace(board.player, gold=gold))
+    # The fixture begins at recall completion.  These walls represent only
+    # durable catalogue/ledger facts produced before the extracted window.
+    with patch.object(policy, "_town_claims_active", return_value=False), patch.object(
+        policy, "_actionable_departure_supplier", return_value=None
+    ), patch.object(policy, "_town_departure_ready", return_value=False), patch.object(
+        policy, "_fundraising_departure_ready", return_value=True
+    ), patch.object(policy, "_dungeon_entry_allowed", return_value=True):
+        key = policy.choose_key(board)
+    return key, policy.last_reason, policy._fundraising_mode
+
+
+def main() -> None:
+    recorded = replay()
+    assert recorded == (
+        "9",
+        "town:entrance-step-off:fundraise:unaffordable-supplies",
+        "scavenge",
+    ), recorded
+    funded = replay(10_000)
+    assert funded != recorded, funded
+    assert funded[1] != "fundraise:unaffordable-supplies", funded
+    print(f"recorded={recorded!r}")
+    print(f"funded={funded!r}")
+
+
+if __name__ == "__main__":
+    main()
