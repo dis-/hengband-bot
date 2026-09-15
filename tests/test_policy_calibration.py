@@ -441,6 +441,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
 
     def test_capture_invalid_blocks_same_visit_and_reports_abort(self):
+        """USER: mechanically impossible calibration -> redress, deferred with reason, mine."""
         policy = self._scan_complete_policy()
         policy._town_was_in_town = True
         sword = item(
@@ -467,9 +468,15 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             diagnostics["last_abort"],
             "calibration:abort:capture-invalid",
         )
+        self.assertEqual(
+            policy._calibration_deferral_reason,
+            "calibration:deferred:capture-invalid",
+        )
+        self.assertEqual(policy._calibration_deferral_cause, "capture-invalid")
 
         dressed = self._snapshot(equipment=(sword,))
         policy.choose_key(dressed)
+        self.assertEqual(policy.last_reason, "calibration:deferred:capture-invalid")
         policy.choose_key(dressed)
         self.assertIsNone(policy._calibration_phase)
         self.assertFalse(policy._calibration_stripped_unrestored)

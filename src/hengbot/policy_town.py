@@ -1694,17 +1694,7 @@ class TownMixin:
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
 
-        if self._calibration_active() and not (
-            fundraising_active
-            and self._calibration_phase == "deposit"
-            and not self._calibration_stripped_unrestored
-            and self._home_candidate_waiting
-            and self._identification_need is not None
-            and self._identification_need_unsatisfiable(snapshot)
-            and self._identification_source_obtainability(
-                snapshot, full=self._identification_need == "full"
-            ) != "available"
-        ):
+        if self._calibration_active():
             # The unequipped calibration phase owns the town while it runs.
             # The only legitimate errand is Home: deposits going in, the pack
             # restore coming out.  Every other need is suppressed — in
@@ -2716,17 +2706,6 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> int:
         """Put concretely affordable curse service ahead of ordinary errands."""
-        if (
-            self._fundraising_mode == "prepare"
-            and need.category in {
-                "fundraising-kit", "fundraising-digger",
-                "fundraising-detection", "fundraising-food",
-                "fundraising-light", "fundraising-oil",
-                "stored-detection", "mining-detection",
-                "stored-digger", "mining-digger",
-            }
-        ):
-            return -2
         if need.category == "space-deposit":
             return -3
         if (
@@ -3219,22 +3198,14 @@ class TownMixin:
                     self._destroy_pending = True
             return
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
-            if not self._fundraising_food_ready(snapshot):
-                store_type = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
-                if store_type in self._town_store_attempted:
-                    self._fundraising_mode = "scavenge"
-                    self._scavenge_entry_gold = snapshot.player.gold
-                    self._town_blocked_reason = None
-                    return
             if self._planned_mining_runs is None:
                 self._activate_partial_mining_plan(snapshot)
             detection_low = self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot)
             if detection_low and STORE_HOME in self._town_store_attempted and STORE_ALCHEMIST in self._town_store_attempted:
-                if self._activate_partial_mining_plan(snapshot) or self._try_normal_expedition_after_detection_stockout(snapshot):
+                if self._count_treasure_detection_scrolls(snapshot) > 0:
+                    self._activate_partial_mining_plan(snapshot)
+                    self._fundraising_mode = "mine"
                     return
-                self._fundraising_mode = "scavenge"
-                self._scavenge_entry_gold = snapshot.player.gold
-            if self._fundraising_mode != "scavenge" and not self._has_digging_tool(snapshot) and STORE_HOME in self._town_store_attempted and STORE_GENERAL in self._town_store_attempted:
                 self._fundraising_mode = "scavenge"
                 self._scavenge_entry_gold = snapshot.player.gold
             if not self._fundraising_light_ready(snapshot) and STORE_GENERAL in self._town_store_attempted:

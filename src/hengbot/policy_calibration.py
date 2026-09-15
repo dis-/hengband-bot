@@ -309,6 +309,8 @@ class CalibrationMixin:
         self._home_withdrawal_queued = True
 
     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
+        self._town_order_operation = "calibration"
+        self._town_order_expected_observation = "home-deposit"
         self._calibration_phase = "deposit"
         self._calibration_suspended_phase = None
         self._calibration_home_rearm_eligible = False
@@ -332,9 +334,12 @@ class CalibrationMixin:
             self._calibration_suspended_phase = self._calibration_phase
         if (
             reason == "capture-invalid"
+            or reason == "unremovable-cursed-equipment"
             or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
         ):
             self._calibration_blocked_this_visit = True
+            self._calibration_deferral_cause = reason
+            self._calibration_deferral_reason = f"calibration:deferred:{reason}"
         if self._calibration_session_owned():
             self._equipment_transaction_session = None
         self._calibration_session_target = None
@@ -385,6 +390,7 @@ class CalibrationMixin:
             if self._calibration_restore_signatures
             else None
         )
+        self._town_order_expected_observation = "redressed"
         self.last_reason = "calibration:redress-mode"
 
     def _calibration_redress_accounting(
@@ -479,6 +485,16 @@ class CalibrationMixin:
         """
         if not snapshot.in_town or snapshot.store is not None:
             return None
+        if (
+            getattr(self, "_town_order_operation", None) == "calibration-deferred"
+            and getattr(self, "_town_order_expected_observation", None)
+            == "redressed"
+            and not self._calibration_stripped_unrestored
+        ):
+            self._town_order_operation = "fundraising-detection"
+            self._town_order_expected_observation = "detection-obtained"
+            self.last_reason = self._calibration_deferral_reason
+            return WAIT_KEY
         abandonment = getattr(self, "_calibration_redress_abandonment", None)
         if abandonment is not None:
             self.last_reason = abandonment
@@ -607,7 +623,12 @@ class CalibrationMixin:
         # never the calibration budget — resetting it here re-armed an
         # indefinitely repeatable same-town strip/fail/redress cycle.
         # Calibration retries on a later visit via the fresh-visit reset.
-        self.last_reason = "calibration:redressed"
+        if self._calibration_deferral_reason is not None:
+            self._town_order_operation = "calibration-deferred"
+            self._town_order_expected_observation = "redressed"
+            self.last_reason = self._calibration_deferral_reason
+        else:
+            self.last_reason = "calibration:redressed"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
         removable = sorted(
@@ -770,6 +791,11 @@ class CalibrationMixin:
         if phase == "capture" and (
             snapshot.store is None or snapshot.store.store_type == STORE_HOME
         ):
+            if any(item.is_equipment and item.is_cursed for item in snapshot.equipment):
+                self._abort_character_calibration(
+                    snapshot, "unremovable-cursed-equipment"
+                )
+                return
             if not self._calibration_naked_dump_requested:
                 # The town key posts the naked `C` first; its characteristics
                 # and mutation set belong in the captured constants.
@@ -860,6 +886,8 @@ class CalibrationMixin:
                 self._rearm_town_store_for_new_work(STORE_HOME)
             return
         if phase == "deposit":
+            self._town_order_operation = "calibration"
+            self._town_order_expected_observation = "home-deposit"
             if STORE_HOME in self._town_store_attempted and (
                 self._find_home_deposit(snapshot) is not None
             ):
@@ -955,6 +983,7 @@ class CalibrationMixin:
             # one operation per entry); nothing to post from here.
             return None
         if phase == "capture":
+            self._town_order_expected_observation = "naked-character"
             if (
                 not self._calibration_naked_dump_requested
                 and not self._calibration_naked_dump_prepared

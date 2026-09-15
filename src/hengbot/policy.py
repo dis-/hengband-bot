@@ -2066,6 +2066,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_aborts_this_visit = 0
         self._calibration_blocked_this_visit = False
         self._calibration_last_abort: str | None = None
+        # Stage-1 town-order ownership survives the individual Home/store
+        # executors.  A failed calibration is an explicit deferred outcome,
+        # not successful capture and not permission to forget why it stopped.
+        self._town_order_operation: str | None = None
+        self._town_order_expected_observation: str | None = None
+        self._calibration_deferral_reason: str | None = None
+        self._calibration_deferral_cause: str | None = None
         self._calibration_entry_refusal: tuple[int, str | None] | None = None
         # True from the moment a calibration strip session is installed until
         # every recorded identity is observed worn again.  While set, town

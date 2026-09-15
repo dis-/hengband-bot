@@ -1,0 +1,112 @@
+diff --git b/src/hengbot/policy.py a/src/hengbot/policy.py
+index 5049a43..840f060 100644
+--- b/src/hengbot/policy.py
++++ a/src/hengbot/policy.py
+@@ -2066,13 +2066,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         self._calibration_aborts_this_visit = 0
+         self._calibration_blocked_this_visit = False
+         self._calibration_last_abort: str | None = None
+-        # Stage-1 town-order ownership survives the individual Home/store
+-        # executors.  A failed calibration is an explicit deferred outcome,
+-        # not successful capture and not permission to forget why it stopped.
+-        self._town_order_operation: str | None = None
+-        self._town_order_expected_observation: str | None = None
+-        self._calibration_deferral_reason: str | None = None
+-        self._calibration_deferral_cause: str | None = None
+         self._calibration_entry_refusal: tuple[int, str | None] | None = None
+         # True from the moment a calibration strip session is installed until
+         # every recorded identity is observed worn again.  While set, town
+diff --git b/src/hengbot/policy_calibration.py a/src/hengbot/policy_calibration.py
+index c294e81..dab2de0 100644
+--- b/src/hengbot/policy_calibration.py
++++ a/src/hengbot/policy_calibration.py
+@@ -309,8 +309,6 @@ class CalibrationMixin:
+         self._home_withdrawal_queued = True
+
+     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
+-        self._town_order_operation = "calibration"
+-        self._town_order_expected_observation = "home-deposit"
+         self._calibration_phase = "deposit"
+         self._calibration_suspended_phase = None
+         self._calibration_home_rearm_eligible = False
+@@ -334,12 +332,9 @@ class CalibrationMixin:
+             self._calibration_suspended_phase = self._calibration_phase
+         if (
+             reason == "capture-invalid"
+-            or reason == "unremovable-cursed-equipment"
+             or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
+         ):
+             self._calibration_blocked_this_visit = True
+-            self._calibration_deferral_cause = reason
+-            self._calibration_deferral_reason = f"calibration:deferred:{reason}"
+         if self._calibration_session_owned():
+             self._equipment_transaction_session = None
+         self._calibration_session_target = None
+@@ -390,7 +385,6 @@ class CalibrationMixin:
+             if self._calibration_restore_signatures
+             else None
+         )
+-        self._town_order_expected_observation = "redressed"
+         self.last_reason = "calibration:redress-mode"
+
+     def _calibration_redress_accounting(
+@@ -485,16 +479,6 @@ class CalibrationMixin:
+         """
+         if not snapshot.in_town or snapshot.store is not None:
+             return None
+-        if (
+-            getattr(self, "_town_order_operation", None) == "calibration-deferred"
+-            and getattr(self, "_town_order_expected_observation", None)
+-            == "redressed"
+-            and not self._calibration_stripped_unrestored
+-        ):
+-            self._town_order_operation = "fundraising-detection"
+-            self._town_order_expected_observation = "detection-obtained"
+-            self.last_reason = self._calibration_deferral_reason
+-            return WAIT_KEY
+         abandonment = getattr(self, "_calibration_redress_abandonment", None)
+         if abandonment is not None:
+             self.last_reason = abandonment
+@@ -623,12 +607,7 @@ class CalibrationMixin:
+         # never the calibration budget — resetting it here re-armed an
+         # indefinitely repeatable same-town strip/fail/redress cycle.
+         # Calibration retries on a later visit via the fresh-visit reset.
+-        if self._calibration_deferral_reason is not None:
+-            self._town_order_operation = "calibration-deferred"
+-            self._town_order_expected_observation = "redressed"
+-            self.last_reason = self._calibration_deferral_reason
+-        else:
+-            self.last_reason = "calibration:redressed"
++        self.last_reason = "calibration:redressed"
+
+     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
+         removable = sorted(
+@@ -791,11 +770,6 @@ class CalibrationMixin:
+         if phase == "capture" and (
+             snapshot.store is None or snapshot.store.store_type == STORE_HOME
+         ):
+-            if any(item.is_equipment and item.is_cursed for item in snapshot.equipment):
+-                self._abort_character_calibration(
+-                    snapshot, "unremovable-cursed-equipment"
+-                )
+-                return
+             if not self._calibration_naked_dump_requested:
+                 # The town key posts the naked `C` first; its characteristics
+                 # and mutation set belong in the captured constants.
+@@ -886,8 +860,6 @@ class CalibrationMixin:
+                 self._rearm_town_store_for_new_work(STORE_HOME)
+             return
+         if phase == "deposit":
+-            self._town_order_operation = "calibration"
+-            self._town_order_expected_observation = "home-deposit"
+             if STORE_HOME in self._town_store_attempted and (
+                 self._find_home_deposit(snapshot) is not None
+             ):
+@@ -983,7 +955,6 @@ class CalibrationMixin:
+             # one operation per entry); nothing to post from here.
+             return None
+         if phase == "capture":
+-            self._town_order_expected_observation = "naked-character"
+             if (
+                 not self._calibration_naked_dump_requested
+                 and not self._calibration_naked_dump_prepared

@@ -180,8 +180,7 @@ class FundraisingMixin:
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         player = snapshot.player
         base_ready = (
-            self._fundraising_food_ready(snapshot)
-            and self._fundraising_light_ready(snapshot)
+            self._fundraising_light_ready(snapshot)
             and player.hp >= player.max_hp
             and player.mp >= player.max_mp
             and self._temporary_status_clear(snapshot)
@@ -189,7 +188,10 @@ class FundraisingMixin:
         if not base_ready:
             return False
         if self._fundraising_mode == "mine":
-            return self._fundraising_supplies_ready(snapshot)
+            # Detection is the only item whose absence changes this owned
+            # branch to scavenge.  Missing food or a digger does not authorize
+            # an early set exit; attempt the detected mining run first.
+            return self._count_treasure_detection_scrolls(snapshot) > 0
         return True
 
     def _fundraising_combat_equipment_key(

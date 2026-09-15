@@ -464,6 +464,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
 
     def test_fundraising_checks_home_for_digger_before_general_store(self):
+        """USER: if food or a digger is unobtainable but detection is carried, still try mining first."""
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -480,33 +481,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(pol._next_required_store_type(snap), STORE_GENERAL)
         pol._town_store_attempted[STORE_GENERAL] = 0
         self.assertIsNone(pol._next_required_store_type(snap))
-        self.assertEqual(pol._fundraising_mode, "scavenge")
-
-    def test_fundraising_scavenges_only_after_detection_suppliers_exhausted(self):
-        snap = Snapshot(
-            player(10, 10, gold=185, class_id=PLAYER_CLASS_WARRIOR),
-            {Position(10, 10): grid(10, 10)},
-            [],
-            floor_key=(0, 0, 0),
-            town_flag=True,
-            inventory=[
-                *self._strict_supplies(),
-                item("F", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="shovel"),
-                item("G", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="shovel"),
-            ],
-            equipment=[self._lantern()],
-        )
-        policy = HengbotPolicy()
-        policy._fundraising_mode = "prepare"
-
-        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
-        policy._town_store_attempted[STORE_HOME] = snap.turn
-        self.assertEqual(
-            policy._next_required_store_type(snap), STORE_ALCHEMIST
-        )
-        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
-        self.assertIsNone(policy._next_required_store_type(snap))
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertEqual(pol._fundraising_mode, "prepare")
 
     def test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart(self):
         digger = store_item(
@@ -2511,7 +2486,8 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
         self.assertIsNone(policy._planned_mining_runs)
 
-    def test_detection_stockout_with_sufficient_gold_switches_to_normal_exploration(self):
+    def test_detection_stockout_with_sufficient_gold_stays_in_set(self):
+        """USER: no early exit from a set; scavenge only when not one detection scroll is obtainable."""
         snap = Snapshot(
             player(
                 10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
@@ -2539,14 +2515,15 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
 
         policy._next_required_store_type(snap)
 
-        self.assertIsNone(policy._fundraising_mode)
+        self.assertEqual(policy._fundraising_mode, "scavenge")
         self.assertFalse(
             policy._ledger_departure_shortages(
                 policy._supply_ledger(snap, policy._planned_depth())
             )
         )
 
-    def test_detection_stockout_rearms_normal_supply_stores_before_departure(self):
+    def test_detection_stockout_does_not_rearm_normal_departure(self):
+        """USER: no early exit from a set; scavenge only when not one detection scroll is obtainable."""
         snap = Snapshot(
             player(
                 10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
@@ -2572,12 +2549,9 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._town_store_attempted[STORE_HOME] = 0
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        self.assertIn(
-            policy._next_required_store_type(snap),
-            {STORE_GENERAL, STORE_MAGIC, STORE_TEMPLE, STORE_ALCHEMIST},
-        )
-        self.assertIsNone(policy._fundraising_mode)
-        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertIsNone(policy._next_required_store_type(snap))
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
     def test_known_distant_store_uses_native_travel_without_bfs_memory(self):
         home = Position(45, 123)
