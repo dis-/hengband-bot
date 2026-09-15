@@ -4085,6 +4085,7 @@ class TownMixin:
         if (
             self._fundraising_mode == "prepare"
             and snapshot.player.gold < FUNDRAISING_START_GOLD
+            and self._town_restock_wait_until is None
             and not self._town_departure_ready(snapshot)
         ):
             # Preparation can be entered by the ordinary poverty owner before
