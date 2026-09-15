@@ -2602,6 +2602,21 @@ class TownMixin:
                     TownNeed(store, supply_categories[status.kind], "normal")
                     for store in status.stores
                 )
+        if (
+            self._home_candidate_waiting
+            and self._identification_need is not None
+            and self._identification_need_unsatisfiable(snapshot)
+            and self._identification_source_obtainability(
+                snapshot, full=self._identification_need == "full"
+            ) != "available"
+            and snapshot.player.gold < FUNDRAISING_START_GOLD
+        ):
+            # Home/calibration cannot own an identification target until a
+            # usable source exists.  At poverty gold, an absent or remembered-
+            # unaffordable source makes every dependent Home/store need inert
+            # for this visit; exposing one as a supplier masks the established
+            # fundraising settlement path.
+            return None, False
         if self._equipment_retired_worn_item_ids or (
             self._equipment_failure_unexecutable_this_visit(
                 snapshot,

@@ -19,9 +19,98 @@ FIXTURE = (
     / "fixtures"
     / "town-unaffordable-supplies-20260915.jsonl.gz"
 )
+RESTART_FIXTURE = (
+    Path(__file__).parent
+    / "fixtures"
+    / "town-unaffordable-supplies-restart-20260915.jsonl.gz"
+)
 
 
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
+    def _replay_restart(self, *, funded: bool = False):
+        with gzip.open(RESTART_FIXTURE, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+
+        policy = HengbotPolicy()
+        snapshots = []
+        decisions = []
+        measures = None
+        for raw in rows:
+            if raw["type"] == "knowledge":
+                self.assertEqual(
+                    (raw["knowledge"]["category"], raw["knowledge"]["menu_key"]),
+                    ("home", "9"),
+                )
+                policy.consume_home_knowledge(
+                    tuple(_parse_items(raw["knowledge"]["items"]))
+                )
+                continue
+            snapshot = parse_snapshot(raw, {})
+            if funded:
+                snapshot = replace(
+                    snapshot, player=replace(snapshot.player, gold=10_000)
+                )
+            if snapshot.turn == 2_911_820:
+                conjuncts = policy._recall_town_departure_conjuncts(snapshot)
+                supplier = policy._actionable_departure_supplier(snapshot)
+                measures = {
+                    "mode": policy._fundraising_mode,
+                    "gold": snapshot.player.gold,
+                    "restock_wait": policy._town_restock_wait_until,
+                    "departure_ready": policy._town_departure_ready(snapshot),
+                    "fundraising_departure_ready": (
+                        policy._fundraising_departure_ready(snapshot)
+                    ),
+                    "store": snapshot.store,
+                    "store_visit_released": (
+                        policy._store_visit is None
+                        or policy._store_visit.operation_released
+                    ),
+                    "supplier": supplier,
+                    "supplier_attempted": (
+                        supplier in policy._town_store_attempted
+                        if supplier is not None else False
+                    ),
+                    "conjuncts": conjuncts,
+                    "identify_source": policy._find_identification_source(
+                        snapshot, full=True, reliable_only=True
+                    ),
+                }
+            decisions.append((snapshot.turn, policy.choose_key(snapshot), policy.last_reason))
+            snapshots.append(snapshot)
+        return policy, snapshots[-1], decisions, measures
+
+    def test_restart_recording_releases_unaffordable_identification_owner(self):
+        policy, snapshot, decisions, measures = self._replay_restart()
+
+        self.assertEqual(measures["mode"], "prepare")
+        self.assertEqual(measures["gold"], 185)
+        self.assertIsNone(measures["restock_wait"])
+        self.assertFalse(measures["departure_ready"])
+        self.assertTrue(measures["fundraising_departure_ready"])
+        self.assertIsNone(measures["store"])
+        self.assertTrue(measures["store_visit_released"])
+        self.assertIsNone(measures["supplier"])
+        self.assertFalse(measures["supplier_attempted"])
+        self.assertFalse(measures["conjuncts"]["recall_departure_ready"])
+        self.assertFalse(measures["conjuncts"]["identify_staff_ready"])
+        self.assertFalse(measures["conjuncts"]["home_candidate_resolved"])
+        self.assertFalse(measures["conjuncts"]["identification_need_clear"])
+        self.assertFalse(
+            measures["conjuncts"]["departure_identification_need_clear"]
+        )
+        self.assertIsNone(measures["identify_source"])
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertNotEqual(decisions[-1][2], "stuck:wander")
+
+    def test_restart_funded_counterfactual_keeps_identification_owner(self):
+        policy, _snapshot, decisions, measures = self._replay_restart(funded=True)
+
+        self.assertEqual(measures["gold"], 10_000)
+        self.assertIsNotNone(measures["supplier"])
+        self.assertNotEqual(policy._fundraising_mode, "scavenge")
+        self.assertTrue(any(reason == "shop:approach" for _, _, reason in decisions))
+
     def _replay(self, *, funded: bool = False, store_board: bool = False):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]
