@@ -146,6 +146,24 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         self.assertIsInstance(drain, ast.Call)
         self.assertEqual(drain.func.id, "_make_jsonl_barrier_drain")
 
+    def test_main_exposes_executor_to_shadow_yield_gate(self):
+        source = inspect.getsource(__import__("hengbot.cli", fromlist=["main"]).main)
+        tree = ast.parse(source)
+        assignments = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "args"
+                and target.attr == "operation_executor"
+                for target in node.targets
+            )
+        ]
+        self.assertEqual(len(assignments), 1)
+        self.assertIsInstance(assignments[0].value, ast.Name)
+        self.assertEqual(assignments[0].value.id, "executor")
+
     def test_production_jsonl_drain_supplies_store_record_once(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "state.jsonl"

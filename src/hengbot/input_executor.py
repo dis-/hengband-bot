@@ -707,7 +707,9 @@ class OperationExecutor:
 
     def _request(self, op: str, deadline: float, **fields):
         self.state = ExecutorState.AWAITING_SCREEN if op == "screen" else ExecutorState.AWAITING_STATE
-        return self.client.request(op, deadline=deadline, **fields)
+        return self.client.request(
+            op, deadline=deadline, retry_until_deadline=True, **fields
+        )
 
     def _observe_decidable(self, operation: Operation | None, deadline: float) -> OperationResult:
         screen_value = self._request("screen", deadline, term=0, attrs=False)

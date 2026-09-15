@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2675,9 +2675,6 @@ def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -
+     """Run the downstream-only observation hook when explicitly enabled."""
+     if getattr(args, "shadow_client", None) is None:
+         return
+-    executor = getattr(args, "operation_executor", None)
+-    if executor is not None and executor.active is not None:
+-        return
+     from hengbot.control_client import append_shadow_diff
+ 
+     append_shadow_diff(

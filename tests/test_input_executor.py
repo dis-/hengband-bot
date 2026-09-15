@@ -64,6 +64,7 @@ class _FakeSocket:
     def __init__(self, game):
         self.game, self.output = game, bytearray()
         self.closed = False
+        self.recv_timeout = False
 
     def settimeout(self, _value):
         pass
@@ -74,6 +75,9 @@ class _FakeSocket:
     def sendall(self, payload):
         request = json.loads(payload)
         response, fault = self.game.hook(request)
+        if fault == "timeout":
+            response = None
+            self.recv_timeout = True
         if response is not None:
             wire = (json.dumps(response, ensure_ascii=False) + "\n").encode()
             chunks = self.game.fragments.pop(0) if self.game.fragments else [len(wire)]
@@ -85,6 +89,9 @@ class _FakeSocket:
             raise ConnectionError("partial socket send after acceptance")
 
     def recv(self, size):
+        if self.recv_timeout:
+            self.recv_timeout = False
+            raise TimeoutError("timed out")
         if not self.output:
             return b""
         amount = min(size, self.game.recv_chunks.pop(0) if self.game.recv_chunks else size)
@@ -200,6 +207,74 @@ class ProductionHarness(unittest.TestCase):
             "grid_map": {"runs": []}, "messages": list(messages),
             "store": {"store_type": 4, "items": []},
         }
+
+
+class AcceptedObservationRetryPins(ProductionHarness):
+    def test_keys_ack_first_screen_timeout_second_succeeds_without_repost(self):
+        game = FaithfulHookGame()
+        _client = ControlClient(
+            1, request_budget=2, retries=0, backoff=0,
+            socket_factory=game.socket_factory,
+        )
+        self.addCleanup(_client.close)
+        executor = OperationExecutor(_client, drain=lambda: list(game.jsonl))
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        game.faults = [None, "timeout"]
+        result = executor.submit(
+            Operation(79, "identify:full-equipped", "rg/j", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["rg/j"])
+        self.assertEqual(
+            [entry[1] for entry in game.trace if entry[0] == "issue"],
+            ["screen", "state", "keys", "screen", "screen", "state"],
+        )
+
+    def test_screen_failure_through_deadline_is_same_visible_terminal(self):
+        game, _client, executor = self.make()
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        original = game.hook
+
+        def lose_post_ack_screens(request):
+            response, fault = original(request)
+            if request["op"] == "screen" and game.accepted:
+                return None, fault
+            return response, fault
+
+        game.hook = lose_post_ack_screens
+        result = executor.submit(
+            Operation(79, "identify:full-equipped", "rg/j", executor.ready_board),
+            deadline=__import__("time").monotonic() + 0.01,
+        )
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(
+            result.reason,
+            "<stuck-prompt> owner=identify:full-equipped phase=screen "
+            "transport=accepted request_id=3 reason=read-only request failed",
+        )
+        self.assertEqual(game.accepted, ["rg/j"])
+
+    def test_lost_mutating_ack_is_never_replayed(self):
+        game, _client, executor = self.make()
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        game.faults = ["ack-loss"]
+        result = executor.submit(
+            Operation(80, "mutating", "6", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(game.accepted, ["6"])
+        self.assertEqual(
+            [entry[1] for entry in game.trace if entry[0] == "issue"],
+            ["screen", "state", "keys"],
+        )
 
 
 class BarrierProvenanceS3Pin(ProductionHarness):
@@ -1351,7 +1426,10 @@ class TcpBarrierPinTest(ProductionHarness):
             response, fault = original(request)
             return (None, fault) if request["op"] == "state" else (response, fault)
         game.hook = lose_state
-        result = executor.submit(Operation(6, "wait", "5", executor.ready_board), deadline=9999999999)
+        result = executor.submit(
+            Operation(6, "wait", "5", executor.ready_board),
+            deadline=__import__("time").monotonic() + 0.01,
+        )
         self.assertEqual(result.outcome, "stuck-prompt")
         self.assertIn("phase=state", result.reason)
 

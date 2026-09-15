@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -91,6 +92,25 @@ class ControlClientTest(unittest.TestCase):
         self.server.actions[:] = ["wrong-id", {"turn": 7}]
         self.assertEqual(self.client().request("state", map=False), {"turn": 7})
         self.assertEqual(len(self.server.requests), 2)
+
+    def test_executor_read_only_timeout_reconnects_until_operation_deadline(self):
+        self.server.actions[:] = ["timeout", {"turn": 7}]
+        client = ControlClient(
+            self.server.server_address[1], request_budget=0.02,
+            retries=0, backoff=0,
+        )
+        self.addCleanup(client.close)
+        self.assertEqual(
+            client.request(
+                "state", map=True, deadline=time.monotonic() + 0.15,
+                retry_until_deadline=True,
+            ),
+            {"turn": 7},
+        )
+        self.assertEqual(
+            [request["op"] for request in self.server.requests],
+            ["state", "state"],
+        )
 
     def test_timeout_is_bounded_and_logged_once(self):
         self.server.actions[:] = ["timeout", "timeout"]
@@ -348,6 +368,20 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
+    def test_tcp_shadow_yields_while_executor_operation_is_active(self):
+        from hengbot import cli
+
+        args = SimpleNamespace(
+            shadow_client=unittest.mock.Mock(),
+            operation_executor=SimpleNamespace(active=object()),
+            decision_log=None,
+            recorder_log_rotate_bytes=1024,
+            recorder_log_generations=1,
+        )
+        with patch("hengbot.control_client.append_shadow_diff") as shadow:
+            cli._record_tcp_shadow(args, {"turn": 1}, 79)
+        shadow.assert_not_called()
+
     @staticmethod
     def _barrier_request(_client, op, **_kwargs):
         if op == "info":

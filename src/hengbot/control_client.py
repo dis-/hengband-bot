@@ -204,7 +204,8 @@ class ControlClient:
         )
 
     def request(
-        self, op: str, *, deadline: float | None = None, **fields: object
+        self, op: str, *, deadline: float | None = None,
+        retry_until_deadline: bool = False, **fields: object
     ) -> dict | None:
         """Return one observation, or None after bounded reconnect attempts."""
         if op not in self._READ_ONLY_OPS:
@@ -212,12 +213,25 @@ class ControlClient:
         deadline = (
             time.monotonic() + self.request_budget if deadline is None else deadline
         )
-        if self._socket is None and time.monotonic() < self._retry_after:
+        if (not retry_until_deadline and self._socket is None
+                and time.monotonic() < self._retry_after):
             return None
         last_error: BaseException | None = None
-        for _attempt in range(self.retries + 1):
+        attempt = 0
+        while retry_until_deadline or attempt < self.retries + 1:
+            attempt += 1
+            if time.monotonic() >= deadline:
+                last_error = TimeoutError("control request budget exhausted")
+                break
             try:
-                return self._request_once(op, fields, deadline)
+                # An executor operation can outlive one ordinary control
+                # request.  Preserve that outer deadline while bounding each
+                # reconnectable observation attempt by the existing request
+                # budget.
+                attempt_deadline = min(
+                    deadline, time.monotonic() + self.request_budget
+                )
+                return self._request_once(op, fields, attempt_deadline)
             except (
                 OSError,
                 ValueError,
@@ -228,17 +242,15 @@ class ControlClient:
                 last_error = error
                 self._observation_epoch += 1
                 self.close()
-                if op == "screen" and (
-                    isinstance(error, TimeoutError) or time.monotonic() >= deadline
-                ):
-                    # A screen observation may legitimately wait until the game
-                    # reaches inkey(). Its deadline is not a transport outage,
-                    # and must not suppress the timeout Escape send.
-                    self._report_failure_once(error)
-                    return None
                 if time.monotonic() >= deadline:
                     break
         assert last_error is not None
+        if op == "screen" and isinstance(last_error, TimeoutError):
+            # A screen may legitimately consume its entire caller budget while
+            # the game reaches inkey().  Keep ordinary callers eligible to
+            # issue their existing visible recovery input immediately.
+            self._report_failure_once(last_error)
+            return None
         self._consecutive_failures += 1
         backoff = min(
             self.backoff * self._consecutive_failures,

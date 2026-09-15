@@ -2675,6 +2675,9 @@ def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -
     """Run the downstream-only observation hook when explicitly enabled."""
     if getattr(args, "shadow_client", None) is None:
         return
+    executor = getattr(args, "operation_executor", None)
+    if executor is not None and executor.active is not None:
+        return
     from hengbot.control_client import append_shadow_diff
 
     append_shadow_diff(
@@ -3029,6 +3032,7 @@ def main(argv: list[str] | None = None) -> int:
         shadow_client, drain=_make_jsonl_barrier_drain(args.state_file),
         wm_post=wm_post, accepted=accepted_segment,
     )
+    args.operation_executor = executor
     send = _ExecutorInputPort(
         executor,
         tunnel_macros_ready=tunnel_macros_ready,
