@@ -1,0 +1,9 @@
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..8d40f16 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -173,0 +241,4 @@ class ControlClient:
++            self._timing_request_id += 1
++            self._current_attempt = 1
++            self._timing_started_at = time.perf_counter()
++            self._timing_connected = self._socket is None

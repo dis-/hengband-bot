@@ -1,0 +1,26 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+index ec136a2..029c953 100644
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2719,10 +2755,17 @@ def _make_jsonl_barrier_drain(path: Path):
+                 chunk = stream.read()
+                 offset = stream.tell()
+         except OSError:
++            drain.last_timing = {"bytes": 0, "decode_ms": 0.0}
+             return ()
+         complete, pending = _split_complete_lines(pending + chunk)
++        decode_started = time.perf_counter()
+         decoded = [row for row in _decode_response_lines(complete)
+                    if isinstance(row, Mapping)]
++        drain.last_timing = {
++            "bytes": len(chunk.encode("utf-8")),
++            "decode_ms": (time.perf_counter() - decode_started) * 1000,
++            "total_ms": (time.perf_counter() - started) * 1000,
++        }
+         handed_records.extend(decoded)
+         return decoded
+ 
+

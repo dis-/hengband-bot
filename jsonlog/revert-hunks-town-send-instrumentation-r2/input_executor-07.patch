@@ -1,0 +1,9 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -628,0 +635,4 @@ def compose_barrier_board(
++        if timing is not None:
++            timing["state_deepcopy_ms"] += deepcopy_ms
++            timing["board_compose_ms"] += max(
++                0.0, (time.perf_counter() - compose_started) * 1000 - deepcopy_ms)

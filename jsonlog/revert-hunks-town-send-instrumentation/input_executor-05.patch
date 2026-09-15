@@ -1,0 +1,19 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -626,6 +632,10 @@ def compose_barrier_board(
+     board["messages"] = messages
+     if kind is not ScreenKind.STORE:
+         board.pop("store", None)
++        if timing is not None:
++            timing["state_deepcopy_ms"] += deepcopy_ms
++            timing["board_compose_ms"] += max(
++                0.0, (time.perf_counter() - compose_started) * 1000 - deepcopy_ms)
+         return board, ordered
+ 
+     candidates = [
+

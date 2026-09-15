@@ -1,0 +1,7 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -682 +731 @@ class OperationExecutor:
+-            state, screen_value, match.kind, records)
++            state, screen_value, match.kind, records, timing)

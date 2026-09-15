@@ -1,0 +1,18 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -780,6 +852,9 @@ class OperationExecutor:
+         observation_deadline = max(
+             deadline, time.monotonic() + self.active.response_grace
+         )
++        self.active.timing["post_ack_grace_extended"] = bool(
++            self.active.timing["post_ack_grace_extended"]
++        ) or observation_deadline > deadline
+         return self._after_post(observation_deadline, outcome)
+ 
+     def _post_wm(self, keys: str, deadline: float, *, role: str) -> OperationResult:
+

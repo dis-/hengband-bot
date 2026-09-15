@@ -1,0 +1,22 @@
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..8d40f16 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -81,0 +82,17 @@ class ControlClient:
++        self._request_timings: list[dict[str, object]] = []
++        self._current_attempt = 1
++        self._timing_request_id = 0
++        self._timing_connected = False
++        self._timing_started_at: float | None = None
++        self._collect_request_timings = False
++
++    def start_request_timings(self) -> None:
++        self._request_timings = []
++        self._collect_request_timings = True
++
++    def take_request_timings(self) -> list[dict[str, object]]:
++        """Return and clear observational timings collected since the last take."""
++        timings = self._request_timings
++        self._request_timings = []
++        self._collect_request_timings = False
++        return timings

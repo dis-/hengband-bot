@@ -79,6 +79,23 @@ class ControlClient:
         self._observation_epoch = 0
         self.last_error: str | None = None
         self.backpressured = False
+        self._request_timings: list[dict[str, object]] = []
+        self._current_attempt = 1
+        self._timing_request_id = 0
+        self._timing_connected = False
+        self._timing_started_at: float | None = None
+        self._collect_request_timings = False
+
+    def start_request_timings(self) -> None:
+        self._request_timings = []
+        self._collect_request_timings = True
+
+    def take_request_timings(self) -> list[dict[str, object]]:
+        """Return and clear observational timings collected since the last take."""
+        timings = self._request_timings
+        self._request_timings = []
+        self._collect_request_timings = False
+        return timings
 
     @property
     def connected(self) -> bool:
@@ -116,10 +133,40 @@ class ControlClient:
         self._buffer.clear()
 
     def _request_once(self, op: str, fields: Mapping[str, object], deadline: float) -> dict:
+        before = len(self._request_timings)
+        started = time.perf_counter()
+        try:
+            return self._perform_request_once(op, fields, deadline)
+        except BaseException:
+            self._timing_connected = False
+            self._timing_started_at = None
+            if self._collect_request_timings and len(self._request_timings) == before:
+                self._request_timings.append({
+                    "kind": op,
+                    "request_first_byte_ms": round(
+                        (time.perf_counter() - started) * 1000, 3),
+                    "first_last_byte_ms": 0.0,
+                    "json_decode_ms": 0.0,
+                    "response_bytes": 0,
+                    "connected": self._socket is None,
+                    "attempt": self._current_attempt,
+                    "retry_count": self._current_attempt - 1,
+                    "request": self._timing_request_id,
+                })
+            raise
+
+    def _perform_request_once(self, op: str, fields: Mapping[str, object], deadline: float) -> dict:
         if op not in self._ALLOWED_OPS:
             raise ValueError(f"control operation is forbidden: {op}")
+        connected = self._timing_connected
+        started = self._timing_started_at or time.perf_counter()
+        self._timing_connected = False
+        self._timing_started_at = None
+        first_byte_at: float | None = None
+        response_bytes = 0
         if self._socket is None:
             self._connect(deadline)
+            connected = True
         request_id = self._next_id
         self._next_id += 1
         payload = {"id": request_id, "op": op, **fields}
@@ -139,10 +186,30 @@ class ControlClient:
             chunk = self._socket.recv(65536)
             if not chunk:
                 raise ConnectionError("control server disconnected")
+            if first_byte_at is None:
+                first_byte_at = time.perf_counter()
+            response_bytes += len(chunk)
             self._buffer.extend(chunk)
         line, _, remainder = self._buffer.partition(b"\n")
         self._buffer = bytearray(remainder)
+        last_byte_at = time.perf_counter()
+        decode_started = time.perf_counter()
         response = json.loads(line.decode("utf-8"))
+        decoded_at = time.perf_counter()
+        if self._collect_request_timings:
+            self._request_timings.append({
+                "kind": op,
+                "request_first_byte_ms": round(
+                    ((first_byte_at or last_byte_at) - started) * 1000, 3),
+                "first_last_byte_ms": round(
+                    (last_byte_at - (first_byte_at or last_byte_at)) * 1000, 3),
+                "json_decode_ms": round((decoded_at - decode_started) * 1000, 3),
+                "response_bytes": response_bytes,
+                "connected": connected,
+                "attempt": self._current_attempt,
+                "retry_count": self._current_attempt - 1,
+                "request": self._timing_request_id,
+            })
         if not isinstance(response, dict) or response.get("id") != request_id:
             raise ControlClientError("control response id mismatch")
         if response.get("ok") is not True:
@@ -171,6 +238,10 @@ class ControlClient:
             return KeyPostOutcome(KeyPostStatus.NOT_ATTEMPTED, reason="request budget exhausted")
         attempted = False
         try:
+            self._timing_request_id += 1
+            self._current_attempt = 1
+            self._timing_started_at = time.perf_counter()
+            self._timing_connected = self._socket is None
             if self._socket is None:
                 self._connect(deadline)
             attempted = True
@@ -218,8 +289,10 @@ class ControlClient:
             return None
         last_error: BaseException | None = None
         attempt = 0
+        self._timing_request_id += 1
         while retry_until_deadline or attempt < self.retries + 1:
             attempt += 1
+            self._current_attempt = attempt
             if time.monotonic() >= deadline:
                 last_error = TimeoutError("control request budget exhausted")
                 break

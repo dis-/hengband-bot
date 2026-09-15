@@ -1,0 +1,67 @@
+Exit code: 0
+Wall time: 0.3 seconds
+Output:
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -674,14 +690,57 @@ class OperationExecutor:
+         self.executor_scope = uuid.uuid4().hex
+         self.state = ExecutorState.AWAITING_SCREEN
+ 
++    @staticmethod
++    def _new_timing() -> dict[str, object]:
++        return {
++            "ack_wait_ms": 0.0, "screen_wait_ms": 0.0,
++            "screen_classification_ms": 0.0, "state_wait_ms": 0.0,
++            "jsonl_drain_ms": 0.0, "jsonl_drain_bytes": 0,
++            "jsonl_drain_records": 0, "jsonl_decode_ms": 0.0,
++            "state_deepcopy_ms": 0.0, "board_compose_ms": 0.0,
++            "posting_contract_settlement_ms": 0.0, "segments": 0,
++            "requests": 0, "observation_epoch_refreshes": 0,
++            "retry_send_added": False, "post_ack_grace_extended": False,
++            "known_cells": 0, "request_first_byte_ms": 0.0,
++            "first_last_byte_ms": 0.0, "request_json_decode_ms": 0.0,
++            "response_bytes": 0, "control_requests": [],
++        }
++
++    def _classify(self, screen, state=None):
++        started = time.perf_counter()
++        result = classify_screen(screen, state)
++        if self.active is not None:
++            self.active.timing["screen_classification_ms"] += \
++                (time.perf_counter() - started) * 1000
++        return result
++
+     def _finish_board(self, state, screen_value, match):
++        started = time.perf_counter()
+         records = self.drain()
++        drained_at = time.perf_counter()
+         if records is None:
+             records = ()
++        timing = self.active.timing if self.active is not None else None
++        if timing is not None:
++            timing["jsonl_drain_ms"] += (drained_at - started) * 1000
++            timing["jsonl_drain_records"] += len(records)
++            drain_timing = getattr(self.drain, "last_timing", {})
++            timing["jsonl_drain_bytes"] += int(drain_timing.get("bytes", 0))
++            timing["jsonl_decode_ms"] += float(drain_timing.get("decode_ms", 0.0))
+         board, _ordered = compose_barrier_board(
+-            state, screen_value, match.kind, records)
++            state, screen_value, match.kind, records, timing)
+         if board is None:
+             return None
++        if timing is not None:
++            grid_map = board.get("grid_map", {})
++            palette = grid_map.get("palette", ()) if isinstance(grid_map, Mapping) else ()
++            timing["known_cells"] = sum(
++                int(run[2]) for run in grid_map.get("runs", ())
++                if isinstance(run, Sequence) and len(run) >= 4
++                and isinstance(run[3], int) and run[3] < len(palette)
++                and isinstance(palette[run[3]], Sequence) and len(palette[run[3]]) >= 4
++                and bool(palette[run[3]][3])
++            ) if isinstance(grid_map, Mapping) else 0
+         return board
+ 
+     def observe_boundary(self, *, deadline: float) -> OperationResult:
+

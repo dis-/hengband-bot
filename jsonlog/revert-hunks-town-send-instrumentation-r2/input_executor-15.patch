@@ -1,0 +1,15 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -684,0 +734,10 @@ class OperationExecutor:
++        if timing is not None:
++            grid_map = board.get("grid_map", {})
++            palette = grid_map.get("palette", ()) if isinstance(grid_map, Mapping) else ()
++            timing["known_cells"] = sum(
++                int(run[2]) for run in grid_map.get("runs", ())
++                if isinstance(run, Sequence) and len(run) >= 4
++                and isinstance(run[3], int) and run[3] < len(palette)
++                and isinstance(palette[run[3]], Sequence) and len(palette[run[3]]) >= 4
++                and bool(palette[run[3]][3])
++            ) if isinstance(grid_map, Mapping) else 0

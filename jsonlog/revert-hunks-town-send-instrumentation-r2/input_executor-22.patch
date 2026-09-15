@@ -1,0 +1,6 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -757,0 +825 @@ class OperationExecutor:
++        self.active.timing["ack_wait_ms"] += (time.perf_counter() - ack_started) * 1000

@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+index ec136a2..029c953 100644
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2078,0 +2080,3 @@ def _send_new_decision_key(
++            send.last_result.timing["posting_contract_settlement_ms"] = round(
++                (time.perf_counter() - settlement_started) * 1000, 3
++            )

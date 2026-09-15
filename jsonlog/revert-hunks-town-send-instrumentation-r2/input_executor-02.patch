@@ -1,0 +1,6 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -473,0 +475 @@ class OperationResult:
++    timing: dict[str, object] = field(default_factory=dict)

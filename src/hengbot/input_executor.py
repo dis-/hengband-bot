@@ -335,6 +335,7 @@ class Operation:
     operation_reference: "OperationReference | None" = None
     accepted_segment_records: list["AcceptedSegment"] = field(default_factory=list)
     dropped_continuations: list[str] = field(default_factory=list)
+    timing: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -471,6 +472,7 @@ class OperationResult:
     screen: ScreenMatch | None = None
     transport: KeyPostOutcome | None = None
     reason: str | None = None
+    timing: dict[str, object] = field(default_factory=dict)
 
 
 # Exact command-ending messages emitted by the device/read implementations.
@@ -609,6 +611,7 @@ def _same_barrier_value(
 def compose_barrier_board(
         state: Mapping[str, object], screen: Mapping[str, object], kind: ScreenKind,
         records: Iterable[Mapping[str, object]],
+        timing: dict[str, object] | None = None,
 ) -> tuple[dict[str, object] | None, list[Mapping[str, object]]]:
     """Build the sole policy board and preserve the physical observation order.
 
@@ -616,8 +619,11 @@ def compose_barrier_board(
     at a store command stop, the last fully bound current-page store payload.
     State HISTORY is deliberately not copied into the policy message delta.
     """
+    compose_started = time.perf_counter()
     ordered = [record for record in records if isinstance(record, Mapping)]
+    deepcopy_started = time.perf_counter()
     board = copy.deepcopy(dict(state))
+    deepcopy_ms = (time.perf_counter() - deepcopy_started) * 1000
     messages: list[str] = []
     for record in ordered:
         raw = record.get("messages", ())
@@ -626,6 +632,10 @@ def compose_barrier_board(
     board["messages"] = messages
     if kind is not ScreenKind.STORE:
         board.pop("store", None)
+        if timing is not None:
+            timing["state_deepcopy_ms"] += deepcopy_ms
+            timing["board_compose_ms"] += max(
+                0.0, (time.perf_counter() - compose_started) * 1000 - deepcopy_ms)
         return board, ordered
 
     candidates = [
@@ -652,7 +662,13 @@ def compose_barrier_board(
         names = [str(item.get("name", "")) for item in items if isinstance(item, Mapping)]
         if names and not any(name and name in visible for name in names):
             return None, ordered
+    deepcopy_started = time.perf_counter()
     board["store"] = copy.deepcopy(store)
+    deepcopy_ms += (time.perf_counter() - deepcopy_started) * 1000
+    if timing is not None:
+        timing["state_deepcopy_ms"] += deepcopy_ms
+        timing["board_compose_ms"] += max(
+            0.0, (time.perf_counter() - compose_started) * 1000 - deepcopy_ms)
     return board, ordered
 
 
@@ -674,14 +690,57 @@ class OperationExecutor:
         self.executor_scope = uuid.uuid4().hex
         self.state = ExecutorState.AWAITING_SCREEN
 
+    @staticmethod
+    def _new_timing() -> dict[str, object]:
+        return {
+            "ack_wait_ms": 0.0, "screen_wait_ms": 0.0,
+            "screen_classification_ms": 0.0, "state_wait_ms": 0.0,
+            "jsonl_drain_ms": 0.0, "jsonl_drain_bytes": 0,
+            "jsonl_drain_records": 0, "jsonl_decode_ms": 0.0,
+            "state_deepcopy_ms": 0.0, "board_compose_ms": 0.0,
+            "posting_contract_settlement_ms": 0.0, "segments": 0,
+            "requests": 0, "observation_epoch_refreshes": 0,
+            "retry_send_added": False, "post_ack_grace_extended": False,
+            "known_cells": 0, "request_first_byte_ms": 0.0,
+            "first_last_byte_ms": 0.0, "request_json_decode_ms": 0.0,
+            "response_bytes": 0, "control_requests": [],
+        }
+
+    def _classify(self, screen, state=None):
+        started = time.perf_counter()
+        result = classify_screen(screen, state)
+        if self.active is not None:
+            self.active.timing["screen_classification_ms"] += \
+                (time.perf_counter() - started) * 1000
+        return result
+
     def _finish_board(self, state, screen_value, match):
+        started = time.perf_counter()
         records = self.drain()
+        drained_at = time.perf_counter()
         if records is None:
             records = ()
+        timing = self.active.timing if self.active is not None else None
+        if timing is not None:
+            timing["jsonl_drain_ms"] += (drained_at - started) * 1000
+            timing["jsonl_drain_records"] += len(records)
+            drain_timing = getattr(self.drain, "last_timing", {})
+            timing["jsonl_drain_bytes"] += int(drain_timing.get("bytes", 0))
+            timing["jsonl_decode_ms"] += float(drain_timing.get("decode_ms", 0.0))
         board, _ordered = compose_barrier_board(
-            state, screen_value, match.kind, records)
+            state, screen_value, match.kind, records, timing)
         if board is None:
             return None
+        if timing is not None:
+            grid_map = board.get("grid_map", {})
+            palette = grid_map.get("palette", ()) if isinstance(grid_map, Mapping) else ()
+            timing["known_cells"] = sum(
+                int(run[2]) for run in grid_map.get("runs", ())
+                if isinstance(run, Sequence) and len(run) >= 4
+                and isinstance(run[3], int) and run[3] < len(palette)
+                and isinstance(palette[run[3]], Sequence) and len(palette[run[3]]) >= 4
+                and bool(palette[run[3]][3])
+            ) if isinstance(grid_map, Mapping) else 0
         return board
 
     def observe_boundary(self, *, deadline: float) -> OperationResult:
@@ -705,19 +764,26 @@ class OperationExecutor:
             self.barrier_sequence,
         )
         self.active = operation
+        operation.timing = self._new_timing()
+        if hasattr(self.client, "start_request_timings"):
+            self.client.start_request_timings()
         return self._post_and_barrier(operation.keys, deadline, role="transaction")
 
     def _request(self, op: str, deadline: float, **fields):
         self.state = ExecutorState.AWAITING_SCREEN if op == "screen" else ExecutorState.AWAITING_STATE
-        return self.client.request(
+        started = time.perf_counter()
+        result = self.client.request(
             op, deadline=deadline, retry_until_deadline=True, **fields
         )
+        if self.active is not None:
+            self.active.timing[f"{op}_wait_ms"] += (time.perf_counter() - started) * 1000
+        return result
 
     def _observe_decidable(self, operation: Operation | None, deadline: float) -> OperationResult:
         screen_value = self._request("screen", deadline, term=0, attrs=False)
         if screen_value is None:
             return self._terminal(operation, "screen", "read-only request failed")
-        match = classify_screen(screen_value)
+        match = self._classify(screen_value)
         if match.kind is ScreenKind.DEATH:
             return self._death(operation, match)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
@@ -730,7 +796,7 @@ class OperationExecutor:
             # The state retry invalidated S. Restart S -> T within the original
             # caller deadline; the deadline selects failure, never readiness.
             return self._observe_decidable(operation, deadline)
-        match = classify_screen(screen_value, state)
+        match = self._classify(screen_value, state)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
         board = self._finish_board(state, screen_value, match)
@@ -754,25 +820,31 @@ class OperationExecutor:
         except ValueError as error:
             return self._terminal(self.active, "encoding", str(error))
         self.state = ExecutorState.AWAITING_KEYS_ACK
+        ack_started = time.perf_counter()
         outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
+        self.active.timing["ack_wait_ms"] += (time.perf_counter() - ack_started) * 1000
         if outcome.status is KeyPostStatus.REJECTED and outcome.reason == self.client.BACKPRESSURE_ERROR:
             # Atomic rejection inserted zero bytes. Re-observe the screen and the
             # state-bound item/operation premise before the sole retry, retaining
             # the operation's original deadline (spec section 4 backpressure row).
             screen_value = self._request("screen", deadline, term=0, attrs=False)
-            match = classify_screen(screen_value) if screen_value is not None else None
+            match = self._classify(screen_value) if screen_value is not None else None
             state_value = self._request("state", deadline, map=True) if match is not None else None
-            rebound = classify_screen(screen_value, state_value) \
+            rebound = self._classify(screen_value, state_value) \
                 if screen_value is not None and state_value is not None else None
             if screen_value != self._bound_screen_value \
                     or state_value != self._bound_state_value \
                     or rebound != match:
                 return self._terminal(self.active, "backpressure", "prompt changed before retry", match, outcome)
             self.state = ExecutorState.AWAITING_KEYS_ACK
+            self.active.timing["retry_send_added"] = True
+            ack_started = time.perf_counter()
             outcome = self.client.post_keys(notation, expected_count=len(keys), deadline=deadline)
+            self.active.timing["ack_wait_ms"] += (time.perf_counter() - ack_started) * 1000
         if outcome.status is not KeyPostStatus.ACCEPTED:
             return self._terminal(self.active, "keys", outcome.reason or outcome.status.value, transport=outcome)
         self.active.accepted_segments.append(keys)
+        self.active.timing["segments"] += 1
         self.active.accepted_segment_records.append(AcceptedSegment(
             len(self.active.accepted_segment_records), role, keys,
         ))
@@ -780,6 +852,9 @@ class OperationExecutor:
         observation_deadline = max(
             deadline, time.monotonic() + self.active.response_grace
         )
+        self.active.timing["post_ack_grace_extended"] = bool(
+            self.active.timing["post_ack_grace_extended"]
+        ) or observation_deadline > deadline
         return self._after_post(observation_deadline, outcome)
 
     def _post_wm(self, keys: str, deadline: float, *, role: str) -> OperationResult:
@@ -804,7 +879,7 @@ class OperationExecutor:
         screen_value = self._request("screen", deadline, term=0, attrs=False)
         if screen_value is None:
             return self._terminal(self.active, "screen", "read-only request failed", transport=outcome)
-        match = classify_screen(screen_value)
+        match = self._classify(screen_value)
         self.state = ExecutorState.CONTINUATION
         if match.kind is ScreenKind.DEATH:
             return self._death(self.active, match)
@@ -850,18 +925,19 @@ class OperationExecutor:
         if state is None:
             return self._terminal(self.active, "state", "read-only request failed", match, outcome)
         if self.client.observation_epoch != screen_epoch:
+            self.active.timing["observation_epoch_refreshes"] += 1
             # Re-establish S -> T without reposting the accepted segment.
             screen_value = self._request("screen", deadline, term=0, attrs=False)
             if screen_value is None:
                 return self._terminal(self.active, "screen", "read-only retry failed", transport=outcome)
-            match = classify_screen(screen_value)
+            match = self._classify(screen_value)
             if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
                 return self._terminal(self.active, "classification", match.feature, match, outcome)
             screen_epoch = self.client.observation_epoch
             state = self._request("state", deadline, map=True)
             if state is None or self.client.observation_epoch != screen_epoch:
                 return self._terminal(self.active, "state", "incoherent read-only retry", match, outcome)
-        match = classify_screen(screen_value, state)
+        match = self._classify(screen_value, state)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "classification", match.feature, match, outcome)
         board = self._finish_board(state, screen_value, match)
@@ -922,7 +998,46 @@ class OperationExecutor:
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)
         self.barrier_sequence += 1
-        return OperationResult("completed", operation, board, match, outcome)
+        request_timings = self.client.take_request_timings() \
+            if hasattr(self.client, "take_request_timings") else []
+        grouped: list[dict[str, object]] = []
+        for item in request_timings:
+            if not grouped or grouped[-1]["request"] != item["request"]:
+                grouped.append({
+                    "request": item["request"], "kind": item["kind"],
+                    "attempt_count": 0, "connect_count": 0,
+                    "retry_count": 0, "response_bytes": 0, "attempts": [],
+                })
+            request = grouped[-1]
+            request["attempt_count"] += 1
+            request["connect_count"] += int(bool(item["connected"]))
+            request["retry_count"] = max(
+                int(request["retry_count"]), int(item["retry_count"])
+            )
+            request["response_bytes"] += int(item["response_bytes"])
+            request["attempts"].append({
+                key: item[key] for key in (
+                    "request_first_byte_ms", "first_last_byte_ms",
+                    "json_decode_ms", "response_bytes", "connected",
+                )
+            })
+        operation.timing["requests"] = len(grouped)
+        operation.timing["control_requests"] = grouped[:12]
+        operation.timing["request_first_byte_ms"] = sum(
+            float(item["request_first_byte_ms"]) for item in request_timings)
+        operation.timing["first_last_byte_ms"] = sum(
+            float(item["first_last_byte_ms"]) for item in request_timings)
+        operation.timing["request_json_decode_ms"] = sum(
+            float(item["json_decode_ms"]) for item in request_timings)
+        operation.timing["response_bytes"] = sum(
+            int(item["response_bytes"]) for item in request_timings)
+        for key, value in tuple(operation.timing.items()):
+            if key.endswith("_ms") and isinstance(value, float):
+                operation.timing[key] = round(value, 3)
+        return OperationResult(
+            "completed", operation, board, match, outcome,
+            timing=operation.timing,
+        )
 
     def _terminal(self, operation, phase, reason, screen=None, transport=None, transport_name=None):
         active = operation or self.active or Operation(None, "bootstrap", "", None)

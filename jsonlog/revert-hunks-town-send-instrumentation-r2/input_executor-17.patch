@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -712 +774,2 @@ class OperationExecutor:
+-        return self.client.request(
++        started = time.perf_counter()
++        result = self.client.request(

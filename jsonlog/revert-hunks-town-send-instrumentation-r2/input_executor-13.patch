@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -680,0 +723,7 @@ class OperationExecutor:
++        timing = self.active.timing if self.active is not None else None
++        if timing is not None:
++            timing["jsonl_drain_ms"] += (drained_at - started) * 1000
++            timing["jsonl_drain_records"] += len(records)
++            drain_timing = getattr(self.drain, "last_timing", {})
++            timing["jsonl_drain_bytes"] += int(drain_timing.get("bytes", 0))
++            timing["jsonl_decode_ms"] += float(drain_timing.get("decode_ms", 0.0))

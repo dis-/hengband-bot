@@ -1,0 +1,7 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -771,0 +840,2 @@ class OperationExecutor:
++            self.active.timing["retry_send_added"] = True
++            ack_started = time.perf_counter()

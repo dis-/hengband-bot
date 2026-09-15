@@ -1,0 +1,46 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -925 +1001,40 @@ class OperationExecutor:
+-        return OperationResult("completed", operation, board, match, outcome)
++        request_timings = self.client.take_request_timings() \
++            if hasattr(self.client, "take_request_timings") else []
++        grouped: list[dict[str, object]] = []
++        for item in request_timings:
++            if not grouped or grouped[-1]["request"] != item["request"]:
++                grouped.append({
++                    "request": item["request"], "kind": item["kind"],
++                    "attempt_count": 0, "connect_count": 0,
++                    "retry_count": 0, "response_bytes": 0, "attempts": [],
++                })
++            request = grouped[-1]
++            request["attempt_count"] += 1
++            request["connect_count"] += int(bool(item["connected"]))
++            request["retry_count"] = max(
++                int(request["retry_count"]), int(item["retry_count"])
++            )
++            request["response_bytes"] += int(item["response_bytes"])
++            request["attempts"].append({
++                key: item[key] for key in (
++                    "request_first_byte_ms", "first_last_byte_ms",
++                    "json_decode_ms", "response_bytes", "connected",
++                )
++            })
++        operation.timing["requests"] = len(grouped)
++        operation.timing["control_requests"] = grouped[:12]
++        operation.timing["request_first_byte_ms"] = sum(
++            float(item["request_first_byte_ms"]) for item in request_timings)
++        operation.timing["first_last_byte_ms"] = sum(
++            float(item["first_last_byte_ms"]) for item in request_timings)
++        operation.timing["request_json_decode_ms"] = sum(
++            float(item["json_decode_ms"]) for item in request_timings)
++        operation.timing["response_bytes"] = sum(
++            int(item["response_bytes"]) for item in request_timings)
++        for key, value in tuple(operation.timing.items()):
++            if key.endswith("_ms") and isinstance(value, float):
++                operation.timing[key] = round(value, 3)
++        return OperationResult(
++            "completed", operation, board, match, outcome,
++            timing=operation.timing,
++        )

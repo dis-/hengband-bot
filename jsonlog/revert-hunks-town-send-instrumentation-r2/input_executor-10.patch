@@ -1,0 +1,29 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -676,0 +693,24 @@ class OperationExecutor:
++    @staticmethod
++    def _new_timing() -> dict[str, object]:
++        return {
++            "ack_wait_ms": 0.0, "screen_wait_ms": 0.0,
++            "screen_classification_ms": 0.0, "state_wait_ms": 0.0,
++            "jsonl_drain_ms": 0.0, "jsonl_drain_bytes": 0,
++            "jsonl_drain_records": 0, "jsonl_decode_ms": 0.0,
++            "state_deepcopy_ms": 0.0, "board_compose_ms": 0.0,
++            "posting_contract_settlement_ms": 0.0, "segments": 0,
++            "requests": 0, "observation_epoch_refreshes": 0,
++            "retry_send_added": False, "post_ack_grace_extended": False,
++            "known_cells": 0, "request_first_byte_ms": 0.0,
++            "first_last_byte_ms": 0.0, "request_json_decode_ms": 0.0,
++            "response_bytes": 0, "control_requests": [],
++        }
++
++    def _classify(self, screen, state=None):
++        started = time.perf_counter()
++        result = classify_screen(screen, state)
++        if self.active is not None:
++            self.active.timing["screen_classification_ms"] += \
++                (time.perf_counter() - started) * 1000
++        return result
++

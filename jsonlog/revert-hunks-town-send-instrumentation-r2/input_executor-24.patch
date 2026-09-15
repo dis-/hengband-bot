@@ -1,0 +1,7 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -765 +833 @@ class OperationExecutor:
+-            rebound = classify_screen(screen_value, state_value) \
++            rebound = self._classify(screen_value, state_value) \

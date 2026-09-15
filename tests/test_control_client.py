@@ -28,6 +28,20 @@ def _snapshot_line(turn):
 
 
 class _Handler(socketserver.StreamRequestHandler):
+    def setup(self):
+        super().setup()
+        with self.server.connection_lock:
+            self.server.connection_count += 1
+            self.server.active_connections += 1
+
+    def finish(self):
+        try:
+            super().finish()
+        finally:
+            with self.server.connection_lock:
+                self.server.active_connections -= 1
+                self.server.closed_connections += 1
+
     def handle(self):
         while line := self.rfile.readline():
             request = json.loads(line)
@@ -35,6 +49,10 @@ class _Handler(socketserver.StreamRequestHandler):
             action = self.server.actions.pop(0) if self.server.actions else None
             if action == "disconnect":
                 return
+            if action == "partial-disconnect":
+                self.wfile.write(b'{"id":')
+                self.wfile.flush()
+                break
             if action == "timeout":
                 time.sleep(0.1)
                 continue
@@ -61,6 +79,10 @@ class _Server(socketserver.ThreadingTCPServer):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.actions = list(actions)
         self.requests = []
+        self.connection_lock = threading.Lock()
+        self.connection_count = 0
+        self.active_connections = 0
+        self.closed_connections = 0
 
 
 class ControlClientTest(unittest.TestCase):
@@ -80,6 +102,57 @@ class ControlClientTest(unittest.TestCase):
         )
         self.addCleanup(client.close)
         return client
+
+    def wait_for_connections(self, *, active=None, closed=None):
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            with self.server.connection_lock:
+                matches = (
+                    (active is None or self.server.active_connections == active)
+                    and (closed is None or self.server.closed_connections == closed)
+                )
+            if matches:
+                return
+            time.sleep(0.005)
+        with self.server.connection_lock:
+            self.fail(
+                f"connections did not settle: total={self.server.connection_count}, "
+                f"active={self.server.active_connections}, "
+                f"closed={self.server.closed_connections}"
+            )
+
+    def test_disconnected_post_keys_uses_exactly_one_connection(self):
+        self.server.actions[:] = [{"pushed": 1}]
+        client = self.client()
+
+        outcome = client.post_keys("6", expected_count=1)
+
+        self.assertEqual(outcome.status, KeyPostStatus.ACCEPTED)
+        self.assertEqual([row["op"] for row in self.server.requests], ["keys"])
+        self.assertEqual(self.server.connection_count, 1)
+        self.wait_for_connections(active=1, closed=0)
+
+    def test_disconnected_read_only_request_uses_exactly_one_connection(self):
+        self.server.actions[:] = [{"turn": 7}]
+        client = self.client()
+
+        self.assertEqual(client.request("state", map=True), {"turn": 7})
+
+        self.assertEqual([row["op"] for row in self.server.requests], ["state"])
+        self.assertEqual(self.server.connection_count, 1)
+        self.wait_for_connections(active=1, closed=0)
+
+    def test_mid_recv_failure_matches_base_close_and_reconnect_count(self):
+        self.server.actions[:] = ["partial-disconnect", {"turn": 7}]
+        client = self.client(retries=1)
+
+        self.assertEqual(client.request("state", map=True), {"turn": 7})
+
+        self.assertEqual([row["op"] for row in self.server.requests], ["state", "state"])
+        self.assertEqual(self.server.connection_count, 2)
+        self.wait_for_connections(active=1, closed=1)
+        client.close()
+        self.wait_for_connections(active=0, closed=2)
 
     def test_newline_framing_persistent_connection_and_ids(self):
         client = self.client()

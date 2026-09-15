@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -714,0 +778,3 @@ class OperationExecutor:
++        if self.active is not None:
++            self.active.timing[f"{op}_wait_ms"] += (time.perf_counter() - started) * 1000
++        return result

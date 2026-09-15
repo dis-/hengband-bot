@@ -1,0 +1,7 @@
+diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
+index 3da8a4e..8d40f16 100644
+--- a/src/hengbot/control_client.py
++++ b/src/hengbot/control_client.py
+@@ -144,0 +195,2 @@ class ControlClient:
++        last_byte_at = time.perf_counter()
++        decode_started = time.perf_counter()
