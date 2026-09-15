@@ -1,0 +1,47 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -3638,43 +3638,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             # ordinary outside snapshot, never from waiting or retrying inside.
+             self.last_reason = "home:leave-after-one-operation"
+             key = LEAVE_STORE_KEY
+-        elif (
+-            snapshot.store is None
+-            and self._shop_observation is not None
+-            and self._store_leave_inflight is not None
+-            and self._can_compose_shop_observation(snapshot)
+-        ):
+-            # The saved ordinary-store page is the address of the second
+-            # visit.  Claim it before generic routing can turn the entrance
+-            # board into another approach.  The page/position predicate is
+-            # sufficient provenance even when the derived LEAVING view was
+-            # lost between the posted ESC and this authoritative board.
+-            self._store_leave_inflight = None
+-            observed_store = self._shop_observation[0].store_type
+-            arbiter = self._town_turn_arbiter
+-            if arbiter is None:
+-                arbiter = _new_town_turn_arbiter()
+-                self._town_turn_arbiter = arbiter
+-            visit = arbiter.acquire_store_visit(
+-                owner="shop-one-shot",
+-                purpose="observed-transaction",
+-                store_type=observed_store,
+-                opened_sequence=self._decision_sequence,
+-                close_visit=self._close_store_visit,
+-            )
+-            assert visit is not None, (
+-                "an adjacent saved shop page must own its one-shot visit"
+-            )
+-            self._acquire_store_visit_attempt = {
+-                "acquire_store_visit_called": True,
+-                "requested_owner": "shop-one-shot",
+-                "requested_store": observed_store,
+-                "acquire_result": "granted-observed-outside",
+-            }
+-            key = self._atomic_shop_transaction_key(snapshot)
+-            if key is None:
+-                self._close_store_visit("one-shot-no-operation")
+-                key = self._decide(snapshot)
+         elif self._store_leave_inflight is not None:
+             leave_generation, leave_turn, leave_store = self._store_leave_inflight
+             if snapshot.store is None:

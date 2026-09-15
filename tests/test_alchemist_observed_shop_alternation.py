@@ -5,9 +5,10 @@ from __future__ import annotations
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
-from hengbot.model import STORE_ALCHEMIST, parse_snapshot
+from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL, parse_snapshot
 from hengbot.policy import HengbotPolicy
 
 
@@ -91,6 +92,7 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             rows[1],  # 3024656 Weapon Shop page
             rows[3],  # 3024665 surface: real Alchemist route entry point
             rows[7],  # 3024720 observed Alchemist page
+            rows[8],  # 3024728 adjacent outside composition boundary
         ]
         policy = HengbotPolicy()
         replay = []
@@ -102,18 +104,28 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             (3_024_656, *live_decision(3_024_656)),
             (3_024_665, *live_decision(3_024_665)),
         ])
-        live = live_decision(3_024_720)
-        self.assertEqual(live, (
-            "\x1b", "town-progress-invariant:continue-observed-shop",
-        ))
         self.assertEqual(replay[2], (
-            3_024_720, "d0y\x1b", "shop:one-shot-sell",
+            3_024_720, *live_decision(3_024_720),
         ))
-        print(f"replay={replay[2][1:]!r} live={live!r}")
-        self.assertEqual(policy._store_visit.owner, "town-errand")
+        live = live_decision(3_024_728)
+        self.assertEqual(live, (
+            "7", "shop:approach",
+        ))
+        self.assertEqual(replay[3], (
+            3_024_728, "5", "shop:one-shot-sell",
+        ))
+        print(f"replay={replay[3][1:]!r} live={live!r}")
+        self.assertEqual(policy._store_visit.owner, "shop-one-shot")
         self.assertEqual(policy._store_visit.store_type, STORE_ALCHEMIST)
         self.assertTrue(policy._store_visit.operation_posted)
-        self.assertTrue(policy._store_visit.operation_released)
+        self.assertFalse(policy._store_visit.operation_released)
+        self.assertEqual(policy._store_visit.operation_key, "d0y\x1b")
+        self.assertEqual(policy._acquire_store_visit_attempt, {
+            "acquire_store_visit_called": True,
+            "requested_owner": "shop-one-shot",
+            "requested_store": STORE_ALCHEMIST,
+            "acquire_result": "granted-observed-outside",
+        })
         self.assertEqual(
             policy._town_errand_plan.need_categories[STORE_ALCHEMIST],
             ("low-level-sale", "identification-source"),
@@ -122,6 +134,37 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             reason == "town:blocked:owner-retired"
             for _, _, reason in replay
         ))
+
+    def test_component_general_store_uses_the_same_outside_handoff(self):
+        # Component test: preserve the recorded player/inventory/page shape,
+        # changing only the shop identity and matching entrance glyph.
+        rows = recorded_rows()
+        inside = parse_snapshot(rows[7], {})
+        outside = parse_snapshot(rows[8], {})
+        inside = replace(
+            inside, store=replace(inside.store, store_type=STORE_GENERAL),
+        )
+        entrance = outside.grid_at(outside.player.position)
+        outside = replace(
+            outside,
+            grids={
+                **outside.grids,
+                outside.player.position: replace(
+                    entrance, store_number=STORE_GENERAL,
+                ),
+            },
+        )
+        policy = HengbotPolicy()
+
+        leave = policy.choose_key(inside)
+        composed = policy.choose_key(outside)
+
+        self.assertEqual((leave, composed, policy.last_reason), (
+            "\x1b", "7", "explore",
+        ))
+        self.assertIsNone(policy._shop_observation)
+        self.assertNotEqual(policy._store_visit.store_type, STORE_GENERAL)
+        self.assertNotEqual(policy.last_reason, "shop:approach")
 
 
 if __name__ == "__main__":

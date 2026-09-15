@@ -542,7 +542,8 @@ class SeededAbsorbingStateTest(unittest.TestCase):
                 "quiet-stair-observation-timeout-probe",
                 "all-nonhome-needs-unobtainable-departure-unsatisfiable",
                 "home-deferral-fully-deferred-procurement-class",
-                "failed-store-entry-same-turn",
+                "doubled-store-entry-cycle",
+                "lagged-successful-store-entry",
                 "transaction-abandoned-mid-strip",
                 "movement-opens-store-before-surface-observation",
             ],
@@ -552,6 +553,7 @@ class SeededAbsorbingStateTest(unittest.TestCase):
             [
                 "drive-ending terminal captured departure state issued recall",
                 "drive-ending terminal bounded stair observation probe",
+                "durable progress within decision bound",
                 "durable progress within decision bound",
                 "durable progress within decision bound",
                 "durable progress within decision bound",
