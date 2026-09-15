@@ -104,6 +104,7 @@ from hengbot.cli import (
     main,
 )
 from hengbot.input_executor import Operation, OperationExecutor
+from hengbot.policy_constants import CHARACTER_DUMP_MACRO
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
     HUNT_RANGE,
@@ -225,6 +226,27 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
                 "rgl", decision={"reason": "identify:full"},
                 continuations=[object()],
             ))
+        self.assertEqual(executor.deadline, 100.0 + COMMAND_RESPONSE_GRACE)
+
+    def test_town_character_dump_submits_existing_command_response_grace(self):
+        class CapturingExecutor:
+            client = object()
+
+            def submit(self, operation, *, deadline):
+                self.operation, self.deadline = operation, deadline
+                return SimpleNamespace(outcome="completed", reason=None)
+
+        executor = CapturingExecutor()
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=1.5)
+        with patch("hengbot.cli.time.monotonic", return_value=100.0):
+            sent, _ = _send_new_decision_key(
+                port, "town", CHARACTER_DUMP_MACRO, None, set(),
+                in_store=False, snapshot=SimpleNamespace(store=None),
+                decision={"sequence": 1, "reason": "town:character-dump"},
+            )
+        self.assertTrue(sent)
+        self.assertEqual(executor.operation.keys, "C")
         self.assertEqual(executor.deadline, 100.0 + COMMAND_RESPONSE_GRACE)
 
     def test_executor_port_preserves_player_death_outcome(self):

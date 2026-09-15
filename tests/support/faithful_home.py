@@ -8,6 +8,7 @@ incident transcript adapter.
 """
 import copy
 import json
+import time
 from pathlib import Path
 
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
@@ -56,7 +57,8 @@ class FaithfulHomeGame:
     """Small Home interpreter: prompts consume tails; effects follow commands."""
     def __init__(self, *, pack=None, equipment=None, pages=None, pack_limit=23,
                  home_limit=80, inside=True, state_template=None,
-                 dump_exists=False, dump_language="en", overwrite_question=None):
+                 dump_exists=False, dump_language="en", overwrite_question=None,
+                 delayed_state_request=None, state_delay=0.0):
         self.pack = list(pack or [])
         self.equipment = dict(equipment or {})
         self.pages = [list(p) for p in (pages or [[]])]
@@ -76,6 +78,9 @@ class FaithfulHomeGame:
         self.dump_exists = dump_exists
         self.dump_language = dump_language
         self.overwrite_question = overwrite_question
+        self.delayed_state_request = delayed_state_request
+        self.state_delay = state_delay
+        self.state_requests = 0
 
     def socket_factory(self, *args, **kwargs): return _Socket(self)
     @staticmethod
@@ -126,7 +131,7 @@ class FaithfulHomeGame:
             if key == "~" and self.inside:
                 self.modal = "knowledge-menu"
                 continue
-            if key == "C" and self.inside:
+            if key == "C":
                 self.modal = "character"
                 continue
             if self.pending:
@@ -243,5 +248,9 @@ class FaithfulHomeGame:
                           if self.inside and self.modal is None and self.trace[-1:] == ["\x1b"]
                           else _screen(prompt, self.inside,
                                        self.pages[self.page] if self.inside else ()))
-        else: result = self._state()
+        else:
+            self.state_requests += 1
+            if self.state_requests == self.delayed_state_request:
+                time.sleep(self.state_delay)
+            result = self._state()
         return {"id": request["id"], "ok": True, "result": result}

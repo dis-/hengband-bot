@@ -49,6 +49,7 @@ from hengbot.policy import (
     required_depth_gates,
 )
 from hengbot.policy_constants import (
+    CHARACTER_DUMP_MACRO,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
@@ -1999,9 +2000,12 @@ def _send_new_decision_key(
 def _home_modal_continuation(snapshot, key: str, owner: str):
     """Own each source-proven Home modal boundary through the STORE return."""
     if (
-        snapshot is None
-        or snapshot.store is None
-        or snapshot.store.store_type != STORE_HOME
+        key != CHARACTER_DUMP_MACRO
+        and (
+            snapshot is None
+            or snapshot.store is None
+            or snapshot.store.store_type != STORE_HOME
+        )
     ):
         return None
     if key == HOME_KNOWLEDGE_MACRO:
@@ -2012,7 +2016,7 @@ def _home_modal_continuation(snapshot, key: str, owner: str):
             # only this menu ESC returns to the calling store.
             Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
         ]
-    if key == HOME_CHARACTER_DUMP_MACRO:
+    if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO}:
         return "C", [
             Continuation(frozenset({ScreenKind.CHARACTER}), "f"),
             Continuation(frozenset({ScreenKind.FILE_NAME}), "\r"),

@@ -14,6 +14,8 @@ from hengbot.cli import (
     _dispatch_response_lines,
     _newest_snapshot,
     _home_modal_continuation,
+    _ExecutorInputPort,
+    _send_new_decision_key,
 )
 from hengbot.equipment_optimizer import OwnedEquipmentCatalog
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
@@ -117,6 +119,68 @@ def home_response() -> dict:
 
 
 class HomeOwnedModalTest(unittest.TestCase):
+    def test_town_character_dump_existing_absent_and_unrelated_question(self):
+        town = replace(town_with_home(), store=None)
+        for exists, question, outcome, expected in (
+            (True, None, "completed", ["C", "f", "\r", "y", "\x1b"]),
+            (False, None, "completed", ["C", "f", "\r", "\x1b"]),
+            (True, "Delete every save? [y/n]", "stuck-prompt",
+             ["C", "f", "\r"]),
+        ):
+            with self.subTest(exists=exists, question=question):
+                game = FaithfulHomeGame(
+                    inside=False, dump_exists=exists,
+                    overwrite_question=question,
+                )
+                client = ControlClient(
+                    1, request_budget=2, retries=1, backoff=0,
+                    socket_factory=game.socket_factory,
+                )
+                self.addCleanup(client.close)
+                executor = OperationExecutor(
+                    client, drain=lambda: [game._state()])
+                self.assertEqual(
+                    executor.observe_boundary(deadline=9999999999).outcome,
+                    "ready",
+                )
+                prefix, continuations = _home_modal_continuation(
+                    town, CHARACTER_DUMP_MACRO, "town:character-dump")
+                result = executor.submit(Operation(
+                    1, "town:character-dump", prefix, executor.ready_board,
+                    continuations), deadline=9999999999)
+                self.assertEqual(result.outcome, outcome)
+                self.assertEqual(result.operation.accepted_segments, expected)
+                self.assertEqual(
+                    [entry for entry in game.trace if isinstance(entry, str)],
+                    expected,
+                )
+                if outcome == "completed":
+                    self.assertEqual(result.screen.kind, ScreenKind.COMMAND)
+
+    def test_town_character_dump_slow_final_state_uses_continuation_budget(self):
+        game = FaithfulHomeGame(
+            inside=False, dump_exists=False,
+            delayed_state_request=5, state_delay=1.6,
+        )
+        client = ControlClient(
+            1, request_budget=1.5, retries=1, backoff=0,
+            socket_factory=game.socket_factory,
+        )
+        self.addCleanup(client.close)
+        executor = OperationExecutor(client, drain=lambda: [game._state()])
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=1.5)
+        sent, _ = _send_new_decision_key(
+            port, "town", CHARACTER_DUMP_MACRO, None, set(), in_store=False,
+            snapshot=replace(town_with_home(), store=None),
+            decision={"sequence": 1, "reason": "town:character-dump"},
+        )
+        self.assertTrue(sent)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual(game.state_requests, 5)
+
     def test_home_character_dump_owns_each_prompt_and_store_return(self):
         inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
         prefix, continuations = _home_modal_continuation(
