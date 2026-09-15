@@ -3491,6 +3491,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if (
                         self._town_order_operation == "calibration"
                         and self._town_order_expected_observation == "home-deposit"
+                        and self._store_visit is not None
+                        and self._store_visit.store_type == STORE_HOME
+                        and self._store_visit.operation_posted
                     ):
                         # The released Home macro owned both its input and its
                         # effect.  Once the outside board proves that effect,

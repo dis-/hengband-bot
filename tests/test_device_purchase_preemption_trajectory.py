@@ -90,6 +90,23 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town:blocked:repetition")
         self.assertFalse(policy._store_visit.operation_posted)
 
+    def test_component_restored_checkpoint_does_not_give_magic_visit_to_calibration(self):
+        """Public choose_key pin for an unrelated post-calibration store visit."""
+        policy, snapshot = self._restore()
+        snapshot = self._incident_page(
+            policy, snapshot, price=snapshot.player.gold + 1
+        )
+        # The older trajectory helper overrides this producer for its purchase
+        # assertions.  This lifecycle pin deliberately uses the production
+        # Home gate instead: no policy predicate is patched when choose_key runs.
+        del policy.__dict__["_purchase_has_fresh_home_absence"]
+
+        policy.choose_key(snapshot)
+
+        self.assertIsNotNone(policy._store_visit)
+        self.assertEqual(policy._store_visit.store_type, STORE_MAGIC)
+        self.assertFalse(policy._store_visit.operation_posted)
+
     def test_affordable_device_composes_on_adjacent_outside_page(self):
         policy, snapshot = self._restore()
         snapshot = self._incident_page(policy, snapshot, price=1083)
