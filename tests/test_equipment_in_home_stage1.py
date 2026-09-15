@@ -5,6 +5,7 @@ import gzip
 import tempfile
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 
 from hengbot.cli import _dispatch_response_lines
 from hengbot.control_client import ControlClient
@@ -20,9 +21,30 @@ ROOT = Path(__file__).resolve().parents[1]
 INCIDENT = ROOT / "jsonlog" / "incident-20260914-town0-resume-2305" / "decisions.jsonl"
 CAPTURE = ROOT / "jsonlog" / "live-screens" / "25-town0-home-equip-leave-loop.json"
 RECORDED = ROOT / "tests" / "fixtures" / "equipment-in-home-town0-2305.jsonl.gz"
+ENTER_LEAVE_RECORDED = (
+    ROOT / "tests" / "fixtures" /
+    "home-equip-enter-leave-loop-20260915.jsonl.gz"
+)
 
 
 class EquipmentInHomeArtifactFacts(unittest.TestCase):
+    def test_enter_leave_loop_fixture_is_the_recorded_board_window(self):
+        with gzip.open(ENTER_LEAVE_RECORDED, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        self.assertEqual(len(rows), 25)
+        self.assertEqual(
+            [(row["type"], row["turn"],
+              None if row.get("store") is None else row["store"]["store_type"])
+             for row in rows[7:12]],
+            [("player_turn", 2899629, None),
+             ("player_turn", 2899629, None),
+             ("store", 2899629, 7),
+             ("knowledge", 2899629, None),
+             ("store", 2899629, 7)],
+        )
+        self.assertEqual(len(rows[12]["inventory"]), 20)
+        self.assertEqual(len(rows[15]["inventory"]), 19)
+
     def test_rows_7_through_14_freeze_recorded_incident(self):
         rows = [json.loads(x) for x in INCIDENT.read_text(encoding="utf-8").splitlines()][6:14]
         self.assertEqual([r["decision_sequence"] for r in rows], list(range(6, 14)))
@@ -302,6 +324,43 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         accepted = self._accepted(game)
         self.assertTrue(accepted and accepted[0] == "5", (accepted, reasons))
         self._assert_completed_recorded_outer_plan(game, before, accepted, reasons)
+
+    def test_recorded_planner_admits_pack_space_deposit_inside_home(self):
+        policy = self._recorded_policy()
+        catalog = policy._equipment_catalog.items
+        current = current_loadout(catalog)
+        pack_ids = [item.id for item in catalog if item.origin == "pack"]
+        plan = plan_equipment_transactions(
+            catalog, current, current,
+            current_pack_items=len(pack_ids),
+            home_scan_complete=True,
+            preserve_pack_item_ids=frozenset(pack_ids[1:]),
+        )
+        self.assertEqual(
+            (plan.actions[0].phase, plan.actions[0].kind),
+            ("home_prepare", "deposit"),
+        )
+        session = policy._equipment_transaction_session_for_preparation(
+            SimpleNamespace(transaction=plan, ready=True)
+        )
+        self.assertIsNotNone(session)
+        self.assertEqual(session.physical_context, "home")
+        policy._set_equipment_transaction_session(session)
+        game = self._recorded_game(inside=True)
+        policy, _result, reasons = self._drive(game, 4, policy=policy)
+        accepted = self._accepted(game)
+        self.assertEqual(accepted, ["do\r", "\x1b"])
+        self.assertEqual(
+            reasons,
+            ["equipment-transaction:deposit",
+             "equipment-transaction:home-work-complete"],
+        )
+        self.assertEqual((game.entries, game.reentries, game.exits), (1, 0, 1))
+        outside = parse_snapshot(game._state(), {})
+        policy.prime(outside)
+        next_key = policy.choose_key(outside)
+        self.assertEqual((next_key, policy.last_reason), ("rhj", "identify:device"))
+        self.assertFalse(any("owner-retired" in reason for reason in reasons))
 
     def test_behavior_pins_do_not_assert_defaulted_policy_or_visit_attributes(self):
         source = Path(__file__).read_text(encoding="utf-8")

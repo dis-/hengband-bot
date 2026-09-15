@@ -1213,7 +1213,7 @@ class EquipmentMixin:
     def _equipment_transaction_session_for_preparation(
         preparation: WarriorOptimizationPreparation,
     ) -> EquipmentTransactionSession | None:
-        """Create a full session, or a deposit-only session that frees pack space."""
+        """Create one Home-owned session, including pack-space deposits."""
         transaction = preparation.transaction
         if not isinstance(transaction, EquipmentTransactionPlan) or not transaction.actions:
             return None
@@ -1244,7 +1244,10 @@ class EquipmentMixin:
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
             physical_context=(
                 "home"
-                if any(action.kind == "withdraw" for action in plan.actions)
+                if any(
+                    action.phase == PHASE_HOME_PREPARE
+                    for action in plan.actions
+                )
                 else "legacy"
             ),
         )
