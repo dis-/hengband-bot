@@ -1,0 +1,26 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -713 +706,3 @@ class CalibrationMixin:
+-    def _capture_character_calibration(self, snapshot: Snapshot) -> bool:
++    def _capture_character_calibration(
++        self, snapshot: Snapshot, *, install_restore: bool = True
++    ) -> bool:
+@@ -727,3 +722,7 @@ class CalibrationMixin:
+-        self._calibration_phase = (
+-            "restore-supplies" if self._calibration_restore_signatures else None
+-        )
++        # The items recorded at strip start own the next operation.  Installing
++        # their restore session here prevents the ordinary optimizer from
++        # observing the deliberately naked board and turning those same pack
++        # identities into deposits before calibration can put them back on.
++        # If the observed pack/equipment has changed, the restore installer
++        # derives a fresh plan from that observation instead of retaining a
++        # stale target.
+@@ -730,0 +730,6 @@ class CalibrationMixin:
++        if not install_restore or not self._install_calibration_restore_session(snapshot):
++            self._calibration_phase = (
++                "restore-supplies"
++                if self._calibration_restore_signatures
++                else None
++            )

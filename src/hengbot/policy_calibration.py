@@ -350,6 +350,7 @@ class CalibrationMixin:
             # or stop visibly instead of aborting in a loop.
             self._calibration_restore_exhausted(snapshot)
             return
+        self._calibration_session_target = None
         if not self._install_calibration_restore_session(snapshot):
             self._calibration_phase = (
                 "restore-supplies"
@@ -377,12 +378,13 @@ class CalibrationMixin:
         When every recorded item is observed worn again (or observed lost),
         the guard clears; the visit's calibration budget stays spent.
         """
-        self._calibration_session_target = None
         self._calibration_suspended_phase = None
         if (
             not self._calibration_removable_worn(snapshot)
             and self._calibration_preconditions_met(snapshot)
-            and self._capture_character_calibration(snapshot)
+            and self._capture_character_calibration(
+                snapshot, install_restore=False
+            )
         ):
             return
         self._calibration_phase = (
@@ -495,19 +497,11 @@ class CalibrationMixin:
             self._town_order_expected_observation = "detection-obtained"
             self.last_reason = self._calibration_deferral_reason
             return WAIT_KEY
-        abandonment = getattr(self, "_calibration_redress_abandonment", None)
-        if abandonment is not None:
-            self.last_reason = abandonment
-            self._calibration_redress_abandonment = None
-            return WAIT_KEY
+        exhausted_identity = None
         for slot, identity in self._calibration_redress_items(snapshot):
             obligation = (slot, identity)
             if self._calibration_redress_attempts.get(obligation, 0) >= STORE_STUCK_LIMIT:
-                worn_before = list(self._calibration_worn_before)
-                worn_before.remove(obligation)
-                self._calibration_worn_before = tuple(worn_before)
-                self._calibration_redress_attempts.pop(obligation, None)
-                self._persist_calibration_redress_obligation()
+                exhausted_identity = identity
                 continue
             target = next(
                 (
@@ -544,6 +538,12 @@ class CalibrationMixin:
             )
             self.last_reason = "calibration:redress"
             return macro
+        if exhausted_identity is not None:
+            self._town_blocked_reason = (
+                f"calibration-redress-no-progress:{exhausted_identity}"
+            )
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            return WAIT_KEY
         return None
     def _calibration_redress_observe(self, snapshot: Snapshot) -> None:
         """Clear the stripped guard once every recorded item is accounted for.
@@ -591,22 +591,15 @@ class CalibrationMixin:
                 )
                 self.last_reason = "calibration:redress-home-restore-filed"
                 return
-            # A complete Home catalogue plus pack/equipment accounting is a
-            # closed world for the recorded identity.  Keeping an impossible
-            # debt can never dress the character; release it explicitly.
-            lost_set = set(lost)
-            self._calibration_worn_before = tuple(
-                obligation
-                for obligation in self._calibration_worn_before
-                if obligation not in lost_set
+            # Complete observed pack/equipment/Home accounting proves there is
+            # no executable re-plan.  Keep the durable debt and stop visibly;
+            # deleting it here used to reopen town errands while undressed.
+            identity = lost[0][1]
+            self._town_blocked_reason = (
+                f"calibration-redress-item-unavailable:{identity}"
             )
-            self._calibration_redress_abandonment = (
-                "calibration:redress-abandoned:item-unavailable"
-            )
-            self._persist_calibration_redress_obligation()
-            satisfied, outstanding, lost = self._calibration_redress_accounting(
-                snapshot
-            )
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            return
         pending = set(outstanding) | set(lost)
         self._calibration_redress_attempts = {
             obligation: attempts
@@ -710,7 +703,9 @@ class CalibrationMixin:
         self._calibration_phase = "restore-equip"
         return True
 
-    def _capture_character_calibration(self, snapshot: Snapshot) -> bool:
+    def _capture_character_calibration(
+        self, snapshot: Snapshot, *, install_restore: bool = True
+    ) -> bool:
         calibration = calibrate_character_constants(
             snapshot,
             mutation_signature=self._mutation_signature,
@@ -724,10 +719,20 @@ class CalibrationMixin:
                 self._character_calibration_path, calibration
             )
             self._persist_calibration_redress_obligation()
-        self._calibration_phase = (
-            "restore-supplies" if self._calibration_restore_signatures else None
-        )
+        # The items recorded at strip start own the next operation.  Installing
+        # their restore session here prevents the ordinary optimizer from
+        # observing the deliberately naked board and turning those same pack
+        # identities into deposits before calibration can put them back on.
+        # If the observed pack/equipment has changed, the restore installer
+        # derives a fresh plan from that observation instead of retaining a
+        # stale target.
         self._calibration_session_target = None
+        if not install_restore or not self._install_calibration_restore_session(snapshot):
+            self._calibration_phase = (
+                "restore-supplies"
+                if self._calibration_restore_signatures
+                else None
+            )
         # Recompute optimization after the new constants, independently of the
         # unconditional recorded-loadout redress owner.
         self._equipment_optimization_signature = None
@@ -823,7 +828,11 @@ class CalibrationMixin:
                     self._persist_calibration_redress_obligation()
                     self._equipment_transaction_session = None
                     self._calibration_session_target = None
-                    self._calibration_phase = None
+                    self._calibration_phase = (
+                        "restore-supplies"
+                        if self._calibration_restore_signatures
+                        else None
+                    )
             else:
                 # A LIVE session that vanished was abandoned by the stall
                 # bound; only that consumes the per-visit failure budget — an
@@ -865,20 +874,17 @@ class CalibrationMixin:
                     )
                 else:
                     # The physical Home owner has spent its bounded contract.
-                    # Release only identities that are still absent from pack
-                    # and equipment; carried redress work remains actionable.
+                    # An absent stripped identity remains a durable debt and is
+                    # therefore a visible terminal, never an undressed release.
                     _, _, lost = self._calibration_redress_accounting(snapshot)
                     if lost:
-                        lost_set = set(lost)
-                        self._calibration_worn_before = tuple(
-                            obligation
-                            for obligation in self._calibration_worn_before
-                            if obligation not in lost_set
+                        self._town_blocked_reason = (
+                            "calibration-redress-home-visit-exhausted:"
+                            f"{lost[0][1]}"
                         )
-                        self._calibration_redress_abandonment = (
-                            "calibration:redress-abandoned:home-visit-exhausted"
+                        self.last_reason = (
+                            f"town:blocked:{self._town_blocked_reason}"
                         )
-                        self._persist_calibration_redress_obligation()
                     self._calibration_restore_signatures.clear()
                     self._calibration_phase = None
                     self._calibration_home_rearm_eligible = False

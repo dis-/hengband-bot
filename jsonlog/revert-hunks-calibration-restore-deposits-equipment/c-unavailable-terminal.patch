@@ -1,0 +1,28 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -594,15 +594,6 @@ class CalibrationMixin:
+-            # A complete Home catalogue plus pack/equipment accounting is a
+-            # closed world for the recorded identity.  Keeping an impossible
+-            # debt can never dress the character; release it explicitly.
+-            lost_set = set(lost)
+-            self._calibration_worn_before = tuple(
+-                obligation
+-                for obligation in self._calibration_worn_before
+-                if obligation not in lost_set
+-            )
+-            self._calibration_redress_abandonment = (
+-                "calibration:redress-abandoned:item-unavailable"
+-            )
+-            self._persist_calibration_redress_obligation()
+-            satisfied, outstanding, lost = self._calibration_redress_accounting(
+-                snapshot
++            # Complete observed pack/equipment/Home accounting proves there is
++            # no executable re-plan.  Keep the durable debt and stop visibly;
++            # deleting it here used to reopen town errands while undressed.
++            identity = lost[0][1]
++            self._town_blocked_reason = (
++                f"calibration-redress-item-unavailable:{identity}"
+@@ -609,0 +601,2 @@ class CalibrationMixin:
++            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
++            return

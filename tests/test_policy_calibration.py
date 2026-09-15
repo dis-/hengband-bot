@@ -515,7 +515,12 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             persisted = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertIsNotNone(policy._character_calibration)
-        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        self.assertIsNotNone(policy._equipment_transaction_session)
+        self.assertEqual(
+            [action.kind for action in policy._equipment_transaction_session.plan.actions],
+            ["equip"],
+        )
         self.assertEqual(persisted["observed_turn"], naked.turn)
 
     def test_hostile_suspends_capture_then_resumes_without_restarting(self):
@@ -588,8 +593,9 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_observe(naked)
             self.assertTrue(path.is_file())
 
-        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_phase, "restore-equip")
         self.assertIsNone(policy._calibration_suspended_phase)
+        self.assertIsNotNone(policy._equipment_transaction_session)
 
     def test_repeated_hostile_interruptions_spend_the_visit_budget(self):
         policy = self._scan_complete_policy()
@@ -1308,10 +1314,13 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             ))
 
         self.assertGreaterEqual(max(charged_attempts), STORE_STUCK_LIMIT)
-        self.assertFalse(policy._calibration_stripped_unrestored)
-        self.assertTrue(policy._town_departure_conjuncts(calm)[
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertFalse(policy._town_departure_conjuncts(calm)[
             "calibration_loadout_restored"
         ])
+        self.assertTrue((policy._town_blocked_reason or "").startswith(
+            "calibration-redress-"
+        ))
 
     def test_restore_completion_releases_the_stripped_guard(self):
         policy = self._scan_complete_policy()
@@ -1393,13 +1402,14 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_redress_observe(snapshot)
         key = policy._calibration_redress_key(snapshot)
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertIsNone(key)
         self.assertEqual(
             policy.last_reason,
-            "calibration:redress-abandoned:item-unavailable",
+            "town:blocked:calibration-redress-item-unavailable:"
+            + policy_module.equipment_identity(sword),
         )
-        self.assertFalse(policy._calibration_stripped_unrestored)
-        self.assertEqual(policy._calibration_worn_before, ())
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertEqual(len(policy._calibration_worn_before), 1)
         self.assertIsNone(policy._calibration_redress_key(snapshot))
 
     def test_departure_unsatisfiable_is_an_immediate_cli_final_stop(self):
@@ -1505,7 +1515,16 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._calibration_redress_observe(
             self._snapshot(inventory=tuple(packed), equipment=tuple(equipment))
         )
-        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertTrue(policy._calibration_stripped_unrestored)
+        self.assertEqual(
+            policy._calibration_redress_key(
+                self._snapshot(inventory=tuple(packed), equipment=tuple(equipment))
+            ),
+            WAIT_KEY,
+        )
+        self.assertTrue((policy._town_blocked_reason or "").startswith(
+            "calibration-redress-no-progress:"
+        ))
 
     def test_legacy_cursed_only_shape_redresses_confirmed_pack_armour(self):
         cursed = item(
@@ -1613,7 +1632,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         policy._calibration_stripped_unrestored = True
         policy._calibration_observe(self._snapshot(inventory=(sword,)))
-        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_phase, "restore-equip")
+        self.assertIsNotNone(policy._equipment_transaction_session)
         self.assertTrue(policy._calibration_stripped_unrestored)
         self.assertEqual(len(policy._calibration_worn_before), 1)
 

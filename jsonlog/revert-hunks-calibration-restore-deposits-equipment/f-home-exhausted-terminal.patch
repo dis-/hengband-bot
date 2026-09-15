@@ -1,0 +1,24 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -868,2 +877,2 @@ class CalibrationMixin:
+-                    # Release only identities that are still absent from pack
+-                    # and equipment; carried redress work remains actionable.
++                    # An absent stripped identity remains a durable debt and is
++                    # therefore a visible terminal, never an undressed release.
+@@ -872,5 +881,3 @@ class CalibrationMixin:
+-                        lost_set = set(lost)
+-                        self._calibration_worn_before = tuple(
+-                            obligation
+-                            for obligation in self._calibration_worn_before
+-                            if obligation not in lost_set
++                        self._town_blocked_reason = (
++                            "calibration-redress-home-visit-exhausted:"
++                            f"{lost[0][1]}"
+@@ -878,2 +885,2 @@ class CalibrationMixin:
+-                        self._calibration_redress_abandonment = (
+-                            "calibration:redress-abandoned:home-visit-exhausted"
++                        self.last_reason = (
++                            f"town:blocked:{self._town_blocked_reason}"
+@@ -881 +887,0 @@ class CalibrationMixin:
+-                        self._persist_calibration_redress_obligation()

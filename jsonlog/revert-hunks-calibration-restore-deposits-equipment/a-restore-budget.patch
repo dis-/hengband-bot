@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -352,0 +353 @@ class CalibrationMixin:
++        self._calibration_session_target = None
+@@ -380 +380,0 @@ class CalibrationMixin:
+-        self._calibration_session_target = None
+@@ -385 +385,3 @@ class CalibrationMixin:
+-            and self._capture_character_calibration(snapshot)
++            and self._capture_character_calibration(
++                snapshot, install_restore=False
++            )

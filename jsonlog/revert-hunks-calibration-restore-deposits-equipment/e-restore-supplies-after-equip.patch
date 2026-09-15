@@ -1,0 +1,10 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -826 +831,5 @@ class CalibrationMixin:
+-                    self._calibration_phase = None
++                    self._calibration_phase = (
++                        "restore-supplies"
++                        if self._calibration_restore_signatures
++                        else None
++                    )
