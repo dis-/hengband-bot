@@ -374,6 +374,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             self.assertIsNone(policy._calibration_phase)
 
     def test_in_home_strip_and_character_capture_remain_home_owned(self):
+        """USER: equipment work inside Home."""
         policy = self._scan_complete_policy()
         sword = item(
             "main_hand", 23, 4, name="long sword", known=True,
@@ -399,6 +400,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         )
         self.assertEqual(key, policy_module.HOME_CHARACTER_DUMP_MACRO)
         self.assertEqual(key.count("\x1b"), 1)
+        self.assertEqual(policy_module.CHARACTER_DUMP_MACRO.count("\x1b"), 2)
 
     def test_foreign_equipment_errand_defers_calibration_redress(self):
         policy = self._scan_complete_policy()

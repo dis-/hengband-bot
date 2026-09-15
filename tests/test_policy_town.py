@@ -1222,7 +1222,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertTrue(policy._recall_departure_ready(snap))
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
-    def test_detected_mining_departure_does_not_require_food_or_digger(self):
+    def test_detected_mining_requires_food_and_digger_until_suppliers_fail(self):
         """USER: if food or a digger is unobtainable but detection is carried, still try mining first."""
         snap = Snapshot(
             player(
@@ -1240,6 +1240,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
 
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+
+        policy._town_store_attempted.update(
+            {STORE_HOME: 1, STORE_GENERAL: 1, STORE_ALCHEMIST: 1}
+        )
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_queued_digger_withdrawal_blocks_departure_without_home_route(self):

@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/policy_fundraising.py b/src/hengbot/policy_fundraising.py
+index 5b3646f..d0adfae 100644
+--- a/src/hengbot/policy_fundraising.py
++++ b/src/hengbot/policy_fundraising.py
+@@ -4,7 +4,9 @@ from collections import deque
+ 
+ from hengbot.model import (
+     DUNGEON_YEEK_CAVE,
++    STORE_ALCHEMIST,
+     STORE_GENERAL,
++    STORE_HOME,
+     STORE_MAGIC,
+     STORE_TEMPLE,
+     SV_SCROLL_STAR_REMOVE_CURSE,

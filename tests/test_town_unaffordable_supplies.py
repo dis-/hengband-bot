@@ -24,8 +24,6 @@ RESTART_FIXTURE = (
     / "fixtures"
     / "town-unaffordable-supplies-restart-20260915.jsonl.gz"
 )
-
-
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
     def _replay_restart(self, *, funded: bool = False):
         with gzip.open(RESTART_FIXTURE, "rt", encoding="utf-8") as stream:
@@ -81,7 +79,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         return policy, snapshots[-1], decisions, measures
 
     def test_restart_recording_finishes_started_calibration_before_fundraising(self):
-        """USER: 縺溘□縺鈴｣邯壹〒謗｡謗倥☆繧句ｴ蜷医・蜈埼勁縺吶ｋ縲・"""
+        """USER: 「2 ただし連続で採掘する場合は免除する」"""
         policy, snapshot, decisions, measures = self._replay_restart()
 
         self.assertEqual(measures["mode"], "prepare")
@@ -104,8 +102,36 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertEqual(
             decisions[-1],
-            (2_911_820, "9", "town:blocked:equipment-calibration-required"),
+            (
+                2_911_820,
+                "9",
+                "town:entrance-step-off:calibration:deposit-effect-failed",
+            ),
         )
+
+    def test_restart_released_deposit_waits_for_a_board_backed_effect(self):
+        """USER: 「私が指摘しないと退行に気付けないのは重大な欠陥である。」"""
+        policy, _snapshot, decisions, _measures = self._replay_restart()
+
+        self.assertEqual(
+            decisions[-3:],
+            [
+                (2_911_809, "5", "home:atomic-deposit"),
+                (
+                    2_911_809,
+                    "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
+                    "home:atomic-deposit",
+                ),
+                (
+                    2_911_820,
+                    "9",
+                    "town:entrance-step-off:calibration:deposit-effect-failed",
+                ),
+            ],
+        )
+        self.assertEqual(policy._town_order_operation, "calibration")
+        self.assertEqual(policy._town_order_expected_observation, "home-deposit")
+        self.assertIsNone(policy._home_atomic_deposit_pending)
 
     def test_restart_funded_counterfactual_keeps_identification_owner(self):
         policy, _snapshot, decisions, measures = self._replay_restart(funded=True)
@@ -172,7 +198,11 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         self.assertTrue(measures["fundraising_departure_ready"])
         self.assertEqual(
             decisions[-1],
-            (2_911_111, "9", "town:blocked:equipment-calibration-required"),
+            (
+                2_911_111,
+                "9",
+                "town:entrance-step-off:calibration:deposit-effect-failed",
+            ),
         )
         self.assertFalse(policy._dungeon_entry_allowed(
             snapshot, via_recall=False, destination_depth=1

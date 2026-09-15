@@ -4,7 +4,9 @@ from collections import deque
 
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
+    STORE_ALCHEMIST,
     STORE_GENERAL,
+    STORE_HOME,
     STORE_MAGIC,
     STORE_TEMPLE,
     SV_SCROLL_STAR_REMOVE_CURSE,
@@ -188,10 +190,29 @@ class FundraisingMixin:
         if not base_ready:
             return False
         if self._fundraising_mode == "mine":
-            # Detection is the only item whose absence changes this owned
-            # branch to scavenge.  Missing food or a digger does not authorize
-            # an early set exit; attempt the detected mining run first.
-            return self._count_treasure_detection_scrolls(snapshot) > 0
+            detection_count = self._count_treasure_detection_scrolls(snapshot)
+            detection_ready = (
+                detection_count >= self._mining_detection_scroll_target(snapshot)
+                or (
+                    detection_count > 0
+                    and STORE_HOME in self._town_store_attempted
+                    and STORE_ALCHEMIST in self._town_store_attempted
+                )
+            )
+            food_store = (
+                STORE_MAGIC
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else STORE_GENERAL
+            )
+            food_ready = self._food_ready(snapshot) or (
+                food_store in self._town_store_attempted
+                and not snapshot.player.hungry
+            )
+            digger_ready = self._has_digging_tool(snapshot) or (
+                STORE_HOME in self._town_store_attempted
+                and STORE_GENERAL in self._town_store_attempted
+            )
+            return detection_ready and food_ready and digger_ready
         return True
 
     def _fundraising_combat_equipment_key(
