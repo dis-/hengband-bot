@@ -32,6 +32,104 @@ class _ShoppingApproachEmission(str):
 
 
 class ShopMixin:
+    def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
+        """Return the known cost of unmet required stock, or unknown.
+
+        Prices come from emitter-observed shelves retained by
+        ``_observe_departure_prices``.  An unknown required price is not zero:
+        optional Black Market spending is refused until that price is known.
+        """
+        from hengbot.model import (
+            SV_FLASK_OIL,
+            SV_LITE_LANTERN,
+            SV_SCROLL_TELEPORT,
+            SV_SCROLL_WORD_OF_RECALL,
+            TVAL_FLASK,
+        )
+        from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
+
+        reserve = 0
+
+        def add(category: str, missing: int) -> bool:
+            nonlocal reserve
+            if missing <= 0:
+                return True
+            known = self._observed_departure_prices.get(category)
+            if known is None:
+                base_kinds = {
+                    "recall": ((TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),),
+                    "teleport": ((TVAL_SCROLL, SV_SCROLL_TELEPORT),),
+                    "cure-critical": ((TVAL_POTION, SV_POTION_CURE_CRITICAL),),
+                    "oil": ((TVAL_FLASK, SV_FLASK_OIL),),
+                    "light": (
+                        (TVAL_LITE, SV_LITE_TORCH),
+                        (TVAL_LITE, SV_LITE_LANTERN),
+                    ),
+                    "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
+                    "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
+                    "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
+                }.get(category, ())
+                base_prices = [
+                    self._baseitem_costs[kind]
+                    for kind in base_kinds
+                    if self._baseitem_costs.get(kind, 0) > 0
+                ]
+                if category == "food":
+                    base_prices.extend(
+                        price for (tval, sval), price in self._baseitem_costs.items()
+                        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL and price > 0
+                    )
+                if base_prices:
+                    known = (min(base_prices), 1)
+            if known is None:
+                return False
+            price, units = known
+            reserve += ceil(missing / units) * price
+            return True
+
+        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        price_category = {"cure": "cure-critical"}
+        for status in ledger.values():
+            missing = max(0, status.required_departure - status.count)
+            if missing and not add(price_category.get(status.kind, status.kind), missing):
+                return None
+
+        if not self._light_ready(snapshot) and not add("light", 1):
+            return None
+
+        if not self._identify_staff_ready(snapshot):
+            missing = max(
+                0,
+                STAFF_IDENTIFY_MIN_CHARGES
+                - self._total_identify_staff_charges(snapshot),
+            )
+            if not add("identify-staff", missing):
+                return None
+
+        strategy = self._carry_procurement_strategy(snapshot)
+        if strategy is not None:
+            for name, status in self._quest_carry_status(
+                snapshot, strategy.required_force
+            ).items():
+                missing = max(
+                    0, int(status["required"]) - int(status["measured"])
+                )
+                if missing and not add(f"quest-carry:{name}", missing):
+                    return None
+            force = strategy.required_force
+            for category, sval, target_key in (
+                ("quest:speed", SV_POTION_SPEED, "speed_potions"),
+                ("quest:healing", SV_POTION_HEALING, "heal_potions"),
+            ):
+                missing = max(
+                    0,
+                    int(force.get(target_key, 0))
+                    - self._exact_potion_count(snapshot, sval),
+                )
+                if missing and not add(category, missing):
+                    return None
+        return reserve
+
     def _arbiter_close_store_visit(self, owner: str, outcome: str) -> None:
         """Close only a visit resource owned by the yielding token family."""
         visit = self._store_visit
@@ -1715,6 +1813,9 @@ class ShopMixin:
         store = snapshot.store
         if store is None or store.store_type != STORE_BLACK:
             return None
+        reserve = self._required_departure_supply_reserve(snapshot)
+        if reserve is None:
+            return None
         optional = [
             item
             for item in store.items
@@ -1731,7 +1832,7 @@ class ShopMixin:
                 )
             )
             and item.count > 0
-            and item.price <= snapshot.player.gold
+            and snapshot.player.gold - item.price >= reserve
         ]
         if not optional:
             return None
@@ -1813,10 +1914,6 @@ class ShopMixin:
             add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
             add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
-        black_market_pick = self._black_market_optional_purchase(snapshot)
-        add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
-        add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
-        add(rung("black-market:stone-to-mud", "device", lambda: not self._has_charged_stone_to_mud(snapshot), lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
         add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and not self._food_ready(snapshot), lambda i: i.tval in {TVAL_WAND, TVAL_STAFF}))
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
@@ -1825,6 +1922,10 @@ class ShopMixin:
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET, lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: AMMO_CARRY_TARGET))
         add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
+        black_market_pick = self._black_market_optional_purchase(snapshot)
+        add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
+        add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
+        add(rung("black-market:stone-to-mud", "device", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_WAND, lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
         add(rung("curse:normal", "remove-curse", lambda: self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE}))
         add(rung("curse:star-reserve", "star-remove-curse", lambda: self._has_unremovable_curse_target(snapshot) or self._star_remove_curse_reserve_purchase_needed(snapshot), lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_REMOVE_CURSE))
         add(rung("tail:launcher-enchant", "launcher-enchant", lambda: self._launcher_enchant_purchase(snapshot) is not None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM}))
@@ -2178,9 +2279,6 @@ class ShopMixin:
                              and it.price <= gold), None)
                 if heal is not None:
                     return heal
-        black_market_optional = self._black_market_optional_purchase(snapshot)
-        if black_market_optional is not None:
-            return black_market_optional
         if not self._recall_ready(snapshot):
             item = next(
                 (it for it in store.items if it.is_recall_scroll and it.price <= gold),
@@ -2293,6 +2391,9 @@ class ShopMixin:
             )
             if identify is not None:
                 return identify
+        black_market_optional = self._black_market_optional_purchase(snapshot)
+        if black_market_optional is not None:
+            return black_market_optional
         if (
             self._has_normal_remove_curse_target(snapshot)
             and self._find_remove_curse_scroll(snapshot) is None

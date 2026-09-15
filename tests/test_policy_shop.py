@@ -6878,7 +6878,10 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
         capture = root / "tests" / "fixtures" / "probe-purity-incident-surviving-rows.jsonl.gz"
         with TemporaryDirectory() as directory:
             directory = Path(directory)
-            policy = HengbotPolicy()
+            policy = HengbotPolicy(baseitem_costs={
+                (TVAL_FLASK, SV_FLASK_OIL): 3,
+                (TVAL_LITE, SV_LITE_LANTERN): 120,
+            })
             policy._character_calibration_path = directory / "character-calibration.json"
             policy._confirmed_loadout_path = directory / "confirmed-loadout.json"
             policy._character_calibration_path.write_bytes(
@@ -7334,6 +7337,147 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         self.assertEqual(policy._next_purchase(town).sval, SV_POTION_HEALING)
         self.assertEqual(
             policy._purchase_quantity(town, policy._next_purchase(town)), 5
+        )
+
+    def test_recorded_tight_gold_board_reserves_required_identify_charges(self):
+        def drive_price_observation(policy):
+            policy.choose_key(replace(
+                self._town(store=None),
+                floor_key=(1, 18, 0),
+                town_flag=False,
+            ))
+            magic = self._town(
+                inventory=[
+                    item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
+                    item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+                    item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=11),
+                    item("f", TVAL_FOOD, 35, count=5),
+                    item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
+                    item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=1),
+                    item("s", TVAL_POTION, SV_POTION_SPEED, count=5),
+                    item("h", TVAL_POTION, SV_POTION_HEALING, count=5),
+                ],
+                store=StoreState(
+                    STORE_MAGIC,
+                    [store_item(
+                        "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                        price=917, charges=19, pval=19,
+                    )],
+                ),
+                gold=4943,
+            )
+            policy.choose_key(magic)
+            self.assertEqual(policy._observed_departure_prices["identify-staff"], (917, 19))
+            return replace(
+                magic,
+                store=StoreState(
+                    STORE_BLACK,
+                    [store_item(
+                        "n", TVAL_POTION, SV_POTION_HEALING,
+                        price=4758,
+                    )],
+                ),
+            )
+
+        tight_policy = HengbotPolicy()
+        tight = drive_price_observation(tight_policy)
+        self.assertIsNone(tight_policy._next_purchase(tight))
+
+        ample_policy = HengbotPolicy()
+        ample = replace(
+            drive_price_observation(ample_policy),
+            player=replace(tight.player, gold=10000),
+        )
+        self.assertEqual(
+            ample_policy._next_purchase(ample).sval,
+            SV_POTION_HEALING,
+        )
+
+    def test_unknown_required_price_conservatively_blocks_optional_purchase(self):
+        policy = HengbotPolicy()
+        policy.choose_key(replace(
+            self._town(store=None),
+            floor_key=(1, 18, 0),
+            town_flag=False,
+        ))
+        town = self._town(
+            inventory=[
+                *self._supplies(),
+                item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=1),
+            ],
+            store=StoreState(
+                STORE_BLACK,
+                [store_item(
+                    "n", TVAL_POTION, SV_POTION_HEALING,
+                    price=100,
+                )],
+            ),
+            gold=10000,
+        )
+
+        self.assertIsNone(policy._next_purchase(town))
+
+    def test_optional_rungs_follow_every_required_supply_rung(self):
+        policy = HengbotPolicy()
+        ids = [
+            rung.rung_id
+            for rung in policy._purchase_rungs(SimpleNamespace(snapshot=self._town()))
+        ]
+        first_optional = ids.index("black-market:speed")
+
+        for required in (
+            "mandatory:recall",
+            "mandatory:food",
+            "mandatory:teleport",
+            "mandatory:cure",
+            "tail:recall",
+            "tail:mana-food",
+            "tail:torch",
+            "tail:teleport",
+            "tail:cure",
+            "tail:identify-staff",
+        ):
+            with self.subTest(required=required):
+                self.assertLess(ids.index(required), first_optional)
+
+    def test_selector_buys_required_identify_staff_before_optional_black_market_stock(self):
+        policy = HengbotPolicy()
+        inventory = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
+            item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+            item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=11),
+            item("f", TVAL_FOOD, 35, count=5),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
+            item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=1),
+            item("h", TVAL_POTION, SV_POTION_HEALING, count=5),
+        ]
+        policy.choose_key(replace(
+            self._town(store=None),
+            floor_key=(1, 18, 0),
+            town_flag=False,
+        ))
+        black = self._town(
+            inventory=inventory,
+            store=StoreState(
+                STORE_BLACK,
+                [
+                    store_item(
+                        "i", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                        price=917, charges=19, pval=19,
+                    ),
+                    store_item(
+                        "h", TVAL_POTION, SV_POTION_HEALING, price=100
+                    ),
+                ],
+            ),
+            gold=10000,
+        )
+
+        policy.choose_key(black)
+        selected = policy._next_purchase(black)
+        self.assertEqual(
+            (selected.tval, selected.sval),
+            (TVAL_STAFF, SV_STAFF_IDENTIFY),
         )
 
     def test_newly_bought_potion_surplus_is_not_protected_from_home(self):
