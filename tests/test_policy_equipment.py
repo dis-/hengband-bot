@@ -5878,6 +5878,59 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual(restore_trigger.call_count, 0)
 
 
+class RestoreWeaponStaleTakeoffReplayTest(unittest.TestCase):
+    FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "restore-weapon-stale-takeoff.jsonl.gz"
+    )
+
+    def test_recorded_window_replans_after_each_observed_restore_operation(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8-sig") as stream:
+            rows = [json.loads(line) for line in stream]
+        snapshots = [parse_snapshot(row, {}) for row in rows]
+        by_turn = {}
+        for snapshot in snapshots:
+            by_turn[snapshot.turn] = snapshot
+
+        policy = policy_module.HengbotPolicy()
+        policy.consume_home_knowledge(())
+        replay = []
+        for turn in (2942136, 2942150):
+            key = policy.choose_key(by_turn[turn])
+            replay.append((turn, key, policy.last_reason))
+            self.assertNotEqual(key, "")
+            self.assertTrue(policy.confirm_key_posted(key))
+
+        turn, key, reason = replay[-1]
+        print(
+            "restore-weapon replay divergence:",
+            (turn, key, reason),
+            "live:",
+            (2942150, "tb", "town:restore-combat-weapon"),
+        )
+        self.assertEqual(turn, 2942150)
+        self.assertEqual(key, "wjb")
+        self.assertEqual(reason, "town:restore-combat-weapon")
+
+    def test_recorded_window_never_returns_an_empty_key(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8-sig") as stream:
+            snapshots = [
+                parse_snapshot(json.loads(line), {}) for line in stream
+            ]
+        by_turn = {snapshot.turn: snapshot for snapshot in snapshots}
+        policy = policy_module.HengbotPolicy()
+        policy.consume_home_knowledge(())
+        decisions = []
+        # R4: stop at the first key divergence; later live boards are effects
+        # of the live key and cannot be replayed as effects of the new key.
+        for snapshot in (by_turn[2942136], by_turn[2942150]):
+            key = policy.choose_key(snapshot)
+            decisions.append((snapshot.turn, key, policy.last_reason))
+            self.assertNotEqual(key, "", decisions)
+            policy.confirm_key_posted(key)
+
+
 class EquipLoopAfterE85AA8ERegressionTest(unittest.TestCase):
     FIXTURE = (
         Path(__file__).parent

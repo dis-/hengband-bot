@@ -1,0 +1,4 @@
+Source: C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl at task base 66d65ad
+Selection: physical lines 6330-6334 inclusive, copied byte-for-byte before gzip compression.
+Turns: 2942135, 2942136, 2942136, 2942150, and 2942155 are represented by the selected incident window.
+The gzip header timestamp is fixed to zero by tests/extract_restore_weapon_stale_takeoff_fixture.py.

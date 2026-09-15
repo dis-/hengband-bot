@@ -1540,7 +1540,7 @@ class EquipmentMixin:
                 self._invalidate_stale_equipment_transaction(
                     snapshot, action, observed_identity
                 )
-                return ""
+                return WAIT_KEY
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
                 return None
@@ -1812,7 +1812,7 @@ class EquipmentMixin:
                 self._invalidate_stale_equipment_transaction(
                     snapshot, action, observed_identity
                 )
-                return ""
+                return WAIT_KEY
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
                 if not self.last_reason.startswith("posting-contract:"):
