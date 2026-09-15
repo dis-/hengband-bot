@@ -1954,10 +1954,27 @@ class ShopMixin:
         # and every exported modifier still have to agree.  Home candidates
         # are InventoryItems and retain the full comparison below.
         if isinstance(item, StoreItem):
+            # Ordinary shops omit the structured dice and enchantment fields.
+            # They remain player-visible in the exported name.  Fail closed
+            # unless both names prove the same ammo kind, dice, to-hit, and
+            # to-damage; zero-valued parser defaults are not evidence.
+            visible_ammo = re.compile(
+                r"^(?P<kind>.*?)\s*\((?P<num>\d+)d(?P<sides>\d+)\)\s*"
+                r"\((?P<to_h>[+-]\d+),(?P<to_d>[+-]\d+)\)"
+            )
+            pack_visible = visible_ammo.match(pack.name)
+            item_visible = visible_ammo.match(item.name)
+            if pack_visible is None or item_visible is None:
+                return False
+            visible_fields = ("kind", "num", "sides", "to_h", "to_d")
+            if any(
+                pack_visible.group(field) != item_visible.group(field)
+                for field in visible_fields
+            ):
+                return False
             fields = (
                 "tval", "sval", "aware", "known", "fully_known", "pval",
                 "is_ego", "is_artifact", "is_cursed", "is_broken",
-                "to_h", "to_d", "to_a", "ac",
             )
             return all(
                 getattr(pack, field) == getattr(item, field)

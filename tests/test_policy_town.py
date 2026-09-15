@@ -13275,7 +13275,10 @@ class RangedAttackTest(unittest.TestCase):
                          ("6", "seek-downstairs"))
 
     def test_home_ammo_and_store_stock_select_home_before_purchase(self):
-        plain = replace(self._shots(count=10), fully_known=True)
+        plain = replace(
+            self._shots(count=10), fully_known=True,
+            name="shots (1d3) (+0,+0)",
+        )
         shelf = StoreItem("j", plain.name, 99, TVAL_SHOT, plain.sval, price=1)
         home = StoreItem(
             "a", plain.name, 99, TVAL_SHOT, plain.sval, price=0,
@@ -13300,9 +13303,10 @@ class RangedAttackTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_quantity, 89)
 
     def test_fresh_home_without_merging_ammo_uses_existing_purchase(self):
-        arrows = StoreItem("j", "arrows", 99, TVAL_ARROW, 1, price=1)
+        ammo_name = "arrows (1d4) (+0,+0)"
+        arrows = StoreItem("j", ammo_name, 99, TVAL_ARROW, 1, price=1)
         carried = item(
-            "a", TVAL_ARROW, 1, name="arrows", count=3, fully_known=True,
+            "a", TVAL_ARROW, 1, name=ammo_name, count=3, fully_known=True,
         )
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
@@ -13323,7 +13327,8 @@ class RangedAttackTest(unittest.TestCase):
         self.assertEqual(policy._shop(snap), "pj96\r\r")
 
     def test_missing_96_arrows_are_bought_in_one_prompt_complete_macro(self):
-        arrows = StoreItem("j", "arrows", 99, TVAL_ARROW, 1, price=1)
+        ammo_name = "arrows (1d4) (+0,+0)"
+        arrows = StoreItem("j", ammo_name, 99, TVAL_ARROW, 1, price=1)
         snap = Snapshot(
             player(10, 10, gold=500, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)},
@@ -13331,7 +13336,7 @@ class RangedAttackTest(unittest.TestCase):
             inventory=[
                 *self._strict_supplies_for_ammo(),
                 item(
-                    "a", TVAL_ARROW, 1, name="arrows", count=3,
+                    "a", TVAL_ARROW, 1, name=ammo_name, count=3,
                     fully_known=True,
                 ),
             ],

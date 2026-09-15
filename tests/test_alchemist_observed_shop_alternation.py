@@ -102,7 +102,8 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             replay.append((snapshot.turn, policy.choose_key(snapshot), policy.last_reason))
 
         self.assertEqual(replay[:2], [
-            (3_024_656, *RECORDED_DECISIONS[3_024_656]),
+            (3_024_656, "\x1b",
+             "town-progress-invariant:continue-observed-shop"),
             (3_024_665, *RECORDED_DECISIONS[3_024_665]),
         ])
         self.assertEqual(replay[2], (

@@ -2639,7 +2639,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             name="light crossbow", is_equipment=True,
         )
         plain = item(
-            "q", TVAL_BOLT, 1, count=10, name="plain bolts",
+            "q", TVAL_BOLT, 1, count=10,
+            name="plain bolts (1d5) (+0,+0)",
             fully_known=True,
         )
         power = item(
@@ -2647,7 +2648,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             fully_known=True, to_h=7, to_d=6,
         )
         merging = store_item(
-            "a", TVAL_BOLT, 1, count=80, name="plain bolts",
+            "a", TVAL_BOLT, 1, count=80,
+            name="plain bolts (1d5) (+0,+0)",
         )
         nonmerging = store_item(
             "b", TVAL_BOLT, 3, count=99, name="other bolts",

@@ -85,16 +85,35 @@ class QuestCarryTownBlockPins(unittest.TestCase):
     def test_recorded_home_and_store_exhaustion_waives_only_town_departure(self):
         policy, smith, outside, needs = self.drive_recorded_exhaustion()
         launcher = policy._equipped_launcher(outside)
+        plain = next(item for item in smith.inventory if item.slot == "n")
+        enchanted = next(item for item in smith.store.items if item.letter == "n")
+        matching_plain = next(
+            item for item in smith.store.items if item.letter == "p"
+        )
         self.assertEqual(ammo_carry_plan(outside, launcher, 99).carried_count, 28)
-        self.assertIsNone(policy._quest_carry_purchase(smith,
-                                                       policy._carry_procurement_strategy(smith)))
-        self.assertEqual(needs, [])
+        self.assertEqual((plain.to_h, plain.to_d), (0, 0))
+        self.assertIn("(+3,+4)", enchanted.name)
+        self.assertFalse(
+            policy._store_item_stacks_with_inventory(plain, enchanted)
+        )
+        self.assertTrue(
+            policy._store_item_stacks_with_inventory(plain, matching_plain)
+        )
+        self.assertIs(
+            policy._quest_carry_purchase(
+                smith, policy._carry_procurement_strategy(smith)
+            ),
+            matching_plain,
+        )
+        self.assertEqual(
+            [(need.store_type, need.category) for need in needs],
+            [(STORE_WEAPON, "quest-ranged-kit")],
+        )
         self.assertEqual(
             policy._abandoned_quest_carry_requirements,
-            {"throwing_items.launcher_ammo":
-             "all-suppliers-visited-without-affordable-stock"},
+            {},
         )
-        self.assertTrue(policy._town_departure_conjuncts(outside)["quest_carry_ready"])
+        self.assertFalse(policy._town_departure_conjuncts(outside)["quest_carry_ready"])
         self.assertNotEqual(policy.last_reason,
                             "town:blocked:no-actionable-claim-owner")
 
@@ -205,7 +224,7 @@ class QuestCarryTownBlockPins(unittest.TestCase):
             decisions.append((str(policy.choose_key(store)), policy.last_reason))
         self.assertEqual(decisions, [
             ("\x1b", "shop:observe-and-leave"),
-            ("\x1b", "shop:observe-and-leave"),
+            ("\x1b", "town-progress-invariant:continue-observed-shop"),
             ("\x1b", "shop:observe-and-leave"),
         ])
 
@@ -215,10 +234,9 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         stop_key = policy.choose_key(recorded_stop)
         self.assertEqual(
             policy._abandoned_quest_carry_requirements,
-            {"throwing_items.launcher_ammo":
-             "all-suppliers-visited-without-affordable-stock"},
+            {},
         )
-        self.assertTrue(
+        self.assertFalse(
             policy._town_departure_conjuncts(recorded_stop)["quest_carry_ready"]
         )
         self.assertNotEqual(

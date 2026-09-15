@@ -789,7 +789,7 @@ class ShopOneShotTest(unittest.TestCase):
         snap = parse_snapshot(capture["state"]["result"])
         plain = next(item for item in snap.inventory if item.slot == "q")
         ware = StoreItem(
-            "a", "plain bolts", 99, TVAL_BOLT, plain.sval, 3,
+            "a", plain.name, 99, TVAL_BOLT, plain.sval, 3,
             aware=plain.aware, known=plain.known,
             fully_known=plain.fully_known, to_h=plain.to_h, to_d=plain.to_d,
             damage_dice_num=plain.damage_dice_num,

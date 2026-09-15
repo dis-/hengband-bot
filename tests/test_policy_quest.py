@@ -6685,12 +6685,17 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         snapshot = parse_snapshot(capture["state"]["result"])
         policy = self._policy()
         profile = self.profiles[22]
+        carried_plain = next(
+            item for item in snapshot.inventory
+            if item.tval == TVAL_BOLT and item.to_h == 0 and item.to_d == 0
+        )
         nonplain = StoreItem(
-            "a", "Bolts (+1,+1)", 99, TVAL_BOLT, 1,
+            "a", carried_plain.name.replace("(+0,+0)", "(+1,+1)"),
+            99, TVAL_BOLT, carried_plain.sval,
             price=1, known=True, fully_known=True, to_h=1, to_d=1,
         )
         plain = StoreItem(
-            "b", "Bolts", 99, TVAL_BOLT, 1,
+            "b", carried_plain.name, 99, TVAL_BOLT, carried_plain.sval,
             price=1, known=True, fully_known=True,
         )
         store = replace(
