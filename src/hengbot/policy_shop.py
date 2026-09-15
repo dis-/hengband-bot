@@ -632,6 +632,25 @@ class ShopMixin:
             and self._home_owner_goal_pending(snapshot)
             and self._owner_may_select(snapshot, "home-withdrawal:equipment-work")
             and not any(claim.category == "equipment-work" for claim in claims)
+            and not (
+                self._fundraising_mode == "prepare"
+                and self._home_candidate_waiting
+                and self._identification_need is not None
+                and self._identification_need_unsatisfiable(snapshot)
+                and self._identification_source_obtainability(
+                    snapshot, full=self._identification_need == "full"
+                ) != "available"
+                and any(
+                    claim.category in {
+                        "fundraising-kit", "fundraising-digger",
+                        "fundraising-detection", "fundraising-food",
+                        "fundraising-light", "fundraising-oil",
+                        "stored-detection", "mining-detection",
+                        "stored-digger", "mining-digger",
+                    }
+                    for claim in claims
+                )
+            )
         ):
             claims.append(TownNeed(
                 STORE_HOME,

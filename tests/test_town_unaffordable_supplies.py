@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from hengbot.cli import _parse_items
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 
@@ -80,7 +80,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             snapshots.append(snapshot)
         return policy, snapshots[-1], decisions, measures
 
-    def test_restart_recording_releases_unaffordable_identification_owner(self):
+    def test_restart_recording_routes_to_detection_kit(self):
         policy, snapshot, decisions, measures = self._replay_restart()
 
         self.assertEqual(measures["mode"], "prepare")
@@ -100,7 +100,12 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             measures["conjuncts"]["departure_identification_need_clear"]
         )
         self.assertIsNone(measures["identify_source"])
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._town_errand_plan.stops[0], STORE_ALCHEMIST)
+        self.assertEqual(
+            policy._town_errand_plan.need_categories[STORE_ALCHEMIST],
+            ("low-level-sale", "fundraising-detection"),
+        )
         self.assertNotEqual(decisions[-1][2], "stuck:wander")
 
     def test_restart_funded_counterfactual_keeps_identification_owner(self):
@@ -156,7 +161,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         assert final_snapshot is not None
         return policy, final_snapshot, decisions, final_measures
 
-    def test_recorded_board_scavenges_instead_of_wandering(self):
+    def test_recorded_board_routes_to_detection_kit_instead_of_wandering(self):
         policy, snapshot, decisions, measures = self._replay()
 
         self.assertEqual(measures["recall"], 8)
@@ -165,15 +170,16 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         self.assertEqual(STAFF_IDENTIFY_MIN_CHARGES, 20)
         self.assertFalse(measures["town_departure_ready"])
         self.assertTrue(measures["fundraising_departure_ready"])
-        self.assertEqual(
-            decisions[-1],
-            (2_911_111, "9",
-             "town:entrance-step-off:fundraise:unaffordable-supplies"),
-        )
-        self.assertTrue(policy._dungeon_entry_allowed(
+        self.assertEqual(decisions[-1], (2_911_111, "9", "explore"))
+        self.assertFalse(policy._dungeon_entry_allowed(
             snapshot, via_recall=False, destination_depth=1
         ))
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(policy._town_errand_plan.stops[0], STORE_ALCHEMIST)
+        self.assertEqual(
+            policy._town_errand_plan.need_categories[STORE_ALCHEMIST],
+            ("low-level-sale", "fundraising-detection"),
+        )
         self.assertNotEqual(decisions[-1][2], "stuck:wander")
 
     def test_affordable_counterfactual_keeps_purchase_route(self):

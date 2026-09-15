@@ -1694,7 +1694,17 @@ class TownMixin:
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
 
-        if self._calibration_active():
+        if self._calibration_active() and not (
+            fundraising_active
+            and self._calibration_phase == "deposit"
+            and not self._calibration_stripped_unrestored
+            and self._home_candidate_waiting
+            and self._identification_need is not None
+            and self._identification_need_unsatisfiable(snapshot)
+            and self._identification_source_obtainability(
+                snapshot, full=self._identification_need == "full"
+            ) != "available"
+        ):
             # The unequipped calibration phase owns the town while it runs.
             # The only legitimate errand is Home: deposits going in, the pack
             # restore coming out.  Every other need is suppressed — in
@@ -2706,6 +2716,17 @@ class TownMixin:
         self, snapshot: Snapshot, need: TownNeed
     ) -> int:
         """Put concretely affordable curse service ahead of ordinary errands."""
+        if (
+            self._fundraising_mode == "prepare"
+            and need.category in {
+                "fundraising-kit", "fundraising-digger",
+                "fundraising-detection", "fundraising-food",
+                "fundraising-light", "fundraising-oil",
+                "stored-detection", "mining-detection",
+                "stored-digger", "mining-digger",
+            }
+        ):
+            return -2
         if need.category == "space-deposit":
             return -3
         if (
@@ -4096,46 +4117,6 @@ class TownMixin:
             # current errand plan revisit the same empty/unaffordable shop
             # immediately, producing Alchemist -> entrance -> Alchemist trips.
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
-
-        if (
-            self._fundraising_mode == "prepare"
-            and snapshot.player.gold < FUNDRAISING_START_GOLD
-            and self._town_restock_wait_until is None
-            and not self._town_departure_ready(snapshot)
-            and snapshot.store is None
-            and (
-                self._store_visit is None
-                or self._store_visit.operation_released
-            )
-            and (
-                (supplier := self._actionable_departure_supplier(snapshot)) is None
-                or supplier in self._town_store_attempted
-            )
-        ):
-            # Preparation can be entered by the ordinary poverty owner before
-            # every mandatory departure purchase is affordable.  On the town
-            # surface with no unreleased store-visit owner, once the departure-
-            # supplier lookup has no owner or its owner is already in the
-            # current-visit attempt ledger, a
-            # detection-less shallow scavenge is
-            # the established fundraising fallback; leaving the mode at
-            # ``prepare`` hides both the mining walk-in entrance and the normal
-            # departure terminal, handing control to generic stuck:wander.
-            self._fundraising_mode = "scavenge"
-            self._scavenge_entry_gold = snapshot.player.gold
-            safe_walk_in = (
-                self._fundraising_departure_ready(snapshot)
-                and self._dungeon_entry_allowed(
-                    snapshot, via_recall=False, destination_depth=1
-                )
-            )
-            if safe_walk_in:
-                self.last_reason = "fundraise:unaffordable-supplies"
-                return WAIT_KEY
-            self._fundraising_mode = "prepare"
-            self._scavenge_entry_gold = None
-            self._town_blocked_reason = "departure-unsatisfiable"
-            return self._town_blocked_key(snapshot)
 
         if (
             not self._town_restock_suppressed

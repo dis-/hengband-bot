@@ -482,6 +482,32 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertIsNone(pol._next_required_store_type(snap))
         self.assertEqual(pol._fundraising_mode, "scavenge")
 
+    def test_fundraising_scavenges_only_after_detection_suppliers_exhausted(self):
+        snap = Snapshot(
+            player(10, 10, gold=185, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[
+                *self._strict_supplies(),
+                item("F", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="shovel"),
+                item("G", TVAL_DIGGING, SV_DIGGING_SHOVEL, name="shovel"),
+            ],
+            equipment=[self._lantern()],
+        )
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "prepare"
+
+        self.assertEqual(policy._next_required_store_type(snap), STORE_HOME)
+        policy._town_store_attempted[STORE_HOME] = snap.turn
+        self.assertEqual(
+            policy._next_required_store_type(snap), STORE_ALCHEMIST
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
+        self.assertIsNone(policy._next_required_store_type(snap))
+        self.assertEqual(policy._fundraising_mode, "scavenge")
+
     def test_recovered_home_entry_arms_standing_digger_withdrawal_after_restart(self):
         digger = store_item(
             "F", TVAL_DIGGING, SV_DIGGING_SHOVEL,
