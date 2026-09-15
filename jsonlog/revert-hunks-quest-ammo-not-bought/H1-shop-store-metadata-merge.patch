@@ -1,8 +1,7 @@
 diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 --- a/src/hengbot/policy_shop.py
 +++ b/src/hengbot/policy_shop.py
-@@ -1947,22 +1947,6 @@ class ShopMixin:
- 
+@@ -1948,21 +1948,5 @@ class ShopMixin:
      @staticmethod
      def _store_item_stacks_with_inventory(pack: InventoryItem, item: StoreItem) -> bool:
 -        # Ordinary-shop JSON does not export base dice or known flags (unlike
