@@ -4087,10 +4087,22 @@ class TownMixin:
             and snapshot.player.gold < FUNDRAISING_START_GOLD
             and self._town_restock_wait_until is None
             and not self._town_departure_ready(snapshot)
+            and snapshot.store is None
+            and (
+                self._store_visit is None
+                or self._store_visit.operation_released
+            )
+            and (
+                (supplier := self._actionable_departure_supplier(snapshot)) is None
+                or supplier in self._town_store_attempted
+            )
         ):
             # Preparation can be entered by the ordinary poverty owner before
-            # every mandatory departure purchase is affordable.  Once its
-            # store owners are exhausted, a detection-less shallow scavenge is
+            # every mandatory departure purchase is affordable.  On the town
+            # surface with no unreleased store-visit owner, once the departure-
+            # supplier lookup has no owner or its owner is already in the
+            # current-visit attempt ledger, a
+            # detection-less shallow scavenge is
             # the established fundraising fallback; leaving the mode at
             # ``prepare`` hides both the mining walk-in entrance and the normal
             # departure terminal, handing control to generic stuck:wander.

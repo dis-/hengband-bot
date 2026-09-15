@@ -10,7 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "jsonlog" / "bot-state-fixed.jsonl"
 TARGET = ROOT / "tests" / "fixtures" / "town-unaffordable-supplies-20260915.jsonl.gz"
-TURNS = {2_902_792, 2_911_088, 2_911_096, 2_911_106, 2_911_111}
+TURNS = {
+    2_902_792, 2_911_088, 2_911_096, 2_911_106, 2_911_111,
+    2_911_293, 2_911_306,
+}
 
 
 def main() -> None:
@@ -32,6 +35,10 @@ def main() -> None:
         ("player_turn", 2_911_106),
         ("store", 2_911_106),
         ("player_turn", 2_911_111),
+        ("player_turn", 2_911_293),
+        ("player_turn", 2_911_293),
+        ("store", 2_911_293),
+        ("player_turn", 2_911_306),
     ]
     if [(json.loads(row).get("type"), json.loads(row)["turn"]) for row in rows] != expected:
         raise AssertionError("recorded unaffordable-supplies window changed")

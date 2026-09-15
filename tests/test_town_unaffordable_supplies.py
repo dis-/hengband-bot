@@ -22,7 +22,7 @@ FIXTURE = (
 
 
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
-    def _replay(self, *, funded: bool = False):
+    def _replay(self, *, funded: bool = False, store_board: bool = False):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]
 
@@ -41,6 +41,8 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         decisions = []
         final_snapshot = None
         final_measures = None
+        if store_board:
+            rows = [*rows[:3], *rows[-2:]]
         for raw in rows:
             snapshot = parse_snapshot(raw, {})
             if funded:
@@ -48,7 +50,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
                 snapshot = replace(
                     snapshot, player=replace(snapshot.player, gold=10_000)
                 )
-            if raw is rows[-1]:
+            if snapshot.turn == 2_911_111 or store_board and raw is rows[-1]:
                 final_measures = {
                     "recall": policy._count_recall_scrolls(snapshot),
                     "recall_required": policy._recall_departure_minimum(snapshot),
@@ -60,6 +62,8 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             key = policy.choose_key(snapshot)
             decisions.append((snapshot.turn, key, policy.last_reason))
             final_snapshot = snapshot
+            if not store_board and snapshot.turn == 2_911_111:
+                break
         assert final_snapshot is not None
         return policy, final_snapshot, decisions, final_measures
 
@@ -90,6 +94,17 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         self.assertEqual(approaches[0], (2_911_096, "9", "shop:approach"))
         self.assertEqual(policy._actionable_departure_supplier(snapshot), 7)
         self.assertIsNone(policy._fundraising_mode)
+
+    def test_recorded_low_gold_store_board_leaves_through_store_path(self):
+        policy, snapshot, decisions, _measures = self._replay(store_board=True)
+
+        self.assertIsNone(snapshot.store)
+        self.assertEqual(snapshot.player.gold, 185)
+        self.assertEqual(
+            decisions[-2], (2_911_293, "\x1b", "shop:observe-and-leave")
+        )
+        self.assertEqual(decisions[-1], (2_911_306, "\x1b`n(.", "shop:travel"))
+        self.assertEqual(policy._fundraising_mode, "prepare")
 
 
 if __name__ == "__main__":
