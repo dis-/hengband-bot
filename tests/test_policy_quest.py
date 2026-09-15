@@ -5027,12 +5027,33 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             floor_key=(0, 0, 0), town_flag=True,
             store=StoreState(STORE_BLACK, [wand]),
         )
+        supplied = replace(
+            snapshot,
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=15),
+                item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=11),
+                item("f", TVAL_FOOD, 35, count=5),
+                item("o", TVAL_FLASK, SV_FLASK_OIL, count=5, fuel=500),
+                item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20),
+            ],
+            equipment=[
+                item(
+                    "light", TVAL_LITE, SV_LITE_LANTERN,
+                    fuel=5000, is_equipment=True,
+                ),
+            ],
+        )
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=None):
-            self.assertEqual(policy._next_purchase_unreserved(snapshot), wand)
+            self.assertIsNone(policy._next_purchase_unreserved(snapshot))
+            self.assertEqual(policy._next_purchase_unreserved(supplied), wand)
             carried = replace(
-                snapshot,
-                inventory=[item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2)],
+                supplied,
+                inventory=[
+                    *supplied.inventory,
+                    item("w", TVAL_WAND, SV_WAND_STONE_TO_MUD, charges=2),
+                ],
             )
             self.assertIsNone(policy._next_purchase_unreserved(carried))
 
