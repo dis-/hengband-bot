@@ -8,6 +8,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 import copy
 import unicodedata
 import re
+import time
 import uuid
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
@@ -327,6 +328,7 @@ class Operation:
     keys: str
     observation: object
     continuations: list[Continuation] = field(default_factory=list)
+    response_grace: float = 0.0
     transport: Transport = Transport.TCP
     accepted_segments: list[str] = field(default_factory=list)
     business_outcome: str | None = None
@@ -775,7 +777,10 @@ class OperationExecutor:
             len(self.active.accepted_segment_records), role, keys,
         ))
         self.accepted(self.active, keys)
-        return self._after_post(deadline, outcome)
+        observation_deadline = max(
+            deadline, time.monotonic() + self.active.response_grace
+        )
+        return self._after_post(observation_deadline, outcome)
 
     def _post_wm(self, keys: str, deadline: float, *, role: str) -> OperationResult:
         if self.client is None or self.wm_post is None:

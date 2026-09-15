@@ -1976,6 +1976,7 @@ class _ExecutorInputPort:
             _transport_key(key, self.tunnel_macros_ready),
             decision.get("observation"),
             continuations=list(continuations or ()),
+            response_grace=COMMAND_RESPONSE_GRACE,
             transport=(Transport.TCP if self.executor.client is not None
                        else Transport.WM),
         )

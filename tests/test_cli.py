@@ -246,6 +246,24 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
             ))
         self.assertEqual(executor.deadline, 100.0 + COMMAND_RESPONSE_GRACE)
 
+    def test_single_segment_keeps_pre_ack_budget_and_carries_post_ack_grace(self):
+        class CapturingExecutor:
+            client = object()
+
+            def submit(self, operation, *, deadline):
+                self.operation, self.deadline = operation, deadline
+                return SimpleNamespace(outcome="completed", reason=None)
+
+        executor = CapturingExecutor()
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=1.5)
+        with patch("hengbot.cli.time.monotonic", return_value=100.0):
+            self.assertTrue(port(
+                "rg/j\x1b", decision={"reason": "identify:full-equipped"}
+            ))
+        self.assertEqual(executor.deadline, 101.5)
+        self.assertEqual(executor.operation.response_grace, COMMAND_RESPONSE_GRACE)
+
     def test_town_character_dump_submits_existing_command_response_grace(self):
         class CapturingExecutor:
             client = object()

@@ -1,0 +1,15 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -777,10 +775,7 @@ class OperationExecutor:
+             len(self.active.accepted_segment_records), role, keys,
+         ))
+         self.accepted(self.active, keys)
+-        observation_deadline = max(
+-            deadline, time.monotonic() + self.active.response_grace
+-        )
+-        return self._after_post(observation_deadline, outcome)
++        return self._after_post(deadline, outcome)
+ 
+     def _post_wm(self, keys: str, deadline: float, *, role: str) -> OperationResult:
+         if self.client is None or self.wm_post is None:

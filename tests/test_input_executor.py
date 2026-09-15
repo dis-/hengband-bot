@@ -7,6 +7,7 @@ import ast
 import hashlib
 import gzip
 import unittest
+import time
 from io import StringIO
 from types import SimpleNamespace
 
@@ -65,16 +66,20 @@ class _FakeSocket:
         self.game, self.output = game, bytearray()
         self.closed = False
         self.recv_timeout = False
+        self.timeout = None
+        self.send_elapsed = 0.0
 
-    def settimeout(self, _value):
-        pass
+    def settimeout(self, value):
+        self.timeout = value
 
     def close(self):
         self.closed = True
 
     def sendall(self, payload):
+        started = time.monotonic()
         request = json.loads(payload)
         response, fault = self.game.hook(request)
+        self.send_elapsed = time.monotonic() - started
         if fault == "timeout":
             response = None
             self.recv_timeout = True
@@ -89,6 +94,10 @@ class _FakeSocket:
             raise ConnectionError("partial socket send after acceptance")
 
     def recv(self, size):
+        if self.timeout is not None and self.send_elapsed > self.timeout:
+            self.output.clear()
+            self.send_elapsed = 0.0
+            raise TimeoutError("timed out")
         if self.recv_timeout:
             self.recv_timeout = False
             raise TimeoutError("timed out")
@@ -210,6 +219,42 @@ class ProductionHarness(unittest.TestCase):
 
 
 class AcceptedObservationRetryPins(ProductionHarness):
+    def test_single_segment_ack_gets_post_ack_observation_grace(self):
+        game = FaithfulHookGame()
+        client = ControlClient(
+            1, request_budget=0.01, retries=0, backoff=0,
+            socket_factory=game.socket_factory,
+        )
+        self.addCleanup(client.close)
+        executor = OperationExecutor(client, drain=lambda: list(game.jsonl))
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        original = game.hook
+        delayed = False
+
+        def slow_first_post_ack_screen(request):
+            nonlocal delayed
+            if request["op"] == "screen" and game.accepted and not delayed:
+                delayed = True
+                time.sleep(0.03)
+            return original(request)
+
+        game.hook = slow_first_post_ack_screen
+        operation = Operation(
+            79, "identify:full-equipped", "rg/j", executor.ready_board,
+            response_grace=0.1,
+        )
+        result = executor.submit(
+            operation, deadline=time.monotonic() + client.request_budget
+        )
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["rg/j"])
+        self.assertEqual(
+            [entry[1] for entry in game.trace if entry[0] == "issue"],
+            ["screen", "state", "keys", "screen", "state"],
+        )
+
     def test_keys_ack_first_screen_timeout_second_succeeds_without_repost(self):
         game = FaithfulHookGame()
         _client = ControlClient(
@@ -248,8 +293,9 @@ class AcceptedObservationRetryPins(ProductionHarness):
 
         game.hook = lose_post_ack_screens
         result = executor.submit(
-            Operation(79, "identify:full-equipped", "rg/j", executor.ready_board),
-            deadline=__import__("time").monotonic() + 0.01,
+            Operation(79, "identify:full-equipped", "rg/j", executor.ready_board,
+                      response_grace=0.01),
+            deadline=time.monotonic() + 0.001,
         )
         self.assertEqual(result.outcome, "stuck-prompt")
         self.assertEqual(
