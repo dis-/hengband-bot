@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 225be01..5268dd4 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -3491,6 +3491,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                     if (
+                         self._town_order_operation == "calibration"
+                         and self._town_order_expected_observation == "home-deposit"
++                        and self._store_visit is not None
++                        and self._store_visit.store_type == STORE_HOME
++                        and self._store_visit.operation_posted
+                     ):
+                         # The released Home macro owned both its input and its
+                         # effect.  Once the outside board proves that effect,
