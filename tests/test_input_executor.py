@@ -5,6 +5,7 @@ import copy
 from pathlib import Path
 import ast
 import hashlib
+import gzip
 import unittest
 from io import StringIO
 from types import SimpleNamespace
@@ -199,6 +200,128 @@ class ProductionHarness(unittest.TestCase):
             "grid_map": {"runs": []}, "messages": list(messages),
             "store": {"store_type": 4, "items": []},
         }
+
+
+class BarrierProvenanceS3Pin(ProductionHarness):
+    @staticmethod
+    def posting_snapshot(*, messages=(), receipt=None, recalling=False):
+        return SimpleNamespace(
+            turn=1, floor_key=(0, 0, 0), messages=tuple(messages),
+            completed_operation_receipt=receipt, store=None,
+            inventory=[], equipment=[],
+            player=SimpleNamespace(
+                position=Position(1, 1), gold=5483, recalling=recalling,
+            ),
+        )
+
+    def test_recorded_prompt_history_receipt_releases_only_matching_post(self):
+        fixture = json.loads((
+            Path(__file__).parent / "fixtures" / "live-screens" /
+            "36-home-prompt-owner-mismatch-20260915-1408.json"
+        ).read_text(encoding="utf-8"))["result"]
+        with gzip.open(
+            Path(__file__).parent / "fixtures" /
+            "barrier-provenance-s3-r12-20260915.jsonl.gz",
+            "rt", encoding="utf-8",
+        ) as replay:
+            rows = [json.loads(line) for line in replay]
+        prompt = next(
+            row["messages"][-1] for row in rows
+            if row.get("turn") == 2898828 and row.get("messages")
+        )
+        game = FaithfulHookGame()
+        game.screens = [fixture, command_screen(3)]
+        game.states = [self.store_state(2, [prompt]), {
+            "turn": 3, "floor": {"dungeon_id": 0, "level": 0},
+            "player": {"gold": 5483}, "inventory": [], "equipment": [],
+            "grid_map": {"runs": []}, "messages": [prompt],
+        }]
+        _game, _client, executor = self.make(game)
+        contract = PostingContract()
+        executor.accepted = contract.accepted
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        before = self.posting_snapshot()
+        sent, _ = _send_new_decision_key(
+            port, "travel", "\x1b`n(.", None, set(), in_store=False,
+            decision={"sequence": 2, "reason": "shop:travel"},
+            snapshot=before, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        receipt = port.last_result.board["_completed_operation_receipt"]
+        self.assertEqual(
+            (receipt["sequence"], receipt["owner"],
+             receipt["accepted_segments"][0]["keys"],
+             receipt["terminal_kind"]),
+            (2, "shop:travel", "\x15", "store"),
+        )
+        parsed = parse_snapshot(dict(
+            rows[-1], _completed_operation_receipt=receipt,
+            _completed_operation_sequence=2,
+            _completed_operation_owner="shop:travel",
+        ))
+        self.assertEqual(parsed.completed_operation_receipt, receipt)
+        terminal = self.posting_snapshot(
+            messages=(prompt,), receipt=receipt,
+        )
+        terminal.store = SimpleNamespace(
+            store_type=7, stock_num=0, page_top=0, items=(),
+        )
+        self.assertTrue(contract.allow(
+            terminal, "\x1b", "home:scan-incomplete-open-page"
+        ))
+        self.assertIsNone(contract.last_incident)
+
+        sent, _ = _send_new_decision_key(
+            port, "home", "\x1b", None, set(), in_store=True,
+            decision={"sequence": 3,
+                      "reason": "home:scan-incomplete-open-page"},
+            snapshot=terminal, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        second_receipt = port.last_result.board["_completed_operation_receipt"]
+        reselection = self.posting_snapshot(
+            messages=(prompt, "later"), receipt=second_receipt,
+        )
+        sent, _ = _send_new_decision_key(
+            port, "home-again", "\x1b", None, set(), in_store=False,
+            decision={"sequence": 4,
+                      "reason": "home:scan-incomplete-open-page"},
+            snapshot=reselection, posting_contract=contract,
+        )
+        self.assertTrue(sent)
+        self.assertEqual(game.accepted, ["\x15", "\x1b", "\x1b"])
+
+    def test_wrong_and_duplicate_receipts_do_not_retire_another_acceptance(self):
+        game, _client, executor = self.make()
+        contract = PostingContract()
+        executor.accepted = contract.accepted
+        executor.observe_boundary(deadline=9999999999)
+        before = self.posting_snapshot()
+        contract.prepare(before, "6", "move", 7)
+        result = executor.submit(Operation(7, "move", "6", executor.ready_board),
+                                 deadline=9999999999)
+        wrong = copy.deepcopy(result.board)
+        wrong["_completed_operation_receipt"]["owner"] = "other"
+        self.assertFalse(contract.settle(wrong))
+        wrong_snapshot = self.posting_snapshot(
+            messages=("Continue? [y/n]",),
+            receipt=wrong["_completed_operation_receipt"],
+        )
+        self.assertFalse(contract.allow(wrong_snapshot, "n", "other"))
+        self.assertTrue(contract.settle(result.board))
+        self.assertFalse(contract.settle(result.board))
+
+    def test_settlement_keeps_active_recall_business_guard(self):
+        contract = PostingContract()
+        before = self.posting_snapshot()
+        contract.posted(before, "rha", "town:recall")
+        active = self.posting_snapshot(recalling=True)
+        self.assertFalse(contract.allow(active, "rha", "town:recall"))
+        self.assertEqual(contract.last_incident["marker"],
+                         "posting-contract:recall-already-active")
 
 
 class Stage2aProducerRoutingPin(ProductionHarness):

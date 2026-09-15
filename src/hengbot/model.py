@@ -798,6 +798,7 @@ class Snapshot:
     messages: tuple[str, ...] = ()
     completed_operation_sequence: int | None = None
     completed_operation_owner: str | None = None
+    completed_operation_receipt: dict[str, object] | None = None
 
     def in_bounds(self, position: Position) -> bool:
         # With unknown dimensions, treat everything as in-bounds (no filtering).
@@ -1264,6 +1265,11 @@ def parse_snapshot(
         completed_operation_owner=(
             str(data["_completed_operation_owner"])
             if data.get("_completed_operation_owner") is not None else None
+        ),
+        completed_operation_receipt=(
+            dict(data["_completed_operation_receipt"])
+            if isinstance(data.get("_completed_operation_receipt"), dict)
+            else None
         ),
         turn=int(data.get("turn", 0)),
         floor_key=floor_key,

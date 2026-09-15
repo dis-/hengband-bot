@@ -73,7 +73,9 @@ from hengbot.save_archive import SaveArchiveCoordinator
 from hengbot.input_executor import (
     Continuation,
     Operation,
+    OperationBarrierRegistry,
     OperationExecutor,
+    PreparedIntent,
     compose_barrier_board,
     ScreenKind,
     Transport,
@@ -1738,6 +1740,73 @@ class PostingContract:
         self._last_posted_effect: tuple | None = None
         self.last_incident: dict[str, object] | None = None
         self.flight_recorder = None
+        self._barriers = OperationBarrierRegistry()
+        self._accepted_reference: tuple[object, ...] | None = None
+        self._accepted_key: str | None = None
+        self._settled_post: tuple[str, str] | None = None
+
+    def prepare(self, snapshot, key: str, owner: str, sequence: int | None) -> None:
+        """Capture sender facts without imposing an accepted-input wait."""
+        before = (
+            _posting_effect_signature(snapshot, owner, key),
+            tuple(getattr(snapshot, "messages", ())),
+        )
+        self._barriers.prepare(PreparedIntent(
+            "posting-contract", sequence, owner, key, before,
+        ))
+
+    def cancel_prepared(self) -> None:
+        self._barriers.cancel("posting-contract")
+
+    def accepted(self, operation: Operation, segment: str) -> None:
+        """Bind the prepared producer only at the executor acceptance seam."""
+        if not operation.accepted_segment_records:
+            return
+        watch = self._barriers.accept(
+            "posting-contract", operation, operation.accepted_segment_records[-1]
+        )
+        if watch is None:
+            return
+        if watch.segment.keys != segment:
+            return
+        reference = watch.reference
+        prepared = watch.intent
+        effect, messages = prepared.before
+        self._accepted_reference = (
+            reference.sequence, reference.owner, reference.executor_scope,
+            reference.admission_boundary,
+        )
+        self._accepted_key = prepared.expected_keys
+        self._posted_by_owner[prepared.owner] = (
+            prepared.expected_keys, effect, messages,
+        )
+        self._last_posted_owner = prepared.owner
+        self._last_posted_key = prepared.expected_keys
+        self._last_posted_effect = effect
+
+    def settle(self, snapshot) -> bool:
+        """Consume one matching terminal receipt; duplicate delivery is inert."""
+        receipt = (
+            snapshot.get("_completed_operation_receipt")
+            if isinstance(snapshot, Mapping)
+            else getattr(snapshot, "completed_operation_receipt", None)
+        )
+        record = self._barriers.settle(
+            "posting-contract", receipt,
+            lambda _watch, _receipt: "effect-observed",
+        )
+        if record.result == "not-applicable":
+            return False
+        owner = str(receipt.get("owner"))
+        self._posted_by_owner.pop(owner, None)
+        if self._last_posted_owner == owner and self._last_posted_key == self._accepted_key:
+            self._last_posted_owner = None
+            self._last_posted_key = None
+            self._last_posted_effect = None
+        self._accepted_reference = None
+        self._settled_post = (owner, self._accepted_key or "")
+        self._accepted_key = None
+        return True
 
     def allow(
         self,
@@ -1748,6 +1817,7 @@ class PostingContract:
         prompt_owner_handoff: str | None = None,
     ) -> bool:
         self.last_incident = None
+        self.settle(snapshot)
         prompt = _open_game_prompt(getattr(snapshot, "messages", ()))
         effect = _posting_effect_signature(snapshot, owner, key)
         if (
@@ -1799,6 +1869,14 @@ class PostingContract:
         return True
 
     def posted(self, snapshot, key: str, owner: str) -> None:
+        # The accepted callback already committed executor-backed sends.  The
+        # later SENT callback is deliberately idempotent; public/replay callers
+        # retain the legacy behavior below.
+        if self._accepted_reference is not None and self._accepted_key == key:
+            return
+        if self._settled_post == (owner, key):
+            self._settled_post = None
+            return
         effect = _posting_effect_signature(snapshot, owner, key)
         self._posted_by_owner[owner] = (
             key, effect, tuple(getattr(snapshot, "messages", ()))
@@ -1952,6 +2030,7 @@ def _send_new_decision_key(
     if not key:
         return SendResult.DESIGNED_WAIT, posted_line
     owner = str((decision or {}).get("reason", "unknown"))
+    sequence = (decision or {}).get("sequence")
     prompt_owner_handoff = (decision or {}).get("prompt_owner_handoff")
     if (
         posting_contract is not None
@@ -1971,6 +2050,9 @@ def _send_new_decision_key(
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
     home_modal = _home_modal_continuation(snapshot, key, owner)
     store_buy = _store_buy_continuations(key, owner)
+    if (posting_contract is not None and snapshot is not None
+            and hasattr(posting_contract, "prepare")):
+        posting_contract.prepare(snapshot, key, owner, sequence)
     if home_modal is not None and isinstance(send, _ExecutorInputPort):
         prefix, continuations = home_modal
         sent = send.submit_operation(
@@ -1987,6 +2069,13 @@ def _send_new_decision_key(
         )
     else:
         sent = send(key, in_store=in_store, decision=decision)
+    if (isinstance(send, _ExecutorInputPort) and posting_contract is not None
+            and hasattr(posting_contract, "settle")):
+        board = getattr(send.last_result, "board", None)
+        if sent and board is not None:
+            posting_contract.settle(board)
+        elif not sent and hasattr(posting_contract, "cancel_prepared"):
+            posting_contract.cancel_prepared()
     if sent:
         posted_keys.add(key)
         if posting_contract is not None and snapshot is not None:
@@ -2897,6 +2986,7 @@ def main(argv: list[str] | None = None) -> int:
     home_entry_capture = _configure_policy_output_paths(policy, args)
 
     def accepted_segment(operation: Operation, segment: str) -> None:
+        posting_contract.accepted(operation, segment)
         decision = {
             "sequence": operation.sequence,
             "reason": operation.owner,
@@ -3003,12 +3093,18 @@ def main(argv: list[str] | None = None) -> int:
                     args.decision_log, snapshot, posting_contract.last_incident
                 )
                 return 3
+            posting_contract.prepare(
+                snapshot, key, policy.last_reason, policy._decision_sequence
+            )
             if not send(
                 key, in_store=snapshot.store is not None, decision=decision
             ):
                 # A terminal transport outcome is an incident, not a successful
                 # once-mode completion. The marker was emitted by send().
+                posting_contract.cancel_prepared()
                 return 3
+            if send.last_result is not None and send.last_result.board is not None:
+                posting_contract.settle(send.last_result.board)
             posting_contract.posted(snapshot, key, policy.last_reason)
             policy.confirm_key_posted(key)
             if args.tcp_shadow:

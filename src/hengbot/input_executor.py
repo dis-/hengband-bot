@@ -8,6 +8,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 import copy
 import unicodedata
 import re
+import uuid
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
 
@@ -329,6 +330,135 @@ class Operation:
     transport: Transport = Transport.TCP
     accepted_segments: list[str] = field(default_factory=list)
     business_outcome: str | None = None
+    operation_reference: "OperationReference | None" = None
+    accepted_segment_records: list["AcceptedSegment"] = field(default_factory=list)
+    dropped_continuations: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OperationReference:
+    sequence: int | None
+    owner: str
+    executor_scope: str
+    admission_boundary: int
+
+
+@dataclass(frozen=True)
+class AcceptedSegment:
+    ordinal: int
+    role: str
+    keys: str
+
+
+@dataclass(frozen=True)
+class OperationReceipt:
+    reference: OperationReference
+    accepted_segments: tuple[AcceptedSegment, ...]
+    dropped_continuations: tuple[str, ...]
+    terminal_kind: str
+    barrier_sequence: int
+    refusal: str | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "sequence": self.reference.sequence,
+            "owner": self.reference.owner,
+            "executor_scope": self.reference.executor_scope,
+            "admission_boundary": self.reference.admission_boundary,
+            "accepted_segments": [
+                {"ordinal": item.ordinal, "role": item.role, "keys": item.keys}
+                for item in self.accepted_segments
+            ],
+            "dropped_continuations": list(self.dropped_continuations),
+            "terminal_kind": self.terminal_kind,
+            "barrier_sequence": self.barrier_sequence,
+            "refusal": self.refusal,
+            "auxiliary_responses": [],
+        }
+
+
+SETTLEMENT_RESULTS = frozenset({
+    "not-applicable", "effect-observed", "explicit-refusal",
+    "no-effect-at-barrier", "partial",
+})
+
+
+@dataclass(frozen=True)
+class PreparedIntent:
+    subscriber: str
+    sequence: int | None
+    owner: str
+    expected_keys: str
+    before: object
+
+
+@dataclass(frozen=True)
+class AcceptedWatch:
+    intent: PreparedIntent
+    reference: OperationReference
+    segment: AcceptedSegment
+
+
+@dataclass(frozen=True)
+class SettlementRecord:
+    subscriber: str
+    result: str
+    watch: AcceptedWatch | None
+    receipt: Mapping[str, object] | None
+
+
+class OperationBarrierRegistry:
+    """Shared prepared -> accepted -> settled operation-watch lifecycle."""
+
+    def __init__(self) -> None:
+        self._prepared: dict[str, PreparedIntent] = {}
+        self._accepted: dict[str, AcceptedWatch] = {}
+
+    def prepare(self, intent: PreparedIntent) -> None:
+        self._prepared[intent.subscriber] = intent
+
+    def cancel(self, subscriber: str) -> None:
+        self._prepared.pop(subscriber, None)
+
+    def accept(self, subscriber: str, operation: Operation,
+               segment: AcceptedSegment) -> AcceptedWatch | None:
+        intent = self._prepared.get(subscriber)
+        reference = operation.operation_reference
+        if intent is None or reference is None:
+            return None
+        if (intent.sequence, intent.owner) != (reference.sequence, reference.owner):
+            return None
+        watch = AcceptedWatch(intent, reference, segment)
+        self._accepted[subscriber] = watch
+        self._prepared.pop(subscriber, None)
+        return watch
+
+    def settle(self, subscriber: str, receipt: Mapping[str, object] | None,
+               evaluator: Callable[[AcceptedWatch, Mapping[str, object]], str]
+               ) -> SettlementRecord:
+        watch = self._accepted.get(subscriber)
+        if watch is None or not isinstance(receipt, Mapping):
+            return SettlementRecord(subscriber, "not-applicable", watch, receipt)
+        identity = (
+            receipt.get("sequence"), receipt.get("owner"),
+            receipt.get("executor_scope"), receipt.get("admission_boundary"),
+        )
+        expected = (
+            watch.reference.sequence, watch.reference.owner,
+            watch.reference.executor_scope, watch.reference.admission_boundary,
+        )
+        segments = receipt.get("accepted_segments")
+        if identity != expected or not isinstance(segments, list) or not any(
+            item.get("ordinal") == watch.segment.ordinal
+            and item.get("keys") == watch.segment.keys
+            for item in segments if isinstance(item, Mapping)
+        ):
+            return SettlementRecord(subscriber, "not-applicable", watch, receipt)
+        result = evaluator(watch, receipt)
+        if result not in SETTLEMENT_RESULTS or result == "not-applicable":
+            raise ValueError(f"invalid matching settlement result: {result}")
+        self._accepted.pop(subscriber, None)
+        return SettlementRecord(subscriber, result, watch, receipt)
 
 
 @dataclass(frozen=True)
@@ -539,6 +669,7 @@ class OperationExecutor:
         self._bound_screen_value: Mapping[str, object] | None = None
         self._bound_state_value: Mapping[str, object] | None = None
         self.barrier_sequence = 0
+        self.executor_scope = uuid.uuid4().hex
         self.state = ExecutorState.AWAITING_SCREEN
 
     def _finish_board(self, state, screen_value, match):
@@ -567,8 +698,12 @@ class OperationExecutor:
         if self.ready_board is None:
             return self._terminal(operation, "admission", "no fresh ready observation")
         self.ready_board = None
+        operation.operation_reference = OperationReference(
+            operation.sequence, operation.owner, self.executor_scope,
+            self.barrier_sequence,
+        )
         self.active = operation
-        return self._post_and_barrier(operation.keys, deadline)
+        return self._post_and_barrier(operation.keys, deadline, role="transaction")
 
     def _request(self, op: str, deadline: float, **fields):
         self.state = ExecutorState.AWAITING_SCREEN if op == "screen" else ExecutorState.AWAITING_STATE
@@ -606,10 +741,10 @@ class OperationExecutor:
         holder = operation or Operation(None, "bootstrap", "", state)
         return OperationResult("ready" if operation is None else "completed", holder, board, match)
 
-    def _post_and_barrier(self, keys: str, deadline: float) -> OperationResult:
+    def _post_and_barrier(self, keys: str, deadline: float, *, role: str = "answer") -> OperationResult:
         assert self.active is not None
         if self.active.transport is Transport.WM:
-            return self._post_wm(keys, deadline)
+            return self._post_wm(keys, deadline, role=role)
         try:
             notation = raw_keys_to_macro_notation(keys)
         except ValueError as error:
@@ -634,10 +769,13 @@ class OperationExecutor:
         if outcome.status is not KeyPostStatus.ACCEPTED:
             return self._terminal(self.active, "keys", outcome.reason or outcome.status.value, transport=outcome)
         self.active.accepted_segments.append(keys)
+        self.active.accepted_segment_records.append(AcceptedSegment(
+            len(self.active.accepted_segment_records), role, keys,
+        ))
         self.accepted(self.active, keys)
         return self._after_post(deadline, outcome)
 
-    def _post_wm(self, keys: str, deadline: float) -> OperationResult:
+    def _post_wm(self, keys: str, deadline: float, *, role: str) -> OperationResult:
         if self.client is None or self.wm_post is None:
             return self._terminal(self.active, "wm", "wm-only degraded mode", transport_name="wm-only")
         posted = ""
@@ -646,6 +784,9 @@ class OperationExecutor:
                 return self._terminal(self.active, "wm-post", f"partial PostMessage prefix={posted!r}", transport_name="wm")
             posted = posted + char
         self.active.accepted_segments.append(keys)
+        self.active.accepted_segment_records.append(AcceptedSegment(
+            len(self.active.accepted_segment_records), role, keys,
+        ))
         self.accepted(self.active, keys)
         self.state = ExecutorState.AWAITING_WM_FENCE
         if self.client.request("info", deadline=deadline) is None:
@@ -661,13 +802,13 @@ class OperationExecutor:
         if match.kind is ScreenKind.DEATH:
             return self._death(self.active, match)
         if match.kind is ScreenKind.MORE:
-            return self._post_and_barrier(" ", deadline)
+            return self._post_and_barrier(" ", deadline, role="auxiliary-request")
         if self.active.owner.startswith("identify:full"):
             if match.kind is ScreenKind.IDENTIFY_VIEWER_PAGE:
                 # screen_object() owns an arbitrary number of attribute pages.
-                return self._post_and_barrier(" ", deadline)
+                return self._post_and_barrier(" ", deadline, role="auxiliary-request")
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
-                return self._post_and_barrier("\x1b", deadline)
+                return self._post_and_barrier("\x1b", deadline, role="exit")
         while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (
@@ -690,7 +831,7 @@ class OperationExecutor:
                     return self._terminal(self.active, "state", "prompt binding failed", match, outcome)
                 self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
                 self.active.continuations.pop(0)
-                return self._post_and_barrier(continuation.keys, deadline)
+                return self._post_and_barrier(continuation.keys, deadline, role="answer")
             if continuation.optional:
                 self.active.continuations.pop(0)
                 continue
@@ -725,9 +866,12 @@ class OperationExecutor:
                 message in _PURCHASE_REFUSAL_MESSAGES
                 for message in _operation_messages(screen_value, board)):
             self.active.business_outcome = "failed:purchase-refused"
+            self.active.dropped_continuations.extend(
+                item.keys for item in self.active.continuations
+            )
             self.active.continuations.clear()
             if match.kind is ScreenKind.STORE:
-                return self._post_and_barrier("\x1b", deadline)
+                return self._post_and_barrier("\x1b", deadline, role="exit")
         if (
             self.active.owner.startswith("equipment-transaction:")
             and match.kind is ScreenKind.STORE
@@ -747,6 +891,9 @@ class OperationExecutor:
                 return self._terminal(
                     self.active, "continuation", "expected prompt absent",
                     match, outcome)
+            self.active.dropped_continuations.extend(
+                item.keys for item in self.active.continuations
+            )
             self.active.continuations.clear()
         operation = self.active
         # Decision-only provenance: this board was obtained by the causal
@@ -754,6 +901,16 @@ class OperationExecutor:
         # observations and bootstrap boards deliberately never carry it.
         board["_completed_operation_sequence"] = operation.sequence
         board["_completed_operation_owner"] = operation.owner
+        assert operation.operation_reference is not None
+        receipt = OperationReceipt(
+            operation.operation_reference,
+            tuple(operation.accepted_segment_records),
+            tuple(operation.dropped_continuations),
+            match.kind.value,
+            self.barrier_sequence + 1,
+            operation.business_outcome,
+        )
+        board["_completed_operation_receipt"] = receipt.as_dict()
         self.active = None
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)
