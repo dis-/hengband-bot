@@ -3503,30 +3503,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         calibration_key = self._calibration_town_key(snapshot)
                         if calibration_key is not None:
                             return calibration_key
-                elif (
-                    self._town_order_operation == "calibration"
-                    and self._town_order_expected_observation == "home-deposit"
-                ):
-                    # This is the owner's next observed outside board, and it
-                    # proves that none of the released deposits changed the
-                    # pack.  Reconcile that explicit failed effect now; do not
-                    # leave a released physical visit masking calibration's
-                    # next Home attempt.
-                    if self._store_visit is not None:
-                        self._store_visit.outcome = "operation-effect-failed"
-                        self._store_visit.operation_effect_observed = True
-                    self._home_entry_operation_posted = False
-                    self._home_atomic_deposit_pending = None
-                    self._release_invalid_store_visit(snapshot)
-                    self._rearm_town_store_for_new_work(STORE_HOME)
-                    self._town_blocked_reason = None
-                    step = self._shopping_approach_step(snapshot, STORE_HOME)
-                    if step is not None:
-                        return self._shopping_approach_key(
-                            snapshot, step, "calibration:retry-home-deposit"
-                        )
-                    self.last_reason = "calibration:deposit-effect-failed"
-                    return WAIT_KEY
                 elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
                     # A11r2 discipline: never recompose against the page that
                     # failed to show the mutation.  Terminate this visit

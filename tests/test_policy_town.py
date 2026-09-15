@@ -1223,7 +1223,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertTrue(policy._fundraising_departure_ready(snap))
 
     def test_detected_mining_requires_food_and_digger_until_suppliers_fail(self):
-        """USER: if food or a digger is unobtainable but detection is carried, still try mining first."""
+        """Component test. USER: if food or a digger is unobtainable but detection is carried, still try mining first."""
         snap = Snapshot(
             player(
                 10, 10, gold=0, hp=20, max_hp=20, mp=0, max_mp=0,
@@ -1246,6 +1246,27 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             {STORE_HOME: 1, STORE_GENERAL: 1, STORE_ALCHEMIST: 1}
         )
         self.assertTrue(policy._fundraising_departure_ready(snap))
+
+    def test_recorded_food_shelf_unbought_is_not_departure_ready(self):
+        """USER: before stores are tried, the full kit is still required."""
+        fixture = (
+            Path(__file__).parent / "fixtures" / "historical-emit-ownership"
+            / "equip-swap-snapshots.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        snap = parse_snapshot(rows[226], {})
+        policy = HengbotPolicy()
+
+        key = policy.choose_key(snap)
+
+        self.assertTrue(any(item.tval == TVAL_FOOD for item in snap.store.items))
+        self.assertFalse(any(item.tval == TVAL_FOOD for item in snap.inventory))
+        self.assertFalse(policy._food_ready(snap))
+        self.assertFalse(policy._fundraising_departure_ready(snap))
+        self.assertEqual((key, policy.last_reason), (
+            "\x1b", "town-progress-invariant:continue-observed-shop"
+        ))
 
     def test_queued_digger_withdrawal_blocks_departure_without_home_route(self):
         start = Position(10, 10)

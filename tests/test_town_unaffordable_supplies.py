@@ -10,6 +10,7 @@ from pathlib import Path
 
 from hengbot.cli import _parse_items
 from hengbot.model import parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 
@@ -24,7 +25,34 @@ RESTART_FIXTURE = (
     / "fixtures"
     / "town-unaffordable-supplies-restart-20260915.jsonl.gz"
 )
+CONTINUATION_FIXTURE = (
+    Path(__file__).parent
+    / "fixtures"
+    / "town-priority-stage1-live-boards-20260915.jsonl.gz"
+)
+LIVE_1716_DECISIONS = Path(
+    "jsonlog/incident-20260915-1714-blackmarket-heal-gold-starve-decisions.jsonl"
+)
+LIVE_1953_DECISIONS = Path(
+    "jsonlog/incident-20260915-1953-restart-poverty-wander-decisions.jsonl"
+)
+MONRACE_DEFINITIONS = Path(
+    r"C:\hengband\.worktrees\bot-json-output\lib\edit\MonraceDefinitions.jsonc"
+)
+
+
 class TownUnaffordableSuppliesReplay(unittest.TestCase):
+    @staticmethod
+    def _live_decision(path: Path, turn: int, reason: str):
+        with path.open(encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        matches = [
+            row for row in rows
+            if row.get("turn") == turn and row.get("reason") == reason
+        ]
+        assert len(matches) == 1
+        return matches[0]["key"], matches[0]["reason"]
+
     def _replay_restart(self, *, funded: bool = False):
         with gzip.open(RESTART_FIXTURE, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]
@@ -79,7 +107,7 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         return policy, snapshots[-1], decisions, measures
 
     def test_restart_recording_finishes_started_calibration_before_fundraising(self):
-        """USER: 「2 ただし連続で採掘する場合は免除する」"""
+        """USER: finish a started calibration first."""
         policy, snapshot, decisions, measures = self._replay_restart()
 
         self.assertEqual(measures["mode"], "prepare")
@@ -100,38 +128,35 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         )
         self.assertIsNone(measures["identify_source"])
         self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertEqual(
-            decisions[-1],
+        self.assertEqual(decisions[-3:-1], [
+            (2_911_809, "5", "home:atomic-deposit"),
             (
-                2_911_820,
-                "9",
-                "town:entrance-step-off:calibration:deposit-effect-failed",
+                2_911_809,
+                "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
+                "home:atomic-deposit",
             ),
+        ])
+        self.assertEqual(
+            self._live_decision(
+                LIVE_1953_DECISIONS, 2_911_809, "home:route-claim-unfulfilled"
+            ),
+            ("\x1b", "home:route-claim-unfulfilled"),
         )
 
-    def test_restart_released_deposit_waits_for_a_board_backed_effect(self):
+    def test_restart_replay_stops_at_the_first_live_key_divergence(self):
         """USER: 「私が指摘しないと退行に気付けないのは重大な欠陥である。」"""
         policy, _snapshot, decisions, _measures = self._replay_restart()
 
+        self.assertEqual(decisions[-3][1:], ("5", "home:atomic-deposit"))
         self.assertEqual(
-            decisions[-3:],
-            [
-                (2_911_809, "5", "home:atomic-deposit"),
-                (
-                    2_911_809,
-                    "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
-                    "home:atomic-deposit",
-                ),
-                (
-                    2_911_820,
-                    "9",
-                    "town:entrance-step-off:calibration:deposit-effect-failed",
-                ),
-            ],
+            self._live_decision(
+                LIVE_1953_DECISIONS, 2_911_809, "home:route-claim-unfulfilled"
+            ),
+            ("\x1b", "home:route-claim-unfulfilled"),
         )
         self.assertEqual(policy._town_order_operation, "calibration")
         self.assertEqual(policy._town_order_expected_observation, "home-deposit")
-        self.assertIsNone(policy._home_atomic_deposit_pending)
+        self.assertIsNotNone(policy._home_atomic_deposit_pending)
 
     def test_restart_funded_counterfactual_keeps_identification_owner(self):
         policy, _snapshot, decisions, measures = self._replay_restart(funded=True)
@@ -196,18 +221,56 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         self.assertEqual(STAFF_IDENTIFY_MIN_CHARGES, 20)
         self.assertFalse(measures["town_departure_ready"])
         self.assertTrue(measures["fundraising_departure_ready"])
-        self.assertEqual(
-            decisions[-1],
+        self.assertEqual(decisions[-3:-1], [
+            (2_911_106, "5", "home:atomic-deposit"),
             (
-                2_911_111,
-                "9",
-                "town:entrance-step-off:calibration:deposit-effect-failed",
+                2_911_106,
+                "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
+                "home:atomic-deposit",
             ),
+        ])
+        self.assertEqual(
+            self._live_decision(
+                LIVE_1716_DECISIONS, 2_911_106, "home:route-claim-unfulfilled"
+            ),
+            ("\x1b", "home:route-claim-unfulfilled"),
         )
         self.assertFalse(policy._dungeon_entry_allowed(
             snapshot, via_recall=False, destination_depth=1
         ))
         self.assertEqual(policy._fundraising_mode, "prepare")
+
+    def test_operator_continuation_stops_at_first_key_mismatch(self):
+        """USER: a plan/reason-only pin is vacuous; pin exact actions."""
+        policy, _snapshot, _decisions, _measures = self._replay()
+        knowledge = load_monrace_knowledge(MONRACE_DEFINITIONS)
+        policy._monrace_knowledge = knowledge
+        with gzip.open(CONTINUATION_FIXTURE, "rt", encoding="utf-8") as stream:
+            boards = [json.loads(line) for line in stream]
+
+        self.assertEqual(len(boards), 65)  # bot-state rows 5980-6044 inclusive
+        first = parse_snapshot(boards[0], knowledge)
+        emitted = policy.choose_key(first)
+        operator_key_for_next_board = "\x10"  # cap-04, state_line 5983
+        self.assertEqual(
+            (emitted, policy.last_reason, operator_key_for_next_board),
+            ("~9\x1b\x1b", "home:request-knowledge-scan", "\x10"),
+        )
+
+    def test_identical_live_macros_have_board_backed_home_effects(self):
+        """USER: finish a started calibration first."""
+        with gzip.open(CONTINUATION_FIXTURE, "rt", encoding="utf-8") as stream:
+            boards = [json.loads(line) for line in stream]
+        # Rows 6028 -> 6036 are the exact effect of cap-66's deposit macro;
+        # rows 6036 -> 6044 are the exact effect of cap-67's withdrawal macro.
+        self.assertEqual(
+            (len(boards[48]["inventory"]), len(boards[56]["inventory"])),
+            (16, 8),
+        )
+        self.assertEqual(
+            (len(boards[56]["inventory"]), len(boards[64]["inventory"])),
+            (8, 16),
+        )
 
     def test_affordable_counterfactual_keeps_purchase_route(self):
         policy, snapshot, decisions, _measures = self._replay(funded=True)
