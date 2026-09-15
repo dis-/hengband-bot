@@ -23,6 +23,15 @@ def _recorded_screen(name):
     return copy.deepcopy(payload["result"])
 
 
+def _centered_dump_question(question):
+    """Negative variant of live screen 32 with only its logical-row-0 text changed."""
+    result = _recorded_screen("32-town-dump-after-enter-20260915.json")
+    x, y = (result["width"] - 80) // 2, (result["height"] - 24) // 2
+    result["lines"][y] = result["lines"][y][:x] + question
+    result["cursor"] = {"visible": True, "x": x + len(question), "y": y}
+    return result
+
+
 def _screen(line0="", store=True, items=()):
     lines = [""] * 24
     lines[0] = line0
@@ -233,21 +242,24 @@ class FaithfulHomeGame:
                 result = _recorded_screen(
                     "26-knowledge-viewer-stuck-20260915-0534.json")
             elif self.modal == "character":
-                result = _screen("", False)
-                result["lines"][22] = "['c' to change name, 'f' to file, 'h' to change mode, or ESC]"
+                result = _recorded_screen(
+                    "33-town-dump-after-overwrite-y-20260915.json")
             elif self.modal == "file-name":
-                prompt = "ファイル名: hero.txt" if self.dump_language == "jp" else "File name: hero.txt"
-                result = _screen(prompt, False)
+                result = _recorded_screen(
+                    "31-town-character-dump-stuck-20260915-1100.json")
             elif self.modal == "overwrite":
-                default = ("現存するファイル C:\\save\\hero.txt に上書きしますか? [y/n]"
-                           if self.dump_language == "jp" else
-                           "Replace existing file C:\\save\\hero.txt? [y/n]")
-                result = _screen(self.overwrite_question or default, False)
+                result = (_centered_dump_question(self.overwrite_question)
+                          if self.overwrite_question else
+                          _recorded_screen(
+                              "32-town-dump-after-enter-20260915.json"))
             else:
-                result = (_recorded_screen("28-after-menu-esc-20260915.json")
-                          if self.inside and self.modal is None and self.trace[-1:] == ["\x1b"]
-                          else _screen(prompt, self.inside,
-                                       self.pages[self.page] if self.inside else ()))
+                if self.modal is None and self.trace[-1:] == ["\x1b"]:
+                    result = (_recorded_screen("28-after-menu-esc-20260915.json")
+                              if self.inside else
+                              _recorded_screen("34-town-dump-step0-20260915.json"))
+                else:
+                    result = _screen(prompt, self.inside,
+                                     self.pages[self.page] if self.inside else ())
         else:
             self.state_requests += 1
             if self.state_requests == self.delayed_state_request:

@@ -228,6 +228,8 @@ class HomeOwnedModalTest(unittest.TestCase):
             deadline=9999999999)
         self.assertEqual(result.outcome, outcome)
         self.assertEqual([entry for entry in game.trace if isinstance(entry, str)], trace)
+        if outcome == "completed":
+            self.assertEqual(result.screen.kind, ScreenKind.STORE)
 
     def test_home_knowledge_has_one_viewer_close_and_store_terminal(self):
         policy = HengbotPolicy()

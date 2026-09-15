@@ -315,6 +315,38 @@ class Stage2bHistoricalIncidentPin(ProductionHarness):
 
 
 class ScreenClassifierTest(unittest.TestCase):
+    def test_recorded_centered_character_dump_boundaries_and_coordinates(self):
+        fixtures = Path(__file__).with_name("fixtures") / "live-screens"
+        expected = (
+            ("31-town-character-dump-stuck-20260915-1100.json",
+             ScreenKind.FILE_NAME, "ファイル名: bot-test.txt", 21, 65),
+            ("32-town-dump-after-enter-20260915.json", ScreenKind.CONFIRM,
+             "現存するファイル C:\\hengband\\lib\\user\\bot-test.txt に上書きしますか? [y/n]",
+             21, 65),
+            ("33-town-dump-after-overwrite-y-20260915.json",
+             ScreenKind.CHARACTER,
+             "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+             44, 67),
+            ("34-town-dump-step0-20260915.json", ScreenKind.COMMAND,
+             "layout-player-cursor", 45, 96),
+        )
+        for name, kind, feature, row, column in expected:
+            with self.subTest(name=name):
+                payload = json.loads((fixtures / name).read_text(encoding="utf-8"))
+                match = classify_screen(payload["result"])
+                self.assertEqual(
+                    (match.kind, match.feature, match.row, match.column),
+                    (kind, feature, row, column),
+                )
+
+        # The round-1 fake put the prompt at physical row zero even though the
+        # same complete 211x67 character template proves a (65,21) offset.
+        old_shape = json.loads((fixtures / expected[0][0]).read_text(
+            encoding="utf-8"))["result"]
+        old_shape["lines"][21] = ""
+        old_shape["lines"][0] = "ファイル名: bot-test.txt"
+        self.assertEqual(classify_screen(old_shape).kind, ScreenKind.CHARACTER)
+
     def test_real_live_screen_table_through_classifier_and_executor_boundary(self):
         fixture_dir = Path(__file__).with_name("fixtures") / "live-screens"
         expected = {

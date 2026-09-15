@@ -119,6 +119,39 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
             if literal in line:
                 return ScreenMatch(ScreenKind.DEATH, literal, y, _cell_width(line[:line.index(literal)]))
 
+    # cmd-visual/cmd-draw.cpp:146 keeps an 80x24
+    # TermCenteredOffsetSetter active around input_status_command().  Its
+    # input_string (line 112) and file_character overwrite input_check
+    # therefore render logical row zero at the centered physical origin.
+    # Require the complete character footer before interpreting that row: an
+    # unrelated centered yes/no question is not an owned dump confirmation.
+    width, height = screen.get("width"), screen.get("height")
+    character_footers = (
+        "['c' to change name, 'f' to file, 'h' to change mode, or ESC]",
+        "['c'で名前変更, 'f'でファイルへ書出, 'h'でモード変更, ESCで終了]",
+    )
+    if isinstance(width, int) and isinstance(height, int) \
+            and width >= 80 and height >= 24:
+        cox, coy = (width - 80) // 2, (height - 24) // 2
+        footer_y = coy + 23
+        centered_character = footer_y < len(lines) and \
+            lines[footer_y][cox:].strip() in character_footers
+        if centered_character and coy < len(lines):
+            prompt = lines[coy][cox:].rstrip()
+            if prompt.startswith(("ファイル名: ", "File name: ")):
+                return ScreenMatch(ScreenKind.FILE_NAME, prompt, coy, cox)
+            if re.fullmatch(
+                    r"(?:現存するファイル .+ に上書きしますか\? \[y/n\]|"
+                    r"Replace existing file .+\? \[y/n\])", prompt):
+                return ScreenMatch(ScreenKind.CONFIRM, prompt, coy, cox)
+            if _suffix_match(prompt, ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]")):
+                return ScreenMatch(
+                    ScreenKind.UNKNOWN, "unrecognized-centered-character-confirm",
+                    coy, cox)
+        if centered_character and row0.startswith(("ファイル名: ", "File name: ")):
+            return ScreenMatch(ScreenKind.CHARACTER, lines[footer_y][cox:].strip(),
+                               footer_y, cox + 2)
+
     # view/display-messages.cpp:185-207 (row zero only).
     found = _suffix_match(row0, ("-more-", "-続く-"))
     if found:
