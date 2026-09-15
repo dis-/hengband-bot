@@ -3967,6 +3967,7 @@ class ShopMixin:
             self.last_reason = f"{travel_reason}:await-entry"
             self._store_entry_wait_owner = self._shopping_approach_store_type
             self._store_entry_wait_key = WAIT_KEY
+            self._store_entry_wait_turn = None
             self._intentional_entrance_activation = True
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
@@ -4003,9 +4004,8 @@ class ShopMixin:
             self._post_owner_expectation(
                 snapshot, travel_reason, "position", "store_type"
             )
-            # Native travel runs to completion without an intermediate bot
-            # snapshot and may therefore perform the final movement onto the
-            # shop tile itself.  Own that possible entry exactly like the
+            # Native travel may perform the final movement onto the shop tile
+            # itself. Own that possible entry exactly like the
             # disclosed one-step entrance path below: the next surface page is
             # the documented lagged observation, not permission to compose a
             # store command across the entry flush.
@@ -4088,6 +4088,7 @@ class ShopMixin:
                 self._store_visit.posted_turn = snapshot.turn
                 self._store_entry_wait_owner = observed_store.store_type
                 self._store_entry_wait_key = key
+                self._store_entry_wait_turn = None
                 self._intentional_entrance_activation = True
             self._shop_selector_diagnostics.pop("composition_refusal", None)
             self._shop_selector_diagnostics.pop(

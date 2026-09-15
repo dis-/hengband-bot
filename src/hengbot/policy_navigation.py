@@ -1722,4 +1722,5 @@ class NavigationMixin:
             # posted into the newly-open store.
             self._store_entry_wait_owner = grid.store_number
             self._store_entry_wait_key = command
+            self._store_entry_wait_turn = None
         return command

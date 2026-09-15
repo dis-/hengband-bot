@@ -1283,6 +1283,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_visit_last_closed: StoreVisit | None = None
         self._store_visit_pending_goal: Position | None = None
         self._store_entry_failed_owner: int | None = None
+        self._store_entry_wait_owner: int | None = None
+        self._store_entry_wait_key: str | None = None
+        self._store_entry_wait_turn: int | None = None
         self._store_entrance_step_off: tuple[int, int, Position] | None = None
         # A store-entry command becomes outstanding only after the CLI confirms
         # that it was posted.  The next snapshot observes its result;
@@ -2780,6 +2783,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.read_telemetry = {}
         self._store_entry_wait_owner = None
         self._store_entry_wait_key = None
+        self._store_entry_wait_turn = None
         self._intentional_entrance_activation = False
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
@@ -2932,15 +2936,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot.store is None
                 and self._store_visit is not None
                 and (self._store_entry_wait_key or "").startswith("\x1b`")
+                and snapshot.completed_operation_owner == "shop:travel"
+                and snapshot.completed_operation_sequence
+                    == self._store_visit.posted_sequence
                 and here is not None
                 and here.store_number != posted_entry_owner
-                and (
-                    (
-                        self._store_visit.posted_turn is not None
-                        and snapshot.turn > self._store_visit.posted_turn
-                    )
-                    or bool(snapshot.messages)
-                )
             )
             # Failure requires positive message evidence; a lagged store=None
             # is not evidence.  Termination is nevertheless total: both
@@ -2952,11 +2952,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._store_entry_posted_owner = None
                 self._store_entry_failed_owner = posted_entry_owner
             elif interrupted_travel_entry:
-                # The executor has established a fresh COMMAND board.  Native
-                # travel can be disturbed before reaching its landmark; a
-                # non-entrance player cell plus an advanced turn or delivered
-                # disturbance message is positive state evidence that entry
-                # was not achieved.  Release only the entry post and let the
+                # The executor bound this board to the same accepted native
+                # travel operation. Reaching its post-key COMMAND barrier
+                # proves travel ended. A non-entrance cell therefore proves
+                # entry was not achieved. Release only the entry post and let the
                 # existing approach owner re-plan in this same decision.
                 self._store_entry_posted_owner = None
                 if self._store_visit is not None:
@@ -7471,7 +7470,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and key == (self._store_entry_wait_key or WAIT_KEY)
         ):
             self._store_entry_posted_owner = self._store_entry_wait_owner
-            armed_turn = getattr(self, "_store_entry_wait_turn", None)
+            armed_turn = self._store_entry_wait_turn
             if armed_turn is not None:
                 self._store_visit.posted_turn = armed_turn
             if key != self._equipment_transaction_prepared_key:

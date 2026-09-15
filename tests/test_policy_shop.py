@@ -7452,7 +7452,7 @@ class StoreTravelRetryTest(unittest.TestCase):
                     expected,
                 )
 
-    def test_native_store_travel_replans_advanced_nonentrance_observation(self):
+    def test_nonbarrier_store_travel_observation_keeps_waiting(self):
         pol = HengbotPolicy()
         approach = self._approach(pol, self._snap(94))
         self.assertEqual(approach, "\x1b`n%.")
@@ -7462,8 +7462,8 @@ class StoreTravelRetryTest(unittest.TestCase):
         lagged_surface.grids[Position(34, 130)] = replace(
             lagged_surface.grids[Position(34, 130)], store_number=4
         )
-        self.assertEqual(pol.choose_key(lagged_surface), "\x1b`n%.")
-        self.assertEqual(pol.last_reason, "store:entry-interrupted-replan")
+        self.assertEqual(pol.choose_key(lagged_surface), "")
+        self.assertEqual(pol.last_reason, "store:entry-await-observation")
 
     def test_frozen_home_whiff_falls_back_after_two_followup_decisions(self):
         self.skipTest(

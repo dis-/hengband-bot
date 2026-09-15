@@ -749,6 +749,11 @@ class OperationExecutor:
                     match, outcome)
             self.active.continuations.clear()
         operation = self.active
+        # Decision-only provenance: this board was obtained by the causal
+        # screen/state barrier following this exact accepted operation.  JSONL
+        # observations and bootstrap boards deliberately never carry it.
+        board["_completed_operation_sequence"] = operation.sequence
+        board["_completed_operation_owner"] = operation.owner
         self.active = None
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)

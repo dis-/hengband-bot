@@ -76,6 +76,21 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         )
         self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
         self.assertIsNone(policy._store_visit.posted_sequence)
+        self.assertEqual(interrupted.completed_operation_owner, "shop:travel")
+        self.assertEqual(interrupted.completed_operation_sequence, 1)
+
+    def test_identical_jsonl_board_without_barrier_does_not_replan(self):
+        rows = recorded_rows()
+        policy = HengbotPolicy()
+        before = parse_snapshot(rows[0], {})
+        policy.prime(before)
+        travel = policy.choose_key(before)
+        policy.confirm_key_posted(travel)
+
+        unbound = parse_snapshot(rows[-1], {})
+        self.assertIsNone(unbound.completed_operation_sequence)
+        policy.choose_key(unbound)
+        self.assertNotEqual(policy.last_reason, "store:entry-interrupted-replan")
 
     def test_genuine_entry_waits_once_without_duplicate_post(self):
         rows = recorded_rows()
