@@ -1,0 +1,117 @@
+diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
+index 7ad9e0c..8c08c88 100644
+--- a/src/hengbot/policy_shop.py
++++ b/src/hengbot/policy_shop.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, DETECTION_SCROLL_BUFFER, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
+ from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
+ from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
+-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, InventoryItem, MonsterState, Position, Snapshot, StoreItem
++from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
+ from hengbot.town_arbiter import _new_town_turn_arbiter
+ from math import ceil
+ from hengbot.equipment_optimizer import equipment_identity
+@@ -1947,39 +1947,76 @@ class ShopMixin:
+ 
+     @staticmethod
+     def _store_item_stacks_with_inventory(pack: InventoryItem, item: StoreItem) -> bool:
+-        # Ordinary-shop JSON does not export base dice or known flags (unlike
+-        # inventory/Home rows).  Treating those omitted fields as literal
+-        # zero/empty values rejects the exact plain ammunition which the game
+-        # will merge into an existing plain stack.  The visible store identity
+-        # and every exported modifier still have to agree.  Home candidates
+-        # are InventoryItems and retain the full comparison below.
++        """Whether the game has enough observed identity to merge these stacks."""
+         if isinstance(item, StoreItem):
+-            # Ordinary shops omit the structured dice and enchantment fields.
+-            # They remain player-visible in the exported name.  Fail closed
+-            # unless both names prove the same ammo kind, dice, to-hit, and
+-            # to-damage; zero-valued parser defaults are not evidence.
+-            visible_ammo = re.compile(
+-                r"^(?P<kind>.*?)\s*\((?P<num>\d+)d(?P<sides>\d+)\)\s*"
+-                r"\((?P<to_h>[+-]\d+),(?P<to_d>[+-]\d+)\)"
++            exported = getattr(item, "exported_fields", frozenset())
++            fields = (
++                "aware", "known", "fully_known", "pval", "fuel", "timeout",
++                "is_ego", "is_artifact", "is_cursed", "is_broken",
++                "to_h", "to_d", "to_a", "ac", "known_flags",
+             )
+-            pack_visible = visible_ammo.match(pack.name)
+-            item_visible = visible_ammo.match(item.name)
+-            if pack_visible is None or item_visible is None:
++            if pack.tval != item.tval or pack.sval != item.sval:
+                 return False
+-            visible_fields = ("kind", "num", "sides", "to_h", "to_d")
+             if any(
+-                pack_visible.group(field) != item_visible.group(field)
+-                for field in visible_fields
++                field in exported and getattr(pack, field) != getattr(item, field)
++                for field in fields
+             ):
+                 return False
+-            fields = (
+-                "tval", "sval", "aware", "known", "fully_known", "pval",
+-                "is_ego", "is_artifact", "is_cursed", "is_broken",
+-            )
+-            return all(
+-                getattr(pack, field) == getattr(item, field)
+-                for field in fields
+-            ) and (not pack.inscription or pack.inscription == item.inscription)
++            if "inscription" in exported and pack.inscription != item.inscription:
++                return False
++
++            dice_exported = "damage_dice" in exported
++            if dice_exported and (
++                pack.damage_dice_num != item.damage_dice_num
++                or pack.damage_dice_sides != item.damage_dice_sides
++            ):
++                return False
++
++            weapon_tvals = {
++                TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING,
++                TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD,
++            }
++            armour_tvals = {
++                TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD,
++                TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR,
++            }
++            if item.tval in weapon_tvals:
++                visible_pattern = (
++                    r"^(?P<kind>.*?)\s*\((?P<num>\d+)d(?P<sides>\d+)\)\s*"
++                    r"\((?P<to_h>[+-]\d+),(?P<to_d>[+-]\d+)\)"
++                )
++                visible = re.search(visible_pattern, item.name)
++                pack_visible = re.search(visible_pattern, pack.name)
++                missing = not dice_exported or not {"to_h", "to_d"} <= exported
++                if missing and (visible is None or pack_visible is None):
++                    return False
++                if missing and visible.group("kind") != pack_visible.group("kind"):
++                    return False
++                if not dice_exported and (
++                    pack.damage_dice_num != int(visible.group("num"))
++                    or pack.damage_dice_sides != int(visible.group("sides"))
++                ):
++                    return False
++                for field in ("to_h", "to_d"):
++                    if field not in exported and getattr(pack, field) != int(
++                        visible.group(field)
++                    ):
++                        return False
++            elif item.tval in armour_tvals:
++                visible_pattern = r"^(?P<kind>.*?)\s*\[(?P<ac>\d+),(?P<to_a>[+-]\d+)\]"
++                visible = re.search(visible_pattern, item.name)
++                pack_visible = re.search(visible_pattern, pack.name)
++                missing = not {"ac", "to_a"} <= exported
++                if missing and (visible is None or pack_visible is None):
++                    return False
++                if missing and visible.group("kind") != pack_visible.group("kind"):
++                    return False
++                for field in ("ac", "to_a"):
++                    if field not in exported and getattr(pack, field) != int(
++                        visible.group(field)
++                    ):
++                        return False
++            return True
+         fields = (
+             "tval", "sval", "aware", "known", "fully_known", "pval",
+             "fuel", "timeout", "is_ego", "is_artifact", "is_cursed",
