@@ -2,5 +2,6 @@ diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
 index cc5e951..7d89d28 100644
 --- a/src/hengbot/input_executor.py
 +++ b/src/hengbot/input_executor.py
-@@ -337,0 +338 @@ class Operation:
-+    timing: dict[str, object] = field(default_factory=dict)
+@@ -857 +933 @@ class OperationExecutor:
+-            match = classify_screen(screen_value)
++            match = self._classify(screen_value)

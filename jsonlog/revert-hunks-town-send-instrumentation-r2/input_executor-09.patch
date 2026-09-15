@@ -2,12 +2,9 @@ diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
 index cc5e951..7d89d28 100644
 --- a/src/hengbot/input_executor.py
 +++ b/src/hengbot/input_executor.py
-@@ -730,7 +796,7 @@ class OperationExecutor:
-             # The state retry invalidated S. Restart S -> T within the original
-             # caller deadline; the deadline selects failure, never readiness.
-             return self._observe_decidable(operation, deadline)
--        match = classify_screen(screen_value, state)
-+        match = self._classify(screen_value, state)
-         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
-             return self._terminal(operation, "classification", match.feature, match)
-         board = self._finish_board(state, screen_value, match)
+@@ -655,0 +667,5 @@ def compose_barrier_board(
++    deepcopy_ms += (time.perf_counter() - deepcopy_started) * 1000
++    if timing is not None:
++        timing["state_deepcopy_ms"] += deepcopy_ms
++        timing["board_compose_ms"] += max(
++            0.0, (time.perf_counter() - compose_started) * 1000 - deepcopy_ms)

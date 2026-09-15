@@ -2,14 +2,5 @@ diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
 index 3da8a4e..8d40f16 100644
 --- a/src/hengbot/control_client.py
 +++ b/src/hengbot/control_client.py
-@@ -171,6 +238,10 @@ class ControlClient:
-             return KeyPostOutcome(KeyPostStatus.NOT_ATTEMPTED, reason="request budget exhausted")
-         attempted = False
-         try:
-+            self._timing_request_id += 1
-+            self._current_attempt = 1
-+            self._timing_started_at = time.perf_counter()
-+            self._timing_connected = self._socket is None
-             if self._socket is None:
-                 self._connect(deadline)
-             attempted = True
+@@ -122,0 +169 @@ class ControlClient:
++            connected = True

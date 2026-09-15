@@ -2,12 +2,5 @@ diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
 index cc5e951..7d89d28 100644
 --- a/src/hengbot/input_executor.py
 +++ b/src/hengbot/input_executor.py
-@@ -804,7 +879,7 @@ class OperationExecutor:
-         screen_value = self._request("screen", deadline, term=0, attrs=False)
-         if screen_value is None:
-             return self._terminal(self.active, "screen", "read-only request failed", transport=outcome)
--        match = classify_screen(screen_value)
-+        match = self._classify(screen_value)
-         self.state = ExecutorState.CONTINUATION
-         if match.kind is ScreenKind.DEATH:
-             return self._death(self.active, match)
+@@ -678,0 +720 @@ class OperationExecutor:
++        drained_at = time.perf_counter()

@@ -2,32 +2,5 @@ diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
 index cc5e951..7d89d28 100644
 --- a/src/hengbot/input_executor.py
 +++ b/src/hengbot/input_executor.py
-@@ -705,19 +764,26 @@ class OperationExecutor:
-             self.barrier_sequence,
-         )
-         self.active = operation
-+        operation.timing = self._new_timing()
-+        if hasattr(self.client, "start_request_timings"):
-+            self.client.start_request_timings()
-         return self._post_and_barrier(operation.keys, deadline, role="transaction")
- 
-     def _request(self, op: str, deadline: float, **fields):
-         self.state = ExecutorState.AWAITING_SCREEN if op == "screen" else ExecutorState.AWAITING_STATE
--        return self.client.request(
-+        started = time.perf_counter()
-+        result = self.client.request(
-             op, deadline=deadline, retry_until_deadline=True, **fields
-         )
-+        if self.active is not None:
-+            self.active.timing[f"{op}_wait_ms"] += (time.perf_counter() - started) * 1000
-+        return result
- 
-     def _observe_decidable(self, operation: Operation | None, deadline: float) -> OperationResult:
-         screen_value = self._request("screen", deadline, term=0, attrs=False)
-         if screen_value is None:
-             return self._terminal(operation, "screen", "read-only request failed")
--        match = classify_screen(screen_value)
-+        match = self._classify(screen_value)
-         if match.kind is ScreenKind.DEATH:
-             return self._death(operation, match)
-         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+@@ -654,0 +665 @@ def compose_barrier_board(
++    deepcopy_started = time.perf_counter()

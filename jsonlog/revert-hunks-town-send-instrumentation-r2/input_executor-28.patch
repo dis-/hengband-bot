@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -782,0 +855,3 @@ class OperationExecutor:
++        self.active.timing["post_ack_grace_extended"] = bool(
++            self.active.timing["post_ack_grace_extended"]
++        ) or observation_deadline > deadline

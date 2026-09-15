@@ -1,0 +1,6 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+index ec136a2..029c953 100644
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -2735,0 +2779 @@ def _make_jsonl_barrier_drain(path: Path):
++    drain.last_timing = {"bytes": 0, "decode_ms": 0.0, "total_ms": 0.0}

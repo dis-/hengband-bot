@@ -2,10 +2,7 @@ diff --git a/src/hengbot/control_client.py b/src/hengbot/control_client.py
 index 3da8a4e..8d40f16 100644
 --- a/src/hengbot/control_client.py
 +++ b/src/hengbot/control_client.py
-@@ -79,6 +79,23 @@ class ControlClient:
-         self._observation_epoch = 0
-         self.last_error: str | None = None
-         self.backpressured = False
+@@ -81,0 +82,17 @@ class ControlClient:
 +        self._request_timings: list[dict[str, object]] = []
 +        self._current_attempt = 1
 +        self._timing_request_id = 0
@@ -23,6 +20,3 @@ index 3da8a4e..8d40f16 100644
 +        self._request_timings = []
 +        self._collect_request_timings = False
 +        return timings
- 
-     @property
-     def connected(self) -> bool:

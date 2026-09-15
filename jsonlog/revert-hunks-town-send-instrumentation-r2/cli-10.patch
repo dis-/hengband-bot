@@ -2,5 +2,5 @@ diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
 index ec136a2..029c953 100644
 --- a/src/hengbot/cli.py
 +++ b/src/hengbot/cli.py
-@@ -2077,0 +2078 @@ def _send_new_decision_key(
-+            settlement_started = time.perf_counter()
+@@ -3893,0 +3939 @@ def _run_follow(
++                        _merge_send_timing(decision_timing, send)

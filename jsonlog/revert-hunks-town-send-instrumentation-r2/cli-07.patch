@@ -2,11 +2,9 @@ diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
 index ec136a2..029c953 100644
 --- a/src/hengbot/cli.py
 +++ b/src/hengbot/cli.py
-@@ -3891,6 +3936,7 @@ def _run_follow(
-                             _commit_prompt_chain_result(
-                                 policy, decision_facts, chain_result
-                             )
-+                        _merge_send_timing(decision_timing, send)
-                         _write_decision(
-                             args.decision_log, snapshot, key, policy.last_reason,
-                             policy, economy_ledger, timing=decision_timing,
+@@ -2725,0 +2764,5 @@ def _make_jsonl_barrier_drain(path: Path):
++        drain.last_timing = {
++            "bytes": len(chunk.encode("utf-8")),
++            "decode_ms": (time.perf_counter() - decode_started) * 1000,
++            "total_ms": (time.perf_counter() - started) * 1000,
++        }

@@ -2,41 +2,7 @@ diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
 index ec136a2..029c953 100644
 --- a/src/hengbot/cli.py
 +++ b/src/hengbot/cli.py
-@@ -2088,6 +2092,37 @@ def _send_new_decision_key(
-     return sent, posted_line
- 
- 
-+def _merge_send_timing(decision_timing: dict, send) -> None:
-+    """Fold one executor operation into its decision; request detail is capped at 12."""
-+    result = getattr(send, "last_result", None)
-+    operation_timing = getattr(result, "timing", None)
-+    if not isinstance(operation_timing, Mapping):
-+        return
-+    additive = (
-+        "ack_wait_ms", "screen_wait_ms", "screen_classification_ms",
-+        "state_wait_ms", "jsonl_drain_ms", "jsonl_drain_bytes",
-+        "jsonl_drain_records", "jsonl_decode_ms", "state_deepcopy_ms",
-+        "board_compose_ms", "posting_contract_settlement_ms", "segments",
-+        "requests", "observation_epoch_refreshes", "request_first_byte_ms",
-+        "first_last_byte_ms", "request_json_decode_ms", "response_bytes",
-+    )
-+    for key in additive:
-+        decision_timing[key] = round(
-+            float(decision_timing.get(key, 0)) + float(operation_timing.get(key, 0)),
-+            3,
-+        )
-+    for key in ("retry_send_added", "post_ack_grace_extended"):
-+        decision_timing[key] = bool(decision_timing.get(key)) or bool(
-+            operation_timing.get(key)
-+        )
-+    decision_timing["known_cells"] = operation_timing.get(
-+        "known_cells", decision_timing.get("known_cells", 0)
-+    )
-+    details = list(decision_timing.get("control_requests", ()))
-+    details.extend(operation_timing.get("control_requests", ()))
-+    decision_timing["control_requests"] = details[:12]
-+
-+
- def _home_modal_continuation(snapshot, key: str, owner: str):
-     """Own each source-proven Home modal boundary through the STORE return."""
-     if (
+@@ -2078,0 +2080,3 @@ def _send_new_decision_key(
++            send.last_result.timing["posting_contract_settlement_ms"] = round(
++                (time.perf_counter() - settlement_started) * 1000, 3
++            )

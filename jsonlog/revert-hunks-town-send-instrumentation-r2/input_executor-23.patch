@@ -1,0 +1,7 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+index cc5e951..7d89d28 100644
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -763 +831 @@ class OperationExecutor:
+-            match = classify_screen(screen_value) if screen_value is not None else None
++            match = self._classify(screen_value) if screen_value is not None else None

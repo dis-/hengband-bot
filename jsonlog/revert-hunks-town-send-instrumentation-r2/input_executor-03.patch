@@ -2,11 +2,5 @@ diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
 index cc5e951..7d89d28 100644
 --- a/src/hengbot/input_executor.py
 +++ b/src/hengbot/input_executor.py
-@@ -609,6 +611,7 @@ def _same_barrier_value(
- def compose_barrier_board(
-         state: Mapping[str, object], screen: Mapping[str, object], kind: ScreenKind,
-         records: Iterable[Mapping[str, object]],
+@@ -611,0 +614 @@ def compose_barrier_board(
 +        timing: dict[str, object] | None = None,
- ) -> tuple[dict[str, object] | None, list[Mapping[str, object]]]:
-     """Build the sole policy board and preserve the physical observation order.
- 
