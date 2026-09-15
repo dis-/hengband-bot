@@ -66,6 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"argv: {json.dumps(payload.get('argv'))}")
     print(f"exit_code: {payload.get('exit_code')}")
     print(f"derived_result: {json.dumps(payload.get('derived_result', {}), sort_keys=True)}")
+    purity = [line for line in payload.get("derived_result", {}).get("summary_lines", [])
+              if str(line).startswith("purity:")]
+    if purity:
+        print(purity[-1])
     print('note: failures: [] means no FAIL header scraped; exit_code is the primary signal')
     if problems:
         for problem in problems:

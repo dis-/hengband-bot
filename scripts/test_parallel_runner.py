@@ -26,6 +26,7 @@ from statistics import median
 
 from failure_headers import iter_failure_headers
 from test_timing_runner import ROOT, standard_modules, timing_summary
+from purity_cache import PURITY_MODULES, input_sha256, load_pass, record_pass
 
 
 DEFAULT_TIMINGS = ROOT / "jsonlog" / "test-timings.json"
@@ -128,17 +129,38 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY)
     parser.add_argument("--streams-dir", type=Path, default=DEFAULT_STREAMS)
+    parser.add_argument("--modules", nargs="+", help="run only these modules")
+    parser.add_argument("--purity", choices=("auto", "always", "never"), default="auto")
+    parser.add_argument("--purity-cache", type=Path, default=ROOT / "jsonlog" / "purity-cache.json")
     args = parser.parse_args(argv)
     if args.workers < 1:
         parser.error("--workers must be positive")
 
-    modules = standard_modules()
+    modules = standard_modules() if not args.modules else [
+        name if name.startswith("tests.") else f"tests.{Path(name).stem}"
+        for value in args.modules for name in value.split(",") if name
+    ]
+    purity_cache = resolved(args.purity_cache)
+    purity_hash, purity_inputs = input_sha256(ROOT)
+    cached = load_pass(purity_cache, purity_hash) if args.purity == "auto" else None
+    purity_selected = [module for module in modules if module in PURITY_MODULES]
+    purity_skipped = bool(purity_selected and (args.purity == "never" or cached))
+    if purity_skipped:
+        modules = [module for module in modules if module not in PURITY_MODULES]
+        if cached:
+            purity_line = (f"purity: skipped (inputs sha256={purity_hash} matched cached PASS "
+                           f"from {cached.get('head_sha')} at {cached.get('time')})")
+        else:
+            purity_line = f"purity: skipped (--purity never; inputs sha256={purity_hash})"
+    else:
+        purity_line = f"purity: ran (inputs sha256={purity_hash})"
     parallel_modules = [module for module in modules if module not in SERIAL_MODULES]
     worker_count = min(args.workers, max(1, len(parallel_modules)))
     weights = module_seconds(resolved(args.timings))
     shards = partition(parallel_modules, worker_count, weights)
-    if SERIAL_MODULES:
-        shards.append(sorted(SERIAL_MODULES))
+    serial_selected = sorted(SERIAL_MODULES.intersection(modules))
+    if serial_selected:
+        shards.append(serial_selected)
 
     streams = resolved(args.streams_dir)
     streams.mkdir(parents=True, exist_ok=True)
@@ -151,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
                        for i, shard in enumerate(shards[:worker_count])}
             for future in as_completed(futures):
                 results.append(future.result())
-        if SERIAL_MODULES:
+        if serial_selected:
             results.append(run_shard(len(shards) - 1, shards[-1], temp_root, streams))
 
     results.sort(key=lambda row: str(row["name"]))
@@ -162,7 +184,8 @@ def main(argv: list[str] | None = None) -> int:
                "failures": [test_id for row in results for test_id in row["failures"]],
                "errors": [test_id for row in results for test_id in row["errors"]],
                "shards": [{key: row[key] for key in ("name", "modules", "returncode", "wall_seconds", "home_history_dir", "failures", "errors", "stdout", "stderr")}
-                          for row in results], "serial_modules": sorted(SERIAL_MODULES)}
+                          for row in results], "serial_modules": serial_selected,
+               "purity": purity_line}
     output, summary_output = resolved(args.output), resolved(args.summary_output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -178,8 +201,14 @@ def main(argv: list[str] | None = None) -> int:
             print(stderr.rstrip())
     print(f"Failures: {payload['failures'] or 'none'}")
     print(f"Errors: {payload['errors'] or 'none'}")
+    print(purity_line)
     print(f"Total: {len(tests)} tests, {payload['total_seconds']:.3f}s; output: {output}")
-    return int(any(int(row["returncode"]) != 0 for row in results))
+    failed = any(int(row["returncode"]) != 0 for row in results)
+    ran_all_purity = set(PURITY_MODULES).issubset({m for row in results for m in row["modules"]})
+    if not failed and ran_all_purity:
+        record_pass(purity_cache, purity_hash,
+                    str(payload["head_sha"]), purity_inputs)
+    return int(failed)
 
 
 if __name__ == "__main__":

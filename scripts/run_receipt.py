@@ -86,7 +86,7 @@ def summarize(stdout: str, stderr: str) -> dict[str, object]:
     recorded = re.findall(r"recorded (\d+) tests", combined)
     total = re.findall(r"^Total: (\d+) tests", combined, re.MULTILINE)
     summary_lines = [line for line in combined.splitlines() if
-                     re.search(r"(?:JSON_SUMMARY=|^PASS\b|^FAIL\b|^Total:|^Ran \d+ tests?)", line)]
+                     re.search(r"(?:JSON_SUMMARY=|^PASS\b|^FAIL\b|^Total:|^Ran \d+ tests?|^purity:)", line)]
     return {
         "test_count": int((ran or recorded or total)[-1]) if (ran or recorded or total) else None,
         "failures": list(dict.fromkeys(identity for kind, identity in outcomes if kind == "FAIL")),
