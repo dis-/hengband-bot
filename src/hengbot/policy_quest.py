@@ -817,8 +817,7 @@ class QuestMixin:
         }
         obtainable = False
         if launcher_ammo and (
-            self._town_visit_ledger.store_visits.get(STORE_HOME, 0) == 0
-            or not self._home_knowledge_current
+            not self._home_knowledge_current
             or not self._equipment_catalog.home_scan_complete
             or self._home_ammo_top_up(snapshot, include_deferred=True) is not None
         ):

@@ -21,6 +21,9 @@ from hengbot.quest_strategies import load_quest_strategies
 ROOT = Path(__file__).resolve().parents[1]
 EDIT = Path("C:/hengband/lib/edit")
 FIXTURE = ROOT / "tests/fixtures/quest-carry-town-block-20260915.jsonl.gz"
+ROUND3_FIXTURE = (
+    ROOT / "tests/fixtures/quest-carry-town-block-r3-20260915.jsonl.gz"
+)
 
 
 class QuestCarryTownBlockPins(unittest.TestCase):
@@ -33,6 +36,8 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             self.rows = [json.loads(line) for line in stream]
+        with gzip.open(ROUND3_FIXTURE, "rt", encoding="utf-8") as stream:
+            self.round3_rows = [json.loads(line) for line in stream]
 
     def policy(self):
         return HengbotPolicy(
@@ -49,6 +54,12 @@ class QuestCarryTownBlockPins(unittest.TestCase):
     def recorded(self, turn, record_type):
         return next(
             row for row in self.rows
+            if row["turn"] == turn and row["type"] == record_type
+        )
+
+    def round3_recorded(self, turn, record_type):
+        return next(
+            row for row in self.round3_rows
             if row["turn"] == turn and row["type"] == record_type
         )
 
@@ -162,6 +173,90 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         self.assertNotIn("throwing_items.launcher_ammo",
                          policy._abandoned_quest_carry_requirements)
         self.assertIn(STORE_WEAPON, {need.store_type for need in needs})
+
+    def test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop(self):
+        policy = self.policy()
+        outside = parse_snapshot(
+            self.round3_recorded(2873626, "player_turn"), self.monrace
+        )
+        self.assertEqual(
+            (str(policy.choose_key(outside)), policy.last_reason),
+            ("~9\x1b\x1b", "home:request-knowledge-scan"),
+        )
+        knowledge = self.round3_recorded(2873626, "knowledge")
+        self.assertEqual(len(knowledge["knowledge"]["items"]), 63)
+        self.assertTrue(policy.consume_home_knowledge(tuple(
+            _parse_items(knowledge["knowledge"]["items"])
+        )))
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertTrue(policy._equipment_catalog.home_scan_complete)
+        self.assertIsNone(
+            policy._home_ammo_top_up(outside, include_deferred=True)
+        )
+        self.assertEqual(
+            policy._town_visit_ledger.store_visits.get(STORE_HOME, 0), 0
+        )
+
+        decisions = []
+        for turn in (2873665, 2873722, 2873952):
+            store = parse_snapshot(
+                self.round3_recorded(turn, "store"), self.monrace
+            )
+            decisions.append((str(policy.choose_key(store)), policy.last_reason))
+        self.assertEqual(decisions, [
+            ("\x1b", "shop:observe-and-leave"),
+            ("\x1b", "shop:observe-and-leave"),
+            ("\x1b", "shop:observe-and-leave"),
+        ])
+
+        recorded_stop = parse_snapshot(
+            self.round3_recorded(2873956, "player_turn"), self.monrace
+        )
+        stop_key = policy.choose_key(recorded_stop)
+        self.assertEqual(
+            policy._abandoned_quest_carry_requirements,
+            {"throwing_items.launcher_ammo":
+             "all-suppliers-visited-without-affordable-stock"},
+        )
+        self.assertTrue(
+            policy._town_departure_conjuncts(recorded_stop)["quest_carry_ready"]
+        )
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:departure-unsatisfiable"
+        )
+        self.assertEqual(
+            (str(stop_key), policy.last_reason),
+            ("\x1b`n(.", "shop:travel"),
+        )
+        self.assertFalse(policy._fixed_quest_ready_for_travel(recorded_stop, 31))
+
+    def test_remote_scan_with_matching_plain_ammo_routes_home_first(self):
+        policy = self.policy()
+        outside = parse_snapshot(
+            self.round3_recorded(2873626, "player_turn"), self.monrace
+        )
+        self.assertEqual(
+            (str(policy.choose_key(outside)), policy.last_reason),
+            ("~9\x1b\x1b", "home:request-knowledge-scan"),
+        )
+        knowledge = self.round3_recorded(2873626, "knowledge")
+        home_items = list(_parse_items(knowledge["knowledge"]["items"]))
+        plain = next(
+            item for item in outside.inventory
+            if item.slot == ammo_carry_plan(
+                outside, policy._equipped_launcher(outside), 99
+            ).plain_slot
+        )
+        home_items.append(replace(plain, slot="z", count=71))
+        self.assertTrue(policy.consume_home_knowledge(tuple(home_items)))
+        self.assertIsNotNone(
+            policy._home_ammo_top_up(outside, include_deferred=True)
+        )
+
+        key = policy.choose_key(outside)
+        self.assertEqual((str(key), policy.last_reason),
+                         ("\x1b`n(.", "shop:travel"))
+        self.assertEqual(policy._abandoned_quest_carry_requirements, {})
 
 
 if __name__ == "__main__":
