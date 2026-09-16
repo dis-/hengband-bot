@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2064,9 +2064,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         self._calibration_suspended_phase: str | None = None
+         self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
+         self._calibration_restore_signatures: list[tuple[str, int, int]] = []
+-        self._calibration_restore_move_identities: dict[
+-            tuple[str, int, int], str
+-        ] = {}
+         self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
+         self._calibration_session_target: str | None = None
+         self._calibration_aborts_this_visit = 0

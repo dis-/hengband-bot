@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2317,8 +2317,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             self._town_visit_sale_signatures = set()
+         if not hasattr(self, "_calibration_entry_refusal"):
+             self._calibration_entry_refusal = None
+-        if not hasattr(self, "_calibration_restore_move_identities"):
+-            self._calibration_restore_move_identities = {}
+         if not hasattr(self, "_equipment_transaction_route_abandonment"):
+             self._equipment_transaction_route_abandonment = None
+         if not hasattr(self, "_equipment_transaction_route_terminal_pending"):

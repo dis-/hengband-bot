@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1046,9 +1046,6 @@ class HomeMixin:
+             signature = self._item_signature(deposit)
+             if signature not in self._calibration_restore_signatures:
+                 self._calibration_restore_signatures.append(signature)
+-            self._calibration_restore_move_identities[signature] = (
+-                equipment_move_identity(deposit)
+-            )
+         if (
+             deposit.tval == TVAL_SCROLL
+             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE

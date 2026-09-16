@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1490,9 +1490,6 @@ class HomeMixin:
+             )
+         if restore_owner_signature is not None and not batch_entries:
+             self._calibration_restore_signatures.remove(restore_owner_signature)
+-            self._calibration_restore_move_identities.pop(
+-                restore_owner_signature, None
+-            )
+         self._home_pending_quantity = None
+         getattr(self, "_home_pending_quantities", {}).pop(signature, None)
+         self._home_candidate_waiting = False

@@ -1,0 +1,23 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -14,19 +14,6 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
+ from dataclasses import replace
+ 
+ class HomeMixin:
+-    def _calibration_restore_item_matches(
+-        self, owner_signature: tuple[str, int, int], item: StoreItem
+-    ) -> bool:
+-        """Match a calibration deposit after Home may merge its stack count."""
+-        move_identity = self._calibration_restore_move_identities.get(
+-            owner_signature
+-        )
+-        return (
+-            equipment_move_identity(item) == move_identity
+-            if move_identity is not None
+-            else self._item_signature(item) == owner_signature
+-        )
+-
+     @staticmethod
+     def _home_page_letter(page_pos: int) -> str:
+         """Map one zero-based Home page position to Hengband's selector."""

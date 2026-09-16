@@ -1,0 +1,20 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1177,14 +1177,8 @@ class HomeMixin:
+                 reason = "calibration:atomic-restore-withdraw"
+         if not transaction_withdraw_pending and signature is None:
+             for restore_signature in self._calibration_restore_signatures:
+-                restored_item = next((
+-                    item for _, item in address_slots
+-                    if self._calibration_restore_item_matches(
+-                        restore_signature, item
+-                    )
+-                ), None)
+-                if restored_item is not None:
+-                    signature = self._item_signature(restored_item)
++                if restore_signature in observed_signatures:
++                    signature = restore_signature
+                     selecting_branch = "calibration-restore"
+                     restore_owner_signature = restore_signature
+                     reason = "calibration:atomic-restore-withdraw"

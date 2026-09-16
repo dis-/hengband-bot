@@ -1,0 +1,11 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -3828,6 +3828,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 and self._home_pending_item is None
+                 and not self._home_pending_batch
+                 and self._home_atomic_withdraw_pending is None
++                and not self._deferred_home_items
+                 and PACK_CAPACITY - len(snapshot.inventory)
+                 > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+                 and (

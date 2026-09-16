@@ -2584,7 +2584,20 @@ class IdentifyStaffTest(unittest.TestCase):
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(stored), pol._deferred_home_items)
 
-        self.assertEqual(pol.choose_key(replace(inside, turn=4)), LEAVE_STORE_KEY)
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="髑大ｮ壹・譚・(0蝗槫・)",
+        )
+        pol.consume_home_knowledge((depleted,))
+        depleted_inside = replace(
+            inside,
+            turn=4,
+            store=StoreState(
+                STORE_HOME, [depleted], stock_num=1,
+                page_top=0, page_size=52,
+            ),
+        )
+        self.assertEqual(pol.choose_key(depleted_inside), LEAVE_STORE_KEY)
         self.assertEqual(
             pol.last_reason, "home:identify-staff-reserve-unavailable"
         )
