@@ -36,6 +36,7 @@ import absorbing_state_catalog as absorbing_catalog
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
+from hengbot.equipment_optimizer import equipment_move_identity
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
@@ -5715,6 +5716,57 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual(torch_request.quantity, 4)
         self.assertNotIn(
             "equipment-transaction:approach-home", dict(decisions).values()
+        )
+
+    def test_open_home_equipment_withdraw_records_resolved_address(self):
+        policy = HengbotPolicy()
+        target = store_item(
+            "d", TVAL_RING, 203, name="Instrumented ring", known=True,
+            fully_known=True, is_equipment=True, count=2,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:instrumented:0",
+            item_identity=policy_module.equipment_identity(target),
+            move_identity=equipment_move_identity(target),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 0),
+                physical_context="home",
+            )
+        )
+        snapshot = Snapshot(
+            player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): grid(45, 123)},
+            [],
+            turn=2247910,
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[],
+            store=StoreState(
+                STORE_HOME, [target], stock_num=53, page_top=52, page_size=52,
+            ),
+        )
+
+        key = policy.choose_key(snapshot)
+
+        self.assertEqual(key, "pa1\r")
+        self.assertEqual(policy.last_reason, "equipment-transaction:withdraw")
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry,
+            {
+                "decision_sequence": policy._decision_sequence,
+                "selecting_branch": "equipment-transaction",
+                "selected_signature": list(policy._item_signature(target)),
+                "resolved_index": 52,
+                "resolved_page": 1,
+                "resolved_letter": "a",
+                "quantity": 1,
+                "transaction_target_identity": action.item_identity,
+                "transaction_target_move_identity": action.move_identity,
+            },
         )
 
     def test_route_blocked_abandonment_consumes_home_route_pass(self):

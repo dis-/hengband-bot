@@ -2845,6 +2845,15 @@ class TownMixin:
     ) -> None:
         """Report one handler pass to the plan that owns this town objective."""
         self._town_visit_ledger.store_visits[store_type] += 1
+        if store_type == STORE_HOME and operation_completed:
+            # A completed Home operation is reported only after its effect was
+            # observed.  It therefore satisfies the meaning of this ledger:
+            # prior unsuccessful passes no longer describe the current work.
+            self._town_visit_ledger.unsatisfied_passes[store_type] = 0
+            if 0 < self._town_store_visit_limit(store_type):
+                self._rearm_town_store_for_new_work(
+                    store_type, release_visit_bound=True
+                )
         store_needs = [
             need
             for need in self._enumerate_town_needs(snapshot)
@@ -2932,10 +2941,11 @@ class TownMixin:
             self._set_town_store_attempted(store_type, snapshot.turn, "plan-stop-satisfied")
             return
         limit = self._town_store_visit_limit(store_type)
-        # During calibration, one completed Home entry is the unit of work:
-        # an atomic deposit/withdrawal still consumes an entry when its owner
-        # remains live.  The same ledger counter therefore enforces the user's
-        # visit ceiling without weakening the existing blocked-store terminal.
+        # Only unsuccessful Home passes consume this bound.  A Home operation
+        # whose effect was observed resets the counter above.
+        if operation_completed:
+            plan.current_stop_passes = 0
+            return
         plan.current_stop_passes += 1
         self._town_visit_ledger.unsatisfied_passes[store_type] += 1
         self._observe_withdrawal_unsatisfied_pass(snapshot)

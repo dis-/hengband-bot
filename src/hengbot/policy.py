@@ -3957,7 +3957,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot,
                 STORE_HOME,
                 goal_satisfied=not self._home_owner_goal_pending(snapshot),
-                operation_completed=self._home_entry_operation_posted,
+                operation_completed=bool(
+                    self._store_visit is not None
+                    and self._store_visit.operation_effect_observed
+                ),
             )
         if (
             snapshot.store is not None

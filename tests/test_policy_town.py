@@ -14069,9 +14069,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertIsNone(policy._town_blocked_reason)
         self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 3,
-            "the public decision must not consume the scan's third pass via "
-            "a block-and-rearm cycle",
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0,
+            "an observed successful Home operation clears prior unsatisfied "
+            "passes",
         )
 
     def test_captured_calibration_deposit_survives_exhausted_claim_budget(self):

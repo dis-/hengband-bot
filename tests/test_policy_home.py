@@ -2118,6 +2118,44 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, tail)
         self.assertFalse(policy._store_visit.operation_released)
 
+    def test_posted_withdraw_without_observed_effect_does_not_reset_passes(self):
+        target = store_item("a", TVAL_POTION, 998, name="unobserved target")
+        policy = self._catalogued_withdrawal_policy([target])
+        entrance = self._entrance_snapshot([])
+        home_needs = lambda _snapshot: [
+            TownNeed(STORE_HOME, "identification-withdrawal", "home-first")
+        ]
+        policy._town_need_candidates = home_needs
+        policy._enumerate_town_needs = home_needs
+        self.assertEqual(policy._next_required_store_type(entrance), STORE_HOME)
+        for _ in range(TOWN_STOP_PASS_LIMIT - 1):
+            policy._report_town_stop_pass(
+                entrance, STORE_HOME, goal_satisfied=False
+            )
+        policy._home_pending_item = policy._item_signature(target)
+        self._choose_atomic_withdrawal(policy, entrance)
+        inside = replace(
+            entrance,
+            turn=entrance.turn + 1,
+            store=StoreState(
+                STORE_HOME, [target], stock_num=1, page_top=0, page_size=12,
+            ),
+        )
+
+        operation_key = policy.choose_key(inside)
+        self.assertEqual(operation_key, "pa\x1b")
+        before_unobserved_leave = (
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+        )
+        leave_key = policy.choose_key(replace(inside, turn=inside.turn + 1))
+
+        self.assertEqual(leave_key, LEAVE_STORE_KEY)
+        self.assertFalse(policy._store_visit.operation_effect_observed)
+        self.assertEqual(
+            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
+            before_unobserved_leave + 1,
+        )
+
     def test_live_92_item_calibration_restore_is_one_public_decision(self):
         wares = [
             store_item(
