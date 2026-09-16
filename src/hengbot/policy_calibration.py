@@ -9,6 +9,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
     equipment_identity,
+    equipment_move_identity,
     slot_for,
 )
 from hengbot.equipment_transaction_planner import (
@@ -644,6 +645,7 @@ class CalibrationMixin:
                 f"calibration:{item.slot}",
                 item.slot,
                 equipment_identity(item),
+                equipment_move_identity(item),
             )
             for item in removable
         )
@@ -674,8 +676,13 @@ class CalibrationMixin:
             for item in snapshot.inventory
             if item.is_equipment
         }
+        pack_by_identity = {
+            equipment_identity(item): item
+            for item in snapshot.inventory
+            if item.is_equipment
+        }
         missing = [
-            (slot, identity)
+            (slot, identity, equipment_move_identity(pack_by_identity[identity]))
             for slot, identity in self._calibration_worn_before
             if slot not in worn_now and identity in pack_identities
         ]
@@ -688,8 +695,9 @@ class CalibrationMixin:
                 f"calibration-restore:{slot}",
                 slot,
                 identity,
+                move_identity,
             )
-            for slot, identity in sorted(
+            for slot, identity, move_identity in sorted(
                 missing, key=lambda entry: EQUIP_ORDER.get(entry[0], 1_000)
             )
         )

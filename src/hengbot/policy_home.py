@@ -1094,7 +1094,27 @@ class HomeMixin:
             if index < self._home_knowledge_valid_before
         )
         observed_signatures = {self._item_signature(item) for _, item in address_slots}
-        if self._home_errand.active and self._home_errand.request is not None:
+        transaction_withdraw_pending = action is not None and action.kind == "withdraw"
+        if transaction_withdraw_pending:
+            transaction_slot = next(
+                (
+                    (index, item)
+                    for index, item in address_slots
+                    if item.is_equipment
+                    and equipment_identity(item) == action.item_identity
+                ),
+                None,
+            )
+            if transaction_slot is not None:
+                signature = self._item_signature(transaction_slot[1])
+                selecting_branch = "equipment-transaction"
+                transaction_identity = action.item_identity
+                reason = "equipment-transaction:atomic-withdraw"
+        if (
+            not transaction_withdraw_pending
+            and self._home_errand.active
+            and self._home_errand.request is not None
+        ):
             signature = self._home_errand.request.signature
             selecting_branch = "home-errand"
             quantity = self._home_errand.request.quantity
@@ -1104,10 +1124,18 @@ class HomeMixin:
         # restore list: every successful restore invalidates later addresses until
         # the next ~9 response, so prioritising restore here starved later diggers
         # forever in the captured 34-item Home.
-        if signature is None and self._home_pending_item in observed_signatures:
+        if (
+            not transaction_withdraw_pending
+            and signature is None
+            and self._home_pending_item in observed_signatures
+        ):
             signature = self._home_pending_item
             selecting_branch = "home-pending-item"
-        if signature is None and self._calibration_worn_before:
+        if (
+            not transaction_withdraw_pending
+            and signature is None
+            and self._calibration_worn_before
+        ):
             redress_identities = {
                 identity for _slot, identity in self._calibration_worn_before
             }
@@ -1128,7 +1156,7 @@ class HomeMixin:
                     None,
                 )
                 reason = "calibration:atomic-restore-withdraw"
-        if signature is None:
+        if not transaction_withdraw_pending and signature is None:
             for restore_signature in self._calibration_restore_signatures:
                 if restore_signature in observed_signatures:
                     signature = restore_signature
@@ -1136,26 +1164,15 @@ class HomeMixin:
                     restore_owner_signature = restore_signature
                     reason = "calibration:atomic-restore-withdraw"
                     break
-        if signature is None and self._home_pending_batch:
+        if (
+            not transaction_withdraw_pending
+            and signature is None
+            and self._home_pending_batch
+        ):
             batch_signature = self._home_pending_batch[0]
             if batch_signature in observed_signatures:
                 signature = batch_signature
                 selecting_branch = "home-pending-batch"
-        if signature is None and action is not None and action.kind == "withdraw":
-            transaction_slot = next(
-                (
-                    (index, item)
-                    for index, item in address_slots
-                    if item.is_equipment
-                    and equipment_identity(item) == action.item_identity
-                ),
-                None,
-            )
-            if transaction_slot is not None:
-                signature = self._item_signature(transaction_slot[1])
-                selecting_branch = "equipment-transaction"
-                transaction_identity = action.item_identity
-                reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
             unaddressable_signatures = {
                 candidate

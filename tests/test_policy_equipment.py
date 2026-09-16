@@ -5584,8 +5584,8 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertFalse(policy._equipment_transaction_restoring)
         self.assertEqual(len(policy._equipment_transaction_owned_items), 10)
 
-    def test_equipment_withdrawal_does_not_starve_queued_torch_withdrawal(self):
-        """Equipment ownership yields to an already queued torch take."""
+    def test_equipment_withdrawal_finishes_before_queued_torch_withdrawal(self):
+        """A queued torch remains queued until transaction withdrawal completes."""
         first = item(
             "a", TVAL_RING, 201, name="First queued ring", known=True,
             fully_known=True, is_equipment=True,

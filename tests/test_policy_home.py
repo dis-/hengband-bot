@@ -28,6 +28,7 @@ from policy_fixtures import (
 )
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
+from hengbot.equipment_optimizer import equipment_move_identity
 import test_policy as fixture
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
 from hengbot.policy import FOOD_TYPE_MANA
@@ -3262,7 +3263,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:await-fresh-knowledge")
         self.assertFalse(policy._home_knowledge_current)
 
-    def test_restore_collapse_invalidates_for_transaction_withdraw_owner(self):
+    def test_transaction_withdraw_precedes_restore_and_invalidates_catalog(self):
         restore = store_item("0", 36, 1, name="captured restore")
         target = store_item(
             "30", TVAL_RING, 77, name="transaction target",
@@ -3293,17 +3294,20 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 [], wares, turn=2388203,
                 stock_num=len(wares), page_top=0, page_size=52,
             )),
-            "pa\x1b",
+            "pE\x1b",
         )
         policy.choose_key(replace(
             entrance,
             turn=2388204,
-            inventory=[item("a", 36, 1, name=restore.name)],
+            inventory=[item(
+                "a", target.tval, target.sval, name=target.name,
+                known=True, fully_known=True, is_equipment=True,
+            )],
         ))
         self.assertFalse(policy._home_knowledge_current)
         self.assertIs(policy._equipment_transaction_session.current_action, action)
 
-    def test_open_transaction_does_not_filter_calibration_slot_resolution(self):
+    def test_open_transaction_owns_withdraw_ahead_of_calibration_restore(self):
         restore = store_item("0", 36, 1, name="captured restore")
         target = store_item(
             "1", TVAL_RING, 78, name="different transaction target",
@@ -3324,7 +3328,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
             WAIT_KEY,
         )
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
+        self.assertEqual(policy._store_visit.operation_key, "pb\x1b")
         self.assertEqual(policy._deferred_home_items, set())
 
     def test_captured_withdrawn_digger_is_not_transaction_deposited(self):
@@ -3447,6 +3452,74 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "equipment-transaction:atomic-withdraw"
         )
+
+    def test_transaction_withdrawal_owns_command_ahead_of_queued_item(self):
+        queued = store_item("a", TVAL_POTION, 405, name="queued potion")
+        target = store_item(
+            "b", TVAL_POTION, 406, name="transaction ring",
+            is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([queued, target])
+        policy._home_pending_item = policy._item_signature(queued)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:transaction-ring:0",
+            item_identity=policy_module.equipment_identity(target),
+            move_identity=equipment_move_identity(target),
+        )
+        session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((action,), (), 1)
+        )
+        policy._equipment_transaction_session = session
+
+        self.assertEqual(
+            policy.choose_key(self._entrance_snapshot([])), WAIT_KEY
+        )
+        self.assertEqual(policy._store_visit.operation_key, "pb\x1b")
+        self.assertEqual(
+            policy.last_reason, "equipment-transaction:atomic-withdraw"
+        )
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry["selecting_branch"],
+            "equipment-transaction",
+        )
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry["selected_signature"],
+            list(policy._item_signature(target)),
+        )
+        self.assertIs(session.current_action, action)
+        self.assertIs(session._prepared[0], action)
+
+    def test_unaddressable_transaction_target_does_not_run_queued_item(self):
+        queued = store_item("a", TVAL_POTION, 407, name="queued potion")
+        absent = store_item(
+            "b", TVAL_POTION, 408, name="absent transaction ring",
+            is_equipment=True,
+        )
+        policy = self._catalogued_withdrawal_policy([queued])
+        policy._home_pending_item = policy._item_signature(queued)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:absent-ring:0",
+            item_identity=policy_module.equipment_identity(absent),
+            move_identity=equipment_move_identity(absent),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+
+        key = policy.choose_key(self._entrance_snapshot([]))
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason,
+            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+        )
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
 
 
     def test_real_capture_escape_then_posts_stay_deposit_exit_in_one_decision(self):
