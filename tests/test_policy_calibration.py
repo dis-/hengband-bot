@@ -73,38 +73,6 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertEqual(policy._calibration_restore_move_identities, {})
 
-    def test_restore_identity_cleanup_covers_every_restore_finish_path(self):
-        root = Path(__file__).parents[1] / "src" / "hengbot"
-        calibration_source = (root / "policy_calibration.py").read_text(
-            encoding="utf-8"
-        )
-        home_source = (root / "policy_home.py").read_text(encoding="utf-8")
-        policy_source = (root / "policy.py").read_text(encoding="utf-8")
-        self.assertEqual(
-            calibration_source.count(
-                "self._calibration_restore_move_identities.clear()"
-            ),
-            3,
-            "every calibration finish/abort path clears restore identities",
-        )
-        self.assertEqual(
-            home_source.count("_calibration_restore_move_identities.pop("),
-            3,
-            "compose, batch success, and unobserved finish clean identities",
-        )
-        self.assertEqual(
-            home_source.count(
-                "self._home_pending_quantities[signature] = deposit_count"
-            ),
-            1,
-            "calibration restore retains the deposited quantity",
-        )
-        self.assertEqual(
-            policy_source.count("_calibration_restore_move_identities.pop("),
-            1,
-            "observed single restore success cleans its identity",
-        )
-
     def _grids(self):
         grids = {
             Position(10, x): grid(10, x) for x in range(9, 14)
@@ -422,6 +390,32 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_batch, [])
         self.assertEqual(policy._calibration_restore_move_identities, {})
         self.assertNotIn(owner, policy._deferred_home_items)
+        root = Path(__file__).parents[1] / "src" / "hengbot"
+        calibration_source = (root / "policy_calibration.py").read_text(
+            encoding="utf-8"
+        )
+        home_source = (root / "policy_home.py").read_text(encoding="utf-8")
+        policy_source = (root / "policy.py").read_text(encoding="utf-8")
+        self.assertEqual(
+            calibration_source.count(
+                "self._calibration_restore_move_identities.clear()"
+            ), 3,
+            "every calibration finish/abort path clears restore identities",
+        )
+        self.assertEqual(
+            home_source.count("_calibration_restore_move_identities.pop("), 3,
+            "compose, batch success, and unobserved finish clean identities",
+        )
+        self.assertEqual(
+            home_source.count(
+                "self._home_pending_quantities[signature] = deposit_count"
+            ), 1,
+            "calibration restore retains the deposited quantity",
+        )
+        self.assertEqual(
+            policy_source.count("_calibration_restore_move_identities.pop("), 1,
+            "observed single restore success cleans its identity",
+        )
 
     def test_strip_session_takes_off_every_removable_item_but_not_cursed(self):
         policy = self._scan_complete_policy()
