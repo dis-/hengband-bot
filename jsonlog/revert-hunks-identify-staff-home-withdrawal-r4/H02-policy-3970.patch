@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy.py a/src/hengbot/policy.py
+index 25ba6d8..794040a 100644
+--- b/src/hengbot/policy.py
++++ a/src/hengbot/policy.py
+@@ -3976,6 +3970,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             elif (
+                 not self._calibration_active()
+                 and self._home_atomic_deposit_pending is None
++                and self._equipment_transaction_session is None
+                 and not self._identify_staff_ready(snapshot)
+                 and self._home_knowledge_current
+                 and self._home_pending_item is None
+

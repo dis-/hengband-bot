@@ -1,0 +1,21 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 2d16f75..6bc8829 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -1500,14 +1488,7 @@ class HomeMixin:
+             self._home_errand.post(
+                 self._inventory_signature_count(snapshot, signature)
+             )
+-        if (
+-            restore_owner_signature is not None
+-            and not batch_entries
+-            and not (
+-                item.tval == TVAL_STAFF
+-                and item.sval == SV_STAFF_IDENTIFY
+-            )
+-        ):
++        if restore_owner_signature is not None and not batch_entries:
+             self._calibration_restore_signatures.remove(restore_owner_signature)
+             self._calibration_restore_move_identities.pop(
+                 restore_owner_signature, None
+

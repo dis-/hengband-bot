@@ -1,0 +1,16 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 2d16f75..6bc8829 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -1299,9 +1298,7 @@ class HomeMixin:
+         page, page_pos = divmod(index, self._home_page_size)
+         letter = self._home_page_letter(page_pos)
+         if restore_owner_signature is not None:
+-            quantity = self._home_pending_quantities.get(
+-                restore_owner_signature, 1
+-            )
++            quantity = item.count
+         if not letter or len(letter) != 1:
+             if self._home_errand.active:
+                 self._home_errand.observe_unaddressed_entry(
+

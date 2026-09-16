@@ -1,0 +1,31 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 2d16f75..6bc8829 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -1448,23 +1445,14 @@ class HomeMixin:
+             if move_identity is not None
+             else self._inventory_signature_count(snapshot, signature)
+         )
+-        pending_signature = (
+-            restore_owner_signature
+-            if (
+-                restore_owner_signature is not None
+-                and item.tval == TVAL_STAFF
+-                and item.sval == SV_STAFF_IDENTIFY
+-            )
+-            else signature
+-        )
+         self._home_atomic_withdraw_pending = (
+-            pending_signature,
++            signature,
+             before_count,
+             item,
+             take_count,
+             batch_entries,
+         ) if batch_entries else (
+-            pending_signature,
++            signature,
+             before_count,
+             item,
+             take_count,
+

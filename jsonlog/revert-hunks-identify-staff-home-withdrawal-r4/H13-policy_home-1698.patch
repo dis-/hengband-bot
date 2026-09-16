@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 2d16f75..6bc8829 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -1718,7 +1698,6 @@ class HomeMixin:
+                 self._home_pending_batch.remove(signature)
+             if signature in self._calibration_restore_signatures:
+                 self._calibration_restore_signatures.remove(signature)
+-            self._calibration_restore_move_identities.pop(signature, None)
+         if self._home_pending_item == signature:
+             self._home_pending_item = None
+             self._home_pending_slot = None
+

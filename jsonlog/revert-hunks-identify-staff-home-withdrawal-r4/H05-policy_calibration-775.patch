@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy_calibration.py a/src/hengbot/policy_calibration.py
+index 7fd07a3..fe2d6e3 100644
+--- b/src/hengbot/policy_calibration.py
++++ a/src/hengbot/policy_calibration.py
+@@ -775,7 +775,6 @@ class CalibrationMixin:
+             # the next town visit re-runs the phase from the start.
+             self._calibration_phase = None
+             self._calibration_restore_signatures.clear()
+-            self._calibration_restore_move_identities.clear()
+             if self._calibration_session_owned():
+                 self._equipment_transaction_session = None
+             self._calibration_session_target = None
+

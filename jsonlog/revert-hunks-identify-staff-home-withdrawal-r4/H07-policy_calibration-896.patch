@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy_calibration.py a/src/hengbot/policy_calibration.py
+index 7fd07a3..fe2d6e3 100644
+--- b/src/hengbot/policy_calibration.py
++++ a/src/hengbot/policy_calibration.py
+@@ -898,7 +896,6 @@ class CalibrationMixin:
+                             f"town:blocked:{self._town_blocked_reason}"
+                         )
+                     self._calibration_restore_signatures.clear()
+-                    self._calibration_restore_move_identities.clear()
+                     self._calibration_phase = None
+                     self._calibration_home_rearm_eligible = False
+             elif STORE_HOME in self._town_store_attempted:
+

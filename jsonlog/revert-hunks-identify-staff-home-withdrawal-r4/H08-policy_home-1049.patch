@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 2d16f75..6bc8829 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -1049,7 +1049,6 @@ class HomeMixin:
+             self._calibration_restore_move_identities[signature] = (
+                 equipment_move_identity(deposit)
+             )
+-            self._home_pending_quantities[signature] = deposit_count
+         if (
+             deposit.tval == TVAL_SCROLL
+             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
+

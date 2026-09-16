@@ -1,0 +1,14 @@
+diff --git b/src/hengbot/policy.py a/src/hengbot/policy.py
+index 25ba6d8..794040a 100644
+--- b/src/hengbot/policy.py
++++ a/src/hengbot/policy.py
+@@ -3989,8 +3984,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                         item.tval == TVAL_STAFF
+                         and item.sval == SV_STAFF_IDENTIFY
+                         and item.charges > 0
+-                        and self._item_signature(item)
+-                        not in self._deferred_home_items
+                         for item in self._home_knowledge_items
+                     )
+                 )
+
