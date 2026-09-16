@@ -2451,6 +2451,22 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             ]
         )
 
+        equipment_candidate = HengbotPolicy()
+        equipment_snap = replace(
+            snap,
+            inventory=[item(
+                "a", TVAL_SWORD, 1, name="unknown sword", known=False,
+                is_equipment=True,
+            )],
+        )
+        equipment_candidate.choose_key(equipment_snap)
+        equipment_candidate.consume_home_knowledge(
+            (item("s", 55, SV_STAFF_IDENTIFY, name="Identify staff"),)
+        )
+        equipment_candidate.choose_key(equipment_snap)
+
+        self.assertTrue(equipment_candidate._home_candidate_waiting)
+
     def test_filed_identification_home_errand_blocks_before_catalogue_scan(self):
         policy = HengbotPolicy()
         snap = Snapshot(

@@ -601,7 +601,7 @@ class ObservationMixin:
                 self._store_sell_attempt = None
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = (
-                    self._home_identification_candidate_pending()
+                    self._home_identification_candidate_pending(snapshot)
                 )
                 self._deferred_home_items.clear()
                 self._retried_deferred_home_items.clear()
@@ -612,6 +612,14 @@ class ObservationMixin:
                 self._town_supplier_stock_observations.clear()
                 self._deferred_device_items.clear()
                 self._retried_home_identification_items.clear()
+
+            if (
+                not self._home_candidate_waiting
+                and self._home_knowledge_current
+            ):
+                self._home_candidate_waiting = (
+                    self._home_identification_candidate_pending(snapshot)
+                )
 
             if snapshot.yeek_cave_conquered and self._yeek_victory_loot:
                 self._yeek_victory_loot = False
