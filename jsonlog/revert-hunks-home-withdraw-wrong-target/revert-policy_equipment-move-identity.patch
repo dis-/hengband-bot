@@ -1,0 +1,69 @@
+diff --git b/src/hengbot/policy_equipment.py a/src/hengbot/policy_equipment.py
+index 73f63f7..dd0fef5 100644
+--- b/src/hengbot/policy_equipment.py
++++ a/src/hengbot/policy_equipment.py
+@@ -37,7 +37,6 @@ from hengbot.equipment_optimizer import (
+     current_loadout,
+     divable_depth,
+     equipment_identity,
+-    equipment_move_identity,
+     operational_equipment_candidate,
+     optimizer_item_projection,
+     random_teleport_is_suppressed,
+@@ -1399,16 +1398,6 @@ class EquipmentMixin:
+             home_identities = {
+                 equipment_identity(item) for item in known_home_items
+             }
+-            pack_by_identity = {
+-                equipment_identity(item): item
+-                for item in (() if snapshot is None else snapshot.inventory)
+-                if item.is_equipment
+-            }
+-            home_by_identity = {
+-                equipment_identity(item): item
+-                for item in known_home_items
+-                if item.is_equipment
+-            }
+             owned_by_identity = {
+                 equipment_identity(owned.item): owned
+                 for owned in self._equipment_catalog.items
+@@ -1427,23 +1416,10 @@ class EquipmentMixin:
+             missing: list[str] = []
+             for identity, slot in self._equipment_transaction_owned_items:
+                 item_id = f"restore:{identity}"
+-                restore_item = pack_by_identity.get(identity)
+-                if restore_item is None and identity in owned_by_identity:
+-                    restore_item = owned_by_identity[identity].item
+-                # Checkpoint recovery can retain only the count-bearing digest,
+-                # which is not reversible into a move identity.  That legacy
+-                # recovery case remains on the existing identity fallback;
+-                # every construction with an observed item carries move_identity.
+-                restore_move_identity = (
+-                    equipment_move_identity(restore_item)
+-                    if restore_item is not None
+-                    else ""
+-                )
+                 if identity in pack_identities or snapshot is None:
+                     restore_actions.append(
+                         EquipmentTransaction(
+-                            PHASE_EQUIP, "equip", item_id, slot, identity,
+-                            restore_move_identity,
++                            PHASE_EQUIP, "equip", item_id, slot, identity
+                         )
+                     )
+                 elif identity in home_identities:
+@@ -1451,13 +1427,9 @@ class EquipmentMixin:
+                         EquipmentTransaction(
+                             PHASE_HOME_PREPARE, "withdraw", item_id,
+                             item_identity=identity,
+-                            move_identity=equipment_move_identity(
+-                                home_by_identity[identity]
+-                            ),
+                         ),
+                         EquipmentTransaction(
+-                            PHASE_EQUIP, "equip", item_id, slot, identity,
+-                            equipment_move_identity(home_by_identity[identity]),
++                            PHASE_EQUIP, "equip", item_id, slot, identity
+                         ),
+                     ))
+                 else:
