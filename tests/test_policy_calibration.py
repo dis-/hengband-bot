@@ -68,6 +68,11 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertEqual(policy._calibration_restore_move_identities, {})
 
+    def test_new_policy_initializes_calibration_restore_move_identities(self):
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy._calibration_restore_move_identities, {})
+
     def _grids(self):
         grids = {
             Position(10, x): grid(10, x) for x in range(9, 14)
