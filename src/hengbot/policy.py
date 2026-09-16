@@ -3843,8 +3843,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and (
                     identify_staff := max(
                         (
-                            item
-                            for item in (
+                            (catalogue_index, item)
+                            for catalogue_index, item in enumerate(
                                 self._home_knowledge_items
                                 if self._home_knowledge_current
                                 else snapshot.store.items
@@ -3855,7 +3855,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             and self._item_signature(item)
                             not in self._deferred_home_items
                         ),
-                        key=lambda item: (item.charges, item.letter),
+                        # Both sources preserve Home catalogue order, which is
+                        # also what the withdrawal composer uses to resolve a
+                        # page and selector.  Knowledge items are
+                        # InventoryItems (slot), while open-page items are
+                        # StoreItems (letter), so the shared ordinal is the
+                        # type-correct tie-break.
+                        key=lambda indexed_item: (
+                            indexed_item[1].charges, indexed_item[0]
+                        ),
                         default=None,
                     )
                 ) is not None
@@ -3863,6 +3871,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # The Home entry owner, unlike _shop(), is on the live path.
                 # Bind the catalogue item here so the outside owner can compose
                 # the complete withdrawal on the following decision.
+                _catalogue_index, identify_staff = identify_staff
                 signature = self._item_signature(identify_staff)
                 self._home_pending_item = signature
                 self._home_pending_quantity = 1

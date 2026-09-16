@@ -142,6 +142,7 @@ from hengbot.model import (
     Snapshot,
     StoreItem,
     StoreState,
+    _parse_items,
     _parse_store,
     parse_snapshot,
 )
@@ -4507,3 +4508,85 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             "launcher",
             policy._fixed_quest_readiness["strategy_force"]["failed"],
         )
+    def test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed(self):
+        carried = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
+            name="鑑定の杖 (16回分)", fully_known=True,
+        )
+        pol = HengbotPolicy()
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH
+        outside = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0), town_flag=True, inventory=[carried],
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+
+        # This is the real accepted ~9 response recorded immediately before
+        # the 2026-09-17 crash.  Drive the CLI consumer so the catalogue is
+        # parsed as InventoryItems, exactly as it is live.
+        state_lines = (
+            Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        knowledge_line = next(
+            line for line in reversed(state_lines)
+            if json.loads(line).get("knowledge", {}).get("category") == "home"
+        )
+        recorded_home_page = next(
+            parse_snapshot(json.loads(line)) for line in reversed(state_lines)
+            if json.loads(line).get("store", {}).get("store_type") == STORE_HOME
+        )
+        inside = replace(outside, store=recorded_home_page.store)
+        parsed_knowledge = tuple(
+            _parse_items(json.loads(knowledge_line)["knowledge"]["items"])
+        )
+        self.assertTrue(pol.consume_home_knowledge(parsed_knowledge))
+        self.assertTrue(pol._home_knowledge_current)
+        self.assertTrue(pol._home_knowledge_items)
+        self.assertTrue(all(isinstance(it, InventoryItem) for it in pol._home_knowledge_items))
+
+        live_staff = max(
+            (
+                (index, it) for index, it in enumerate(pol._home_knowledge_items)
+                if it.tval == TVAL_STAFF and it.sval == SV_STAFF_IDENTIFY
+                and it.charges > 0
+            ),
+            key=lambda indexed: (indexed[1].charges, indexed[0]),
+        )[1]
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:queue-withdraw-identify-staff-reserve")
+        self.assertEqual(pol._home_pending_item, pol._item_signature(live_staff))
+
+        entrance = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(entrance), WAIT_KEY)
+        page = replace(inside, turn=entrance.turn + 1)
+        self.assertEqual(pol.choose_key(page), "pp1\r\x1b")
+        self.assertEqual(pol.last_reason, "home:atomic-withdraw")
+
+        after = replace(
+            entrance,
+            turn=page.turn + 1,
+            inventory=[
+                carried,
+                item(
+                    "j", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+                    name="鑑定の杖 (21回分)", fully_known=True,
+                ),
+            ],
+        )
+        pol.choose_key(after)
+        self.assertTrue(pol._identify_staff_ready(after))
+        self.assertIsNone(pol._home_atomic_withdraw_pending)
+        self.assertNotEqual(pol.last_reason, "home:atomic-withdraw-failed")
