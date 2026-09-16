@@ -2401,9 +2401,12 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(pol._home_pending_batch, [])
         self.assertFalse(pol._home_candidate_waiting)
 
-    def test_fresh_town_arms_home_candidate_only_for_catalogued_identify_source(self):
+    def test_home_scan_resolves_candidate_latch_from_adopted_catalogue(self):
         self.assertFalse(HengbotPolicy()._home_candidate_waiting)
         home_grid = replace(grid(10, 11), store_number=STORE_HOME)
+        unidentified_rod = item(
+            "a", TVAL_ROD, SV_ROD_LITE, name="unknown rod", known=False,
+        )
         snap = Snapshot(
             player(10, 10),
             {
@@ -2412,14 +2415,15 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             },
             [],
             floor_key=(0, 0, 0),
+            inventory=[unidentified_rod],
         )
 
         without_source = HengbotPolicy()
-        without_source._identification_need = "normal"
+        without_source.choose_key(snap)
+        self.assertFalse(without_source._home_candidate_waiting)
         without_source.consume_home_knowledge(
             (item("s", 55, SV_STAFF_IDENTIFY, name="Identify staff"),)
         )
-        without_source.prime(snap)
 
         self.assertFalse(without_source._home_candidate_waiting)
         self.assertTrue(
@@ -2429,11 +2433,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         )
 
         with_source = HengbotPolicy()
-        with_source._identification_need = "normal"
+        with_source.choose_key(snap)
+        self.assertFalse(with_source._home_candidate_waiting)
         with_source.consume_home_knowledge(
             (item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"),)
         )
-        with_source.prime(snap)
 
         self.assertTrue(with_source._home_candidate_waiting)
         self.assertFalse(
@@ -2441,6 +2445,24 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 "home_candidate_resolved"
             ]
         )
+
+    def test_filed_identification_home_errand_blocks_before_catalogue_scan(self):
+        policy = HengbotPolicy()
+        snap = Snapshot(
+            player(10, 10),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+        )
+        policy._home_errand.file(
+            HomeErrandRequest(("Identify", TVAL_SCROLL, SV_SCROLL_IDENTIFY), 1,
+                              "home-catalog", "identification"),
+            knowledge_current=False,
+        )
+
+        policy.choose_key(snap)
+
+        self.assertTrue(policy._home_candidate_waiting)
 
     def test_recall_targets_follow_the_confirmed_depth_table(self):
         policy = HengbotPolicy()
@@ -6315,6 +6337,19 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy._town_special_key(snap), "rra")
         self.assertFalse(policy._home_candidate_waiting)
         self.assertEqual(policy.last_reason, "town:recall-to-angband")
+
+    def test_stale_home_candidate_valve_still_requires_identification_need_clear(self):
+        policy = HengbotPolicy()
+        policy._home_candidate_waiting = True
+        policy._equipment_catalog.home_scan_complete = True
+        policy._identification_need = "normal"
+
+        policy._release_stale_home_candidate_waiting()
+
+        self.assertTrue(policy._home_candidate_waiting)
+        policy._identification_need = None
+        policy._release_stale_home_candidate_waiting()
+        self.assertFalse(policy._home_candidate_waiting)
 
     def test_incomplete_empty_home_catalog_routes_or_defers_by_visit_state(self):
         snap = Snapshot(

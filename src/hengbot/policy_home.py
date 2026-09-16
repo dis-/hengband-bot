@@ -247,6 +247,9 @@ class HomeMixin:
         self._home_knowledge_scan_inflight = False
         self._home_scan_item_count = len(items)
         self._home_errand.observe_knowledge(True)
+        self._home_candidate_waiting = (
+            self._home_identification_candidate_pending()
+        )
         return True
 
     def settle_home_knowledge_request(self) -> None:
@@ -2312,7 +2315,7 @@ class HomeMixin:
         self._home_candidate_waiting = True
         return True
 
-    def _home_identification_candidate_pending(self, snapshot: Snapshot) -> bool:
+    def _home_identification_candidate_pending(self) -> bool:
         """Whether concrete state can bind a Home identification errand."""
         addressable = self._home_knowledge_items[
             : self._home_knowledge_valid_before
@@ -2326,25 +2329,11 @@ class HomeMixin:
             self._home_errand.request is not None
             and self._home_errand.request.purpose == "identification"
         )
-        catalogue_scan_pending = bool(
-            not self._home_knowledge_current
-            and (
-                self._identification_need is not None
-                or self._identification_candidate is not None
-                or self._device_identification_candidate is not None
-                or any(
-                    self._identification_flow_candidate(item)
-                    or self._normal_identification_flow_candidate(item)
-                    for item in (*snapshot.inventory, *snapshot.equipment)
-                )
-            )
-        )
-        return bool(
-            known_source
-            or filed_source
-            or self._identification_candidate is not None
-            or catalogue_scan_pending
-        )
+        if filed_source:
+            return True
+        if not self._home_knowledge_current:
+            return False
+        return bool(known_source or self._identification_candidate is not None)
 
     def _retain_identification_source_owner(self) -> None:
         """Re-open the Alchemist owner without discarding its route progress.

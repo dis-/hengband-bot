@@ -601,7 +601,7 @@ class ObservationMixin:
                 self._store_sell_attempt = None
                 self._batch_sell_pending = None
                 self._home_candidate_waiting = (
-                    self._home_identification_candidate_pending(snapshot)
+                    self._home_identification_candidate_pending()
                 )
                 self._deferred_home_items.clear()
                 self._retried_deferred_home_items.clear()
