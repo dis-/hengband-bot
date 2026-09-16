@@ -14,6 +14,19 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
 class HomeMixin:
+    def _calibration_restore_item_matches(
+        self, owner_signature: tuple[str, int, int], item: StoreItem
+    ) -> bool:
+        """Match a calibration deposit after Home may merge its stack count."""
+        move_identity = self._calibration_restore_move_identities.get(
+            owner_signature
+        )
+        return (
+            equipment_move_identity(item) == move_identity
+            if move_identity is not None
+            else self._item_signature(item) == owner_signature
+        )
+
     @staticmethod
     def _home_page_letter(page_pos: int) -> str:
         """Map one zero-based Home page position to Hengband's selector."""
@@ -1033,6 +1046,9 @@ class HomeMixin:
             signature = self._item_signature(deposit)
             if signature not in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.append(signature)
+            self._calibration_restore_move_identities[signature] = (
+                equipment_move_identity(deposit)
+            )
         if (
             deposit.tval == TVAL_SCROLL
             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
@@ -1161,8 +1177,14 @@ class HomeMixin:
                 reason = "calibration:atomic-restore-withdraw"
         if not transaction_withdraw_pending and signature is None:
             for restore_signature in self._calibration_restore_signatures:
-                if restore_signature in observed_signatures:
-                    signature = restore_signature
+                restored_item = next((
+                    item for _, item in address_slots
+                    if self._calibration_restore_item_matches(
+                        restore_signature, item
+                    )
+                ), None)
+                if restored_item is not None:
+                    signature = self._item_signature(restored_item)
                     selecting_branch = "calibration-restore"
                     restore_owner_signature = restore_signature
                     reason = "calibration:atomic-restore-withdraw"
@@ -1342,7 +1364,9 @@ class HomeMixin:
                     (
                         (owner_index, owner_item)
                         for owner_index, owner_item in reversed(address_slots)
-                        if self._item_signature(owner_item) == owner_signature
+                        if self._calibration_restore_item_matches(
+                            owner_signature, owner_item
+                        )
                         and owner_index // self._home_page_size == page
                     ),
                     None,
@@ -1468,6 +1492,9 @@ class HomeMixin:
             )
         if restore_owner_signature is not None and not batch_entries:
             self._calibration_restore_signatures.remove(restore_owner_signature)
+            self._calibration_restore_move_identities.pop(
+                restore_owner_signature, None
+            )
         self._home_pending_quantity = None
         getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False

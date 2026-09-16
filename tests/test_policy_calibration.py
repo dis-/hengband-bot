@@ -29,12 +29,14 @@ from hengbot.model import (
     SV_POTION_RESTORE_CON,
     SV_SCROLL_IDENTIFY,
     SV_SCROLL_REMOVE_CURSE,
+    SV_STAFF_IDENTIFY,
     Snapshot,
     StoreState,
     TVAL_LITE,
     TVAL_POTION,
     TVAL_RING,
     TVAL_SCROLL,
+    TVAL_STAFF,
     TVAL_SWORD,
 )
 from hengbot.policy import HengbotPolicy, STORE_STUCK_LIMIT, WAIT_KEY
@@ -48,6 +50,15 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
     """P1: the execution-layer unequipped calibration phase and its exits."""
 
     HOME = Position(10, 12)
+
+    def test_equipment_optimizer_imports_re_once(self):
+        optimizer_path = Path(policy_module.__file__).with_name(
+            "equipment_optimizer.py"
+        )
+        self.assertEqual(
+            optimizer_path.read_text(encoding="utf-8").count("\nimport re\n"),
+            1,
+        )
 
     def _grids(self):
         grids = {
@@ -295,6 +306,57 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._item_signature(cure),
             policy._calibration_restore_signatures,
         )
+
+    def test_calibration_staff_merge_restores_by_count_free_identity(self):
+        policy = self._scan_complete_policy()
+        carried = item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+            name="髑大ｮ壹・譚・(21蝗槫・)", fully_known=True,
+        )
+        outside = self._snapshot(inventory=(carried,))
+        outside = replace(
+            outside, player=replace(outside.player, position=self.HOME)
+        )
+        policy._calibration_phase = "deposit"
+        policy.consume_home_knowledge(())
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = self.HOME
+        inside_empty = replace(
+            outside,
+            store=StoreState(STORE_HOME, [], stock_num=0, page_size=52),
+        )
+
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(
+            policy.choose_key(inside_empty), policy_module.SELL_KEY + "a\x1b"
+        )
+        owner = policy._item_signature(carried)
+        self.assertIn(owner, policy._calibration_restore_signatures)
+        observed_deposit = replace(outside, inventory=[], turn=1)
+        policy.choose_key(observed_deposit)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+
+        merged = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+        )
+        policy.consume_home_knowledge((merged,))
+        policy._calibration_phase = "restore-supplies"
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = self.HOME
+        entrance = replace(outside, inventory=[], turn=2)
+        self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(
+            policy.last_reason, "calibration:atomic-restore-withdraw"
+        )
+        page = replace(
+            entrance,
+            turn=3,
+            store=StoreState(
+                STORE_HOME, [merged], stock_num=1, page_top=0, page_size=52,
+            ),
+        )
+        self.assertEqual(policy.choose_key(page), "pa2\r\x1b")
 
     def test_strip_session_takes_off_every_removable_item_but_not_cursed(self):
         policy = self._scan_complete_policy()

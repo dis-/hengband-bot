@@ -2064,6 +2064,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_suspended_phase: str | None = None
         self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
         self._calibration_restore_signatures: list[tuple[str, int, int]] = []
+        self._calibration_restore_move_identities: dict[
+            tuple[str, int, int], str
+        ] = {}
         self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
         self._calibration_session_target: str | None = None
         self._calibration_aborts_this_visit = 0
@@ -2314,6 +2317,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._town_visit_sale_signatures = set()
         if not hasattr(self, "_calibration_entry_refusal"):
             self._calibration_entry_refusal = None
+        if not hasattr(self, "_calibration_restore_move_identities"):
+            self._calibration_restore_move_identities = {}
         if not hasattr(self, "_equipment_transaction_route_abandonment"):
             self._equipment_transaction_route_abandonment = None
         if not hasattr(self, "_equipment_transaction_route_terminal_pending"):
@@ -3823,7 +3828,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._home_pending_item is None
                 and not self._home_pending_batch
                 and self._home_atomic_withdraw_pending is None
-                and not self._deferred_home_items
                 and PACK_CAPACITY - len(snapshot.inventory)
                 > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
                 and (
@@ -3972,7 +3976,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._home_pending_item is None
                 and not self._home_pending_batch
                 and self._home_atomic_withdraw_pending is None
-                and not self._deferred_home_items
                 and STORE_HOME not in self._town_store_attempted
                 and (
                     PACK_CAPACITY - len(snapshot.inventory)

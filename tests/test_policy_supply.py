@@ -2452,6 +2452,7 @@ class IdentifyStaffTest(unittest.TestCase):
         pol._floor_key = inside.floor_key
         pol._shopping_approach_store_type = STORE_HOME
         pol._shopping_approach_goal = inside.player.position
+        pol._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 2
 
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         self.assertEqual(
@@ -2484,6 +2485,198 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertIsNone(pol._home_atomic_withdraw_pending)
         self.assertNotIn(pol._item_signature(stored[0]), pol._deferred_home_items)
         self.assertNotEqual(pol.last_reason, "home:atomic-withdraw-failed")
+        self.assertEqual(pol._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
+
+    def test_deferred_staff_stack_does_not_hide_another_usable_stack(self):
+        carried = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
+            name="髑大ｮ壹・譚・(16蝗槫・)", fully_known=True,
+        )
+        deferred = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+        )
+        available = store_item(
+            "q", TVAL_STAFF, SV_STAFF_IDENTIFY, count=7, charges=18,
+            name="髑大ｮ壹・譚・(7x 18蝗槫・)",
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [deferred, available], stock_num=2,
+                page_top=0, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge((deferred, available))
+        seed_character_calibration(pol, outside)
+        pol._floor_key = outside.floor_key
+        pol._shopping_approach_store_type = STORE_HOME
+        pol._shopping_approach_goal = home_position
+
+        # Produce the deferral through the real public withdrawal consumer.
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa1\r\x1b")
+        pol.choose_key(replace(outside, turn=3))
+        self.assertIn(pol._item_signature(deferred), pol._deferred_home_items)
+        queued = pol.choose_key(replace(inside, turn=4))
+        self.assertEqual(queued, LEAVE_STORE_KEY, pol.last_reason)
+        self.assertEqual(
+            pol.last_reason, "home:queue-withdraw-identify-staff-reserve"
+        )
+        self.assertEqual(pol._home_pending_item, pol._item_signature(available))
+
+    def test_unrelated_publicly_deferred_restore_does_not_block_staff_queue(self):
+        ready = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20,
+            name="髑大ｮ壹・譚・(20蝗槫・)", fully_known=True,
+        )
+        short = replace(ready, charges=16, name="髑大ｮ壹・譚・(16蝗槫・)")
+        restore = store_item(
+            "a", TVAL_POTION, SV_POTION_RESTORE_CON,
+            name="Restore Constitution",
+        )
+        restore_knowledge = item(
+            "a", TVAL_POTION, SV_POTION_RESTORE_CON,
+            name="Restore Constitution", fully_known=True,
+        )
+        staff = store_item(
+            "b", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[ready]
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [restore, staff], stock_num=2,
+                page_top=0, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge((restore_knowledge, staff))
+        seed_character_calibration(pol, outside)
+        pol._equipment_catalog.observe_home_page(())
+        pol._floor_key = outside.floor_key
+        pol._shopping_approach_store_type = STORE_HOME
+        pol._shopping_approach_goal = home_position
+
+        drained = replace(
+            outside,
+            player=replace(
+                outside.player,
+                position=Position(10, 10),
+                stat_cur=(18, 10, 10, 17, 15, 9),
+                stat_use=(18, 10, 10, 17, 16, 9),
+                drained_stats=("con",),
+            ),
+        )
+        pol.choose_key(drained)
+        self.assertEqual(
+            pol._home_pending_item, pol._item_signature(restore), pol.last_reason
+        )
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa\x1b")
+        pol.choose_key(replace(outside, turn=3))
+        self.assertIn(pol._item_signature(restore), pol._deferred_home_items)
+        short_inside = replace(inside, turn=4, inventory=[short])
+        # The pin's subject is the deferred-item filter.  End the unrelated
+        # calibration owner after its real queue/failure producer completed.
+        pol._calibration_phase = None
+        pol._home_atomic_deposit_pending = None
+        pol._home_entry_operation_posted = False
+        seed_character_calibration(pol, short_inside)
+        self.assertEqual(pol.choose_key(short_inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:queue-withdraw-identify-staff-reserve"
+        )
+        self.assertEqual(pol._home_pending_item, pol._item_signature(staff))
+
+    def test_identify_staff_terminal_is_suppressed_during_calibration(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="髑大ｮ壹・譚・(0蝗槫・)",
+        )
+        inside = replace(
+            outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
+        )
+        pol.consume_home_knowledge((depleted,))
+        pol._calibration_phase = "deposit"
+        pol.choose_key(inside)
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+
+    def test_identify_staff_terminal_is_suppressed_by_pending_deposit(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="髑大ｮ壹・譚・(0蝗槫・)",
+        )
+        inside = replace(
+            outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
+        )
+        pol.consume_home_knowledge((depleted,))
+        pol._home_atomic_deposit_pending = ("pending",)
+        pol.choose_key(inside)
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+
+    def test_identify_staff_terminal_is_suppressed_by_transaction_session(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="髑大ｮ壹・譚・(0蝗槫・)",
+        )
+        inside = replace(
+            outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
+        )
+        pol.consume_home_knowledge((depleted,))
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            "home:guard-pin",
+            item_identity="guard-pin",
+        )
+        pol._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 0)
+            )
+        )
+        pol.choose_key(inside)
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
 
     def test_home_entry_without_identify_staff_reaches_named_terminal(self):
         carried = self._staff(charges=16)

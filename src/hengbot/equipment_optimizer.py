@@ -14,7 +14,6 @@ from functools import cmp_to_key
 from hashlib import sha1
 import re
 from itertools import combinations, product
-import re
 from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
