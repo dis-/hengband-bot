@@ -2541,6 +2541,55 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         self.assertEqual(pol._home_pending_item, pol._item_signature(available))
 
+    def test_only_deferred_staff_stack_reaches_named_terminal(self):
+        carried = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
+            name="髑大ｮ壹・譚・(16蝗槫・)", fully_known=True,
+        )
+        stored = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [stored], stock_num=1,
+                page_top=0, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge((stored,))
+        seed_character_calibration(pol, outside)
+        pol._floor_key = outside.floor_key
+        pol._shopping_approach_store_type = STORE_HOME
+        pol._shopping_approach_goal = home_position
+
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa1\r\x1b")
+        pol.choose_key(replace(outside, turn=3))
+        self.assertIn(pol._item_signature(stored), pol._deferred_home_items)
+
+        self.assertEqual(pol.choose_key(replace(inside, turn=4)), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:identify-staff-reserve-unavailable"
+        )
+        self.assertIn(STORE_HOME, pol._town_store_attempted)
+
     def test_unrelated_publicly_deferred_restore_does_not_block_staff_queue(self):
         ready = item(
             "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20,
