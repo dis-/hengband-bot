@@ -27,7 +27,8 @@ from hengbot.ammo_carry import ammo_carry_plan
 from hengbot.model import Position, Snapshot, StoreState
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_TEMPLE,
-    SV_SCROLL_WORD_OF_RECALL, TVAL_DIGGING, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL,
+    SV_SCROLL_WORD_OF_RECALL, SV_STAFF_IDENTIFY, TVAL_DIGGING, TVAL_FOOD,
+    TVAL_POTION, TVAL_SCROLL, TVAL_STAFF,
 )
 from hengbot.policy import HengbotPolicy, LEAVE_STORE_KEY, TownNeed, WAIT_KEY
 from hengbot.policy import (
@@ -173,6 +174,12 @@ def _captured_home_deferral_retry():
     policy = restore_checkpoint(
         HengbotPolicy, capture["producer_checkpoint_pickle_b64"]
     )
+    pending = policy._home_pending_item
+    if pending is not None and pending[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY):
+        policy._home_pending_item = None
+        policy._home_pending_quantity = None
+        policy._home_pending_quantities.pop(pending, None)
+        policy._home_withdrawal_queued = False
     decoded = [
         pickle.loads(base64.b64decode(encoded))
         for encoded in capture["snapshots_pickle_b64"]
@@ -182,6 +189,24 @@ def _captured_home_deferral_retry():
     # shapes/counts from (2,18,28,13,5,14,19) into plain 80 + power 19.
     derived = []
     for snapshot in decoded:
+        snapshot = replace(snapshot, inventory=[
+            replace(item, charges=max(item.charges, 20))
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+            else item
+            for item in snapshot.inventory
+        ])
+        if not any(
+            item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+            for item in snapshot.inventory
+        ):
+            snapshot = replace(snapshot, inventory=[
+                *snapshot.inventory,
+                fixture.item(
+                    "z", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                    charges=20, name="Identify staff harness wall",
+                    fully_known=True,
+                ),
+            ])
         bolts = [item for item in snapshot.inventory if item.tval == 18]
         if len(bolts) == 7:
             if [item.count for item in bolts] != [2, 18, 28, 13, 5, 14, 19]:
@@ -197,6 +222,9 @@ def _captured_home_deferral_retry():
                 raise AssertionError("derived q22 fixture carry plan is not 99")
         derived.append(snapshot)
     decoded = derived
+    # This harness owns the deferred-ammunition retry.  Keep the later
+    # identify-staff Home-first owner out of this historical producer replay;
+    # its shortfall behavior has dedicated public pins in test_policy_supply.
     sequence = capture["sequence"]
     target_signature = next(
         item
