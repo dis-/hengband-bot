@@ -1,0 +1,24 @@
+diff --git b/src/hengbot/policy_equipment.py a/src/hengbot/policy_equipment.py
+index 71522ad..73f63f7 100644
+--- b/src/hengbot/policy_equipment.py
++++ a/src/hengbot/policy_equipment.py
+@@ -1701,19 +1701,6 @@ class EquipmentMixin:
+                 index, target = selected
+                 letter = self._home_page_letter(index)
+                 quantity = "1\r" if target.count > 1 else ""
+-                page_size = max(1, getattr(store, "page_size", 0) or 52)
+-                page_top = max(0, getattr(store, "page_top", 0) or 0)
+-                self._home_atomic_withdraw_telemetry = {
+-                    "decision_sequence": self._decision_sequence,
+-                    "selecting_branch": "equipment-transaction",
+-                    "selected_signature": list(self._item_signature(target)),
+-                    "resolved_index": page_top + index,
+-                    "resolved_page": page_top // page_size,
+-                    "resolved_letter": letter,
+-                    "quantity": 1,
+-                    "transaction_target_identity": action.item_identity,
+-                    "transaction_target_move_identity": action.move_identity,
+-                }
+                 key = BUY_KEY + letter + quantity
+                 if not self._prepare_equipment_transaction_command(
+                     session, action, observation, key,

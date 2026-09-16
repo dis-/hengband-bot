@@ -1,0 +1,16 @@
+diff --git b/src/hengbot/policy.py a/src/hengbot/policy.py
+index 5892e6d..ecfa802 100644
+--- b/src/hengbot/policy.py
++++ a/src/hengbot/policy.py
+@@ -3957,10 +3957,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 snapshot,
+                 STORE_HOME,
+                 goal_satisfied=not self._home_owner_goal_pending(snapshot),
+-                operation_completed=bool(
+-                    self._store_visit is not None
+-                    and self._store_visit.operation_effect_observed
+-                ),
++                operation_completed=self._home_entry_operation_posted,
+             )
+         if (
+             snapshot.store is not None

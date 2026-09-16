@@ -1,0 +1,20 @@
+diff --git b/src/hengbot/policy_town.py a/src/hengbot/policy_town.py
+index c5c1386..211d450 100644
+--- b/src/hengbot/policy_town.py
++++ a/src/hengbot/policy_town.py
+@@ -2941,11 +2941,10 @@ class TownMixin:
+             self._set_town_store_attempted(store_type, snapshot.turn, "plan-stop-satisfied")
+             return
+         limit = self._town_store_visit_limit(store_type)
+-        # Only unsuccessful Home passes consume this bound.  A Home operation
+-        # whose effect was observed resets the counter above.
+-        if operation_completed:
+-            plan.current_stop_passes = 0
+-            return
++        # During calibration, one completed Home entry is the unit of work:
++        # an atomic deposit/withdrawal still consumes an entry when its owner
++        # remains live.  The same ledger counter therefore enforces the user's
++        # visit ceiling without weakening the existing blocked-store terminal.
+         plan.current_stop_passes += 1
+         self._town_visit_ledger.unsatisfied_passes[store_type] += 1
+         self._observe_withdrawal_unsatisfied_pass(snapshot)

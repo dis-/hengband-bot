@@ -1,0 +1,20 @@
+diff --git b/src/hengbot/policy_town.py a/src/hengbot/policy_town.py
+index c5c1386..211d450 100644
+--- b/src/hengbot/policy_town.py
++++ a/src/hengbot/policy_town.py
+@@ -2845,15 +2845,6 @@ class TownMixin:
+     ) -> None:
+         """Report one handler pass to the plan that owns this town objective."""
+         self._town_visit_ledger.store_visits[store_type] += 1
+-        if store_type == STORE_HOME and operation_completed:
+-            # A completed Home operation is reported only after its effect was
+-            # observed.  It therefore satisfies the meaning of this ledger:
+-            # prior unsuccessful passes no longer describe the current work.
+-            self._town_visit_ledger.unsatisfied_passes[store_type] = 0
+-            if 0 < self._town_store_visit_limit(store_type):
+-                self._rearm_town_store_for_new_work(
+-                    store_type, release_visit_bound=True
+-                )
+         store_needs = [
+             need
+             for need in self._enumerate_town_needs(snapshot)
