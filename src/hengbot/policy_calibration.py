@@ -585,6 +585,10 @@ class CalibrationMixin:
                 # the calibration item is ever filed.
                 if not self._calibration_session_owned():
                     self._equipment_transaction_session = None
+                for owner_signature in restore:
+                    self._calibration_restore_move_identities.pop(
+                        owner_signature, None
+                    )
                 self._calibration_restore_signatures.extend(restore)
                 self._calibration_phase = "restore-supplies"
                 self._rearm_town_store_for_new_work(

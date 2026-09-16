@@ -1554,6 +1554,7 @@ class HomeMixin:
                 self._calibration_restore_signatures.remove(signature)
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
+            self._calibration_restore_move_identities.pop(signature, None)
             self._home_pending_quantities.pop(signature, None)
             self._equipment_catalog.record_home_withdrawal(
                 withdrawn,
