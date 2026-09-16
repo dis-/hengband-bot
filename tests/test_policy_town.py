@@ -11533,7 +11533,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         pol._identification_need = "normal"
         pol._identification_candidate = pol._item_signature(home_candidate)
         pol._home_candidate_waiting = (
-            pol._home_identification_candidate_pending(outside)
+            pol._home_identification_candidate_pending()
         )
 
         self.assertEqual(outside.player.position, Position(36, 90))
