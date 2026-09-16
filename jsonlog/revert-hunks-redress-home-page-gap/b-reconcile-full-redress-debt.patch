@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -823,0 +823,6 @@
++                    # Every recorded item is back on: release the stripped
++                    # guard along with the phase.
++                    self._calibration_stripped_unrestored = False
++                    if self._calibration_suspended_phase is None:
++                        self._calibration_worn_before = ()
++                    self._persist_calibration_redress_obligation()
+@@ -837,2 +837,1 @@
+-                    self._calibration_redress_observe(snapshot)
+             else:

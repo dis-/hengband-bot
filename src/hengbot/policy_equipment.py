@@ -1724,11 +1724,13 @@ class EquipmentMixin:
                     "equipment-transaction:leave-for-atomic-withdraw"
                 )
                 return LEAVE_STORE_KEY
-            self._block_equipment_transaction("withdraw-not-on-current-home-page")
-            self.last_reason = (
-                "equipment-transaction:withdraw-not-on-current-home-page"
-            )
-            return None
+            # The complete Home catalogue proves the item exists, but Home
+            # letters are page-relative.  Keep this session as the owner and
+            # use the existing bounded Home paging protocol until the target
+            # page is observed; blocking here used to discard the session and
+            # strand calibration-stripped slots.
+            self.last_reason = "equipment-transaction:seek-home-page"
+            return " "
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
         return LEAVE_STORE_KEY

@@ -608,7 +608,8 @@ class CalibrationMixin:
         }
         if outstanding or lost or len(satisfied) != len(self._calibration_worn_before):
             return
-        self._calibration_worn_before = ()
+        if self._calibration_suspended_phase is None:
+            self._calibration_worn_before = ()
         self._calibration_stripped_unrestored = False
         self._persist_calibration_redress_obligation()
         # Deliberately NOT re-armed: _calibration_blocked_this_visit and the
@@ -820,12 +821,6 @@ class CalibrationMixin:
         if phase == "restore-equip":
             if self._calibration_session_owned():
                 if self._equipment_transaction_session.complete:
-                    # Every recorded item is back on: release the stripped
-                    # guard along with the phase.
-                    self._calibration_stripped_unrestored = False
-                    if self._calibration_suspended_phase is None:
-                        self._calibration_worn_before = ()
-                    self._persist_calibration_redress_obligation()
                     self._equipment_transaction_session = None
                     self._calibration_session_target = None
                     self._calibration_phase = (
@@ -833,6 +828,13 @@ class CalibrationMixin:
                         if self._calibration_restore_signatures
                         else None
                     )
+                    # A restore session contains only identities currently in
+                    # the pack.  Items deposited in Home are not actions in
+                    # that session, so completion alone cannot discharge the
+                    # full strip debt.  Reconcile every recorded identity
+                    # against the newly observed equipment/pack and retain
+                    # the debt (and departure gate) for empty stripped slots.
+                    self._calibration_redress_observe(snapshot)
             else:
                 # A LIVE session that vanished was abandoned by the stall
                 # bound; only that consumes the per-visit failure budget — an

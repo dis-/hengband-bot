@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy_calibration.py b/src/hengbot/policy_calibration.py
+--- a/src/hengbot/policy_calibration.py
++++ b/src/hengbot/policy_calibration.py
+@@ -608,7 +608,6 @@ class CalibrationMixin:
+         }
+         if outstanding or lost or len(satisfied) != len(self._calibration_worn_before):
+             return
+-        if self._calibration_suspended_phase is None:
+-            self._calibration_worn_before = ()
++        self._calibration_worn_before = ()
+         self._calibration_stripped_unrestored = False
+         self._persist_calibration_redress_obligation()
