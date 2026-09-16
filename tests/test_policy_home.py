@@ -2451,6 +2451,36 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 expected,
             )
 
+    def test_page_two_withdrawal_records_resolved_address_and_owner(self):
+        wares = [
+            store_item("?", TVAL_POTION, 600 + index, name=f"home {index}")
+            for index in range(80)
+        ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        target = wares[55]
+        policy._home_pending_item = policy._item_signature(target)
+
+        self._assert_staged_home_operation(
+            policy,
+            self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
+            " pd\x1b",
+        )
+
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry,
+            {
+                "decision_sequence": policy._decision_sequence,
+                "selecting_branch": "home-pending-item",
+                "selected_signature": list(policy._item_signature(target)),
+                "resolved_index": 55,
+                "resolved_page": 1,
+                "resolved_letter": "d",
+                "quantity": 1,
+                "transaction_target_identity": None,
+                "transaction_target_move_identity": None,
+            },
+        )
+
     def test_public_page_three_withdrawal_posts_one_complete_sender_key(self):
         from hengbot.cli import _send_new_decision_key
 

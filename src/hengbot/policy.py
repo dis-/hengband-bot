@@ -1794,6 +1794,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_latch_active: dict[str, object] | None = None
         self._home_latch_history: list[dict[str, object]] = []
         self._home_gate_telemetry: dict[str, object] = {}
+        self._home_atomic_withdraw_telemetry: dict[str, object] = {}
         self._town_restock_wait_until: int | None = None
         self._town_restock_waiting_for: tuple[int, ...] = ()
         self._town_restock_rechecked: set[int] = set()

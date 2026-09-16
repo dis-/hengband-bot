@@ -859,6 +859,7 @@ def _decision_record(
     deposit_keep_conflict: dict | None = None,
     home_gate: dict | None = None,
     staged_prompt_chain: dict | None = None,
+    home_atomic_withdraw: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -882,6 +883,11 @@ def _decision_record(
         "objective": _objective_for_reason(reason),
         "reason": reason,
         "key": key,
+        **(
+            {"home_atomic_withdraw": home_atomic_withdraw}
+            if home_atomic_withdraw
+            else {}
+        ),
         "acquire_store_visit_called": acquire_store_visit_called,
         "requested_owner": requested_owner,
         "requested_store": requested_store,
@@ -1620,6 +1626,15 @@ def _write_decision(
                         }
                         if facts.get("staged_prompt_chain") is not None
                         else None
+                    ),
+                    (
+                        getattr(policy, "_home_atomic_withdraw_telemetry", {})
+                        if policy is not None
+                        and getattr(
+                            policy, "_home_atomic_withdraw_telemetry", {}
+                        ).get("decision_sequence")
+                        == getattr(policy, "_decision_sequence", None)
+                        else {}
                     ),
                 ),
                 file,

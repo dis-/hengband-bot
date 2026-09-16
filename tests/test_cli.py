@@ -2913,6 +2913,29 @@ class DecisionRecordTest(unittest.TestCase):
             _decision_record(snapshot, "5", "later-decision"),
         )
 
+    def test_atomic_home_withdrawal_fields_are_visible_in_decision_record(self):
+        snapshot = self._town_snapshot()
+        withdrawal = {
+            "decision_sequence": 17,
+            "selecting_branch": "equipment-transaction",
+            "selected_signature": ["ring", 45, 1],
+            "resolved_index": 55,
+            "resolved_page": 1,
+            "resolved_letter": "d",
+            "quantity": 1,
+            "transaction_target_identity": "catalog-id",
+            "transaction_target_move_identity": "move-id",
+        }
+
+        record = _decision_record(
+            snapshot,
+            "5",
+            "equipment-transaction:atomic-withdraw",
+            home_atomic_withdraw=withdrawal,
+        )
+
+        self.assertEqual(record["home_atomic_withdraw"], withdrawal)
+
     def test_home_route_refusal_discriminates_queued_active_state(self):
         snapshot = self._town_snapshot()
         policy = HengbotPolicy()

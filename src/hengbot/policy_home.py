@@ -1083,6 +1083,7 @@ class HomeMixin:
             return None
 
         signature: tuple[str, int, int] | None = None
+        selecting_branch: str | None = None
         restore_owner_signature: tuple[str, int, int] | None = None
         transaction_identity: tuple | None = None
         quantity: int | None = None
@@ -1095,6 +1096,7 @@ class HomeMixin:
         observed_signatures = {self._item_signature(item) for _, item in address_slots}
         if self._home_errand.active and self._home_errand.request is not None:
             signature = self._home_errand.request.signature
+            selecting_branch = "home-errand"
             quantity = self._home_errand.request.quantity
             reason = self._home_errand.reason("atomic-withdraw")
         # A specifically queued Home item is the current town stop's operation.
@@ -1104,6 +1106,7 @@ class HomeMixin:
         # forever in the captured 34-item Home.
         if signature is None and self._home_pending_item in observed_signatures:
             signature = self._home_pending_item
+            selecting_branch = "home-pending-item"
         if signature is None and self._calibration_worn_before:
             redress_identities = {
                 identity for _slot, identity in self._calibration_worn_before
@@ -1115,6 +1118,7 @@ class HomeMixin:
             ]
             if len(redress_matches) == 1:
                 signature = self._item_signature(redress_matches[0])
+                selecting_branch = "calibration-worn-restore"
                 restore_owner_signature = next(
                     (
                         owner for owner in self._calibration_restore_signatures
@@ -1128,6 +1132,7 @@ class HomeMixin:
             for restore_signature in self._calibration_restore_signatures:
                 if restore_signature in observed_signatures:
                     signature = restore_signature
+                    selecting_branch = "calibration-restore"
                     restore_owner_signature = restore_signature
                     reason = "calibration:atomic-restore-withdraw"
                     break
@@ -1135,6 +1140,7 @@ class HomeMixin:
             batch_signature = self._home_pending_batch[0]
             if batch_signature in observed_signatures:
                 signature = batch_signature
+                selecting_branch = "home-pending-batch"
         if signature is None and action is not None and action.kind == "withdraw":
             transaction_slot = next(
                 (
@@ -1147,6 +1153,7 @@ class HomeMixin:
             )
             if transaction_slot is not None:
                 signature = self._item_signature(transaction_slot[1])
+                selecting_branch = "equipment-transaction"
                 transaction_identity = action.item_identity
                 reason = "equipment-transaction:atomic-withdraw"
         if signature is None:
@@ -1273,6 +1280,25 @@ class HomeMixin:
             else 1
         )
         take_count = max(1, min(item.count, requested_quantity))
+        self._home_atomic_withdraw_telemetry = {
+            "decision_sequence": self._decision_sequence,
+            "selecting_branch": selecting_branch,
+            "selected_signature": list(signature),
+            "resolved_index": index,
+            "resolved_page": page,
+            "resolved_letter": letter,
+            "quantity": take_count,
+            "transaction_target_identity": (
+                action.item_identity
+                if action is not None and action.kind == "withdraw"
+                else None
+            ),
+            "transaction_target_move_identity": (
+                action.move_identity
+                if action is not None and action.kind == "withdraw"
+                else None
+            ),
+        }
         # The completed address scan binds the shelf letter and stack count to
         # this one-shot entry.  A multi-item stack therefore proves that the
         # quantity prompt will consume this response before the leave key.
