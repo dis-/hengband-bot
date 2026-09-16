@@ -1,0 +1,5 @@
+Source: C:\hengband\bot-client\jsonlog\bot-state-fixed.jsonl at task base 0a6c7c2
+Selection: every raw JSONL record whose turn is 3038685 through 3043494 inclusive
+Records: 150
+Decompressed bytes: 3997465
+Decompressed sha256: 94bd918902b592eefdcb70cf862acc61cd5ee43b082ca0e4004d1f8a1a4b5cd2

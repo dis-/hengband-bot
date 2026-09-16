@@ -1306,17 +1306,12 @@ class TownMixin:
                 else self._food_ready(snapshot)
             ),
             "light_ready": self._light_ready(snapshot),
-            "quest_carry_ready": (
-                self._fundraising_mode in {"mine", "scavenge"}
-                or (strategy := self._carry_procurement_strategy(snapshot)) is None
-                or all(
-                    bool(status["ready"])
-                    or name in self._abandoned_quest_carry_requirements
-                    for name, status in self._quest_carry_status(
-                        snapshot, strategy.required_force
-                    ).items()
-                )
-            ),
+            # Fixed-quest carry belongs to the quest-entry contract, not the
+            # ordinary dungeon departure contract.  Procurement still owns an
+            # available supplier through the town-need registry, and the
+            # fixed-quest readiness evaluator still refuses entry while its
+            # required force is short.
+            "quest_carry_ready": True,
             "teleport_ready": self._teleport_ready(snapshot),
             "cure_critical_ready": self._cure_critical_ready(snapshot),
             "identify_staff_ready": self._identify_staff_ready(snapshot),

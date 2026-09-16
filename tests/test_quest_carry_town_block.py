@@ -113,7 +113,7 @@ class QuestCarryTownBlockPins(unittest.TestCase):
             policy._abandoned_quest_carry_requirements,
             {},
         )
-        self.assertFalse(policy._town_departure_conjuncts(outside)["quest_carry_ready"])
+        self.assertTrue(policy._town_departure_conjuncts(outside)["quest_carry_ready"])
         self.assertNotEqual(policy.last_reason,
                             "town:blocked:no-actionable-claim-owner")
 
@@ -236,7 +236,7 @@ class QuestCarryTownBlockPins(unittest.TestCase):
             policy._abandoned_quest_carry_requirements,
             {},
         )
-        self.assertFalse(
+        self.assertTrue(
             policy._town_departure_conjuncts(recorded_stop)["quest_carry_ready"]
         )
         self.assertNotEqual(

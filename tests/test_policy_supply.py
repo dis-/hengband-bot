@@ -3991,7 +3991,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         )
         self.assertEqual(policy._home_pending_item, existing)
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            self.assertFalse(
+            self.assertTrue(
                 policy._town_departure_conjuncts(town)["quest_carry_ready"]
             )
 
@@ -4018,7 +4018,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         )
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
-            self.assertFalse(policy._town_departure_conjuncts(town)["quest_carry_ready"])
+            self.assertTrue(policy._town_departure_conjuncts(town)["quest_carry_ready"])
             met = replace(
                 town,
                 inventory=[
@@ -4055,7 +4055,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             self.assertEqual(
                 strategy.required_force.get("throwing_items", {}).get("lit_torch"), 5
             )
-            self.assertFalse(
+            self.assertTrue(
                 policy._town_departure_conjuncts(case)["quest_carry_ready"]
             )
         for status in (
