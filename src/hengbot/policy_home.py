@@ -6,7 +6,7 @@ from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CA
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
@@ -1413,23 +1413,29 @@ class HomeMixin:
         ):
             self.last_reason = "home-visit:withdraw-not-authorized"
             return None
+        move_identity = (
+            equipment_move_identity(item)
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+            else None
+        )
+        before_count = (
+            self._inventory_move_identity_count(snapshot, move_identity)
+            if move_identity is not None
+            else self._inventory_signature_count(snapshot, signature)
+        )
         self._home_atomic_withdraw_pending = (
             signature,
-            self._inventory_move_identity_count(
-                snapshot, equipment_move_identity(item)
-            ),
+            before_count,
             item,
             take_count,
             batch_entries,
         ) if batch_entries else (
             signature,
-            self._inventory_move_identity_count(
-                snapshot, equipment_move_identity(item)
-            ),
+            before_count,
             item,
             take_count,
         )
-        self._home_atomic_withdraw_move_identity = equipment_move_identity(item)
+        self._home_atomic_withdraw_move_identity = move_identity
         procurement_probe = getattr(self, "_home_procurement_probe", None)
         self._home_atomic_withdraw_procurement_class = (
             procurement_probe
