@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -247,9 +247,6 @@ class HomeMixin:
+         self._home_knowledge_scan_inflight = False
+         self._home_scan_item_count = len(items)
+         self._home_errand.observe_knowledge(True)
+-        self._home_candidate_waiting = (
+-            self._home_identification_candidate_pending()
+-        )
+         return True
+ 
+     def settle_home_knowledge_request(self) -> None:

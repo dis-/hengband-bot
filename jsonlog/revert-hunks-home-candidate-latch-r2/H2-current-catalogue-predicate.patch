@@ -1,0 +1,42 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2315,7 +2315,7 @@ class HomeMixin:
+         self._home_candidate_waiting = True
+         return True
+ 
+-    def _home_identification_candidate_pending(self) -> bool:
++    def _home_identification_candidate_pending(self, snapshot: Snapshot) -> bool:
+         """Whether concrete state can bind a Home identification errand."""
+         addressable = self._home_knowledge_items[
+             : self._home_knowledge_valid_before
+@@ -2329,10 +2329,24 @@ class HomeMixin:
+             self._home_errand.request is not None
+             and self._home_errand.request.purpose == "identification"
+         )
+-        if filed_source:
+-            return True
+-        if not self._home_knowledge_current:
+-            return False
+-        return bool(known_source or self._identification_candidate is not None)
++        catalogue_scan_pending = bool(
++            not self._home_knowledge_current
++            and (
++                self._identification_need is not None
++                or self._identification_candidate is not None
++                or self._device_identification_candidate is not None
++                or any(
++                    self._identification_flow_candidate(item)
++                    or self._normal_identification_flow_candidate(item)
++                    for item in (*snapshot.inventory, *snapshot.equipment)
++                )
++            )
++        )
++        return bool(
++            known_source
++            or filed_source
++            or self._identification_candidate is not None
++            or catalogue_scan_pending
++        )
+ 
+     def _retain_identification_source_owner(self) -> None:
