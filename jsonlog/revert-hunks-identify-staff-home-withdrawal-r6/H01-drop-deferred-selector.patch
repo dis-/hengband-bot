@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1178,8 +1178,6 @@
+                 reason = "calibration:atomic-restore-withdraw"
+         if not transaction_withdraw_pending and signature is None:
+             for restore_signature in self._calibration_restore_signatures:
+-                if restore_signature in self._deferred_home_items:
+-                    continue
+                 restored_item = next((
+                     item for _, item in address_slots
+                     if self._calibration_restore_item_matches(

@@ -424,7 +424,6 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(outside), WAIT_KEY)
         self.assertEqual(policy.choose_key(inside), policy_module.SELL_KEY + "a2\r\x1b")
         owner = policy._item_signature(owner_item)
-        self.assertEqual(policy._home_pending_quantities[owner], 2)
         policy.choose_key(replace(outside, inventory=[], turn=1))
         merged = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, count=3, charges=21,
@@ -439,6 +438,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             store=StoreState(STORE_HOME, [merged], stock_num=1, page_size=52),
         )
         self.assertEqual(policy.choose_key(page), "pa2\r\x1b")
+        self.assertEqual(policy._home_pending_quantities[owner], 2)
 
     def test_failed_staff_restore_retires_owner_without_reposting(self):
         for with_twin, expected_take in ((False, "pa\x1b"), (True, "pa1\r\x1b")):
@@ -901,11 +901,18 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             rows[1]["decision_snapshot_pickle_b64"]
         ))
         expected = (
+            "pZ47\r"
             "pW2\r"
             "py"
             "pu2\r"
             "pq"
             "pk6\r"
+            "pi30\r"
+            "ph87\r"
+            "pf6\r"
+            "pe29\r"
+            "pd"
+            "pa9\r"
             "\x1b"
         )
 
@@ -949,7 +956,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(len(policy._home_pending_batch), 2)
         self.assertTrue(policy._home_procurement_batch_active)
         self.assertFalse(policy._home_knowledge_current)
-        self.assertEqual(history_record.call_count, 5)
+        self.assertEqual(history_record.call_count, 12)
 
     def test_live_restore_window_keeps_queue_after_confirming_home_pages(self):
         """02:57:50-53 pin: Home was just observed, but its atomic-operation

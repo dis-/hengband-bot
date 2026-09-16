@@ -869,7 +869,6 @@ class CalibrationMixin:
         if phase == "restore-supplies":
             if not self._calibration_restore_signatures:
                 self._calibration_restore_signatures.clear()
-                self._calibration_restore_move_identities.clear()
                 self._calibration_phase = None
                 self._calibration_home_rearm_eligible = False
             elif STORE_HOME in self._town_visit_ledger.blocked_stores:

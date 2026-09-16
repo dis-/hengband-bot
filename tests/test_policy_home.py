@@ -2227,7 +2227,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             else:
                 self.fail((state, character, legal))
         self.assertEqual(state, "home")
-    def test_public_calibration_restore_does_not_repost_deferred_owner(self):
+    def test_public_calibration_restore_converges_twelve_items(self):
         base = [
             store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
             for index in range(80)
@@ -2312,8 +2312,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     withdrawal_decisions.append(decision)
                     inside = False
                     top = 0
-                elif key == WAIT_KEY and policy.last_reason == "town:blocked:owner-retired":
-                    break
                 else:
                     self.fail((decision, "unexpected in-store key", key, policy.last_reason))
             # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the knowledge request is the public protocol event this replay must answer
@@ -2377,9 +2375,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         restored = {
             policy._item_signature(carried) for carried in inventory
         } & target_signatures
-        self.assertGreater(len(restored), 0, (reasons, decision, len(inventory)))
-        self.assertTrue(policy._deferred_home_items)
-        self.assertEqual(policy.last_reason, "town:blocked:owner-retired")
+        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
+        self.assertEqual(withdrawals, 12)
         self.assertLess(decision + 1, 300)
         self.acceptance_restore_metrics = {
             "decisions": decision + 1,

@@ -1,0 +1,11 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1556,7 +1556,6 @@
+                 self._calibration_restore_signatures.remove(signature)
+             if signature in self._home_pending_batch:
+                 self._home_pending_batch.remove(signature)
+-            self._calibration_restore_move_identities.pop(signature, None)
+             self._home_pending_quantities.pop(signature, None)
+             self._equipment_catalog.record_home_withdrawal(
+                 withdrawn,
