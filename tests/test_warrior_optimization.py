@@ -1505,7 +1505,7 @@ class HandModeRankingRegressionTest(unittest.TestCase):
             for action in plan.actions
         ))
 
-    def test_equal_fixture_metrics_keep_either_current_loadout(self):
+    def test_equal_fixture_metrics_prefer_the_fuller_loadout(self):
         (
             _snapshot, items, current, _single, _dual, evaluator,
         ) = self._captured_candidates()
@@ -1522,16 +1522,18 @@ class HandModeRankingRegressionTest(unittest.TestCase):
             for right in loadouts
             if left.item_ids != right.item_ids
         )
+        preferred = max(tied, key=lambda loadout: len(loadout.slots))
+        self.assertNotEqual(len(tied[0].slots), len(tied[1].slots))
         for worn in tied:
             result = optimize_loadout(
                 items, lambda loadout: evaluator(loadout).metrics,
                 depth=1, current_item_ids=worn.item_ids,
                 candidate_loadouts=tied, require_light=True,
             )
-            self.assertEqual(result.best.loadout.item_ids, worn.item_ids)
+            self.assertEqual(result.best.loadout.item_ids, preferred.item_ids)
             self.assertEqual(
-                [entry.loadout.item_ids for entry in result.top_candidates],
-                [worn.item_ids],
+                {entry.loadout.item_ids for entry in result.top_candidates},
+                {loadout.item_ids for loadout in tied},
             )
 
     def test_equal_metrics_do_not_merge_distinct_hand_modes(self):

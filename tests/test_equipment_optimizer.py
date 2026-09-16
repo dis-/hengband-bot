@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 from hengbot.equipment_optimizer import (
+    EvaluatedLoadout,
     LoadoutMetrics,
     Loadout,
     OwnedEquipment,
@@ -21,6 +22,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
     operational_equipment_candidate,
     random_teleport_is_suppressed,
+    _prefer,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
 from hengbot.launcher_damage import best_obtainable_launcher_damage
@@ -148,6 +150,68 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
     def setUp(self):
         self.light = gear("light", 39)
+
+    def test_exact_tie_fills_empty_slot_before_current_loadout_bias(self):
+        ring = gear("harmless-ring", 45)
+        empty = Loadout((("light", self.light),), "empty")
+        filled = Loadout(
+            (("light", self.light), (SLOT_MAIN_RING, ring)),
+            "empty",
+        )
+
+        first = optimize_loadout(
+            (self.light, ring),
+            lambda _loadout: metrics(10),
+            depth=1,
+            current_item_ids=empty.item_ids,
+            candidate_loadouts=(empty, filled),
+        )
+        self.assertEqual(first.best.loadout.item_ids, filled.item_ids)
+
+        second = optimize_loadout(
+            (self.light, ring),
+            lambda _loadout: metrics(10),
+            depth=1,
+            current_item_ids=first.best.loadout.item_ids,
+            candidate_loadouts=(filled, empty),
+        )
+        self.assertEqual(second.best.loadout.item_ids, filled.item_ids)
+
+    def test_pairwise_tie_fills_empty_slot_for_finite_and_infinite_metrics(self):
+        ring = gear("harmless-ring", 45)
+        empty = Loadout((("light", self.light),), "empty")
+        filled = Loadout(
+            (("light", self.light), (SLOT_MAIN_RING, ring)),
+            "empty",
+        )
+
+        for margin in (10.0, float("inf")):
+            with self.subTest(margin=margin):
+                tied = metrics(margin)
+                self.assertTrue(
+                    _prefer(
+                        EvaluatedLoadout(filled, tied),
+                        EvaluatedLoadout(empty, tied),
+                        empty.item_ids,
+                    )
+                )
+
+    def test_strictly_better_empty_loadout_beats_merely_fuller_loadout(self):
+        ring = gear("harmless-ring", 45)
+        empty = Loadout((("light", self.light),), "empty")
+        filled = Loadout(
+            (("light", self.light), (SLOT_MAIN_RING, ring)),
+            "empty",
+        )
+
+        result = optimize_loadout(
+            (self.light, ring),
+            lambda loadout: metrics(11 if loadout is empty else 10),
+            depth=1,
+            current_item_ids=filled.item_ids,
+            candidate_loadouts=(filled, empty),
+        )
+        self.assertEqual(result.best.loadout.item_ids, empty.item_ids)
 
     def test_carried_known_empty_lantern_is_not_operational_candidate(self):
         item = InventoryItem(
@@ -1051,7 +1115,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(at_eighty.best)
         self.assertIsNone(at_eighty_one.best)
 
-    def test_one_percent_tie_keeps_current_loadout(self):
+    def test_one_percent_tie_prefers_filling_an_empty_slot(self):
         current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)
         candidate = gear("candidate", 23)
 
@@ -1064,7 +1128,31 @@ class EquipmentOptimizerTest(unittest.TestCase):
             depth=1,
             current_item_ids=frozenset({"light", "current"}),
         )
-        self.assertEqual(result.best.loadout.item_ids, {"light", "current"})
+        self.assertEqual(
+            result.best.loadout.item_ids,
+            {"light", "current", "candidate"},
+        )
+
+    def test_one_percent_band_still_keeps_equally_full_current_loadout(self):
+        current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)
+        candidate = gear("candidate", 23)
+        worn = Loadout((("light", self.light), (SLOT_MAIN_HAND, current)), "empty")
+        replacement = Loadout(
+            (("light", self.light), (SLOT_MAIN_HAND, candidate)),
+            "empty",
+        )
+
+        result = optimize_loadout(
+            (self.light, current, candidate),
+            lambda loadout: metrics(
+                100.5 if loadout.item_ids == replacement.item_ids else 100.0
+            ),
+            depth=1,
+            current_item_ids=worn.item_ids,
+            candidate_loadouts=(worn, replacement),
+        )
+
+        self.assertEqual(result.best.loadout.item_ids, worn.item_ids)
 
     def test_feanorian_lamp_replaces_current_lantern_after_search_compression(self):
         lantern = gear(

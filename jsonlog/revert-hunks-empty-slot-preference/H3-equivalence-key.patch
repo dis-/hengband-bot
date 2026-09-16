@@ -1,0 +1,9 @@
+diff --git a/src/hengbot/equipment_optimizer.py b/src/hengbot/equipment_optimizer.py
+--- a/src/hengbot/equipment_optimizer.py
++++ b/src/hengbot/equipment_optimizer.py
+@@ -1054,5 +1054,4 @@ def _selection_equivalence_key(
+         entry.loadout.flags.intersection(ABILITY_FLAG.values()),
+         bow_policy,
+         light_source_quality(entry.loadout),
+-        len(entry.loadout.slots),
+     )

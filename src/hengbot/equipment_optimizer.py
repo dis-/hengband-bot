@@ -985,6 +985,8 @@ def _prefer(
             return cm.combat_margin > im.combat_margin
         if cm.secondary_value != im.secondary_value:
             return cm.secondary_value > im.secondary_value
+        if len(candidate.loadout.slots) != len(incumbent.loadout.slots):
+            return len(candidate.loadout.slots) > len(incumbent.loadout.slots)
         candidate_is_current = candidate.loadout.item_ids == current_item_ids
         incumbent_is_current = incumbent.loadout.item_ids == current_item_ids
         return candidate_is_current and not incumbent_is_current
@@ -1026,6 +1028,8 @@ def _prefer(
         return False
     if cm.secondary_value != im.secondary_value:
         return cm.secondary_value > im.secondary_value
+    if len(candidate.loadout.slots) != len(incumbent.loadout.slots):
+        return len(candidate.loadout.slots) > len(incumbent.loadout.slots)
     candidate_is_current = candidate.loadout.item_ids == current_item_ids
     incumbent_is_current = incumbent.loadout.item_ids == current_item_ids
     return candidate_is_current and not incumbent_is_current
@@ -1052,6 +1056,7 @@ def _selection_equivalence_key(
         entry.loadout.flags.intersection(ABILITY_FLAG.values()),
         bow_policy,
         light_source_quality(entry.loadout),
+        len(entry.loadout.slots),
     )
 
 
@@ -1172,6 +1177,7 @@ def _stable_operational_best(
             entry.metrics.secondary_value,
             entry.metrics.speed_bonus,
             light_source_quality(entry.loadout),
+            len(entry.loadout.slots),
             entry.loadout.item_ids == current_item_ids,
             entry.metrics.combat_margin,
             entry.metrics.survival_turns,

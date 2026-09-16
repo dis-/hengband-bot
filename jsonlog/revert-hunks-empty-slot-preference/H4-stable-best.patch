@@ -1,0 +1,11 @@
+diff --git a/src/hengbot/equipment_optimizer.py b/src/hengbot/equipment_optimizer.py
+--- a/src/hengbot/equipment_optimizer.py
++++ b/src/hengbot/equipment_optimizer.py
+@@ -1174,7 +1174,6 @@ def _stable_operational_best(
+             entry.metrics.secondary_value,
+             entry.metrics.speed_bonus,
+             light_source_quality(entry.loadout),
+-            len(entry.loadout.slots),
+             entry.loadout.item_ids == current_item_ids,
+             entry.metrics.combat_margin,
+             entry.metrics.survival_turns,

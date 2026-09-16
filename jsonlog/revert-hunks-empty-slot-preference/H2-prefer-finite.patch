@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/equipment_optimizer.py b/src/hengbot/equipment_optimizer.py
+--- a/src/hengbot/equipment_optimizer.py
++++ b/src/hengbot/equipment_optimizer.py
+@@ -1028,8 +1028,6 @@ def _prefer(
+         return False
+     if cm.secondary_value != im.secondary_value:
+         return cm.secondary_value > im.secondary_value
+-    if len(candidate.loadout.slots) != len(incumbent.loadout.slots):
+-        return len(candidate.loadout.slots) > len(incumbent.loadout.slots)
+     candidate_is_current = candidate.loadout.item_ids == current_item_ids
+     incumbent_is_current = incumbent.loadout.item_ids == current_item_ids
+     return candidate_is_current and not incumbent_is_current
