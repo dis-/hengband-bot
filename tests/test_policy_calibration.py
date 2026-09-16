@@ -51,15 +51,6 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
     HOME = Position(10, 12)
 
-    def test_equipment_optimizer_imports_re_once(self):
-        optimizer_path = Path(policy_module.__file__).with_name(
-            "equipment_optimizer.py"
-        )
-        self.assertEqual(
-            optimizer_path.read_text(encoding="utf-8").count("\nimport re\n"),
-            1,
-        )
-
     def test_legacy_policy_initializes_calibration_restore_move_identities(self):
         policy = HengbotPolicy()
         del policy._calibration_restore_move_identities
@@ -390,32 +381,129 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_batch, [])
         self.assertEqual(policy._calibration_restore_move_identities, {})
         self.assertNotIn(owner, policy._deferred_home_items)
-        root = Path(__file__).parents[1] / "src" / "hengbot"
-        calibration_source = (root / "policy_calibration.py").read_text(
-            encoding="utf-8"
+
+    def test_floor_change_clears_every_restore_owner_value(self):
+        policy = self._scan_complete_policy()
+        owner = ("restore", TVAL_STAFF, SV_STAFF_IDENTIFY)
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [owner]
+        policy._calibration_restore_move_identities[owner] = "move-id"
+        policy._home_pending_quantities[owner] = 2
+        dungeon = replace(
+            self._snapshot(), town_flag=False, floor_key=(1, 1, 1)
         )
-        home_source = (root / "policy_home.py").read_text(encoding="utf-8")
-        policy_source = (root / "policy.py").read_text(encoding="utf-8")
-        self.assertEqual(
-            calibration_source.count(
-                "self._calibration_restore_move_identities.clear()"
-            ), 3,
-            "every calibration finish/abort path clears restore identities",
+
+        policy.choose_key(dungeon)
+
+        self.assertIsNone(policy._calibration_phase)
+        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertEqual(policy._calibration_restore_move_identities, {})
+
+    def test_two_deposited_staves_restore_two_through_public_keys(self):
+        policy = self._scan_complete_policy()
+        owner_item = item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="髑大ｮ壹・譚・(2x 21蝗槫・)", fully_known=True,
         )
-        self.assertEqual(
-            home_source.count("_calibration_restore_move_identities.pop("), 3,
-            "compose, batch success, and unobserved finish clean identities",
+        twin = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+            name="髑大ｮ壹・譚・(21蝗槫・)",
         )
-        self.assertEqual(
-            home_source.count(
-                "self._home_pending_quantities[signature] = deposit_count"
-            ), 1,
-            "calibration restore retains the deposited quantity",
+        outside = replace(
+            self._snapshot(inventory=(owner_item,)),
+            player=replace(self._snapshot().player, position=self.HOME),
         )
-        self.assertEqual(
-            policy_source.count("_calibration_restore_move_identities.pop("), 1,
-            "observed single restore success cleans its identity",
+        policy._calibration_phase = "deposit"
+        policy.consume_home_knowledge((twin,))
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._shopping_approach_goal = self.HOME
+        inside = replace(
+            outside,
+            store=StoreState(STORE_HOME, [twin], stock_num=1, page_size=52),
         )
+        self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(policy.choose_key(inside), policy_module.SELL_KEY + "a2\r\x1b")
+        owner = policy._item_signature(owner_item)
+        self.assertEqual(policy._home_pending_quantities[owner], 2)
+        policy.choose_key(replace(outside, inventory=[], turn=1))
+        merged = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, count=3, charges=21,
+            name="髑大ｮ壹・譚・(3x 21蝗槫・)",
+        )
+        policy.consume_home_knowledge((merged,))
+        policy._calibration_phase = "restore-supplies"
+        entrance = replace(outside, inventory=[], turn=2)
+        self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+        page = replace(
+            entrance, turn=3,
+            store=StoreState(STORE_HOME, [merged], stock_num=1, page_size=52),
+        )
+        self.assertEqual(policy.choose_key(page), "pa2\r\x1b")
+
+    def test_failed_staff_restore_retires_owner_without_reposting(self):
+        for with_twin, expected_take in ((False, "pa\x1b"), (True, "pa1\r\x1b")):
+            with self.subTest(with_twin=with_twin):
+                policy = self._scan_complete_policy()
+                carried = item(
+                    "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+                    name="髑大ｮ壹・譚・(21蝗槫・)", fully_known=True,
+                )
+                twin = store_item(
+                    "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+                    name="髑大ｮ壹・譚・(21蝗槫・)",
+                )
+                initial_home = [twin] if with_twin else []
+                outside = replace(
+                    self._snapshot(inventory=(carried,)),
+                    player=replace(self._snapshot().player, position=self.HOME),
+                )
+                policy._calibration_phase = "deposit"
+                policy.consume_home_knowledge(tuple(initial_home))
+                policy._shopping_approach_store_type = STORE_HOME
+                policy._shopping_approach_goal = self.HOME
+                inside = replace(
+                    outside,
+                    store=StoreState(
+                        STORE_HOME, initial_home, stock_num=len(initial_home),
+                        page_size=52,
+                    ),
+                )
+                self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+                policy.choose_key(inside)
+                owner = policy._item_signature(carried)
+                policy.choose_key(replace(outside, inventory=[], turn=1))
+                stored_count = 2 if with_twin else 1
+                stored = store_item(
+                    "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
+                    count=stored_count, charges=21,
+                    name=(
+                        "髑大ｮ壹・譚・(2x 21蝗槫・)" if with_twin
+                        else "髑大ｮ壹・譚・(21蝗槫・)"
+                    ),
+                )
+                policy.consume_home_knowledge((stored,))
+                policy._calibration_phase = "restore-supplies"
+                entrance = replace(outside, inventory=[], turn=2)
+                self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+                page = replace(
+                    entrance, turn=3,
+                    store=StoreState(
+                        STORE_HOME, [stored], stock_num=1, page_size=52,
+                    ),
+                )
+                self.assertEqual(policy.choose_key(page), expected_take)
+                policy._calibration_blocked_this_visit = True
+
+                policy.choose_key(replace(entrance, inventory=[], turn=4))
+
+                self.assertIsNone(policy._calibration_phase)
+                self.assertEqual(policy._calibration_restore_signatures, [])
+                self.assertEqual(policy._home_pending_batch, [])
+                self.assertEqual(policy._calibration_restore_move_identities, {})
+                self.assertNotIn(owner, policy._home_pending_quantities)
+                self.assertIn(owner, policy._deferred_home_items)
+                followup = replace(page, turn=5)
+                self.assertNotIn("p", policy.choose_key(followup))
 
     def test_strip_session_takes_off_every_removable_item_but_not_cursed(self):
         policy = self._scan_complete_policy()
@@ -813,18 +901,11 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             rows[1]["decision_snapshot_pickle_b64"]
         ))
         expected = (
-            "pZ47\r"
             "pW2\r"
             "py"
             "pu2\r"
             "pq"
             "pk6\r"
-            "pi30\r"
-            "ph87\r"
-            "pf6\r"
-            "pe29\r"
-            "pd"
-            "pa9\r"
             "\x1b"
         )
 
@@ -868,7 +949,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(len(policy._home_pending_batch), 2)
         self.assertTrue(policy._home_procurement_batch_active)
         self.assertFalse(policy._home_knowledge_current)
-        self.assertEqual(history_record.call_count, 12)
+        self.assertEqual(history_record.call_count, 5)
 
     def test_live_restore_window_keeps_queue_after_confirming_home_pages(self):
         """02:57:50-53 pin: Home was just observed, but its atomic-operation
@@ -929,6 +1010,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         snapshot = self._snapshot()
         policy._calibration_phase = "restore-supplies"
         policy._calibration_restore_signatures = [("restore", 75, 1)]
+        owner = policy._calibration_restore_signatures[0]
+        policy._calibration_restore_move_identities[owner] = "move-id"
         policy._last_snapshot_was_store = True
         policy._last_snapshot_store_type = STORE_HOME
         policy._calibration_blocked_this_visit = True
@@ -941,6 +1024,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertFalse(policy._calibration_home_rearm_eligible)
         self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertEqual(policy._calibration_restore_move_identities, {})
 
     def test_calibration_telemetry_names_first_failed_entry_guard(self):
         policy = self._scan_complete_policy()

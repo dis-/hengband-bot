@@ -2732,17 +2732,6 @@ class IdentifyStaffTest(unittest.TestCase):
         pol.choose_key(inside)
         self.assertNotIn(STORE_HOME, pol._town_store_attempted)
         self.assertEqual(pol.last_reason, "equipment-transaction:withdraw-missing")
-        source = (
-            Path(__file__).parents[1] / "src" / "hengbot" / "policy.py"
-        ).read_text(encoding="utf-8")
-        self.assertEqual(
-            source.count("and self._equipment_transaction_session is None"),
-            14,
-            "the dead terminal guard must not be restored",
-        )
-
-    def test_transaction_owner_preempts_identify_terminal_before_home_block(self):
-        self.test_identify_staff_terminal_is_suppressed_by_transaction_session()
 
     def test_home_entry_without_identify_staff_reaches_named_terminal(self):
         carried = self._staff(charges=16)

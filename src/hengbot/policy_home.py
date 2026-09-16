@@ -1178,6 +1178,8 @@ class HomeMixin:
                 reason = "calibration:atomic-restore-withdraw"
         if not transaction_withdraw_pending and signature is None:
             for restore_signature in self._calibration_restore_signatures:
+                if restore_signature in self._deferred_home_items:
+                    continue
                 restored_item = next((
                     item for _, item in address_slots
                     if self._calibration_restore_item_matches(
@@ -1719,6 +1721,7 @@ class HomeMixin:
             if signature in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.remove(signature)
             self._calibration_restore_move_identities.pop(signature, None)
+            self._home_pending_quantities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None
             self._home_pending_slot = None

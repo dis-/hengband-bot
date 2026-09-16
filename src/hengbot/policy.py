@@ -3265,6 +3265,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._defer_home_item(signature, "atomic-withdraw-observed-failure")
                     if signature in self._home_pending_batch:
                         self._home_pending_batch.remove(signature)
+                    if signature in self._calibration_restore_signatures:
+                        self._calibration_restore_signatures.remove(signature)
+                    self._calibration_restore_move_identities.pop(signature, None)
+                    self._home_pending_quantities.pop(signature, None)
                     if self._home_pending_item == signature:
                         self._home_pending_item = None
                         self._home_pending_slot = None
