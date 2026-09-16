@@ -174,12 +174,6 @@ def _captured_home_deferral_retry():
     policy = restore_checkpoint(
         HengbotPolicy, capture["producer_checkpoint_pickle_b64"]
     )
-    pending = policy._home_pending_item
-    if pending is not None and pending[1:] == (TVAL_STAFF, SV_STAFF_IDENTIFY):
-        policy._home_pending_item = None
-        policy._home_pending_quantity = None
-        policy._home_pending_quantities.pop(pending, None)
-        policy._home_withdrawal_queued = False
     decoded = [
         pickle.loads(base64.b64decode(encoded))
         for encoded in capture["snapshots_pickle_b64"]

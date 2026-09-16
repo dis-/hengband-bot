@@ -1049,6 +1049,7 @@ class HomeMixin:
             self._calibration_restore_move_identities[signature] = (
                 equipment_move_identity(deposit)
             )
+            self._home_pending_quantities[signature] = deposit_count
         if (
             deposit.tval == TVAL_SCROLL
             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
@@ -1298,7 +1299,9 @@ class HomeMixin:
         page, page_pos = divmod(index, self._home_page_size)
         letter = self._home_page_letter(page_pos)
         if restore_owner_signature is not None:
-            quantity = item.count
+            quantity = self._home_pending_quantities.get(
+                restore_owner_signature, 1
+            )
         if not letter or len(letter) != 1:
             if self._home_errand.active:
                 self._home_errand.observe_unaddressed_entry(
@@ -1445,14 +1448,23 @@ class HomeMixin:
             if move_identity is not None
             else self._inventory_signature_count(snapshot, signature)
         )
+        pending_signature = (
+            restore_owner_signature
+            if (
+                restore_owner_signature is not None
+                and item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+            )
+            else signature
+        )
         self._home_atomic_withdraw_pending = (
-            signature,
+            pending_signature,
             before_count,
             item,
             take_count,
             batch_entries,
         ) if batch_entries else (
-            signature,
+            pending_signature,
             before_count,
             item,
             take_count,
@@ -1488,7 +1500,14 @@ class HomeMixin:
             self._home_errand.post(
                 self._inventory_signature_count(snapshot, signature)
             )
-        if restore_owner_signature is not None and not batch_entries:
+        if (
+            restore_owner_signature is not None
+            and not batch_entries
+            and not (
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+            )
+        ):
             self._calibration_restore_signatures.remove(restore_owner_signature)
             self._calibration_restore_move_identities.pop(
                 restore_owner_signature, None
@@ -1535,6 +1554,7 @@ class HomeMixin:
                 self._calibration_restore_signatures.remove(signature)
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
+            self._calibration_restore_move_identities.pop(signature, None)
             self._home_pending_quantities.pop(signature, None)
             self._equipment_catalog.record_home_withdrawal(
                 withdrawn,
@@ -1698,6 +1718,7 @@ class HomeMixin:
                 self._home_pending_batch.remove(signature)
             if signature in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.remove(signature)
+            self._calibration_restore_move_identities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None
             self._home_pending_slot = None

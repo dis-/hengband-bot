@@ -2541,14 +2541,14 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         self.assertEqual(pol._home_pending_item, pol._item_signature(available))
 
-    def test_only_deferred_staff_stack_reaches_named_terminal(self):
+    def test_only_usable_deferred_staff_stack_reaches_unavailable_terminal(self):
         carried = item(
             "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
-            name="髑大ｮ壹・譚・(16蝗槫・)", fully_known=True,
+            name="鑑定の杖 (16回分)", fully_known=True,
         )
         stored = store_item(
             "p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
-            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+            name="鑑定の杖 (2x 21回分)",
         )
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
@@ -2584,20 +2584,12 @@ class IdentifyStaffTest(unittest.TestCase):
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(stored), pol._deferred_home_items)
 
-        depleted = store_item(
-            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
-            name="髑大ｮ壹・譚・(0蝗槫・)",
-        )
-        pol.consume_home_knowledge((depleted,))
-        depleted_inside = replace(
-            inside,
-            turn=4,
-            store=StoreState(
-                STORE_HOME, [depleted], stock_num=1,
-                page_top=0, page_size=52,
-            ),
-        )
-        self.assertEqual(pol.choose_key(depleted_inside), LEAVE_STORE_KEY)
+        # Home still contains exactly the usable stack deferred by the real
+        # failed-withdrawal producer above.  It is unavailable this visit.
+        self.assertEqual(pol.choose_key(replace(inside, turn=4)), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:scan-complete-from-open-page")
+        pol.choose_key(replace(outside, turn=5))
+        self.assertEqual(pol.choose_key(replace(inside, turn=6)), LEAVE_STORE_KEY)
         self.assertEqual(
             pol.last_reason, "home:identify-staff-reserve-unavailable"
         )
@@ -2739,6 +2731,18 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         pol.choose_key(inside)
         self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+        self.assertEqual(pol.last_reason, "equipment-transaction:withdraw-missing")
+        source = (
+            Path(__file__).parents[1] / "src" / "hengbot" / "policy.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            source.count("and self._equipment_transaction_session is None"),
+            14,
+            "the dead terminal guard must not be restored",
+        )
+
+    def test_transaction_owner_preempts_identify_terminal_before_home_block(self):
+        self.test_identify_staff_terminal_is_suppressed_by_transaction_session()
 
     def test_home_entry_without_identify_staff_reaches_named_terminal(self):
         carried = self._staff(charges=16)

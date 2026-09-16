@@ -775,6 +775,7 @@ class CalibrationMixin:
             # the next town visit re-runs the phase from the start.
             self._calibration_phase = None
             self._calibration_restore_signatures.clear()
+            self._calibration_restore_move_identities.clear()
             if self._calibration_session_owned():
                 self._equipment_transaction_session = None
             self._calibration_session_target = None
@@ -868,6 +869,7 @@ class CalibrationMixin:
         if phase == "restore-supplies":
             if not self._calibration_restore_signatures:
                 self._calibration_restore_signatures.clear()
+                self._calibration_restore_move_identities.clear()
                 self._calibration_phase = None
                 self._calibration_home_rearm_eligible = False
             elif STORE_HOME in self._town_visit_ledger.blocked_stores:
@@ -896,6 +898,7 @@ class CalibrationMixin:
                             f"town:blocked:{self._town_blocked_reason}"
                         )
                     self._calibration_restore_signatures.clear()
+                    self._calibration_restore_move_identities.clear()
                     self._calibration_phase = None
                     self._calibration_home_rearm_eligible = False
             elif STORE_HOME in self._town_store_attempted:

@@ -3165,6 +3165,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._confirm_home_withdrawal_address(
                     signature, self._home_atomic_withdraw_index
                 )
+                if signature in self._calibration_restore_signatures:
+                    self._calibration_restore_signatures.remove(signature)
+                self._calibration_restore_move_identities.pop(signature, None)
+                if signature in self._home_pending_batch:
+                    self._home_pending_batch.remove(signature)
+                self._home_pending_quantities.pop(signature, None)
                 if withdrawn.is_digging_tool:
                     # The queued operation, rather than the standing two-tool
                     # optimization target, is the departure premise.  Its
@@ -3970,7 +3976,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
                 and not self._identify_staff_ready(snapshot)
                 and self._home_knowledge_current
                 and self._home_pending_item is None
@@ -3984,6 +3989,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         item.tval == TVAL_STAFF
                         and item.sval == SV_STAFF_IDENTIFY
                         and item.charges > 0
+                        and self._item_signature(item)
+                        not in self._deferred_home_items
                         for item in self._home_knowledge_items
                     )
                 )
@@ -3992,6 +3999,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     item.tval == TVAL_STAFF
                     and item.sval == SV_STAFF_IDENTIFY
                     and item.charges > 0
+                    and self._item_signature(item)
+                    not in self._deferred_home_items
                     for item in self._home_knowledge_items
                 )
                 self._report_town_stop_pass(

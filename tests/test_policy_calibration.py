@@ -73,6 +73,38 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         self.assertEqual(policy._calibration_restore_move_identities, {})
 
+    def test_restore_identity_cleanup_covers_every_restore_finish_path(self):
+        root = Path(__file__).parents[1] / "src" / "hengbot"
+        calibration_source = (root / "policy_calibration.py").read_text(
+            encoding="utf-8"
+        )
+        home_source = (root / "policy_home.py").read_text(encoding="utf-8")
+        policy_source = (root / "policy.py").read_text(encoding="utf-8")
+        self.assertEqual(
+            calibration_source.count(
+                "self._calibration_restore_move_identities.clear()"
+            ),
+            3,
+            "every calibration finish/abort path clears restore identities",
+        )
+        self.assertEqual(
+            home_source.count("_calibration_restore_move_identities.pop("),
+            3,
+            "compose, batch success, and unobserved finish clean identities",
+        )
+        self.assertEqual(
+            home_source.count(
+                "self._home_pending_quantities[signature] = deposit_count"
+            ),
+            1,
+            "calibration restore retains the deposited quantity",
+        )
+        self.assertEqual(
+            policy_source.count("_calibration_restore_move_identities.pop("),
+            1,
+            "observed single restore success cleans its identity",
+        )
+
     def _grids(self):
         grids = {
             Position(10, x): grid(10, x) for x in range(9, 14)
@@ -324,24 +356,28 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy = self._scan_complete_policy()
         carried = item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
-            name="髑大ｮ壹・譚・(21蝗槫・)", fully_known=True,
+            name="鑑定の杖 (21回分)", fully_known=True,
+        )
+        twin = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+            name="鑑定の杖 (21回分)",
         )
         outside = self._snapshot(inventory=(carried,))
         outside = replace(
             outside, player=replace(outside.player, position=self.HOME)
         )
         policy._calibration_phase = "deposit"
-        policy.consume_home_knowledge(())
+        policy.consume_home_knowledge((twin,))
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = self.HOME
-        inside_empty = replace(
+        inside = replace(
             outside,
-            store=StoreState(STORE_HOME, [], stock_num=0, page_size=52),
+            store=StoreState(STORE_HOME, [twin], stock_num=1, page_size=52),
         )
 
         self.assertEqual(policy.choose_key(outside), WAIT_KEY)
         self.assertEqual(
-            policy.choose_key(inside_empty), policy_module.SELL_KEY + "a\x1b"
+            policy.choose_key(inside), policy_module.SELL_KEY + "a\x1b"
         )
         owner = policy._item_signature(carried)
         self.assertIn(owner, policy._calibration_restore_signatures)
@@ -351,7 +387,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         merged = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
-            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+            name="鑑定の杖 (2x 21回分)",
         )
         policy.consume_home_knowledge((merged,))
         policy._calibration_phase = "restore-supplies"
@@ -362,7 +398,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "calibration:atomic-restore-withdraw"
         )
-        self.assertNotIn(owner, policy._calibration_restore_move_identities)
+        self.assertIn(owner, policy._calibration_restore_move_identities)
         page = replace(
             entrance,
             turn=3,
@@ -370,7 +406,22 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 STORE_HOME, [merged], stock_num=1, page_top=0, page_size=52,
             ),
         )
-        self.assertEqual(policy.choose_key(page), "pa2\r\x1b")
+        self.assertEqual(policy.choose_key(page), "pa1\r\x1b")
+        remaining = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+            name="鑑定の杖 (21回分)",
+        )
+        policy.consume_home_knowledge((remaining,))
+        restored = replace(carried, slot="a")
+        # The restore producer/consumer is complete; prevent the independent
+        # calibration scheduler from immediately opening a new cycle on the
+        # same deliberately minimal fixture.
+        policy._calibration_blocked_this_visit = True
+        policy.choose_key(replace(entrance, inventory=[restored], turn=4))
+        self.assertEqual(policy._calibration_restore_signatures, [])
+        self.assertEqual(policy._home_pending_batch, [])
+        self.assertEqual(policy._calibration_restore_move_identities, {})
+        self.assertNotIn(owner, policy._deferred_home_items)
 
     def test_strip_session_takes_off_every_removable_item_but_not_cursed(self):
         policy = self._scan_complete_policy()
