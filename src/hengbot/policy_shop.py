@@ -1093,6 +1093,7 @@ class ShopMixin:
             self._home_pending_item = None
             self._home_pending_batch.clear()
             self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_move_identity = None
             self._home_random_teleport_withdrawal = None
 
     def _rearm_town_store_for_new_work(

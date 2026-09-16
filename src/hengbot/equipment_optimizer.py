@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cmp_to_key
 from hashlib import sha1
+import re
 from itertools import combinations, product
 import re
 from math import isfinite
@@ -402,7 +403,8 @@ def equipment_identity(item: EquipmentItem) -> str:
 def equipment_move_identity(item: EquipmentItem) -> str:
     """Player-visible identity that remains stable while a stack count moves."""
     signature = _catalog_signature(item)
-    return _catalog_digest(signature[:3] + signature[4:])
+    stable_name = re.sub(r"\((?:\d+)x\s+", "(", signature[0]) if signature[0] else None
+    return _catalog_digest((stable_name, *signature[1:3], *signature[4:]))
 
 
 def optimizer_item_projection(owned: OwnedEquipment) -> tuple:

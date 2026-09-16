@@ -2415,11 +2415,18 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertTrue(pol2._identify_staff_ready(snap2))
 
     def test_home_entry_queues_identify_staff_shortfall_and_composes_withdrawal(self):
-        carried = self._staff(charges=16)
-        stored = store_item(
-            "p", TVAL_STAFF, SV_STAFF_IDENTIFY,
-            name="Staff of Identify", charges=21,
+        carried = item(
+            "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
+            name="鑑定の杖 (16回分)", fully_known=True,
         )
+        stored = [
+            store_item("p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+                       name="鑑定の杖 (2x 21回分)"),
+            store_item("q", TVAL_STAFF, SV_STAFF_IDENTIFY, count=7, charges=18,
+                       name="鑑定の杖 (7x 18回分)"),
+            store_item("r", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+                       name="鑑定の杖 (0回分)"),
+        ]
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
         )
@@ -2438,10 +2445,10 @@ class IdentifyStaffTest(unittest.TestCase):
         inside = replace(
             outside,
             store=StoreState(
-                STORE_HOME, [stored], stock_num=1, page_top=0, page_size=52,
+                STORE_HOME, stored, stock_num=len(stored), page_top=0, page_size=52,
             ),
         )
-        pol.consume_home_knowledge((stored,))
+        pol.consume_home_knowledge(tuple(stored))
         pol._floor_key = inside.floor_key
         pol._shopping_approach_store_type = STORE_HOME
         pol._shopping_approach_goal = inside.player.position
@@ -2450,19 +2457,33 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(
             pol.last_reason, "home:queue-withdraw-identify-staff-reserve"
         )
-        self.assertEqual(pol._home_pending_item, pol._item_signature(stored))
+        self.assertEqual(pol._home_pending_item, pol._item_signature(stored[0]))
 
         entrance = replace(inside, store=None, turn=inside.turn + 1)
         self.assertEqual(pol.choose_key(entrance), WAIT_KEY)
         self.assertEqual(pol.last_reason, "home:atomic-withdraw")
 
+        page = replace(inside, turn=entrance.turn + 1)
+        self.assertEqual(pol.choose_key(page), "pa1\r\x1b")
+        self.assertEqual(pol.last_reason, "home:atomic-withdraw")
+
         after = replace(
             entrance,
-            turn=entrance.turn + 1,
-            inventory=[carried, self._staff(charges=21)],
+            turn=page.turn + 1,
+            inventory=[
+                carried,
+                item(
+                    "j", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
+                    name="鑑定の杖 (21回分)", fully_known=True,
+                ),
+            ],
         )
+        pol.choose_key(after)
         self.assertEqual(pol._total_identify_staff_charges(after), 37)
         self.assertTrue(pol._identify_staff_ready(after))
+        self.assertIsNone(pol._home_atomic_withdraw_pending)
+        self.assertNotIn(pol._item_signature(stored[0]), pol._deferred_home_items)
+        self.assertNotEqual(pol.last_reason, "home:atomic-withdraw-failed")
 
     def test_home_entry_without_identify_staff_reaches_named_terminal(self):
         carried = self._staff(charges=16)
@@ -2481,13 +2502,17 @@ class IdentifyStaffTest(unittest.TestCase):
                 Position(45, 122): grid(45, 122),
             },
         )
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="鑑定の杖 (0回分)",
+        )
         inside = replace(
             outside,
             store=StoreState(
-                STORE_HOME, [], stock_num=0, page_top=0, page_size=52,
+                STORE_HOME, [depleted], stock_num=1, page_top=0, page_size=52,
             ),
         )
-        pol.consume_home_knowledge(())
+        pol.consume_home_knowledge((depleted,))
         pol._floor_key = inside.floor_key
         pol._shopping_approach_store_type = STORE_HOME
         pol._shopping_approach_goal = inside.player.position
@@ -2497,6 +2522,55 @@ class IdentifyStaffTest(unittest.TestCase):
             pol.last_reason, "home:identify-staff-reserve-unavailable"
         )
         self.assertIsNone(pol._home_pending_item)
+        self.assertIn(STORE_HOME, pol._town_store_attempted)
+
+        reentry = replace(inside, turn=inside.turn + 1)
+        pol.choose_key(reentry)
+        self.assertNotEqual(
+            pol.last_reason, "home:identify-staff-reserve-unavailable"
+        )
+
+    def test_identify_staff_terminal_yields_to_open_page_deposit(self):
+        carried = self._staff(charges=16)
+        depleted = store_item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
+            name="鑑定の杖 (0回分)",
+        )
+        pol, outside = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried])
+        inside = replace(
+            outside,
+            store=StoreState(STORE_HOME, [depleted], stock_num=1, page_size=52),
+        )
+        pol.consume_home_knowledge((depleted,))
+        with patch.object(pol, "_open_home_deposit_key", return_value="sX\x1b"):
+            self.assertEqual(pol.choose_key(inside), "sX\x1b")
+        self.assertNotEqual(pol.last_reason, "home:identify-staff-reserve-unavailable")
+        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
+
+    def test_identify_staff_with_tight_pack_reaches_named_bounded_terminal(self):
+        carried = item(
+            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
+            name="鑑定の杖 (16回分)",
+        )
+        fillers = [
+            item(chr(ord("b") + index), TVAL_FOOD, 1, name=f"filler {index}")
+            for index in range(17)
+        ]
+        usable = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
+            name="鑑定の杖 (2x 21回分)",
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried, *fillers]
+        )
+        inside = replace(
+            outside,
+            store=StoreState(STORE_HOME, [usable], stock_num=1, page_size=52),
+        )
+        pol.consume_home_knowledge((usable,))
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:identify-staff-reserve-no-pack-space")
+        self.assertIn(STORE_HOME, pol._town_store_attempted)
 
     def test_identify_requirement_is_twenty_carried_charges_only(self):
         carried = self._staff(charges=16)

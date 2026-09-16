@@ -38,6 +38,7 @@ from hengbot.equipment_optimizer import (
     current_loadout,
     divable_depth,
     equipment_identity,
+    equipment_move_identity,
     operational_equipment_candidate,
     optimizer_item_projection,
     random_teleport_is_suppressed,
@@ -1945,6 +1946,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             tuple[tuple[tuple[str, int, int], int, StoreItem, int, int], ...],
         ] | None = None
         self._home_atomic_withdraw_procurement_class: tuple[int, int] | None = None
+        self._home_atomic_withdraw_move_identity: str | None = None
         self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
         # Outcome-keyed supervisor for a requested Home take.  The count is in
@@ -3008,9 +3010,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     observed_effect = bool(
                         withdrawal is not None
-                        and self._inventory_signature_count(
-                            snapshot, withdrawal[0]
-                        ) >= withdrawal[1] + withdrawal[3]
+                        and (
+                            self._inventory_move_identity_count(
+                                snapshot, self._home_atomic_withdraw_move_identity
+                            ) >= withdrawal[1] + withdrawal[3]
+                            if self._home_atomic_withdraw_move_identity is not None
+                            else self._inventory_signature_count(
+                                snapshot, withdrawal[0]
+                            ) >= withdrawal[1] + withdrawal[3]
+                        )
                     ) or deposit_observed
                     if not observed_effect:
                         self.last_reason = "store:entry-await-observation"
@@ -3103,7 +3111,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
             procurement_class = self._home_atomic_withdraw_procurement_class
-            after_count = self._inventory_signature_count(snapshot, signature)
+            move_identity = self._home_atomic_withdraw_move_identity
+            after_count = (
+                self._inventory_move_identity_count(snapshot, move_identity)
+                if move_identity is not None
+                else self._inventory_signature_count(snapshot, signature)
+            )
             if getattr(self, "_home_visit", None) is not None:
                 self._home_visit.observe_outside(
                     effect_observed=after_count >= before_count + quantity
@@ -3115,6 +3128,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._home_errand.observe_outside(after_count)
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_procurement_class = None
+            self._home_atomic_withdraw_move_identity = None
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
@@ -3194,6 +3208,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # multi-item restore cannot abandon its tail.
                     self._rearm_town_store_for_new_work(
                         STORE_HOME, release_visit_bound=True
+                    )
+                if (
+                    withdrawn.tval == TVAL_STAFF
+                    and withdrawn.sval == SV_STAFF_IDENTIFY
+                ):
+                    if self._home_pending_item == signature:
+                        self._home_pending_item = None
+                        self._home_pending_slot = None
+                    self._home_pending_quantities.pop(signature, None)
+                    self._report_town_stop_pass(
+                        snapshot,
+                        STORE_HOME,
+                        goal_satisfied=self._identify_staff_ready(snapshot),
+                        operation_completed=True,
                     )
             else:
                 if self._home_random_teleport_withdrawal == signature:
@@ -3806,11 +3834,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             and self._item_signature(item)
                             not in self._deferred_home_items
                         ),
-                        key=lambda item: (
-                            item.charges * max(1, item.count),
-                            item.charges,
-                            item.letter,
-                        ),
+                        key=lambda item: (item.charges, item.letter),
                         default=None,
                     )
                 ) is not None
@@ -3837,25 +3861,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # entry ownership was recovered after a restart or lagged post.
                 # Selection is bound here; the outside decision composes it.
                 key = standing_digger
-            elif (
-                not self._identify_staff_ready(snapshot)
-                and self._home_knowledge_current
-                and self._home_pending_item is None
-                and not self._home_pending_batch
-                and self._home_atomic_withdraw_pending is None
-                and not self._deferred_home_items
-                and not any(
-                    item.tval == TVAL_STAFF
-                    and item.sval == SV_STAFF_IDENTIFY
-                    and item.charges > 0
-                    for item in self._home_knowledge_items
-                )
-            ):
-                self._report_town_stop_pass(
-                    snapshot, STORE_HOME, goal_satisfied=True
-                )
-                self.last_reason = "home:identify-staff-reserve-unavailable"
-                key = LEAVE_STORE_KEY
             elif (
                 self._home_knowledge_current
                 and self._home_scan_item_count == 0
@@ -3951,6 +3956,46 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 is not None
             ):
                 key = open_page_deposit
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
+                and not self._identify_staff_ready(snapshot)
+                and self._home_knowledge_current
+                and self._home_pending_item is None
+                and not self._home_pending_batch
+                and self._home_atomic_withdraw_pending is None
+                and not self._deferred_home_items
+                and STORE_HOME not in self._town_store_attempted
+                and (
+                    PACK_CAPACITY - len(snapshot.inventory)
+                    <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+                    or not any(
+                        item.tval == TVAL_STAFF
+                        and item.sval == SV_STAFF_IDENTIFY
+                        and item.charges > 0
+                        for item in self._home_knowledge_items
+                    )
+                )
+            ):
+                has_usable_staff = any(
+                    item.tval == TVAL_STAFF
+                    and item.sval == SV_STAFF_IDENTIFY
+                    and item.charges > 0
+                    for item in self._home_knowledge_items
+                )
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=False
+                )
+                self._set_town_store_attempted(
+                    STORE_HOME, snapshot.turn, "identify-staff-reserve-terminal"
+                )
+                self.last_reason = (
+                    "home:identify-staff-reserve-no-pack-space"
+                    if has_usable_staff
+                    else "home:identify-staff-reserve-unavailable"
+                )
+                key = LEAVE_STORE_KEY
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -8050,6 +8095,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     @staticmethod
     def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
         return (item.name, item.tval, item.sval)
+
+    @staticmethod
+    def _inventory_move_identity_count(snapshot: Snapshot, identity: str) -> int:
+        return sum(
+            max(1, item.count)
+            for item in snapshot.inventory
+            if equipment_move_identity(item) == identity
+        )
 
     def _read_key(
         self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""

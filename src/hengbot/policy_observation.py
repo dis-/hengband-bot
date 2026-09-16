@@ -530,6 +530,7 @@ class ObservationMixin:
             self._home_batch_review_items.clear()
             self._home_active_from_batch = False
             self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_move_identity = None
             self._home_identify_staff_sale_pending = False
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False

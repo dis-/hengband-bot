@@ -1580,6 +1580,7 @@ class TownMixin:
             and self._home_atomic_withdraw_pending[0] == self._home_pending_item
         ):
             self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_move_identity = None
 
         if not target.known and target.pseudo_feeling != "average":
             key = self._carried_identify_command(

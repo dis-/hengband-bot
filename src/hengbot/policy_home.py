@@ -9,7 +9,7 @@ from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitReques
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
-from hengbot.equipment_optimizer import equipment_identity
+from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
@@ -1415,16 +1415,21 @@ class HomeMixin:
             return None
         self._home_atomic_withdraw_pending = (
             signature,
-            self._inventory_signature_count(snapshot, signature),
+            self._inventory_move_identity_count(
+                snapshot, equipment_move_identity(item)
+            ),
             item,
             take_count,
             batch_entries,
         ) if batch_entries else (
             signature,
-            self._inventory_signature_count(snapshot, signature),
+            self._inventory_move_identity_count(
+                snapshot, equipment_move_identity(item)
+            ),
             item,
             take_count,
         )
+        self._home_atomic_withdraw_move_identity = equipment_move_identity(item)
         procurement_probe = getattr(self, "_home_procurement_probe", None)
         self._home_atomic_withdraw_procurement_class = (
             procurement_probe
@@ -1490,6 +1495,7 @@ class HomeMixin:
             )
         self._home_atomic_withdraw_pending = None
         self._home_atomic_withdraw_procurement_class = None
+        self._home_atomic_withdraw_move_identity = None
         self._home_atomic_withdraw_posted_turn = None
         self._home_atomic_withdraw_index = None
         self._home_entry_operation_posted = False
