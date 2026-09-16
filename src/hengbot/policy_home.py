@@ -1364,9 +1364,7 @@ class HomeMixin:
                     (
                         (owner_index, owner_item)
                         for owner_index, owner_item in reversed(address_slots)
-                        if self._calibration_restore_item_matches(
-                            owner_signature, owner_item
-                        )
+                        if self._item_signature(owner_item) == owner_signature
                         and owner_index // self._home_page_size == page
                     ),
                     None,

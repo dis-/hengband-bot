@@ -60,6 +60,14 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             1,
         )
 
+    def test_legacy_policy_initializes_calibration_restore_move_identities(self):
+        policy = HengbotPolicy()
+        del policy._calibration_restore_move_identities
+
+        policy.choose_key(self._snapshot())
+
+        self.assertEqual(policy._calibration_restore_move_identities, {})
+
     def _grids(self):
         grids = {
             Position(10, x): grid(10, x) for x in range(9, 14)
@@ -349,6 +357,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "calibration:atomic-restore-withdraw"
         )
+        self.assertNotIn(owner, policy._calibration_restore_move_identities)
         page = replace(
             entrance,
             turn=3,
