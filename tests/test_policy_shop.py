@@ -3252,7 +3252,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         self.assertEqual(policy._next_purchase_unreserved(inside), scroll)
 
-    def test_defers_unknown_device_when_identification_is_unavailable(self):
+    def test_unknown_device_waits_for_home_catalogue_before_deferral(self):
         wand = item("a", TVAL_WAND, -1, aware=False, known=False, name="unknown wand")
         snap = Snapshot(
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
@@ -3272,8 +3272,9 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
 
         policy.choose_key(snap)
-        self.assertIn(policy._item_signature(wand), policy._deferred_device_items)
-        self.assertNotEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
+        self.assertNotIn(policy._item_signature(wand), policy._deferred_device_items)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
 
     def test_batch_sale_entry_re_resolves_item_at_composition_boundary(self):
         stale = replace(

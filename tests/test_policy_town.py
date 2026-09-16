@@ -2421,6 +2421,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         without_source = HengbotPolicy()
         without_source.choose_key(snap)
         self.assertFalse(without_source._home_candidate_waiting)
+        self.assertFalse(
+            without_source._town_departure_conjuncts(snap)[
+                "home_catalog_ready"
+            ]
+        )
         without_source.consume_home_knowledge(
             (item("s", 55, SV_STAFF_IDENTIFY, name="Identify staff"),)
         )
