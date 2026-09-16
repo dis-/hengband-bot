@@ -3012,9 +3012,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         withdrawal is not None
                         and (
                             self._inventory_move_identity_count(
-                                snapshot, self._home_atomic_withdraw_move_identity
+                                snapshot,
+                                getattr(
+                                    self, "_home_atomic_withdraw_move_identity", None
+                                ),
                             ) >= withdrawal[1] + withdrawal[3]
-                            if self._home_atomic_withdraw_move_identity is not None
+                            if getattr(
+                                self, "_home_atomic_withdraw_move_identity", None
+                            ) is not None
                             else self._inventory_signature_count(
                                 snapshot, withdrawal[0]
                             ) >= withdrawal[1] + withdrawal[3]
@@ -3111,7 +3116,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
             procurement_class = self._home_atomic_withdraw_procurement_class
-            move_identity = self._home_atomic_withdraw_move_identity
+            move_identity = getattr(
+                self, "_home_atomic_withdraw_move_identity", None
+            )
             after_count = (
                 self._inventory_move_identity_count(snapshot, move_identity)
                 if move_identity is not None
