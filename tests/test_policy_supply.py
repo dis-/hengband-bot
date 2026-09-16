@@ -4508,6 +4508,9 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             "launcher",
             policy._fixed_quest_readiness["strategy_force"]["failed"],
         )
+
+
+class IdentifyStaffLiveCatalogueTest(unittest.TestCase):
     def test_recorded_home_knowledge_inventory_items_queue_compose_and_succeed(self):
         carried = item(
             "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
@@ -4538,7 +4541,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         # the 2026-09-17 crash.  Drive the CLI consumer so the catalogue is
         # parsed as InventoryItems, exactly as it is live.
         state_lines = (
-            Path(__file__).parents[1] / "jsonlog" / "bot-state-fixed.jsonl"
+            Path(__file__).parents[1] / "jsonlog" / "replay-r9-state.jsonl"
         ).read_text(encoding="utf-8").splitlines()
         knowledge_line = next(
             line for line in reversed(state_lines)
@@ -4557,14 +4560,10 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         self.assertTrue(pol._home_knowledge_items)
         self.assertTrue(all(isinstance(it, InventoryItem) for it in pol._home_knowledge_items))
 
-        live_staff = max(
-            (
-                (index, it) for index, it in enumerate(pol._home_knowledge_items)
-                if it.tval == TVAL_STAFF and it.sval == SV_STAFF_IDENTIFY
-                and it.charges > 0
-            ),
-            key=lambda indexed: (indexed[1].charges, indexed[0]),
-        )[1]
+        live_staff = pol._home_knowledge_items[15]
+        self.assertEqual(live_staff.name, "鑑定の杖 (2x 21回分)")
+        self.assertEqual(recorded_home_page.store.items[15].letter, "p")
+        self.assertEqual(recorded_home_page.store.items[15].name, live_staff.name)
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         self.assertEqual(pol.last_reason, "home:queue-withdraw-identify-staff-reserve")
         self.assertEqual(pol._home_pending_item, pol._item_signature(live_staff))
