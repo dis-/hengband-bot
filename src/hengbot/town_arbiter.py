@@ -567,7 +567,7 @@ class TownArbiterMixin:
     def _store_entry_posted_owner(self, value: int | None) -> None:
         visit = self._store_visit
         if value is None:
-            if visit is not None:
+            if visit is not None and not visit.operation_posted:
                 visit.posted_sequence = None
             return
         self._store_entry_wait_owner = value

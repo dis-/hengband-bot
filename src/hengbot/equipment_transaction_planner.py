@@ -14,6 +14,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
     equipment_identity,
+    equipment_move_identity,
 )
 
 
@@ -29,6 +30,7 @@ class EquipmentTransaction:
     item_id: str
     target_slot: str | None = None
     item_identity: str = ""
+    move_identity: str = ""
 
 
 @dataclass(frozen=True)
@@ -150,6 +152,7 @@ def plan_equipment_transactions(
             "deposit",
             item.id,
             item_identity=equipment_identity(item.item),
+            move_identity=equipment_move_identity(item.item),
         )
         for item in prepare_deposits
     )
@@ -159,6 +162,7 @@ def plan_equipment_transactions(
             "withdraw",
             item.id,
             item_identity=equipment_identity(item.item),
+            move_identity=equipment_move_identity(item.item),
         )
         for item in target_home
     )
@@ -192,6 +196,7 @@ def plan_equipment_transactions(
             item.id,
             slot,
             equipment_identity(item.item),
+            equipment_move_identity(item.item),
         )
         for slot, item in takeoffs
     )
@@ -213,6 +218,7 @@ def plan_equipment_transactions(
                 item.id,
                 slot,
                 equipment_identity(item.item),
+                equipment_move_identity(item.item),
             )
         )
 
@@ -230,6 +236,7 @@ def plan_equipment_transactions(
             "deposit",
             item.id,
             item_identity=equipment_identity(item.item),
+            move_identity=equipment_move_identity(item.item),
         )
         for item in displaced
         if equipment_identity(item.item) not in retain_item_identities

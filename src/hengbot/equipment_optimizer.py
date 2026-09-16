@@ -399,6 +399,12 @@ def equipment_identity(item: EquipmentItem) -> str:
     return _catalog_digest(_catalog_signature(item))
 
 
+def equipment_move_identity(item: EquipmentItem) -> str:
+    """Player-visible identity that remains stable while a stack count moves."""
+    signature = _catalog_signature(item)
+    return _catalog_digest(signature[:3] + signature[4:])
+
+
 def optimizer_item_projection(owned: OwnedEquipment) -> tuple:
     """Stable item fields consumed by loadout search, evaluation, or planning.
 

@@ -207,6 +207,16 @@ class ShopMixin:
         ):
             self._close_store_visit("posted-entry-unobserved")
             visit = None
+        if (
+            visit is not None
+            and visit.operation_released
+            and not visit.operation_effect_observed
+            and visit.posted_sequence is not None
+            and self._decision_sequence - visit.posted_sequence
+            >= STORE_STUCK_LIMIT
+        ):
+            self._close_store_visit("released-operation-effect-unobserved")
+            visit = None
         plan = self._town_errand_plan
         required_store = None
         released_stores: set[int] = set()

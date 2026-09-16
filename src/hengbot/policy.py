@@ -3117,6 +3117,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                if (
+                    self._store_visit is not None
+                    and self._store_visit.store_type == STORE_HOME
+                ):
+                    self._store_visit.operation_effect_observed = True
+                    self._release_invalid_store_visit(snapshot)
                 failure = self._home_procurement_withdraw_failure
                 if (
                     failure is not None
@@ -3483,6 +3489,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 deposit_observed = len(landed) == len(entries)
                 if deposit_observed:
+                    if (
+                        self._store_visit is not None
+                        and self._store_visit.store_type == STORE_HOME
+                    ):
+                        self._store_visit.operation_effect_observed = True
+                        self._release_invalid_store_visit(snapshot)
                     if getattr(self, "_home_visit", None) is not None:
                         self._home_visit.observe_outside(effect_observed=True)
                     self._home_entry_operation_posted = False
@@ -3499,9 +3511,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         # effect.  Once the outside board proves that effect,
                         # close that physical visit and return authority to
                         # the calibration phase machine in this decision.
-                        if self._store_visit is not None:
-                            self._store_visit.operation_effect_observed = True
-                        self._release_invalid_store_visit(snapshot)
                         self._calibration_observe(snapshot)
                         calibration_key = self._calibration_town_key(snapshot)
                         if calibration_key is not None:

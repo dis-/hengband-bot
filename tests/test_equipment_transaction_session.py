@@ -9,6 +9,16 @@ from hengbot.equipment_transaction_planner import (
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
     EquipmentTransactionSession,
+    observe_equipment_transactions,
+)
+from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+from hengbot.model import (
+    STORE_HOME,
+    InventoryItem,
+    PlayerState,
+    Position,
+    Snapshot,
+    StoreState,
 )
 
 
@@ -25,6 +35,59 @@ def observation(*, home, pack=(), equipped=(), shelved=(), generation=None,
 
 
 class EquipmentTransactionSessionTest(unittest.TestCase):
+    @staticmethod
+    def _stack_snapshot(count):
+        bolts = InventoryItem(
+            "a", "incident bolts", count, 18, 1, True, True,
+            fully_known=True, is_equipment=True, damage_dice_num=1,
+            damage_dice_sides=5,
+        )
+        return Snapshot(
+            PlayerState(Position(1, 1), 100, 100, 0, 0, 26),
+            {}, [], inventory=[bolts], store=StoreState(STORE_HOME),
+        )
+
+    def test_real_snapshot_partial_withdraw_merges_into_existing_stack(self):
+        target = InventoryItem(
+            "b", "incident bolts", 96, 18, 1, True, True,
+            fully_known=True, is_equipment=True, damage_dice_num=1,
+            damage_dice_sides=5,
+        )
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "withdraw", "home:incident:0",
+            item_identity=equipment_identity(target),
+            move_identity=equipment_move_identity(target),
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1)
+        )
+        before = observe_equipment_transactions(self._stack_snapshot(95))
+        after = observe_equipment_transactions(self._stack_snapshot(99))
+
+        self.assertTrue(session.dispatch(action, before))
+        self.assertTrue(session.observe(after))
+        self.assertTrue(session.complete)
+
+    def test_real_snapshot_unchanged_withdraw_remains_unconfirmed(self):
+        before_snapshot = self._stack_snapshot(95)
+        identity = equipment_identity(before_snapshot.inventory[0])
+        action = EquipmentTransaction(
+            PHASE_HOME_PREPARE, "withdraw", "home:incident:0",
+            item_identity=identity,
+            move_identity=equipment_move_identity(before_snapshot.inventory[0]),
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 1)
+        )
+        before = observe_equipment_transactions(before_snapshot)
+
+        self.assertTrue(session.dispatch(action, before))
+        self.assertFalse(session.observe(observe_equipment_transactions(
+            self._stack_snapshot(95)
+        )))
+        self.assertIs(session.pending_action, action)
+        self.assertFalse(session.complete)
+
     def test_home_physical_context_keeps_equip_phase_inside(self):
         action = EquipmentTransaction(
             PHASE_EQUIP, "takeoff", "equipped:item:0", "outer", "item"

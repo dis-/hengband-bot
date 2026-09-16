@@ -11,7 +11,7 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransaction,
     EquipmentTransactionPlan,
 )
-from hengbot.equipment_optimizer import equipment_identity
+from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.model import STORE_HOME, Snapshot
 
 
@@ -23,6 +23,8 @@ class EquipmentTransactionObservation:
     home: tuple[tuple[str, int], ...] = ()
     barrier_generation: int | None = None
     operation_outcome: str | None = None
+    pack_moves: tuple[tuple[str, int], ...] = ()
+    home_moves: tuple[tuple[str, int], ...] = ()
 
     @classmethod
     def create(
@@ -34,6 +36,8 @@ class EquipmentTransactionObservation:
         home_identities: tuple[str, ...] = (),
         barrier_generation: int | None = None,
         operation_outcome: str | None = None,
+        pack_move_identities: tuple[str, ...] = (),
+        home_move_identities: tuple[str, ...] = (),
     ) -> "EquipmentTransactionObservation":
         return cls(
             in_home,
@@ -42,6 +46,12 @@ class EquipmentTransactionObservation:
             tuple(sorted(Counter(home_identities).items())),
             barrier_generation,
             operation_outcome,
+            tuple(sorted(Counter(
+                pack_move_identities or pack_identities
+            ).items())),
+            tuple(sorted(Counter(
+                home_move_identities or home_identities
+            ).items())),
         )
 
     def pack_count(self, identity: str) -> int:
@@ -54,6 +64,12 @@ class EquipmentTransactionObservation:
 
     def home_count(self, identity: str) -> int:
         return dict(self.home).get(identity, 0)
+
+    def pack_move_count(self, identity: str) -> int:
+        return dict(self.pack_moves).get(identity, 0)
+
+    def home_move_count(self, identity: str) -> int:
+        return dict(self.home_moves).get(identity, 0)
 
 
 class EquipmentTransactionSession:
@@ -223,26 +239,29 @@ class EquipmentTransactionSession:
         before: EquipmentTransactionObservation,
         after: EquipmentTransactionObservation,
     ) -> bool:
+        pack_count = (
+            lambda observation: observation.pack_move_count(action.move_identity)
+        ) if action.move_identity else (
+            lambda observation: observation.pack_count(action.item_identity)
+        )
+        home_count = (
+            lambda observation: observation.home_move_count(action.move_identity)
+        ) if action.move_identity else (
+            lambda observation: observation.home_count(action.item_identity)
+        )
         if action.kind == "deposit":
-            return after.pack_count(action.item_identity) < before.pack_count(
-                action.item_identity
-            )
+            return pack_count(after) < pack_count(before)
         if action.kind == "withdraw":
-            return after.pack_count(action.item_identity) > before.pack_count(
-                action.item_identity
-            )
+            return pack_count(after) > pack_count(before)
         if action.kind == "takeoff":
             slot_cleared = (
                 after.equipped_identity(action.target_slot) != action.item_identity
             )
-            reached_pack = after.pack_count(action.item_identity) > before.pack_count(
-                action.item_identity
-            )
+            reached_pack = pack_count(after) > pack_count(before)
             shelved_by_home = (
                 before.in_home
                 and after.in_home
-                and after.home_count(action.item_identity)
-                > before.home_count(action.item_identity)
+                and home_count(after) > home_count(before)
             )
             return slot_cleared and (reached_pack or shelved_by_home)
         if action.kind in {"equip", "reposition"}:
@@ -260,19 +279,23 @@ def observe_equipment_transactions(
     operation_outcome: str | None = None,
 ) -> EquipmentTransactionObservation:
     pack: list[str] = []
+    pack_moves: list[str] = []
     for item in snapshot.inventory:
         if item.is_equipment:
             pack.extend([equipment_identity(item)] * max(1, item.count))
+            pack_moves.extend([equipment_move_identity(item)] * max(1, item.count))
     equipped = tuple(
         (item.slot, equipment_identity(item))
         for item in snapshot.equipment
         if item.is_equipment
     )
     home: list[str] = []
+    home_moves: list[str] = []
     if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
         for item in getattr(snapshot.store, "items", ()):
             if item.is_equipment:
                 home.extend([equipment_identity(item)] * max(1, item.count))
+                home_moves.extend([equipment_move_identity(item)] * max(1, item.count))
     return EquipmentTransactionObservation.create(
         in_home=(
             snapshot.store is not None
@@ -283,4 +306,6 @@ def observe_equipment_transactions(
         home_identities=tuple(home),
         barrier_generation=barrier_generation,
         operation_outcome=operation_outcome,
+        pack_move_identities=tuple(pack_moves),
+        home_move_identities=tuple(home_moves),
     )
