@@ -1,0 +1,6 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -888,2 +888,0 @@
+-        "home_candidate_waiting": home_candidate_waiting,
+-        "identification_need": identification_need,

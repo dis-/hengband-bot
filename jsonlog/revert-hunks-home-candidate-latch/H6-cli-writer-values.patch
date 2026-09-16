@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -1643,10 +1643,0 @@
+-                    (
+-                        getattr(policy, "_home_candidate_waiting", None)
+-                        if policy is not None
+-                        else None
+-                    ),
+-                    (
+-                        getattr(policy, "_identification_need", None)
+-                        if policy is not None
+-                        else None
+-                    ),

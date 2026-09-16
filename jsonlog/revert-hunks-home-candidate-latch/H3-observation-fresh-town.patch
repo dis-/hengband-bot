@@ -1,0 +1,8 @@
+diff --git a/src/hengbot/policy_observation.py b/src/hengbot/policy_observation.py
+--- a/src/hengbot/policy_observation.py
++++ b/src/hengbot/policy_observation.py
+@@ -603,3 +603,1 @@
+-                self._home_candidate_waiting = (
+-                    self._home_identification_candidate_pending(snapshot)
+-                )
++                self._home_candidate_waiting = True

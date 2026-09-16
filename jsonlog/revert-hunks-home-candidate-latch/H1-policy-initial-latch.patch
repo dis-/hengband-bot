@@ -1,0 +1,6 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -1965,1 +1965,1 @@
+-        self._home_candidate_waiting = False
++        self._home_candidate_waiting = True
