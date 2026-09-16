@@ -2414,6 +2414,105 @@ class IdentifyStaffTest(unittest.TestCase):
         pol2, snap2 = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff()])
         self.assertTrue(pol2._identify_staff_ready(snap2))
 
+    def test_home_entry_queues_identify_staff_shortfall_and_composes_withdrawal(self):
+        carried = self._staff(charges=16)
+        stored = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=21,
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [stored], stock_num=1, page_top=0, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge((stored,))
+        pol._floor_key = inside.floor_key
+        pol._shopping_approach_store_type = STORE_HOME
+        pol._shopping_approach_goal = inside.player.position
+
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:queue-withdraw-identify-staff-reserve"
+        )
+        self.assertEqual(pol._home_pending_item, pol._item_signature(stored))
+
+        entrance = replace(inside, store=None, turn=inside.turn + 1)
+        self.assertEqual(pol.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(pol.last_reason, "home:atomic-withdraw")
+
+        after = replace(
+            entrance,
+            turn=entrance.turn + 1,
+            inventory=[carried, self._staff(charges=21)],
+        )
+        self.assertEqual(pol._total_identify_staff_charges(after), 37)
+        self.assertTrue(pol._identify_staff_ready(after))
+
+    def test_home_entry_without_identify_staff_reaches_named_terminal(self):
+        carried = self._staff(charges=16)
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        home_position = Position(45, 123)
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [], stock_num=0, page_top=0, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge(())
+        pol._floor_key = inside.floor_key
+        pol._shopping_approach_store_type = STORE_HOME
+        pol._shopping_approach_goal = inside.player.position
+
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:identify-staff-reserve-unavailable"
+        )
+        self.assertIsNone(pol._home_pending_item)
+
+    def test_identify_requirement_is_twenty_carried_charges_only(self):
+        carried = self._staff(charges=16)
+        stored = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", charges=21,
+        )
+        pol, snap = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        with_home = replace(snap, store=StoreState(STORE_HOME, [stored]))
+
+        self.assertEqual(STAFF_IDENTIFY_MIN_CHARGES, 20)
+        self.assertEqual(pol._total_identify_staff_charges(with_home), 16)
+        self.assertFalse(pol._identify_staff_ready(with_home))
+
     def test_staff_not_required_when_shallow(self):
         pol, snap = self._town(3)  # planned depth 4 < 10
         self.assertTrue(pol._identify_staff_ready(snap))

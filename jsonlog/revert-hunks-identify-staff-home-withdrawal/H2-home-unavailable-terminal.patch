@@ -1,0 +1,29 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -3837,6 +3837,25 @@
+                 # entry ownership was recovered after a restart or lagged post.
+                 # Selection is bound here; the outside decision composes it.
+                 key = standing_digger
++            elif (
++                not self._identify_staff_ready(snapshot)
++                and self._home_knowledge_current
++                and self._home_pending_item is None
++                and not self._home_pending_batch
++                and self._home_atomic_withdraw_pending is None
++                and not self._deferred_home_items
++                and not any(
++                    item.tval == TVAL_STAFF
++                    and item.sval == SV_STAFF_IDENTIFY
++                    and item.charges > 0
++                    for item in self._home_knowledge_items
++                )
++            ):
++                self._report_town_stop_pass(
++                    snapshot, STORE_HOME, goal_satisfied=True
++                )
++                self.last_reason = "home:identify-staff-reserve-unavailable"
++                key = LEAVE_STORE_KEY
+             elif (
+                 self._home_knowledge_current
+                 and self._home_scan_item_count == 0

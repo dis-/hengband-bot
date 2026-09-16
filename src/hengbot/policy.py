@@ -3784,6 +3784,51 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                and not self._identify_staff_ready(snapshot)
+                and self._home_pending_item is None
+                and not self._home_pending_batch
+                and self._home_atomic_withdraw_pending is None
+                and not self._deferred_home_items
+                and PACK_CAPACITY - len(snapshot.inventory)
+                > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+                and (
+                    identify_staff := max(
+                        (
+                            item
+                            for item in (
+                                self._home_knowledge_items
+                                if self._home_knowledge_current
+                                else snapshot.store.items
+                            )
+                            if item.tval == TVAL_STAFF
+                            and item.sval == SV_STAFF_IDENTIFY
+                            and item.charges > 0
+                            and self._item_signature(item)
+                            not in self._deferred_home_items
+                        ),
+                        key=lambda item: (
+                            item.charges * max(1, item.count),
+                            item.charges,
+                            item.letter,
+                        ),
+                        default=None,
+                    )
+                ) is not None
+            ):
+                # The Home entry owner, unlike _shop(), is on the live path.
+                # Bind the catalogue item here so the outside owner can compose
+                # the complete withdrawal on the following decision.
+                signature = self._item_signature(identify_staff)
+                self._home_pending_item = signature
+                self._home_pending_quantity = 1
+                self._home_pending_quantities[signature] = 1
+                self._home_withdrawal_queued = True
+                self.last_reason = "home:queue-withdraw-identify-staff-reserve"
+                key = LEAVE_STORE_KEY
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
                 and (
                     standing_digger := self._queue_standing_home_digger(snapshot)
                 ) is not None
@@ -3792,6 +3837,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # entry ownership was recovered after a restart or lagged post.
                 # Selection is bound here; the outside decision composes it.
                 key = standing_digger
+            elif (
+                not self._identify_staff_ready(snapshot)
+                and self._home_knowledge_current
+                and self._home_pending_item is None
+                and not self._home_pending_batch
+                and self._home_atomic_withdraw_pending is None
+                and not self._deferred_home_items
+                and not any(
+                    item.tval == TVAL_STAFF
+                    and item.sval == SV_STAFF_IDENTIFY
+                    and item.charges > 0
+                    for item in self._home_knowledge_items
+                )
+            ):
+                self._report_town_stop_pass(
+                    snapshot, STORE_HOME, goal_satisfied=True
+                )
+                self.last_reason = "home:identify-staff-reserve-unavailable"
+                key = LEAVE_STORE_KEY
             elif (
                 self._home_knowledge_current
                 and self._home_scan_item_count == 0
