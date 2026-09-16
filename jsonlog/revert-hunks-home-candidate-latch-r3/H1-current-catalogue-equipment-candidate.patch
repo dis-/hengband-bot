@@ -1,0 +1,27 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2335,22 +2335,6 @@ class HomeMixin:
+             return True
+         if not self._home_knowledge_current:
+             return False
+-        carried_equipment_candidate = bool(
+-            snapshot is not None
+-            and any(
+-                item.is_equipment
+-                and self._item_signature(item) not in self._deferred_home_items
+-                and self._item_signature(item) not in self._unidentifiable_sigs
+-                and self._item_signature(item)
+-                not in self._town_unidentifiable_carried_sigs
+-                and self._identification_flow_candidate(item)
+-                for item in (*snapshot.inventory, *snapshot.equipment)
+-            )
+-        )
+-        return bool(
+-            known_source
+-            or self._identification_candidate is not None
+-            or carried_equipment_candidate
+-        )
++        return bool(known_source or self._identification_candidate is not None)
+ 
+     def _retain_identification_source_owner(self) -> None:

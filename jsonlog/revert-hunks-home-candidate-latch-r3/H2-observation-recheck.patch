@@ -1,0 +1,27 @@
+diff --git a/src/hengbot/policy_observation.py b/src/hengbot/policy_observation.py
+--- a/src/hengbot/policy_observation.py
++++ b/src/hengbot/policy_observation.py
+@@ -601,7 +601,7 @@ class ObservationMixin:
+                 self._store_sell_attempt = None
+                 self._batch_sell_pending = None
+                 self._home_candidate_waiting = (
+-                    self._home_identification_candidate_pending(snapshot)
++                    self._home_identification_candidate_pending()
+                 )
+                 self._deferred_home_items.clear()
+                 self._retried_deferred_home_items.clear()
+@@ -613,14 +613,6 @@ class ObservationMixin:
+                 self._deferred_device_items.clear()
+                 self._retried_home_identification_items.clear()
+ 
+-            if (
+-                not self._home_candidate_waiting
+-                and self._home_knowledge_current
+-            ):
+-                self._home_candidate_waiting = (
+-                    self._home_identification_candidate_pending(snapshot)
+-                )
+-
+             if snapshot.yeek_cave_conquered and self._yeek_victory_loot:
+                 self._yeek_victory_loot = False
+                 self._yeek_conquest_processed = True
