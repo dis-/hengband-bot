@@ -1962,7 +1962,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_identify_staff_sold_this_magic_visit = False
         self._home_withdrawal_queued = False
         self._home_digger_withdraw_pending = False
-        self._home_candidate_waiting = True
+        self._home_candidate_waiting = False
         self._identification_need: str | None = None
         self._identification_candidate: tuple[str, int, int] | None = None
         # An identification errand owns the next source acquired for it.  Keep

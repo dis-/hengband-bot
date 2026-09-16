@@ -2399,7 +2399,48 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         pol.prime(snap)
 
         self.assertEqual(pol._home_pending_batch, [])
-        self.assertTrue(pol._home_candidate_waiting)
+        self.assertFalse(pol._home_candidate_waiting)
+
+    def test_fresh_town_arms_home_candidate_only_for_catalogued_identify_source(self):
+        self.assertFalse(HengbotPolicy()._home_candidate_waiting)
+        home_grid = replace(grid(10, 11), store_number=STORE_HOME)
+        snap = Snapshot(
+            player(10, 10),
+            {
+                Position(10, 10): grid(10, 10),
+                Position(10, 11): home_grid,
+            },
+            [],
+            floor_key=(0, 0, 0),
+        )
+
+        without_source = HengbotPolicy()
+        without_source._identification_need = "normal"
+        without_source.consume_home_knowledge(
+            (item("s", 55, SV_STAFF_IDENTIFY, name="Identify staff"),)
+        )
+        without_source.prime(snap)
+
+        self.assertFalse(without_source._home_candidate_waiting)
+        self.assertTrue(
+            without_source._town_departure_conjuncts(snap)[
+                "home_candidate_resolved"
+            ]
+        )
+
+        with_source = HengbotPolicy()
+        with_source._identification_need = "normal"
+        with_source.consume_home_knowledge(
+            (item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"),)
+        )
+        with_source.prime(snap)
+
+        self.assertTrue(with_source._home_candidate_waiting)
+        self.assertFalse(
+            with_source._town_departure_conjuncts(snap)[
+                "home_candidate_resolved"
+            ]
+        )
 
     def test_recall_targets_follow_the_confirmed_depth_table(self):
         policy = HengbotPolicy()
@@ -11446,6 +11487,19 @@ class TownCycleDetectorTest(unittest.TestCase):
         )
         with capture.open(encoding="utf-8") as records:
             outside = parse_snapshot(json.loads(deque(records, maxlen=1)[0]), {})
+        home_candidate = item(
+            "a", TVAL_SWORD, 1, name="unknown sword", is_equipment=True,
+            known=False,
+        )
+        pol.consume_home_knowledge((
+            home_candidate,
+            item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify"),
+        ))
+        pol._identification_need = "normal"
+        pol._identification_candidate = pol._item_signature(home_candidate)
+        pol._home_candidate_waiting = (
+            pol._home_identification_candidate_pending(outside)
+        )
 
         self.assertEqual(outside.player.position, Position(36, 90))
         self.assertEqual(outside.player.gold, 4096)
@@ -11454,9 +11508,12 @@ class TownCycleDetectorTest(unittest.TestCase):
 
         decisions = []
         reasons = []
-        for _ in range(30):
-            decisions.append(pol._town_blocked_key(outside))
-            reasons.append(pol.last_reason)
+        with patch.object(
+            pol, "_next_required_store_type", return_value=STORE_HOME
+        ):
+            for _ in range(30):
+                decisions.append(pol._town_blocked_key(outside))
+                reasons.append(pol.last_reason)
 
         self.assertNotEqual(decisions, [WAIT_KEY] * 30)
         self.assertIn("town:repetition-required-shopping", reasons)

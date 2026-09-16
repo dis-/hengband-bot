@@ -2312,6 +2312,40 @@ class HomeMixin:
         self._home_candidate_waiting = True
         return True
 
+    def _home_identification_candidate_pending(self, snapshot: Snapshot) -> bool:
+        """Whether concrete state can bind a Home identification errand."""
+        addressable = self._home_knowledge_items[
+            : self._home_knowledge_valid_before
+        ]
+        known_source = any(
+            item.tval == TVAL_SCROLL
+            and item.sval in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
+            for item in addressable
+        )
+        filed_source = bool(
+            self._home_errand.request is not None
+            and self._home_errand.request.purpose == "identification"
+        )
+        catalogue_scan_pending = bool(
+            not self._home_knowledge_current
+            and (
+                self._identification_need is not None
+                or self._identification_candidate is not None
+                or self._device_identification_candidate is not None
+                or any(
+                    self._identification_flow_candidate(item)
+                    or self._normal_identification_flow_candidate(item)
+                    for item in (*snapshot.inventory, *snapshot.equipment)
+                )
+            )
+        )
+        return bool(
+            known_source
+            or filed_source
+            or self._identification_candidate is not None
+            or catalogue_scan_pending
+        )
+
     def _retain_identification_source_owner(self) -> None:
         """Re-open the Alchemist owner without discarding its route progress.
 

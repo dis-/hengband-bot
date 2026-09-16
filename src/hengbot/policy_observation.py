@@ -600,7 +600,9 @@ class ObservationMixin:
                 self._store_sale_refused.clear()
                 self._store_sell_attempt = None
                 self._batch_sell_pending = None
-                self._home_candidate_waiting = True
+                self._home_candidate_waiting = (
+                    self._home_identification_candidate_pending(snapshot)
+                )
                 self._deferred_home_items.clear()
                 self._retried_deferred_home_items.clear()
                 getattr(self, "_deferred_home_item_sites", {}).clear()

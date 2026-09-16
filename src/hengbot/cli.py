@@ -860,6 +860,8 @@ def _decision_record(
     home_gate: dict | None = None,
     staged_prompt_chain: dict | None = None,
     home_atomic_withdraw: dict | None = None,
+    home_candidate_waiting: bool | None = None,
+    identification_need: str | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -883,6 +885,8 @@ def _decision_record(
         "objective": _objective_for_reason(reason),
         "reason": reason,
         "key": key,
+        "home_candidate_waiting": home_candidate_waiting,
+        "identification_need": identification_need,
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
@@ -1635,6 +1639,16 @@ def _write_decision(
                         ).get("decision_sequence")
                         == getattr(policy, "_decision_sequence", None)
                         else {}
+                    ),
+                    (
+                        getattr(policy, "_home_candidate_waiting", None)
+                        if policy is not None
+                        else None
+                    ),
+                    (
+                        getattr(policy, "_identification_need", None)
+                        if policy is not None
+                        else None
                     ),
                 ),
                 file,

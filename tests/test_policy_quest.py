@@ -4203,7 +4203,6 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "teleport_ready",
             "cure_critical_ready",
             "equipment_departure_ready",
-            "home_candidate_resolved",
             "home_catalog_ready",
         ])
 

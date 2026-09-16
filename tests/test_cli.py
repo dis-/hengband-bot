@@ -3385,6 +3385,31 @@ class DecisionRecordTest(unittest.TestCase):
 
         self.assertEqual(record["home_gate"], evidence)
 
+    def test_decision_record_carries_home_identification_latch_state(self):
+        snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
+
+        record = _decision_record(
+            snapshot,
+            "5",
+            "town:blocked:departure-unsatisfiable",
+            home_candidate_waiting=True,
+            identification_need="normal",
+        )
+
+        self.assertIs(record["home_candidate_waiting"], True)
+        self.assertEqual(record["identification_need"], "normal")
+
+        policy = HengbotPolicy()
+        policy._home_candidate_waiting = True
+        policy._identification_need = "normal"
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            _write_decision(path, snapshot, "5", "test", policy)
+            written = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertIs(written["home_candidate_waiting"], True)
+        self.assertEqual(written["identification_need"], "normal")
+
     def test_decision_record_carries_identification_source_reservation(self):
         snapshot = parse_snapshot(json.loads(_snap_line(123, 5, 7)), {})
         reservation = {
