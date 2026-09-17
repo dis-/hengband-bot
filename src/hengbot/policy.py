@@ -2612,16 +2612,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and here is not None
             and (here.store_number >= 0 or here.building_special >= 0)
         ):
-            if (
-                self._calibration_entry_refusal is None
-                or self._calibration_entry_refusal[0] != self._decision_sequence
-            ):
-                # Installation after an observed deposit is only an in-memory
-                # handoff.  Execute its first step now because a wait cannot
-                # create another snapshot.
-                key = self._equipment_transaction_town_key(snapshot) or key
-            else:
-                key = ""
+            # Installation is only an in-memory handoff.  Execute its first
+            # step now because a wait cannot create another snapshot.
+            key = self._equipment_transaction_town_key(snapshot) or key
         if (self.last_reason or "").startswith("town:blocked:"):
             self._intentional_entrance_activation = False
         if (

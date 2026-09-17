@@ -711,6 +711,24 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertNotIn("", keys)
         self.assertEqual(policy.last_reason, "equipment-transaction:takeoff")
 
+    def test_recorded_empty_pack_entry_handoffs_to_first_strip_step(self):
+        fixture = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-1232-calibration-strip-state.jsonl"
+        )
+        rows = [json.loads(line) for line in fixture.read_bytes().splitlines()]
+        self.assertEqual(rows[19]["turn"], 3134113)
+        self.assertEqual(rows[19]["type"], "player_turn")
+
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        key = policy.choose_key(parse_snapshot(rows[19], {}))
+
+        self.assertEqual(key, "ta")
+        self.assertNotEqual(key, "")
+        self.assertEqual(policy.last_reason, "equipment-transaction:takeoff")
+
     def test_capture_caches_constants_and_does_not_rerun_per_optimization(self):
         policy = self._scan_complete_policy()
         naked = self._snapshot()
