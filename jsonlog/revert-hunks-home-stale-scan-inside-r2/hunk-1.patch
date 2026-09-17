@@ -1,28 +1,38 @@
 diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
 --- a/src/hengbot/policy.py
 +++ b/src/hengbot/policy.py
-@@ -2822,24 +2822,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
-                         self._home_visit.request is not None
-                         and self._home_visit.request.kind == HomeVisitKind.SCAN
-                     )
--                    or (
--                        self._store_visit is not None
--                        and self._store_visit.store_type == STORE_HOME
--                        and self._store_visit.owner != "shop-handler"
--                        and not self._store_visit.operation_released
--                        and self._home_knowledge_invalidated
--                    )
+@@ -3993,25 +3993,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                     or self._home_knowledge_invalidated
                  )
-             )
-             and not self._home_knowledge_scan_requested
-             and self._home_knowledge_scan_epoch is None
--            and self._home_atomic_withdraw_pending is None
--            and self._home_atomic_deposit_pending is None
--            and not self._home_entry_operation_posted
--            and (
--                self._store_visit is None
--                or not self._store_visit.operation_posted
--            )
-             and self._equipment_transaction_session is None
-             and not self._calibration_active()
-             and not self._town_space_deposit_actionable(snapshot)
+             ):
+-                routed_home_visit = bool(
+-                    self._store_visit is not None
+-                    and self._store_visit.store_type == STORE_HOME
+-                    and self._store_visit.owner != "shop-handler"
+-                    and not self._store_visit.operation_released
+-                )
+-                if (
+-                    routed_home_visit
+-                    and self._home_knowledge_invalidated
+-                    and not self._home_knowledge_scan_requested
+-                    and self._home_knowledge_scan_epoch is None
+-                ):
+-                    self.last_reason = "home:request-knowledge-scan"
+-                    key = HOME_KNOWLEDGE_MACRO
+-                else:
+-                    # A visible page of a multi-page (or metadata-poor) Home is
+-                    # useful evidence, but it cannot replace the complete ~9 list.
+-                    self.last_reason = "home:scan-incomplete-open-page"
+-                    key = LEAVE_STORE_KEY
++                # A visible page of a multi-page (or metadata-poor) Home is
++                # useful evidence, but it cannot replace the complete ~9 list.
++                # Leave without latching the Home stop so the scan can
++                # continue.  A pass report here was measured inert: the
++                # breakout probe ignores the latch, and _report_town_stop_pass
++                # returns before its block logic whenever Home is not the
++                # plan's current stop (policy_town.py:2312).
++                self.last_reason = "home:scan-incomplete-open-page"
++                key = LEAVE_STORE_KEY
+             elif (
+                 not self._calibration_active()
+                 and self._home_atomic_deposit_pending is None
