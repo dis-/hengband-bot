@@ -4,13 +4,17 @@ import gzip
 import json
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import Operation, OperationExecutor, ScreenKind
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_types import StoreVisitPhase
+from hengbot.policy_constants import STORE_HOME
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
@@ -27,6 +31,11 @@ GENUINE_ENTRY = (
     ROOT / "tests" / "fixtures" /
     "barrier-home-auto-entry-lines-1-23.jsonl.gz"
 )
+SECOND_PROMPT_REPLAY = (
+    ROOT / "jsonlog" /
+    "replay-20260917-2355-travel-interrupt-state.jsonl"
+)
+EDIT = Path("C:/hengband/lib/edit")
 TRAVEL = "\x1b`n(."
 
 
@@ -36,6 +45,10 @@ def recorded_rows():
 
 
 class TravelInterruptedStoreAwaitTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
     def test_recorded_command_barrier_replans_interrupted_home_travel(self):
         rows = recorded_rows()
         policy = HengbotPolicy()
@@ -91,6 +104,56 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertIsNone(unbound.completed_operation_sequence)
         policy.choose_key(unbound)
         self.assertNotEqual(policy.last_reason, "store:entry-interrupted-replan")
+
+    def test_second_recorded_travel_prompt_reissues_non_empty_macro(self):
+        rows = [
+            json.loads(line)
+            for line in SECOND_PROMPT_REPLAY.read_bytes().splitlines()
+        ]
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        goal = Position(45, 123)
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_visit = StoreVisit("town-errand", "shopping", STORE_HOME)
+        policy._equipment_catalog.home_scan_complete = True
+
+        first = parse_snapshot(rows[0], self.monrace)
+        def issue_recorded_travel(snapshot):
+            policy._shopping_approach_goal = None
+            policy._shopping_approach_store_type = STORE_HOME
+            policy._town_travel_fallback = None
+            policy._town_travel_state = None
+            policy._store_entry_failed_owner = None
+            policy._store_visit = StoreVisit(
+                "town-errand", "shopping", STORE_HOME
+            )
+            step = policy._shopping_approach_step(snapshot, STORE_HOME)
+            return policy._shopping_approach_key(snapshot, step, "shop:travel")
+
+        with patch.object(
+            policy,
+            "_decide",
+            side_effect=issue_recorded_travel,
+        ):
+            travel = policy.choose_key(first)
+        self.assertEqual(travel, TRAVEL)
+        self.assertTrue(policy.confirm_key_posted(travel))
+
+        interrupted = replace(
+            parse_snapshot(rows[1], self.monrace),
+            completed_operation_owner="shop:travel",
+            completed_operation_sequence=1,
+        )
+        retry = policy.choose_key(interrupted)
+        self.assertEqual(
+            (retry, policy.last_reason),
+            (TRAVEL, "store:entry-interrupted-replan"),
+        )
+        self.assertTrue(policy.confirm_key_posted(retry))
+
+        second_prompt = parse_snapshot(rows[2], self.monrace)
+        second_retry = policy.choose_key(second_prompt)
+        self.assertEqual(second_retry, TRAVEL)
+        self.assertEqual(policy.last_reason, "store:entry-interrupted-replan")
 
     def test_genuine_entry_waits_once_without_duplicate_post(self):
         rows = recorded_rows()

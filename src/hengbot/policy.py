@@ -2967,6 +2967,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and here is not None
                 and here.store_number != posted_entry_owner
             )
+            travel_continue_prompt = snapshot.store is None and any(
+                "トラベルを継続しますか" in message
+                or "continue previous travel" in message.lower()
+                for message in snapshot.messages
+            )
             # Failure requires positive message evidence; a lagged store=None
             # is not evidence.  Termination is nevertheless total: both
             # branches discharge the one-shot owner in this decision.  The
@@ -2976,7 +2981,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if observed_failed_entry:
                 self._store_entry_posted_owner = None
                 self._store_entry_failed_owner = posted_entry_owner
-            elif interrupted_travel_entry:
+            elif interrupted_travel_entry or travel_continue_prompt:
                 # The executor bound this board to the same accepted native
                 # travel operation. Reaching its post-key COMMAND barrier
                 # proves travel ended. A non-entrance cell therefore proves
@@ -2985,7 +2990,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._store_entry_posted_owner = None
                 if self._store_visit is not None:
                     self._store_visit.transition(StoreVisitPhase.APPROACHING)
-                self._town_travel_state = None
+                if interrupted_travel_entry:
+                    self._town_travel_state = None
                 step = self._shopping_approach_step(
                     snapshot, posted_entry_owner
                 )
