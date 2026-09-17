@@ -1,13 +1,14 @@
 import unittest
 import unittest.mock
 from dataclasses import replace
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 
 import absorbing_state_catalog as cat
 from absorbing_state_catalog import SEEDED_STATES, TownWorld
 from absorbing_state_harness import AbsorbingState, drive
 from hengbot.model import TVAL_POTION
 from hengbot.policy import CALIBRATION_HOME_VISIT_LIMIT
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 import test_policy as fixture
 
 
@@ -87,6 +88,49 @@ class _FinalTwitchWorld(_StubWorld):
         self.calls += 1
         if self.calls == self.twitch_at:
             self.value += 1
+
+
+def _with_takeoff_physics(state):
+    """Apply Hengband's generic ``t<slot>`` equipment-to-pack transition."""
+    def build():
+        policy, world = state.build()
+        original_apply = world.apply
+        original_snapshot = world.snapshot
+        slot_for_key = {key: slot for slot, key in EQUIPMENT_SLOT_KEY.items()}
+        world._takeoff_message = None
+
+        def apply(self, key):
+            original_apply(key)
+            if len(key) != 2 or key[0] != "t" or key[1] not in slot_for_key:
+                return
+            slot = slot_for_key[key[1]]
+            index = next(
+                (i for i, item in enumerate(self.equipment) if item.slot == slot),
+                None,
+            )
+            if index is None:
+                return
+            item = self.equipment.pop(index)
+            pack_letter = chr(ord("a") + len(self.inventory))
+            self.inventory.append(replace(item, slot=pack_letter))
+            self.base = replace(self.base, equipment=list(self.equipment))
+            self._takeoff_message = (
+                f"You were wearing {item.name} ({pack_letter})."
+            )
+
+        def snapshot(self, decision):
+            result = original_snapshot(decision)
+            if self._takeoff_message is None:
+                return result
+            message = self._takeoff_message
+            self._takeoff_message = None
+            return replace(result, messages=(message,))
+
+        world.apply = MethodType(apply, world)
+        world.snapshot = MethodType(snapshot, world)
+        return policy, world
+
+    return replace(state, build=build)
 
 
 class AbsorbingStateHarnessTest(unittest.TestCase):
@@ -522,7 +566,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 class SeededAbsorbingStateTest(unittest.TestCase):
     def test_six_seeded_states_reach_progress_or_visible_terminal(self):
         self.assertNotIn("arrived", AbsorbingState.__dataclass_fields__)
-        results = [drive(state) for state in SEEDED_STATES]
+        results = [drive(_with_takeoff_physics(state)) for state in SEEDED_STATES]
         failures = [result.report() for result in results if not result.passed]
         self.assertEqual(failures, [], "\n" + "\n".join(failures))
 
