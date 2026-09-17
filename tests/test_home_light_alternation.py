@@ -195,7 +195,16 @@ class HomeLightAlternationPins(unittest.TestCase):
             for row in self.rows
         }
         for sequence in range(452, 487):
-            self.assertEqual(self.records[sequence], expected[sequence])
+            actual_reason, actual_key = self.records[sequence]
+            expected_reason, expected_key = expected[sequence]
+            self.assertEqual(actual_key, expected_key)
+            if sequence == 454:
+                # User decision: 「積み上げる」; supersedes recorded shop:travel.
+                self.assertEqual(
+                    actual_reason, "equipment-transaction:travel-home"
+                )
+            else:
+                self.assertEqual(actual_reason, expected_reason)
         self.assertFalse(self.records[487][1].startswith("w"))
         self.assertEqual(self.records[496], ("shop:travel", "\x1b`n!."))
         self.assertEqual(
