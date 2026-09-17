@@ -1,19 +1,10 @@
 diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
 --- a/src/hengbot/policy_home.py
 +++ b/src/hengbot/policy_home.py
-@@ -2,7 +2,7 @@
- 
- from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
- 
+@@ -5 +5 @@
 -from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 +from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
- from hengbot.home_disposal import HomeDisposalCandidate
- from hengbot.home_errand import HomeErrandRequest
- from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
-@@ -2860,6 +2860,11 @@
-         if not candidates:
-             return False
- 
+@@ -2861 +2861,6 @@
 -        free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
 +        free_slots = max(
 +            0,
@@ -21,6 +12,3 @@ diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
 +            - len(snapshot.inventory)
 +            - max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS),
 +        )
-         queued_new_identities: set[str] = set()
-         queued_classes: set[tuple[int, int]] = set()
-         queued: list[tuple[InventoryItem, int]] = []
