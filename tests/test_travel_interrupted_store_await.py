@@ -6,15 +6,13 @@ import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import Operation, OperationExecutor, ScreenKind
-from hengbot.model import Position, parse_snapshot
+from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import STORE_HOME
-from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from hengbot.policy_types import StoreVisitPhase
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
@@ -111,31 +109,17 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
             for line in SECOND_PROMPT_REPLAY.read_bytes().splitlines()
         ]
         policy = HengbotPolicy(monrace_knowledge=self.monrace)
-        goal = Position(45, 123)
-        policy._shopping_approach_store_type = STORE_HOME
-        policy._store_visit = StoreVisit("town-errand", "shopping", STORE_HOME)
-        policy._equipment_catalog.home_scan_complete = True
-
-        first = parse_snapshot(rows[0], self.monrace)
-        def issue_recorded_travel(snapshot):
-            policy._shopping_approach_goal = None
-            policy._shopping_approach_store_type = STORE_HOME
-            policy._town_travel_fallback = None
-            policy._town_travel_state = None
-            policy._store_entry_failed_owner = None
-            policy._store_visit = StoreVisit(
-                "town-errand", "shopping", STORE_HOME
-            )
-            step = policy._shopping_approach_step(snapshot, STORE_HOME)
-            return policy._shopping_approach_key(snapshot, step, "shop:travel")
-
-        with patch.object(
-            policy,
-            "_decide",
-            side_effect=issue_recorded_travel,
-        ):
-            travel = policy.choose_key(first)
+        # pin_vacuity: the second-prompt capture begins after the Home visit
+        # request and its completed knowledge scan established route ownership;
+        # even its earlier captured rows contain neither state and independently
+        # request another scan.  The prior recorded Home-travel board is the
+        # smallest production producer of that missing ownership: public
+        # choose_key creates the visit, town plan, and native travel state.
+        first = parse_snapshot(recorded_rows()[0], self.monrace)
+        policy.prime(first)
+        travel = policy.choose_key(first)
         self.assertEqual(travel, TRAVEL)
+        self.assertEqual(policy.last_reason, "shop:travel")
         self.assertTrue(policy.confirm_key_posted(travel))
 
         interrupted = replace(
