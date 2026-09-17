@@ -1,0 +1,24 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2728,9 +2728,17 @@
+             return False
+         candidate, quantity = top_up
+         signature = self._item_signature(candidate)
+-        self._home_pending_item = signature
+-        self._home_pending_quantity = quantity
+         self._home_pending_quantities[signature] = quantity
++        if self._home_pending_item is None:
++            self._home_pending_item = signature
++            self._home_pending_quantity = quantity
++        elif (
++            signature != self._home_pending_item
++            and signature not in self._home_pending_batch
++        ):
++            self._home_pending_batch.append(signature)
++            self._home_procurement_batch_active = True
+         self._home_withdrawal_queued = True
+-        self._home_procurement_probe = self._procurement_class(candidate)
++        if self._home_procurement_probe is None:
++            self._home_procurement_probe = self._procurement_class(candidate)
+         return True

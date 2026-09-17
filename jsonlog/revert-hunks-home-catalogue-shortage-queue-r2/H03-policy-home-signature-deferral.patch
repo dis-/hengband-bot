@@ -1,0 +1,23 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2839,19 +2847,11 @@
+         ):
+             return False
+         strategy = self._carry_procurement_strategy(snapshot)
+-        deferred_classes = {
+-            (signature[1], signature[2])
+-            for signature in self._deferred_home_items
+-        }
+         candidates = [
+             item
+             for item in self._home_knowledge_items
+             if item.count > 0
+             and self._item_signature(item) not in self._deferred_home_items
+-            and not any(
+-                self._procurement_class_matches(item, item_class)
+-                for item_class in deferred_classes
+-            )
+             and self._home_procurement_batch_member(snapshot, item, strategy)
+             and self._procurement_missing_amount(snapshot, item) > 0
+         ]
