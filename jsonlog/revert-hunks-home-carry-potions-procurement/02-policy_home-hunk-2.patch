@@ -1,0 +1,31 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 26ea916..b7b3093 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -509,16 +509,20 @@ class HomeMixin:
+                 candidate.is_torch and candidate.known and candidate.fuel > 0
+             )
+             branch = "torch-throw"
+-        elif (
+-            potion_target := self._carry_strategy_potion_target(
+-                snapshot, item, strategy
++        elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
++            target = EMERGENCY_POTION_CARRY_TARGET
++            matches = lambda candidate: (
++                candidate.tval == TVAL_POTION
++                and candidate.sval == SV_POTION_SPEED
+             )
+-        ) is not None:
+-            target, branch = potion_target
++            branch = "emergency-potion:speed"
++        elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
++            target = EMERGENCY_POTION_CARRY_TARGET
+             matches = lambda candidate: (
+                 candidate.tval == TVAL_POTION
+-                and candidate.sval == item.sval
++                and candidate.sval == SV_POTION_HEALING
+             )
++            branch = "emergency-potion:healing"
+         elif item.is_ammo:
+             launcher = self._equipped_launcher(snapshot)
+             quest_target = (

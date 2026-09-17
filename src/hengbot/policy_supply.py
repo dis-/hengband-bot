@@ -8,16 +8,18 @@ from hengbot.model import (
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE,
     SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY,
-    TVAL_ARROW, TVAL_BOLT, TVAL_DIGGING, TVAL_FOOD, TVAL_LITE,
-    TVAL_SCROLL, TVAL_SHOT, TVAL_STAFF, TVAL_WAND,
+    SV_POTION_HEALING, SV_POTION_SPEED, TVAL_ARROW, TVAL_BOLT,
+    TVAL_DIGGING, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL,
+    TVAL_SHOT, TVAL_STAFF, TVAL_WAND,
     InventoryItem, MonsterState, Position, Snapshot, StoreItem,
 )
 from hengbot.policy_constants import (
     BREEDER_CONTAINMENT_WINDOW, CURE_CRITICAL_REQUIRED_DEPTH,
     DOWN_STAIRS_KEY, EAT_KEY, FOOD_MIN_SVAL, FOOD_STOCK_TARGET,
     FOOD_TYPE_MANA, IDENTIFY_CHARGE_FLOOR, IDENTIFY_STAFF_LEVEL,
-    LANTERN_DIM_WARNING_FUEL, LANTERN_REFILL_FUEL, LEAVE_STORE_KEY,
-    MANA_FOOD_CHARGE_TARGET, MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
+    EMERGENCY_POTION_CARRY_TARGET, LANTERN_DIM_WARNING_FUEL,
+    LANTERN_REFILL_FUEL, LEAVE_STORE_KEY, MANA_FOOD_CHARGE_TARGET,
+    MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
     PACK_CAPACITY, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
@@ -656,6 +658,14 @@ class SupplyMixin:
         )
         if target is not None:
             return max(0, target[2] - target[1])
+        potion_target = self._carry_strategy_potion_target(snapshot, item, strategy)
+        if potion_target is not None:
+            carried = sum(
+                candidate.count
+                for candidate in snapshot.inventory
+                if candidate.tval == item.tval and candidate.sval == item.sval
+            )
+            return max(0, potion_target[0] - carried)
         kind = next(
             (name for name in SUPPLY_STORES if self._store_item_is_supply(item, name)),
             None,
@@ -687,6 +697,32 @@ class SupplyMixin:
                 return 0
             return max(0, requirements[1] - self._digging_tool_count(snapshot))
         return 1
+
+    def _carry_strategy_potion_target(
+        self,
+        snapshot: Snapshot,
+        item: InventoryItem | StoreItem,
+        strategy: StrategyProfile | None = None,
+    ) -> tuple[int, str] | None:
+        """Return the shared retention/procurement target for capped potions."""
+        if item.tval != TVAL_POTION:
+            return None
+        if item.sval == SV_POTION_SPEED:
+            force_key = "speed_potions"
+            label = "speed-potions"
+        elif item.sval == SV_POTION_HEALING:
+            force_key = "heal_potions"
+            label = "heal-potions"
+        else:
+            return None
+        target = EMERGENCY_POTION_CARRY_TARGET
+        if strategy is not None:
+            target = min(
+                EMERGENCY_POTION_CARRY_TARGET,
+                max(target, int(strategy.required_force.get(force_key, 0))),
+            )
+            return target, f"carry-strategy:{label}"
+        return target, f"emergency-potion:{label.removesuffix('-potions')}"
 
     def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
         """Return the level-shaped torch mandate or next-quest requirements."""

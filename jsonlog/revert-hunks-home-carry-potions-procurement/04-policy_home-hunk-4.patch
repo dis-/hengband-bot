@@ -1,0 +1,13 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 26ea916..b7b3093 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -2796,8 +2819,6 @@ class HomeMixin:
+                 strategy.required_force if strategy is not None else {},
+             )
+             is not None
+-            or self._carry_strategy_potion_target(snapshot, item, strategy)
+-            is not None
+             or any(
+                 self._store_item_is_supply(item, kind) for kind in SUPPLY_STORES
+             )

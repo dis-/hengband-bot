@@ -1,0 +1,19 @@
+diff --git b/src/hengbot/policy_supply.py a/src/hengbot/policy_supply.py
+index 5d1c5c5..6513407 100644
+--- b/src/hengbot/policy_supply.py
++++ a/src/hengbot/policy_supply.py
+@@ -658,14 +656,6 @@ class SupplyMixin:
+         )
+         if target is not None:
+             return max(0, target[2] - target[1])
+-        potion_target = self._carry_strategy_potion_target(snapshot, item, strategy)
+-        if potion_target is not None:
+-            carried = sum(
+-                candidate.count
+-                for candidate in snapshot.inventory
+-                if candidate.tval == item.tval and candidate.sval == item.sval
+-            )
+-            return max(0, potion_target[0] - carried)
+         kind = next(
+             (name for name in SUPPLY_STORES if self._store_item_is_supply(item, name)),
+             None,

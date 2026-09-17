@@ -1,0 +1,37 @@
+diff --git b/src/hengbot/policy_supply.py a/src/hengbot/policy_supply.py
+index 5d1c5c5..6513407 100644
+--- b/src/hengbot/policy_supply.py
++++ a/src/hengbot/policy_supply.py
+@@ -698,32 +688,6 @@ class SupplyMixin:
+             return max(0, requirements[1] - self._digging_tool_count(snapshot))
+         return 1
+ 
+-    def _carry_strategy_potion_target(
+-        self,
+-        snapshot: Snapshot,
+-        item: InventoryItem | StoreItem,
+-        strategy: StrategyProfile | None = None,
+-    ) -> tuple[int, str] | None:
+-        """Return the shared retention/procurement target for capped potions."""
+-        if item.tval != TVAL_POTION:
+-            return None
+-        if item.sval == SV_POTION_SPEED:
+-            force_key = "speed_potions"
+-            label = "speed-potions"
+-        elif item.sval == SV_POTION_HEALING:
+-            force_key = "heal_potions"
+-            label = "heal-potions"
+-        else:
+-            return None
+-        target = EMERGENCY_POTION_CARRY_TARGET
+-        if strategy is not None:
+-            target = min(
+-                EMERGENCY_POTION_CARRY_TARGET,
+-                max(target, int(strategy.required_force.get(force_key, 0))),
+-            )
+-            return target, f"carry-strategy:{label}"
+-        return target, f"emergency-potion:{label.removesuffix('-potions')}"
+-
+     def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
+         """Return the level-shaped torch mandate or next-quest requirements."""
+         if not snapshot.in_town:

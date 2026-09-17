@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
@@ -509,20 +509,16 @@ class HomeMixin:
                 candidate.is_torch and candidate.known and candidate.fuel > 0
             )
             branch = "torch-throw"
-        elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
-            target = EMERGENCY_POTION_CARRY_TARGET
+        elif (
+            potion_target := self._carry_strategy_potion_target(
+                snapshot, item, strategy
+            )
+        ) is not None:
+            target, branch = potion_target
             matches = lambda candidate: (
                 candidate.tval == TVAL_POTION
-                and candidate.sval == SV_POTION_SPEED
+                and candidate.sval == item.sval
             )
-            branch = "emergency-potion:speed"
-        elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
-            target = EMERGENCY_POTION_CARRY_TARGET
-            matches = lambda candidate: (
-                candidate.tval == TVAL_POTION
-                and candidate.sval == SV_POTION_HEALING
-            )
-            branch = "emergency-potion:healing"
         elif item.is_ammo:
             launcher = self._equipped_launcher(snapshot)
             quest_target = (
@@ -631,25 +627,6 @@ class HomeMixin:
                 )
                 target = max(target, required - equipped)
                 branch = f"carry-strategy:{carry_name}"
-            elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
-                target = min(
-                    EMERGENCY_POTION_CARRY_TARGET,
-                    max(target, int(force.get("speed_potions", 0))),
-                )
-                matches = lambda candidate: (
-                    candidate.tval == TVAL_POTION and candidate.sval == SV_POTION_SPEED
-                )
-                branch = "carry-strategy:speed-potions"
-            elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
-                target = min(
-                    EMERGENCY_POTION_CARRY_TARGET,
-                    max(target, int(force.get("heal_potions", 0))),
-                )
-                matches = lambda candidate: (
-                    candidate.tval == TVAL_POTION
-                    and candidate.sval == SV_POTION_HEALING
-                )
-                branch = "carry-strategy:heal-potions"
         if target <= 0:
             return 0, None
         before = 0
@@ -2819,6 +2796,8 @@ class HomeMixin:
                 strategy.required_force if strategy is not None else {},
             )
             is not None
+            or self._carry_strategy_potion_target(snapshot, item, strategy)
+            is not None
             or any(
                 self._store_item_is_supply(item, kind) for kind in SUPPLY_STORES
             )
@@ -2860,6 +2839,12 @@ class HomeMixin:
             and self._home_procurement_batch_member(snapshot, item, strategy)
             and self._procurement_missing_amount(snapshot, item) > 0
         ]
+        candidates.sort(
+            key=lambda item: self._carry_strategy_potion_target(
+                snapshot, item, strategy
+            )
+            is not None
+        )
         if not candidates:
             return False
 

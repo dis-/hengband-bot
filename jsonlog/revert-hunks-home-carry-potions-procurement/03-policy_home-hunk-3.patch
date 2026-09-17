@@ -1,0 +1,30 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 26ea916..b7b3093 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -627,6 +631,25 @@ class HomeMixin:
+                 )
+                 target = max(target, required - equipped)
+                 branch = f"carry-strategy:{carry_name}"
++            elif item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED:
++                target = min(
++                    EMERGENCY_POTION_CARRY_TARGET,
++                    max(target, int(force.get("speed_potions", 0))),
++                )
++                matches = lambda candidate: (
++                    candidate.tval == TVAL_POTION and candidate.sval == SV_POTION_SPEED
++                )
++                branch = "carry-strategy:speed-potions"
++            elif item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
++                target = min(
++                    EMERGENCY_POTION_CARRY_TARGET,
++                    max(target, int(force.get("heal_potions", 0))),
++                )
++                matches = lambda candidate: (
++                    candidate.tval == TVAL_POTION
++                    and candidate.sval == SV_POTION_HEALING
++                )
++                branch = "carry-strategy:heal-potions"
+         if target <= 0:
+             return 0, None
+         before = 0

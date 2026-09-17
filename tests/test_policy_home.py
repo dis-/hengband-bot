@@ -5456,3 +5456,91 @@ class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
 
         self.assertNotEqual(next_key, LEAVE_STORE_KEY)
         self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")
+
+
+class RecordedHomeCarryPotionProcurementTest(unittest.TestCase):
+    @staticmethod
+    def _recorded_rows():
+        raw_lines = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260918-0136-potion-state.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        return raw_lines, [json.loads(line) for line in raw_lines]
+
+    @staticmethod
+    def _prime_catalogue(policy, row):
+        items = tuple(_parse_items(row["store"]["items"]))
+        policy._home_knowledge_items = items
+        policy._home_knowledge_valid_before = len(items)
+        policy._home_knowledge_current = True
+        policy._home_page_size = row["store"]["page_size"]
+        policy._home_procurement_probe = None
+        return items
+
+    def test_first_healing_trip_queues_stock_capped_shortage_in_one_take(self):
+        raw_lines, rows = self._recorded_rows()
+        self.assertEqual(
+            [hashlib.sha256(line).hexdigest() for line in raw_lines],
+            [
+                "9ad5ce79934a90d79999087ba9a2ddf023b344f70fd842d99cc7f9a8e67aa215",
+                "94a581997443672900b696bed27c5de93aeaaddafafe4cb0dd04c84ba53bc004",
+                "a46739f5e92db45acbfed7564ef9f013c8f4459d502a317253506d4d65aefe57",
+            ],
+        )
+        outside = parse_snapshot(rows[0])
+        home = parse_snapshot(rows[1])
+        policy = HengbotPolicy()
+        items = self._prime_catalogue(policy, rows[1])
+
+        self.assertTrue(policy._queue_home_catalogue_shortages(home))
+        queued = [policy._home_pending_item, *policy._home_pending_batch]
+        healing_signature = next(signature for signature in queued if signature[2] == SV_POTION_HEALING)
+        healing = next(item for item in items if policy._item_signature(item) == healing_signature)
+        self.assertEqual(policy._carry_strategy_potion_target(home, healing)[0], 10)
+        self.assertEqual(policy._home_pending_quantities[healing_signature], 7)
+
+        policy._home_pending_item = healing_signature
+        policy._home_pending_batch = [
+            signature for signature in queued if signature != healing_signature
+        ]
+        policy._home_pending_quantity = policy._home_pending_quantities[healing_signature]
+        policy._shopping_approach_store_type = STORE_HOME
+        self.assertEqual(
+            policy._atomic_home_withdraw_key(outside, outside.player.position), "5"
+        )
+        self.assertEqual(policy._store_visit.operation_key, "pf7\r\x1b")
+        self.assertEqual(policy._home_atomic_withdraw_pending[3], 7)
+
+    def test_home_catalogue_queues_recorded_speed_stock_below_target(self):
+        _, rows = self._recorded_rows()
+        home = parse_snapshot(rows[2])
+        policy = HengbotPolicy()
+        items = self._prime_catalogue(policy, rows[2])
+
+        self.assertTrue(policy._queue_home_catalogue_shortages(home))
+        speed = next(item for item in items if item.sval == SV_POTION_SPEED)
+        signature = policy._item_signature(speed)
+        self.assertIn(signature, [policy._home_pending_item, *policy._home_pending_batch])
+        self.assertEqual(policy._carry_strategy_potion_target(home, speed)[0], 10)
+        self.assertEqual(policy._home_pending_quantities[signature], 4)
+
+    def test_home_catalogue_does_not_queue_speed_at_carry_target(self):
+        _, rows = self._recorded_rows()
+        home = parse_snapshot(rows[2])
+        carried_speed = InventoryItem(
+            slot="c",
+            tval=TVAL_POTION,
+            sval=SV_POTION_SPEED,
+            name="Speed potion",
+            count=10,
+            known=True,
+            aware=True,
+            fully_known=True,
+        )
+        home = replace(home, inventory=(*home.inventory, carried_speed))
+        policy = HengbotPolicy()
+        self._prime_catalogue(policy, rows[2])
+
+        self.assertFalse(policy._queue_home_catalogue_shortages(home))
+        self.assertIsNone(policy._home_pending_item)

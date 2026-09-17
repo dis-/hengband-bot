@@ -1,0 +1,17 @@
+diff --git b/src/hengbot/policy_home.py a/src/hengbot/policy_home.py
+index 26ea916..b7b3093 100644
+--- b/src/hengbot/policy_home.py
++++ a/src/hengbot/policy_home.py
+@@ -2839,12 +2860,6 @@ class HomeMixin:
+             and self._home_procurement_batch_member(snapshot, item, strategy)
+             and self._procurement_missing_amount(snapshot, item) > 0
+         ]
+-        candidates.sort(
+-            key=lambda item: self._carry_strategy_potion_target(
+-                snapshot, item, strategy
+-            )
+-            is not None
+-        )
+         if not candidates:
+             return False
+ 
