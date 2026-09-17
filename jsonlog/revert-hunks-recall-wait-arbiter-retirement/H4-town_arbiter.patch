@@ -1,0 +1,16 @@
+diff --git b/src/hengbot/town_arbiter.py a/src/hengbot/town_arbiter.py
+index 9c91b38..da49ca6 100644
+--- b/src/hengbot/town_arbiter.py
++++ a/src/hengbot/town_arbiter.py
+@@ -740,11 +691,6 @@ class TownArbiterMixin:
+         )
+ 
+     def _owner_progress_core(self, snapshot: Snapshot) -> OwnerProgressCore:
+-        arbiter = getattr(self, "_town_turn_arbiter", None)
+-        if arbiter is not None:
+-            arbiter.note_snapshot(
+-                turn=snapshot.turn, recalling=snapshot.player.recalling
+-            )
+         return OwnerProgressCore(
+             floor=getattr(snapshot, "floor_key", None),
+             position=snapshot.player.position,

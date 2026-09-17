@@ -1,0 +1,27 @@
+diff --git b/src/hengbot/town_arbiter.py a/src/hengbot/town_arbiter.py
+index 9c91b38..da49ca6 100644
+--- b/src/hengbot/town_arbiter.py
++++ a/src/hengbot/town_arbiter.py
+@@ -113,22 +97,6 @@ class TownTurnArbiter:
+         self._transferred_visit: StoreVisit | None = None
+         self.telemetry: dict[str, object] | None = None
+         self.store_visit: StoreVisit | None = None
+-        self._snapshot_turn: int | None = None
+-        self._recall_wait_started_turn: int | None = None
+-        self._snapshot_recalling = False
+-
+-    def note_snapshot(self, *, turn: int, recalling: bool) -> None:
+-        """Observe the real game clock used to bound a designed recall wait."""
+-        if recalling and not self._snapshot_recalling:
+-            # The last non-recalling board is the board on which the recall
+-            # read was selected.  This survives redraws at the same game turn.
+-            self._recall_wait_started_turn = (
+-                self._snapshot_turn if self._snapshot_turn is not None else turn
+-            )
+-        elif not recalling:
+-            self._recall_wait_started_turn = None
+-        self._snapshot_turn = turn
+-        self._snapshot_recalling = recalling
+ 
+     def acquire_store_visit(
+         self,

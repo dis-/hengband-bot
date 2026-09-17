@@ -17,6 +17,11 @@ from store_visit_alternation_gate import measure as measure_visit_alternation
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
+RECALL_WAIT_REPLAY = (
+    Path(__file__).parents[1]
+    / "jsonlog"
+    / "replay-20260917-1119-recall-wait-state.jsonl"
+)
 DECISION_CAPTURES = (
     "incident-equipment-abandon-loop-20260822.jsonl",
     "incident-alchemist-repetition-20260823.jsonl",
@@ -664,6 +669,95 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         self.assertEqual(first, policy._town_arbiter_progress_vector(moved))
         policy._home_knowledge_current = not policy._home_knowledge_current
         self.assertNotEqual(first, policy._town_arbiter_progress_vector(moved))
+
+    @staticmethod
+    def _recall_wait_replay_snapshots():
+        with RECALL_WAIT_REPLAY.open("rb") as stream:
+            return [parse_snapshot(json.loads(line), {}) for line in stream]
+
+    @staticmethod
+    def _drive_recorded_decision(policy, snapshot, reason, key):
+        def recorded_selector(_snapshot):
+            policy.last_reason = reason
+            return key
+
+        # Wall off unrelated town selection, then drive the public decision
+        # boundary and its real final arbiter accounting on the same instance.
+        with mock.patch.object(
+            policy, "_choose_key_with_latch_capture", side_effect=recorded_selector
+        ):
+            chosen = policy.choose_key(snapshot)
+        return chosen, dict(policy._town_turn_arbiter.telemetry)
+
+    def test_recorded_recall_wait_does_not_retire_departure(self):
+        snapshots = self._recall_wait_replay_snapshots()
+        policy = HengbotPolicy()
+        decisions = [
+            ("town:recall-to-angband", "rfa"),
+            ("town:wait-recall-step-off", "1"),
+            *(("town:wait-recall", "5") for _ in range(9)),
+        ]
+        rows = []
+        chosen_keys = []
+        for snapshot, (reason, key) in zip(snapshots, decisions):
+            chosen, row = self._drive_recorded_decision(
+                policy, snapshot, reason, key
+            )
+            chosen_keys.append(chosen)
+            rows.append(row)
+
+        self.assertEqual(sorted(policy._town_turn_arbiter._retired), [])
+        self.assertEqual(chosen_keys, [key for _, key in decisions])
+        self.assertEqual(rows[-1]["producer_owner"], "departure")
+        self.assertTrue(rows[-1]["progress"])
+        self.assertEqual(rows[-1]["budget_remaining_estimate"], 8)
+        self.assertEqual(rows[-1]["retirement_set"], [])
+
+    def test_recall_wait_past_activation_bound_retires_departure(self):
+        snapshots = self._recall_wait_replay_snapshots()
+        policy = HengbotPolicy()
+        decisions = [
+            ("town:recall-to-angband", "rfa"),
+            ("town:wait-recall-step-off", "1"),
+            *(("town:wait-recall", "5") for _ in range(9)),
+        ]
+        for snapshot, (reason, key) in zip(snapshots, decisions):
+            self._drive_recorded_decision(policy, snapshot, reason, key)
+
+        last = snapshots[-1]
+        rows = []
+        for offset in range(8):
+            overdue = replace(last, turn=3119160 + 351 + offset * 10)
+            _, row = self._drive_recorded_decision(
+                policy, overdue, "town:wait-recall", "5"
+            )
+            rows.append(row)
+
+        self.assertFalse(rows[0]["progress"])
+        self.assertEqual(rows[-1]["budget_remaining_estimate"], 0)
+        self.assertEqual(rows[-1]["retirement_set"], ["departure"])
+
+    def test_cancelled_recall_ends_wait_progress_exemption(self):
+        snapshots = self._recall_wait_replay_snapshots()
+        policy = HengbotPolicy()
+        self._drive_recorded_decision(
+            policy, snapshots[0], "town:recall-to-angband", "rfa"
+        )
+        self._drive_recorded_decision(
+            policy, snapshots[1], "town:wait-recall-step-off", "1"
+        )
+        cancelled = replace(
+            snapshots[2], player=replace(snapshots[2].player, recalling=False)
+        )
+        self._drive_recorded_decision(
+            policy, cancelled, "town:wait-recall", "5"
+        )
+        _, row = self._drive_recorded_decision(
+            policy, replace(cancelled, turn=cancelled.turn + 10),
+            "town:wait-recall", "5"
+        )
+        self.assertFalse(row["progress"])
+        self.assertEqual(row["budget_remaining_estimate"], 7)
 
 
 if __name__ == "__main__":

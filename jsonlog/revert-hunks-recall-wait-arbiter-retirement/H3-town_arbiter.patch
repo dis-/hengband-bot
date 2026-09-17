@@ -1,0 +1,40 @@
+diff --git b/src/hengbot/town_arbiter.py a/src/hengbot/town_arbiter.py
+index 9c91b38..da49ca6 100644
+--- b/src/hengbot/town_arbiter.py
++++ a/src/hengbot/town_arbiter.py
+@@ -313,33 +281,16 @@ class TownTurnArbiter:
+         # attributed owner is the visit/errand owner in telemetry and at the
+         # emit boundary; contributors do not inherit one another's budget.
+         owner = self.owner_for_reason(reason)
+-        recall_wait_progress = (
+-            owner == "departure"
+-            and reason in RECALL_WAIT_REASONS
+-            and getattr(self, "_snapshot_recalling", False)
+-            and getattr(self, "_snapshot_turn", None) is not None
+-            and getattr(self, "_recall_wait_started_turn", None) is not None
+-            and self._snapshot_turn - self._recall_wait_started_turn
+-            <= RECALL_ACTIVATION_MAX_GAME_TURNS
+-        )
+         same_owner = owner == self._owner
+         previous_vector = self._vector_by_owner.get(owner)
+         recurrence_key = (owner, progress_vector)
+-        if (
+-            not observation_wait
+-            and not recall_wait_progress
+-            and recurrence_key != self._last_pair
+-        ):
++        if not observation_wait and recurrence_key != self._last_pair:
+             self._recurrences[recurrence_key] += 1
+         recurrence_limit = self.registry["detectors"].budget
+         recurrent = self._recurrences[recurrence_key] >= recurrence_limit
+         progress = (
+             not terminal
+-            and (
+-                recall_wait_progress
+-                or previous_vector is None
+-                or previous_vector != progress_vector
+-            )
++            and (previous_vector is None or previous_vector != progress_vector)
+             and not recurrent
+         )
+         durable_progress = (

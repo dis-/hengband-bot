@@ -30,6 +30,22 @@ from hengbot.policy_types import (
 )
 
 
+# Word of Recall is armed for ``randint0(21) + 15`` player turns
+# (src/object-use/read/scroll-read-executor.cpp).  Hengband's emitted game
+# turn uses TURNS_PER_TICK == 10 (src/system/gamevalue.h), so the longest
+# intentional stationary wait spans 350 emitted game turns.
+RECALL_ACTIVATION_MAX_PLAYER_TURNS = 35
+HENGBAND_TURNS_PER_TICK = 10
+RECALL_ACTIVATION_MAX_GAME_TURNS = (
+    RECALL_ACTIVATION_MAX_PLAYER_TURNS * HENGBAND_TURNS_PER_TICK
+)
+RECALL_WAIT_REASONS = frozenset({
+    "town:wait-recall",
+    "town:wait-recall-step-off",
+    "town:await-recall-confirmation",
+})
+
+
 @dataclass(frozen=True)
 class TownOwnerRegistration:
     """Advisory registration for one family of town turn producers."""
@@ -97,6 +113,22 @@ class TownTurnArbiter:
         self._transferred_visit: StoreVisit | None = None
         self.telemetry: dict[str, object] | None = None
         self.store_visit: StoreVisit | None = None
+        self._snapshot_turn: int | None = None
+        self._recall_wait_started_turn: int | None = None
+        self._snapshot_recalling = False
+
+    def note_snapshot(self, *, turn: int, recalling: bool) -> None:
+        """Observe the real game clock used to bound a designed recall wait."""
+        if recalling and not self._snapshot_recalling:
+            # The last non-recalling board is the board on which the recall
+            # read was selected.  This survives redraws at the same game turn.
+            self._recall_wait_started_turn = (
+                self._snapshot_turn if self._snapshot_turn is not None else turn
+            )
+        elif not recalling:
+            self._recall_wait_started_turn = None
+        self._snapshot_turn = turn
+        self._snapshot_recalling = recalling
 
     def acquire_store_visit(
         self,
@@ -281,16 +313,33 @@ class TownTurnArbiter:
         # attributed owner is the visit/errand owner in telemetry and at the
         # emit boundary; contributors do not inherit one another's budget.
         owner = self.owner_for_reason(reason)
+        recall_wait_progress = (
+            owner == "departure"
+            and reason in RECALL_WAIT_REASONS
+            and getattr(self, "_snapshot_recalling", False)
+            and getattr(self, "_snapshot_turn", None) is not None
+            and getattr(self, "_recall_wait_started_turn", None) is not None
+            and self._snapshot_turn - self._recall_wait_started_turn
+            <= RECALL_ACTIVATION_MAX_GAME_TURNS
+        )
         same_owner = owner == self._owner
         previous_vector = self._vector_by_owner.get(owner)
         recurrence_key = (owner, progress_vector)
-        if not observation_wait and recurrence_key != self._last_pair:
+        if (
+            not observation_wait
+            and not recall_wait_progress
+            and recurrence_key != self._last_pair
+        ):
             self._recurrences[recurrence_key] += 1
         recurrence_limit = self.registry["detectors"].budget
         recurrent = self._recurrences[recurrence_key] >= recurrence_limit
         progress = (
             not terminal
-            and (previous_vector is None or previous_vector != progress_vector)
+            and (
+                recall_wait_progress
+                or previous_vector is None
+                or previous_vector != progress_vector
+            )
             and not recurrent
         )
         durable_progress = (
@@ -691,6 +740,11 @@ class TownArbiterMixin:
         )
 
     def _owner_progress_core(self, snapshot: Snapshot) -> OwnerProgressCore:
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        if arbiter is not None:
+            arbiter.note_snapshot(
+                turn=snapshot.turn, recalling=snapshot.player.recalling
+            )
         return OwnerProgressCore(
             floor=getattr(snapshot, "floor_key", None),
             position=snapshot.player.position,
