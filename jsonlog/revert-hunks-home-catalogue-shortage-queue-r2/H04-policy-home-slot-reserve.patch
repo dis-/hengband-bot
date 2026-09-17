@@ -1,7 +1,7 @@
 diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
 --- a/src/hengbot/policy_home.py
 +++ b/src/hengbot/policy_home.py
-@@ -2861 +2861,6 @@
+@@ -2861,4 +2861,9 @@
 -        free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
 +        free_slots = max(
 +            0,
@@ -9,3 +9,6 @@ diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
 +            - len(snapshot.inventory)
 +            - max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS),
 +        )
+         queued_new_identities: set[str] = set()
+         queued_classes: set[tuple[int, int]] = set()
+         queued: list[tuple[InventoryItem, int]] = []
