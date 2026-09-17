@@ -1,6 +1,7 @@
 from __future__ import annotations
 import ast
 import gzip
+import hashlib
 import inspect
 import json
 import os
@@ -5076,3 +5077,62 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
             "home:leave-after-one-operation",
             [reason for _key, reason in outcomes],
         )
+
+
+class RecordedStaleHomeScanInsideTest(unittest.TestCase):
+    def test_invalidated_multi_page_home_scans_before_leaving(self):
+        raw_lines = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-1450-stale-scan-state.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        self.assertEqual(
+            [hashlib.sha256(line).hexdigest() for line in raw_lines],
+            [
+                "340b1b68600259769b57783c94827f44234823946bf2ed50fff2b1a75cdf3a88",
+                "850b490b439cb92aba35eae0b11900f1cf8eff8cb0a5aeb47e905cb501eebb98",
+                "4897f05241b888dbd500dc29da96d2eff856b8252c3d71581e7116f6fbf6add3",
+                "e92d9428ca1cca3adb8d14baba8c2dc65243bf782102d4f23d1b7949af2c0302",
+                "52cc66c5487f4774c17e3c2832d5f36f3fb24579863f83e269796d3c0199373b",
+            ],
+        )
+        rows = [json.loads(line) for line in raw_lines]
+        policy = HengbotPolicy()
+
+        # The incident has no persisted HomeVisitExecutor checkpoint.  The
+        # stale state itself is created by choose_key observing stock 88 -> 87.
+        with self.subTest(recorded=True):
+            initial_scan = policy.choose_key(parse_snapshot(rows[0]))
+            self.assertEqual(initial_scan, "~9\x1b\x1b")
+            policy.confirm_key_posted(initial_scan)
+            self.assertEqual(
+                _dispatch_response_lines([raw_lines[1].decode("utf-8")], policy, Mock()),
+                1,
+            )
+            self.assertEqual(len(policy._home_knowledge_items), 88)
+
+            first_page = parse_snapshot(rows[2])
+            first_leave = policy.choose_key(first_page)
+            self.assertEqual(first_leave, LEAVE_STORE_KEY)
+            self.assertEqual(policy.last_reason, "home:scan-incomplete-open-page")
+            self.assertTrue(policy._home_knowledge_invalidated)
+            policy.confirm_key_posted(first_leave)
+
+            # The state log does not persist the in-memory HomeVisitExecutor.
+            # Re-file it through its production derivation from the recorded
+            # outside board instead of assigning executor state.
+            self.assertTrue(policy._ensure_home_visit_request(parse_snapshot(rows[3])))
+            inside_scan = policy.choose_key(first_page)
+            self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
+            self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+            policy.confirm_key_posted(inside_scan)
+            self.assertEqual(
+                _dispatch_response_lines([raw_lines[4].decode("utf-8")], policy, Mock()),
+                1,
+            )
+            self.assertEqual(len(policy._home_knowledge_items), 87)
+
+            next_key = policy.choose_key(first_page)
+            self.assertEqual(next_key, "\r")
+            self.assertEqual(policy.last_reason, "shop:await-leave-confirmation")
+            self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")

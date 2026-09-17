@@ -2816,6 +2816,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or "home-scan-incomplete" in getattr(
                     self._equipment_optimization_preparation, "blockers", ()
                 )
+                or (
+                    self._home_procurement_probe is not None
+                    or (
+                        self._home_visit.request is not None
+                        and self._home_visit.request.kind == HomeVisitKind.SCAN
+                    )
+                )
             )
             and not self._home_knowledge_scan_requested
             and self._home_knowledge_scan_epoch is None
