@@ -1,5 +1,6 @@
 import base64
 import gzip
+import hashlib
 import inspect
 import json
 import pickle
@@ -42,6 +43,7 @@ from hengbot.model import (
     TVAL_SCROLL,
     TVAL_STAFF,
     TVAL_SWORD,
+    parse_snapshot,
 )
 from hengbot.policy import HengbotPolicy, STORE_STUCK_LIMIT, WAIT_KEY
 try:
@@ -662,6 +664,52 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "a cursed (pinned) item must stay worn and be folded into the "
             "constants instead",
         )
+
+    def test_recorded_deposits_handoff_directly_to_first_strip_step(self):
+        fixture = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-1232-calibration-strip-state.jsonl"
+        )
+        payload = fixture.read_bytes()
+        self.assertEqual(
+            hashlib.sha256(payload).hexdigest(),
+            "a1d34e88d1edc79e0d6be4f814fd1c0a56775afaef0fda8695f81c52274b1a5e",
+        )
+        rows = [json.loads(line) for line in payload.splitlines()]
+        self.assertEqual(len(rows), 20)
+        self.assertEqual(
+            [(rows[index]["turn"], rows[index]["type"]) for index in (0, 2, 11, 13, 19)],
+            [
+                (3134096, "player_turn"),
+                (3134096, "store"),
+                (3134104, "player_turn"),
+                (3134104, "store"),
+                (3134113, "player_turn"),
+            ],
+        )
+
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        keys = []
+        for index in (0, 2, 11, 13, 19):
+            key = policy.choose_key(parse_snapshot(rows[index], {}))
+            keys.append(key)
+            if key:
+                policy.confirm_key_posted(key)
+
+        self.assertEqual(
+            keys,
+            [
+                "5",
+                "dh2\rdgdf9\rde28\rdd7\rdc10\rdbda4\r\x1b",
+                "5",
+                "dedd99\rdcdb2\rda\x1b",
+                "ta",
+            ],
+        )
+        self.assertNotIn("", keys)
+        self.assertEqual(policy.last_reason, "equipment-transaction:takeoff")
 
     def test_capture_caches_constants_and_does_not_rerun_per_optimization(self):
         policy = self._scan_complete_policy()
