@@ -4996,6 +4996,80 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
         self.assertEqual(policy._home_pending_quantity, 5)
 
 
+class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
+    def test_current_catalogue_queues_and_composes_live_cure_shortage(self):
+        raw_lines = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-1640-home-shortage-state.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        self.assertEqual(
+            [hashlib.sha256(line).hexdigest() for line in raw_lines],
+            [
+                "c697b95afc3d3a62e51c6e72938e6670789565711c89c73f4a818e9432cad8f1",
+                "ff535afa293cd4301b45174783cdb644479896df2ca1d3d25379d5731c36b2ca",
+                "891e2815d815a732115033ca42ba948890c66b6873412a79f55f8f15089b7ddb",
+                "ff535afa293cd4301b45174783cdb644479896df2ca1d3d25379d5731c36b2ca",
+                "8713e569e398b3f507e27a6ae730a23a2a3fc40926f0e63c4263cc9206f8553d",
+            ],
+        )
+        rows = [json.loads(line) for line in raw_lines]
+        policy = HengbotPolicy()
+
+        self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
+        scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        self.assertEqual(scan_key, "~9\x1b")
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        policy.confirm_key_posted(scan_key)
+        self.assertEqual(
+            _dispatch_response_lines(
+                [raw_lines[2].decode("utf-8")], policy, Mock()
+            ),
+            1,
+        )
+        self.assertEqual(len(policy._home_knowledge_items), 86)
+
+        leave_key = policy.choose_key(parse_snapshot(rows[3]))
+        self.assertEqual(leave_key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-catalogue-shortage")
+        queued = [policy._home_pending_item, *policy._home_pending_batch]
+        queued_items = [
+            item for item in policy._home_knowledge_items
+            if policy._item_signature(item) in queued
+        ]
+        cure = next(
+            item for item in queued_items
+            if item.tval == TVAL_POTION
+            and item.sval == SV_POTION_CURE_CRITICAL
+        )
+        spear = next(item for item in policy._home_knowledge_items if "スピア" in item.name)
+        self.assertNotIn(policy._item_signature(spear), queued)
+        policy.confirm_key_posted(leave_key)
+
+        outside = parse_snapshot(rows[4])
+        required = policy._supply_ledger(
+            outside, policy._planned_depth()
+        )["cure"].required_departure
+        compose_key = policy.choose_key(outside)
+        self.assertEqual(compose_key, "5")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(policy._store_visit.operation_key, f"pf{required}\r\x1b")
+        self.assertEqual(policy._home_atomic_withdraw_pending[3], required)
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry["selected_signature"],
+            list(policy._item_signature(cure)),
+        )
+        self.assertEqual(policy._home_atomic_withdraw_telemetry["resolved_page"], 0)
+        self.assertEqual(policy._home_atomic_withdraw_telemetry["resolved_letter"], "f")
+        self.assertEqual(policy._home_atomic_withdraw_telemetry["quantity"], required)
+        self.assertEqual(
+            equipment_move_identity(
+                policy._home_atomic_withdraw_pending[2]
+            ),
+            equipment_move_identity(cure),
+        )
+
+
 class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
     def test_recorded_cloak_take_is_observed_before_catalogue_acquisition(self):
         rows = [

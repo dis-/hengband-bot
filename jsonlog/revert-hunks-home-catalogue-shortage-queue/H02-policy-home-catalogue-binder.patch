@@ -1,0 +1,160 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+index 2fc88ae..ae3d452 100644
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2766,37 +2766,15 @@ class HomeMixin:
+     ) -> None:
+         """Retain all presently unmet, viable Home supply classes under Home ownership."""
+         strategy = self._carry_procurement_strategy(snapshot)
+-        quest_target = self._quest_carry_target_for_item(
+-            snapshot, primary, strategy.required_force if strategy is not None else {}
+-        )
+-        primary_is_supply = any(
+-            self._store_item_is_supply(primary, kind) for kind in SUPPLY_STORES
+-        )
+-        if (
+-            quest_target is None
+-            and not primary_is_supply
+-            and not primary.is_treasure_detection_scroll
+-            and not primary.is_digging_tool
+-        ):
++        if not self._home_procurement_batch_member(snapshot, primary, strategy):
+             return
+         primary_missing = self._procurement_missing_amount(snapshot, primary)
+         if primary_missing <= 0:
+             return
+         wanted_classes = {self._procurement_class(primary)}
+         for known in self._home_knowledge_items:
+-            known_quest_target = self._quest_carry_target_for_item(
+-                snapshot,
+-                known,
+-                strategy.required_force if strategy is not None else {},
+-            )
+-            known_is_supply = any(
+-                self._store_item_is_supply(known, kind) for kind in SUPPLY_STORES
+-            )
+-            if (
+-                known_quest_target is not None
+-                or known_is_supply
+-                or known.is_treasure_detection_scroll
+-                or known.is_digging_tool
++            if self._home_procurement_batch_member(
++                snapshot, known, strategy
+             ) and self._procurement_missing_amount(snapshot, known) > 0:
+                 wanted_classes.add(self._procurement_class(known))
+         for item_class in wanted_classes:
+@@ -2819,6 +2797,114 @@ class HomeMixin:
+                 self._home_pending_batch.append(signature)
+                 self._home_procurement_batch_active = True
+ 
++    def _home_procurement_batch_member(
++        self, snapshot: Snapshot, item: StoreItem,
++        strategy=None,
++    ) -> bool:
++        """Return the shared, intentionally narrow Home-procurement membership."""
++        if strategy is None:
++            strategy = self._carry_procurement_strategy(snapshot)
++        return bool(
++            self._quest_carry_target_for_item(
++                snapshot,
++                item,
++                strategy.required_force if strategy is not None else {},
++            )
++            is not None
++            or any(
++                self._store_item_is_supply(item, kind) for kind in SUPPLY_STORES
++            )
++            or item.is_treasure_detection_scroll
++            or item.is_digging_tool
++        )
++
++    def _queue_home_catalogue_shortages(self, snapshot: Snapshot) -> bool:
++        """Bind live shortages from current all-page Home knowledge."""
++        visit_request = (
++            self._home_visit.request
++            if getattr(self, "_home_visit", None) is not None
++            else None
++        )
++        if (
++            not self._home_knowledge_current
++            or (
++                visit_request is not None
++                and visit_request.kind
++                not in {HomeVisitKind.SCAN, HomeVisitKind.RECOVERY}
++            )
++            or self._home_pending_item is not None
++            or self._home_pending_batch
++            or self._home_atomic_withdraw_pending is not None
++            or self._home_procurement_probe is not None
++        ):
++            return False
++        strategy = self._carry_procurement_strategy(snapshot)
++        deferred_classes = {
++            (signature[1], signature[2])
++            for signature in self._deferred_home_items
++        }
++        candidates = [
++            item
++            for item in self._home_knowledge_items
++            if item.count > 0
++            and self._item_signature(item) not in self._deferred_home_items
++            and not any(
++                self._procurement_class_matches(item, item_class)
++                for item_class in deferred_classes
++            )
++            and self._home_procurement_batch_member(snapshot, item, strategy)
++            and self._procurement_missing_amount(snapshot, item) > 0
++        ]
++        if not candidates:
++            return False
++
++        free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
++        queued_new_identities: set[str] = set()
++        queued_classes: set[tuple[int, int]] = set()
++        queued: list[tuple[InventoryItem, int]] = []
++        carried_identities = {
++            equipment_move_identity(item) for item in snapshot.inventory
++        }
++        for candidate in candidates:
++            item_class = self._procurement_class(candidate)
++            if item_class in queued_classes:
++                continue
++            move_identity = equipment_move_identity(candidate)
++            needs_slot = (
++                move_identity not in carried_identities
++                and move_identity not in queued_new_identities
++            )
++            if needs_slot and len(queued_new_identities) >= free_slots:
++                continue
++            quantity = min(
++                candidate.count,
++                self._procurement_missing_amount(snapshot, candidate),
++            )
++            if quantity <= 0:
++                continue
++            queued.append((candidate, quantity))
++            queued_classes.add(item_class)
++            if needs_slot:
++                queued_new_identities.add(move_identity)
++        if not queued:
++            return False
++
++        primary, quantity = queued[0]
++        primary_signature = self._item_signature(primary)
++        self._home_pending_item = primary_signature
++        self._home_pending_quantity = quantity
++        self._home_pending_quantities[primary_signature] = quantity
++        for candidate, candidate_quantity in queued[1:]:
++            signature = self._item_signature(candidate)
++            if signature == primary_signature or signature in self._home_pending_batch:
++                continue
++            self._home_pending_quantities[signature] = candidate_quantity
++            self._home_pending_batch.append(signature)
++        self._home_procurement_batch_active = bool(self._home_pending_batch)
++        self._home_withdrawal_queued = True
++        self._home_procurement_probe = self._procurement_class(primary)
++        return True
++
+     def _record_home_gate(
+         self,
+         snapshot: Snapshot,

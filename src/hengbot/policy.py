@@ -3844,6 +3844,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                and getattr(
+                    self, "_queue_home_catalogue_shortages", lambda _snapshot: False
+                )(snapshot)
+            ):
+                # This is the single live catalogue-shortage owner.  Purchase
+                # gates may route here first, but no shop shelf is required.
+                self._shopping_approach_store_type = STORE_HOME
+                self.last_reason = "home:queue-catalogue-shortage"
+                key = LEAVE_STORE_KEY
+            elif (
+                not self._calibration_active()
+                and self._home_atomic_deposit_pending is None
+                and self._equipment_transaction_session is None
                 and not self._identify_staff_ready(snapshot)
                 and self._home_pending_item is None
                 and not self._home_pending_batch

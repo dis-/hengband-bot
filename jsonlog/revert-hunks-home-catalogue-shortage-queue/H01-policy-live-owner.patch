@@ -1,0 +1,24 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 93d02d4..ed6f8dc 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -3840,6 +3840,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             rearm = self._home_rearm_key(snapshot)
+             if rearm is not None:
+                 key = rearm
++            elif (
++                not self._calibration_active()
++                and self._home_atomic_deposit_pending is None
++                and self._equipment_transaction_session is None
++                and getattr(
++                    self, "_queue_home_catalogue_shortages", lambda _snapshot: False
++                )(snapshot)
++            ):
++                # This is the single live catalogue-shortage owner.  Purchase
++                # gates may route here first, but no shop shelf is required.
++                self._shopping_approach_store_type = STORE_HOME
++                self.last_reason = "home:queue-catalogue-shortage"
++                key = LEAVE_STORE_KEY
+             elif (
+                 not self._calibration_active()
+                 and self._home_atomic_deposit_pending is None
