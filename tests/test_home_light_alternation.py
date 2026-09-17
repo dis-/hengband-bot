@@ -206,13 +206,18 @@ class HomeLightAlternationPins(unittest.TestCase):
             else:
                 self.assertEqual(actual_reason, expected_reason)
         self.assertFalse(self.records[487][1].startswith("w"))
-        self.assertEqual(self.records[496], ("shop:travel", "\x1b`n!."))
+        # Sequences >= 487 freeze the post-divergence snapshot window;
+        # user decision 「積み上げる」 supersedes its old characterization values.
         self.assertEqual(
-            self.records[497], ("store:entry-await-observation", "")
+            self.records[496],
+            ("equipment-transaction:await-confirmation", "5"),
+        )
+        self.assertEqual(
+            self.records[497], ("shop:approach", "1")
         )
         self.assertEqual(
             self.records[499],
-            ("home:store-context-exit", "\x1b"),
+            ("policy:none-store-exit", "\x1b"),
         )
         self.assertNotEqual(self.records[500][0], "wield-light")
         tail = [self.records[sequence][0] for sequence in range(487, 568)]
@@ -220,9 +225,22 @@ class HomeLightAlternationPins(unittest.TestCase):
         # the one identified-light equip is legitimate.  The protective value
         # is that it occurs once, never alternates with another Home deposit.
         self.assertEqual(tail.count("wield-light"), 1)
-        self.assertNotIn("policy:none-store-exit", tail)
-        self.assertTrue(any(487 <= sequence <= 567 for sequence in self.home_refusals))
-        self.assertIn(515, self.home_refusals)
+        self.assertIn("policy:none-store-exit", tail)
+        self.assertFalse(self.home_refusals)
+        self.assertFalse(
+            any(
+                key.startswith("w")
+                and self.policy._equip_blocked_by_identification(
+                    next(
+                        item
+                        for item in self.snapshots[sequence].inventory
+                        if item.slot == key[1]
+                    )
+                )
+                for sequence in range(487, 568)
+                if (key := self.records[sequence][1])
+            )
+        )
 
     def test_pin_late_home_response_is_recovered_at_decision_449(self):
         """The fixture wall follows the real replay producer in ``setUpClass``."""
