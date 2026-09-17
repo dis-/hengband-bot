@@ -125,6 +125,7 @@ from hengbot.model import (
     Snapshot,
     StoreItem,
     StoreState,
+    _parse_items,
     _parse_store,
     parse_snapshot,
 )
@@ -4882,6 +4883,68 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
 
 
 class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
+    def test_light_ready_recorded_batch_excludes_added_home_torches(self):
+        rows = [
+            json.loads(line)
+            for line in (
+                Path(__file__).parents[1]
+                / "jsonlog"
+                / "replay-20260917-0854-state.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+        ]
+        shop = parse_snapshot(rows[0])
+        scan_request = parse_snapshot(rows[1])
+        home_rows = rows[2]["knowledge"]["items"]
+        home_items = _parse_items(home_rows)
+        home_items.append(
+            InventoryItem(
+                slot=80,
+                tval=TVAL_LITE,
+                sval=SV_LITE_TORCH,
+                name="松明 (5x)",
+                count=5,
+                fuel=5000,
+                known=True,
+                aware=True,
+                fully_known=True,
+            )
+        )
+        policy = HengbotPolicy()
+
+        scan_key = policy.choose_key(scan_request)
+        self.assertEqual(scan_key, "~9\x1b\x1b")
+        policy.confirm_key_posted(scan_key)
+        self.assertTrue(policy.consume_home_knowledge(tuple(home_items)))
+        fundraising_trigger = replace(
+            shop, player=replace(shop.player, gold=FUNDRAISING_START_GOLD - 1)
+        )
+        self.assertTrue(policy._start_fundraising(fundraising_trigger))
+
+        offered = next(
+            item for item in shop.store.items
+            if item.is_treasure_detection_scroll
+        )
+        gate = policy._purchase_has_fresh_home_absence(shop, offered)
+
+        self.assertIs(gate, policy_module.ProcurementHomeGate.HOME_FIRST)
+        queued = [policy._home_pending_item, *policy._home_pending_batch]
+        queued_items = [
+            item for item in policy._home_knowledge_items
+            if policy._item_signature(item) in queued
+        ]
+        self.assertEqual(len(queued), 2)
+        self.assertEqual(
+            {(item.tval, item.sval) for item in queued_items},
+            {
+                (TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+                (TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            },
+        )
+        self.assertNotIn(
+            (TVAL_LITE, SV_LITE_TORCH),
+            {(item.tval, item.sval) for item in queued_items},
+        )
+
     def test_treasure_detection_home_first_queues_only_recorded_supply_need(self):
         rows = [
             json.loads(line)
