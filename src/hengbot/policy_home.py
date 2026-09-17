@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, EMERGENCY_POTION_CARRY_TARGET, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
@@ -2728,11 +2728,19 @@ class HomeMixin:
             return False
         candidate, quantity = top_up
         signature = self._item_signature(candidate)
-        self._home_pending_item = signature
-        self._home_pending_quantity = quantity
         self._home_pending_quantities[signature] = quantity
+        if self._home_pending_item is None:
+            self._home_pending_item = signature
+            self._home_pending_quantity = quantity
+        elif (
+            signature != self._home_pending_item
+            and signature not in self._home_pending_batch
+        ):
+            self._home_pending_batch.append(signature)
+            self._home_procurement_batch_active = True
         self._home_withdrawal_queued = True
-        self._home_procurement_probe = self._procurement_class(candidate)
+        if self._home_procurement_probe is None:
+            self._home_procurement_probe = self._procurement_class(candidate)
         return True
 
     def _home_procurement_viable_class_matches(
@@ -2839,26 +2847,23 @@ class HomeMixin:
         ):
             return False
         strategy = self._carry_procurement_strategy(snapshot)
-        deferred_classes = {
-            (signature[1], signature[2])
-            for signature in self._deferred_home_items
-        }
         candidates = [
             item
             for item in self._home_knowledge_items
             if item.count > 0
             and self._item_signature(item) not in self._deferred_home_items
-            and not any(
-                self._procurement_class_matches(item, item_class)
-                for item_class in deferred_classes
-            )
             and self._home_procurement_batch_member(snapshot, item, strategy)
             and self._procurement_missing_amount(snapshot, item) > 0
         ]
         if not candidates:
             return False
 
-        free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
+        free_slots = max(
+            0,
+            PACK_CAPACITY
+            - len(snapshot.inventory)
+            - max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS),
+        )
         queued_new_identities: set[str] = set()
         queued_classes: set[tuple[int, int]] = set()
         queued: list[tuple[InventoryItem, int]] = []

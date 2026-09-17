@@ -3844,6 +3844,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                and not self._town_space_deposit_actionable(snapshot)
                 and getattr(
                     self, "_queue_home_catalogue_shortages", lambda _snapshot: False
                 )(snapshot)

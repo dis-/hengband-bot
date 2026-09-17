@@ -4997,6 +4997,36 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
 
 
 class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
+    @staticmethod
+    def _recorded_rows():
+        raw_lines = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-1640-home-shortage-state.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        return raw_lines, [json.loads(line) for line in raw_lines]
+
+    def _primed_policy(self, *, quest_strategy=False):
+        raw_lines, rows = self._recorded_rows()
+        policy = HengbotPolicy(
+            quest_strategies=(
+                load_quest_strategies(Path("strategy/quests"))
+                if quest_strategy
+                else None
+            )
+        )
+        self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
+        scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        self.assertEqual(scan_key, "~9\x1b")
+        policy.confirm_key_posted(scan_key)
+        self.assertEqual(
+            _dispatch_response_lines(
+                [raw_lines[2].decode("utf-8")], policy, Mock()
+            ),
+            1,
+        )
+        return policy, rows
+
     def test_current_catalogue_queues_and_composes_live_cure_shortage(self):
         raw_lines = (
             Path(__file__).parents[1]
@@ -5067,6 +5097,135 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
                 policy._home_atomic_withdraw_pending[2]
             ),
             equipment_move_identity(cure),
+        )
+
+    def test_ammo_top_up_appends_without_replacing_catalogue_shortage(self):
+        policy, rows = self._primed_policy(quest_strategy=True)
+        page = json.loads(json.dumps(rows[3]))
+        bolt = next(item for item in page["inventory"] if item["tval"] == TVAL_BOLT)
+        bolt["count"] = 40
+
+        leave_key = policy.choose_key(parse_snapshot(page))
+
+        self.assertEqual(leave_key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-catalogue-shortage")
+        cure_signature = next(
+            policy._item_signature(item)
+            for item in policy._home_knowledge_items
+            if item.tval == TVAL_POTION
+            and item.sval == SV_POTION_CURE_CRITICAL
+        )
+        bolt_signatures = {
+            policy._item_signature(item)
+            for item in policy._home_knowledge_items
+            if item.tval == TVAL_BOLT
+        }
+        self.assertEqual(policy._home_pending_item, cure_signature)
+        self.assertTrue(bolt_signatures.intersection(policy._home_pending_batch))
+        self.assertEqual(policy._home_pending_quantities[cure_signature], 10)
+        queued_bolt = next(
+            signature
+            for signature in policy._home_pending_batch
+            if signature in bolt_signatures
+        )
+        self.assertEqual(policy._home_pending_quantities[queued_bolt], 59)
+        self.assertLessEqual(
+            bolt["count"] + policy._home_pending_quantities[queued_bolt],
+            AMMO_CARRY_TARGET,
+        )
+
+    def test_one_deferred_cure_stack_does_not_hide_another(self):
+        raw_lines, rows = self._recorded_rows()
+        knowledge = json.loads(json.dumps(rows[2]))
+        extra = json.loads(json.dumps(knowledge["knowledge"]["items"][5]))
+        extra["name"] += " {@q9}"
+        extra["inscription"] = "@q9"
+        extra["count"] = 2
+        knowledge["knowledge"]["items"].append(extra)
+        for index, known in enumerate(knowledge["knowledge"]["items"]):
+            known["slot"] = index
+
+        policy = HengbotPolicy()
+        self.assertEqual(policy.choose_key(parse_snapshot(rows[0])), "5")
+        scan_key = policy.choose_key(parse_snapshot(rows[1]))
+        policy.confirm_key_posted(scan_key)
+        self.assertEqual(
+            _dispatch_response_lines(
+                [json.dumps(knowledge, ensure_ascii=False)], policy, Mock()
+            ),
+            1,
+        )
+        deferred = policy._item_signature(policy._home_knowledge_items[-1])
+        # pin_vacuity: the five recorded rows do not contain the preceding
+        # failed take that created this reviewer-probe deferral.  Only that
+        # signature is declared; catalogue, shortages, and decision ownership
+        # still come through the recorded public scan/choose_key path.
+        policy._defer_home_item(deferred, "reviewer-probe")
+        page = json.loads(json.dumps(rows[3]))
+        page["store"]["stock_num"] = 87
+
+        self.assertEqual(policy.choose_key(parse_snapshot(page)), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-catalogue-shortage")
+        self.assertNotEqual(policy._home_pending_item, deferred)
+        self.assertEqual(policy._home_pending_item[1:], (TVAL_POTION, SV_POTION_CURE_CRITICAL))
+
+    def test_pack_full_deposit_precedes_shortage_queue(self):
+        policy, rows = self._primed_policy()
+        page = json.loads(json.dumps(rows[3]))
+        catalogue = rows[2]["knowledge"]["items"]
+        for index in [*range(13, 19), *range(33, 37), *range(56, 66), 84]:
+            if len(page["inventory"]) >= 22:
+                break
+            page["inventory"].append(json.loads(json.dumps(catalogue[index])))
+        carried_cure = json.loads(json.dumps(catalogue[5]))
+        carried_cure["count"] = 2
+        page["inventory"].insert(0, carried_cure)
+        for index, carried in enumerate(page["inventory"]):
+            carried["slot"] = chr(ord("a") + index)
+
+        deposit_key = policy.choose_key(parse_snapshot(page))
+
+        self.assertEqual(deposit_key, "didhdg2\r\x1b")
+        self.assertEqual(policy.last_reason, "home:atomic-deposit")
+        self.assertIsNone(policy._home_pending_item)
+
+    def test_catalogue_shortage_keeps_standard_pack_slot_reserve(self):
+        policy, rows = self._primed_policy()
+        page = json.loads(json.dumps(rows[3]))
+        catalogue = rows[2]["knowledge"]["items"]
+        for index in [*range(13, 19), *range(33, 37), *range(56, 66)]:
+            if len(page["inventory"]) >= 18:
+                break
+            page["inventory"].append(json.loads(json.dumps(catalogue[index])))
+        for index, carried in enumerate(page["inventory"]):
+            carried["slot"] = chr(ord("a") + index)
+        snapshot = parse_snapshot(page)
+        self.assertTrue(
+            policy._start_fundraising(
+                replace(
+                    snapshot,
+                    player=replace(
+                        snapshot.player, gold=FUNDRAISING_START_GOLD - 1
+                    ),
+                )
+            )
+        )
+
+        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
+        queued = [policy._home_pending_item, *policy._home_pending_batch]
+        carried_identities = {
+            equipment_move_identity(item) for item in snapshot.inventory
+        }
+        new_identities = {
+            equipment_move_identity(item)
+            for item in policy._home_knowledge_items
+            if policy._item_signature(item) in queued
+            and equipment_move_identity(item) not in carried_identities
+        }
+        self.assertLessEqual(len(new_identities), 1)
+        self.assertGreaterEqual(
+            PACK_CAPACITY - len(snapshot.inventory) - len(new_identities),
+            max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS),
         )
 
 
