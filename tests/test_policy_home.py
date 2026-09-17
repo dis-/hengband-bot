@@ -5035,10 +5035,20 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
         ), knowledge_current=True))
 
         outside_before = parse_snapshot(rows[2])
-        policy._shopping_approach_step(outside_before, STORE_HOME)
-        policy._atomic_home_withdraw_key(
-            outside_before, outside_before.player.position
+        self.assertTrue(
+            policy._start_fundraising(
+                replace(
+                    outside_before,
+                    player=replace(
+                        outside_before.player,
+                        gold=FUNDRAISING_START_GOLD - 1,
+                    ),
+                )
+            )
         )
+        route_key = decide(2)
+        self.assertEqual(policy.last_reason, "home-errand:atomic-withdraw:equipment")
+        policy.confirm_key_posted(route_key)
         take_key = decide(3)
         self.assertEqual(take_key, "pW\x1b")
         policy.confirm_key_posted(take_key)
@@ -5048,6 +5058,7 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
         policy.confirm_key_posted(leave_key)
         posted_visit = policy._store_visit
 
+        self.assertIsNone(policy._find_home_deposit(parse_snapshot(rows[5])))
         next_key = decide(5)
 
         self.assertNotEqual(
@@ -5055,6 +5066,7 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
             "equipment-transaction:travel-home:await-entry",
         )
         self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertFalse(policy._home_entry_operation_posted)
         self.assertTrue(posted_visit.operation_effect_observed)
         outcomes = []
         for index in (5, 5, 5, 5):
