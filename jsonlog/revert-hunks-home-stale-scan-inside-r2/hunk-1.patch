@@ -1,0 +1,28 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2822,24 +2822,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                         self._home_visit.request is not None
+                         and self._home_visit.request.kind == HomeVisitKind.SCAN
+                     )
+-                    or (
+-                        self._store_visit is not None
+-                        and self._store_visit.store_type == STORE_HOME
+-                        and self._store_visit.owner != "shop-handler"
+-                        and not self._store_visit.operation_released
+-                        and self._home_knowledge_invalidated
+-                    )
+                 )
+             )
+             and not self._home_knowledge_scan_requested
+             and self._home_knowledge_scan_epoch is None
+-            and self._home_atomic_withdraw_pending is None
+-            and self._home_atomic_deposit_pending is None
+-            and not self._home_entry_operation_posted
+-            and (
+-                self._store_visit is None
+-                or not self._store_visit.operation_posted
+-            )
+             and self._equipment_transaction_session is None
+             and not self._calibration_active()
+             and not self._town_space_deposit_actionable(snapshot)

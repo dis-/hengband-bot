@@ -5379,3 +5379,80 @@ class RecordedStaleHomeScanInsideTest(unittest.TestCase):
             self.assertEqual(next_key, "\r")
             self.assertEqual(policy.last_reason, "shop:await-leave-confirmation")
             self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")
+
+
+class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
+    def test_live_errand_shopping_home_visit_scans_before_exit(self):
+        raw_lines = (
+            Path(__file__).parents[1]
+            / "jsonlog"
+            / "replay-20260917-2019-stale-scan-state.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        self.assertEqual(
+            [hashlib.sha256(line).hexdigest() for line in raw_lines],
+            [
+                "340b1b68600259769b57783c94827f44234823946bf2ed50fff2b1a75cdf3a88",
+                "850b490b439cb92aba35eae0b11900f1cf8eff8cb0a5aeb47e905cb501eebb98",
+                "4897f05241b888dbd500dc29da96d2eff856b8252c3d71581e7116f6fbf6add3",
+                "f8747322df6e0ba9d3758a2c8ebc1e0e493fa21421350575f6ba2b0a9373fa03",
+                "448b9a804fe0f4261dd5015f32123d5300912f8a8f517ab8a3381589e66b1857",
+                "7f69a4cd339f8e70f7c96a771ca3090efec2c266bcf048e297ce0390ae0b2439",
+                "52cc66c5487f4774c17e3c2832d5f36f3fb24579863f83e269796d3c0199373b",
+                "4897f05241b888dbd500dc29da96d2eff856b8252c3d71581e7116f6fbf6add3",
+            ],
+        )
+        rows = [json.loads(line) for line in raw_lines]
+        policy = HengbotPolicy()
+
+        initial_scan = policy.choose_key(parse_snapshot(rows[0]))
+        self.assertEqual(initial_scan, "~9\x1b\x1b")
+        policy.confirm_key_posted(initial_scan)
+        self.assertEqual(
+            _dispatch_response_lines([raw_lines[1].decode("utf-8")], policy, Mock()),
+            1,
+        )
+
+        stale_page = parse_snapshot(rows[2])
+        stale_key = policy.choose_key(stale_page)
+        self.assertEqual(stale_key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:scan-incomplete-open-page")
+        self.assertTrue(policy._home_knowledge_invalidated)
+        policy.confirm_key_posted(stale_key)
+
+        route_key = policy.choose_key(parse_snapshot(rows[3]))
+        self.assertEqual(route_key, "\x1b`n(.")
+        self.assertIsNotNone(policy._store_visit)
+        self.assertEqual(
+            (
+                policy._store_visit.owner,
+                policy._store_visit.purpose,
+                policy._store_visit.store_type,
+                policy._store_visit.visit_origin,
+            ),
+            ("town-errand", "shopping", STORE_HOME, "acquire"),
+        )
+        policy.confirm_key_posted(route_key)
+        self.assertEqual(policy.choose_key(parse_snapshot(rows[4])), "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+
+        self.assertIsNotNone(policy._store_visit)
+        self.assertEqual(policy._store_visit.owner, "town-errand")
+        self.assertFalse(policy._home_knowledge_scan_requested)
+        self.assertIsNone(policy._home_knowledge_scan_epoch)
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertFalse(policy._town_space_deposit_actionable(parse_snapshot(rows[5])))
+        with patch.object(policy, "_calibration_active", return_value=False):
+            inside_scan = policy.choose_key(parse_snapshot(rows[5]))
+            self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
+            self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+            policy.confirm_key_posted(inside_scan)
+            self.assertEqual(
+                _dispatch_response_lines(
+                    [raw_lines[6].decode("utf-8")], policy, Mock()
+                ),
+                1,
+            )
+            next_key = policy.choose_key(parse_snapshot(rows[7]))
+
+        self.assertNotEqual(next_key, LEAVE_STORE_KEY)
+        self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")
