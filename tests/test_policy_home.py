@@ -5099,6 +5099,16 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
             equipment_move_identity(cure),
         )
 
+    def test_restored_policy_without_procurement_probe_declines_new_owner(self):
+        policy, rows = self._primed_policy()
+        del policy._home_procurement_probe
+
+        key = policy.choose_key(parse_snapshot(rows[3]))
+
+        self.assertEqual(key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:route-claim-unfulfilled")
+        self.assertIsNone(policy._home_pending_item)
+
     def test_ammo_top_up_appends_without_replacing_catalogue_shortage(self):
         policy, rows = self._primed_policy(quest_strategy=True)
         page = json.loads(json.dumps(rows[3]))

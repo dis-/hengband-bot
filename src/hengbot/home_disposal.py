@@ -154,7 +154,9 @@ class HomeDisposalState:
 
     def _save_history(self) -> None:
         disk_data = self._read_json(self.history_path)
-        unloadable = self._unloadable_history
+        # Captured/restored policies can contain a HomeDisposalState created
+        # before preservation of unknown history records was introduced.
+        unloadable = getattr(self, "_unloadable_history", [])
         if isinstance(disk_data, dict):
             disk_records = disk_data.get("transactions", [])
             if isinstance(disk_records, list):

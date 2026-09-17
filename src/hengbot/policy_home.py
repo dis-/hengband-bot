@@ -9,7 +9,7 @@ from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitReques
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
-from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
@@ -2834,7 +2834,8 @@ class HomeMixin:
             else None
         )
         if (
-            not self._home_knowledge_current
+            getattr(self, "_home_procurement_probe", ()) is not None
+            or not self._home_knowledge_current
             or (
                 visit_request is not None
                 and visit_request.kind
@@ -2843,7 +2844,7 @@ class HomeMixin:
             or self._home_pending_item is not None
             or self._home_pending_batch
             or self._home_atomic_withdraw_pending is not None
-            or self._home_procurement_probe is not None
+            or getattr(self, "_home_candidate_waiting", False)
         ):
             return False
         strategy = self._carry_procurement_strategy(snapshot)
@@ -2851,6 +2852,10 @@ class HomeMixin:
             item
             for item in self._home_knowledge_items
             if item.count > 0
+            # Ammunition has its own stack-aware Home owner; letting this
+            # class-based owner select it would bypass that owner's bounded
+            # deferred-stack retry and merge-safe quantity calculation.
+            and item.tval not in AMMUNITION_TVALS
             and self._item_signature(item) not in self._deferred_home_items
             and self._home_procurement_batch_member(snapshot, item, strategy)
             and self._procurement_missing_amount(snapshot, item) > 0
