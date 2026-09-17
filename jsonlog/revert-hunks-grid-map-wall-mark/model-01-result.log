@@ -1,0 +1,8 @@
+REVERSE PATCH: model-01-tunnel-mark.patch
+COMMAND: python -m unittest test_grid_map_wire.GridMapWireTest.test_recorded_mining_walls_are_marked_and_choose_key_tunnels
+EXPECTED EXIT: 1
+VALUE FAILURE: tests/test_grid_map_wire.py:87 assertTrue(granite.marked)
+AssertionError: False is not true
+Ran 1 test in 0.008s
+FAILED (failures=1)
+RESTORED: true

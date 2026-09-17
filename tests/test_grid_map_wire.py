@@ -12,6 +12,7 @@ from hengbot.policy import HengbotPolicy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
+REPLAY = Path(__file__).parent.parent / "jsonlog" / "replay-20260917-2243-dig-state.jsonl"
 FLAG_NAMES = ("mark", "cave_known", "lite", "view", "room", "unsafe")
 TERRAIN_NAMES = (
     "building", "can_dig", "door", "down_stairs", "entrance", "floor",
@@ -76,6 +77,33 @@ def _encode_grid_map(snapshot_data: dict) -> dict:
 
 
 class GridMapWireTest(unittest.TestCase):
+    def test_recorded_mining_walls_are_marked_and_choose_key_tunnels(self):
+        data = json.loads(REPLAY.read_bytes())
+        snapshot = parse_snapshot(data, {})
+
+        granite = snapshot.grids[Position(15, 39)]
+        vein = snapshot.grids[Position(17, 39)]
+        self.assertEqual((granite.terrain_id, vein.terrain_id), (56, 51))
+        self.assertTrue(granite.marked)
+        self.assertTrue(vein.marked)
+
+        policy = HengbotPolicy()
+        # Use the production fundraising producer, then model the already-made
+        # town-to-mine transition recorded by this dungeon snapshot.  The
+        # consumed detection scroll is likewise prior policy state, not wire data.
+        self.assertTrue(policy._start_fundraising(snapshot))
+        policy._fundraising_mode = "mine"
+        policy._mining_scroll_used_floor = snapshot.floor_key
+        key = policy.choose_key(snapshot)
+        self.assertEqual(key, "T1")
+        self.assertEqual(policy.last_reason, "fundraise:dig-to-treasure")
+
+    def test_recorded_floor_and_unemitted_cell_are_not_marked(self):
+        snapshot = parse_snapshot(json.loads(REPLAY.read_bytes()), {})
+
+        self.assertFalse(snapshot.grids[Position(16, 40)].marked)
+        self.assertNotIn(Position(0, 0), snapshot.grids)
+
     @staticmethod
     def _known_only_corridor_snapshot():
         data = _load_first_row("incident-20260821-loop-capture-rows.jsonl.gz")

@@ -68,6 +68,12 @@ def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
             name: bool(int(terrain_bits) & (1 << index))
             for index, name in enumerate(_GRID_TERRAIN_NAMES)
         }
+        # grid_map only contains map-visible terrain.  Hengband's display gate
+        # requires CAVE_MARK for REMEMBER terrain, and every tunnel-action
+        # terrain in TerrainDefinitions.jsonc is REMEMBER, so an emitted cell
+        # carrying the TUNNEL terrain bit is necessarily marked.
+        if terrain["tunnel"]:
+            flags["mark"] = True
         for x in range(x0, x0 + length):
             grid_data: dict[str, Any] = {
                 "y": y,
