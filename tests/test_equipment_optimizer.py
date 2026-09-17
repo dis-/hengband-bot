@@ -349,6 +349,18 @@ class EquipmentOptimizerTest(unittest.TestCase):
     def test_band_19_has_no_requirements(self):
         self.assertEqual(required_abilities(19), frozenset())
 
+    def test_elemental_resists_alone_stop_at_the_free_action_gate(self):
+        # The per-range table classified this set to 30; cumulative bands stop
+        # at 19 because band 20 still demands free_action and resist_fire.
+        elemental = gear(
+            "elemental-only", 37, flags={48, 49, 50, 51, 52}
+        )
+        loadout = Loadout(
+            (("light", self.light), (SLOT_BODY, elemental)), "empty"
+        )
+
+        self.assertEqual(divable_depth(loadout), 19)
+
     def test_usable_light_in_pool_rejects_stronger_lightless_loadout(self):
         lighted = Loadout((("light", self.light),), "empty")
         lightless = Loadout((), "empty")
