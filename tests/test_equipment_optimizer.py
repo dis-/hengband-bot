@@ -22,6 +22,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
     operational_equipment_candidate,
     random_teleport_is_suppressed,
+    required_abilities,
     _prefer,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
@@ -286,7 +287,9 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertGreaterEqual(result.chosen_decision.ratio, 1.0)
 
     def test_august_11_success_shape_still_chooses_band_30_at_full_melee(self):
-        required_30 = gear("band-30-resists", 37, flags=(48, 49, 51, 52))
+        required_30 = gear(
+            "band-30-resists", 37, flags=(46, 48, 49, 50, 51, 52, 57)
+        )
         candidate = Loadout(
             (("light", self.light), (SLOT_BODY, required_30)), "empty"
         )
@@ -298,6 +301,53 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
         self.assertEqual(result.chosen_depth, 30)
         self.assertEqual(result.chosen_decision.ratio, 1.0)
+
+    def test_deeper_resists_cannot_skip_missing_free_action_band(self):
+        chaos_nether = gear("chaos-nether", 37, flags=(60, 62))
+        loadout = Loadout(
+            (("light", self.light), (SLOT_BODY, chaos_nether)), "empty"
+        )
+
+        self.assertEqual(divable_depth(loadout), 19)
+        result = optimize_loadout(
+            (self.light, chaos_nether), lambda _loadout: metrics(100),
+            depth=None, candidate_loadouts=(loadout,),
+        )
+        self.assertEqual(result.chosen_depth, 19)
+        self.assertNotIn(49, {
+            decision.band
+            for decision in result.band_decisions
+            if decision.refusal_reason is None
+        })
+
+    def test_home_free_action_weapon_wins_cumulative_band_at_half_melee(self):
+        strong = gear("unconstrained-best", 23)
+        safe = gear("home-free-action-resists", 23, flags=(46, 50, 57))
+        strong_loadout = Loadout(
+            (("light", self.light), (SLOT_MAIN_HAND, strong)), "one_handed"
+        )
+        safe_loadout = Loadout(
+            (("light", self.light), (SLOT_MAIN_HAND, safe)), "one_handed"
+        )
+
+        for safe_melee, expected_band, expected_weapon in (
+            (50, 25, safe.id),
+            (49, 19, strong.id),
+        ):
+            with self.subTest(safe_melee=safe_melee):
+                result = optimize_loadout(
+                    (self.light, strong, safe),
+                    lambda loadout: metrics(
+                        safe_melee if safe.id in loadout.item_ids else 100
+                    ),
+                    depth=None,
+                    candidate_loadouts=(strong_loadout, safe_loadout),
+                )
+                self.assertEqual(result.chosen_depth, expected_band)
+                self.assertIn(expected_weapon, result.best.loadout.item_ids)
+
+    def test_band_19_has_no_requirements(self):
+        self.assertEqual(required_abilities(19), frozenset())
 
     def test_usable_light_in_pool_rejects_stronger_lightless_loadout(self):
         lighted = Loadout((("light", self.light),), "empty")
@@ -316,8 +366,9 @@ class EquipmentOptimizerTest(unittest.TestCase):
         ))
 
     def test_depth_descent_retries_the_immediately_shallower_band(self):
-        deep = gear("weak-speed-gate", 32, flags=(62, 60, 79))
-        strong = gear("strong-50-band", 23, flags=(62, 60, 79))
+        cumulative_50 = (46, 48, 49, 50, 51, 52, 57, 60, 62, 79)
+        deep = gear("weak-speed-gate", 32, flags=cumulative_50)
+        strong = gear("strong-50-band", 23, flags=cumulative_50)
         candidates = (
             Loadout((("light", self.light), (SLOT_HEAD, deep)), "empty"),
             Loadout((("light", self.light), (SLOT_MAIN_HAND, strong)), "one_handed"),
@@ -384,7 +435,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(band_19.satisfying_set_existed)
 
     def test_constrained_depth_reports_classified_band_ceiling(self):
-        chaos = gear("chaos", 45, flags=(62,))
+        chaos = gear("chaos", 45, flags=(46, 48, 49, 50, 51, 52, 57, 62))
         result = optimize_loadout(
             (self.light, chaos), lambda _loadout: metrics(1), depth=31,
         )
@@ -1089,15 +1140,23 @@ class EquipmentOptimizerTest(unittest.TestCase):
         nether = gear("nether", 40, flags={60})
         telepathy = gear("telepathy", 32, flags={79})
         owned = [self.light, chaos, nether, telepathy]
-        blocked = optimize_loadout(owned, lambda loadout: metrics(10), depth=50)
+        earlier = frozenset({
+            "free_action", "resist_fire", "resist_conf", "resist_pois",
+            "resist_cold", "resist_elec", "resist_acid",
+        })
+        blocked = optimize_loadout(
+            owned, lambda loadout: metrics(10), depth=50,
+            intrinsic_abilities=earlier,
+        )
         ready = optimize_loadout(
-            owned, lambda loadout: metrics(10), depth=50, has_destruction=True
+            owned, lambda loadout: metrics(10), depth=50,
+            intrinsic_abilities=earlier, has_destruction=True,
         )
         self.assertIsNone(blocked.best)
         self.assertIsNotNone(ready.best)
 
     def test_speed_plus_twenty_five_is_required_only_after_eighty(self):
-        requirements = frozenset({"resist_chaos", "resist_neth", "telepathy"})
+        requirements = required_abilities(80)
         at_eighty = optimize_loadout(
             [self.light],
             lambda loadout: metrics(10, speed=0),

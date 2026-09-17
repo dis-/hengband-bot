@@ -154,21 +154,19 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
 
 
 def required_abilities(depth: int) -> frozenset[str]:
-    if depth == 20:
-        return frozenset({"free_action", "resist_fire"})
-    if 21 <= depth <= 25:
-        return frozenset({"free_action", "resist_conf", "resist_fire"})
-    if 26 <= depth <= 30:
-        return frozenset(
-            {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
-        )
-    if 31 <= depth <= 39:
-        return frozenset({"resist_chaos"})
-    if 40 <= depth <= 49:
-        return frozenset({"resist_chaos", "resist_neth"})
-    if depth >= 50:
-        return frozenset({"resist_chaos", "resist_neth", "telepathy"})
-    return frozenset()
+    requirements: set[str] = set()
+    for minimum, band_requirements in (
+        (20, {"free_action", "resist_fire"}),
+        (21, {"resist_conf"}),
+        (26, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}),
+        (31, {"resist_chaos"}),
+        (40, {"resist_neth"}),
+        (50, {"telepathy"}),
+    ):
+        if depth < minimum:
+            break
+        requirements.update(band_requirements)
+    return frozenset(requirements)
 
 
 def divable_depth(
@@ -186,11 +184,11 @@ def divable_depth(
     deepest = 19
     for depth in (20, 21, 26, 31, 40, 50, 81):
         if not required_abilities(depth).issubset(abilities):
-            continue
+            break
         if depth >= 50 and not has_destruction:
-            continue
+            break
         if depth >= 81 and speed_bonus < 25:
-            continue
+            break
         deepest = {21: 25, 26: 30, 31: 39, 40: 49, 50: 80}.get(
             depth, depth
         )

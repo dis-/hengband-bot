@@ -1,0 +1,18 @@
+diff --git a/src/hengbot/equipment_optimizer.py b/src/hengbot/equipment_optimizer.py
+--- a/src/hengbot/equipment_optimizer.py
++++ b/src/hengbot/equipment_optimizer.py
+@@ -184,11 +184,11 @@ def divable_depth(
+     deepest = 19
+     for depth in (20, 21, 26, 31, 40, 50, 81):
+         if not required_abilities(depth).issubset(abilities):
+-            break
++            continue
+         if depth >= 50 and not has_destruction:
+-            break
++            continue
+         if depth >= 81 and speed_bonus < 25:
+-            break
++            continue
+         deepest = {21: 25, 26: 30, 31: 39, 40: 49, 50: 80}.get(
+             depth, depth
+         )

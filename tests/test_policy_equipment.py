@@ -4044,7 +4044,11 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         cases = (
             (self._equipment(), 19, "real character"),
             (equipment_with_flags({46, 50}), 20, "free action and fire"),
-            (equipment_with_flags({48, 49, 50, 51, 52}), 30, "four elements"),
+            (
+                equipment_with_flags({46, 48, 49, 50, 51, 52, 57}),
+                30,
+                "cumulative requirements through four elements",
+            ),
         )
         for equipment, expected, label in cases:
             with self.subTest(loadout=label), TemporaryDirectory() as directory:
@@ -4066,7 +4070,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         elemental_mail = item(
             "u", 37, 3, name="Elemental Mail", known=True,
             fully_known=True, is_equipment=True, ac=12, to_a=8,
-            known_flags=frozenset({48, 49, 50, 51, 52}),
+            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57}),
         )
         town_sword = item(
             "main_hand", TVAL_SWORD, 4, name="Town Sword", known=True,
@@ -4136,7 +4140,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             owned for owned in policy._equipment_catalog.items
             if {48, 49, 50, 51, 52}.issubset(owned.flags)
         )
-        self.assertTrue({48, 49, 50, 51, 52}.issubset(elemental_owned.flags))
+        self.assertTrue(
+            {46, 48, 49, 50, 51, 52, 57}.issubset(elemental_owned.flags)
+        )
         self.assertNotIn("no-valid-loadout", incident_preparation.blockers)
         self.assertEqual(policy._equipment_optimization_depth(snapshot), 30)
         self.assertEqual(len(policy._equipment_catalog.items), 47)
@@ -4145,7 +4151,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         self.assertIsNotNone(preparation.result.best)
         best = preparation.result.best.loadout
         self.assertNotIn(62, best.flags)
-        self.assertTrue({48, 49, 50, 51, 52}.issubset(best.flags))
+        self.assertTrue({46, 48, 49, 50, 51, 52, 57}.issubset(best.flags))
 
         worn = [replace(owned.item, slot=slot) for slot, owned in best.slots]
         dressed = replace(
@@ -4297,7 +4303,8 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
     def _ring(self):
         return store_item(
             "J", TVAL_RING, 4, name=self.RING_NAME, known=True,
-            fully_known=True, is_equipment=True, known_flags=frozenset({62}),
+            fully_known=True, is_equipment=True,
+            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57, 62}),
         )
 
     def _town(self):

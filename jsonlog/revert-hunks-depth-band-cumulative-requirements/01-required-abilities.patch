@@ -1,0 +1,38 @@
+diff --git a/src/hengbot/equipment_optimizer.py b/src/hengbot/equipment_optimizer.py
+--- a/src/hengbot/equipment_optimizer.py
++++ b/src/hengbot/equipment_optimizer.py
+@@ -154,19 +154,21 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
+ 
+ 
+ def required_abilities(depth: int) -> frozenset[str]:
+-    requirements: set[str] = set()
+-    for minimum, band_requirements in (
+-        (20, {"free_action", "resist_fire"}),
+-        (21, {"resist_conf"}),
+-        (26, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}),
+-        (31, {"resist_chaos"}),
+-        (40, {"resist_neth"}),
+-        (50, {"telepathy"}),
+-    ):
+-        if depth < minimum:
+-            break
+-        requirements.update(band_requirements)
+-    return frozenset(requirements)
++    if depth == 20:
++        return frozenset({"free_action", "resist_fire"})
++    if 21 <= depth <= 25:
++        return frozenset({"free_action", "resist_conf", "resist_fire"})
++    if 26 <= depth <= 30:
++        return frozenset(
++            {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
++        )
++    if 31 <= depth <= 39:
++        return frozenset({"resist_chaos"})
++    if 40 <= depth <= 49:
++        return frozenset({"resist_chaos", "resist_neth"})
++    if depth >= 50:
++        return frozenset({"resist_chaos", "resist_neth", "telepathy"})
++    return frozenset()
+ 
+ 
+ def divable_depth(
