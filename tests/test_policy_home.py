@@ -4993,3 +4993,74 @@ class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
             },
         )
         self.assertEqual(policy._home_pending_quantity, 5)
+
+
+class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
+    def test_recorded_cloak_take_is_observed_before_catalogue_acquisition(self):
+        rows = [
+            json.loads(line)
+            for line in (
+                Path(__file__).parents[1]
+                / "jsonlog"
+                / "replay-20260917-0854-observer-state.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+        ]
+        policy = HengbotPolicy()
+        knowledge_line = json.dumps(rows[1], ensure_ascii=False)
+        def decide(index):
+            line = json.dumps(rows[index], ensure_ascii=False)
+            _dispatch_response_lines([line], policy, Mock())
+            return policy.choose_key(parse_snapshot(rows[index]))
+
+        scan_key = decide(0)
+        self.assertEqual(scan_key, "~9\x1b\x1b")
+        policy.confirm_key_posted(scan_key)
+        self.assertEqual(_dispatch_response_lines([knowledge_line], policy, Mock()), 1)
+
+        # The live policy already knew the 52-item page size before this trim.
+        # Re-observe it publicly, then reacquire the invalidated recorded ~9 list.
+        decide(3)
+        self.assertEqual(policy._home_page_size, 52)
+        for _ in range(3):
+            scan_key = decide(0)
+        self.assertEqual(scan_key, "~9\x1b\x1b")
+        policy.confirm_key_posted(scan_key)
+        self.assertEqual(_dispatch_response_lines([knowledge_line], policy, Mock()), 1)
+
+        cloak = policy._home_knowledge_items[48]
+        signature = policy._item_signature(cloak)
+        self.assertEqual(cloak.name, "天上のクローク [0,+10]")
+        self.assertTrue(policy._home_errand.file(HomeErrandRequest(
+            signature, 1, "recorded-home-batch", "equipment",
+        ), knowledge_current=True))
+
+        outside_before = parse_snapshot(rows[2])
+        policy._shopping_approach_step(outside_before, STORE_HOME)
+        policy._atomic_home_withdraw_key(
+            outside_before, outside_before.player.position
+        )
+        take_key = decide(3)
+        self.assertEqual(take_key, "pW\x1b")
+        policy.confirm_key_posted(take_key)
+        self.assertIsNotNone(policy._home_atomic_withdraw_pending)
+        leave_key = decide(4)
+        self.assertEqual(leave_key, LEAVE_STORE_KEY)
+        policy.confirm_key_posted(leave_key)
+        posted_visit = policy._store_visit
+
+        next_key = decide(5)
+
+        self.assertNotEqual(
+            policy.last_reason,
+            "equipment-transaction:travel-home:await-entry",
+        )
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+        self.assertTrue(posted_visit.operation_effect_observed)
+        outcomes = []
+        for index in (5, 5, 5, 5):
+            key = decide(index)
+            outcomes.append((key, policy.last_reason))
+        self.assertNotIn(
+            "home:leave-after-one-operation",
+            [reason for _key, reason in outcomes],
+        )

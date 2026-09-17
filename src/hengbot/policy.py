@@ -2837,6 +2837,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and "quest-request" not in self._town_turn_arbiter._retired
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
             and not self._town_space_deposit_actionable(snapshot)
+            and self._home_atomic_withdraw_pending is None
+            and self._home_atomic_deposit_pending is None
+            and not self._home_entry_operation_posted
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
         ):
@@ -5508,6 +5511,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and "quest-request" not in self._town_turn_arbiter._retired
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
             and not self._town_space_deposit_actionable(snapshot)
+            and self._home_atomic_withdraw_pending is None
+            and self._home_atomic_deposit_pending is None
+            and not self._home_entry_operation_posted
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
             and self._ensure_home_visit_request(snapshot)
