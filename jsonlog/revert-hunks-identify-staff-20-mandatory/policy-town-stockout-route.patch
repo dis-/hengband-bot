@@ -1,0 +1,12 @@
+diff --git b/src/hengbot/policy_town.py a/src/hengbot/policy_town.py
+index 881dadf..22b348e 100644
+--- b/src/hengbot/policy_town.py
++++ a/src/hengbot/policy_town.py
+@@ -4098,7 +4097,0 @@ class TownMixin:
+-        if (
+-            self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+-            and not self._identify_staff_ready(snapshot)
+-            and self._identify_staff_procurement_impossible(snapshot)
+-        ):
+-            return self._identify_staff_stockout_key(snapshot)
+-

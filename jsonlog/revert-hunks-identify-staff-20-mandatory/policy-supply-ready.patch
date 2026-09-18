@@ -1,0 +1,12 @@
+diff --git b/src/hengbot/policy_supply.py a/src/hengbot/policy_supply.py
+index 20fcf45..5d1c5c5 100644
+--- b/src/hengbot/policy_supply.py
++++ a/src/hengbot/policy_supply.py
+@@ -298 +298,6 @@ class SupplyMixin:
+-        return charges >= STAFF_IDENTIFY_MIN_CHARGES
++        if charges >= STAFF_IDENTIFY_MIN_CHARGES:
++            return True
++        # Twenty charges is the preferred 10F+ departure stock, not a reason to
++        # wait indefinitely for shop turnover. After checking the Magic shop,
++        # a still-usable staff is the safe minimum for this town visit.
++        return charges > 0 and STORE_MAGIC in self._town_store_attempted
