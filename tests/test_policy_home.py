@@ -876,9 +876,6 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertTrue(visit.begin_approach(15))
         visit.observe_outside_ready("fresh-address", 16)
         self.assertTrue(visit.record_operation("take", prior.item_identity, 16))
-        self.assertTrue(visit.observe_operation(
-            outcome="completed", generation=17, evidence="updated-address"
-        ))
         self.assertTrue(visit.post_exit())
         policy._home_errand.file(
             HomeErrandRequest(
@@ -905,6 +902,78 @@ class HomeVisitOwnershipTest(unittest.TestCase):
 
         self.assertEqual(outcomes, [True, True])
         self.assertEqual(visit.state.name, "APPROACHING")
+        self.assertEqual(
+            policy.consume_pending_home_visit_report(),
+            "home-visit:prior-home-visit:unfulfilled",
+        )
+
+    def test_exit_pending_survives_atomic_withdraw_until_real_settlement(self):
+        policy = HengbotPolicy()
+        visit = policy._home_visit
+        prior = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "prior-home-visit", ("prior", 1, 1)
+        )
+        queued = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "town-procurement", ("wanted", 2, 3)
+        )
+        self.assertEqual(visit.file(prior), "filed")
+        self.assertTrue(visit.begin_approach(15))
+        visit.observe_outside_ready("fresh-address", 16)
+        self.assertTrue(visit.record_operation("take", prior.item_identity, 16))
+        self.assertTrue(visit.post_exit())
+        self.assertEqual(visit.file(queued), "queued")
+        pending = (("prior", 1, 1), 0, object(), 1)
+        policy._home_atomic_withdraw_pending = pending
+
+        policy._decision_sequence = 18
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=queued
+        ):
+            self.assertFalse(policy._ensure_home_visit_request(object()))
+        self.assertIs(policy._home_atomic_withdraw_pending, pending)
+        self.assertEqual(visit.state.name, "EXIT_PENDING")
+        self.assertIsNone(policy.consume_pending_home_visit_report())
+
+        policy._home_atomic_withdraw_pending = None
+        visit.observe_outside(effect_observed=True)
+        policy._decision_sequence = 19
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=queued
+        ):
+            self.assertTrue(policy._ensure_home_visit_request(object()))
+        self.assertEqual(
+            policy.consume_pending_home_visit_report(),
+            "home-visit:prior-home-visit:completed",
+        )
+        self.assertEqual(visit.state.name, "APPROACHING")
+        refusal = policy.home_route_refusal_state()
+        self.assertFalse(refusal is not None and refusal["begin_approach"] is False)
+
+    def test_exit_pending_survives_posted_unreleased_home_entry(self):
+        policy = HengbotPolicy()
+        visit = policy._home_visit
+        prior = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "prior-home-visit", ("prior", 1, 1)
+        )
+        queued = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "town-procurement", ("wanted", 2, 3)
+        )
+        self.assertEqual(visit.file(prior), "filed")
+        self.assertTrue(visit.begin_approach(15))
+        visit.observe_outside_ready("fresh-address", 16)
+        self.assertTrue(visit.record_operation("take", prior.item_identity, 16))
+        self.assertTrue(visit.post_exit())
+        policy._store_visit = SimpleNamespace(
+            operation_posted=True, operation_released=False
+        )
+
+        policy._decision_sequence = 18
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=queued
+        ):
+            self.assertFalse(policy._ensure_home_visit_request(object()))
+        self.assertEqual(visit.state.name, "EXIT_PENDING")
+        self.assertIsNone(policy.consume_pending_home_visit_report())
 
     def test_prepare_operation_lazily_rebuilds_pre_executor_checkpoint(self):
         for action in ("take", "put"):
@@ -3814,7 +3883,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         posted = None
         latest_home_items = ()
         home_pages = 0
-        home_attempted_decisions = 0
+        attempted_then_rearmed = False
         maximum_passes = 0
         visit_limit = policy._town_store_visit_limit(STORE_HOME)
         for captured in snapshots:
@@ -3825,12 +3894,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 latest_home_items = tuple(current.store.items)
                 home_pages += 1
 
+            was_attempted = STORE_HOME in policy._town_store_attempted
             posted = policy.choose_key(current)
             self._confirm_home_route_claim_key(
                 policy, posted, latest_home_items
             )
-            home_attempted_decisions += (
-                STORE_HOME in policy._town_store_attempted
+            attempted_then_rearmed |= (
+                was_attempted and STORE_HOME not in policy._town_store_attempted
             )
             maximum_passes = max(
                 maximum_passes,
@@ -3841,7 +3911,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(snapshots)
         self.assertTrue(home_pages)
         self.assertGreater(maximum_passes, visit_limit)
-        self.assertEqual(home_attempted_decisions, 0)
+        self.assertTrue(attempted_then_rearmed)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertFalse(policy._town_errand_plan.index)
         self.assertNotIn(

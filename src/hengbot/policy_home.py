@@ -83,7 +83,16 @@ class HomeMixin:
         if not hasattr(self, "_pending_home_visit_report"):
             self._pending_home_visit_report = None
         visit = self._home_visit
-        if visit.state == HomeVisitState.EXIT_PENDING:
+        if (
+            visit.state == HomeVisitState.EXIT_PENDING
+            and self._home_atomic_withdraw_pending is None
+            and self._home_atomic_deposit_pending is None
+            and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+        ):
             visit.observe_outside(effect_observed=False)
             report = visit.consume_report()
             if report is not None:

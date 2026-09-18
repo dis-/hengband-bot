@@ -56,7 +56,7 @@ class HomeVisitExecutorTest(unittest.TestCase):
         self.assertEqual(report.visit_id, 1)
         self.assertIsNone(executor.consume_report())
 
-    def test_exit_pending_settles_before_a_queued_request_approaches(self):
+    def test_production_exit_pending_settles_before_queued_approach(self):
         policy = HengbotPolicy()
         executor = policy._home_visit
         completed = request(identity=("completed", 1))
@@ -65,9 +65,6 @@ class HomeVisitExecutorTest(unittest.TestCase):
         self.assertTrue(executor.begin_approach(15))
         executor.observe_outside_ready("fresh-address", 16)
         self.assertTrue(executor.record_operation("take", completed.item_identity, 16))
-        self.assertTrue(executor.observe_operation(
-            outcome="completed", generation=17, evidence="updated-address"
-        ))
         self.assertTrue(executor.post_exit())
         self.assertEqual(executor.file(queued), "queued")
         self.assertFalse(executor.begin_approach(18))
@@ -78,6 +75,10 @@ class HomeVisitExecutorTest(unittest.TestCase):
         ):
             self.assertTrue(policy._ensure_home_visit_request(object()))
 
+        self.assertEqual(
+            policy.consume_pending_home_visit_report(),
+            "home-visit:test:unfulfilled",
+        )
         self.assertEqual(executor.state, HomeVisitState.APPROACHING)
         self.assertTrue(executor.begin_approach(20))
 
