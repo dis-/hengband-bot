@@ -1,7 +1,7 @@
 diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 --- a/src/hengbot/policy_shop.py
 +++ b/src/hengbot/policy_shop.py
-@@ -34,7 +34,0 @@ class _ShoppingApproachEmission(str):
+@@ -34,8 +34,1 @@
 -class _SignatureScopedStoreVerdict(str):
 -    """A named attempted-store value that cannot expire on elapsed turns."""
 -
@@ -9,3 +9,4 @@ diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 -        return 0
 -
 -
+ class ShopMixin:

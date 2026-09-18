@@ -18,7 +18,7 @@ diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
          self._town_store_attempted.pop(store_type, None)
          if release_visit_bound:
              self._town_visit_ledger.blocked_stores.discard(store_type)
-@@ -1159,29 +1149,5 @@ class ShopMixin:
+@@ -1161,25 +1151,1 @@
 -    def _home_claim_signature(
 -        self, request: object | None
 -    ) -> tuple[object, ...] | None:
@@ -44,5 +44,3 @@ diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 -        )
 -
      def cross_town_shopping_state(self) -> dict[str, object]:
-         expedition = self._cross_town_shopping
-         if expedition is None:
