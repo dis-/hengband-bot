@@ -238,6 +238,70 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
         self.assertIn("stale-identity-invalidated:takeoff", policy.last_reason)
         self.assertIn("rag", policy._equipment_transaction_failed_items)
 
+    def test_stale_deposit_identity_reworn_before_dispatch_replans(self):
+        packed = self._surface(1172821, RAG)
+        target = next(
+            item for item in packed.inventory
+            if equipment_identity(item) == HARD_ARMOUR
+        )
+        home = next(
+            snapshot for snapshot in self.snapshots
+            if snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+        )
+        planned = replace(
+            home,
+            inventory=packed.inventory,
+            equipment=packed.equipment,
+        )
+        reworn = replace(
+            planned,
+            inventory=[item for item in planned.inventory if item is not target],
+            equipment=planned.equipment + [replace(target, slot="main_hand")],
+        )
+        action = EquipmentTransaction(
+            PHASE_HOME_FINALIZE,
+            "deposit",
+            "pack:226f6a26b470ddd4:0",
+            None,
+            HARD_ARMOUR,
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+        failed_before = set(policy._equipment_transaction_failed_items)
+
+        self.assertEqual(policy._equipment_transaction_home_key(reworn), WAIT_KEY)
+        self.assertIn("stale-identity-invalidated:deposit", policy.last_reason)
+        self.assertFalse(policy.last_reason.startswith("town:blocked:"))
+        self.assertEqual(policy._equipment_transaction_failed_items, failed_before)
+
+    def test_missing_deposit_identity_still_ratchets_to_named_blocker(self):
+        packed = self._surface(1172821, RAG)
+        home = next(
+            snapshot for snapshot in self.snapshots
+            if snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+        )
+        snapshot = replace(
+            home,
+            inventory=packed.inventory,
+            equipment=packed.equipment,
+        )
+        action = EquipmentTransaction(
+            PHASE_HOME_FINALIZE, "deposit", "missing", None, "absent"
+        )
+        policy = HengbotPolicy()
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+        policy._equipment_transaction_session = session
+
+        self.assertEqual(policy._equipment_transaction_home_key(snapshot), "\x1b")
+        self.assertIn("deposit-item-missing:missing", session.blockers)
+        self.assertEqual(policy.last_reason, "equipment-transaction:deposit-missing")
+
     def test_missing_equip_identity_ratchets_to_named_blocker(self):
         snapshot = self._surface(1172858, HARD_ARMOUR)
         action = EquipmentTransaction(PHASE_EQUIP, "equip", "missing", "body", "absent")

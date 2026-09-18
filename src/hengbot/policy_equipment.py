@@ -1622,6 +1622,19 @@ class EquipmentMixin:
                 None,
             )
             if target is None:
+                worn = next((
+                    item for item in snapshot.equipment
+                    if item.is_equipment
+                    and equipment_identity(item) == action.item_identity
+                ), None)
+                if worn is not None:
+                    self._invalidate_stale_equipment_transaction(
+                        snapshot, action, equipment_identity(worn)
+                    )
+                    self._equipment_transaction_failed_items.difference_update(
+                        self._equipment_action_memory_keys(action)
+                    )
+                    return WAIT_KEY
                 self._block_equipment_transaction(
                     f"deposit-item-missing:{action.item_id}"
                 )
