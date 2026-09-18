@@ -2193,6 +2193,38 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             {"identification", "identification-catalog"},
         )
 
+    def test_home_full_identify_errand_rejects_normal_source_after_normal_need(self):
+        policy = HengbotPolicy()
+        candidate, home, _ = self._recorded_full_identify_snapshots()
+        signature = policy._item_signature(candidate)
+
+        self.assertTrue(policy.consume_home_knowledge((candidate,)))
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        disposable = item(
+            "d", TVAL_SWORD, 4,
+            name="unidentified dagger", known=False, fully_known=False,
+            pseudo_feeling="good", is_equipment=True,
+        )
+        policy._home_disposal_pending = (
+            policy._item_signature(disposable), "sell"
+        )
+        disposal = replace(
+            home, turn=home.turn + 1, inventory=[disposable], store=None
+        )
+        self.assertIsNone(policy._home_disposal_processing_key(disposal))
+        self.assertEqual(policy._identification_need, "normal")
+
+        normal_source = item(
+            "s", TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+            name="Scroll of Identify", known=True, aware=True,
+        )
+        policy._bind_catalogued_home_identification_withdrawal(
+            replace(disposal, turn=disposal.turn + 1, inventory=[normal_source])
+        )
+
+        self.assertFalse(policy._home_errand.active)
+        self.assertIsNone(policy._identification_candidate)
+
     def test_home_full_identify_without_source_is_not_redeposited(self):
         policy = HengbotPolicy()
         candidate, home, stocked_unvisited_alchemist = (

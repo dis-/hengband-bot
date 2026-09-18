@@ -1,0 +1,25 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1659,20 +1659,9 @@ class HomeMixin:
+             self._identification_candidate is not None
+             and self._identification_candidate in observed
+         ):
+-            item = next(
+-                item
+-                for index, item in enumerate(self._home_knowledge_items)
+-                if index < self._home_knowledge_valid_before
+-                and self._item_signature(item) == self._identification_candidate
+-            )
+-            full = bool(
+-                item.known
+-                and item_requires_full_identification(item)
+-                and not item.fully_known
+-            )
+             source = self._find_identification_source(
+                 snapshot,
+-                full=full,
++                full=self._identification_need == "full",
+                 reliable_only=True,
+                 reservation_target=self._identification_candidate,
+             )
