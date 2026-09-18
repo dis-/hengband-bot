@@ -808,6 +808,66 @@ class HomeVisitOwnershipTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
 
+    def _uncomposable_calibration_restore(self):
+        policy = HengbotPolicy()
+        target = ("recorded-restore", TVAL_SCROLL, 91)
+        snapshot = self._home_snapshot([])
+        policy._calibration_phase = "restore-supplies"
+        policy._calibration_restore_signatures = [target]
+        policy._home_knowledge_current = False
+        policy._home_knowledge_invalidated = True
+        request = HomeVisitRequest(
+            HomeVisitKind.CALIBRATION_RESTORE,
+            "calibration-restore",
+            target,
+            batch=(target,),
+        )
+        policy._home_visit.file(request)
+        policy._home_visit.begin_approach(0)
+        policy._home_visit.post_entry(0)
+        policy._home_visit.observe_inside(("recorded-page",), snapshot.turn)
+        policy._store_visit = policy_module.StoreVisit(
+            "town-errand", "shopping", STORE_HOME,
+            phase=policy_module.StoreVisitPhase.OPERATING,
+        )
+        return policy, snapshot, request
+
+    def test_uncomposable_verdict_survives_rebuild_and_other_store_attempt(self):
+        policy, snapshot, request = self._uncomposable_calibration_restore()
+        verdict = "claim-uncomposable:calibration-restore:home-knowledge-invalidated"
+        policy._home_claim_uncomposable_signature = policy._home_claim_signature(
+            request
+        )
+        policy._set_town_store_attempted(STORE_HOME, snapshot.turn, verdict)
+        policy._town_store_attempted[STORE_MAGIC] = snapshot.turn
+        policy._town_errand_plan = policy_module.TownErrandPlan([STORE_HOME])
+
+        policy._rearm_town_store_for_new_work(STORE_HOME)
+
+        self.assertEqual(policy._town_store_attempted[STORE_HOME], verdict)
+        self.assertIn(STORE_MAGIC, policy._town_store_attempted)
+
+    def test_changed_claim_signature_reopens_home(self):
+        policy, snapshot, request = self._uncomposable_calibration_restore()
+        verdict = "claim-uncomposable:calibration-restore:home-knowledge-invalidated"
+        policy._home_claim_uncomposable_signature = policy._home_claim_signature(
+            request
+        )
+        policy._set_town_store_attempted(STORE_HOME, snapshot.turn, verdict)
+        replacement = HomeVisitRequest(
+            request.kind,
+            request.requester,
+            ("new-restore", TVAL_SCROLL, 92),
+            batch=(("new-restore", TVAL_SCROLL, 92),),
+        )
+        policy._home_visit.request = replacement
+        policy._calibration_restore_signatures = [replacement.item_identity]
+
+        policy._rearm_town_store_for_new_work(STORE_HOME)
+
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertIsNone(policy._home_claim_uncomposable_signature)
+
     @staticmethod
     def _dominated(pol, snap, item_obj):
         pol._pending_disposal_item = pol._item_signature(item_obj)
@@ -2467,7 +2527,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             else:
                 self.fail((state, character, legal))
         self.assertEqual(state, "home")
-    def test_public_calibration_restore_converges_twelve_items(self):
+    def test_public_calibration_restore_stops_on_first_uncomposable_claim(self):
         base = [
             store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
             for index in range(80)
@@ -2529,6 +2589,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             key = policy.choose_key(snapshot)
             policy.confirm_key_posted(key)
             reasons[policy.last_reason] += 1
+            if policy.last_reason.startswith(
+                "town:blocked:home-claim-uncomposable:"
+            ):
+                break
             if inside:
                 # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
                 if key == " ":
@@ -2615,17 +2679,28 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         restored = {
             policy._item_signature(carried) for carried in inventory
         } & target_signatures
-        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
-        self.assertEqual(withdrawals, 12)
+        self.assertEqual(len(restored), 1, (reasons, decision, len(inventory)))
+        self.assertEqual(withdrawals, 1)
         self.assertLess(decision + 1, 300)
+        self.assertEqual(
+            policy._town_store_attempted[STORE_HOME],
+            "claim-uncomposable:calibration-restore:home-knowledge-invalidated",
+        )
+        self.assertEqual(
+            reasons[
+                "town:blocked:home-claim-uncomposable:calibration-restore:"
+                "home-knowledge-invalidated"
+            ],
+            1,
+        )
         self.acceptance_restore_metrics = {
             "decisions": decision + 1,
             "reasons": reasons,
             "entries": entries,
             "withdrawal_decisions": withdrawal_decisions,
         }
-        # The catalogue visit is the sole Home pass; none of the twelve
-        # successful atomic restore takes consumes another visit/pass.
+        # The successful take still resets its pass. The following visit's
+        # uncomposable unchanged claim owns exactly one unsatisfied pass.
         self.assertGreater(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
         self.assertLessEqual(
             policy._town_visit_ledger.store_visits[STORE_HOME], entries
@@ -3912,7 +3987,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(home_pages)
         self.assertGreater(maximum_passes, visit_limit)
         self.assertTrue(attempted_then_rearmed)
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertEqual(
+            policy._town_store_attempted[STORE_HOME],
+            "claim-uncomposable:calibration-restore:home-knowledge-invalidated",
+        )
         self.assertFalse(policy._town_errand_plan.index)
         self.assertNotIn(
             STORE_HOME, policy._town_errand_plan.blocked_this_visit

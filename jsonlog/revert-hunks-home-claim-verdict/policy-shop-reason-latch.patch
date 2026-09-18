@@ -1,0 +1,16 @@
+diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
+--- a/src/hengbot/policy_shop.py
++++ b/src/hengbot/policy_shop.py
+@@ -1288,11 +1288,7 @@ class ShopMixin:
+         """Set the existing latch and retain observation-only Home provenance."""
+         if if_absent and store_type in self._town_store_attempted:
+             return
+-        self._town_store_attempted[store_type] = (
+-            _SignatureScopedStoreVerdict(site_label)
+-            if site_label.startswith("claim-uncomposable:")
+-            else turn
+-        )
++        self._town_store_attempted[store_type] = turn
+         if store_type == STORE_HOME:
+             entry = {"turn": turn, "site": site_label}
+             self._home_latch_active = entry

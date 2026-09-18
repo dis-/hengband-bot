@@ -1,0 +1,36 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -4103,31 +4103,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 )
+                 key = LEAVE_STORE_KEY
+             else:
+-                request = getattr(self._home_visit, "request", None)
+-                requester = (
+-                    request.requester if request is not None else "unknown-requester"
+-                )
+-                claim_uncomposable = bool(
+-                    request is not None
+-                    and requester == "calibration-restore"
+-                    and request.address is None
+-                    and self._home_knowledge_invalidated
+-                )
+-                if claim_uncomposable:
+-                    refusal = "home-knowledge-invalidated"
+-                    verdict = f"claim-uncomposable:{requester}:{refusal}"
+-                    self._report_town_stop_pass(
+-                        snapshot, STORE_HOME, goal_satisfied=False
+-                    )
+-                    self._home_claim_uncomposable_signature = (
+-                        self._home_claim_signature(request)
+-                    )
+-                    self._set_town_store_attempted(
+-                        STORE_HOME, snapshot.turn, verdict
+-                    )
+-                    self.last_reason = f"town:blocked:home-{verdict}"
+-                else:
+-                    self.last_reason = "home:store-context-exit"
++                self.last_reason = "home:store-context-exit"
+                 self._post_owner_expectation(
+                     snapshot, self.last_reason, "store_type"
+                 )

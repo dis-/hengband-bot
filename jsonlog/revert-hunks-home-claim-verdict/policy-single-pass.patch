@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -4170,9 +4170,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             and snapshot.store.store_type == STORE_HOME
+             and key == LEAVE_STORE_KEY
+             and self.last_reason != "home:processing-complete"
+-            and not self.last_reason.startswith(
+-                "town:blocked:home-claim-uncomposable:"
+-            )
+             # Abandonment is not a completed Home pass.  In particular, the
+             # last-resort restore installed for already removed gear must not
+             # spend the visit allowance that belongs to useful Home work.

@@ -1,0 +1,16 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -1790,10 +1790,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         # reveal those towns, so keep the intended destination latched until the
+         # exported progress confirms that the service can actually select it.
+         self._town_travel_rumor_pending: int | None = None
+-        # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS),
+-        # except that Home's terminal claim verdict retains its named reason.
+-        self._town_store_attempted: dict[int, int | str] = {}
+-        self._home_claim_uncomposable_signature: tuple[object, ...] | None = None
++        # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
++        self._town_store_attempted: dict[int, int] = {}
+         self._home_latch_active: dict[str, object] | None = None
+         self._home_latch_history: list[dict[str, object]] = []
+         self._home_gate_telemetry: dict[str, object] = {}

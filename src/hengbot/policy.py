@@ -1790,8 +1790,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # reveal those towns, so keep the intended destination latched until the
         # exported progress confirms that the service can actually select it.
         self._town_travel_rumor_pending: int | None = None
-        # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS).
-        self._town_store_attempted: dict[int, int] = {}
+        # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS),
+        # except that Home's terminal claim verdict retains its named reason.
+        self._town_store_attempted: dict[int, int | str] = {}
+        self._home_claim_uncomposable_signature: tuple[object, ...] | None = None
         self._home_latch_active: dict[str, object] | None = None
         self._home_latch_history: list[dict[str, object]] = []
         self._home_gate_telemetry: dict[str, object] = {}
@@ -4101,7 +4103,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 key = LEAVE_STORE_KEY
             else:
-                self.last_reason = "home:store-context-exit"
+                request = getattr(self._home_visit, "request", None)
+                requester = (
+                    request.requester if request is not None else "unknown-requester"
+                )
+                claim_uncomposable = bool(
+                    request is not None
+                    and requester == "calibration-restore"
+                    and request.address is None
+                    and self._home_knowledge_invalidated
+                )
+                if claim_uncomposable:
+                    refusal = "home-knowledge-invalidated"
+                    verdict = f"claim-uncomposable:{requester}:{refusal}"
+                    self._report_town_stop_pass(
+                        snapshot, STORE_HOME, goal_satisfied=False
+                    )
+                    self._home_claim_uncomposable_signature = (
+                        self._home_claim_signature(request)
+                    )
+                    self._set_town_store_attempted(
+                        STORE_HOME, snapshot.turn, verdict
+                    )
+                    self.last_reason = f"town:blocked:home-{verdict}"
+                else:
+                    self.last_reason = "home:store-context-exit"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
                 )
@@ -4144,6 +4170,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == STORE_HOME
             and key == LEAVE_STORE_KEY
             and self.last_reason != "home:processing-complete"
+            and not self.last_reason.startswith(
+                "town:blocked:home-claim-uncomposable:"
+            )
             # Abandonment is not a completed Home pass.  In particular, the
             # last-resort restore installed for already removed gear must not
             # spend the visit allowance that belongs to useful Home work.

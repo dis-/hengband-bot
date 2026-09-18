@@ -31,6 +31,13 @@ class _ShoppingApproachEmission(str):
         return type(self), (str(self), self.approach_provenance)
 
 
+class _SignatureScopedStoreVerdict(str):
+    """A named attempted-store value that cannot expire on elapsed turns."""
+
+    def __rsub__(self, _other: object) -> int:
+        return 0
+
+
 class ShopMixin:
     def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
         """Return the known cost of unmet required stock, or unknown.
@@ -1115,6 +1122,16 @@ class ShopMixin:
             and home_visit.attempts_used >= home_visit.attempt_limit
         ):
             return
+        if (
+            store_type == STORE_HOME
+            and self._home_claim_uncomposable_signature is not None
+        ):
+            current_signature = self._home_claim_signature(
+                getattr(home_visit, "request", None)
+            )
+            if current_signature == self._home_claim_uncomposable_signature:
+                return
+            self._home_claim_uncomposable_signature = None
         self._town_store_attempted.pop(store_type, None)
         if release_visit_bound:
             self._town_visit_ledger.blocked_stores.discard(store_type)
@@ -1140,6 +1157,30 @@ class ShopMixin:
         plan.skipped_latched[:] = [
             store for store in plan.skipped_latched if store != store_type
         ]
+
+    def _home_claim_signature(
+        self, request: object | None
+    ) -> tuple[object, ...] | None:
+        """Return the immutable identity of one filed Home claim."""
+        if request is None:
+            return None
+        kind = getattr(request, "kind", None)
+        requester = getattr(request, "requester", None)
+        item_identity = getattr(request, "item_identity", None)
+        batch = getattr(request, "batch", None)
+        if requester == "calibration-restore" and self._calibration_restore_signatures:
+            item_identity = self._calibration_restore_signatures[0]
+            batch = tuple(self._calibration_restore_signatures)
+        return (
+            getattr(kind, "value", kind),
+            requester,
+            item_identity,
+            getattr(request, "address", None),
+            getattr(request, "quantity", None),
+            getattr(request, "keep_set", None),
+            getattr(request, "shelving_plan", None),
+            batch,
+        )
 
     def cross_town_shopping_state(self) -> dict[str, object]:
         expedition = self._cross_town_shopping
@@ -1247,7 +1288,11 @@ class ShopMixin:
         """Set the existing latch and retain observation-only Home provenance."""
         if if_absent and store_type in self._town_store_attempted:
             return
-        self._town_store_attempted[store_type] = turn
+        self._town_store_attempted[store_type] = (
+            _SignatureScopedStoreVerdict(site_label)
+            if site_label.startswith("claim-uncomposable:")
+            else turn
+        )
         if store_type == STORE_HOME:
             entry = {"turn": turn, "site": site_label}
             self._home_latch_active = entry
