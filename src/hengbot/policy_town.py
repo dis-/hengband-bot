@@ -3190,7 +3190,11 @@ class TownMixin:
         """Apply ordered state changes only after the plan walk is exhausted."""
         if self._town_restock_suppressed or snapshot.player.class_id < 0:
             return
-        if self._fundraising_mode in {"prepare", "mine", "scavenge"} and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
+        if (
+            self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and self._planned_mining_runs is None
+            and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+        ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
             self._town_store_attempted.clear()
@@ -4099,6 +4103,10 @@ class TownMixin:
             self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
             and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
             and not self._identify_staff_ready(snapshot)
+            and (
+                self._home_knowledge_current
+                or STORE_MAGIC in self._town_store_attempted
+            )
             and self._identify_staff_procurement_impossible(snapshot)
         ):
             return self._identify_staff_stockout_key(snapshot)

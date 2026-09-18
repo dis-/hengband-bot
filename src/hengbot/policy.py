@@ -8766,28 +8766,41 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
         """Whether both local, ordered Identify-staff suppliers are exhausted."""
-        if not self._home_knowledge_current:
-            return False
         carried = self._total_identify_staff_charges(snapshot)
         home_charges = sum(
             self._stack_charges(item)
             for item in self._home_knowledge_items
             if item.tval == TVAL_STAFF
+            and item.aware
+            and item.known
             and item.sval == SV_STAFF_IDENTIFY
             and self._item_signature(item) not in self._deferred_home_items
         )
-        if carried + home_charges >= STAFF_IDENTIFY_MIN_CHARGES:
+        if (
+            self._home_knowledge_current
+            and carried + home_charges >= STAFF_IDENTIFY_MIN_CHARGES
+        ):
             return False
-        magic_page = self._town_supplier_stock.get(STORE_MAGIC)
-        return bool(
-            STORE_MAGIC in self._town_store_attempted
-            and magic_page is not None
-            and not any(
+        supplier_pages = dict(self._town_supplier_stock)
+        if snapshot.store is not None and snapshot.store.store_type in {
+            STORE_MAGIC,
+            STORE_BLACK,
+        }:
+            supplier_pages[snapshot.store.store_type] = snapshot.store
+        if any(
+            any(
                 item.tval == TVAL_STAFF
                 and item.sval == SV_STAFF_IDENTIFY
                 and item.price <= snapshot.player.gold
-                for item in magic_page.items
+                for item in page.items
             )
+            for store_type in (STORE_MAGIC, STORE_BLACK)
+            if (page := supplier_pages.get(store_type)) is not None
+        ):
+            return False
+        return bool(
+            not self._home_knowledge_current
+            or STORE_MAGIC in self._town_store_attempted
         )
 
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:

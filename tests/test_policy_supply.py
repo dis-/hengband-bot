@@ -2862,6 +2862,7 @@ class IdentifyStaffTest(unittest.TestCase):
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
         )
         pol.consume_home_knowledge(())
+        outside = replace(outside, player=replace(outside.player, gold=20000))
         magic = replace(
             outside,
             store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24),
@@ -2892,6 +2893,76 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(
             (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
         )
+        pol.choose_key(replace(outside, turn=outside.turn + 4))
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
+        )
+
+    def test_unobservable_attempted_magic_shop_starts_mining(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        pol.consume_home_knowledge(())
+        magic = replace(
+            outside,
+            store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24),
+        )
+
+        self.assertEqual(pol.choose_key(magic), LEAVE_STORE_KEY)
+        pol.choose_key(replace(magic, store=None, turn=magic.turn + 1))
+        self.assertEqual(
+            pol.choose_key(replace(magic, turn=magic.turn + 2)), LEAVE_STORE_KEY
+        )
+        pol._town_supplier_stock.pop(STORE_MAGIC)
+        key = pol.choose_key(replace(magic, store=None, turn=magic.turn + 3))
+
+        self.assertEqual(
+            (key, pol.last_reason),
+            (WAIT_KEY, "town:identify-staff-stockout-mining"),
+        )
+        self.assertFalse(pol.last_reason.startswith("town:wait-restock:"))
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
+        )
+
+    def test_identify_mining_requirement_survives_gold_terminal(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        outside = replace(outside, player=replace(outside.player, gold=20000))
+
+        self.assertEqual(pol._identify_staff_stockout_key(outside), WAIT_KEY)
+        pol._town_terminal_transitions(outside)
+
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
+        )
+
+    def test_unvisited_magic_keeps_normal_town_work_before_home_scan(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+
+        pol.choose_key(outside)
+
+        self.assertNotEqual(pol.last_reason, "town:identify-staff-stockout-mining")
+        self.assertIsNone(pol._fundraising_mode)
+
+    def test_black_market_identify_staff_keeps_procurement_possible(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        pol.consume_home_knowledge(())
+        pol._town_store_attempted[STORE_MAGIC] = outside.turn
+        pol._town_supplier_stock[STORE_BLACK] = StoreState(
+            STORE_BLACK,
+            [store_item(
+                "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
+                charges=20, name="髑大ｮ壹・譚・(20蝗槫・)",
+            )],
+        )
+
+        self.assertFalse(pol._identify_staff_procurement_impossible(outside))
 
     def test_two_home_staff_stacks_jointly_prevent_stockout_mining(self):
         first = store_item(
@@ -2962,7 +3033,7 @@ class IdentifyStaffTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             town_flag=True,
-            inventory=[self._staff(charges=16)],
+            inventory=[self._staff(charges=20)],
             quests={22: QuestState(22, status=QUEST_STATUS_UNTAKEN, fixed=True)},
         )
         magic = replace(
@@ -2975,6 +3046,27 @@ class IdentifyStaffTest(unittest.TestCase):
             (pol._planned_depth(), pol._town_store_attempted),
         )
         self.assertIsNone(pol._fundraising_mode)
+
+    def test_shallow_quest_twenty_charges_are_ready_before_magic_visit(self):
+        knowledge = load_quest_knowledge(REAL_QUEST_DEFINITIONS)
+        pol = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+            quest_knowledge={22: knowledge[22]},
+        )
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH - 2
+        pol._equipment_optimization_last_depth = STAFF_IDENTIFY_MIN_DEPTH - 1
+        outside = Snapshot(
+            player(10, 10, level=5, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._staff(charges=20)],
+            quests={22: QuestState(22, status=QUEST_STATUS_UNTAKEN, fixed=True)},
+        )
+
+        self.assertNotIn(STORE_MAGIC, pol._town_store_attempted)
+        self.assertTrue(pol._identify_staff_ready(outside))
 
     def test_affordable_identify_staff_public_page_buys_instead_of_mining(self):
         pol, outside = self._town(

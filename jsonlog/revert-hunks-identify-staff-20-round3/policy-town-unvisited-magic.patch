@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -4103,10 +4103,6 @@
+             self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+             and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
+             and not self._identify_staff_ready(snapshot)
+-            and (
+-                self._home_knowledge_current
+-                or STORE_MAGIC in self._town_store_attempted
+-            )
+             and self._identify_staff_procurement_impossible(snapshot)
+         ):
+             return self._identify_staff_stockout_key(snapshot)
