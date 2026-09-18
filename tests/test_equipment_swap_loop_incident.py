@@ -12,7 +12,10 @@ from hengbot.equipment_transaction_planner import (
     EquipmentTransaction,
     EquipmentTransactionPlan,
 )
-from hengbot.equipment_transaction_session import EquipmentTransactionSession
+from hengbot.equipment_transaction_session import (
+    EquipmentTransactionObservation,
+    EquipmentTransactionSession,
+)
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.policy import (
     HengbotPolicy,
@@ -137,6 +140,72 @@ class EquipmentSwapLoopIncidentTest(unittest.TestCase):
                 equipment=snapshot.equipment + [replace(packed, slot=action.target_slot)],
             )
         return snapshot
+
+    def _observe_completed_deposit(self, policy, snapshot, identity):
+        action = EquipmentTransaction(
+            PHASE_HOME_FINALIZE, "deposit", f"equipped:{identity}:0", None, identity
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+        before = EquipmentTransactionObservation.create(
+            in_home=True, pack_identities=(identity,)
+        )
+        self.assertTrue(session.dispatch(action, before))
+        policy._equipment_transaction_session = session
+        policy.choose_key(snapshot)
+
+    def test_optimizer_deposits_retire_recorded_calibration_debt(self):
+        boots = "a6c0f2beabc20770"
+        ring = "163ac56a60a36f1b"
+        obligations = (("feet", boots), ("main_ring", ring))
+        policy = HengbotPolicy()
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_worn_before = obligations
+        policy._calibration_redress_attempts = dict.fromkeys(obligations, 2)
+        home = next(snapshot for snapshot in self.snapshots if snapshot.store is not None)
+
+        with patch.object(policy, "_persist_calibration_redress_obligation") as persist:
+            for identity in (boots, ring):
+                self._observe_completed_deposit(policy, home, identity)
+
+        self.assertEqual(policy._calibration_worn_before, ())
+        self.assertEqual(policy._calibration_redress_attempts, {})
+        self.assertEqual(persist.call_count, 2)
+        reasons = []
+        for _ in range(3):
+            policy.choose_key(home)
+            reasons.append(policy.last_reason)
+        self.assertNotIn("calibration:atomic-restore-withdraw", reasons)
+        self.assertNotIn("town:blocked:owner-retired", reasons)
+
+    def test_calibration_owned_deposit_keeps_its_redress_obligation(self):
+        identity = "a6c0f2beabc20770"
+        obligation = ("feet", identity)
+        policy = HengbotPolicy()
+        policy._calibration_stripped_unrestored = True
+        policy._calibration_worn_before = (obligation,)
+        policy._calibration_redress_attempts = {obligation: 1}
+        home = next(snapshot for snapshot in self.snapshots if snapshot.store is not None)
+        action = EquipmentTransaction(
+            PHASE_HOME_FINALIZE, "deposit", "calibration-boots", None, identity
+        )
+        session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((action,), (), 0)
+        )
+        policy._calibration_session_target = session.target_loadout_id
+        before = EquipmentTransactionObservation.create(
+            in_home=True, pack_identities=(identity,)
+        )
+        self.assertTrue(session.dispatch(action, before))
+        policy._equipment_transaction_session = session
+
+        with patch.object(policy, "_persist_calibration_redress_obligation") as persist:
+            policy.choose_key(home)
+
+        self.assertEqual(policy._calibration_worn_before, (obligation,))
+        self.assertEqual(policy._calibration_redress_attempts, {obligation: 1})
+        persist.assert_not_called()
 
     def test_captured_window_replay_cannot_recur_or_swap_armour_twice(self):
         captured_cycle = [

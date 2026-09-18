@@ -3463,6 +3463,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._release_equipment_transaction_owned_item(
                         pending.item_identity
                     )
+                    if not self._calibration_session_owned():
+                        retired = tuple(
+                            obligation
+                            for obligation in self._calibration_worn_before
+                            if obligation[1] == pending.item_identity
+                        )
+                        if retired:
+                            self._calibration_worn_before = tuple(
+                                obligation
+                                for obligation in self._calibration_worn_before
+                                if obligation[1] != pending.item_identity
+                            )
+                            for obligation in retired:
+                                self._calibration_redress_attempts.pop(
+                                    obligation, None
+                                )
+                            self._persist_calibration_redress_obligation()
             if self._equipment_transaction_session.complete:
                 if (
                     self._equipment_transaction_restoring
