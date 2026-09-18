@@ -1599,7 +1599,11 @@ class CombatMixin:
         ]
         if not adjacent:
             return None
-        if not snapshot.player.blind and not snapshot.player.confused:
+        if (
+            any(not monster.asleep for monster in adjacent)
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        ):
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"

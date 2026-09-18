@@ -1,0 +1,16 @@
+diff --git a/src/hengbot/policy_combat.py b/src/hengbot/policy_combat.py
+--- a/src/hengbot/policy_combat.py
++++ b/src/hengbot/policy_combat.py
+@@ -1599,11 +1599,7 @@ class CombatMixin:
+         ]
+         if not adjacent:
+             return None
+-        if (
+-            any(not monster.asleep for monster in adjacent)
+-            and not snapshot.player.blind
+-            and not snapshot.player.confused
+-        ):
++        if not snapshot.player.blind and not snapshot.player.confused:
+             scroll = self._escape_scroll(snapshot)
+             if scroll is not None:
+                 self.last_reason = "status-threat:scroll"

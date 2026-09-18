@@ -4807,6 +4807,7 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
         / "fixtures"
         / "incident-paralyzer-adjacent-escape.jsonl"
     )
+    MONRACES = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
     KNOWLEDGE = {
         141: MonraceKnowledge(
             max_hp=32, speed=110, can_summon=False, friendly=False,
@@ -4847,6 +4848,11 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
             row["turn"]: parse_snapshot(row, cls.KNOWLEDGE)
             for row in rows
         }
+        cls.real_knowledge = load_monrace_knowledge(cls.MONRACES)
+        cls.real_snapshots = {
+            row["turn"]: parse_snapshot(row, cls.real_knowledge)
+            for row in rows
+        }
 
     def test_adjacent_paralyzer_uses_teleport_scroll_before_walking(self):
         policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
@@ -4856,6 +4862,41 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
         self.assertEqual(key, READ_KEY + "e")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
         self.assertNotEqual(policy.last_reason, "threat:paralyzer-avoid")
+
+    def test_sleeping_adjacent_paralyzer_walks_instead_of_reading_scroll(self):
+        snapshot = self.real_snapshots[3305879]
+        sleeping = replace(
+            snapshot,
+            visible_monsters=[
+                replace(monster, asleep=True)
+                for monster in snapshot.visible_monsters
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge=self.real_knowledge)
+
+        key = policy.choose_key(sleeping)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+        self.assertNotEqual(key, READ_KEY + "e")
+
+    def test_sleeping_adjacent_never_move_paralyzer_walks_without_scroll(self):
+        snapshot = self.real_snapshots[3305879]
+        eye = replace(
+            snapshot.visible_monsters[0],
+            race_id=32,
+            asleep=True,
+            hp=self.real_knowledge[32].max_hp,
+            max_hp=self.real_knowledge[32].max_hp,
+        )
+        sleeping_eye = replace(snapshot, visible_monsters=[eye])
+        policy = HengbotPolicy(monrace_knowledge=self.real_knowledge)
+
+        key = policy.choose_key(sleeping_eye)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+        self.assertNotEqual(key, READ_KEY + "e")
 
     def test_adjacent_paralyzer_without_scroll_still_walks_away(self):
         snapshot = self.snapshots[3305879]
