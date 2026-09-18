@@ -2595,7 +2595,24 @@ class EquipmentMixin:
                 if sval == SV_SCROLL_ENCHANT_WEAPON_TO_HIT
                 else "town:enchant-launcher-todam"
             )
-            return self._read_key(snapshot, scroll, "/" + slot_key)
+            key = self._read_key(snapshot, scroll, slot_key)
+            self._staged_prompt_chain = {
+                "owner": self.last_reason,
+                "key": key,
+                "sequence": self._decision_sequence,
+                "turn": snapshot.turn,
+                "gates": (
+                    (1, (
+                        "\u3069\u306e\u5dfb\u7269\u3092\u8aad\u307f\u307e\u3059\u304b? ",
+                        "Read which scroll? ",
+                    )),
+                    (2, (
+                        "\u3069\u306e\u30a2\u30a4\u30c6\u30e0\u3092\u5f37\u5316\u3057\u307e\u3059\u304b? ",
+                        "Enchant which item? ",
+                    )),
+                ),
+            }
+            return key
         return None
 
     @staticmethod

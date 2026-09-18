@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -184,8 +184,6 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] |
+                       "どの巻物を読みますか?", "どの杖を使いますか?", "どのロッドを振りますか?")
+     if any(row0.endswith(prompt) for prompt in source_prompts):
+         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+-    if row0.endswith(("Enchant which item?", "どのアイテムを強化しますか?")):
+-        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+     if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?")):
+         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
+     if row0.startswith("(Items ") and "ESC to exit)" in row0:

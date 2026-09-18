@@ -793,13 +793,17 @@ class LauncherEnchantTest(unittest.TestCase):
         policy = HengbotPolicy()
         first = self._town(launcher, [hit, dam])
 
-        self.assertEqual(policy._town_enchant_launcher_key(first), "rh/c")
+        self.assertEqual(policy._town_enchant_launcher_key(first), "rhc")
         self.assertEqual(policy.last_reason, "town:enchant-launcher-tohit")
+        chain = policy.peek_staged_prompt_chain()
+        self.assertEqual(chain["key"], "rhc")
+        self.assertEqual(chain["gates"][-1][0], 2)
+        self.assertEqual(chain["gates"][-1][1][1].strip(), "Enchant which item?")
         # The scroll disappeared but the launcher did not improve: failure or a
         # wrong target. It must move to the other stat, never retry To-Hit.
         failed = self._town(launcher, [dam])
         policy._observe_launcher_enchant(failed)
-        self.assertEqual(policy._town_enchant_launcher_key(failed), "ri/c")
+        self.assertEqual(policy._town_enchant_launcher_key(failed), "ric")
         self.assertEqual(policy.last_reason, "town:enchant-launcher-todam")
         policy._observe_launcher_enchant(self._town(launcher))
         self.assertIsNone(policy._town_enchant_launcher_key(self._town(launcher)))
@@ -934,7 +938,7 @@ class LauncherEnchantTest(unittest.TestCase):
         self.assertEqual(scan_key, "~9\x1b\x1b")
         self.assertTrue(policy.confirm_key_posted(scan_key))
         key = policy.choose_key(first)
-        self.assertEqual(key, "ra/c")
+        self.assertEqual(key, "rac")
         policy.confirm_key_posted(key)
 
         # Wall the already-consumed Home-catalogue collaborator after the real
@@ -942,7 +946,7 @@ class LauncherEnchantTest(unittest.TestCase):
         policy._equipment_catalog.home_scan_complete = True
         policy._home_knowledge_invalidated = False
         improved = replace(first, equipment=[replace(launcher, to_h=3)])
-        self.assertEqual(policy.choose_key(improved), "ra/c")
+        self.assertEqual(policy.choose_key(improved), "rac")
         self.assertEqual(policy.last_reason, "town:enchant-launcher-tohit")
 
     def test_shop_reasons_name_curse_and_launcher_scrolls(self):

@@ -184,6 +184,8 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
                       "どの巻物を読みますか?", "どの杖を使いますか?", "どのロッドを振りますか?")
     if any(row0.endswith(prompt) for prompt in source_prompts):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    if row0.endswith(("Enchant which item?", "どのアイテムを強化しますか?")):
+        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
     if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?")):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
     if row0.startswith("(Items ") and "ESC to exit)" in row0:
@@ -916,6 +918,25 @@ class OperationExecutor:
                 for feature in expected_features if feature is not None
             )
             if match.kind in continuation.kinds and feature_matches:
+                if self.active.owner.startswith("town:enchant-launcher-") \
+                        and match.feature.endswith((
+                            "Enchant which item?", "どのアイテムを強化しますか?",
+                        )):
+                    advertised = re.search(r"([a-z])-([a-z])", match.feature)
+                    target = continuation.keys
+                    if advertised is None or not re.fullmatch(r"[a-z]", target) \
+                            or not advertised.group(1) <= target <= advertised.group(2):
+                        break
+                    if match.feature.startswith(("(Inven:", "(持ち物:")):
+                        prompt_state = self._request("state", deadline, map=True)
+                        if prompt_state is None:
+                            return self._terminal(
+                                self.active, "state", "prompt binding failed", match, outcome)
+                        self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
+                        return self._post_and_barrier(
+                            "/", deadline, role="auxiliary-request")
+                    if not match.feature.startswith(("(Equip:", "(装備品:")):
+                        break
                 prompt_state = self._request("state", deadline, map=True)
                 if prompt_state is None:
                     return self._terminal(self.active, "state", "prompt binding failed", match, outcome)
