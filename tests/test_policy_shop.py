@@ -1061,6 +1061,32 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(retry, WAIT_KEY)
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
+    def test_post_alchemist_rearm_requires_carried_identify_source(self):
+        outside = Snapshot(
+            player(45, 123, gold=3807, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(45, 123): replace(
+                grid(45, 123), store_number=STORE_HOME
+            )}, [],
+            floor_key=(0, 0, 0), town_flag=True, turn=4684095,
+            inventory=self._strict_supplies(detection=5),
+        )
+        policy = HengbotPolicy()
+        policy._home_candidate_waiting = True
+        policy._town_store_attempted[STORE_HOME] = (
+            "observed-operation-uncomposable"
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = outside.turn
+        policy._town_errand_plan = policy._build_town_errand_plan(
+            outside, policy._enumerate_live_store_claims(outside)
+        )
+
+        policy._next_required_store_type(outside)
+
+        self.assertEqual(
+            policy._town_store_attempted[STORE_HOME],
+            "observed-operation-uncomposable",
+        )
+
     def test_failed_digger_fresh_retry_is_restart_immune(self):
         digger = store_item(
             "H", TVAL_DIGGING, SV_DIGGING_PICK,
@@ -5831,6 +5857,16 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
 
+        snapshot = replace(
+            snapshot,
+            inventory=[
+                *snapshot.inventory,
+                item(
+                    "z", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+                    name="carried star identify",
+                ),
+            ],
+        )
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 

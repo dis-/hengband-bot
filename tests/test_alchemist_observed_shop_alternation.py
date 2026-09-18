@@ -9,7 +9,18 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL, parse_snapshot
+from tests.policy_fixtures import item, store_item
+
+from hengbot.model import (
+    STORE_ALCHEMIST,
+    STORE_GENERAL,
+    STORE_HOME,
+    STORE_MAGIC,
+    SV_SCROLL_STAR_IDENTIFY,
+    TVAL_SCROLL,
+    TVAL_SOFT_ARMOR,
+    parse_snapshot,
+)
 from hengbot.policy import HengbotPolicy
 
 
@@ -38,6 +49,29 @@ def recorded_rows() -> list[dict]:
 
 
 class AlchemistObservedShopAlternationTest(unittest.TestCase):
+    @staticmethod
+    def _post_alchemist_home_policy(snapshot):
+        policy = HengbotPolicy()
+        stored_source = store_item(
+            "h", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="stored star identify",
+        )
+        incomplete_armour = store_item(
+            "M", TVAL_SOFT_ARMOR, 10, name="incomplete ego armour",
+            known=True, fully_known=False, is_equipment=True, is_ego=True,
+        )
+        policy.consume_home_knowledge((stored_source, incomplete_armour))
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_candidate_waiting = True
+        policy._town_store_attempted[STORE_HOME] = (
+            "observed-operation-uncomposable"
+        )
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+        policy._town_errand_plan = policy._build_town_errand_plan(
+            snapshot, policy._enumerate_live_store_claims(snapshot)
+        )
+        return policy
+
     def test_fixture_is_the_byte_faithful_incident_window(self):
         with gzip.open(FIXTURE, "rb") as stream:
             frozen = stream.read()
@@ -167,6 +201,48 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
         self.assertIsNone(policy._shop_observation)
         self.assertNotEqual(policy._store_visit.store_type, STORE_GENERAL)
         self.assertNotEqual(policy.last_reason, "shop:approach")
+
+    def test_uncomposable_home_verdict_survives_without_carried_source(self):
+        outside = parse_snapshot(recorded_rows()[8], {})
+        policy = self._post_alchemist_home_policy(outside)
+        home_claims = [
+            need for need in policy._enumerate_live_store_claims(outside)
+            if need.store_type == STORE_HOME
+        ]
+
+        decisions = [
+            policy._next_required_store_type(outside)
+            for _ in range(3)
+        ]
+
+        self.assertEqual(
+            [(need.category, need.ordering_class) for need in home_claims],
+            [
+                ("identification-withdrawal", "post-alchemist-home"),
+                ("equipment-catalog", "home-first"),
+                ("equipment-work", "post-alchemist-home"),
+            ],
+        )
+        self.assertEqual(decisions, [STORE_MAGIC, STORE_MAGIC, STORE_MAGIC])
+        self.assertEqual(
+            policy._town_store_attempted[STORE_HOME],
+            "observed-operation-uncomposable",
+        )
+        self.assertNotEqual(policy.last_reason, "town:blocked:owner-retired")
+
+    def test_carried_identify_source_reopens_post_alchemist_home(self):
+        outside = parse_snapshot(recorded_rows()[8], {})
+        policy = self._post_alchemist_home_policy(outside)
+        carried_source = item(
+            "z", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="carried star identify",
+        )
+        with_source = replace(
+            outside, inventory=[*outside.inventory, carried_source]
+        )
+
+        self.assertEqual(policy._next_required_store_type(with_source), STORE_HOME)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
 
 
 if __name__ == "__main__":

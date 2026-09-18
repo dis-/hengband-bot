@@ -861,6 +861,14 @@ class ShopMixin:
                         for need in needs
                     )
                     and STORE_ALCHEMIST in self._town_store_attempted
+                    and (
+                        self._find_identification_source(
+                            snapshot, full=False
+                        ) is not None
+                        or self._find_identification_source(
+                            snapshot, full=True
+                        ) is not None
+                    )
                 )
                 if (
                     live_categories - prior_categories
