@@ -1,0 +1,21 @@
+diff --git b/src/hengbot/input_executor.py a/src/hengbot/input_executor.py
+index 6526284..7d89d28 100644
+--- b/src/hengbot/input_executor.py
++++ a/src/hengbot/input_executor.py
+@@ -717,9 +717 @@ class OperationExecutor:
+-    @staticmethod
+-    def _is_warning_confirm(feature: str) -> bool:
+-        # Policy owns the bilingual source spelling; import it only when this
+-        # exceptional prompt is actually present to avoid module coupling.
+-        from hengbot.policy import WARNING_PROMPT_MESSAGE_PREFIXES
+-
+-        return feature.startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
+-
+     def _finish_board(self, state, screen_value, match):
+@@ -929,6 +921 @@ class OperationExecutor:
+-        if (
+-            match.kind is ScreenKind.CONFIRM
+-            and self._is_warning_confirm(match.feature)
+-        ):
+-            return self._post_and_barrier("n", deadline, role="answer")
+         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):

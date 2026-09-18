@@ -714,6 +714,14 @@ class OperationExecutor:
                 (time.perf_counter() - started) * 1000
         return result
 
+    @staticmethod
+    def _is_warning_confirm(feature: str) -> bool:
+        # Policy owns the bilingual source spelling; import it only when this
+        # exceptional prompt is actually present to avoid module coupling.
+        from hengbot.policy import WARNING_PROMPT_MESSAGE_PREFIXES
+
+        return feature.startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
+
     def _finish_board(self, state, screen_value, match):
         started = time.perf_counter()
         records = self.drain()
@@ -918,6 +926,11 @@ class OperationExecutor:
                 self.active.continuations.pop(0)
                 continue
             break
+        if (
+            match.kind is ScreenKind.CONFIRM
+            and self._is_warning_confirm(match.feature)
+        ):
+            return self._post_and_barrier("n", deadline, role="answer")
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
         screen_epoch = self.client.observation_epoch

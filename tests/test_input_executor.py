@@ -1475,6 +1475,22 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "stuck-prompt")
         self.assertEqual(game.accepted, ["r"])
 
+    def test_warning_confirm_is_refused_and_operation_completes(self):
+        game, _client, executor = self.make()
+        game.screens = [
+            prompt_screen("Really want to go ahead? [y/n]"),
+            command_screen(3),
+        ]
+        executor.observe_boundary(deadline=9999999999)
+
+        result = executor.submit(
+            Operation(4555, "explore", "6", executor.ready_board),
+            deadline=9999999999,
+        )
+
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["6", "n"])
+
     def test_unrelated_question_and_knowledge_more_post_no_answer(self):
         for screen in (prompt_screen("Unrelated? [y/n]"), self._knowledge_screen()):
             with self.subTest(row0=screen["lines"][0]):

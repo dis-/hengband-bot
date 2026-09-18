@@ -1494,6 +1494,31 @@ def step_toward_concatenation_offenders(tree: ast.Module) -> list[tuple[str, int
 
 
 
+class WarningConfirmExecutorSeamTest(unittest.TestCase):
+    def test_executor_refusal_latches_grid_before_same_step_can_be_reposted(self):
+        origin = Position(10, 10)
+        target = Position(10, 11)
+        snapshot = Snapshot(
+            player(10, 10),
+            {origin: grid(10, 10), target: grid(10, 11)},
+            [],
+            turn=3596297,
+            floor_key=(DUNGEON_ANGBAND, 24, 41),
+            inventory=[item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+            messages=("Really want to go ahead? [y/n]",),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 4556
+        policy._warning_step_pending = (
+            4555, snapshot.floor_key, origin, target, False,
+        )
+
+        self.assertEqual(policy._warning_prompt_response_key(snapshot), "n")
+        self.assertIn(target, policy._warning_refused_cells)
+        self.assertEqual(policy._step_toward(snapshot, target), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "warning:blocked-step")
+
+
 class OwnerExpectationContractTest(unittest.TestCase):
     def test_restore_upgrades_six_field_owner_progress_core(self):
         snapshot = Snapshot(
