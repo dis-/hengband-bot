@@ -1,10 +1,7 @@
 diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 --- a/src/hengbot/policy_shop.py
 +++ b/src/hengbot/policy_shop.py
-@@ -31,13 +31,6 @@ class _ShoppingApproachEmission(str):
-         return type(self), (str(self), self.approach_provenance)
- 
- 
+@@ -34,7 +34,0 @@ class _ShoppingApproachEmission(str):
 -class _SignatureScopedStoreVerdict(str):
 -    """A named attempted-store value that cannot expire on elapsed turns."""
 -
@@ -12,6 +9,3 @@ diff --git a/src/hengbot/policy_shop.py b/src/hengbot/policy_shop.py
 -        return 0
 -
 -
- class ShopMixin:
-     def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
-         """Return the known cost of unmet required stock, or unknown.
