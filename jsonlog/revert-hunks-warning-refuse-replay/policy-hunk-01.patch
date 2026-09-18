@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -1423,7 +1423,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         self._warning_step_pending: (
+             tuple[int, tuple[int, int, int], Position, Position] | None
+         ) = None
+-        self._warning_prompt_stops_decision = False
+         # Per-decision grid indexes (y, x) tuples: floor we can walk onto,
+         # closed doors we can open, and all currently-known tiles. Rebuilt each
+         # decision so the hot BFS loops use set lookups instead of dict access

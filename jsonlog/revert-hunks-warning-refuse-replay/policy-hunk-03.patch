@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2393,8 +2392,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             key = home_capture.choose_key(self, snapshot)
+         else:
+             key = self._choose_key_with_latch_capture(snapshot)
+-        if key is None and self._warning_prompt_stops_decision:
+-            return None
+         if (
+             key
+             and (self.last_reason or "").startswith("equipment-transaction:")

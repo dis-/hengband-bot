@@ -1,0 +1,18 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12543,7 +12534,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 return None
+             if attributable and snapshot.player.position == origin:
+                 self._latch_warning_refusal(target)
+-        return None
++        if snapshot.store is not None:
++            # The prompt was decided before this store screen opened; store
++            # command sets give n/y real meanings, so post nothing here.
++            return None
++        self.last_reason = "warning:refuse"
++        return "n"
+ 
+ 
+     def _direction_key(self, origin: Position, target: Position) -> str:

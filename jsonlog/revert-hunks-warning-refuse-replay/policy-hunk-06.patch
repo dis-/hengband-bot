@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -4663,8 +4658,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         warning_response = self._warning_prompt_response_key(snapshot)
+         if warning_response is not None:
+             return warning_response
+-        if self._warning_prompt_stops_decision:
+-            return None
+ 
+         # A failed equipment transaction is a visit-local terminal, including
+         # on the outside Home snapshot where the failure was discovered.  The

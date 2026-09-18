@@ -1,0 +1,29 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12503,18 +12496,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         keys.  This handler makes the disposition DELIBERATE:
+ 
+         * player back on the walk's origin — the entry was refused; latch
+-          the grid and let routing choose another action.  The executor
+-          answers every live warning inline.  At the ordinary command loop,
+-          'n' invokes repeat_check and replays the warning-causing command.
+-          Therefore the policy must never post 'n' for the stale message
+-          retained in the snapshot buffer.
++          the grid and post 'n'.  At the ordinary original-keyset command
++          loop 'n' has no keymap (pref-key.prf maps n/y only for the
++          roguelike keyset) and falls into the illegal-command default —
++          bounded and non-acting, while still being the correct answer in
++          the rare case a prompt is genuinely pending.  Never a movement
++          key chosen for another purpose.
+         * player standing on the walk's target — the crossing happened.  If
+           it was the sanctioned forced walk, the message is just its
+           record.  Otherwise a composed tail answered the prompt the caller
+           never anticipated: latch the grid so the unsanctioned crossing
+           happens at most once per floor, and let the decision continue.
+         """
+-        self._warning_prompt_stops_decision = False
+         if not any(
+             home_page_message_body(message).startswith(
+                 WARNING_PROMPT_MESSAGE_PREFIXES

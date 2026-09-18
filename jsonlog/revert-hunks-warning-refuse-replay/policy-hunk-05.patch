@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -4154,8 +4151,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             self.last_reason = "home:leave-unbound-deposit"
+             key = LEAVE_STORE_KEY
+         self._remember_swarm_distances(snapshot)
+-        if key is None and self._warning_prompt_stops_decision:
+-            return None
+         key = self._flee_sustain_key(snapshot, key)
+         key = self._periodic_game_save_key(snapshot, key)
+         key = self._periodic_character_dump_key(snapshot, key)

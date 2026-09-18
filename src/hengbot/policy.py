@@ -1423,6 +1423,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._warning_step_pending: (
             tuple[int, tuple[int, int, int], Position, Position] | None
         ) = None
+        self._warning_prompt_stops_decision = False
         # Per-decision grid indexes (y, x) tuples: floor we can walk onto,
         # closed doors we can open, and all currently-known tiles. Rebuilt each
         # decision so the hot BFS loops use set lookups instead of dict access
@@ -2257,7 +2258,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
-    def choose_key(self, snapshot: Snapshot) -> str:
+    def choose_key(self, snapshot: Snapshot) -> str | None:
         self._staged_prompt_chain = None
         self._intentional_entrance_activation = False
         pending_reward = self._fixed_quest_reward_pending
@@ -2392,6 +2393,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key = home_capture.choose_key(self, snapshot)
         else:
             key = self._choose_key_with_latch_capture(snapshot)
+        if key is None and self._warning_prompt_stops_decision:
+            return None
         if (
             key
             and (self.last_reason or "").startswith("equipment-transaction:")
@@ -2795,7 +2798,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             pass
         return key
 
-    def _choose_key(self, snapshot: Snapshot) -> str:
+    def _choose_key(self, snapshot: Snapshot) -> str | None:
         self._staged_shop_approach = None
         self._read_binding = None
         self.read_telemetry = {}
@@ -4151,6 +4154,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-unbound-deposit"
             key = LEAVE_STORE_KEY
         self._remember_swarm_distances(snapshot)
+        if key is None and self._warning_prompt_stops_decision:
+            return None
         key = self._flee_sustain_key(snapshot, key)
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
@@ -4658,6 +4663,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         warning_response = self._warning_prompt_response_key(snapshot)
         if warning_response is not None:
             return warning_response
+        if self._warning_prompt_stops_decision:
+            return None
 
         # A failed equipment transaction is a visit-local terminal, including
         # on the outside Home snapshot where the failure was discovered.  The
@@ -12496,18 +12503,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         keys.  This handler makes the disposition DELIBERATE:
 
         * player back on the walk's origin — the entry was refused; latch
-          the grid and post 'n'.  At the ordinary original-keyset command
-          loop 'n' has no keymap (pref-key.prf maps n/y only for the
-          roguelike keyset) and falls into the illegal-command default —
-          bounded and non-acting, while still being the correct answer in
-          the rare case a prompt is genuinely pending.  Never a movement
-          key chosen for another purpose.
+          the grid and let routing choose another action.  The executor
+          answers every live warning inline.  At the ordinary command loop,
+          'n' invokes repeat_check and replays the warning-causing command.
+          Therefore the policy must never post 'n' for the stale message
+          retained in the snapshot buffer.
         * player standing on the walk's target — the crossing happened.  If
           it was the sanctioned forced walk, the message is just its
           record.  Otherwise a composed tail answered the prompt the caller
           never anticipated: latch the grid so the unsanctioned crossing
           happens at most once per floor, and let the decision continue.
         """
+        self._warning_prompt_stops_decision = False
         if not any(
             home_page_message_body(message).startswith(
                 WARNING_PROMPT_MESSAGE_PREFIXES
@@ -12515,6 +12522,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for message in snapshot.messages
         ):
             return None
+        self._warning_prompt_stops_decision = True
         pending = self._warning_step_pending
         self._warning_step_pending = None
         if pending is not None:
@@ -12524,6 +12532,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and floor_key == snapshot.floor_key
             )
             if attributable and snapshot.player.position == target:
+                self._warning_prompt_stops_decision = False
                 if not sanctioned:
                     # An unsanctioned crossing: the warning prompt was
                     # answered by a queued tail key, not by the exhausted-
@@ -12534,12 +12543,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return None
             if attributable and snapshot.player.position == origin:
                 self._latch_warning_refusal(target)
-        if snapshot.store is not None:
-            # The prompt was decided before this store screen opened; store
-            # command sets give n/y real meanings, so post nothing here.
-            return None
-        self.last_reason = "warning:refuse"
-        return "n"
+        return None
 
 
     def _direction_key(self, origin: Position, target: Position) -> str:

@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12532,7 +12524,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 and floor_key == snapshot.floor_key
+             )
+             if attributable and snapshot.player.position == target:
+-                self._warning_prompt_stops_decision = False
+                 if not sanctioned:
+                     # An unsanctioned crossing: the warning prompt was
+                     # answered by a queued tail key, not by the exhausted-

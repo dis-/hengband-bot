@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12522,7 +12515,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             for message in snapshot.messages
+         ):
+             return None
+-        self._warning_prompt_stops_decision = True
+         pending = self._warning_step_pending
+         self._warning_step_pending = None
+         if pending is not None:

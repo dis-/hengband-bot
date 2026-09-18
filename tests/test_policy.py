@@ -1508,15 +1508,22 @@ class WarningConfirmExecutorSeamTest(unittest.TestCase):
             messages=("Really want to go ahead? [y/n]",),
         )
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
         policy._decision_sequence = 4556
         policy._warning_step_pending = (
             4555, snapshot.floor_key, origin, target, False,
         )
 
-        self.assertEqual(policy._warning_prompt_response_key(snapshot), "n")
+        self.assertIsNone(policy._warning_prompt_response_key(snapshot))
         self.assertIn(target, policy._warning_refused_cells)
         self.assertEqual(policy._step_toward(snapshot, target), WAIT_KEY)
         self.assertEqual(policy.last_reason, "warning:blocked-step")
+
+        second_key = policy.choose_key(snapshot)
+
+        self.assertNotEqual(second_key, "n")
+        self.assertNotEqual(second_key, "6")
+        self.assertIn(target, policy._warning_refused_cells)
 
 
 class OwnerExpectationContractTest(unittest.TestCase):

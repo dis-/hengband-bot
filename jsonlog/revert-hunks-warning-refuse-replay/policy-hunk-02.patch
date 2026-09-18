@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0ba233a..39f137c 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -2258,7 +2257,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         self._town_border_cache.clear()
+         self._refresh_town_facts(snapshot)
+ 
+-    def choose_key(self, snapshot: Snapshot) -> str | None:
++    def choose_key(self, snapshot: Snapshot) -> str:
+         self._staged_prompt_chain = None
+         self._intentional_entrance_activation = False
+         pending_reward = self._fixed_quest_reward_pending
