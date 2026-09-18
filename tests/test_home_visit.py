@@ -2,6 +2,7 @@ import ast
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from hengbot.home_visit import (
     HomeVisitExecutor,
@@ -54,6 +55,31 @@ class HomeVisitExecutorTest(unittest.TestCase):
         self.assertEqual(report.outcome, "completed")
         self.assertEqual(report.visit_id, 1)
         self.assertIsNone(executor.consume_report())
+
+    def test_exit_pending_settles_before_a_queued_request_approaches(self):
+        policy = HengbotPolicy()
+        executor = policy._home_visit
+        completed = request(identity=("completed", 1))
+        queued = request(identity=("queued", 2))
+        self.assertEqual(executor.file(completed), "filed")
+        self.assertTrue(executor.begin_approach(15))
+        executor.observe_outside_ready("fresh-address", 16)
+        self.assertTrue(executor.record_operation("take", completed.item_identity, 16))
+        self.assertTrue(executor.observe_operation(
+            outcome="completed", generation=17, evidence="updated-address"
+        ))
+        self.assertTrue(executor.post_exit())
+        self.assertEqual(executor.file(queued), "queued")
+        self.assertFalse(executor.begin_approach(18))
+
+        policy._decision_sequence = 19
+        with patch.object(
+            policy, "_derived_home_visit_request", return_value=queued
+        ):
+            self.assertTrue(policy._ensure_home_visit_request(object()))
+
+        self.assertEqual(executor.state, HomeVisitState.APPROACHING)
+        self.assertTrue(executor.begin_approach(20))
 
     def test_failed_operation_is_visible_without_posting_exit(self):
         executor = HomeVisitExecutor(3)

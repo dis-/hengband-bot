@@ -82,6 +82,15 @@ class HomeMixin:
             self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
         if not hasattr(self, "_pending_home_visit_report"):
             self._pending_home_visit_report = None
+        visit = self._home_visit
+        if visit.state == HomeVisitState.EXIT_PENDING:
+            visit.observe_outside(effect_observed=False)
+            report = visit.consume_report()
+            if report is not None:
+                marker = report.defect or report.outcome
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{marker}"
+                )
         report = self._home_visit.consume_report()
         if report is not None:
             marker = report.defect or report.outcome

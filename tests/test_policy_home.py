@@ -866,6 +866,46 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertIn("attempt-budget-exhausted",
                       policy.consume_pending_home_visit_report())
 
+    def test_exit_pending_does_not_refuse_consecutive_home_errand_decisions(self):
+        policy = HengbotPolicy()
+        visit = policy._home_visit
+        prior = HomeVisitRequest(
+            HomeVisitKind.WITHDRAW, "prior-home-visit", ("prior", 1, 1)
+        )
+        self.assertEqual(visit.file(prior), "filed")
+        self.assertTrue(visit.begin_approach(15))
+        visit.observe_outside_ready("fresh-address", 16)
+        self.assertTrue(visit.record_operation("take", prior.item_identity, 16))
+        self.assertTrue(visit.observe_operation(
+            outcome="completed", generation=17, evidence="updated-address"
+        ))
+        self.assertTrue(visit.post_exit())
+        policy._home_errand.file(
+            HomeErrandRequest(
+                ("wanted", 2, 3), 1, "town-procurement", "identification-catalog"
+            ),
+            knowledge_current=True,
+        )
+        outside = Snapshot(
+            player(45, 122),
+            {Position(45, 122): replace(
+                grid(45, 122), store_number=STORE_HOME
+            )},
+            [], floor_key=(0, 0, 0), inventory=[], equipment=[], turn=701,
+        )
+
+        outcomes = []
+        for sequence in (18, 19):
+            policy._decision_sequence = sequence
+            outcomes.append(policy._ensure_home_visit_request(outside))
+            refusal = policy.home_route_refusal_state()
+            self.assertFalse(
+                refusal is not None and refusal["begin_approach"] is False
+            )
+
+        self.assertEqual(outcomes, [True, True])
+        self.assertEqual(visit.state.name, "APPROACHING")
+
     def test_prepare_operation_lazily_rebuilds_pre_executor_checkpoint(self):
         for action in ("take", "put"):
             with self.subTest(action=action):
@@ -3774,7 +3814,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         posted = None
         latest_home_items = ()
         home_pages = 0
-        attempted_then_rearmed = False
+        home_attempted_decisions = 0
         maximum_passes = 0
         visit_limit = policy._town_store_visit_limit(STORE_HOME)
         for captured in snapshots:
@@ -3785,13 +3825,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 latest_home_items = tuple(current.store.items)
                 home_pages += 1
 
-            was_attempted = STORE_HOME in policy._town_store_attempted
             posted = policy.choose_key(current)
             self._confirm_home_route_claim_key(
                 policy, posted, latest_home_items
             )
-            attempted_then_rearmed |= (
-                was_attempted and STORE_HOME not in policy._town_store_attempted
+            home_attempted_decisions += (
+                STORE_HOME in policy._town_store_attempted
             )
             maximum_passes = max(
                 maximum_passes,
@@ -3802,7 +3841,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertTrue(snapshots)
         self.assertTrue(home_pages)
         self.assertGreater(maximum_passes, visit_limit)
-        self.assertTrue(attempted_then_rearmed)
+        self.assertEqual(home_attempted_decisions, 0)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertFalse(policy._town_errand_plan.index)
         self.assertNotIn(
