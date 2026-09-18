@@ -2,7 +2,7 @@ diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
 --- a/src/hengbot/policy.py
 +++ b/src/hengbot/policy.py
 @@ -8766,41 +8766,28 @@
- 
+
      def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
          """Whether both local, ordered Identify-staff suppliers are exhausted."""
 +        if not self._home_knowledge_current:
@@ -50,5 +50,5 @@ diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
 -            not self._home_knowledge_current
 -            or STORE_MAGIC in self._town_store_attempted
          )
- 
+
      def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
