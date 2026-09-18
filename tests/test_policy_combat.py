@@ -4799,6 +4799,91 @@ class CombatTest(unittest.TestCase):
             HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [friendly])),
             "+6y",
         )
+
+
+class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
+    FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "incident-paralyzer-adjacent-escape.jsonl"
+    )
+    KNOWLEDGE = {
+        141: MonraceKnowledge(
+            max_hp=32, speed=110, can_summon=False, friendly=False,
+            max_melee_damage=14,
+        ),
+        280: MonraceKnowledge(
+            max_hp=64,
+            speed=110,
+            can_summon=False,
+            friendly=False,
+            max_melee_damage=12,
+            blows=(
+                MonsterBlow("HIT", "PARALYZE", 1, 2),
+                MonsterBlow("HIT", "HURT", 1, 10),
+            ),
+        ),
+        1398: MonraceKnowledge(
+            max_hp=28, speed=110, can_summon=False, friendly=False,
+            max_melee_damage=14,
+        ),
+        1400: MonraceKnowledge(
+            max_hp=12, speed=115, can_summon=False, friendly=False,
+            max_melee_damage=6,
+        ),
+        1402: MonraceKnowledge(
+            max_hp=32, speed=110, can_summon=False, friendly=False,
+            max_melee_damage=20,
+        ),
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        rows = [
+            json.loads(line)
+            for line in cls.FIXTURE.read_text(encoding="utf-8").splitlines()
+        ]
+        cls.snapshots = {
+            row["turn"]: parse_snapshot(row, cls.KNOWLEDGE)
+            for row in rows
+        }
+
+    def test_adjacent_paralyzer_uses_teleport_scroll_before_walking(self):
+        policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
+
+        key = policy.choose_key(self.snapshots[3305879])
+
+        self.assertEqual(key, READ_KEY + "e")
+        self.assertEqual(policy.last_reason, "status-threat:scroll")
+        self.assertNotEqual(policy.last_reason, "threat:paralyzer-avoid")
+
+    def test_adjacent_paralyzer_without_scroll_still_walks_away(self):
+        snapshot = self.snapshots[3305879]
+        without_scroll = replace(
+            snapshot,
+            inventory=[
+                item
+                for item in snapshot.inventory
+                if not item.is_teleport_scroll
+            ],
+        )
+        policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
+
+        key = policy.choose_key(without_scroll)
+
+        self.assertEqual(key, "4")
+        self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
+
+    def test_distance_two_recorded_state_keeps_non_scroll_decision(self):
+        policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
+
+        key = policy.choose_key(self.snapshots[3305937])
+
+        self.assertEqual(key, "qb")
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+        self.assertNotEqual(policy.last_reason, "status-threat:scroll")
+
+
 class ConsumableTest(unittest.TestCase):
     def _open_room(self):
         return {

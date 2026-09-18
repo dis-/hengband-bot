@@ -1599,6 +1599,11 @@ class CombatMixin:
         ]
         if not adjacent:
             return None
+        if not snapshot.player.blind and not snapshot.player.confused:
+            scroll = self._escape_scroll(snapshot)
+            if scroll is not None:
+                self.last_reason = "status-threat:scroll"
+                return self._read_key(snapshot, scroll)
         shared_avoid = self._engagement_avoid_cells
         self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
         try:
