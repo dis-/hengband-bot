@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -8770,9 +8770,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
+         """Whether both local, ordered Identify-staff suppliers are exhausted."""
+-        if (
+-            not self._home_knowledge_current
+-            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+-        ):
++        if not self._home_knowledge_current:
+             return False
+         carried = self._total_identify_staff_charges(snapshot)
+         home_charges = sum(

@@ -4104,6 +4104,24 @@ class TownMixin:
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
 
         if (
+            self._target_dungeon_id == DUNGEON_ANGBAND
+            and snapshot.angband_recall_unlocked
+            and not self._identify_staff_ready(snapshot)
+            and STORE_MAGIC in self._town_visit_ledger.blocked_stores
+            and STORE_HOME in self._town_visit_ledger.blocked_stores
+        ):
+            # Once both Identify suppliers are exhausted, that shortage has no
+            # live town owner left to protect.  Preserve the deeper destination
+            # gate as the visible terminal instead of letting stockout mining or
+            # its restock wait hide the unsafe recall refusal.
+            destination_depth = self._dungeon_entry_depth(
+                snapshot, DUNGEON_ANGBAND, via_recall=True
+            )
+            if not self._destination_depth_allowed(snapshot, destination_depth):
+                self._town_blocked_reason = self.last_reason
+                return self._town_blocked_key(snapshot)
+
+        if (
             self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
             and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
             and not self._identify_staff_ready(snapshot)

@@ -9013,14 +9013,13 @@ class TownRecallReturnTest(unittest.TestCase):
         with patch.object(pol, "_home_available", return_value=True), patch.object(
             pol, "_equipment_departure_ready", return_value=True
         ), patch.object(pol, "_dungeon_entry_allowed", return_value=True):
-            self.assertTrue(pol._identify_staff_ready(snap))
-            self.assertTrue(
-                pol._town_departure_ready(snap),
-                pol._departure_block_state(snap),
-            )
-            self.assertEqual(pol._town_special_key(snap), "rra")
+            self.assertFalse(pol._identify_staff_ready(snap))
+            self.assertFalse(pol._town_departure_ready(snap))
+            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
 
-        self.assertEqual(pol.last_reason, "town:recall-to-angband")
+        self.assertEqual(pol.last_reason, "town:identify-staff-stockout-mining")
+        self.assertTrue(pol._identify_staff_mining_plan)
+        self.assertEqual(pol._fundraising_mode, "prepare")
 
     def test_pending_surplus_shovel_does_not_block_or_cancel_recall(self):
         pol, snap = self._ready_town(

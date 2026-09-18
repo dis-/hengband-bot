@@ -8770,7 +8770,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
         """Whether both local, ordered Identify-staff suppliers are exhausted."""
-        if not self._home_knowledge_current:
+        if (
+            not self._home_knowledge_current
+            and STORE_HOME not in self._town_visit_ledger.blocked_stores
+        ):
             return False
         carried = self._total_identify_staff_charges(snapshot)
         home_charges = sum(
