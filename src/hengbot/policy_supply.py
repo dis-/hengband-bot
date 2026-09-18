@@ -289,12 +289,13 @@ class SupplyMixin:
             strategy is not None
             and bool(strategy.engagement_plan.get("carry_identify_staff"))
         )
-        if (
-            self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH
-            and not quest_requires_identify
-        ):
-            return True
         charges = self._total_identify_staff_charges(snapshot)
+        if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
+            if not quest_requires_identify:
+                return True
+            # Preserve the quest opt-in's pre-existing shallow-town escape:
+            # after Magic has been checked, any usable staff is sufficient.
+            return charges > 0 and STORE_MAGIC in self._town_store_attempted
         return charges >= STAFF_IDENTIFY_MIN_CHARGES
 
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:

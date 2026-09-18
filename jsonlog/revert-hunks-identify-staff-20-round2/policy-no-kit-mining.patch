@@ -1,0 +1,31 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+index 0e5f17e..2d4cf17 100644
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -8792,13 +8792,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+ 
+     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
+         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
+-        self._planned_mining_runs = 1
+-        self._fundraising_mode = "prepare"
+-        self._mining_runs_completed = 0
+-        self._town_store_attempted.clear()
+-        self._retire_town_errand_plan_for_rebuild()
+-        self.last_reason = "town:identify-staff-stockout-mining"
+-        return WAIT_KEY
++        owned_kit = (
++            self._has_withdrawable_digging_tool(snapshot)
++            and self._has_withdrawable_treasure_detection(snapshot)
++        )
++        if owned_kit:
++            self._planned_mining_runs = 1
++            self._fundraising_mode = "prepare"
++            self._mining_runs_completed = 0
++            self._town_store_attempted.clear()
++            self._retire_town_errand_plan_for_rebuild()
++            self.last_reason = "town:identify-staff-stockout-mining"
++            return WAIT_KEY
++        return self._recall_restock_key(snapshot)
+ 
+ 
+     def _candidate_need(

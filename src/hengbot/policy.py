@@ -8769,14 +8769,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if not self._home_knowledge_current:
             return False
         carried = self._total_identify_staff_charges(snapshot)
-        home_can_close_gap = any(
-            item.tval == TVAL_STAFF
+        home_charges = sum(
+            self._stack_charges(item)
+            for item in self._home_knowledge_items
+            if item.tval == TVAL_STAFF
             and item.sval == SV_STAFF_IDENTIFY
             and self._item_signature(item) not in self._deferred_home_items
-            and carried + self._stack_charges(item) >= STAFF_IDENTIFY_MIN_CHARGES
-            for item in self._home_knowledge_items
         )
-        if home_can_close_gap:
+        if carried + home_charges >= STAFF_IDENTIFY_MIN_CHARGES:
             return False
         magic_page = self._town_supplier_stock.get(STORE_MAGIC)
         return bool(
@@ -8792,19 +8792,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
-        owned_kit = (
-            self._has_withdrawable_digging_tool(snapshot)
-            and self._has_withdrawable_treasure_detection(snapshot)
-        )
-        if owned_kit:
-            self._planned_mining_runs = 1
-            self._fundraising_mode = "prepare"
-            self._mining_runs_completed = 0
-            self._town_store_attempted.clear()
-            self._retire_town_errand_plan_for_rebuild()
-            self.last_reason = "town:identify-staff-stockout-mining"
-            return WAIT_KEY
-        return self._recall_restock_key(snapshot)
+        self._planned_mining_runs = 1
+        self._fundraising_mode = "prepare"
+        self._mining_runs_completed = 0
+        self._town_store_attempted.clear()
+        self._retire_town_errand_plan_for_rebuild()
+        self.last_reason = "town:identify-staff-stockout-mining"
+        return WAIT_KEY
 
 
     def _candidate_need(

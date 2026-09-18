@@ -2858,18 +2858,10 @@ class IdentifyStaffTest(unittest.TestCase):
 
     def test_identify_staff_stockout_public_path_starts_one_mining_run(self):
         carried = self._staff(charges=16)
-        digger = item(
-            "d", TVAL_DIGGING, SV_DIGGING_PICK,
-            name="Pick", known=True, fully_known=True, is_equipment=True,
-        )
-        detection = item(
-            "e", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
-            name="Scroll of Treasure Detection", known=True, fully_known=True,
-        )
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
         )
-        pol.consume_home_knowledge((digger, detection))
+        pol.consume_home_knowledge(())
         magic = replace(
             outside,
             store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24),
@@ -2900,6 +2892,89 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(
             (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
         )
+
+    def test_two_home_staff_stacks_jointly_prevent_stockout_mining(self):
+        first = store_item(
+            "p", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=12,
+            name="髑大ｮ壹・譚・(12蝗槫・)",
+        )
+        second = store_item(
+            "q", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=12,
+            name="髑大ｮ壹・譚・(12蝗槫・)",
+        )
+        pol, outside = self._town(STAFF_IDENTIFY_MIN_DEPTH)
+        inside = replace(
+            outside,
+            store=StoreState(
+                STORE_HOME, [first, second], stock_num=2, page_size=52,
+            ),
+        )
+        pol.consume_home_knowledge((first, second))
+        magic = replace(
+            outside, store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24)
+        )
+
+        _public_shop_inner(self, pol, magic)
+        self.assertIn(STORE_MAGIC, pol._town_store_attempted)
+        self.assertFalse(pol._identify_staff_procurement_impossible(outside))
+        self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
+        self.assertEqual(
+            pol.last_reason, "home:queue-withdraw-identify-staff-reserve"
+        )
+        self.assertIsNone(pol._fundraising_mode)
+
+    def test_active_identify_stockout_mining_plan_is_not_demoted(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        outside = replace(
+            outside, player=replace(outside.player, food_type=FOOD_TYPE_MANA)
+        )
+        pol.consume_home_knowledge(())
+        pol._fundraising_mode = "mine"
+        pol._planned_mining_runs = 1
+        pol._mining_runs_completed = 0
+        magic = replace(
+            outside, store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24)
+        )
+
+        self.assertEqual(pol.choose_key(magic), LEAVE_STORE_KEY)
+        pol.choose_key(replace(magic, store=None, turn=magic.turn + 1))
+        self.assertEqual(
+            pol.choose_key(replace(magic, turn=magic.turn + 2)), LEAVE_STORE_KEY
+        )
+        pol.choose_key(replace(magic, store=None, turn=magic.turn + 3))
+
+        self.assertEqual(pol._fundraising_mode, "mine", pol.last_reason)
+        self.assertEqual(pol._mining_runs_completed, 0)
+
+    def test_shallow_quest_identify_opt_in_keeps_post_magic_escape(self):
+        knowledge = load_quest_knowledge(REAL_QUEST_DEFINITIONS)
+        pol = HengbotPolicy(
+            quest_strategies=load_quest_strategies(Path("strategy/quests")),
+            quest_knowledge={22: knowledge[22]},
+        )
+        pol._deepest_level = STAFF_IDENTIFY_MIN_DEPTH - 2
+        pol._equipment_optimization_last_depth = STAFF_IDENTIFY_MIN_DEPTH - 1
+        outside = Snapshot(
+            player(10, 10, level=5, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0),
+            town_flag=True,
+            inventory=[self._staff(charges=16)],
+            quests={22: QuestState(22, status=QUEST_STATUS_UNTAKEN, fixed=True)},
+        )
+        magic = replace(
+            outside, store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24)
+        )
+
+        self.assertEqual(_public_shop_inner(self, pol, magic), "")
+        self.assertTrue(
+            pol._identify_staff_ready(outside),
+            (pol._planned_depth(), pol._town_store_attempted),
+        )
+        self.assertIsNone(pol._fundraising_mode)
 
     def test_affordable_identify_staff_public_page_buys_instead_of_mining(self):
         pol, outside = self._town(

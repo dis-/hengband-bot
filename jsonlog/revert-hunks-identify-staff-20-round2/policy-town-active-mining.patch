@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+index dd25379..881dadf 100644
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -4097,7 +4097,6 @@ class TownMixin:
+ 
+         if (
+             self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+-            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
+             and not self._identify_staff_ready(snapshot)
+             and self._identify_staff_procurement_impossible(snapshot)
+         ):

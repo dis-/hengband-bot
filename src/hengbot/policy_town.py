@@ -4097,6 +4097,7 @@ class TownMixin:
 
         if (
             self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+            and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
             and not self._identify_staff_ready(snapshot)
             and self._identify_staff_procurement_impossible(snapshot)
         ):
