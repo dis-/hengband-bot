@@ -3092,23 +3092,42 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "quest-strategy:hold")
         policy._quest_strategy_initial_hold_turns[31] = 60
 
-        first_key = policy.choose_key(snapshot)
-        first_decision = (first_key, policy.last_reason)
-        second_key = policy.choose_key(snapshot)
-        second_decision = (second_key, policy.last_reason)
-        unseen_decisions = [first_decision, second_decision]
+        direction_delta = {
+            "1": (1, -1), "2": (1, 0), "3": (1, 1),
+            "4": (0, -1), "6": (0, 1),
+            "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+        }
+        unseen_decisions = []
+        positions = [snapshot.player.position]
+        current = snapshot
+        for _ in range(4):
+            key = policy.choose_key(current)
+            unseen_decisions.append((key, policy.last_reason))
+            dy, dx = direction_delta[key]
+            next_position = Position(
+                current.player.position.y + dy,
+                current.player.position.x + dx,
+            )
+            positions.append(next_position)
+            current = replace(
+                current,
+                player=replace(
+                    current.player,
+                    position=next_position,
+                ),
+            )
 
-        self.assertEqual(len(unseen_decisions), 2)
         self.assertTrue(all(
-            decision != (SEARCH_KEY, "quest-strategy:survey-target-unconfirmed")
-            for decision in unseen_decisions
+            reason != "quest-strategy:survey-throw-point"
+            for _, reason in unseen_decisions
         ))
+        self.assertNotIn(Position(18, 1), positions[1:])
 
         observable_target = Position(16, 3)
         observable = replace(
-            snapshot,
+            current,
             grids={
-                **snapshot.grids,
+                **current.grids,
                 observable_target: grid(
                     observable_target.y,
                     observable_target.x,
@@ -3118,9 +3137,9 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
                 ),
             },
         )
-        self.assertEqual(policy.choose_key(observable), SEARCH_KEY)
+        self.assertIn(policy.choose_key(observable), direction_delta)
         self.assertEqual(
-            policy.last_reason, "quest-strategy:survey-target-unconfirmed"
+            policy.last_reason, "quest-strategy:survey-throw-point"
         )
 
     def test_q31_sweeps_instead_of_cycling_at_stale_mobile_spawn(self):
@@ -8764,8 +8783,18 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
     def test_q31_survey_unreachable_reason_is_not_labeled_q34(self):
         policy = self._policy()
+        plan = policy.approved_quest_strategy(31).engagement_plan[
+            "throwing_points"
+        ][0]
         snapshot = Snapshot(
-            player(18, 2), {Position(18, 2): grid(18, 2)}, [],
+            player(18, 2),
+            {
+                Position(18, 2): grid(18, 2),
+                Position(*plan["target"]): grid(
+                    *plan["target"], known=True, in_view=True
+                ),
+            },
+            [],
             inventory=[item("t", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
             floor_key=(0, 5, 31),
         )

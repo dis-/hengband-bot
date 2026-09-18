@@ -3434,6 +3434,18 @@ class QuestMixin:
                         int(plan["target"][0]),
                         int(plan["target"][1]),
                     ) not in cleared_targets
+                    and (
+                        profile.quest_id == 34
+                        or (
+                            (target_grid := snapshot.grid_at(
+                                Position(*plan["target"])
+                            )) is not None
+                            and (
+                                target_grid.has_monster
+                                or (target_grid.known and target_grid.in_view)
+                            )
+                        )
+                    )
                 ),
                 None,
             )
