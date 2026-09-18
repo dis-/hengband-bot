@@ -10338,7 +10338,7 @@ class WarningGridComposedWalkTest(unittest.TestCase):
         refusal = policy.choose_key(
             self._snapshot(35, 176, messages=(self.PROMPT,), inventory=supply)
         )
-        self.assertEqual(refusal, "n")
+        self.assertIsNone(refusal)
         self.assertIn(self.ENTRANCE, policy._warning_refused_cells)
 
         key = policy.choose_key(self._snapshot(35, 176, inventory=supply))

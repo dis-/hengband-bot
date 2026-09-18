@@ -2341,6 +2341,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_latch_active = None
         if not hasattr(self, "_home_latch_history"):
             self._home_latch_history = []
+        if not hasattr(self, "_home_claim_uncomposable_signature"):
+            self._home_claim_uncomposable_signature = None
         if not hasattr(self, "_equipment_fresh_search_target_ids"):
             self._equipment_fresh_search_target_ids = frozenset()
         self._refresh_carried_equipment_catalog(snapshot)
