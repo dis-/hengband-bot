@@ -2298,6 +2298,19 @@ class HomeMixin:
                 ):
                     self._defer_home_item(signature, "home-disposal-uncomposable")
                     continue
+                if (
+                    needs_full_identification
+                    and self._find_identification_source(
+                        snapshot,
+                        full=True,
+                        reservation_target=signature,
+                    )
+                    is None
+                    and STORE_ALCHEMIST in self._town_store_attempted
+                ):
+                    self._unbuyable_full_identify_sigs.add(signature)
+                    self._defer_home_item(signature, "home-disposal-uncomposable")
+                    continue
                 if needs_normal_identification or needs_full_identification:
                     return item
                 self._processed_home_items.add(signature)

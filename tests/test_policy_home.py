@@ -2120,6 +2120,73 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, tail)
         self.assertFalse(policy._store_visit.operation_released)
 
+    def test_home_full_identify_candidate_defers_until_source_exists(self):
+        candidate = store_item(
+            "M", 37, 10,
+            name="partly known body armour", known=True, fully_known=False,
+            is_equipment=True, is_ego=True,
+        )
+        home = self._home_page_snapshot(
+            [], [candidate], turn=3364283, stock_num=1,
+            page_top=0, page_size=52,
+        )
+        alchemist = replace(
+            home,
+            turn=3364284,
+            store=StoreState(
+                STORE_ALCHEMIST, [], stock_num=0, page_top=0, page_size=12,
+            ),
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(candidate)
+
+        self.assertEqual(policy._shop(alchemist), LEAVE_STORE_KEY)
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertEqual(
+            policy._deferred_home_item_sites[signature],
+            "home-disposal-uncomposable",
+        )
+
+        source = item(
+            "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
+            name="Scroll of *Identify*", known=True, aware=True,
+        )
+        with_source = replace(home, turn=3364286, inventory=[source])
+        self.assertEqual(policy._shop(with_source), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
+        self.assertEqual(policy._home_pending_batch, [signature])
+
+    def test_home_normal_identify_candidate_still_defers_without_source(self):
+        candidate = store_item(
+            "a", TVAL_SWORD, 4,
+            name="unidentified dagger", known=False, fully_known=False,
+            pseudo_feeling="good", is_equipment=True,
+        )
+        home = self._home_page_snapshot(
+            [], [candidate], turn=3364290, stock_num=1,
+            page_top=0, page_size=52,
+        )
+        alchemist = replace(
+            home,
+            turn=3364291,
+            store=StoreState(
+                STORE_ALCHEMIST, [], stock_num=0, page_top=0, page_size=12,
+            ),
+        )
+        policy = HengbotPolicy()
+        signature = policy._item_signature(candidate)
+
+        self.assertEqual(policy._shop(alchemist), LEAVE_STORE_KEY)
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:processing-complete")
+        self.assertIn(signature, policy._deferred_home_items)
+        self.assertEqual(
+            policy._deferred_home_item_sites[signature],
+            "home-disposal-uncomposable",
+        )
+
     def test_posted_withdraw_without_observed_effect_does_not_reset_passes(self):
         target = store_item("a", TVAL_POTION, 998, name="unobserved target")
         policy = self._catalogued_withdrawal_policy([target])
