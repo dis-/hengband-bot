@@ -1,0 +1,20 @@
+diff --git b/src/hengbot/policy_quest.py a/src/hengbot/policy_quest.py
+index 7f58736..88af1b8 100644
+--- b/src/hengbot/policy_quest.py
++++ a/src/hengbot/policy_quest.py
+@@ -3481,13 +3481,8 @@ class QuestMixin:
+                     if profile.quest_id == 34:
+                         self.last_reason = "quest:blocked:survey-target-not-visible"
+                         return WAIT_KEY
+-                    if (
+-                        target_grid is not None
+-                        and target_grid.known
+-                        and target_grid.in_view
+-                    ):
+-                        self.last_reason = "quest-strategy:survey-target-unconfirmed"
+-                        return SEARCH_KEY
++                    self.last_reason = "quest-strategy:survey-target-unconfirmed"
++                    return SEARCH_KEY
+
+         if profile.quest_id == 2:
+             navigator = self._quest_navigators.setdefault(

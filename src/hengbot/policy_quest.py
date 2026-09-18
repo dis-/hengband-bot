@@ -3481,8 +3481,13 @@ class QuestMixin:
                     if profile.quest_id == 34:
                         self.last_reason = "quest:blocked:survey-target-not-visible"
                         return WAIT_KEY
-                    self.last_reason = "quest-strategy:survey-target-unconfirmed"
-                    return SEARCH_KEY
+                    if (
+                        target_grid is not None
+                        and target_grid.known
+                        and target_grid.in_view
+                    ):
+                        self.last_reason = "quest-strategy:survey-target-unconfirmed"
+                        return SEARCH_KEY
 
         if profile.quest_id == 2:
             navigator = self._quest_navigators.setdefault(

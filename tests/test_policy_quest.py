@@ -145,7 +145,7 @@ from hengbot.quest_knowledge import (
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
-from hengbot.policy_constants import Q2_BLUE_RECOVERY_CELLS
+from hengbot.policy_constants import Q2_BLUE_RECOVERY_CELLS, SEARCH_KEY
 from hengbot.equipment_mutation import progress_core
 from hengbot.policy import (
     HengbotPolicy,
@@ -3063,7 +3063,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(policy.last_reason, "quest-strategy:melee")
 
-    def test_q31_hold_gate_precedes_stationary_target_survey(self):
+    def test_q31_unobservable_survey_target_falls_through_public_dispatch(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
@@ -3088,11 +3088,40 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             floor_key=(0, 22, 31),
         )
 
-        self.assertEqual(policy._approved_quest_strategy_key(snapshot, [], []), WAIT_KEY)
+        self.assertEqual(policy.choose_key(snapshot), WAIT_KEY)
         self.assertEqual(policy.last_reason, "quest-strategy:hold")
         policy._quest_strategy_initial_hold_turns[31] = 60
-        self.assertEqual(policy._approved_quest_strategy_key(snapshot, [], []), "s")
-        self.assertEqual(policy.last_reason, "quest-strategy:survey-target-unconfirmed")
+
+        first_key = policy.choose_key(snapshot)
+        first_decision = (first_key, policy.last_reason)
+        second_key = policy.choose_key(snapshot)
+        second_decision = (second_key, policy.last_reason)
+        unseen_decisions = [first_decision, second_decision]
+
+        self.assertEqual(len(unseen_decisions), 2)
+        self.assertTrue(all(
+            decision != (SEARCH_KEY, "quest-strategy:survey-target-unconfirmed")
+            for decision in unseen_decisions
+        ))
+
+        observable_target = Position(16, 3)
+        observable = replace(
+            snapshot,
+            grids={
+                **snapshot.grids,
+                observable_target: grid(
+                    observable_target.y,
+                    observable_target.x,
+                    monster=True,
+                    lit=True,
+                    in_view=True,
+                ),
+            },
+        )
+        self.assertEqual(policy.choose_key(observable), SEARCH_KEY)
+        self.assertEqual(
+            policy.last_reason, "quest-strategy:survey-target-unconfirmed"
+        )
 
     def test_q31_sweeps_instead_of_cycling_at_stale_mobile_spawn(self):
         definitions = REAL_QUEST_DEFINITIONS
