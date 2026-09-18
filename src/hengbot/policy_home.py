@@ -846,12 +846,15 @@ class HomeMixin:
             and not self._star_remove_curse_reserve_withdraw_pending
         ):
             return True
+        full = bool(
+            item.known
+            and item_requires_full_identification(item)
+            and not item.fully_known
+        )
         if (
             snapshot is not None
             and self._disposal_protected_by_identification(item)
-            and self._find_identification_source(
-                snapshot, full=False, reliable_only=True
-            ) is not None
+            and self._find_identification_source(snapshot, full=full) is not None
         ):
             return False
         if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:

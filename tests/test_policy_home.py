@@ -4666,6 +4666,32 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
 
         self.assertEqual(key, "{b@0\r")
 
+    def test_full_identify_source_protects_carried_ego_from_home_deposit(self):
+        policy = HengbotPolicy()
+        set_known_target(policy)
+        armour = item(
+            "a", 37, 10,
+            name="partly known ego body armour",
+            known=True, fully_known=False, is_equipment=True, is_ego=True,
+            is_cursed=False,
+        )
+        star_identify = item(
+            "b", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY, count=3,
+            name="Scrolls of *Identify*", known=True, aware=True,
+        )
+        identify_staff = item(
+            "c", TVAL_STAFF, SV_STAFF_IDENTIFY,
+            name="Staff of Identify", known=True, aware=True, charges=10,
+        )
+        with_source = self._store_snapshot(
+            [armour, star_identify, identify_staff], STORE_HOME
+        )
+        without_source = self._store_snapshot([armour], STORE_HOME)
+
+        self.assertTrue(policy._target_loadout_known())
+        self.assertFalse(policy._home_deposit_candidate(armour, with_source))
+        self.assertTrue(policy._home_deposit_candidate(armour, without_source))
+
     def test_posted_deposit_does_not_reopen_sale_after_target_becomes_unknown(self):
         policy = HengbotPolicy()
         ring = self._ring()
