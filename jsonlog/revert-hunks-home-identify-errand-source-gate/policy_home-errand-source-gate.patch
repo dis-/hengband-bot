@@ -1,0 +1,19 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -1659,15 +1659,6 @@ class HomeMixin:
+             self._identification_candidate is not None
+             and self._identification_candidate in observed
+         ):
+-            source = self._find_identification_source(
+-                snapshot,
+-                full=self._identification_need == "full",
+-                reliable_only=True,
+-                reservation_target=self._identification_candidate,
+-            )
+-            if source is None:
+-                self._identification_candidate = None
+-                return
+             self._file_home_errand(
+                 snapshot,
+                 HomeErrandRequest(

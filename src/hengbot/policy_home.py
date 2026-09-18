@@ -1659,6 +1659,15 @@ class HomeMixin:
             self._identification_candidate is not None
             and self._identification_candidate in observed
         ):
+            source = self._find_identification_source(
+                snapshot,
+                full=self._identification_need == "full",
+                reliable_only=True,
+                reservation_target=self._identification_candidate,
+            )
+            if source is None:
+                self._identification_candidate = None
+                return
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(
@@ -2296,19 +2305,6 @@ class HomeMixin:
                     is None
                     and STORE_ALCHEMIST in self._town_store_attempted
                 ):
-                    self._defer_home_item(signature, "home-disposal-uncomposable")
-                    continue
-                if (
-                    needs_full_identification
-                    and self._find_identification_source(
-                        snapshot,
-                        full=True,
-                        reservation_target=signature,
-                    )
-                    is None
-                    and STORE_ALCHEMIST in self._town_store_attempted
-                ):
-                    self._unbuyable_full_identify_sigs.add(signature)
                     self._defer_home_item(signature, "home-disposal-uncomposable")
                     continue
                 if needs_normal_identification or needs_full_identification:

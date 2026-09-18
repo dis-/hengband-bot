@@ -2120,7 +2120,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, tail)
         self.assertFalse(policy._store_visit.operation_released)
 
-    def test_home_full_identify_candidate_defers_until_source_exists(self):
+    def _recorded_full_identify_snapshots(self, *, source=None):
         candidate = store_item(
             "M", 37, 10,
             name="partly known body armour", known=True, fully_known=False,
@@ -2133,59 +2133,89 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         alchemist = replace(
             home,
             turn=3364284,
+            player=replace(home.player, gold=8072),
+            inventory=[] if source is None else [source],
             store=StoreState(
-                STORE_ALCHEMIST, [], stock_num=0, page_top=0, page_size=12,
+                STORE_ALCHEMIST,
+                [store_item(
+                    "a", 70, 12, count=5, price=78,
+                    name="Scroll of Identify",
+                )],
+                stock_num=1, page_top=0, page_size=12,
             ),
         )
+        return candidate, home, alchemist
+
+    def test_home_full_identify_errand_requires_source(self):
         policy = HengbotPolicy()
+        candidate, home, stocked_unvisited_alchemist = (
+            self._recorded_full_identify_snapshots()
+        )
         signature = policy._item_signature(candidate)
 
-        self.assertEqual(policy._shop(alchemist), LEAVE_STORE_KEY)
+        self.assertTrue(policy.consume_home_knowledge((candidate,)))
         self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertIn(signature, policy._deferred_home_items)
-        self.assertEqual(
-            policy._deferred_home_item_sites[signature],
-            "home-disposal-uncomposable",
+        self.assertEqual(policy.last_reason, "home:need-full-identify")
+        self.assertEqual(policy._identification_candidate, signature)
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+        policy._bind_catalogued_home_identification_withdrawal(
+            stocked_unvisited_alchemist
         )
 
+        self.assertFalse(policy._home_errand.active)
+        self.assertIsNone(policy._identification_candidate)
+        self.assertNotEqual(
+            policy.last_reason, "home-errand:atomic-withdraw:identification"
+        )
+
+    def test_home_full_identify_errand_with_source_still_withdraws(self):
         source = item(
             "s", TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY,
             name="Scroll of *Identify*", known=True, aware=True,
         )
-        with_source = replace(home, turn=3364286, inventory=[source])
-        self.assertEqual(policy._shop(with_source), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:queue-batch-withdraw")
-        self.assertEqual(policy._home_pending_batch, [signature])
-
-    def test_home_normal_identify_candidate_still_defers_without_source(self):
-        candidate = store_item(
-            "a", TVAL_SWORD, 4,
-            name="unidentified dagger", known=False, fully_known=False,
-            pseudo_feeling="good", is_equipment=True,
-        )
-        home = self._home_page_snapshot(
-            [], [candidate], turn=3364290, stock_num=1,
-            page_top=0, page_size=52,
-        )
-        alchemist = replace(
-            home,
-            turn=3364291,
-            store=StoreState(
-                STORE_ALCHEMIST, [], stock_num=0, page_top=0, page_size=12,
-            ),
-        )
         policy = HengbotPolicy()
+        candidate, home, stocked_unvisited_alchemist = (
+            self._recorded_full_identify_snapshots(source=source)
+        )
         signature = policy._item_signature(candidate)
 
-        self.assertEqual(policy._shop(alchemist), LEAVE_STORE_KEY)
+        self.assertTrue(policy.consume_home_knowledge((candidate,)))
         self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "home:processing-complete")
-        self.assertIn(signature, policy._deferred_home_items)
-        self.assertEqual(
-            policy._deferred_home_item_sites[signature],
-            "home-disposal-uncomposable",
+        policy._bind_catalogued_home_identification_withdrawal(
+            stocked_unvisited_alchemist
         )
+
+        self.assertTrue(policy._home_errand.active)
+        self.assertEqual(policy._home_errand.request.signature, signature)
+        self.assertIn(
+            policy._home_errand.request.purpose,
+            {"identification", "identification-catalog"},
+        )
+
+    def test_home_full_identify_without_source_is_not_redeposited(self):
+        policy = HengbotPolicy()
+        candidate, home, stocked_unvisited_alchemist = (
+            self._recorded_full_identify_snapshots()
+        )
+
+        self.assertTrue(policy.consume_home_knowledge((candidate,)))
+        self.assertEqual(policy._shop(home), LEAVE_STORE_KEY)
+        policy._bind_catalogued_home_identification_withdrawal(
+            stocked_unvisited_alchemist
+        )
+        carried = replace(
+            home,
+            turn=home.turn + 1,
+            inventory=[item(
+                "a", 37, 10,
+                name=candidate.name, known=True, fully_known=False,
+                is_equipment=True, is_ego=True,
+            )],
+            store=None,
+        )
+
+        self.assertIsNone(policy._find_home_deposit(carried))
 
     def test_posted_withdraw_without_observed_effect_does_not_reset_passes(self):
         target = store_item("a", TVAL_POTION, 998, name="unobserved target")
