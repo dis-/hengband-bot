@@ -295,12 +295,7 @@ class SupplyMixin:
         ):
             return True
         charges = self._total_identify_staff_charges(snapshot)
-        if charges >= STAFF_IDENTIFY_MIN_CHARGES:
-            return True
-        # Twenty charges is the preferred 10F+ departure stock, not a reason to
-        # wait indefinitely for shop turnover. After checking the Magic shop,
-        # a still-usable staff is the safe minimum for this town visit.
-        return charges > 0 and STORE_MAGIC in self._town_store_attempted
+        return charges >= STAFF_IDENTIFY_MIN_CHARGES
 
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:
         """Return currently unmet item targets for logs and the policy viewer."""

@@ -2844,7 +2844,7 @@ class IdentifyStaffTest(unittest.TestCase):
         pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=0)])
         self.assertFalse(pol._identify_staff_ready(snap))
 
-    def test_live_partial_staff_departs_after_magic_shop_is_exhausted(self):
+    def test_partial_staff_remains_blocked_after_magic_shop_is_exhausted(self):
         pol, snap = self._town(
             STAFF_IDENTIFY_MIN_DEPTH,
             inventory=[self._staff(charges=11)],
@@ -2853,9 +2853,88 @@ class IdentifyStaffTest(unittest.TestCase):
 
         pol._town_store_attempted[STORE_MAGIC] = snap.turn
 
-        self.assertTrue(pol._identify_staff_ready(snap))
-        self.assertNotEqual(pol._town_terminal_transitions(snap), STORE_MAGIC)
+        self.assertFalse(pol._identify_staff_ready(snap))
         self.assertIsNone(pol._town_restock_wait_until)
+
+    def test_identify_staff_stockout_public_path_starts_one_mining_run(self):
+        carried = self._staff(charges=16)
+        digger = item(
+            "d", TVAL_DIGGING, SV_DIGGING_PICK,
+            name="Pick", known=True, fully_known=True, is_equipment=True,
+        )
+        detection = item(
+            "e", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection", known=True, fully_known=True,
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
+        )
+        pol.consume_home_knowledge((digger, detection))
+        magic = replace(
+            outside,
+            store=StoreState(STORE_MAGIC, [], stock_num=0, page_size=24),
+        )
+
+        self.assertEqual(pol.choose_key(magic), LEAVE_STORE_KEY)
+        self.assertEqual(pol.choose_key(
+            replace(magic, store=None, turn=magic.turn + 1)
+        ), RESTOCK_WAIT_MACRO)
+        self.assertEqual(
+            pol.choose_key(replace(magic, turn=magic.turn + 2)), LEAVE_STORE_KEY
+        )
+        empty_operation = pol.choose_key(
+            replace(magic, store=None, turn=magic.turn + 3)
+        )
+        self.assertTrue(
+            pol._fundraising_mode == "prepare",
+            (pol.last_reason, pol._town_store_attempted, pol._town_supplier_stock),
+        )
+        self.assertEqual(empty_operation, WAIT_KEY)
+        self.assertTrue(pol._home_knowledge_current)
+        self.assertEqual(pol._town_supplier_stock[STORE_MAGIC].items, [])
+
+        self.assertEqual(
+            (empty_operation, pol.last_reason),
+            (WAIT_KEY, "town:identify-staff-stockout-mining"),
+        )
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
+        )
+
+    def test_affordable_identify_staff_public_page_buys_instead_of_mining(self):
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        pol.consume_home_knowledge(())
+        magic = replace(
+            outside,
+            player=replace(outside.player, gold=1000),
+            store=StoreState(
+                STORE_MAGIC,
+                [store_item(
+                    "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
+                    charges=18, name="髑大ｮ壹・譚・(7x 18蝗槫・)",
+                )],
+            ),
+        )
+
+        key = _public_shop_inner(self, pol, magic)
+
+        self.assertEqual(key, "pz\r")
+        self.assertEqual(pol.last_reason, "shop:one-shot-buy")
+        self.assertIsNone(pol._planned_mining_runs)
+
+    def test_identify_staff_mandatory_gate_is_absent_below_ten(self):
+        pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH - 2)
+
+        self.assertTrue(pol._identify_staff_ready(snap))
+
+    def test_twenty_carried_identify_charges_satisfy_mandatory_gate(self):
+        pol, snap = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=20)]
+        )
+
+        self.assertTrue(pol._identify_staff_ready(snap))
 
     def test_empty_staff_still_blocks_after_magic_shop_is_exhausted(self):
         pol, snap = self._town(

@@ -8764,6 +8764,48 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_restock_last_wait_turn = snapshot.turn
         return RESTOCK_WAIT_MACRO
 
+    def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
+        """Whether both local, ordered Identify-staff suppliers are exhausted."""
+        if not self._home_knowledge_current:
+            return False
+        carried = self._total_identify_staff_charges(snapshot)
+        home_can_close_gap = any(
+            item.tval == TVAL_STAFF
+            and item.sval == SV_STAFF_IDENTIFY
+            and self._item_signature(item) not in self._deferred_home_items
+            and carried + self._stack_charges(item) >= STAFF_IDENTIFY_MIN_CHARGES
+            for item in self._home_knowledge_items
+        )
+        if home_can_close_gap:
+            return False
+        magic_page = self._town_supplier_stock.get(STORE_MAGIC)
+        return bool(
+            STORE_MAGIC in self._town_store_attempted
+            and magic_page is not None
+            and not any(
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and item.price <= snapshot.player.gold
+                for item in magic_page.items
+            )
+        )
+
+    def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
+        """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
+        owned_kit = (
+            self._has_withdrawable_digging_tool(snapshot)
+            and self._has_withdrawable_treasure_detection(snapshot)
+        )
+        if owned_kit:
+            self._planned_mining_runs = 1
+            self._fundraising_mode = "prepare"
+            self._mining_runs_completed = 0
+            self._town_store_attempted.clear()
+            self._retire_town_errand_plan_for_rebuild()
+            self.last_reason = "town:identify-staff-stockout-mining"
+            return WAIT_KEY
+        return self._recall_restock_key(snapshot)
+
 
     def _candidate_need(
         self,
