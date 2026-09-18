@@ -1,0 +1,24 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -8770,8 +8770,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+ 
+     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
+         """Whether both local, ordered Identify-staff suppliers are exhausted."""
+-        if not self._home_knowledge_current:
+-            return False
+         carried = self._total_identify_staff_charges(snapshot)
+         home_charges = sum(
+             self._stack_charges(item)
+@@ -8804,7 +8802,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             if (page := supplier_pages.get(store_type)) is not None
+         ):
+             return False
+-        return STORE_MAGIC in self._town_store_attempted
++        return bool(
++            not self._home_knowledge_current
++            or STORE_MAGIC in self._town_store_attempted
++        )
+ 
+     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
+         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""

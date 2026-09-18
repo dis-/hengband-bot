@@ -1,0 +1,15 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -3192,10 +3192,7 @@ class TownMixin:
+             return
+         if (
+             self._fundraising_mode in {"prepare", "mine", "scavenge"}
+-            and not (
+-                self._identify_staff_mining_plan
+-                and not self._identify_staff_ready(snapshot)
+-            )
++            and self._planned_mining_runs is None
+             and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+         ):
+             self._fundraising_mode = None

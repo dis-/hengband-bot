@@ -1,0 +1,10 @@
+diff --git a/tests/test_policy_supply.py b/tests/test_policy_supply.py
+--- a/tests/test_policy_supply.py
++++ b/tests/test_policy_supply.py
+@@ -3025,5 +3025,5 @@ class IdentifyStaffTest(unittest.TestCase):
+             STORE_BLACK,
+             [store_item(
+                 "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
+-                charges=20, name="鑑定の杖 (20回分)",
++                charges=20, name="髑大ｮ壹・譚・(20蝗槫・)",
+             )],

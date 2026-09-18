@@ -1909,6 +1909,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._fundraising_mode: str | None = None
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
+        self._identify_staff_mining_plan = False
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
@@ -8652,6 +8653,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if planned_total >= self._effective_mining_run_target():
             return False
         self._planned_mining_runs = planned_total
+        self._identify_staff_mining_plan = False
         self._fundraising_mode = "mine"
         return True
 
@@ -8680,6 +8682,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_restock_waiting_for = ()
                 self._town_restock_wait_until = None
                 self._planned_mining_runs = 1
+                self._identify_staff_mining_plan = False
                 self._mining_runs_completed = 0
                 self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
@@ -8748,6 +8751,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if owned_kit:
                 self._planned_mining_runs = 1
+                self._identify_staff_mining_plan = False
                 self._fundraising_mode = "prepare"
                 self._mining_runs_completed = 0
                 self._town_restock_rechecked.difference_update(recall_stores)
@@ -8766,6 +8770,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
         """Whether both local, ordered Identify-staff suppliers are exhausted."""
+        if not self._home_knowledge_current:
+            return False
         carried = self._total_identify_staff_charges(snapshot)
         home_charges = sum(
             self._stack_charges(item)
@@ -8798,14 +8804,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (page := supplier_pages.get(store_type)) is not None
         ):
             return False
-        return bool(
-            not self._home_knowledge_current
-            or STORE_MAGIC in self._town_store_attempted
-        )
+        return STORE_MAGIC in self._town_store_attempted
 
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
         self._planned_mining_runs = 1
+        self._identify_staff_mining_plan = True
         self._fundraising_mode = "prepare"
         self._mining_runs_completed = 0
         self._town_store_attempted.clear()
@@ -9029,6 +9033,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False
         self._planned_mining_runs = None
+        self._identify_staff_mining_plan = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
@@ -9083,6 +9088,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if not self._identification_deadlock_recoverable(snapshot):
             return False
         self._planned_mining_runs = None
+        self._identify_staff_mining_plan = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True

@@ -2491,15 +2491,15 @@ class IdentifyStaffTest(unittest.TestCase):
     def test_deferred_staff_stack_does_not_hide_another_usable_stack(self):
         carried = item(
             "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=16,
-            name="髑大ｮ壹・譚・(16蝗槫・)", fully_known=True,
+            name="鑑定の杖 (16回分)", fully_known=True,
         )
         deferred = store_item(
             "p", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
-            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+            name="鑑定の杖 (2x 21回分)",
         )
         available = store_item(
             "q", TVAL_STAFF, SV_STAFF_IDENTIFY, count=7, charges=18,
-            name="髑大ｮ壹・譚・(7x 18蝗槫・)",
+            name="鑑定の杖 (7x 18回分)",
         )
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[carried]
@@ -2599,9 +2599,9 @@ class IdentifyStaffTest(unittest.TestCase):
     def test_unrelated_publicly_deferred_restore_does_not_block_staff_queue(self):
         ready = item(
             "i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20,
-            name="髑大ｮ壹・譚・(20蝗槫・)", fully_known=True,
+            name="鑑定の杖 (20回分)", fully_known=True,
         )
-        short = replace(ready, charges=16, name="髑大ｮ壹・譚・(16蝗槫・)")
+        short = replace(ready, charges=16, name="鑑定の杖 (16回分)")
         restore = store_item(
             "a", TVAL_POTION, SV_POTION_RESTORE_CON,
             name="Restore Constitution",
@@ -2612,7 +2612,7 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         staff = store_item(
             "b", TVAL_STAFF, SV_STAFF_IDENTIFY, count=2, charges=21,
-            name="髑大ｮ壹・譚・(2x 21蝗槫・)",
+            name="鑑定の杖 (2x 21回分)",
         )
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[ready]
@@ -2681,7 +2681,7 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         depleted = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
-            name="髑大ｮ壹・譚・(0蝗槫・)",
+            name="鑑定の杖 (0回分)",
         )
         inside = replace(
             outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
@@ -2697,7 +2697,7 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         depleted = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
-            name="髑大ｮ壹・譚・(0蝗槫・)",
+            name="鑑定の杖 (0回分)",
         )
         inside = replace(
             outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
@@ -2713,7 +2713,7 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         depleted = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
-            name="髑大ｮ壹・譚・(0蝗槫・)",
+            name="鑑定の杖 (0回分)",
         )
         inside = replace(
             outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
@@ -2938,6 +2938,74 @@ class IdentifyStaffTest(unittest.TestCase):
             (pol._fundraising_mode, pol._planned_mining_runs), ("prepare", 1)
         )
 
+    def test_non_identify_partial_mining_plan_demotes_at_gold_target(self):
+        detection = item(
+            "t", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
+            name="Scroll of Treasure Detection",
+        )
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH,
+            inventory=[self._staff(charges=20), detection],
+        )
+        outside = replace(
+            outside, player=replace(outside.player, gold=FUNDRAISING_GOLD_TARGET)
+        )
+
+        self.assertTrue(pol._activate_partial_mining_plan(outside))
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), ("mine", 1)
+        )
+        pol._town_terminal_transitions(outside)
+
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), (None, None)
+        )
+
+    def test_satisfied_identify_requirement_drops_stockout_mining_plan(self):
+        pol, short = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        ready = replace(
+            short,
+            player=replace(short.player, gold=FUNDRAISING_GOLD_TARGET),
+            inventory=[self._staff(charges=20)],
+        )
+
+        self.assertEqual(pol._identify_staff_stockout_key(short), WAIT_KEY)
+        pol._town_terminal_transitions(ready)
+
+        self.assertEqual(
+            (pol._fundraising_mode, pol._planned_mining_runs), (None, None)
+        )
+
+    def test_stale_home_identify_stock_routes_to_home_scan_before_mining(self):
+        stored = self._staff(charges=25)
+        home_position = Position(45, 123)
+        pol, outside = self._town(
+            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
+        )
+        outside = replace(
+            outside,
+            player=replace(outside.player, position=home_position),
+            grids={
+                home_position: replace(
+                    grid(home_position.y, home_position.x),
+                    store_number=STORE_HOME,
+                ),
+                Position(45, 122): grid(45, 122),
+            },
+        )
+        pol._home_knowledge_items = (stored,)
+        pol._home_knowledge_current = False
+        pol._town_store_attempted[STORE_MAGIC] = outside.turn
+
+        self.assertFalse(pol._identify_staff_procurement_impossible(outside))
+        key = pol.choose_key(outside)
+
+        self.assertEqual((key, pol.last_reason), (WAIT_KEY, "shop:travel:await-entry"))
+        self.assertEqual(pol._shopping_approach_store_type, STORE_HOME)
+        self.assertIsNone(pol._fundraising_mode)
+
     def test_unvisited_magic_keeps_normal_town_work_before_home_scan(self):
         pol, outside = self._town(
             STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
@@ -2958,7 +3026,7 @@ class IdentifyStaffTest(unittest.TestCase):
             STORE_BLACK,
             [store_item(
                 "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
-                charges=20, name="髑大ｮ壹・譚・(20蝗槫・)",
+                charges=20, name="鑑定の杖 (20回分)",
             )],
         )
 
@@ -2967,11 +3035,11 @@ class IdentifyStaffTest(unittest.TestCase):
     def test_two_home_staff_stacks_jointly_prevent_stockout_mining(self):
         first = store_item(
             "p", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=12,
-            name="髑大ｮ壹・譚・(12蝗槫・)",
+            name="鑑定の杖 (12回分)",
         )
         second = store_item(
             "q", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=12,
-            name="髑大ｮ壹・譚・(12蝗槫・)",
+            name="鑑定の杖 (12回分)",
         )
         pol, outside = self._town(STAFF_IDENTIFY_MIN_DEPTH)
         inside = replace(
@@ -3033,7 +3101,7 @@ class IdentifyStaffTest(unittest.TestCase):
             [],
             floor_key=(0, 0, 0),
             town_flag=True,
-            inventory=[self._staff(charges=20)],
+            inventory=[self._staff(charges=16)],
             quests={22: QuestState(22, status=QUEST_STATUS_UNTAKEN, fixed=True)},
         )
         magic = replace(
@@ -3080,7 +3148,7 @@ class IdentifyStaffTest(unittest.TestCase):
                 STORE_MAGIC,
                 [store_item(
                     "z", TVAL_STAFF, SV_STAFF_IDENTIFY, price=500,
-                    charges=18, name="髑大ｮ壹・譚・(7x 18蝗槫・)",
+                    charges=18, name="鑑定の杖 (7x 18回分)",
                 )],
             ),
         )

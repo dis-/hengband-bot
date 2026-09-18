@@ -293,7 +293,9 @@ class SupplyMixin:
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             if not quest_requires_identify:
                 return True
-            return charges >= STAFF_IDENTIFY_MIN_CHARGES
+            return charges >= STAFF_IDENTIFY_MIN_CHARGES or (
+                charges > 0 and STORE_MAGIC in self._town_store_attempted
+            )
         return charges >= STAFF_IDENTIFY_MIN_CHARGES
 
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:

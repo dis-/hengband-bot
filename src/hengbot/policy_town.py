@@ -3192,11 +3192,15 @@ class TownMixin:
             return
         if (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
-            and self._planned_mining_runs is None
+            and not (
+                self._identify_staff_mining_plan
+                and not self._identify_staff_ready(snapshot)
+            )
             and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
         ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
+            self._identify_staff_mining_plan = False
             self._town_store_attempted.clear()
         if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)
@@ -4126,6 +4130,7 @@ class TownMixin:
             self._fundraising_mode = None
             self._mining_runs_completed = 0
             self._planned_mining_runs = None
+            self._identify_staff_mining_plan = False
             self._town_store_attempted.clear()
             self._town_restock_suppressed = False
             self._town_errand_plan = None
