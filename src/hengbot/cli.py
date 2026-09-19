@@ -360,6 +360,8 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "fundraise:mine-treasure",
         "fundraise:tunnel-out",
         "unseen:choke-wait",
+        # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
+        "summoner:hold-choke",
         "quest-strategy:hold",
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as

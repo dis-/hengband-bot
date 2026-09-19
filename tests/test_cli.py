@@ -548,6 +548,29 @@ class CliTest(unittest.TestCase):
                 for call in output.call_args_list
             ))
 
+    def test_detected_threat_choke_hold_outlives_guard_then_releases_it(self):
+        from collections import deque
+
+        dungeon = parse_snapshot(json.loads(_snap_line(1, 10, 10)), {})
+        recent_cells = deque(maxlen=LOOP_WINDOW)
+        self.assertIn("summoner:hold-choke", STATIONARY_EXEMPT_REASONS)
+
+        # The policy may hold for 50 player turns. Every sanctioned wait must
+        # break positional continuity instead of tripping the 40-decision net.
+        for _ in range(50):
+            if _cell_loop_guard_applies(dungeon, "summoner:hold-choke"):
+                recent_cells.append((dungeon.floor_key, 10, 10))
+            else:
+                recent_cells.clear()
+            self.assertFalse(_is_looping(recent_cells))
+
+        # Once the policy's DETECTED_THREAT_HOLD_MAX_GAME_TURNS release selects
+        # ordinary behavior, the same stationary defect remains guardable.
+        for _ in range(LOOP_WINDOW):
+            self.assertTrue(_cell_loop_guard_applies(dungeon, "seek-loot"))
+            recent_cells.append((dungeon.floor_key, 10, 10))
+        self.assertTrue(_is_looping(recent_cells))
+
 
 class PolicyFinalStopBannerTest(unittest.TestCase):
     def test_every_final_reason_has_its_own_truthful_banner(self):
