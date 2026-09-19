@@ -113,6 +113,9 @@ class TownMixin:
             and (reason or self.last_reason) == "equipment-transaction:approach-home"
         ):
             goal = self._shopping_approach_goal
+            if owner == "store-router" and (reason or self.last_reason) == "bounty:approach":
+                goal = next((position for position, grid in snapshot.grids.items()
+                             if grid.building_type == 13), None)
         elif owner == "survival":
             goal = self._town_hunt_target
         elif owner == "departure":

@@ -505,6 +505,51 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             for row in observations
         ), observations)
 
+    def test_recorded_bounty_approach_does_not_spend_stall_budget(self):
+        capture = FIXTURES / "bounty-locomotion-progress-20260919.jsonl"
+        rows = [json.loads(line) for line in capture.read_bytes().splitlines()]
+        self.assertEqual(
+            [row["turn"] for row in rows],
+            [3772677, 3772683, 3772688, 3772694, 3772701,
+             3772710, 3772717, 3772725, 3772731],
+        )
+        snapshots = [parse_snapshot(row, {}) for row in rows]
+        self.assertEqual(
+            [(snapshot.player.position.y, snapshot.player.position.x)
+             for snapshot in snapshots],
+            [(45, 123), (44, 124), (43, 123), (42, 122), (41, 121),
+             (41, 120), (41, 119), (41, 118), (41, 117)],
+        )
+
+        policy = HengbotPolicy()
+        observations = []
+        distances = []
+        for snapshot in snapshots:
+            vector = policy._town_arbiter_progress_vector(
+                snapshot, "bounty:approach"
+            )
+            distances.append(
+                vector[-1][-1]
+                if isinstance(vector[-1], tuple)
+                and vector[-1][:2] == ("locomotion", "store-router")
+                else None
+            )
+            observations.append(policy._town_turn_arbiter.observe(
+                in_town=True,
+                reason="bounty:approach",
+                progress_vector=vector,
+            ))
+
+        self.assertEqual(distances, [72, 72, 70, 68, 66, 65, 64, 63, 62])
+        self.assertFalse(
+            any(row["retired"] for row in observations), observations
+        )
+        self.assertEqual(
+            [(row["progress"], row["budget_remaining_estimate"])
+             for row in observations],
+            [(True, 8), (False, 7)] + [(True, 8)] * 7,
+        )
+
     def test_equipment_home_equidistant_oscillation_retires_at_stall_budget(self):
         policy = HengbotPolicy()
         snapshot = self._postlevel_snapshot()
