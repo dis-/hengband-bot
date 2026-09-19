@@ -3135,6 +3135,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == pending_store_transaction[0]
             and self._decision_sequence > pending_store_transaction[1]
             and not (
+                snapshot.store.store_type == STORE_HOME
+                and self._home_entry_operation_posted
+            )
+            and not (
                 self._store_buy_inflight is not None
                 and self._store_buy_inflight[0] == snapshot.store.store_type
             )
@@ -3730,6 +3734,33 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
+            and self._store_visit is not None
+            and self._store_visit.store_type != STORE_HOME
+            and self._home_scan_source != "foreign-store-page"
+            and self._equipment_transaction_session is None
+            and not self._identify_staff_ready(snapshot)
+            and self._home_knowledge_current
+            and self._home_pending_item is None
+            and not self._home_pending_batch
+            and self._home_atomic_withdraw_pending is None
+            and not any(
+                item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and item.charges > 0
+                and self._item_signature(item) not in self._deferred_home_items
+                for item in self._home_knowledge_items
+            )
+        ):
+            # The first lagged Home page cannot transfer a different shop's
+            # live visit to Home or spend Home's unavailable-stock terminal.
+            # Record that page, leave it, and let a later proper Home pass own
+            # the terminal if the shortage remains.
+            self._home_scan_source = "foreign-store-page"
+            self.last_reason = "home:scan-complete-from-open-page"
+            key = LEAVE_STORE_KEY
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
             and (
                 staged_home_operation :=
                 self._release_staged_store_operation(snapshot)
@@ -4212,6 +4243,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == STORE_HOME
             and key == LEAVE_STORE_KEY
             and self.last_reason != "home:processing-complete"
+            and not (
+                self.last_reason == "home:leave-after-one-operation"
+                and self._home_random_teleport_withdrawal is not None
+            )
+            and not (
+                self.last_reason == "home:scan-complete-from-open-page"
+                and self._store_visit is not None
+                and self._store_visit.store_type != STORE_HOME
+            )
             and not self.last_reason.startswith(
                 "town:blocked:home-claim-uncomposable:"
             )
@@ -7823,6 +7863,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             armed_turn = self._store_entry_wait_turn
             if armed_turn is not None:
                 self._store_visit.posted_turn = armed_turn
+            if (
+                self._store_visit.operation_posted
+                and self._store_visit.operation_released
+                and key == self._store_visit.composed_key
+            ):
+                # A composed entry+operation+leave macro has no intermediate
+                # store page for the entry barrier to observe. Preserve the
+                # operation ledger for outside effect reconciliation, but
+                # retire ENTERING after acknowledging the whole posted macro.
+                self._store_visit.transition(StoreVisitPhase.APPROACHING)
+                self._intentional_entrance_activation = False
             if key != self._equipment_transaction_prepared_key:
                 return True
         if key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}:

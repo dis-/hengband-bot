@@ -2588,11 +2588,11 @@ class IdentifyStaffTest(unittest.TestCase):
         # Home still contains exactly the usable stack deferred by the real
         # failed-withdrawal producer above.  It is unavailable this visit.
         self.assertEqual(pol.choose_key(replace(inside, turn=4)), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:identify-staff-reserve-unavailable")
+        self.assertEqual(pol.last_reason, "home:scan-complete-from-open-page")
         pol.choose_key(replace(outside, turn=5))
         self.assertEqual(pol.choose_key(replace(inside, turn=6)), LEAVE_STORE_KEY)
         self.assertEqual(
-            pol.last_reason, "home:route-claim-unfulfilled"
+            pol.last_reason, "home:identify-staff-reserve-unavailable"
         )
         self.assertIn(STORE_HOME, pol._town_store_attempted)
 

@@ -2590,7 +2590,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
         )
         entry_key = policy.choose_key(entrance)
         self.assertEqual(entry_key, "5 pa\x1b")
-        self.assertFalse(policy.confirm_key_posted(entry_key))
+        self.assertTrue(policy.confirm_key_posted(entry_key))
         home_plan = policy._town_errand_plan
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
         self.assertEqual(
@@ -2635,7 +2635,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             INSCRIBE_KEY + "q.\r",
         )
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
-        self.assertEqual(registry_calls, [entrance.turn, outside.turn])
+        self.assertEqual(registry_calls, [outside.turn])
         self.assertEqual(
             (
                 policy._town_visit_ledger.store_visits[STORE_HOME],
@@ -2643,7 +2643,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 home_plan.current_stop_passes,
                 home_plan.completed_this_visit,
             ),
-            (2, 1, 0, [STORE_HOME]),
+            (1, 1, 0, [STORE_HOME]),
         )
     def test_repeated_home_suppression_actions_do_not_grow_catalog(self):
         stored = store_item(

@@ -3998,7 +3998,9 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._home_gate_telemetry["branch"],
             "wrapper-candidate-home-first",
         )
-        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
+        self.assertEqual(
+            policy._town_visit_ledger.pending_store_transaction[0], STORE_HOME
+        )
         self.assertNotIn(signature, policy._deferred_home_items)
         self.assertIn(signature, policy._retried_deferred_home_items)
 

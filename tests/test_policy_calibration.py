@@ -1110,7 +1110,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_restore_signatures,
         )
         self.assertEqual(policy._store_visit.operation_key, expected)
-        self.assertFalse(policy.confirm_key_posted(first))
+        self.assertTrue(policy.confirm_key_posted(first))
 
         second = policy.choose_key(inside)
 

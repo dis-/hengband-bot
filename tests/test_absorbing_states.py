@@ -208,22 +208,42 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         policy.confirm_key_posted(first)
         second = policy.choose_key(outside)
         policy.confirm_key_posted(second)
-        followups = [second]
-        for _ in range(4):
-            if policy.last_reason == "home:atomic-withdraw":
-                break
-            followup = policy.choose_key(outside)
-            policy.confirm_key_posted(followup)
-            followups.append(followup)
 
-        self.assertEqual((first, row["key"]), ("\x1b", "\x1b"))
-        self.assertTrue(followups)
-        self.assertNotIn(policy.last_reason, {"probe", "stuck:wander"})
+        self.assertEqual(
+            (first, row["key"], second, policy.last_reason),
+            ("\x1b", "\x1b", "5pm1\r\x1b", "home:atomic-withdraw"),
+        )
         self.assertTrue(policy._home_owner_goal_pending(outside))
         self.assertEqual(policy._equipment_transaction_failed_items, failed_items)
         self.assertEqual(
             tuple(policy._equipment_optimization_preparation.blockers),
             ("equipment-transaction-failed",),
+        )
+
+    def test_captured_progressing_home_work_never_becomes_blocked(self):
+        row = cat._departure_unsatisfiable_captures()[1201]
+        policy = cat.restore_checkpoint(
+            cat.HengbotPolicy,
+            row["predecision_policy_checkpoint_pickle_b64"],
+        )
+        inside = cat.pickle.loads(cat.base64.b64decode(
+            row["decision_snapshot_pickle_b64"]
+        ))
+        outside = cat.pickle.loads(cat.base64.b64decode(
+            row["next_snapshot_pickle_b64"]
+        ))
+
+        first = policy.choose_key(inside)
+        policy.confirm_key_posted(first)
+        withdrawal = policy.choose_key(outside)
+        policy.confirm_key_posted(withdrawal)
+
+        self.assertEqual(
+            (withdrawal, policy.last_reason),
+            ("5pm1\r\x1b", "home:atomic-withdraw"),
+        )
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:restock-store-unreachable"
         )
 
     def test_home_suppression_cycle_releases_by_atomic_withdrawal(self):

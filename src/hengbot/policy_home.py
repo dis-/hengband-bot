@@ -1070,6 +1070,10 @@ class HomeMixin:
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_withdraw_pending is not None
             or (
+                self._store_visit is not None
+                and self._store_visit.store_type != STORE_HOME
+            )
+            or (
                 getattr(self, "_store_entrance_step_off", None) is not None
                 and self._store_entrance_step_off[0] != self._decision_sequence
             )
@@ -1775,6 +1779,10 @@ class HomeMixin:
             or self._shopping_approach_store_type != STORE_HOME
             or self._home_atomic_deposit_pending is not None
             or (
+                self._store_visit is not None
+                and self._store_visit.store_type != STORE_HOME
+            )
+            or (
                 getattr(self, "_store_entrance_step_off", None) is not None
                 and self._store_entrance_step_off[0] != self._decision_sequence
             )
@@ -2028,8 +2036,10 @@ class HomeMixin:
 
     def _compose_home_operation(
         self, snapshot: Snapshot, composed_key: str, operation_key: str
-    ) -> None:
+    ) -> bool:
         """Bind Home entry and its operation as one indivisible input macro."""
+        if self._store_visit is not None and self._store_visit.store_type != STORE_HOME:
+            return False
         if self._store_visit is None:
             self._store_visit = StoreVisit(
                 owner=(
@@ -2053,9 +2063,21 @@ class HomeMixin:
         visit.composed_key = composed_key
         visit.posted_sequence = self._decision_sequence
         visit.posted_turn = snapshot.turn
+        self._town_visit_ledger.pending_store_transaction = (
+            STORE_HOME,
+            self._decision_sequence,
+        )
+        self._town_visit_ledger.pending_store_context_waits = 0
+        self._store_entry_wait_owner = STORE_HOME
+        self._store_entry_wait_key = composed_key
+        self._store_entry_wait_turn = None
+        self._intentional_entrance_activation = True
+        return True
 
-    def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> None:
+    def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> bool:
         """Post Home entry now and release its bound tail on the fresh page."""
+        if self._store_visit is not None and self._store_visit.store_type != STORE_HOME:
+            return False
         if self._store_visit is None:
             self._store_visit = StoreVisit(
                 owner=(
@@ -2083,6 +2105,7 @@ class HomeMixin:
         self._store_entry_wait_key = WAIT_KEY
         self._store_entry_wait_turn = None
         self._intentional_entrance_activation = True
+        return True
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_deposit_abandoned:

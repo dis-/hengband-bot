@@ -2291,6 +2291,30 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.operation_key, tail)
         self.assertTrue(policy._store_visit.operation_released)
 
+    def test_home_operation_helpers_do_not_hijack_foreign_store_visit(self):
+        snapshot = self._snapshot([], turn=2247201)
+        for helper, args in (
+            ("_compose_home_operation", ("5pa\x1b", "pa\x1b")),
+            ("_stage_home_operation", ("pa\x1b",)),
+        ):
+            with self.subTest(helper=helper):
+                policy = HengbotPolicy()
+                foreign = StoreVisit(
+                    owner="town-errand",
+                    purpose="shopping",
+                    store_type=STORE_GENERAL,
+                    phase=StoreVisitPhase.LEAVING,
+                    opened_sequence=1200,
+                )
+                policy._store_visit = foreign
+
+                self.assertFalse(getattr(policy, helper)(snapshot, *args))
+                self.assertIs(policy._store_visit, foreign)
+                self.assertFalse(foreign.operation_posted)
+                self.assertIsNone(foreign.operation_key)
+                self.assertFalse(foreign.operation_released)
+                self.assertEqual(foreign.store_type, STORE_GENERAL)
+
     def _recorded_full_identify_snapshots(self, *, source=None):
         candidate = store_item(
             "M", 37, 10,
