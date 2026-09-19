@@ -13,7 +13,9 @@ from hengbot.model import (
     TVAL_WAND,
     StoreItem,
     StoreState,
+    parse_snapshot,
 )
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.policy import (
     FOOD_TYPE_MANA,
     DIRECTION_KEYS,
@@ -591,6 +593,46 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertIn("home:scan-step-off", reason)
         self.assertTrue(policy._town_result_makes_progress(snapshot, key))
         self.assertNotIn("town-progress-invariant:approach", policy.last_reason)
+
+    def test_recorded_home_errand_knowledge_macro_is_progress_by_key(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260919-1619-identification-catalog-spin.jsonl"
+        )
+        rows = [
+            json.loads(line)
+            for line in fixture.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(len(rows), 24)
+        self.assertEqual((rows[0]["turn"], rows[-1]["turn"]), (
+            3_741_989, 3_742_181,
+        ))
+
+        policy = HengbotPolicy()
+        reason = "home-errand:request-knowledge:identification-catalog"
+        replay = []
+        for row in rows:
+            snapshot = parse_snapshot(row, {})
+            policy.last_reason = reason
+            key = policy._town_procurement_decision(
+                snapshot, HOME_KNOWLEDGE_MACRO
+            )
+            replay.append((key, policy.last_reason))
+            self.assertTrue(
+                policy._town_result_makes_progress(snapshot, key)
+            )
+
+        self.assertTrue(all(
+            key == HOME_KNOWLEDGE_MACRO
+            and current_reason == reason
+            and not current_reason.startswith("town-progress-invariant:defect:")
+            for key, current_reason in replay
+        ))
+        self.assertFalse(any(
+            current_reason == "town:blocked:owner-retired"
+            for _key, current_reason in replay
+        ))
 
     def test_captured_town_wander_retires_phantom_equipment_failure(self):
         incident = (
