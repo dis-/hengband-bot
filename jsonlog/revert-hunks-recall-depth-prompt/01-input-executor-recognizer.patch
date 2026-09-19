@@ -1,0 +1,18 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -724,14 +724,6 @@ class OperationExecutor:
+ 
+         return feature.startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
+ 
+-    @staticmethod
+-    def _is_recall_depth_confirm(owner: str, feature: str) -> bool:
+-        from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
+-
+-        return owner == "return:recall" and feature.startswith(
+-            RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
+-        )
+-
+     def _finish_board(self, state, screen_value, match):
+         started = time.perf_counter()
+         records = self.drain()

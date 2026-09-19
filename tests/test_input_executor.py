@@ -1607,6 +1607,70 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["6", "n"])
 
+    def test_recall_depth_confirm_is_refused_only_for_recall_owner(self):
+        prompts = (
+            "ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]",
+            "Reset recall depth? [y/n]",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                game, _client, executor = self.make()
+                game.screens = [prompt_screen(prompt), command_screen(3)]
+                executor.observe_boundary(deadline=9999999999)
+                result = executor.submit(
+                    Operation(
+                        4556, "return:recall", "rj", executor.ready_board
+                    ),
+                    deadline=9999999999,
+                )
+                self.assertEqual(result.outcome, "completed", result.reason)
+                self.assertEqual(game.accepted, ["rj", "n"])
+
+        game, _client, executor = self.make()
+        game.screens = [prompt_screen(prompts[1])]
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(
+            Operation(4557, "not-recall", "x", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(game.accepted, ["x"])
+
+    def test_recorded_recall_depth_shape_completes_through_sender_path(self):
+        fixture = (
+            Path(__file__).parents[1] / "jsonlog" /
+            "incident-20260919-2230-recall-depth-prompt.jsonl"
+        )
+        raw = json.loads(fixture.read_text(encoding="utf-8").splitlines()[-1])
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [
+            prompt_screen(
+                "ここは最深到達階より浅い階です。"
+                "この階に戻って来ますか？ [y/n]"
+            ),
+            command_screen(raw["turn"] + 1),
+        ]
+        game.states = [copy.deepcopy(raw), copy.deepcopy(raw)]
+        game, _client, executor = self.make(game)
+        self.assertEqual(
+            executor.observe_boundary(deadline=9999999999).outcome, "ready"
+        )
+        port = _ExecutorInputPort(
+            executor, tunnel_macros_ready=True, request_budget=2
+        )
+        sent, _posted = _send_new_decision_key(
+            port, "recorded-recall-depth", "rj", None, set(),
+            in_store=False,
+            decision={"sequence": 1849, "reason": "return:recall"},
+            snapshot=parse_snapshot(raw, {}),
+            posting_contract=PostingContract(),
+        )
+        self.assertTrue(sent)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual(game.accepted, ["rj", "n"])
+
     def test_unrelated_question_and_knowledge_more_post_no_answer(self):
         for screen in (prompt_screen("Unrelated? [y/n]"), self._knowledge_screen()):
             with self.subTest(row0=screen["lines"][0]):

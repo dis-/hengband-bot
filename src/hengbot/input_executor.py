@@ -724,6 +724,14 @@ class OperationExecutor:
 
         return feature.startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
 
+    @staticmethod
+    def _is_recall_depth_confirm(owner: str, feature: str) -> bool:
+        from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
+
+        return owner == "return:recall" and feature.startswith(
+            RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
+        )
+
     def _finish_board(self, state, screen_value, match):
         started = time.perf_counter()
         records = self.drain()
@@ -950,6 +958,13 @@ class OperationExecutor:
         if (
             match.kind is ScreenKind.CONFIRM
             and self._is_warning_confirm(match.feature)
+        ):
+            return self._post_and_barrier("n", deadline, role="answer")
+        if (
+            match.kind is ScreenKind.CONFIRM
+            and self._is_recall_depth_confirm(
+                self.active.owner, match.feature
+            )
         ):
             return self._post_and_barrier("n", deadline, role="answer")
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):

@@ -1,0 +1,17 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -589,13 +589,6 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
+     "Really want to go ahead?",
+ )
+ 
+-# Word of Recall asks this only when the current floor is shallower than the
+-# dungeon's saved recall destination. Refusing preserves the deepest floor;
+-# the executor owns this question only for the return:recall operation.
+-RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES = (
+-    "ここは最深到達階より浅い階です。この階に戻って来ますか？",
+-    "Reset recall depth?",
+-)
+ 
+ # それならば一旦多少の非効率は許容する。訪問回数の最大値を300回まで緩和することを許可するのでまずは処理を
+ # 完遂させること。効率化はその後。

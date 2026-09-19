@@ -1,0 +1,17 @@
+diff --git a/src/hengbot/input_executor.py b/src/hengbot/input_executor.py
+--- a/src/hengbot/input_executor.py
++++ b/src/hengbot/input_executor.py
+@@ -960,13 +960,6 @@ class OperationExecutor:
+             and self._is_warning_confirm(match.feature)
+         ):
+             return self._post_and_barrier("n", deadline, role="answer")
+-        if (
+-            match.kind is ScreenKind.CONFIRM
+-            and self._is_recall_depth_confirm(
+-                self.active.owner, match.feature
+-            )
+-        ):
+-            return self._post_and_barrier("n", deadline, role="answer")
+         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
+         screen_epoch = self.client.observation_epoch
