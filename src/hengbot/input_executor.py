@@ -917,26 +917,11 @@ class OperationExecutor:
                 )
                 for feature in expected_features if feature is not None
             )
-            enchant_kind_bridge = (
-                self.active.owner.startswith("town:enchant-launcher-")
-                and match.kind is ScreenKind.ITEM_SOURCE
-                and ScreenKind.ITEM_TARGET in continuation.kinds
-                and feature_matches
-                and match.feature.endswith((
-                    "Enchant which item?",
-                    "\u3069\u306e\u30a2\u30a4\u30c6\u30e0\u3092\u5f37\u5316\u3057\u307e\u3059\u304b?",
-                ))
-            )
-            if (match.kind in continuation.kinds or enchant_kind_bridge) and feature_matches:
+            if match.kind in continuation.kinds and feature_matches:
                 if self.active.owner.startswith("town:enchant-launcher-") \
                         and match.feature.endswith((
                             "Enchant which item?", "どのアイテムを強化しますか?",
                         )):
-                    advertised = re.search(r"([a-z])-([a-z])", match.feature)
-                    target = continuation.keys
-                    if advertised is None or not re.fullmatch(r"[a-z]", target) \
-                            or not advertised.group(1) <= target <= advertised.group(2):
-                        break
                     if match.feature.startswith(("(Inven:", "(持ち物:")):
                         prompt_state = self._request("state", deadline, map=True)
                         if prompt_state is None:
@@ -945,6 +930,11 @@ class OperationExecutor:
                         self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
                         return self._post_and_barrier(
                             "/", deadline, role="auxiliary-request")
+                    advertised = re.search(r"([a-z])-([a-z])", match.feature)
+                    target = continuation.keys
+                    if advertised is None or not re.fullmatch(r"[a-z]", target) \
+                            or not advertised.group(1) <= target <= advertised.group(2):
+                        break
                     if not match.feature.startswith(("(Equip:", "(装備品:")):
                         break
                 prompt_state = self._request("state", deadline, map=True)

@@ -20,7 +20,10 @@ from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _send_new_decision_key,
     _send_prompt_gated_decision_key, _store_buy_continuations,
 )
-from hengbot.model import Position, Snapshot, parse_snapshot
+from hengbot.model import (
+    SV_SCROLL_ENCHANT_WEAPON_TO_HIT, TVAL_SCROLL,
+    Position, Snapshot, parse_snapshot,
+)
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.quest_navigator import QuestFloorNavigator
@@ -1342,14 +1345,7 @@ class TcpBarrierPinTest(ProductionHarness):
             (ScreenKind.ITEM_SOURCE,
              [prompt_screen("(Equip: a-c,'(',')', ESC) " + prompt),
               command_screen(3)], ["rj", "c"]),
-            (ScreenKind.ITEM_TARGET,
-             [prompt_screen("(Equip: a-c,'(',')', ESC) " + prompt),
-              command_screen(3)], ["rj", "c"]),
             (ScreenKind.ITEM_SOURCE,
-             [prompt_screen("(Inven: a-k,'(',')', / for Equip, ESC) " + prompt),
-              prompt_screen("(Equip: a-c,'(',')', / for Inven, ESC) " + prompt),
-              command_screen(3)], ["rj", "/", "c"]),
-            (ScreenKind.ITEM_TARGET,
              [prompt_screen("(Inven: a-k,'(',')', / for Equip, ESC) " + prompt),
               prompt_screen("(Equip: a-c,'(',')', / for Inven, ESC) " + prompt),
               command_screen(3)], ["rj", "/", "c"]),
@@ -1380,6 +1376,81 @@ class TcpBarrierPinTest(ProductionHarness):
         ), deadline=9999999999)
         self.assertEqual((result.outcome, game.accepted),
                          ("stuck-prompt", ["rj"]))
+
+    def test_live_japanese_enchant_chain_toggles_before_range_validation(self):
+        fixture_path = (
+            Path(__file__).parent / "fixtures" /
+            "destroy-superior-digger-20260910.json.gz"
+        )
+        with gzip.open(fixture_path, "rt", encoding="utf-8") as stream:
+            rows = json.load(stream)
+        raw = copy.deepcopy(next(
+            row["snapshot"] for row in rows
+            if row["decision"]["decision_sequence"] == 2107
+        ))
+        scroll = copy.deepcopy(raw["inventory"][0])
+        scroll.update(
+            slot="j", tval=TVAL_SCROLL,
+            sval=SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+            name="Enchant Weapon To-Hit", count=1,
+        )
+        raw["inventory"] = [scroll]
+        raw["equipment"] = [
+            entry for entry in raw["equipment"] if entry["slot"] == "bow"
+        ]
+        snapshot = parse_snapshot(raw, {})
+        policy = ConservativePolicy()
+        policy._decision_sequence = 112
+        key = policy._town_enchant_launcher_key(snapshot)
+        chain = policy.peek_staged_prompt_chain()
+        self.assertEqual((policy.last_reason, key),
+                         ("town:enchant-launcher-tohit", "rjc"))
+
+        class EnchantGame(FaithfulHookGame):
+            def _consume(self, *, pump_frontend=True):
+                if pump_frontend and self.frontend_fifo:
+                    self.term_fifo.extend(self.frontend_fifo)
+                    self.frontend_fifo.clear()
+                if "".join(self.term_fifo) == "r":
+                    self.term_fifo.clear()
+                    self.state = {
+                        "turn": self.state["turn"] + 1,
+                        "grid_map": {"runs": []},
+                    }
+                    self.screen = prompt_screen(
+                        chain["gates"][0][1][0].rstrip()
+                    )
+                    return
+                super()._consume(pump_frontend=False)
+
+        game = EnchantGame()
+        game.screens = [
+            prompt_screen(
+                "(持ち物:u-u,'(',')', '/' 装備品 ESC) "
+                "どのアイテムを強化しますか?"
+            ),
+            prompt_screen(
+                "(装備品:c-c,'(',')', '/' 持ち物, ESC) "
+                "どのアイテムを強化しますか?"
+            ),
+            command_screen(3),
+        ]
+        _game, client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(
+            deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True,
+                                  request_budget=2)
+        sent, _line, result = _send_prompt_gated_decision_key(
+            port, "incident-seq112", key, None, set(), chain,
+            shadow_client=client, file=StringIO(), deadline=9999999999,
+            poll_interval=0, prompt_japanese=True,
+            decision={"sequence": 112, "reason": policy.last_reason},
+            snapshot=snapshot, posting_contract=PostingContract(),
+        )
+        self.assertEqual(port.last_result.operation.accepted_segments,
+                         ["r", "j", "/", "c"])
+        self.assertTrue(sent)
+        self.assertEqual(result["outcome"], "released")
 
     def test_p5_source_then_target_ignore_intermediate_jsonl_and_release_once(self):
         game, _client, executor = self.make()
