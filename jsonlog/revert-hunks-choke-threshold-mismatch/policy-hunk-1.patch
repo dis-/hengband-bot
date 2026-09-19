@@ -1,0 +1,12 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12049,7 +12049,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                     position.distance_to(monster.position) for monster in summoners
+                 )
+                 if (
+-                    openness <= SUMMONER_CHOKE_NEIGHBORS - 1
++                    openness <= SUMMONER_CHOKE_NEIGHBORS
+                     and summoner_distance >= origin_distance
+                 ):
+                     candidates.append(

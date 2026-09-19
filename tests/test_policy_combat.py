@@ -488,6 +488,61 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         self.assertEqual(key, WAIT_KEY)
         detected_preparation.assert_not_called()
+
+    def test_recorded_prepare_choke_route_does_not_swap_adjacent_cells(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260919-2334-prepare-choke-oscillation"
+            / "snapshots.jsonl"
+        )
+        monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        self.assertTrue(capture.is_file(), f"missing committed capture: {capture}")
+        self.assertTrue(monraces.is_file(), f"missing monster knowledge: {monraces}")
+        rows = [
+            json.loads(line)
+            for line in capture.read_text(encoding="utf-8").splitlines()
+        ]
+        knowledge = load_monrace_knowledge(monraces)
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        decisions = []
+
+        for row in rows[:9]:
+            snapshot = parse_snapshot(row, knowledge)
+            key = policy.choose_key(snapshot)
+            if row["turn"] in {3801585, 3801595}:
+                decisions.append((snapshot.player.position, key))
+
+        self.assertEqual(
+            [position for position, _key in decisions],
+            [Position(12, 36), Position(12, 35)],
+        )
+        self.assertEqual([key for _position, key in decisions], ["8", "4"])
+        self.assertNotEqual([key for _position, key in decisions], ["4", "6"])
+
+    def test_prepare_choke_without_narrow_candidate_falls_back_to_flee(self):
+        threat = replace(
+            hostile(7, 10, 12, distance=2, max_melee_damage=20),
+            perception="detected",
+        )
+        snapshot = replace(
+            self._corridor_snapshot([threat]),
+            grids={
+                Position(y, x): grid(y, x)
+                for y in range(7, 14)
+                for x in range(7, 14)
+            },
+        )
+        policy = HengbotPolicy()
+        policy._build_grid_index(snapshot)
+        fallback = Position(10, 9)
+
+        with patch.object(policy, "_flee_step", return_value=fallback) as flee:
+            step = policy._summoner_retreat_step(snapshot, [threat], [threat])
+
+        self.assertEqual(step, fallback)
+        flee.assert_called_once_with(snapshot, [threat])
+
 class CombatTest(unittest.TestCase):
     def test_9f_water_capture_does_not_reposition_for_choke(self):
         origin = Position(13, 105)

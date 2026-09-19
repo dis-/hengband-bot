@@ -12049,7 +12049,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     position.distance_to(monster.position) for monster in summoners
                 )
                 if (
-                    openness <= SUMMONER_CHOKE_NEIGHBORS
+                    openness <= SUMMONER_CHOKE_NEIGHBORS - 1
                     and summoner_distance >= origin_distance
                 ):
                     candidates.append(
