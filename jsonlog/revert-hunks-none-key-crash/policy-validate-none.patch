@@ -1,0 +1,12 @@
+diff --git b/src/hengbot/policy.py a/src/hengbot/policy.py
+index 11539c6..0ed4a67 100644
+--- b/src/hengbot/policy.py
++++ a/src/hengbot/policy.py
+@@ -8263,2 +8263,2 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+-    def validate_read_key(self, snapshot: Snapshot, key: str | None) -> str | None:
++    def validate_read_key(self, snapshot: Snapshot, key: str) -> str:
+         """Rebind a composed read to its intended scroll in the acting snapshot."""
+@@ -8265,2 +8265,2 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+-        if key is None or not key.startswith(READ_KEY) or len(key) < 2 or self._read_binding is None:
++        if not key.startswith(READ_KEY) or len(key) < 2 or self._read_binding is None:
+             return key

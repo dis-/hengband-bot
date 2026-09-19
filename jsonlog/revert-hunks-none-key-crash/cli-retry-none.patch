@@ -1,0 +1,25 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -3937,21 +3937,6 @@ def _run_follow(
+                         emit_ownership = emit_ownership_verdict(
+                             emit_visit, snapshot, key, emit_approach_store
+                         ).as_dict()
+-                        if key is None:
+-                            decision_facts = _capture_decision_facts(snapshot, policy)
+-                            recorder.after_decision(policy, snapshot)
+-                            decision_timing["total_ms"] = round(
+-                                (time.perf_counter() - decision_started_at) * 1000, 3
+-                            )
+-                            _write_decision(
+-                                args.decision_log, snapshot, key, policy.last_reason,
+-                                policy, economy_ledger, timing=decision_timing,
+-                                decision_facts=decision_facts,
+-                                town_emit_ownership=emit_ownership,
+-                            )
+-                            print(f"<no-key:{policy.last_reason}>", flush=True)
+-                            poll_wait_started_at = time.perf_counter()
+-                            continue
+                         phase_started_at = time.perf_counter()
+                         decision = {
+                             "sequence": policy._decision_sequence,

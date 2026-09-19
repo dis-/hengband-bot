@@ -292,6 +292,11 @@ class ReadLetterBindingTest(unittest.TestCase):
             player=player(5, 5), grids={}, visible_monsters=[], inventory=inventory
         )
 
+    def test_none_key_needs_no_read_validation(self):
+        policy = HengbotPolicy()
+
+        self.assertIsNone(policy.validate_read_key(self.snapshot([]), None))
+
     def test_detection_scroll_stale_letter_never_reads_monster_confusion(self):
         policy = HengbotPolicy()
         detection = item(

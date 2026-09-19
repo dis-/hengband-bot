@@ -3150,6 +3150,9 @@ def main(argv: list[str] | None = None) -> int:
                 decision_facts=decision_facts,
                 town_emit_ownership=emit_ownership,
             )
+            if key is None:
+                print(f"<no-key:{policy.last_reason}>", flush=True)
+                return 0
             print(key, flush=True)
             if not live_actuation:
                 # Replay/print-only mode is deliberately non-actuating and does
@@ -3624,6 +3627,21 @@ def _run_follow(
                     # JSONL has already supplied the policy input and chosen
                     # command. TCP observations remain structurally downstream.
                     pending_batch_row["decided"] = True
+                    if key is None:
+                        decision_facts = _capture_decision_facts(snapshot, policy)
+                        recorder.after_decision(policy, snapshot)
+                        decision_timing["total_ms"] = round(
+                            (time.perf_counter() - decision_started_at) * 1000, 3
+                        )
+                        _write_decision(
+                            args.decision_log, snapshot, key, policy.last_reason,
+                            policy, economy_ledger, timing=decision_timing,
+                            decision_facts=decision_facts,
+                            town_emit_ownership=emit_ownership,
+                        )
+                        print(f"<no-key:{policy.last_reason}>", flush=True)
+                        poll_wait_started_at = time.perf_counter()
+                        continue
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
@@ -3919,6 +3937,21 @@ def _run_follow(
                         emit_ownership = emit_ownership_verdict(
                             emit_visit, snapshot, key, emit_approach_store
                         ).as_dict()
+                        if key is None:
+                            decision_facts = _capture_decision_facts(snapshot, policy)
+                            recorder.after_decision(policy, snapshot)
+                            decision_timing["total_ms"] = round(
+                                (time.perf_counter() - decision_started_at) * 1000, 3
+                            )
+                            _write_decision(
+                                args.decision_log, snapshot, key, policy.last_reason,
+                                policy, economy_ledger, timing=decision_timing,
+                                decision_facts=decision_facts,
+                                town_emit_ownership=emit_ownership,
+                            )
+                            print(f"<no-key:{policy.last_reason}>", flush=True)
+                            poll_wait_started_at = time.perf_counter()
+                            continue
                         phase_started_at = time.perf_counter()
                         decision = {
                             "sequence": policy._decision_sequence,

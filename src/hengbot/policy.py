@@ -8260,9 +8260,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         return self.validate_read_key(snapshot, READ_KEY + item.slot + suffix)
 
-    def validate_read_key(self, snapshot: Snapshot, key: str) -> str:
+    def validate_read_key(self, snapshot: Snapshot, key: str | None) -> str | None:
         """Rebind a composed read to its intended scroll in the acting snapshot."""
-        if not key.startswith(READ_KEY) or len(key) < 2 or self._read_binding is None:
+        if key is None or not key.startswith(READ_KEY) or len(key) < 2 or self._read_binding is None:
             return key
         (
             intended_tval,

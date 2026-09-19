@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/cli.py b/src/hengbot/cli.py
+--- a/src/hengbot/cli.py
++++ b/src/hengbot/cli.py
+@@ -3150,9 +3150,6 @@ def main(argv: list[str] | None = None) -> int:
+                 decision_facts=decision_facts,
+                 town_emit_ownership=emit_ownership,
+             )
+-            if key is None:
+-                print(f"<no-key:{policy.last_reason}>", flush=True)
+-                return 0
+             print(key, flush=True)
+             if not live_actuation:
+                 # Replay/print-only mode is deliberately non-actuating and does

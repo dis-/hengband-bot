@@ -389,6 +389,67 @@ def tearDownModule():
     _knowledge_tmp.cleanup()
 
 
+class CliTest(unittest.TestCase):
+    def test_run_follow_records_none_key_and_waits_for_next_snapshot(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            first_decided = threading.Event()
+
+            def choose(snapshot):
+                if snapshot.turn == 2:
+                    policy.last_reason = "warning:refused-without-key"
+                    first_decided.set()
+                    return None
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+            posted = []
+
+            def append_snapshots():
+                time.sleep(0.05)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    stream.write(_snap_line(2, 5, 5))
+                    stream.flush()
+                    self.assertTrue(first_decided.wait(5))
+                    stream.write(_snap_line(3, 5, 6))
+                    stream.flush()
+
+            producer = threading.Thread(target=append_snapshots)
+            producer.start()
+            try:
+                with (
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._freeze_incident_safely"),
+                ):
+                    result = _run_follow(
+                        args, policy, lambda key, **_kwargs: posted.append(key), {}
+                    )
+            finally:
+                producer.join()
+
+            rows = [
+                json.loads(line)
+                for line in decision_path.read_text(encoding="utf-8").splitlines()
+            ]
+            none_row = next(
+                row for row in rows if row["reason"] == "warning:refused-without-key"
+            )
+            self.assertEqual((result, policy.choose_key.call_count), (0, 2))
+            self.assertIsNone(none_row["key"])
+            self.assertEqual(posted, [])
+
+
 class PolicyFinalStopBannerTest(unittest.TestCase):
     def test_every_final_reason_has_its_own_truthful_banner(self):
         restore = "equipment-transaction:restore-blocked-terminal"
