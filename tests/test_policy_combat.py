@@ -520,6 +520,49 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         self.assertEqual([key for _position, key in decisions], ["8", "4"])
         self.assertNotEqual([key for _position, key in decisions], ["4", "6"])
 
+    def test_recorded_detected_pack_holds_the_reached_choke(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260920-0025-choke-vs-loot-oscillation"
+            / "snapshots.jsonl"
+        )
+        monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        self.assertTrue(capture.is_file(), f"missing committed capture: {capture}")
+        self.assertTrue(monraces.is_file(), f"missing monster knowledge: {monraces}")
+        rows = [
+            json.loads(line)
+            for line in capture.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(len(rows), 6)
+        knowledge = load_monrace_knowledge(monraces)
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        decisions = []
+
+        for row in rows:
+            snapshot = parse_snapshot(row, knowledge)
+            key = policy.choose_key(snapshot)
+            decisions.append((snapshot.player.position, key, policy.last_reason))
+
+        self.assertEqual(
+            [position for position, _key, _reason in decisions],
+            [Position(15, 33), Position(14, 33)] * 3,
+        )
+        self.assertEqual(
+            [(key, reason) for _position, key, reason in decisions],
+            [
+                ("8", "detected:prepare-choke"),
+                (WAIT_KEY, "summoner:hold-choke"),
+            ] * 3,
+        )
+        self.assertFalse(
+            any(
+                first[1:] == ("8", "detected:prepare-choke")
+                and second[1] == "2"
+                for first, second in zip(decisions, decisions[1:])
+            )
+        )
+
     def test_prepare_choke_without_narrow_candidate_falls_back_to_flee(self):
         threat = replace(
             hostile(7, 10, 12, distance=2, max_melee_damage=20),

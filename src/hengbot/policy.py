@@ -11587,7 +11587,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._open_neighbor_count(snapshot, snapshot.player.position)
             <= SUMMONER_CHOKE_NEIGHBORS - 1
         ):
-            return None
+            # The visible-monster channel keeps ownership after reaching its
+            # choke and waits there instead of letting ordinary navigation
+            # immediately pull the player back into the open.  Detected melee
+            # packs need the same hand-off boundary: the convergence gates
+            # above release this hold when the pack disappears, becomes
+            # visible, sleeps, moves out of range, or drops below its count.
+            self.last_reason = "summoner:hold-choke"
+            return WAIT_KEY
         step = self._summoner_retreat_step(
             snapshot, breeders or melee_threats, detected
         )
