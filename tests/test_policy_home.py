@@ -2418,6 +2418,72 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertIsNone(policy._find_home_deposit(carried))
 
+    def test_recorded_pending_full_identify_withdrawal_is_not_redeposited(self):
+        fixture_path = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260919-1326-home-shield-alternation.jsonl"
+        )
+        with fixture_path.open("r", encoding="utf-8", newline="") as stream:
+            snapshots = [parse_snapshot(json.loads(line)) for line in stream]
+        self.assertEqual(len(snapshots), 24)
+
+        before_withdraw = snapshots[0]
+        home_page_zero = snapshots[2]
+        home_page_one = snapshots[3]
+        after_withdraw_inside = snapshots[4]
+        after_withdraw_outside = snapshots[5]
+        home_items = [
+            *home_page_zero.store.items,
+            *home_page_one.store.items,
+        ]
+        shield = next(
+            candidate for candidate in home_items
+            if candidate.tval == 34 and candidate.sval == 2
+        )
+        policy = self._catalogued_withdrawal_policy(home_items, page_size=52)
+        set_known_target(policy)
+        signature = policy._item_signature(shield)
+        policy._home_pending_item = signature
+
+        self._assert_staged_home_operation(
+            policy,
+            policy._atomic_home_withdraw_key(
+                before_withdraw, before_withdraw.player.position
+            ),
+            " pe\x1b",
+        )
+        released = policy._release_staged_store_operation(home_page_zero)
+        self.assertEqual(released, " pe\x1b")
+        policy.confirm_key_posted(released)
+
+        self.assertEqual(
+            policy.choose_key(after_withdraw_inside), LEAVE_STORE_KEY
+        )
+        policy._home_atomic_withdraw_pending = None
+        policy._home_atomic_withdraw_posted_turn = None
+        policy._home_entry_operation_posted = False
+        policy._home_pending_item = None
+        policy._store_visit = None
+        policy._clear_pending_disposal()
+        carried_shield = next(
+            candidate for candidate in after_withdraw_outside.inventory
+            if candidate.tval == 34 and candidate.sval == 2
+        )
+        self.assertTrue(
+            policy._home_deposit_candidate(
+                carried_shield, after_withdraw_outside
+            )
+        )
+        deposit = policy._find_home_deposit(after_withdraw_outside)
+        deposit_key = (
+            policy._home_deposit_key(after_withdraw_outside, deposit)
+            + LEAVE_STORE_KEY
+            if deposit is not None else None
+        )
+        self.assertEqual((deposit, deposit_key), (None, None))
+        self.assertIsNone(policy._home_pending_item)
+        self.assertTrue(policy._identification_flow_owns(carried_shield))
+
     def test_posted_withdraw_without_observed_effect_does_not_reset_passes(self):
         target = store_item("a", TVAL_POTION, 998, name="unobserved target")
         policy = self._catalogued_withdrawal_policy([target])

@@ -2090,6 +2090,7 @@ class HomeMixin:
                 and not self._is_surplus_digging_tool(snapshot, item)
             )
             and not self._is_wanted_jewelry(snapshot, item)
+            and not self._identification_flow_owns(item)
             and self._item_signature(item) not in self._home_rejected_deposits
             and not (
                 high_grade
