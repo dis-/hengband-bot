@@ -4567,7 +4567,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(
                 entrance, entrance.player.position,
             ),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         armed_pack = replace(entrance, inventory=[home_weapon])
         self.assertEqual(policy._opening_q34_town_key(armed_pack, []), "wa")

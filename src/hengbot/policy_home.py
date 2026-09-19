@@ -1404,7 +1404,7 @@ class HomeMixin:
                 operation_key = (
                     (" " * page) + "".join(commands) + LEAVE_STORE_KEY
                 )
-        key = WAIT_KEY
+        key = WAIT_KEY + operation_key
         if session is not None and action is not None and action.kind == "withdraw":
             observation = replace(
                 observe_equipment_transactions(snapshot), in_home=True
@@ -1521,7 +1521,7 @@ class HomeMixin:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
-        self._stage_home_operation(snapshot, operation_key)
+        self._compose_home_operation(snapshot, key, operation_key)
         self.last_reason = reason
         return key
 
@@ -2025,6 +2025,34 @@ class HomeMixin:
         visit.posted_turn = snapshot.turn
         self.last_reason = "home:atomic-deposit"
         return operation_key
+
+    def _compose_home_operation(
+        self, snapshot: Snapshot, composed_key: str, operation_key: str
+    ) -> None:
+        """Bind Home entry and its operation as one indivisible input macro."""
+        if self._store_visit is None:
+            self._store_visit = StoreVisit(
+                owner=(
+                    "equipment-transaction"
+                    if self._equipment_transaction_session is not None
+                    else "town-errand"
+                ),
+                purpose=(
+                    "equipment-work"
+                    if self._equipment_transaction_session is not None
+                    else "shopping"
+                ),
+                store_type=STORE_HOME,
+                visit_origin="home-operation-staging",
+                opened_sequence=self._decision_sequence,
+            )
+        visit = self._store_visit
+        visit.operation_posted = True
+        visit.operation_key = operation_key
+        visit.operation_released = True
+        visit.composed_key = composed_key
+        visit.posted_sequence = self._decision_sequence
+        visit.posted_turn = snapshot.turn
 
     def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> None:
         """Post Home entry now and release its bound tail on the fresh page."""

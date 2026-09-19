@@ -2462,12 +2462,12 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(pol._home_pending_item, pol._item_signature(stored[0]))
 
         entrance = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(pol.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(pol.choose_key(entrance), "5pa1\r\x1b")
         self.assertEqual(pol.last_reason, "home:atomic-withdraw")
 
         page = replace(inside, turn=entrance.turn + 1)
-        self.assertEqual(pol.choose_key(page), "pa1\r\x1b")
-        self.assertEqual(pol.last_reason, "home:atomic-withdraw")
+        self.assertEqual(pol.choose_key(page), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:leave-after-one-operation")
 
         after = replace(
             entrance,
@@ -2531,8 +2531,8 @@ class IdentifyStaffTest(unittest.TestCase):
 
         # Produce the deferral through the real public withdrawal consumer.
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
-        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(deferred), pol._deferred_home_items)
         queued = pol.choose_key(replace(inside, turn=4))
@@ -2580,19 +2580,19 @@ class IdentifyStaffTest(unittest.TestCase):
         pol._shopping_approach_goal = home_position
 
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
-        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(stored), pol._deferred_home_items)
 
         # Home still contains exactly the usable stack deferred by the real
         # failed-withdrawal producer above.  It is unavailable this visit.
         self.assertEqual(pol.choose_key(replace(inside, turn=4)), LEAVE_STORE_KEY)
-        self.assertEqual(pol.last_reason, "home:scan-complete-from-open-page")
+        self.assertEqual(pol.last_reason, "home:identify-staff-reserve-unavailable")
         pol.choose_key(replace(outside, turn=5))
         self.assertEqual(pol.choose_key(replace(inside, turn=6)), LEAVE_STORE_KEY)
         self.assertEqual(
-            pol.last_reason, "home:identify-staff-reserve-unavailable"
+            pol.last_reason, "home:route-claim-unfulfilled"
         )
         self.assertIn(STORE_HOME, pol._town_store_attempted)
 
@@ -2658,8 +2658,8 @@ class IdentifyStaffTest(unittest.TestCase):
             pol._home_pending_item, pol._item_signature(restore), pol.last_reason
         )
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(pol.choose_key(replace(outside, turn=1)), WAIT_KEY)
-        self.assertEqual(pol.choose_key(replace(inside, turn=2)), "pa\x1b")
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa\x1b")
+        self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(restore), pol._deferred_home_items)
         short_inside = replace(inside, turn=4, inventory=[short])
@@ -4883,10 +4883,10 @@ class IdentifyStaffLiveCatalogueTest(unittest.TestCase):
         self.assertEqual(pol._home_pending_item, pol._item_signature(live_staff))
 
         entrance = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(pol.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(pol.choose_key(entrance), "5pp1\r\x1b")
         page = replace(inside, turn=entrance.turn + 1)
-        self.assertEqual(pol.choose_key(page), "pp1\r\x1b")
-        self.assertEqual(pol.last_reason, "home:atomic-withdraw")
+        self.assertEqual(pol.choose_key(page), LEAVE_STORE_KEY)
+        self.assertEqual(pol.last_reason, "home:leave-after-one-operation")
 
         after = replace(
             entrance,

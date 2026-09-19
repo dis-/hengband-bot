@@ -2589,8 +2589,8 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             need_categories={STORE_HOME: ("equipment-catalog",)},
         )
         entry_key = policy.choose_key(entrance)
-        self.assertEqual(entry_key, WAIT_KEY)
-        self.assertTrue(policy.confirm_key_posted(entry_key))
+        self.assertEqual(entry_key, "5 pa\x1b")
+        self.assertFalse(policy.confirm_key_posted(entry_key))
         home_plan = policy._town_errand_plan
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
         self.assertEqual(
@@ -2622,7 +2622,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 STORE_HOME, [sword], stock_num=1, page_top=0, page_size=52
             ),
         )
-        self.assertEqual(policy.choose_key(inside), " pa\x1b")
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
         outside = replace(entrance, inventory=[carried], turn=1)
         self.assertEqual(
             policy._inventory_signature_count(
@@ -2635,7 +2635,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             INSCRIBE_KEY + "q.\r",
         )
         self.assertEqual(policy.last_reason, "equipment:suppress-random-teleport")
-        self.assertEqual(registry_calls, [outside.turn])
+        self.assertEqual(registry_calls, [entrance.turn, outside.turn])
         self.assertEqual(
             (
                 policy._town_visit_ledger.store_visits[STORE_HOME],
@@ -2643,7 +2643,7 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
                 home_plan.current_stop_passes,
                 home_plan.completed_this_visit,
             ),
-            (1, 1, 0, [STORE_HOME]),
+            (2, 1, 0, [STORE_HOME]),
         )
     def test_repeated_home_suppression_actions_do_not_grow_catalog(self):
         stored = store_item(
@@ -5711,14 +5711,14 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual(
             decisions,
             [
-                (WAIT_KEY, "equipment-transaction:atomic-withdraw"),
-                ("pb\x1b", "home:atomic-withdraw"),
+                ("5pb\x1b", "equipment-transaction:atomic-withdraw"),
+                (LEAVE_STORE_KEY, "home:store-context-exit"),
                 (
                     LEAVE_STORE_KEY,
                     "equipment-transaction:await-confirmation-on-home",
                 ),
-                (WAIT_KEY, "equipment-transaction:atomic-withdraw"),
-                ("pa\x1b", "home:atomic-withdraw"),
+                ("5pa\x1b", "equipment-transaction:atomic-withdraw"),
+                (LEAVE_STORE_KEY, "home:store-context-exit"),
             ],
         )
         self.assertEqual(len(decisions), 5)

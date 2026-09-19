@@ -1154,7 +1154,7 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertEqual(entrance.player.gold, 12452)
         self.assertEqual(policy._atomic_home_withdraw_key(
             entrance, entrance.player.position,
-        ), WAIT_KEY)
+        ), WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(executor.operation, ("take", target))
         self.assertEqual(policy._store_visit.operation_key, "pn\x1b")
         self.assertNotEqual(policy.last_reason, "home-visit:withdraw-not-authorized")
@@ -1925,7 +1925,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         # The captured entrance/posted rows are seq 17672/17673 at turns
         # 1178879/1178889.  The posted restore remains owned through the stale
@@ -1952,7 +1952,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, shovel.name)
         policy._home_atomic_withdraw_pending = None
@@ -1962,7 +1962,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(
                 replace(entrance, turn=entrance.turn + 1), entrance.player.position
             ),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, restore.name)
 
@@ -1988,7 +1988,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy._atomic_home_withdraw_key(
                 entrance, entrance.player.position
             ),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(
             policy.last_reason, "calibration:atomic-restore-withdraw"
@@ -2008,7 +2008,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         entrance = self._entrance_snapshot([], turn=1178696)
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         policy.choose_key(entrance)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
@@ -2042,17 +2042,17 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertFalse(policy._home_digger_withdraw_pending)
         self.assertTrue(policy._home_knowledge_current)
-        policy.confirm_key_posted(WAIT_KEY)
+        policy.confirm_key_posted(WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(
             policy.choose_key(self._home_page_snapshot(
                 [], wares[:12], turn=2320394,
                 stock_num=len(wares), page_top=0, page_size=52,
             )),
-            "pbpa5\r\x1b",
+            LEAVE_STORE_KEY,
         )
         policy.choose_key(replace(
             entrance,
@@ -2087,11 +2087,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         rescanned = tuple(wares[1:])
         policy.consume_home_knowledge(rescanned)
         policy._shopping_approach_store_type = STORE_HOME
-        self.assertEqual(
+        self.assertIsNone(
             policy._atomic_home_withdraw_key(
                 replace(entrance, turn=fresh.turn + 2), entrance.player.position
-            ),
-            WAIT_KEY,
+            )
         )
         self.assertFalse(policy._home_digger_withdraw_pending)
         self.assertEqual(policy._digger_home_withdraw_failures, 0)
@@ -2133,7 +2132,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
 
     def test_captured_zero_digger_chain_reaches_mining_claim(self):
@@ -2187,7 +2186,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertEqual(policy._shop(home_page), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
-        self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(
+            policy.choose_key(entrance),
+            WAIT_KEY + policy._store_visit.operation_key,
+        )
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
         carried_shovel = item(
@@ -2282,12 +2284,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         return key
 
     def _assert_staged_home_operation(self, policy, entry, tail):
-        self.assertEqual(entry, WAIT_KEY)
-        self.assertEqual(len(entry), 1)
+        self.assertEqual(entry, WAIT_KEY + tail)
+        self.assertGreater(len(entry), 1)
         self.assertIsNotNone(policy._store_visit)
-        self.assertEqual(policy._store_visit.composed_key, WAIT_KEY)
+        self.assertEqual(policy._store_visit.composed_key, WAIT_KEY + tail)
         self.assertEqual(policy._store_visit.operation_key, tail)
-        self.assertFalse(policy._store_visit.operation_released)
+        self.assertTrue(policy._store_visit.operation_released)
 
     def _recorded_full_identify_snapshots(self, *, source=None):
         candidate = store_item(
@@ -2453,8 +2455,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             " pe\x1b",
         )
         released = policy._release_staged_store_operation(home_page_zero)
-        self.assertEqual(released, " pe\x1b")
-        policy.confirm_key_posted(released)
+        self.assertIsNone(released)
 
         self.assertEqual(
             policy.choose_key(after_withdraw_inside), LEAVE_STORE_KEY
@@ -2509,7 +2510,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         operation_key = policy.choose_key(inside)
-        self.assertEqual(operation_key, "pa\x1b")
+        self.assertEqual(operation_key, LEAVE_STORE_KEY)
         before_unobserved_leave = (
             policy._town_visit_ledger.unsatisfied_passes[STORE_HOME]
         )
@@ -2576,7 +2577,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertTrue(sent)
-        self.assertEqual("".join(posted), WAIT_KEY)
+        self.assertEqual("".join(posted), WAIT_KEY + "pa\x1b")
         self.assertEqual(policy._store_visit.operation_key, "pa\x1b")
         state = "outside"
         legal = []
@@ -2592,7 +2593,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 state = "outside"
             else:
                 self.fail((state, character, legal))
-        self.assertEqual(state, "home")
+        self.assertEqual(state, "outside")
     def test_public_calibration_restore_stops_on_first_uncomposable_claim(self):
         base = [
             store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
@@ -2921,7 +2922,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             in_store=False,
         )
         self.assertTrue(sent)
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(policy._store_visit.operation_key, "  pc\x1b")
         self.assertEqual("".join(posted), key)
 
@@ -2991,7 +2992,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         entrance = self._entrance_snapshot([], turn=2247900)
 
         first = policy.choose_key(entrance)
-        self.assertEqual(first, WAIT_KEY)
+        self.assertEqual(first, WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(policy._store_visit.operation_key, "pj\x1b")
         self.assertEqual(policy._home_knowledge_valid_before, len(wares))
 
@@ -2999,10 +3000,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             [], wares, turn=2247901, stock_num=len(wares),
             page_top=0, page_size=12,
         )
-        self.assertEqual(policy.choose_key(inside), "pj\x1b")
+        self.assertEqual(policy.choose_key(inside), LEAVE_STORE_KEY)
         replay = policy.choose_key(replace(entrance, turn=2247902))
 
-        self.assertEqual(replay, WAIT_KEY)
+        self.assertEqual(replay, "5pj\x1b")
         self.assertNotIn(
             policy.last_reason,
             {"equipment-transaction:withdraw-missing", "home:route-claim-unfulfilled"},
@@ -3030,13 +3031,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         carried = item(
             "a", 37, 1, name=armour.name, is_equipment=True, ac=14,
         )
-        policy.confirm_key_posted(WAIT_KEY)
+        policy.confirm_key_posted(WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(
             policy.choose_key(self._home_page_snapshot(
                 [], wares, turn=2247910,
                 stock_num=len(wares), page_top=0, page_size=12,
             )),
-            "pj\x1b",
+            LEAVE_STORE_KEY,
         )
         policy.choose_key(
             replace(entrance, turn=2247911, inventory=[carried])
@@ -3072,7 +3073,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         single_policy._home_pending_item = single_policy._item_signature(single)
         self.assertEqual(
             self._choose_atomic_withdrawal(single_policy, self._entrance_snapshot([])),
-            WAIT_KEY,
+            WAIT_KEY + single_policy._store_visit.operation_key,
         )
         stack_policy = self._catalogued_withdrawal_policy([single, stack])
         stack_policy._calibration_restore_signatures = [
@@ -3080,7 +3081,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         ]
         self.assertEqual(
             self._choose_atomic_withdrawal(stack_policy, self._entrance_snapshot([])),
-            WAIT_KEY,
+            WAIT_KEY + stack_policy._store_visit.operation_key,
         )
 
     def test_ammo_top_up_queues_only_merging_home_stack_and_exact_quantity(self):
@@ -3340,7 +3341,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertTrue(sent)
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(posted, [key])
         self.assertEqual(key.count(WAIT_KEY), 1)
         self.assertEqual(policy._store_visit.operation_key.count(BUY_KEY), 1)
@@ -3362,7 +3363,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._home_pending_item = policy._item_signature(later)
         self.assertEqual(
             self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
 
     def test_invalidated_address_refuses_until_home_is_reobserved(self):
@@ -3445,7 +3446,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         # Expectation changed: the emitter letter is ignored; index zero derives a.
         self.assertEqual(
             self._choose_atomic_withdrawal(policy, self._entrance_snapshot([])),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
 
     def test_failed_atomic_withdrawal_is_reported_and_never_reposted(self):
@@ -3454,13 +3455,16 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         signature = policy._item_signature(target)
         policy._home_pending_item = signature
         entrance = self._entrance_snapshot([])
-        self.assertEqual(self._choose_atomic_withdrawal(policy, entrance), WAIT_KEY)
+        self.assertEqual(
+            self._choose_atomic_withdrawal(policy, entrance),
+            WAIT_KEY + policy._store_visit.operation_key,
+        )
         self.assertEqual(
             policy.choose_key(self._home_page_snapshot(
                 [], [target], turn=entrance.turn,
                 stock_num=1, page_top=0, page_size=12,
             )),
-            "pa\x1b",
+            LEAVE_STORE_KEY,
         )
 
         outside = replace(entrance, turn=entrance.turn + 1)
@@ -3579,7 +3583,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         reasons.append(policy.last_reason)
 
         self.assertEqual(
-            decisions[:5], ["~9\x1b\x1b", "1", WAIT_KEY, "pa\x1b", "~9\x1b\x1b"],
+            decisions[:5], ["~9\x1b\x1b", "1", "5pa\x1b", "\x1b", "wf"],
         )
         self.assertNotIn("home:queue-combat-weapon-withdraw", reasons)
         self.assertLessEqual(len(decisions), 6)
@@ -3703,17 +3707,20 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         entrance = self._entrance_snapshot([], turn=2388203)
 
-        self.assertEqual(
-            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+        composed = policy._atomic_home_withdraw_key(
+            entrance, entrance.player.position
         )
+        self.assertEqual(
+            composed, WAIT_KEY + policy._store_visit.operation_key,
+        )
+        policy.confirm_key_posted(composed)
         self.assertTrue(policy._home_knowledge_current)
         self.assertEqual(
             policy.choose_key(self._home_page_snapshot(
                 [], wares, turn=2388203,
                 stock_num=len(wares), page_top=0, page_size=52,
             )),
-            "pE\x1b",
+            LEAVE_STORE_KEY,
         )
         policy.choose_key(replace(
             entrance,
@@ -3723,8 +3730,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 known=True, fully_known=True, is_equipment=True,
             )],
         ))
-        self.assertFalse(policy._home_knowledge_current)
-        self.assertIs(policy._equipment_transaction_session.current_action, action)
+        self.assertTrue(policy._home_knowledge_current)
+        self.assertLess(
+            policy._home_knowledge_valid_before, len(policy._home_knowledge_items)
+        )
+        self.assertIsNone(policy._equipment_transaction_session)
 
     def test_open_transaction_owns_withdraw_ahead_of_calibration_restore(self):
         restore = store_item("0", 36, 1, name="captured restore")
@@ -3745,7 +3755,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY,
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
         self.assertEqual(policy._store_visit.operation_key, "pb\x1b")
@@ -3870,7 +3880,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            policy.choose_key(self._entrance_snapshot([])), WAIT_KEY
+            policy.choose_key(self._entrance_snapshot([])),
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(
             policy.last_reason, "equipment-transaction:atomic-withdraw"
@@ -3897,7 +3908,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._equipment_transaction_session = session
 
         self.assertEqual(
-            policy.choose_key(self._entrance_snapshot([])), WAIT_KEY
+            policy.choose_key(self._entrance_snapshot([])),
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertEqual(policy._store_visit.operation_key, "pb\x1b")
         self.assertEqual(
@@ -5108,7 +5120,7 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
 
         key = policy.choose_key(snapshots[0])
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
         self.assertEqual(policy._store_visit.operation_key, "pa\x1b")
         self.assertNotIn(key, set("12346789"))
@@ -5199,7 +5211,7 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
             self.assertEqual(policy._equipment_atomic_withdraw_leave_count, 0)
 
         session.index = len(actions)
-        self.assertEqual(composed, [WAIT_KEY] * 3)
+        self.assertEqual(composed, [WAIT_KEY + "pa\x1b"] * 3)
         self.assertTrue(session.complete)
 
     def test_equipment_expectation_ignores_position_only_change(self):
@@ -5481,7 +5493,7 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:leave-for-pending-withdraw")
         policy.confirm_key_posted(leave_key)
 
-        self.assertEqual(policy.choose_key(outside), "5")
+        self.assertEqual(policy.choose_key(outside), "5pj5\r\x1b")
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
         self.assertEqual(policy._store_visit.operation_key, "pj5\r\x1b")
         self.assertNotEqual(
@@ -5563,7 +5575,7 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
             outside, policy._planned_depth()
         )["cure"].required_departure
         compose_key = policy.choose_key(outside)
-        self.assertEqual(compose_key, "5")
+        self.assertEqual(compose_key, f"5pf{required}\r\x1b")
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
         self.assertEqual(policy._store_visit.operation_key, f"pf{required}\r\x1b")
         self.assertEqual(policy._home_atomic_withdraw_pending[3], required)
@@ -5785,9 +5797,10 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
         )
         route_key = decide(2)
         self.assertEqual(policy.last_reason, "home-errand:atomic-withdraw:equipment")
+        self.assertEqual(route_key, "5pW\x1b")
         policy.confirm_key_posted(route_key)
         take_key = decide(3)
-        self.assertEqual(take_key, "pW\x1b")
+        self.assertEqual(take_key, LEAVE_STORE_KEY)
         policy.confirm_key_posted(take_key)
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
         leave_key = decide(4)
@@ -5813,6 +5826,82 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
             "home:leave-after-one-operation",
             [reason for _key, reason in outcomes],
         )
+
+
+class RecordedHomeStayReentryIncidentTest(unittest.TestCase):
+    @staticmethod
+    def _replay():
+        fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260920-0149-home-withdraw-alternation.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            lines = list(stream)
+        snapshots = [parse_snapshot(json.loads(line)) for line in lines]
+        assert len(snapshots) == 53
+
+        policy = HengbotPolicy()
+        for index in (0, 1):
+            key = policy.choose_key(snapshots[index])
+            policy.confirm_key_posted(key)
+        assert _dispatch_response_lines([lines[2]], policy, Mock()) == 1
+
+        decisions = []
+        for index in (3, *range(24, len(snapshots))):
+            snapshot = snapshots[index]
+            pending_before = policy._home_atomic_withdraw_pending is not None
+            key = policy.choose_key(snapshot)
+            pending_after = policy._home_atomic_withdraw_pending is not None
+            here = snapshot.grid_at(snapshot.player.position)
+            decisions.append({
+                "index": index,
+                "key": key,
+                "reason": policy.last_reason,
+                "pending": pending_before or pending_after,
+                "outside_home_entrance": bool(
+                    snapshot.store is None
+                    and here is not None
+                    and here.store_number == STORE_HOME
+                ),
+            })
+            if key:
+                policy.confirm_key_posted(key)
+        return decisions
+
+    def test_p1_recorded_entrance_never_posts_bare_stay_or_owner_alternation(self):
+        decisions = self._replay()
+        self.assertFalse(any(
+            row["key"] == WAIT_KEY and row["outside_home_entrance"]
+            for row in decisions
+        ))
+        withdrawal_owners = [
+            row["reason"] for row in decisions
+            if row["reason"] in {
+                "home:atomic-withdraw",
+                "calibration:atomic-restore-withdraw",
+                "home:leave-for-pending-withdraw",
+            }
+        ]
+        self.assertNotIn("home:leave-for-pending-withdraw", withdrawal_owners)
+
+    def test_p2_recorded_pending_withdrawal_posts_complete_atomic_macro(self):
+        decisions = self._replay()
+        composed = next(
+            row for row in decisions
+            if row["reason"] == "calibration:atomic-restore-withdraw"
+        )
+        self.assertEqual(composed["key"], "5pU\x1b")
+        self.assertTrue(composed["pending"])
+
+    def test_p3_pending_withdrawal_has_claim_and_never_falls_through(self):
+        decisions = self._replay()
+        pending = [row for row in decisions if row["pending"]]
+        self.assertTrue(pending)
+        self.assertEqual(pending[0]["key"], "5pU\x1b")
+        self.assertTrue(all(
+            row["reason"] not in {"probe", "stuck:wander"}
+            for row in pending
+        ))
 
 
 class RecordedStaleHomeScanInsideTest(unittest.TestCase):
@@ -6000,7 +6089,8 @@ class RecordedHomeCarryPotionProcurementTest(unittest.TestCase):
         policy._home_pending_quantity = policy._home_pending_quantities[healing_signature]
         policy._shopping_approach_store_type = STORE_HOME
         self.assertEqual(
-            policy._atomic_home_withdraw_key(outside, outside.player.position), "5"
+            policy._atomic_home_withdraw_key(outside, outside.player.position),
+            "5pf7\r\x1b",
         )
         self.assertEqual(policy._store_visit.operation_key, "pf7\r\x1b")
         self.assertEqual(policy._home_atomic_withdraw_pending[3], 7)

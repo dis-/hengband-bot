@@ -338,7 +338,9 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             ),
         ):
             entry_key = policy.choose_key(home_entrance)
-        self.assertEqual(entry_key, WAIT_KEY)
+        self.assertEqual(
+            entry_key, WAIT_KEY + policy._store_visit.operation_key
+        )
         policy.confirm_key_posted(entry_key)
         operation_key = policy.choose_key(replace(
             home_entrance,
@@ -346,7 +348,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
                 STORE_HOME, [stored], stock_num=1, page_top=0, page_size=12,
             ),
         ))
-        self.assertEqual(operation_key, "pa\x1b")
+        self.assertEqual(operation_key, LEAVE_STORE_KEY)
         policy.confirm_key_posted(operation_key)
         failed_outside = replace(home_entrance, turn=home_entrance.turn + 1)
         policy.choose_key(failed_outside)
@@ -737,7 +739,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             grids={Position(10, 10): replace(grid(10, 10), store_number=STORE_HOME)},
         )
         key = policy._atomic_home_withdraw_key(outside, outside.player.position)
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, "5pa10\r\x1b")
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, scroll.name)
         self.assertNotEqual(
             policy._home_atomic_withdraw_pending[2].name, digger.name
@@ -1058,7 +1060,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             outside, outside.player.position
         )
 
-        self.assertEqual(retry, WAIT_KEY)
+        self.assertEqual(retry, "5pH\x1b")
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
     def test_post_alchemist_rearm_requires_carried_identify_source(self):
@@ -1128,7 +1130,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
                 outside, outside.player.position
             ))
 
-        self.assertEqual(delivered, [WAIT_KEY, WAIT_KEY])
+        self.assertEqual(delivered, ["5pH\x1b", "5pH\x1b"])
 
     def test_restart_without_home_scan_uses_carried_digger_count(self):
         offered = store_item("a", TVAL_DIGGING, 1, name="new shovel", price=50)
@@ -1464,7 +1466,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         withdrawal = policy._atomic_home_withdraw_key(
             entrance, entrance.player.position
         )
-        self.assertEqual(withdrawal, WAIT_KEY)
+        self.assertEqual(withdrawal, "5pb\x1b")
         self.assertEqual(policy.last_reason, "home:atomic-withdraw")
 
         gained_pick = item(
@@ -3122,7 +3124,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             turn=outside.turn + 1,
         )
         withdrawal_key = policy.choose_key(entrance)
-        self.assertEqual(withdrawal_key, WAIT_KEY, policy.last_reason)
+        self.assertEqual(withdrawal_key, "5pb1\r\x1b", policy.last_reason)
         self.assertEqual(policy._store_visit.operation_key, "pb1\r\x1b")
         self.assertEqual(
             policy.last_reason, "home-errand:atomic-withdraw:identification"
@@ -3141,7 +3143,9 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy._home_errand.request.signature, signature)
         self.assertIsNotNone(policy._find_identification_source(withdrawn, full=True))
         self.assertFalse(policy._home_candidate_waiting)
-        self.assertEqual(target_withdrawal, WAIT_KEY)
+        self.assertEqual(
+            target_withdrawal, WAIT_KEY + policy._store_visit.operation_key
+        )
         self.assertEqual(
             policy.last_reason,
             "home-errand:atomic-withdraw:identification-catalog",
@@ -3943,7 +3947,9 @@ class TownErrandPlanTest(unittest.TestCase):
             ),
         ):
             entry_key = policy.choose_key(home_entrance)
-        self.assertEqual(entry_key, WAIT_KEY)
+        self.assertEqual(
+            entry_key, WAIT_KEY + policy._store_visit.operation_key
+        )
         self.assertIsNotNone(
             policy._store_visit.operation_key,
             (policy.last_reason, policy._store_visit, policy._home_pending_item),
@@ -3964,9 +3970,7 @@ class TownErrandPlanTest(unittest.TestCase):
             )
         )
         requested = policy._home_atomic_withdraw_pending[3]
-        expected_operation = (
-            f"pa{requested}\r\x1b" if page_item.count > 1 else "pa\x1b"
-        )
+        expected_operation = LEAVE_STORE_KEY
         self.assertEqual(
             operation_key, expected_operation,
             (policy.last_reason, policy._store_visit, policy._home_pending_item),
@@ -3994,9 +3998,7 @@ class TownErrandPlanTest(unittest.TestCase):
             policy._home_gate_telemetry["branch"],
             "wrapper-candidate-home-first",
         )
-        self.assertEqual(
-            policy._town_visit_ledger.pending_store_transaction[0], STORE_HOME
-        )
+        self.assertIsNone(policy._town_visit_ledger.pending_store_transaction)
         self.assertNotIn(signature, policy._deferred_home_items)
         self.assertIn(signature, policy._retried_deferred_home_items)
 
@@ -4305,7 +4307,7 @@ class TownErrandPlanTest(unittest.TestCase):
                     policy._atomic_home_withdraw_key(
                         outside, outside.player.position
                     ),
-                    WAIT_KEY,
+                    WAIT_KEY + policy._store_visit.operation_key,
                 )
                 self.assertEqual(
                     policy._store_visit.operation_key, f"pa{expected}\r\x1b"
@@ -4337,7 +4339,7 @@ class TownErrandPlanTest(unittest.TestCase):
 
         self.assertEqual(
             policy._atomic_home_withdraw_key(five_missing, five_missing.player.position),
-            WAIT_KEY,
+            "5pa1\r\x1b",
         )
         self.assertEqual(policy._store_visit.operation_key, "pa1\r\x1b")
 
@@ -4362,7 +4364,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._store_visit = StoreVisit("home-visit", "procurement-withdrawal", STORE_HOME)
         self.assertEqual(
             policy._atomic_home_withdraw_key(snapshot, snapshot.player.position),
-            WAIT_KEY,
+            "5pa1\r\x1b",
         )
         self.assertEqual(policy._store_visit.operation_key, "pa1\r\x1b")
 
@@ -4484,7 +4486,7 @@ class TownErrandPlanTest(unittest.TestCase):
             ),
         ):
             first = policy.choose_key(snapshot)
-        self.assertEqual(first, WAIT_KEY)
+        self.assertEqual(first, WAIT_KEY + policy._store_visit.operation_key)
         policy.confirm_key_posted(first)
         first_operation = policy.choose_key(
             replace(
@@ -4495,7 +4497,7 @@ class TownErrandPlanTest(unittest.TestCase):
                 ),
             )
         )
-        self.assertEqual(first_operation, "pa5\r\x1b")
+        self.assertEqual(first_operation, LEAVE_STORE_KEY)
         policy.confirm_key_posted(first_operation)
         gained = replace(
             snapshot,
@@ -4521,7 +4523,7 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.consume_home_knowledge((teleport,))
         policy._store_visit = StoreVisit("home-visit-2", "procurement-withdrawal", STORE_HOME)
         second = policy._atomic_home_withdraw_key(gained, gained.player.position)
-        self.assertEqual(second, WAIT_KEY)
+        self.assertEqual(second, WAIT_KEY + policy._store_visit.operation_key)
         self.assertRegex(policy._store_visit.operation_key, r"^pa[1-9][0-9]*\r\x1b$")
 
     def test_procurement_quantity_uses_supply_ledger_depth_and_mana_food_rules(self):
@@ -4631,7 +4633,7 @@ class TownErrandPlanTest(unittest.TestCase):
                     policy._atomic_home_withdraw_key(
                         snapshot, snapshot.player.position
                     ),
-                    WAIT_KEY,
+                    WAIT_KEY + policy._store_visit.operation_key,
                 )
                 self.assertEqual(
                     policy._store_visit.operation_key, f"pa{expected}\r\x1b"
@@ -4720,7 +4722,7 @@ class TownErrandPlanTest(unittest.TestCase):
         )
         self.assertEqual(
             policy._atomic_home_withdraw_key(outside, outside.player.position),
-            WAIT_KEY,
+            "5pa2\r\x1b",
         )
         policy.confirm_key_posted(policy._store_visit.operation_key)
         self.assertIsNone(policy._town_item_processing_key(outside))
@@ -4805,7 +4807,8 @@ class TownErrandPlanTest(unittest.TestCase):
             [], turn=100, floor_key=(0, 0, 0), town_flag=True,
         )
         self.assertEqual(
-            policy._atomic_home_withdraw_key(entrance, position), WAIT_KEY
+            policy._atomic_home_withdraw_key(entrance, position),
+            WAIT_KEY + policy._store_visit.operation_key,
         )
         self.assertIsNone(policy._home_atomic_withdraw_procurement_class)
         policy._home_procurement_probe = policy._procurement_class(target)
@@ -5158,7 +5161,7 @@ class TownErrandPlanTest(unittest.TestCase):
             entrance, entrance.player.position, "shop:travel"
         )
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, WAIT_KEY + policy._store_visit.operation_key)
         self.assertEqual(
             policy.last_reason,
             "home-errand:atomic-withdraw:identification-catalog",

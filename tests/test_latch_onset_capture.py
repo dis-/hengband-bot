@@ -93,13 +93,16 @@ class LatchOnsetCaptureTest(unittest.TestCase):
 
         replay = restore_checkpoint(policy_module.HengbotPolicy, slim)
 
+        expected_key = (
+            "5pZ47\rpW2\rpypu2\rpqpk6\rpi30\rph87\rpf6\rpe29\rpdpa9\r\x1b"
+        )
         self.assertEqual(
             (old_policy.choose_key(snapshot), old_policy.last_reason),
-            (row["key"], row["last_reason"]),
+            (expected_key, row["last_reason"]),
         )
         self.assertEqual(
             (replay.choose_key(snapshot), replay.last_reason),
-            (row["key"], row["last_reason"]),
+            (expected_key, row["last_reason"]),
         )
 
     def test_restore_seeds_marked_memory_for_checkpoint_before_axis_split(self):

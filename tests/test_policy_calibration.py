@@ -114,13 +114,13 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = self.HOME
         restore_entrance = replace(entrance, inventory=[], turn=2)
-        self.assertEqual(policy.choose_key(restore_entrance), "5")
+        self.assertEqual(policy.choose_key(restore_entrance), "5pbpa\x1b")
         restore_page = replace(
             restore_entrance,
             turn=3,
             store=StoreState(STORE_HOME, deposited, stock_num=2, page_size=52),
         )
-        self.assertEqual(policy.choose_key(restore_page), "pbpa\x1b")
+        self.assertEqual(policy.choose_key(restore_page), policy_module.LEAVE_STORE_KEY)
         policy.consume_home_knowledge(())
         policy._calibration_blocked_this_visit = True
         restored = [sword("a", 21), sword("b", 18)]
@@ -164,7 +164,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_redress_accounting(redress_entrance)[2],
             [("main_hand", equipment_identity(redress_pack_item))],
         )
-        self.assertEqual(policy.choose_key(redress_entrance), "5")
+        self.assertEqual(policy.choose_key(redress_entrance), "5pb\x1b")
         policy._calibration_redress_observe(redress_entrance)
         self.assertIn(owner, policy._calibration_restore_signatures)
         self.assertNotIn(owner, policy._calibration_restore_move_identities)
@@ -174,8 +174,8 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             store=StoreState(STORE_HOME, list(twins), stock_num=2, page_size=52),
         )
         key = policy.choose_key(redress_page)
-        self.assertEqual(key, "pb\x1b", policy.last_reason)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(key, policy_module.LEAVE_STORE_KEY, policy.last_reason)
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
         self.assertNotEqual(
             policy.last_reason, "home:atomic-withdraw-target-unobserved"
         )
@@ -473,7 +473,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = self.HOME
         entrance = replace(outside, inventory=[], turn=2)
-        self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(policy.choose_key(entrance), "5pa1\r\x1b")
         self.assertEqual(
             policy.last_reason, "calibration:atomic-restore-withdraw"
         )
@@ -485,7 +485,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 STORE_HOME, [merged], stock_num=1, page_top=0, page_size=52,
             ),
         )
-        self.assertEqual(policy.choose_key(page), "pa1\r\x1b")
+        self.assertEqual(policy.choose_key(page), policy_module.LEAVE_STORE_KEY)
         remaining = store_item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=21,
             name="鑑定の杖 (21回分)",
@@ -552,12 +552,12 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy.consume_home_knowledge((merged,))
         policy._calibration_phase = "restore-supplies"
         entrance = replace(outside, inventory=[], turn=2)
-        self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+        self.assertEqual(policy.choose_key(entrance), "5pa2\r\x1b")
         page = replace(
             entrance, turn=3,
             store=StoreState(STORE_HOME, [merged], stock_num=1, page_size=52),
         )
-        self.assertEqual(policy.choose_key(page), "pa2\r\x1b")
+        self.assertEqual(policy.choose_key(page), policy_module.LEAVE_STORE_KEY)
         self.assertEqual(policy._home_pending_quantities[owner], 2)
 
     def test_failed_staff_restore_retires_owner_without_reposting(self):
@@ -604,14 +604,14 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
                 policy.consume_home_knowledge((stored,))
                 policy._calibration_phase = "restore-supplies"
                 entrance = replace(outside, inventory=[], turn=2)
-                self.assertEqual(policy.choose_key(entrance), WAIT_KEY)
+                self.assertEqual(policy.choose_key(entrance), WAIT_KEY + expected_take)
                 page = replace(
                     entrance, turn=3,
                     store=StoreState(
                         STORE_HOME, [stored], stock_num=1, page_size=52,
                     ),
                 )
-                self.assertEqual(policy.choose_key(page), expected_take)
+                self.assertEqual(policy.choose_key(page), policy_module.LEAVE_STORE_KEY)
                 policy._calibration_blocked_this_visit = True
 
                 policy.choose_key(replace(entrance, inventory=[], turn=4))
@@ -1102,7 +1102,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
         first = policy.choose_key(entrance)
 
-        self.assertEqual(first, WAIT_KEY)
+        self.assertEqual(first, WAIT_KEY + expected)
         self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
         self.assertTrue(policy._home_procurement_batch_active)
         self.assertEqual(
@@ -1110,12 +1110,12 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._calibration_restore_signatures,
         )
         self.assertEqual(policy._store_visit.operation_key, expected)
-        self.assertTrue(policy.confirm_key_posted(first))
+        self.assertFalse(policy.confirm_key_posted(first))
 
         second = policy.choose_key(inside)
 
-        self.assertEqual(second, expected)
-        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(second, policy_module.LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
         self.assertEqual(policy.choose_key(inside), policy_module.LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
 
