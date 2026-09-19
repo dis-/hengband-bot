@@ -2822,12 +2822,20 @@ class DecisionRecordTest(unittest.TestCase):
 
     def test_every_production_visit_constructor_has_exact_origin(self):
         from store_visit_constructor_census import (
-            EXPECTED_ORIGINS, production_constructor_sites,
+            EXPECTED_ORIGINS, production_constructor_functions,
+            production_constructor_sites,
         )
 
         source_root = Path(__file__).resolve().parents[1] / "src"
         sites = production_constructor_sites(source_root)
         self.assertEqual(Counter(sites.values()), EXPECTED_ORIGINS)
+        functions = production_constructor_functions(source_root)
+        home_sites = [
+            site for site, origin in sites.items()
+            if origin == "home-operation-staging"
+        ]
+        self.assertEqual(len(home_sites), 1)
+        self.assertEqual(functions[home_sites[0]], "_home_operation_visit")
 
     def test_decision_record_excludes_withdrawn_seed_telemetry(self):
         policy = HengbotPolicy()

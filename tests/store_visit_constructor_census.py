@@ -35,3 +35,21 @@ def production_constructor_sites(source_root: Path) -> dict[str, str]:
             relative = path.relative_to(source_root.parent).as_posix()
             sites[f"{relative}:{node.lineno}"] = origin.value
     return dict(sorted(sites.items()))
+
+
+def production_constructor_functions(source_root: Path) -> dict[str, str]:
+    """Map constructor sites to their immediately enclosing function."""
+    functions = {}
+    for path in source_root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        relative = path.relative_to(source_root.parent).as_posix()
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Call):
+                    continue
+                name = child.func.id if isinstance(child.func, ast.Name) else None
+                if name == "StoreVisit":
+                    functions[f"{relative}:{child.lineno}"] = node.name
+    return dict(sorted(functions.items()))

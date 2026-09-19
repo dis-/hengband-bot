@@ -2034,12 +2034,10 @@ class HomeMixin:
         self.last_reason = "home:atomic-deposit"
         return operation_key
 
-    def _compose_home_operation(
-        self, snapshot: Snapshot, composed_key: str, operation_key: str
-    ) -> bool:
-        """Bind Home entry and its operation as one indivisible input macro."""
+    def _home_operation_visit(self) -> StoreVisit | None:
+        """Return the shared Home visit used to stage or compose an operation."""
         if self._store_visit is not None and self._store_visit.store_type != STORE_HOME:
-            return False
+            return None
         if self._store_visit is None:
             self._store_visit = StoreVisit(
                 owner=(
@@ -2056,7 +2054,15 @@ class HomeMixin:
                 visit_origin="home-operation-staging",
                 opened_sequence=self._decision_sequence,
             )
-        visit = self._store_visit
+        return self._store_visit
+
+    def _compose_home_operation(
+        self, snapshot: Snapshot, composed_key: str, operation_key: str
+    ) -> bool:
+        """Bind Home entry and its operation as one indivisible input macro."""
+        visit = self._home_operation_visit()
+        if visit is None:
+            return False
         visit.operation_posted = True
         visit.operation_key = operation_key
         visit.operation_released = True
@@ -2076,25 +2082,9 @@ class HomeMixin:
 
     def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> bool:
         """Post Home entry now and release its bound tail on the fresh page."""
-        if self._store_visit is not None and self._store_visit.store_type != STORE_HOME:
+        visit = self._home_operation_visit()
+        if visit is None:
             return False
-        if self._store_visit is None:
-            self._store_visit = StoreVisit(
-                owner=(
-                    "equipment-transaction"
-                    if self._equipment_transaction_session is not None
-                    else "town-errand"
-                ),
-                purpose=(
-                    "equipment-work"
-                    if self._equipment_transaction_session is not None
-                    else "shopping"
-                ),
-                store_type=STORE_HOME,
-                visit_origin="home-operation-staging",
-                opened_sequence=self._decision_sequence,
-            )
-        visit = self._store_visit
         visit.operation_posted = True
         visit.operation_key = operation_key
         visit.operation_released = False
