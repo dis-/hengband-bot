@@ -1,0 +1,15 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -820,6 +820,11 @@ DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
+ REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
+ REST_CAP = 25  # bound consecutive rest commands as a safety valve
+ 
++# A detected melee pack may justify waiting at a defensible choke, but lower-
++# certainty detection must not suppress ordinary looting/exploration forever.
++# Hengband's snapshot clock advances by 10 game turns per normal player turn.
++DETECTED_THREAT_HOLD_MAX_GAME_TURNS = 50 * 10
++
+ # Hunting (opportunistic XP while no downstairs is known)
+ 
+ # Anti-stuck

@@ -563,6 +563,68 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             )
         )
 
+    def test_detected_choke_hold_releases_after_fifty_player_turns(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260920-0025-choke-vs-loot-oscillation"
+            / "snapshots.jsonl"
+        )
+        monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        rows = [
+            json.loads(line)
+            for line in capture.read_text(encoding="utf-8").splitlines()
+        ]
+        knowledge = load_monrace_knowledge(monraces)
+        reached_choke = parse_snapshot(rows[1], knowledge)
+        started_turn = reached_choke.turn
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+
+        started = policy.choose_key(reached_choke)
+        before_key = policy.choose_key(
+            replace(reached_choke, turn=started_turn + 499)
+        )
+        before = (before_key, policy.last_reason)
+        after_key = policy.choose_key(
+            replace(reached_choke, turn=started_turn + 501)
+        )
+        after = (after_key, policy.last_reason)
+
+        self.assertEqual(started, WAIT_KEY)
+        self.assertEqual(before, (WAIT_KEY, "summoner:hold-choke"))
+        self.assertEqual(after, ("8", "seek-loot"))
+
+    def test_visible_hostile_immediately_releases_detected_choke_hold(self):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260920-0025-choke-vs-loot-oscillation"
+            / "snapshots.jsonl"
+        )
+        monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        rows = [
+            json.loads(line)
+            for line in capture.read_text(encoding="utf-8").splitlines()
+        ]
+        knowledge = load_monrace_knowledge(monraces)
+        reached_choke = parse_snapshot(rows[1], knowledge)
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        self.assertEqual(policy.choose_key(reached_choke), WAIT_KEY)
+        visible = replace(
+            reached_choke.detected_monsters[0], perception="visible"
+        )
+        handed_over = replace(
+            reached_choke,
+            visible_monsters=[visible],
+            detected_monsters=reached_choke.detected_monsters[1:],
+            turn=reached_choke.turn + 10,
+        )
+
+        key = policy.choose_key(handed_over)
+
+        self.assertNotEqual(key, WAIT_KEY)
+        self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
+
     def test_prepare_choke_without_narrow_candidate_falls_back_to_flee(self):
         threat = replace(
             hostile(7, 10, 12, distance=2, max_melee_damage=20),

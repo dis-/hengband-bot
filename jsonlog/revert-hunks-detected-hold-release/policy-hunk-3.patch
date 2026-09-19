@@ -1,0 +1,56 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -11561,40 +11570,50 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+             if monster.perception == "detected"
+         ]
+         if not detected:
++            self._detected_threat_hold = None
+             return None
+ 
+         # Keep the lower-certainty channel in the normal damage model, but do
+         # not pass it to melee, ranged, line-of-fire, or blocker-clearing code.
+         self.threat_prediction(snapshot, detected, turns=3)
+         if visible_hostiles:
++            self._detected_threat_hold = None
+             return None
+         converging = [
+             monster
+             for monster in detected
+             if not monster.asleep and monster.distance <= SWARM_LOOKAHEAD
+         ]
+         breeders = [
+             monster for monster in converging if monster.can_multiply
+         ]
+         melee_threats = [
+             monster
+             for monster in converging
+             if monster.max_ranged_damage <= 0
+         ]
+         if not breeders and len(melee_threats) < 2:
++            self._detected_threat_hold = None
+             return None
+         if (
+             self._open_neighbor_count(snapshot, snapshot.player.position)
+             <= SUMMONER_CHOKE_NEIGHBORS - 1
+         ):
+             # The visible-monster channel keeps ownership after reaching its
+             # choke and waits there instead of letting ordinary navigation
+             # immediately pull the player back into the open.  Detected melee
+             # packs need the same hand-off boundary: the convergence gates
+             # above release this hold when the pack disappears, becomes
+             # visible, sleeps, moves out of range, or drops below its count.
+-            self.last_reason = "summoner:hold-choke"
+-            return WAIT_KEY
++            hold = self._detected_threat_hold
++            if hold is None or hold[0] != snapshot.floor_key:
++                hold = (snapshot.floor_key, snapshot.turn)
++                self._detected_threat_hold = hold
++            if snapshot.turn - hold[1] <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
++                self.last_reason = "summoner:hold-choke"
++                return WAIT_KEY
++            return None
++        self._detected_threat_hold = None
+         step = self._summoner_retreat_step(
+             snapshot, breeders or melee_threats, detected
+         )

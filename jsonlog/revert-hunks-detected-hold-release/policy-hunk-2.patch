@@ -1,0 +1,14 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -1736,6 +1741,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+         self._breeder_previous_exp: int | None = None
+         self._breeder_previous_indices: set[int] = set()
+         self._choke_engagement_plan: ChokeEngagementPlan | None = None
++        # Floor and snapshot turn of the decision that first waited for a
++        # detected pack at a reached choke.  Retain an expired episode until an
++        # inherited release stimulus occurs so it cannot immediately re-arm.
++        self._detected_threat_hold: tuple[tuple[int, int, int], int] | None = None
+         # A plan is disposable, but fruitless work against the same observed
+         # swarm is not.  Values are (spent decisions, high-water outcome marker)
+         # and live for the whole floor visit so release/re-plan cannot mint a

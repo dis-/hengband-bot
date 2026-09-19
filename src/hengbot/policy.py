@@ -820,6 +820,11 @@ DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
 REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
 REST_CAP = 25  # bound consecutive rest commands as a safety valve
 
+# A detected melee pack may justify waiting at a defensible choke, but lower-
+# certainty detection must not suppress ordinary looting/exploration forever.
+# Hengband's snapshot clock advances by 10 game turns per normal player turn.
+DETECTED_THREAT_HOLD_MAX_GAME_TURNS = 50 * 10
+
 # Hunting (opportunistic XP while no downstairs is known)
 
 # Anti-stuck
@@ -1736,6 +1741,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._breeder_previous_exp: int | None = None
         self._breeder_previous_indices: set[int] = set()
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
+        # Floor and snapshot turn of the decision that first waited for a
+        # detected pack at a reached choke.  Retain an expired episode until an
+        # inherited release stimulus occurs so it cannot immediately re-arm.
+        self._detected_threat_hold: tuple[tuple[int, int, int], int] | None = None
         # A plan is disposable, but fruitless work against the same observed
         # swarm is not.  Values are (spent decisions, high-water outcome marker)
         # and live for the whole floor visit so release/re-plan cannot mint a
@@ -11561,12 +11570,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if monster.perception == "detected"
         ]
         if not detected:
+            self._detected_threat_hold = None
             return None
 
         # Keep the lower-certainty channel in the normal damage model, but do
         # not pass it to melee, ranged, line-of-fire, or blocker-clearing code.
         self.threat_prediction(snapshot, detected, turns=3)
         if visible_hostiles:
+            self._detected_threat_hold = None
             return None
         converging = [
             monster
@@ -11582,6 +11593,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if monster.max_ranged_damage <= 0
         ]
         if not breeders and len(melee_threats) < 2:
+            self._detected_threat_hold = None
             return None
         if (
             self._open_neighbor_count(snapshot, snapshot.player.position)
@@ -11593,8 +11605,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # packs need the same hand-off boundary: the convergence gates
             # above release this hold when the pack disappears, becomes
             # visible, sleeps, moves out of range, or drops below its count.
-            self.last_reason = "summoner:hold-choke"
-            return WAIT_KEY
+            hold = self._detected_threat_hold
+            if hold is None or hold[0] != snapshot.floor_key:
+                hold = (snapshot.floor_key, snapshot.turn)
+                self._detected_threat_hold = hold
+            if snapshot.turn - hold[1] <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
+                self.last_reason = "summoner:hold-choke"
+                return WAIT_KEY
+            return None
+        self._detected_threat_hold = None
         step = self._summoner_retreat_step(
             snapshot, breeders or melee_threats, detected
         )
