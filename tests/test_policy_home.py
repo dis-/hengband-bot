@@ -5414,6 +5414,80 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         ).read_bytes().splitlines(keepends=True)
         return raw_lines, [json.loads(line) for line in raw_lines]
 
+    @staticmethod
+    def _deadlock_rows():
+        raw_lines = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260919-1509-departure-unsatisfiable.jsonl"
+        ).read_bytes().splitlines(keepends=True)
+        return raw_lines, [json.loads(line) for line in raw_lines]
+
+    def _deadlock_policy(self):
+        raw_lines, rows = self._deadlock_rows()
+        self.assertEqual(len(raw_lines), 20)
+        self.assertEqual(
+            hashlib.sha256(b"".join(raw_lines)).hexdigest(),
+            "f5932f1bc1f02cf19dede6ca3f086b143c7e2db582260e69bf9009c9f681bff9",
+        )
+        policy = HengbotPolicy()
+        self.assertTrue(
+            policy.consume_home_knowledge(
+                tuple(_parse_items(rows[17]["knowledge"]["items"]))
+            )
+        )
+        policy._identification_need = "full"
+        policy._fundraising_mode = "prepare"
+        self.assertTrue(policy._home_candidate_waiting)
+        return policy, rows
+
+    def test_recorded_identification_candidate_does_not_gate_supply_classes(self):
+        policy, rows = self._deadlock_policy()
+        snapshot = parse_snapshot(rows[19])
+        snapshot = replace(snapshot, inventory=snapshot.inventory[:15])
+
+        self.assertTrue(policy._queue_home_catalogue_shortages(snapshot))
+        queued = [policy._home_pending_item, *policy._home_pending_batch]
+        queued_classes = {
+            policy._procurement_class(item)
+            for item in policy._home_knowledge_items
+            if policy._item_signature(item) in queued
+        }
+        self.assertEqual(
+            queued_classes,
+            {
+                (TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+                (TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            },
+        )
+
+    def test_recorded_five_free_slots_hold_all_departure_shortages(self):
+        policy, rows = self._deadlock_policy()
+        snapshot = parse_snapshot(rows[19])
+        policy._home_candidate_waiting = False
+
+        self.assertEqual(PACK_CAPACITY - len(snapshot.inventory), 5)
+        self.assertTrue(policy._queue_home_catalogue_shortages(snapshot))
+        self.assertEqual(len(policy._home_pending_quantities), 2)
+
+    def test_recorded_state_composes_home_supply_withdrawal_not_terminal(self):
+        policy, rows = self._deadlock_policy()
+        home = parse_snapshot(rows[18])
+        outside = parse_snapshot(rows[19])
+
+        self.assertTrue(policy._queue_home_catalogue_shortages(home))
+        leave_key = policy.choose_key(home)
+        self.assertEqual(leave_key, LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "home:leave-for-pending-withdraw")
+        policy.confirm_key_posted(leave_key)
+
+        self.assertEqual(policy.choose_key(outside), "5")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertEqual(policy._store_visit.operation_key, "pj5\r\x1b")
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:departure-unsatisfiable"
+        )
+
     def _primed_policy(self, *, quest_strategy=False):
         raw_lines, rows = self._recorded_rows()
         policy = HengbotPolicy(
@@ -5607,7 +5681,7 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "home:atomic-deposit")
         self.assertIsNone(policy._home_pending_item)
 
-    def test_catalogue_shortage_keeps_standard_pack_slot_reserve(self):
+    def test_catalogue_shortage_reserve_yields_only_to_departure_blockers(self):
         policy, rows = self._primed_policy()
         page = json.loads(json.dumps(rows[3]))
         catalogue = rows[2]["knowledge"]["items"]
@@ -5640,10 +5714,21 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
             if policy._item_signature(item) in queued
             and equipment_move_identity(item) not in carried_identities
         }
-        self.assertLessEqual(len(new_identities), 1)
-        self.assertGreaterEqual(
-            PACK_CAPACITY - len(snapshot.inventory) - len(new_identities),
-            max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS),
+        queued_items = [
+            item for item in policy._home_knowledge_items
+            if policy._item_signature(item) in queued
+            and equipment_move_identity(item) in new_identities
+        ]
+        self.assertEqual(
+            {(item.tval, item.sval) for item in queued_items},
+            {
+                (TVAL_POTION, SV_POTION_CURE_CRITICAL),
+                (TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
+                (TVAL_DIGGING, SV_DIGGING_SHOVEL),
+            },
+        )
+        self.assertLessEqual(
+            len(new_identities), PACK_CAPACITY - len(snapshot.inventory)
         )
 
 

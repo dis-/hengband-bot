@@ -2865,7 +2865,6 @@ class HomeMixin:
             or self._home_pending_item is not None
             or self._home_pending_batch
             or self._home_atomic_withdraw_pending is not None
-            or getattr(self, "_home_candidate_waiting", False)
         ):
             return False
         strategy = self._carry_procurement_strategy(snapshot)
@@ -2881,16 +2880,28 @@ class HomeMixin:
             and self._home_procurement_batch_member(snapshot, item, strategy)
             and self._procurement_missing_amount(snapshot, item) > 0
         ]
-        candidates.sort(
-            key=lambda item: self._carry_strategy_potion_target(
-                snapshot, item, strategy
+        def departure_blocking_shortage(item: StoreItem) -> bool:
+            return bool(
+                item.is_treasure_detection_scroll
+                or item.is_digging_tool
+                or any(
+                    self._store_item_is_supply(item, kind)
+                    for kind in SUPPLY_STORES
+                )
             )
-            is not None
+
+        candidates.sort(
+            key=lambda item: (
+                not departure_blocking_shortage(item),
+                self._carry_strategy_potion_target(snapshot, item, strategy)
+                is not None,
+            )
         )
         if not candidates:
             return False
 
-        free_slots = max(
+        physical_free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
+        reserved_free_slots = max(
             0,
             PACK_CAPACITY
             - len(snapshot.inventory)
@@ -2911,8 +2922,14 @@ class HomeMixin:
                 move_identity not in carried_identities
                 and move_identity not in queued_new_identities
             )
-            if needs_slot and len(queued_new_identities) >= free_slots:
-                continue
+            if needs_slot:
+                slot_limit = (
+                    physical_free_slots
+                    if departure_blocking_shortage(candidate)
+                    else reserved_free_slots
+                )
+                if len(queued_new_identities) >= slot_limit:
+                    continue
             quantity = min(
                 candidate.count,
                 self._procurement_missing_amount(snapshot, candidate),

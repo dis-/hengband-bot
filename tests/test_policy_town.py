@@ -2,6 +2,8 @@ import ast
 
 import gzip
 
+import hashlib
+
 import inspect
 
 import json
@@ -146,6 +148,7 @@ from hengbot.model import (
     Snapshot,
     StoreItem,
     StoreState,
+    _parse_items,
     _parse_store,
     parse_snapshot,
 )
@@ -14712,4 +14715,43 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason,
             "town:entrance-wait-refused:livelock:exhausted",
+        )
+
+
+class RecordedHomeSupplyDeadlockTest(unittest.TestCase):
+    def test_departure_supplier_prefers_home_with_withdrawable_source_and_kit(self):
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260919-1509-departure-unsatisfiable.jsonl"
+        )
+        raw = fixture_path.read_bytes()
+        rows = [json.loads(line) for line in raw.splitlines()]
+        self.assertEqual(len(rows), 20)
+        self.assertEqual(
+            hashlib.sha256(raw).hexdigest(),
+            "f5932f1bc1f02cf19dede6ca3f086b143c7e2db582260e69bf9009c9f681bff9",
+        )
+        snapshot = parse_snapshot(rows[19])
+        policy = HengbotPolicy()
+        self.assertTrue(
+            policy.consume_home_knowledge(
+                tuple(_parse_items(rows[17]["knowledge"]["items"]))
+            )
+        )
+        policy._identification_need = "full"
+        policy._fundraising_mode = "prepare"
+
+        self.assertTrue(policy._home_candidate_waiting)
+        self.assertTrue(policy._identification_need_unsatisfiable(snapshot))
+        self.assertEqual(
+            policy._identification_source_obtainability(snapshot, full=True),
+            "unknown",
+        )
+        self.assertEqual(
+            policy._departure_supplier_core(snapshot), (STORE_HOME, False)
+        )
+        self.assertIsNone(policy._town_terminal_transitions(snapshot))
+        self.assertNotEqual(
+            policy.last_reason, "town:blocked:departure-unsatisfiable"
         )

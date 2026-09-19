@@ -2607,6 +2607,30 @@ class TownMixin:
             ) != "available"
             and snapshot.player.gold < FUNDRAISING_START_GOLD
         ):
+            wanted_identification_sval = (
+                SV_SCROLL_STAR_IDENTIFY
+                if self._identification_need == "full"
+                else SV_SCROLL_IDENTIFY
+            )
+            home_holds_source_or_kit = (
+                self._home_knowledge_current
+                and any(
+                    item.count > 0
+                    and self._item_signature(item) not in self._deferred_home_items
+                    and (
+                        (
+                            item.tval == TVAL_SCROLL
+                            and item.sval == wanted_identification_sval
+                        )
+                        or item.is_digging_tool
+                    )
+                    for item in self._home_knowledge_items[
+                        : self._home_knowledge_valid_before
+                    ]
+                )
+            )
+            if home_holds_source_or_kit:
+                return STORE_HOME, False
             # Home/calibration cannot own an identification target until a
             # usable source exists.  At poverty gold, an absent or remembered-
             # unaffordable source makes every dependent Home/store need inert

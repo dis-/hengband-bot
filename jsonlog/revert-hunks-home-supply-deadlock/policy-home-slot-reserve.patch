@@ -1,0 +1,53 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2880,28 +2880,16 @@ class HomeMixin:
+             and self._home_procurement_batch_member(snapshot, item, strategy)
+             and self._procurement_missing_amount(snapshot, item) > 0
+         ]
+-        def departure_blocking_shortage(item: StoreItem) -> bool:
+-            return bool(
+-                item.is_treasure_detection_scroll
+-                or item.is_digging_tool
+-                or any(
+-                    self._store_item_is_supply(item, kind)
+-                    for kind in SUPPLY_STORES
+-                )
+-            )
+-
+         candidates.sort(
+-            key=lambda item: (
+-                not departure_blocking_shortage(item),
+-                self._carry_strategy_potion_target(snapshot, item, strategy)
+-                is not None,
++            key=lambda item: self._carry_strategy_potion_target(
++                snapshot, item, strategy
+             )
++            is not None
+         )
+         if not candidates:
+             return False
+
+-        physical_free_slots = max(0, PACK_CAPACITY - len(snapshot.inventory))
+-        reserved_free_slots = max(
++        free_slots = max(
+             0,
+             PACK_CAPACITY
+             - len(snapshot.inventory)
+@@ -2922,14 +2910,8 @@ class HomeMixin:
+                 move_identity not in carried_identities
+                 and move_identity not in queued_new_identities
+             )
+-            if needs_slot:
+-                slot_limit = (
+-                    physical_free_slots
+-                    if departure_blocking_shortage(candidate)
+-                    else reserved_free_slots
+-                )
+-                if len(queued_new_identities) >= slot_limit:
+-                    continue
++            if needs_slot and len(queued_new_identities) >= free_slots:
++                continue
+             quantity = min(
+                 candidate.count,
+                 self._procurement_missing_amount(snapshot, candidate),

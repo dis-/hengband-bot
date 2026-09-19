@@ -1,0 +1,11 @@
+diff --git a/src/hengbot/policy_home.py b/src/hengbot/policy_home.py
+--- a/src/hengbot/policy_home.py
++++ b/src/hengbot/policy_home.py
+@@ -2865,6 +2865,7 @@ class HomeMixin:
+             or self._home_pending_item is not None
+             or self._home_pending_batch
+             or self._home_atomic_withdraw_pending is not None
++            or getattr(self, "_home_candidate_waiting", False)
+         ):
+             return False
+         strategy = self._carry_procurement_strategy(snapshot)
