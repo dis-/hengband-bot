@@ -2984,7 +2984,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot.store is None
                 and self._store_visit is not None
                 and (self._store_entry_wait_key or "").startswith("\x1b`")
-                and snapshot.completed_operation_owner == "shop:travel"
+                and snapshot.completed_operation_owner in {
+                    "shop:travel",
+                    "equipment-transaction:travel-home",
+                    "town:travel-entrance",
+                }
                 and snapshot.completed_operation_sequence
                     == self._store_visit.posted_sequence
                 and here is not None

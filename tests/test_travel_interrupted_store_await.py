@@ -9,10 +9,10 @@ from pathlib import Path
 
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import Operation, OperationExecutor, ScreenKind
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_types import StoreVisitPhase
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
@@ -32,6 +32,10 @@ GENUINE_ENTRY = (
 SECOND_PROMPT_REPLAY = (
     ROOT / "jsonlog" /
     "replay-20260917-2355-travel-interrupt-state.jsonl"
+)
+OWNER_SET_RECORDED = (
+    ROOT / "tests" / "fixtures" /
+    "travel-entry-owner-set-turns-3751142-3751311.jsonl"
 )
 EDIT = Path("C:/hengband/lib/edit")
 TRAVEL = "\x1b`n(."
@@ -102,6 +106,52 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertIsNone(unbound.completed_operation_sequence)
         policy.choose_key(unbound)
         self.assertNotEqual(policy.last_reason, "store:entry-interrupted-replan")
+
+    def test_recorded_equipment_home_travel_owner_replans_interruption(self):
+        rows = [
+            json.loads(line)
+            for line in OWNER_SET_RECORDED.read_bytes().splitlines()
+        ]
+        before = parse_snapshot(rows[0], {})
+        self.assertEqual(
+            (before.turn, before.player.position.y, before.player.position.x),
+            (3_751_142, 31, 150),
+        )
+
+        policy = HengbotPolicy()
+        policy.prime(before)
+        policy._decision_sequence = 338
+        policy._store_visit = StoreVisit(
+            owner="equipment-transaction",
+            purpose="equipment-work",
+            store_type=STORE_HOME,
+            phase=StoreVisitPhase.ENTERING,
+            composed_key=TRAVEL,
+            posted_sequence=338,
+        )
+        policy._store_entry_posted_owner = STORE_HOME
+        policy._store_entry_wait_key = TRAVEL
+
+        interrupted_row = dict(rows[1])
+        interrupted_row["_completed_operation_owner"] = (
+            "equipment-transaction:travel-home"
+        )
+        interrupted_row["_completed_operation_sequence"] = 338
+        interrupted = parse_snapshot(interrupted_row, self.monrace)
+        self.assertEqual(
+            (interrupted.turn, interrupted.player.position.y,
+             interrupted.player.position.x),
+            (3_751_311, 36, 129),
+        )
+        self.assertIsNone(interrupted.store)
+
+        retry = policy.choose_key(interrupted)
+        self.assertEqual(
+            (retry, policy.last_reason),
+            (TRAVEL, "store:entry-interrupted-replan"),
+        )
+        self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
+        self.assertIsNone(policy._store_visit.posted_sequence)
 
     def test_second_recorded_travel_prompt_reissues_non_empty_macro(self):
         rows = [
