@@ -1,0 +1,17 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -970,13 +970,6 @@ class TownMixin:
+             return key
+         result_makes_progress = self._town_result_makes_progress(snapshot, key)
+         if not snapshot.in_town or result_makes_progress:
+-            if (
+-                key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
+-                and result_makes_progress
+-            ):
+-                # Record the observable source immediately at the emit seam;
+-                # posting confirmation separately records request/in-flight.
+-                self._home_scan_source = "~9"
+             return key
+         claims_active = self._town_claims_active(snapshot)
+         movement_key = key in DIRECTION_KEYS.values()

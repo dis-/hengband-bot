@@ -633,8 +633,27 @@ class TownMixin:
             # Store purchase/sale and inscription producers have closed command
             # prefixes and directly mutate gold or inventory.
             return True
-        if key == HOME_KNOWLEDGE_MACRO:
-            return True
+        if key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}:
+            stale_knowledge = (
+                not self._home_knowledge_current
+                or self._home_knowledge_invalidated
+            )
+            scan_not_already_emitted = not (
+                self._home_knowledge_scan_requested
+                or self._home_knowledge_scan_inflight
+                or self._home_scan_source == "~9"
+            )
+            return bool(
+                stale_knowledge
+                and scan_not_already_emitted
+                and (
+                    self._home_knowledge_invalidated
+                    or self._home_errand.needs_knowledge
+                    or (self.last_reason or "").startswith(
+                        "home:request-knowledge-scan"
+                    )
+                )
+            )
         direction = next(
             (delta for delta, direction_key in DIRECTION_KEYS.items()
              if direction_key == key),
@@ -951,6 +970,13 @@ class TownMixin:
             return key
         result_makes_progress = self._town_result_makes_progress(snapshot, key)
         if not snapshot.in_town or result_makes_progress:
+            if (
+                key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
+                and result_makes_progress
+            ):
+                # Record the observable source immediately at the emit seam;
+                # posting confirmation separately records request/in-flight.
+                self._home_scan_source = "~9"
             return key
         claims_active = self._town_claims_active(snapshot)
         movement_key = key in DIRECTION_KEYS.values()

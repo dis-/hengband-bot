@@ -172,12 +172,18 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         budget = policy._town_turn_arbiter.registry["home-scan"].budget
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
-            for _ in range(budget + 1):
+            for index in range(budget + 2):
                 key = policy.choose_key(snapshot)
                 decided_policy = copy.copy(policy)
-                _write_decision(
-                    path, snapshot, key, policy.last_reason, decided_policy
-                )
+                retirement = decided_policy._town_turn_arbiter.telemetry[
+                    "would_retire"
+                ]
+                if index == 0 or retirement:
+                    _write_decision(
+                        path, snapshot, key, policy.last_reason, decided_policy
+                    )
+                if retirement:
+                    break
             rows = [
                 json.loads(line)
                 for line in path.read_text(encoding="utf-8").splitlines()

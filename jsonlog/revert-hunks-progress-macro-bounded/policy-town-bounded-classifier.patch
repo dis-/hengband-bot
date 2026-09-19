@@ -1,0 +1,33 @@
+diff --git a/src/hengbot/policy_town.py b/src/hengbot/policy_town.py
+--- a/src/hengbot/policy_town.py
++++ b/src/hengbot/policy_town.py
+@@ -633,27 +633,8 @@ class TownMixin:
+             # Store purchase/sale and inscription producers have closed command
+             # prefixes and directly mutate gold or inventory.
+             return True
+-        if key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}:
+-            stale_knowledge = (
+-                not self._home_knowledge_current
+-                or self._home_knowledge_invalidated
+-            )
+-            scan_not_already_emitted = not (
+-                self._home_knowledge_scan_requested
+-                or self._home_knowledge_scan_inflight
+-                or self._home_scan_source == "~9"
+-            )
+-            return bool(
+-                stale_knowledge
+-                and scan_not_already_emitted
+-                and (
+-                    self._home_knowledge_invalidated
+-                    or self._home_errand.needs_knowledge
+-                    or (self.last_reason or "").startswith(
+-                        "home:request-knowledge-scan"
+-                    )
+-                )
+-            )
++        if key == HOME_KNOWLEDGE_MACRO:
++            return True
+         direction = next(
+             (delta for delta, direction_key in DIRECTION_KEYS.items()
+              if direction_key == key),

@@ -16,6 +16,7 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
+from hengbot.home_errand import HomeErrandRequest
 from hengbot.policy import (
     FOOD_TYPE_MANA,
     DIRECTION_KEYS,
@@ -594,7 +595,7 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertTrue(policy._town_result_makes_progress(snapshot, key))
         self.assertNotIn("town-progress-invariant:approach", policy.last_reason)
 
-    def test_recorded_home_errand_knowledge_macro_is_progress_by_key(self):
+    def test_recorded_home_errand_knowledge_macro_is_bounded_progress(self):
         fixture = (
             Path(__file__).parent
             / "fixtures"
@@ -609,19 +610,30 @@ class TownProgressInvariantTest(unittest.TestCase):
             3_741_989, 3_742_181,
         ))
 
-        policy = HengbotPolicy()
         reason = "home-errand:request-knowledge:identification-catalog"
         replay = []
         for row in rows:
+            policy = HengbotPolicy()
             snapshot = parse_snapshot(row, {})
+            policy._home_knowledge_invalidated = True
+            self.assertTrue(policy._home_errand.file(
+                HomeErrandRequest(
+                    ("recorded-home-item", 37, 43),
+                    1,
+                    "home-catalog",
+                    "identification-catalog",
+                ),
+                knowledge_current=False,
+            ))
+            self.assertTrue(policy._home_errand.needs_knowledge)
             policy.last_reason = reason
+            self.assertTrue(policy._town_result_makes_progress(
+                snapshot, HOME_KNOWLEDGE_MACRO
+            ))
             key = policy._town_procurement_decision(
                 snapshot, HOME_KNOWLEDGE_MACRO
             )
             replay.append((key, policy.last_reason))
-            self.assertTrue(
-                policy._town_result_makes_progress(snapshot, key)
-            )
 
         self.assertTrue(all(
             key == HOME_KNOWLEDGE_MACRO
@@ -633,6 +645,18 @@ class TownProgressInvariantTest(unittest.TestCase):
             current_reason == "town:blocked:owner-retired"
             for _key, current_reason in replay
         ))
+
+        self.assertFalse(policy._home_knowledge_scan_requested)
+        self.assertFalse(policy._home_knowledge_scan_inflight)
+        self.assertEqual(policy._home_scan_source, "~9")
+        policy.last_reason = reason
+        repeated_key = policy._town_procurement_decision(
+            snapshot, HOME_KNOWLEDGE_MACRO
+        )
+        self.assertEqual(repeated_key, HOME_KNOWLEDGE_MACRO)
+        self.assertFalse(
+            policy._town_result_makes_progress(snapshot, repeated_key)
+        )
 
     def test_captured_town_wander_retires_phantom_equipment_failure(self):
         incident = (
