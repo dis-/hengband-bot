@@ -1338,14 +1338,24 @@ class TcpBarrierPinTest(ProductionHarness):
 
     def test_enchant_launcher_owns_advertised_equipment_letter_and_toggles_only_inven(self):
         prompt = "Enchant which item?"
-        for screens, accepted in (
-            ([prompt_screen("(Equip: a-c,'(',')', ESC) " + prompt),
+        for continuation_kind, screens, accepted in (
+            (ScreenKind.ITEM_SOURCE,
+             [prompt_screen("(Equip: a-c,'(',')', ESC) " + prompt),
               command_screen(3)], ["rj", "c"]),
-            ([prompt_screen("(Inven: a-k,'(',')', / for Equip, ESC) " + prompt),
+            (ScreenKind.ITEM_TARGET,
+             [prompt_screen("(Equip: a-c,'(',')', ESC) " + prompt),
+              command_screen(3)], ["rj", "c"]),
+            (ScreenKind.ITEM_SOURCE,
+             [prompt_screen("(Inven: a-k,'(',')', / for Equip, ESC) " + prompt),
+              prompt_screen("(Equip: a-c,'(',')', / for Inven, ESC) " + prompt),
+              command_screen(3)], ["rj", "/", "c"]),
+            (ScreenKind.ITEM_TARGET,
+             [prompt_screen("(Inven: a-k,'(',')', / for Equip, ESC) " + prompt),
               prompt_screen("(Equip: a-c,'(',')', / for Inven, ESC) " + prompt),
               command_screen(3)], ["rj", "/", "c"]),
         ):
-            with self.subTest(accepted=accepted):
+            with self.subTest(continuation_kind=continuation_kind,
+                              accepted=accepted):
                 game, _client, executor = self.make()
                 game.screens = screens
                 executor.observe_boundary(deadline=9999999999)
@@ -1353,7 +1363,7 @@ class TcpBarrierPinTest(ProductionHarness):
                     112, "town:enchant-launcher-tohit", "rj",
                     executor.ready_board,
                     [Continuation(
-                        frozenset({ScreenKind.ITEM_SOURCE}), "c", prompt)],
+                        frozenset({continuation_kind}), "c", prompt)],
                 )
                 result = executor.submit(operation, deadline=9999999999)
                 self.assertEqual((result.outcome, game.accepted),

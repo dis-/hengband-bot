@@ -917,7 +917,17 @@ class OperationExecutor:
                 )
                 for feature in expected_features if feature is not None
             )
-            if match.kind in continuation.kinds and feature_matches:
+            enchant_kind_bridge = (
+                self.active.owner.startswith("town:enchant-launcher-")
+                and match.kind is ScreenKind.ITEM_SOURCE
+                and ScreenKind.ITEM_TARGET in continuation.kinds
+                and feature_matches
+                and match.feature.endswith((
+                    "Enchant which item?",
+                    "\u3069\u306e\u30a2\u30a4\u30c6\u30e0\u3092\u5f37\u5316\u3057\u307e\u3059\u304b?",
+                ))
+            )
+            if (match.kind in continuation.kinds or enchant_kind_bridge) and feature_matches:
                 if self.active.owner.startswith("town:enchant-launcher-") \
                         and match.feature.endswith((
                             "Enchant which item?", "どのアイテムを強化しますか?",
