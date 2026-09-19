@@ -11564,6 +11564,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
     ) -> str | None:
         """Anticipate detected threats without treating them as attack targets."""
+        hold = getattr(self, "_detected_threat_hold", None)
+        if hold is not None and hold[0] != snapshot.floor_key:
+            self._detected_threat_hold = None
+            hold = None
+        if visible_hostiles:
+            self._detected_threat_hold = None
+            return None
+        if (
+            hold is not None
+            and snapshot.turn - hold[1]
+            > DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+        ):
+            # Expiry releases this anticipatory owner for the rest of the
+            # floor.  Keep the expired episode as the latch until a visible
+            # hostile or a floor change supplies the only re-arm stimulus.
+            return None
         detected = [
             monster
             for monster in self._perceived_hostiles(snapshot)
@@ -11576,9 +11592,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Keep the lower-certainty channel in the normal damage model, but do
         # not pass it to melee, ranged, line-of-fire, or blocker-clearing code.
         self.threat_prediction(snapshot, detected, turns=3)
-        if visible_hostiles:
-            self._detected_threat_hold = None
-            return None
         converging = [
             monster
             for monster in detected

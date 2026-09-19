@@ -172,6 +172,7 @@ from hengbot.policy import (
     EscapeState,
     BUY_KEY,
     CHARACTER_DUMP_MACRO,
+    DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
     DESTROY_FAIL_LIMIT,
     DIGGER_WIELD_LIMIT,
     MINING_THREAT_FREE_LIMIT,
@@ -563,67 +564,135 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             )
         )
 
-    def test_detected_choke_hold_releases_after_fifty_player_turns(self):
-        capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260920-0025-choke-vs-loot-oscillation"
-            / "snapshots.jsonl"
+    def _recorded_hold_rearm_replay(self):
+        fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260920-0146-detected-hold-rearm.jsonl.gz"
+        )
+        decisions_fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260920-0146-detected-hold-rearm-decisions.jsonl.gz"
         )
         monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        knowledge = load_monrace_knowledge(monraces)
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            snapshots = [
+                parse_snapshot(json.loads(line), knowledge) for line in stream
+            ]
+        with gzip.open(decisions_fixture, "rt", encoding="utf-8") as stream:
+            recorded_decisions = [json.loads(line) for line in stream]
+        replay = []
+        for snapshot in snapshots:
+            key = policy.choose_key(snapshot)
+            replay.append((snapshot, key, policy.last_reason))
+        return policy, knowledge, replay, recorded_decisions
+
+    def test_recorded_detected_hold_expiry_cannot_rearm_on_the_floor(self):
+        _policy, _knowledge, replay, recorded = self._recorded_hold_rearm_replay()
+        started_turn = next(
+            current[0].turn
+            for previous, current in zip(replay, replay[1:])
+            if previous[2] == "detected:prepare-choke"
+            and current[2] == "summoner:hold-choke"
+        )
+        released = [
+            decision for decision in replay
+            if decision[0].turn - started_turn
+            > DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+        ]
+        forbidden = {"summoner:hold-choke", "detected:prepare-choke"}
+        recorded_after_expiry = Counter(
+            row["reason"] for row in recorded
+            if row["turn"] - started_turn
+            > DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+        )
+        replay_after_expiry = Counter(reason for _snapshot, _key, reason in released)
+
+        self.assertGreater(sum(recorded_after_expiry[reason] for reason in forbidden), 0)
+        self.assertEqual(sum(replay_after_expiry[reason] for reason in forbidden), 0)
+        self.assertTrue(
+            any(
+                decision[0].player.position == Position(14, 33)
+                and decision[1] in set("12346789")
+                for decision in released
+            )
+        )
+
+    def test_recorded_first_detected_hold_still_reaches_the_fifty_turn_bound(self):
+        _policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay()
+        started_turn = next(
+            current[0].turn
+            for previous, current in zip(replay, replay[1:])
+            if previous[2] == "detected:prepare-choke"
+            and current[2] == "summoner:hold-choke"
+        )
+        inside = [
+            decision for decision in replay
+            if decision[0].turn - started_turn
+            <= DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+        ]
+        outside = [
+            decision for decision in replay
+            if decision[0].turn - started_turn
+            > DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+        ]
+        last_inside = inside[-1]
+
+        self.assertEqual(
+            (last_inside[1], last_inside[2]),
+            (WAIT_KEY, "summoner:hold-choke"),
+        )
+        self.assertGreater(
+            last_inside[0].turn - started_turn,
+            DETECTED_THREAT_HOLD_MAX_GAME_TURNS - 10,
+        )
+        self.assertNotIn(
+            outside[0][2],
+            {"summoner:hold-choke", "detected:prepare-choke"},
+        )
+        self.assertFalse(
+            any(
+                decision[2] in {"summoner:hold-choke", "detected:prepare-choke"}
+                for decision in outside
+            )
+        )
+
+    def test_recorded_visible_hostile_reenables_detected_hold_channel(self):
+        policy, knowledge, replay, _recorded = self._recorded_hold_rearm_replay()
+        visible_fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260920-0146-detected-hold-visible.jsonl"
+        )
         rows = [
             json.loads(line)
-            for line in capture.read_text(encoding="utf-8").splitlines()
+            for line in visible_fixture.read_text(encoding="utf-8").splitlines()
+            if line
         ]
-        knowledge = load_monrace_knowledge(monraces)
-        reached_choke = parse_snapshot(rows[1], knowledge)
-        started_turn = reached_choke.turn
-        policy = HengbotPolicy(monrace_knowledge=knowledge)
-
-        started = policy.choose_key(reached_choke)
-        before_key = policy.choose_key(
-            replace(reached_choke, turn=started_turn + 499)
+        snapshots = sorted(
+            (parse_snapshot(row, knowledge) for row in rows),
+            key=lambda snapshot: snapshot.turn,
         )
-        before = (before_key, policy.last_reason)
-        after_key = policy.choose_key(
-            replace(reached_choke, turn=started_turn + 501)
+        visible, detected_again = snapshots
+        self.assertTrue(replay[-1][0].turn < visible.turn < detected_again.turn)
+        self.assertNotIn(
+            replay[-1][2],
+            {"summoner:hold-choke", "detected:prepare-choke"},
         )
-        after = (after_key, policy.last_reason)
-
-        self.assertEqual(started, WAIT_KEY)
-        self.assertEqual(before, (WAIT_KEY, "summoner:hold-choke"))
-        self.assertEqual(after, ("8", "seek-loot"))
-
-    def test_visible_hostile_immediately_releases_detected_choke_hold(self):
-        capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260920-0025-choke-vs-loot-oscillation"
-            / "snapshots.jsonl"
-        )
-        monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
-        rows = [
-            json.loads(line)
-            for line in capture.read_text(encoding="utf-8").splitlines()
-        ]
-        knowledge = load_monrace_knowledge(monraces)
-        reached_choke = parse_snapshot(rows[1], knowledge)
-        policy = HengbotPolicy(monrace_knowledge=knowledge)
-        self.assertEqual(policy.choose_key(reached_choke), WAIT_KEY)
-        visible = replace(
-            reached_choke.detected_monsters[0], perception="visible"
-        )
-        handed_over = replace(
-            reached_choke,
-            visible_monsters=[visible],
-            detected_monsters=reached_choke.detected_monsters[1:],
-            turn=reached_choke.turn + 10,
+        self.assertTrue(
+            any(monster.perception != "detected" for monster in visible.visible_monsters)
         )
 
-        key = policy.choose_key(handed_over)
+        policy.choose_key(visible)
+        key = policy.choose_key(detected_again)
 
-        self.assertNotEqual(key, WAIT_KEY)
-        self.assertNotEqual(policy.last_reason, "summoner:hold-choke")
+        self.assertIn(
+            (key, policy.last_reason),
+            {
+                (WAIT_KEY, "summoner:hold-choke"),
+                ("8", "detected:prepare-choke"),
+            },
+        )
 
     def test_prepare_choke_without_narrow_candidate_falls_back_to_flee(self):
         threat = replace(
