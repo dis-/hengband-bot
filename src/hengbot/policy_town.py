@@ -113,6 +113,8 @@ class TownMixin:
             and (reason or self.last_reason) == "equipment-transaction:approach-home"
         ):
             goal = self._shopping_approach_goal
+        elif owner == "survival":
+            goal = self._town_hunt_target
         elif owner == "departure":
             locomotion = self._town_departure_locomotion_clearance(snapshot, reason)
             if locomotion is not None:

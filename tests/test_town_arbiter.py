@@ -439,6 +439,72 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         ))
         self.assertEqual(distances, [12, 11, 9, 8, 6, 5, 3, 2, 0])
 
+    def test_recorded_survival_mob_walk_does_not_spend_stall_budget(self):
+        capture = FIXTURES / "survival-locomotion-progress-20260919.jsonl"
+        rows = [json.loads(line) for line in capture.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(
+            [row["turn"] for row in rows],
+            [3742259, 3742266, 3742273, 3742277, 3742285,
+             3742289, 3742296, 3742306, 3742311, 3742319],
+        )
+
+        policy = HengbotPolicy()
+        snapshot = self._postlevel_snapshot()
+        monster_rows = [row["threat_prediction"]["monsters"][0] for row in rows]
+        target = snapshot.player.position.__class__(31, 126)
+        self.assertTrue(all(
+            monster["race_id"] == 118
+            and monster["position"] == {"y": target.y, "x": target.x}
+            and monster["speed"] == 110
+            and monster["asleep"] is True
+            and monster["fearful"] is False
+            for monster in monster_rows
+        ))
+        self.assertEqual(
+            [monster["path_distance"] for monster in monster_rows],
+            [monster["distance"] for monster in monster_rows],
+        )
+        policy._town_hunt_target = target
+
+        observations = []
+        distances = []
+        for row, monster in zip(rows, monster_rows):
+            position = row["position"]
+            moved = replace(
+                snapshot,
+                turn=row["turn"],
+                player=replace(
+                    snapshot.player,
+                    position=replace(
+                        snapshot.player.position,
+                        y=position["y"], x=position["x"],
+                    ),
+                ),
+            )
+            vector = policy._town_arbiter_progress_vector(
+                moved, "town:kill-mob-approach"
+            )
+            distances.append(
+                vector[-1][-1]
+                if isinstance(vector[-1], tuple)
+                and vector[-1][:2] == ("locomotion", "survival")
+                else None
+            )
+            observations.append(policy._town_turn_arbiter.observe(
+                in_town=True,
+                reason="town:kill-mob-approach",
+                progress_vector=vector,
+            ))
+
+        self.assertFalse(
+            any(row["retired"] for row in observations), observations
+        )
+        self.assertEqual(distances, [17, 15, 13, 11, 9, 8, 7, 6, 5, 4])
+        self.assertTrue(all(
+            row["progress"] and row["budget_remaining_estimate"] == 8
+            for row in observations
+        ), observations)
+
     def test_equipment_home_equidistant_oscillation_retires_at_stall_budget(self):
         policy = HengbotPolicy()
         snapshot = self._postlevel_snapshot()
