@@ -3016,8 +3016,8 @@ class WarningGridAvoidanceTest(unittest.TestCase):
 
     def test_warning_prompt_is_answered_never_a_movement_key(self):
         # Revert-proof pin of the incident: at the prompt-bearing snapshot the
-        # unfixed policy re-posts the movement key '8'; the policy now records
-        # the refusal but posts no key because the executor answered it live.
+        # policy must record the refusal and route around that exact direction;
+        # the executor already answered the live prompt, so no 'n' is posted.
         supply = [item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)]
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(self.corridor(inventory=supply)), "8")
@@ -3027,8 +3027,8 @@ class WarningGridAvoidanceTest(unittest.TestCase):
                 inventory=supply,
             )
         )
-        self.assertNotIn(key, set("12346789"))
-        self.assertIsNone(key)
+        self.assertNotEqual(key, "8")
+        self.assertIsNotNone(key)
         self.assertIn(Position(26, 93), policy._warning_refused_cells)
         self.assertIn(Position(26, 93), policy._engagement_avoid_cells)
 
@@ -3060,8 +3060,24 @@ class WarningGridAvoidanceTest(unittest.TestCase):
                 key = policy.choose_key(
                     self.corridor(messages=(message,), inventory=supply)
                 )
-                self.assertIsNone(key)
+                self.assertIsNotNone(key)
+                self.assertNotEqual(key, "8")
                 self.assertIn(Position(26, 93), policy._warning_refused_cells)
+
+    def test_unattributable_warning_prompt_does_not_stop_later_rungs(self):
+        policy = HengbotPolicy()
+        snapshot = self.corridor(
+            messages=(self.PROMPT_EN,),
+            inventory=[item("a", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+        )
+
+        first = policy.choose_key(snapshot)
+        second = policy.choose_key(snapshot)
+
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        self.assertNotEqual(first, "n")
+        self.assertNotEqual(second, "n")
 
     def test_forced_walk_only_when_supplies_entirely_exhausted(self):
         # Entirely exhausted ledger: the refusal is latched, then the
@@ -3119,10 +3135,12 @@ class WarningGridAvoidanceTest(unittest.TestCase):
     def test_unattributable_prompt_still_answered_without_a_record(self):
         # A fresh process (restart over a pending prompt) sees the prompt
         # message without having issued the walk.  The executor already answered
-        # any live prompt, so the policy posts nothing and records nothing.
+        # any live prompt, so the policy continues without inventing a refusal
+        # record or posting a stale prompt answer.
         policy = HengbotPolicy()
         key = policy.choose_key(self.corridor(messages=(self.PROMPT_JA,)))
-        self.assertIsNone(key)
+        self.assertIsNotNone(key)
+        self.assertNotEqual(key, "n")
         self.assertFalse(policy._warning_refused_cells)
 
     def test_floor_change_clears_warning_refusals(self):
@@ -3166,8 +3184,8 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(device_corridor()), "8")
         self.assertEqual(policy.last_reason, "mana-food:seek-device")
-        self.assertIsNone(
-            policy.choose_key(device_corridor(messages=(self.PROMPT_JA,)))
+        self.assertEqual(
+            policy.choose_key(device_corridor(messages=(self.PROMPT_JA,))), "2"
         )
         self.assertIn(Position(26, 93), policy._warning_refused_cells)
 
@@ -3205,8 +3223,8 @@ class WarningGridAvoidanceTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(deadend()), "8")
         self.assertEqual(policy.last_reason, "trigger-autodestroy")
         self.assertEqual(policy.choose_key(deadend()), "8")
-        self.assertIsNone(
-            policy.choose_key(deadend(messages=(self.PROMPT_JA,)))
+        self.assertEqual(
+            policy.choose_key(deadend(messages=(self.PROMPT_JA,))), "gaa"
         )
         self.assertIn(Position(26, 93), policy._warning_refused_cells)
 

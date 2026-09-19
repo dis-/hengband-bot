@@ -2395,6 +2395,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key = home_capture.choose_key(self, snapshot)
         else:
             key = self._choose_key_with_latch_capture(snapshot)
+        if (
+            key == WAIT_KEY
+            and self.last_reason == "warning:blocked-step"
+            and any(
+                home_page_message_body(message).startswith(
+                    WARNING_PROMPT_MESSAGE_PREFIXES
+                )
+                for message in snapshot.messages
+            )
+        ):
+            # The prompt-bearing fixed-quest snapshot has no alternative rung;
+            # preserve its no-command seam after the refusal was processed.
+            # A later snapshot without the stale prompt returns the ordinary
+            # warning:blocked-step wait, while the CLI now bounds quiet None.
+            return None
         if key is None and self._warning_prompt_stops_decision:
             return None
         if (
@@ -12545,6 +12560,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return None
             if attributable and snapshot.player.position == origin:
                 self._latch_warning_refusal(target)
+                self._warning_prompt_stops_decision = False
+                return None
+        # With no attributable step there is no target cell to record, but
+        # the already-dismissed prompt must not suppress every remaining rung.
+        self._warning_prompt_stops_decision = False
         return None
 
 

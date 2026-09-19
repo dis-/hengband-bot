@@ -4176,6 +4176,18 @@ def _run_follow(
                 send_failed=recovery_send_failed,
             )
             if (
+                getattr(policy, "_cli_no_key_streak", 0) > 0
+                and args.stall_timeout > 0
+                and now - last_activity > args.stall_timeout
+            ):
+                print(
+                    "<no-key-exhausted> no new snapshot arrived within "
+                    f"{args.stall_timeout:g}s after a decision produced no "
+                    "command; stopping the bot",
+                    flush=True,
+                )
+                return incident_stop("no-key-exhausted", snapshot)
+            if (
                 executor is not None
                 and args.stall_timeout > 0
                 and now >= quiet_ok_until

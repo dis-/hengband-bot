@@ -1,0 +1,13 @@
+diff --git a/src/hengbot/policy.py b/src/hengbot/policy.py
+--- a/src/hengbot/policy.py
++++ b/src/hengbot/policy.py
+@@ -12560,9 +12560,4 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
+                 return None
+             if attributable and snapshot.player.position == origin:
+                 self._latch_warning_refusal(target)
+-                self._warning_prompt_stops_decision = False
+-                return None
+-        # With no attributable step there is no target cell to record, but
+-        # the already-dismissed prompt must not suppress every remaining rung.
+-        self._warning_prompt_stops_decision = False
+         return None
