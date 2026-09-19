@@ -1228,10 +1228,15 @@ class NavigationMixin:
             self._clear_explore_path(ExplorationPathOutcome.ABANDON)
             return None
         start = snapshot.player.position
+        self._engagement_avoid_cells |= self._warning_refused_cells
+        avoided = self._engagement_avoid_cells | self._warning_refused_cells
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity
         if identity is not None:
-            if self._explore_goal_is_complete(snapshot, identity):
+            if identity.position in avoided:
+                self._retire_explore_goal(identity)
+                identity = None
+            elif self._explore_goal_is_complete(snapshot, identity):
                 self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
                 self._explore_goal_identity = None
                 self._explore_path = []
@@ -1244,13 +1249,15 @@ class NavigationMixin:
             route = self._route_to_explore_goal(
                 snapshot,
                 identity.position,
-                avoid=set(self._recent) if oscillating else set(),
+                avoid=avoided | (set(self._recent) if oscillating else set()),
             )
             if not route and oscillating:
                 # Confinement is routing evidence, not proof that the goal is
                 # structurally unreachable.  Confirm against the remembered
                 # map with only the durable engagement vetoes applied.
-                route = self._route_to_explore_goal(snapshot, identity.position)
+                route = self._route_to_explore_goal(
+                    snapshot, identity.position, avoid=avoided
+                )
             if route:
                 self._explore_path = route[1:]
                 if not self._explore_path:
@@ -1277,7 +1284,7 @@ class NavigationMixin:
         while self._explore_path:
             nxt = self._explore_path[0]
             if (
-                nxt not in self._engagement_avoid_cells
+                nxt not in avoided
                 and start.distance_to(nxt) == 1
                 and self._is_step_open(snapshot, start, nxt)
             ):
@@ -1289,7 +1296,9 @@ class NavigationMixin:
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             identity = self._explore_goal_identity
             if identity is not None:
-                route = self._route_to_explore_goal(snapshot, identity.position)
+                route = self._route_to_explore_goal(
+                    snapshot, identity.position, avoid=avoided
+                )
                 if route:
                     self._explore_path = route[1:]
                     if not self._explore_path:

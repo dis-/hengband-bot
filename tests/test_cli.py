@@ -449,6 +449,57 @@ class CliTest(unittest.TestCase):
             self.assertIsNone(none_row["key"])
             self.assertEqual(posted, [])
 
+    def test_repeated_no_key_decisions_stop_at_visible_terminal(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_path = root / "state.jsonl"
+            decision_path = root / "decisions.jsonl"
+            state_path.write_text(_snap_line(1, 5, 5), encoding="utf-8")
+            args = _build_argument_parser().parse_args([
+                "--state-file", str(state_path),
+                "--decision-log", str(decision_path),
+                "--poll-interval", "0.001",
+            ])
+            args.wait_telemetry = unittest.mock.Mock()
+            policy = HengbotPolicy()
+            def choose(snapshot):
+                if snapshot.turn < 4:
+                    policy.last_reason = "explore"
+                    return None
+                policy.last_reason = "equipment-transaction:restore-blocked-terminal"
+                return ""
+            policy.choose_key = unittest.mock.Mock(side_effect=choose)
+
+            def append_snapshots():
+                time.sleep(0.05)
+                with state_path.open("a", encoding="utf-8") as stream:
+                    for turn in range(2, 5):
+                        stream.write(_snap_line(turn, 5, 5))
+                        stream.flush()
+                        time.sleep(0.02)
+
+            producer = threading.Thread(target=append_snapshots)
+            producer.start()
+            try:
+                with (
+                    patch("hengbot.cli._append_capture_ledger"),
+                    patch("hengbot.cli._freeze_incident_safely") as freeze,
+                    patch("builtins.print") as output,
+                ):
+                    result = _run_follow(
+                        args, policy, lambda *_a, **_k: self.fail("posted a key"), {}
+                    )
+            finally:
+                producer.join()
+
+            self.assertEqual(result, 0)
+            self.assertEqual(policy.choose_key.call_count, 2)
+            self.assertEqual(freeze.call_args.args[1], "no-key-exhausted")
+            self.assertTrue(any(
+                call.args and str(call.args[0]).startswith("<no-key-exhausted>")
+                for call in output.call_args_list
+            ))
+
 
 class PolicyFinalStopBannerTest(unittest.TestCase):
     def test_every_final_reason_has_its_own_truthful_banner(self):

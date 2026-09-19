@@ -169,6 +169,7 @@ from hengbot.policy_constants import FOOD_TYPE_MANA
 
 from hengbot.policy import (
     HengbotPolicy,
+    ExplorationGoalKind,
     EscapeState,
     BUY_KEY,
     CHARACTER_DUMP_MACRO,
@@ -1658,6 +1659,32 @@ class ExplorationTest(unittest.TestCase):
             pos = Position(pos.y + dy, pos.x + dx)
             columns.append(pos.x)
         self.assertGreaterEqual(len(set(columns)), 4)  # swept, not oscillating
+
+    def test_explore_replans_when_preferred_step_is_warning_refused(self):
+        origin = Position(10, 10)
+        refused = Position(10, 11)
+        alternative = Position(11, 10)
+        grids = {
+            origin: grid(10, 10),
+            refused: grid(10, 11),
+            alternative: grid(11, 10),
+        }
+        snapshot = Snapshot(
+            player(10, 10), grids, [],
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+            floor_key=(3, 14, 0), width=30, height=30,
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
+        policy._build_grid_index(snapshot)
+        policy._explore_path = [refused]
+        policy._record_explore_goal(
+            snapshot, ExplorationGoalKind.VISIT, refused
+        )
+        policy._warning_refused_cells.add(refused)
+
+        self.assertEqual(policy._explore_step(snapshot), alternative)
+        self.assertEqual(policy._step_toward(snapshot, alternative), "2")
 
     def test_map_edge_void_is_not_a_frontier(self):
         # A sealed 2x2 pocket in the top-left map corner: every non-known

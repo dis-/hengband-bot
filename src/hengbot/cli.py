@@ -3640,8 +3640,20 @@ def _run_follow(
                             town_emit_ownership=emit_ownership,
                         )
                         print(f"<no-key:{policy.last_reason}>", flush=True)
+                        no_key_streak = (
+                            getattr(policy, "_cli_no_key_streak", 0) + 1
+                        )
+                        policy._cli_no_key_streak = no_key_streak
+                        if no_key_streak >= 2:
+                            print(
+                                f"<no-key-exhausted> {no_key_streak} consecutive "
+                                "decisions produced no command; stopping the bot",
+                                flush=True,
+                            )
+                            return incident_stop("no-key-exhausted", snapshot)
                         poll_wait_started_at = time.perf_counter()
                         continue
+                    policy._cli_no_key_streak = 0
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
