@@ -1043,6 +1043,11 @@ class CalibrationMixin:
                     return HOME_KNOWLEDGE_MACRO
                 self.last_reason = "calibration:await-restore-knowledge"
                 return WAIT_KEY
+            # Calibration is only a requester.  The Home visit executor owns
+            # filing and approach just as it does for every other Home visit.
+            if not self._ensure_home_visit_request(snapshot):
+                self.last_reason = "calibration:restore-home-unavailable"
+                return WAIT_KEY
             step = self._shopping_approach_step(snapshot, STORE_HOME)
             if step is not None:
                 return self._shopping_approach_key(

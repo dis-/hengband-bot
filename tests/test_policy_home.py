@@ -2618,7 +2618,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             else:
                 self.fail((state, character, legal))
         self.assertEqual(state, "outside")
-    def test_public_calibration_restore_stops_on_first_uncomposable_claim(self):
+    def test_p5_public_calibration_restore_composes_complete_restore(self):
         base = [
             store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
             for index in range(80)
@@ -2731,19 +2731,26 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 top = 0
                 entries += 1
             elif key.startswith(WAIT_KEY) and BUY_KEY in key:
-                prefix, take = key.split(BUY_KEY, 1)
-                page = len(prefix) - 1
-                letter = take[0]
-                index = page * 12 + ord(letter) - ord("a")
-                self.assertLess(index, len(stock))
-                withdrawn = stock.pop(index)
-                inventory.append(
-                    item(
+                command = key[len(WAIT_KEY):]
+                page = 0
+                while command.startswith(" "):
+                    page += 1
+                    command = command[1:]
+                decision_withdrawals = 0
+                while command.startswith(BUY_KEY):
+                    letter = command[1]
+                    command = command[2:]
+                    index = page * 12 + ord(letter) - ord("a")
+                    self.assertLess(index, len(stock))
+                    withdrawn = stock.pop(index)
+                    inventory.append(item(
                         chr(ord("u") + withdrawals), withdrawn.tval,
                         withdrawn.sval, name=withdrawn.name,
-                    )
-                )
-                withdrawals += 1
+                    ))
+                    withdrawals += 1
+                    decision_withdrawals += 1
+                self.assertEqual(command, LEAVE_STORE_KEY)
+                self.assertGreater(decision_withdrawals, 1)
                 entries += 1
                 withdrawal_decisions.append(decision)
                 top = 0
@@ -2773,7 +2780,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         } & target_signatures
         self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
         self.assertEqual(withdrawals, 12)
-        self.assertLess(decision + 1, 300)
+        self.assertEqual(
+            decision + 1, 5,
+            (reasons, entries, withdrawals, withdrawal_decisions),
+        )
         self.assertEqual(
             reasons[
                 "town:blocked:home-claim-uncomposable:calibration-restore:"
@@ -2787,6 +2797,10 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "entries": entries,
             "withdrawal_decisions": withdrawal_decisions,
         }
+        # P5: two withdrawal entries cover the two shelf pages; the third
+        # entry is the existing final atomic deposit that settles the restore.
+        self.assertEqual(entries, 3)
+        self.assertEqual(withdrawal_decisions, [1, 3])
         # Every successful take refreshes the address space before the next.
         self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
         self.assertEqual(

@@ -1,3 +1,4 @@
+import ast
 import base64
 import gzip
 import hashlib
@@ -2289,3 +2290,20 @@ class CalibrationRestoreSuppliesRecordedPins(unittest.TestCase):
         self.assertFalse(missing["knowledge_current"])
         self.assertEqual(missing["reason"], "calibration:request-restore-knowledge")
         self.assertEqual(missing["key"], policy_module.HOME_KNOWLEDGE_MACRO)
+
+    def test_p4_calibration_restore_has_no_direct_home_approach_bypass(self):
+        from test_home_visit import HomeVisitCaptureAcceptanceTest
+
+        root = Path(__file__).resolve().parents[1]
+        tree = ast.Module(
+            body=[
+                node
+                for path in sorted((root / "src/hengbot").glob("*.py"))
+                for node in ast.parse(path.read_text(encoding="utf-8")).body
+            ],
+            type_ignores=[],
+        )
+        self.assertEqual(
+            HomeVisitCaptureAcceptanceTest._direct_home_approach_bypasses(tree),
+            [],
+        )
