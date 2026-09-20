@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
@@ -34,9 +35,9 @@ DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-parallel-timings.json"
 DEFAULT_SUMMARY = ROOT / "jsonlog" / "test-parallel-timings-summary.json"
 DEFAULT_STREAMS = ROOT / "jsonlog" / "test-parallel-streams"
 
-# HENGBOT_HOME_HISTORY_DIR now isolates every worker's durable files. Keep
-# these historically risky modules in the serial tail as defense-in-depth;
-# removal can follow a separately measured optimization.
+# HENGBOT_HOME_HISTORY_DIR isolates every worker's durable files.  Keep these
+# historically risky modules mutually serial in one dedicated shard, but run
+# that shard concurrently with the LPT-balanced pool.
 SERIAL_MODULES: frozenset[str] = frozenset({
     "tests.test_absorbing_states",
     "tests.test_cli",
@@ -57,13 +58,64 @@ def physical_cores() -> int:
 def module_seconds(path: Path) -> dict[str, float] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        totals: dict[str, float] = {}
+        # Parallel outputs record scheduled modules as well as test rows, so a
+        # legitimately empty module is complete data with a zero weight.
+        totals: dict[str, float] = {
+            str(module): 0.0
+            for shard in payload.get("shards", [])
+            for module in shard.get("modules", [])
+        }
         for row in payload["tests"]:
             module = ".".join(str(row["id"]).split(".")[:2])
             totals[module] = totals.get(module, 0.0) + float(row["seconds"])
         return totals
     except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
+
+
+@dataclass(frozen=True)
+class WeightSelection:
+    path: Path
+    weights: dict[str, float]
+    generated_at: datetime
+    fallback_count: int
+
+
+def timing_generated_at(path: Path) -> datetime:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        value = datetime.fromisoformat(str(payload["generated_at"]))
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+
+
+def select_weights(paths: list[Path], modules: list[str]) -> WeightSelection | None:
+    """Prefer the newest complete timing set, then the newest usable set."""
+    candidates: list[WeightSelection] = []
+    for path in dict.fromkeys(paths):
+        weights = module_seconds(path)
+        if weights:
+            candidates.append(WeightSelection(
+                path, weights, timing_generated_at(path),
+                sum(module not in weights for module in modules),
+            ))
+    if not candidates:
+        return None
+    complete = [candidate for candidate in candidates if candidate.fallback_count == 0]
+    return max(complete or candidates, key=lambda candidate: candidate.generated_at)
+
+
+def weights_summary(selection: WeightSelection | None, module_count: int,
+                    now: datetime | None = None) -> str:
+    if selection is None:
+        return f"weights: unavailable; fallback={module_count}/{module_count}; stale=yes"
+    current = now or datetime.now(timezone.utc).astimezone()
+    age_seconds = max(0.0, (current - selection.generated_at).total_seconds())
+    stale = age_seconds > 24 * 60 * 60 or selection.fallback_count > 0
+    return (f"weights: source={selection.path}; age={age_seconds / 86400:.1f}d; "
+            f"fallback={selection.fallback_count}/{module_count}; "
+            f"stale={'yes' if stale else 'no'}")
 
 
 def partition(modules: list[str], workers: int, weights: dict[str, float] | None) -> list[list[str]]:
@@ -157,7 +209,11 @@ def main(argv: list[str] | None = None) -> int:
         purity_line = f"purity: ran (inputs sha256={purity_hash})"
     parallel_modules = [module for module in modules if module not in SERIAL_MODULES]
     worker_count = min(args.workers, max(1, len(parallel_modules)))
-    weights = module_seconds(resolved(args.timings))
+    selection = select_weights(
+        [resolved(args.timings), resolved(args.output)], parallel_modules,
+    )
+    weights = selection.weights if selection else None
+    weights_line = weights_summary(selection, len(parallel_modules))
     shards = partition(parallel_modules, worker_count, weights)
     serial_selected = sorted(SERIAL_MODULES.intersection(modules))
     if serial_selected:
@@ -169,13 +225,11 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="hengbot-parallel-") as directory:
         temp_root = Path(directory)
-        with ThreadPoolExecutor(max_workers=worker_count) as pool:
+        with ThreadPoolExecutor(max_workers=len(shards)) as pool:
             futures = {pool.submit(run_shard, i, shard, temp_root, streams): i
-                       for i, shard in enumerate(shards[:worker_count])}
+                       for i, shard in enumerate(shards)}
             for future in as_completed(futures):
                 results.append(future.result())
-        if serial_selected:
-            results.append(run_shard(len(shards) - 1, shards[-1], temp_root, streams))
 
     results.sort(key=lambda row: str(row["name"]))
     tests = [timing for row in results for timing in row["payload"]["tests"]]
@@ -186,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
                "errors": [test_id for row in results for test_id in row["errors"]],
                "shards": [{key: row[key] for key in ("name", "modules", "returncode", "wall_seconds", "home_history_dir", "failures", "errors", "stdout", "stderr")}
                           for row in results], "serial_modules": serial_selected,
-               "purity": purity_line}
+               "purity": purity_line, "weights": weights_line}
     output, summary_output = resolved(args.output), resolved(args.summary_output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -203,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Failures: {payload['failures'] or 'none'}")
     print(f"Errors: {payload['errors'] or 'none'}")
     print(purity_line)
+    print(weights_line)
     print(f"Total: {len(tests)} tests, {payload['total_seconds']:.3f}s; output: {output}")
     failed = any(int(row["returncode"]) != 0 for row in results)
     ran_all_purity = set(PURITY_MODULES).issubset({m for row in results for m in row["modules"]})

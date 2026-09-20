@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 from unittest import mock
+from datetime import datetime, timedelta, timezone
 
 import test_parallel_runner as runner
 
@@ -45,6 +46,42 @@ class ParallelRunnerSelfTest(unittest.TestCase):
             [["tests.heavy", "tests.light"], ["tests.medium", "tests.new"]],
         )
 
+    def test_parallel_weights_cover_a_scheduled_module_with_no_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "timings.json"
+            path.write_text(json.dumps({
+                "tests": [],
+                "shards": [{"modules": ["tests.empty"]}],
+            }), encoding="utf-8")
+            self.assertEqual(runner.module_seconds(path), {"tests.empty": 0.0})
+
+    def test_weight_selection_prefers_fresh_complete_and_reports_stale_fallback(self) -> None:
+        modules = ["tests.one", "tests.two"]
+        now = datetime.now(timezone.utc)
+
+        def write(path: Path, generated_at: datetime, ids: list[str]) -> None:
+            path.write_text(json.dumps({
+                "generated_at": generated_at.isoformat(),
+                "tests": [{"id": f"{module}.Case.test_x", "seconds": 1.0}
+                          for module in ids],
+            }), encoding="utf-8")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stale, fresh = root / "stale.json", root / "fresh.json"
+            write(stale, now - timedelta(days=10), ["tests.one"])
+            write(fresh, now - timedelta(minutes=5), modules)
+            selected = runner.select_weights([stale, fresh], modules)
+            self.assertIsNotNone(selected)
+            self.assertEqual(selected.path, fresh)
+            self.assertIn("fallback=0/2; stale=no", runner.weights_summary(selected, 2, now))
+
+            selected = runner.select_weights([stale], modules)
+            self.assertIsNotNone(selected)
+            summary = runner.weights_summary(selected, 2, now)
+            self.assertIn("fallback=1/2", summary)
+            self.assertIn("stale=yes", summary)
+
     def test_fixed_path_writers_are_the_exact_serial_tail(self) -> None:
         self.assertEqual(
             runner.SERIAL_MODULES,
@@ -59,27 +96,28 @@ class ParallelRunnerSelfTest(unittest.TestCase):
     def test_standing_identity_contains_cli(self) -> None:
         self.assertIn("tests.test_cli", runner.standard_modules())
 
-    def test_serial_modules_are_excluded_from_pool_and_run_after_it(self) -> None:
+    def test_serial_modules_are_one_mutually_serial_concurrent_shard(self) -> None:
         writer = "tests.test_policy"
         modules = [writer, "tests.safe", *sorted(runner.SERIAL_MODULES)]
         calls: list[tuple[str, tuple[str, ...]]] = []
         calls_lock = threading.Lock()
-        parallel_active = 0
+        serial_calls = 0
+        serial_started = threading.Event()
 
         def fake_run_shard(index: int, shard: list[str], temp_root: Path, streams: Path):
-            nonlocal parallel_active
+            nonlocal serial_calls
             is_serial = set(shard) == runner.SERIAL_MODULES
             with calls_lock:
                 if is_serial:
-                    self.assertEqual(parallel_active, 0)
+                    serial_calls += 1
+                    self.assertEqual(tuple(shard), tuple(sorted(runner.SERIAL_MODULES)))
                     calls.append(("serial", tuple(shard)))
+                    serial_started.set()
                 else:
                     self.assertTrue(runner.SERIAL_MODULES.isdisjoint(shard))
-                    parallel_active += 1
                     calls.append(("parallel", tuple(shard)))
             if not is_serial:
-                with calls_lock:
-                    parallel_active -= 1
+                self.assertTrue(serial_started.wait(2), "serial shard did not overlap the pool")
             return {
                 "name": f"worker-{index + 1}", "modules": shard, "returncode": 0,
                 "home_history_dir": str(temp_root / f"worker-{index + 1}" / "home-history"),
@@ -92,7 +130,7 @@ class ParallelRunnerSelfTest(unittest.TestCase):
             root = Path(directory)
             with (
                 mock.patch.object(runner, "standard_modules", return_value=modules),
-                mock.patch.object(runner, "module_seconds", return_value={name: 1.0 for name in modules}),
+                mock.patch.object(runner, "select_weights", return_value=None, create=True),
                 mock.patch.object(runner, "run_shard", side_effect=fake_run_shard),
                 mock.patch.object(runner.subprocess, "check_output", return_value="deadbeef\n"),
             ):
@@ -103,7 +141,7 @@ class ParallelRunnerSelfTest(unittest.TestCase):
                 ])
 
             self.assertEqual(result, 0)
-            self.assertEqual(calls[-1], ("serial", tuple(sorted(runner.SERIAL_MODULES))))
+            self.assertEqual(serial_calls, 1)
             self.assertEqual(
                 json.loads((root / "out.json").read_text(encoding="utf-8"))["serial_modules"],
                 sorted(runner.SERIAL_MODULES),
