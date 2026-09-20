@@ -3124,6 +3124,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if self._store_visit is not None:
                         self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 state = self._town_travel_state
+                short_travel = bool(
+                    state is not None
+                    and entry_observation_pending
+                    and (self._store_entry_wait_key or "").startswith("\x1b`")
+                    and snapshot.turn > state.last_turn
+                    and snapshot.player.position != state.goal
+                )
+                if short_travel:
+                    # A later-turn surface board cannot be the lagged board
+                    # paired with the native-travel post.  When it is still
+                    # short of the entrance, the travel completed without
+                    # entering; release the observation barrier and let the
+                    # existing approach owner route again immediately.
+                    self._store_entry_posted_owner = None
+                    if self._store_visit is not None:
+                        self._store_visit.transition(StoreVisitPhase.APPROACHING)
+                    step = self._shopping_approach_step(
+                        snapshot, posted_entry_owner
+                    )
+                    if step is not None:
+                        self.last_reason = "store:entry-interrupted-replan"
+                        return self._shopping_approach_key(
+                            snapshot, step, self.last_reason
+                        )
                 if (
                     state is not None
                     and (self._store_entry_wait_key or "").startswith("\x1b`")

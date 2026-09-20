@@ -33,6 +33,10 @@ EMPTY_KEY_INCIDENT = (
     ROOT / "tests" / "fixtures" /
     "incident-20260920-1658-store-entry-await-observation.jsonl.gz"
 )
+SHORT_TRAVEL_INCIDENT = (
+    ROOT / "tests" / "fixtures" /
+    "incident-20260920-2302-entry-await-after-short-travel.jsonl.gz"
+)
 SECOND_PROMPT_REPLAY = (
     ROOT / "jsonlog" /
     "replay-20260917-2355-travel-interrupt-state.jsonl"
@@ -98,7 +102,7 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertEqual(interrupted.completed_operation_owner, "shop:travel")
         self.assertEqual(interrupted.completed_operation_sequence, 1)
 
-    def test_identical_jsonl_board_without_barrier_does_not_replan(self):
+    def test_recorded_later_turn_board_without_executor_binding_replans(self):
         rows = recorded_rows()
         policy = HengbotPolicy()
         before = parse_snapshot(rows[0], {})
@@ -108,8 +112,8 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
 
         unbound = parse_snapshot(rows[-1], {})
         self.assertIsNone(unbound.completed_operation_sequence)
-        policy.choose_key(unbound)
-        self.assertNotEqual(policy.last_reason, "store:entry-interrupted-replan")
+        self.assertEqual(policy.choose_key(unbound), TRAVEL)
+        self.assertEqual(policy.last_reason, "store:entry-interrupted-replan")
 
     def test_recorded_equipment_home_travel_owner_replans_interruption(self):
         rows = [
@@ -213,6 +217,40 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
         self.assertEqual(TRAVEL, policy._store_visit.composed_key)
 
+    def test_recorded_later_turn_short_travel_replans_without_prior_interrupt(self):
+        # The incident window begins after calibration established its Home
+        # ownership.  Reuse the smallest recorded public producer of the same
+        # Home native-travel visit, then consume the incident's recorded
+        # later-turn, off-entrance board on that same policy instance.
+        producer_rows = recorded_rows()
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        before = parse_snapshot(producer_rows[0], self.monrace)
+        policy.prime(before)
+        travel = policy.choose_key(before)
+        self.assertEqual((travel, policy.last_reason), (TRAVEL, "shop:travel"))
+        self.assertTrue(policy.confirm_key_posted(travel))
+
+        with gzip.open(SHORT_TRAVEL_INCIDENT, "rt", encoding="utf-8") as stream:
+            incident_rows = [json.loads(line) for line in stream]
+        short = parse_snapshot(incident_rows[-1], self.monrace)
+        self.assertEqual(
+            (short.turn, short.player.position.y, short.player.position.x),
+            (3_985_673, 41, 116),
+        )
+        self.assertEqual(
+            (policy._town_travel_state.goal.y,
+             policy._town_travel_state.goal.x),
+            (45, 123),
+        )
+
+        reroute = policy.choose_key(short)
+        self.assertEqual(
+            (reroute, policy.last_reason),
+            (TRAVEL, "store:entry-interrupted-replan"),
+        )
+        self.assertNotEqual(reroute, "")
+        self.assertIsNone(policy._store_visit.posted_sequence)
+
     def test_recorded_abandoned_travel_releases_empty_key_barrier(self):
         with gzip.open(EMPTY_KEY_INCIDENT, "rt", encoding="utf-8") as stream:
             rows = [json.loads(line) for line in stream]
@@ -227,10 +265,10 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
 
         self.assertEqual(decisions[1], (TRAVEL, "shop:travel"))
-        self.assertEqual(decisions[4], (
+        self.assertEqual(decisions[2], (
             TRAVEL, "store:entry-interrupted-replan",
         ))
-        self.assertEqual(decisions[5], (
+        self.assertEqual(decisions[3], (
             "9", "store:entry-interrupted-replan",
         ))
         self.assertEqual(policy._town_travel_fallback.y, 45)
