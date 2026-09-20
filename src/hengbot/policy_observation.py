@@ -53,6 +53,8 @@ class ObservationMixin:
         self, snapshot: Snapshot, *, observation: Snapshot | None = None
     ) -> None:
         self.observe_town_visit_epoch(snapshot.in_town, snapshot.turn)
+        if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
+            self._record_observed_home_addresses(snapshot)
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()

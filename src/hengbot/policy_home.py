@@ -295,6 +295,66 @@ class HomeMixin:
         self.settle_home_knowledge_request()
         return True
 
+    def _record_observed_home_addresses(self, snapshot: Snapshot) -> None:
+        """Retain letters only from a page whose complete stock still matches."""
+        store = snapshot.store
+        if (
+            store is None
+            or store.store_type != STORE_HOME
+            or store.stock_num is None
+            or store.page_size is None
+            or store.page_size <= 0
+            or store.page_top is None
+        ):
+            return
+        self._home_page_size = store.page_size
+        for item in store.items:
+            if (
+                item.letter
+                and len(item.letter) == 1
+                and ("a" <= item.letter <= "z" or "A" <= item.letter <= "Z")
+            ):
+                signature = self._item_signature(item)
+                address = (
+                    store.stock_num,
+                    store.page_size,
+                    store.page_top,
+                    item.letter,
+                )
+                previous = self._home_observed_addresses.get(signature)
+                if signature not in self._home_observed_addresses:
+                    self._home_observed_addresses[signature] = address
+                elif previous != address:
+                    self._home_observed_addresses[signature] = None
+                catalogue_matches = [
+                    index
+                    for index, candidate in enumerate(self._home_knowledge_items)
+                    if self._item_signature(candidate) == signature
+                ]
+                if len(catalogue_matches) == 1 and self._home_page_size:
+                    expected_page, expected_pos = divmod(
+                        catalogue_matches[0], self._home_page_size
+                    )
+                    expected_letter = self._home_page_letter(expected_pos)
+                    wrong_observed_occupant = next(
+                        (
+                            candidate
+                            for candidate in store.items
+                            if candidate.letter == expected_letter
+                        ),
+                        None,
+                    )
+                    if (
+                        wrong_observed_occupant is not None
+                        and self._item_signature(wrong_observed_occupant) != signature
+                        and (
+                            expected_page != store.page_top // self._home_page_size
+                            or expected_letter != item.letter
+                        )
+                    ):
+                        self._deferred_home_items.discard(signature)
+                        self._retried_deferred_home_items.discard(signature)
+
     @staticmethod
     def _open_home_page_is_complete(snapshot: Snapshot) -> bool:
         """Whether the displayed page proves it contains the whole Home."""
@@ -1297,9 +1357,23 @@ class HomeMixin:
                 deferred = self._defer_unobserved_home_withdrawal(signature)
                 self._record_digger_home_withdraw_failure(deferred)
             return LEAVE_STORE_KEY
-        index, item = selected
-        page, page_pos = divmod(index, self._home_page_size)
+        catalogue_index, item = selected
+        page, page_pos = divmod(catalogue_index, self._home_page_size)
         letter = self._home_page_letter(page_pos)
+        resolved_index = catalogue_index
+        observed_address = self._home_observed_addresses.get(signature)
+        if (
+            observed_address is not None
+            and observed_address[0] == self._home_scan_item_count
+            and observed_address[1] == self._home_page_size
+        ):
+            _stock_num, _page_size, page_top, letter = observed_address
+            page = page_top // self._home_page_size
+            resolved_index = page_top + (
+                ord(letter) - ord("a")
+                if letter.islower()
+                else 26 + ord(letter) - ord("A")
+            )
         if restore_owner_signature is not None:
             quantity = self._home_pending_quantities.get(
                 restore_owner_signature, 1
@@ -1331,7 +1405,7 @@ class HomeMixin:
             "decision_sequence": self._decision_sequence,
             "selecting_branch": selecting_branch,
             "selected_signature": list(signature),
-            "resolved_index": index,
+            "resolved_index": resolved_index,
             "resolved_page": page,
             "resolved_letter": letter,
             "quantity": take_count,
@@ -1383,7 +1457,7 @@ class HomeMixin:
                 for owner_signature, _owner_index, _owner_item in page_candidates
             ):
                 page_candidates[-1:] = [
-                    (restore_owner_signature, index, item)
+                    (restore_owner_signature, catalogue_index, item)
                 ]
                 page_candidates.sort(key=lambda entry: entry[1], reverse=True)
             if len(page_candidates) > 1:
@@ -1492,7 +1566,7 @@ class HomeMixin:
                 0,
                 False,
             )
-        self._home_atomic_withdraw_index = index
+        self._home_atomic_withdraw_index = catalogue_index
         self._home_atomic_withdraw_posted_turn = snapshot.turn
         if (
             self._home_errand.active
@@ -1763,6 +1837,7 @@ class HomeMixin:
         self._home_knowledge_current = False
         self._home_knowledge_invalidated = True
         self._home_processing_seen_pages.clear()
+        self._home_observed_addresses.clear()
         self._home_star_remove_curse_count = None
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False

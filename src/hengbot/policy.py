@@ -2004,9 +2004,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_deferred_home_items: set[tuple[str, int, int]] = set()
         self._retried_home_identification_items: set[tuple[str, int, int]] = set()
-        # knowledge-self.cpp:214 and bot-json-output.cpp:861 traverse the same
-        # Home stock array in the same order.  Addressing is derived from this
-        # exact ~9 order, never from an in-store item observation.
+        # ``~9`` is authoritative content knowledge, but its order is not a
+        # shelf address.  Keep addresses separately from observed Home pages.
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
         self._home_knowledge_valid_before = 0
         self._home_knowledge_current = False
@@ -2019,6 +2018,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._mana_survival_device_price: int | None = None
         self._home_knowledge_invalidated = False
         self._home_page_size: int | None = None
+        self._home_observed_addresses: dict[
+            tuple[str, int, int], tuple[int, int, int, str] | None
+        ] = {}
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in the complete
         # duplicate-preserving knowledge catalogue.
@@ -2933,6 +2935,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.page_size > 0
         ):
             self._home_page_size = snapshot.store.page_size
+            self._record_observed_home_addresses(snapshot)
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME

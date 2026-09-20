@@ -2462,7 +2462,7 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertEqual(pol._home_pending_item, pol._item_signature(stored[0]))
 
         entrance = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(pol.choose_key(entrance), "5pa1\r\x1b")
+        self.assertEqual(pol.choose_key(entrance), "5pp1\r\x1b")
         self.assertEqual(pol.last_reason, "home:atomic-withdraw")
 
         page = replace(inside, turn=entrance.turn + 1)
@@ -2531,7 +2531,7 @@ class IdentifyStaffTest(unittest.TestCase):
 
         # Produce the deferral through the real public withdrawal consumer.
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pp1\r\x1b")
         self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(deferred), pol._deferred_home_items)
@@ -2580,7 +2580,7 @@ class IdentifyStaffTest(unittest.TestCase):
         pol._shopping_approach_goal = home_position
 
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa1\r\x1b")
+        self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pp1\r\x1b")
         self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(stored), pol._deferred_home_items)

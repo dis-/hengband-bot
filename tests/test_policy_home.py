@@ -4988,7 +4988,7 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         policy = HengbotPolicy()
         ring = self._ring()
         home = self._store_snapshot([ring], STORE_HOME)
-        policy.prime(home)
+        policy.choose_key(home)
         policy._equipment_optimization_preparation = self._preparation(known=True)
         self.assertEqual(policy._home_deposit_key(home, ring), "db")
 
@@ -5003,7 +5003,7 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         policy = HengbotPolicy()
         ring = self._ring()
         home = self._store_snapshot([ring], STORE_HOME)
-        policy.prime(home)
+        policy.choose_key(home)
         policy._calibration_phase = "deposit"
         self.assertIs(policy._find_home_deposit(home), ring)
         self.assertEqual(policy._home_deposit_key(home, ring), "db")
@@ -5328,6 +5328,51 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason, "town-progress-invariant:boxed-breakout-travel"
         )
+
+
+class ComposedWithdrawWrongItemRecordedPins(unittest.TestCase):
+    @staticmethod
+    def _rows():
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260921-0033-home-withdraw-failed-stock-present.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            return [json.loads(line) for line in stream]
+
+    def test_p1_recorded_home_page_binds_recall_to_p_not_potion_g(self):
+        rows = self._rows()
+        home = parse_snapshot(rows[28])
+        policy = HengbotPolicy()
+
+        policy.prime(home)
+
+        recall = next(item for item in home.store.items if item.is_recall_scroll)
+        cure = next(
+            item for item in home.store.items
+            if item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL
+        )
+        self.assertEqual((home.store.stock_num, home.store.page_size), (121, 52))
+        self.assertEqual(recall.letter, "p")
+        self.assertEqual(cure.letter, "g")
+        self.assertEqual(
+            policy._home_observed_addresses[policy._item_signature(recall)],
+            (121, 52, 0, "p"),
+        )
+        self.assertNotEqual(recall.letter, cure.letter)
+
+    def test_p2_recorded_page_size_derives_addresses_beyond_first_page(self):
+        home = parse_snapshot(self._rows()[28])
+        policy = HengbotPolicy()
+        policy.prime(home)
+
+        page, page_pos = divmod(home.store.page_size, policy._home_page_size)
+
+        self.assertEqual(home.store.stock_num, 121)
+        self.assertEqual((page, page_pos), (1, 0))
+        self.assertEqual(policy._home_page_letter(page_pos), "a")
+        self.assertEqual(" " * page + BUY_KEY + "a" + LEAVE_STORE_KEY, " pa\x1b")
 
 
 class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
