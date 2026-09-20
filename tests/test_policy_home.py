@@ -2899,6 +2899,28 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 expected,
             )
 
+    def test_restored_checkpoint_without_observed_addresses_uses_catalogue_arithmetic(self):
+        wares = [
+            store_item("?", TVAL_POTION, 550 + index, name=f"home {index}")
+            for index in range(56)
+        ]
+        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
+        target = wares[55]
+        policy._home_pending_item = policy._item_signature(target)
+        del policy._home_observed_addresses
+
+        restored = restore_checkpoint(type(policy), checkpoint(policy))
+
+        self.assertEqual(restored._home_observed_addresses, {})
+        self._assert_staged_home_operation(
+            restored,
+            self._choose_atomic_withdrawal(restored, self._entrance_snapshot([])),
+            " pd\x1b",
+        )
+        self.assertEqual(
+            restored._home_atomic_withdraw_telemetry["resolved_index"], 55
+        )
+
     def test_page_two_withdrawal_records_resolved_address_and_owner(self):
         wares = [
             store_item("?", TVAL_POTION, 600 + index, name=f"home {index}")

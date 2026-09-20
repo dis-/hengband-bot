@@ -309,17 +309,21 @@ class HomeMixin:
             return
         self._home_page_size = store.page_size
         for item in store.items:
+            observed_letter = getattr(item, "letter", None)
             if (
-                item.letter
-                and len(item.letter) == 1
-                and ("a" <= item.letter <= "z" or "A" <= item.letter <= "Z")
+                observed_letter
+                and len(observed_letter) == 1
+                and (
+                    "a" <= observed_letter <= "z"
+                    or "A" <= observed_letter <= "Z"
+                )
             ):
                 signature = self._item_signature(item)
                 address = (
                     store.stock_num,
                     store.page_size,
                     store.page_top,
-                    item.letter,
+                    observed_letter,
                 )
                 previous = self._home_observed_addresses.get(signature)
                 if signature not in self._home_observed_addresses:
@@ -340,7 +344,7 @@ class HomeMixin:
                         (
                             candidate
                             for candidate in store.items
-                            if candidate.letter == expected_letter
+                            if getattr(candidate, "letter", None) == expected_letter
                         ),
                         None,
                     )
@@ -349,7 +353,7 @@ class HomeMixin:
                         and self._item_signature(wrong_observed_occupant) != signature
                         and (
                             expected_page != store.page_top // self._home_page_size
-                            or expected_letter != item.letter
+                            or expected_letter != observed_letter
                         )
                     ):
                         self._deferred_home_items.discard(signature)

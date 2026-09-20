@@ -110,6 +110,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_home_latch_history", [])
     restored.__dict__.setdefault("_home_gate_telemetry", {})
     restored.__dict__.setdefault("_town_visit_epoch", None)
+    restored.__dict__.setdefault("_home_observed_addresses", {})
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     restored.__dict__.setdefault("_home_knowledge_scan_epoch", None)
     if not token_was_present:
