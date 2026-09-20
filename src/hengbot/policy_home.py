@@ -543,7 +543,9 @@ class HomeMixin:
         matches = lambda candidate: False
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = (
-            self._carry_procurement_strategy(snapshot)
+            self._carry_procurement_strategy(
+                snapshot, cache_fixed_quest_head=False
+            )
             or self._quest_strategy_for_errand_or_floor(snapshot)
         )
         mining_planned = self._fundraising_mode in {"prepare", "mine", "scavenge"} or (

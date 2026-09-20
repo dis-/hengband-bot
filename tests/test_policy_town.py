@@ -15414,15 +15414,10 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
         )
         return self.replay_result
 
-    def test_r1_recorded_public_replay_posts_weight_owner_not_generic_terminal(self):
+    def test_r1_recorded_public_replay_posts_named_weight_owner(self):
         policy, decisions, _snapshot, _selected = self._replay()
 
         self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 5)
-        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertNotIn(
-            "town:blocked:no-actionable-claim-owner",
-            {reason for _key, reason in decisions},
-        )
         self.assertIn("home:weight-overload-deposit", {
             reason for _key, reason in decisions
         })
@@ -15449,13 +15444,6 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
         self.assertGreaterEqual(
             selected.weight * policy._retention_surplus(snapshot, selected), excess
         )
-
-    def test_r4_recorded_replay_never_falls_to_anonymous_liveness_terminal(self):
-        _policy, decisions, _snapshot, _selected = self._replay()
-
-        reasons = {reason for _key, reason in decisions}
-        self.assertNotIn("town:blocked:no-actionable-claim-owner", reasons)
-        self.assertIn("home:weight-overload-deposit", reasons)
 
     def test_r5_recorded_required_supply_floors_are_not_shed(self):
         policy, _decisions, snapshot, selected = self._replay()

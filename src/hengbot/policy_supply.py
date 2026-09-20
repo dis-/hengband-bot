@@ -732,11 +732,17 @@ class SupplyMixin:
             return target, f"carry-strategy:{label}"
         return target, f"emergency-potion:{label.removesuffix('-potions')}"
 
-    def _carry_procurement_strategy(self, snapshot: Snapshot) -> StrategyProfile | None:
+    def _carry_procurement_strategy(
+        self, snapshot: Snapshot, *, cache_fixed_quest_head: bool = True
+    ) -> StrategyProfile | None:
         """Return the level-shaped torch mandate or next-quest requirements."""
         if not snapshot.in_town:
             return None
-        quest = self._fixed_quest_head(snapshot)
+        quest = (
+            self._fixed_quest_head(snapshot)
+            if cache_fixed_quest_head
+            else self._uncached_fixed_quest_head(snapshot)
+        )
         if snapshot.player.level >= 10:
             if (
                 quest is None
