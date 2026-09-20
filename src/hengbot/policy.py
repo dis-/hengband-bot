@@ -3499,15 +3499,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and not self._calibration_session_owned()
                 ):
                     self._equipment_transaction_owned_items.append(
-                        (pending.item_identity, pending.target_slot)
+                        (
+                            pending.move_identity or pending.item_identity,
+                            pending.target_slot,
+                        )
                     )
                 elif pending.kind in {"equip", "reposition"}:
                     self._release_equipment_transaction_owned_item(
-                        pending.item_identity
+                        pending.move_identity or pending.item_identity
                     )
                 elif pending.kind == "deposit":
                     self._release_equipment_transaction_owned_item(
-                        pending.item_identity
+                        pending.move_identity or pending.item_identity
                     )
                     if not self._calibration_session_owned():
                         retired = tuple(

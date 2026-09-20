@@ -5994,6 +5994,145 @@ class RestoreWeaponStaleTakeoffReplayTest(unittest.TestCase):
             policy.confirm_key_posted(key)
 
 
+class RestoreCountIdentityIncidentTest(unittest.TestCase):
+    FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "incident-20260920-1025-restore-blocked-count-identity.jsonl.gz"
+    )
+
+    def _snapshots(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8") as stream:
+            return [
+                parse_snapshot(json.loads(line), {})
+                for line in stream
+            ]
+
+    def _transaction_replay(self):
+        snapshots = self._snapshots()
+        before = snapshots[29]
+        final = snapshots[-1]
+        catalog = OwnedEquipmentCatalog()
+        catalog.refresh_carried(before.inventory, before.equipment)
+        available = list(catalog.items)
+        current = Loadout(
+            tuple(
+                (owned.equipped_slot, owned)
+                for owned in available
+                if owned.origin == "equipped"
+            ),
+            "dual_wield",
+        )
+        target_slots = []
+        for worn in final.equipment:
+            move_identity = equipment_move_identity(worn)
+            owned = next(
+                candidate
+                for candidate in available
+                if equipment_move_identity(candidate.item) == move_identity
+            )
+            target_slots.append((worn.slot, owned))
+            available.remove(owned)
+        shovel = next(item for item in before.equipment if item.is_digging_tool)
+        plan = policy_module.plan_equipment_transactions(
+            catalog.items,
+            current,
+            Loadout(tuple(target_slots), "dual_wield"),
+            current_pack_items=len(before.inventory),
+            home_scan_complete=False,
+            retain_item_identities=frozenset({
+                policy_module.equipment_identity(shovel)
+            }),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_catalog = catalog
+        policy._set_equipment_transaction_session(
+            policy_module.EquipmentTransactionSession(plan)
+        )
+        # pin_vacuity: the fixture starts after the mature live policy had
+        # already classified the axe as transaction work.  Wall off only the
+        # competing generic mining re-arm selector; the real planner, session
+        # observer, owned-item producer, restore consumer, and choose_key path
+        # remain composed on this policy instance.
+        policy._town_restore_weapon_key = Mock(return_value=None)
+        return policy, snapshots
+
+    def test_recorded_stacked_shovel_does_not_reach_restore_terminal(self):
+        policy, snapshots = self._transaction_replay()
+        reasons = []
+        for snapshot in snapshots[29:]:
+            key = policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+            if key is not None:
+                policy.confirm_key_posted(key)
+
+        self.assertNotIn(
+            "equipment-transaction:restore-blocked-terminal", reasons
+        )
+        self.assertEqual(policy._equipment_transaction_restore_remainder, ())
+
+    def test_recorded_shovel_identity_changes_only_under_counting_identity(self):
+        policy, snapshots = self._transaction_replay()
+        worn = next(
+            item for item in snapshots[29].equipment if item.is_digging_tool
+        )
+        stacked = next(
+            item for item in snapshots[-1].inventory if item.is_digging_tool
+        )
+
+        self.assertNotEqual(
+            policy_module.equipment_identity(worn),
+            policy_module.equipment_identity(stacked),
+        )
+        self.assertEqual(
+            equipment_move_identity(worn), equipment_move_identity(stacked)
+        )
+        for snapshot in snapshots[29:32]:
+            key = policy.choose_key(snapshot)
+            if key is not None:
+                policy.confirm_key_posted(key)
+        self.assertEqual(
+            policy._equipment_transaction_owned_items,
+            [(equipment_move_identity(worn), "sub_hand")],
+        )
+        self.assertTrue(policy._equipment_transaction_owns_item(stacked))
+
+    def test_recorded_restore_with_physically_absent_shovel_reaches_terminal(self):
+        policy, snapshots = self._transaction_replay()
+        for snapshot in snapshots[29:34]:
+            key = policy.choose_key(snapshot)
+            if key is not None:
+                policy.confirm_key_posted(key)
+        final = snapshots[-1]
+        shovel_move_identity = equipment_move_identity(
+            next(
+                item for item in snapshots[29].equipment
+                if item.is_digging_tool
+            )
+        )
+        self.assertEqual(
+            policy._equipment_transaction_owned_items,
+            [
+                (shovel_move_identity, "sub_hand"),
+                (shovel_move_identity, "main_hand"),
+            ],
+        )
+        absent = replace(
+            final,
+            inventory=[item for item in final.inventory if not item.is_digging_tool],
+        )
+
+        policy.choose_key(absent)
+        self.assertEqual(
+            policy.last_reason,
+            "equipment-transaction:restore-blocked-terminal",
+        )
+        self.assertEqual(
+            policy._equipment_transaction_restore_remainder,
+            (shovel_move_identity,) * 2,
+        )
+
+
 class EquipLoopAfterE85AA8ERegressionTest(unittest.TestCase):
     FIXTURE = (
         Path(__file__).parent

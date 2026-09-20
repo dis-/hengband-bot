@@ -428,7 +428,12 @@ class EquipmentMixin:
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
         """Release transaction ownership freshly satisfied by worn observations."""
         equipped = {
-            (equipment_identity(item), item.slot) for item in snapshot.equipment
+            (identity, item.slot)
+            for item in snapshot.equipment
+            for identity in (
+                equipment_move_identity(item),
+                equipment_identity(item),
+            )
         }
         self._equipment_transaction_owned_items = [
             owned
@@ -758,8 +763,13 @@ class EquipmentMixin:
             if (
                 item.origin == "equipped"
                 and item.equipped_slot is not None
-                and (equipment_identity(item.item), item.equipped_slot)
-                in restoration_owned
+                and any(
+                    (identity, item.equipped_slot) in restoration_owned
+                    for identity in (
+                        equipment_move_identity(item.item),
+                        equipment_identity(item.item),
+                    )
+                )
             )
             or (
                 item.origin == "pack"
@@ -1380,9 +1390,29 @@ class EquipmentMixin:
             # time it is interrupted.  An old blocked session is evidence only
             # about that attempt; it must never latch restoration off while a
             # wearable owned item is still in the pack or known at Home.
+            observed_equipment = (
+                () if snapshot is None else snapshot.equipment
+            )
+            observed_inventory = (
+                () if snapshot is None else snapshot.inventory
+            )
+            count_to_move = {
+                equipment_identity(item): equipment_move_identity(item)
+                for item in (*observed_equipment, *observed_inventory)
+            }
+            count_to_move.update({
+                equipment_identity(item): equipment_move_identity(item)
+                for item in self._home_knowledge_items[
+                    :self._home_knowledge_valid_before
+                ]
+            })
+            self._equipment_transaction_owned_items = [
+                (count_to_move.get(identity, identity), slot)
+                for identity, slot in self._equipment_transaction_owned_items
+            ]
             equipped = {
-                (equipment_identity(item), item.slot)
-                for item in (() if snapshot is None else snapshot.equipment)
+                (equipment_move_identity(item), item.slot)
+                for item in observed_equipment
             }
             self._equipment_transaction_owned_items = [
                 owned
@@ -1390,34 +1420,37 @@ class EquipmentMixin:
                 if owned not in equipped
             ]
             pack_identities = {
-                equipment_identity(item)
-                for item in (() if snapshot is None else snapshot.inventory)
+                equipment_move_identity(item)
+                for item in observed_inventory
             }
             known_home_items = self._home_knowledge_items[
                 :self._home_knowledge_valid_before
             ]
             home_identities = {
-                equipment_identity(item) for item in known_home_items
+                equipment_move_identity(item) for item in known_home_items
             }
             pack_by_identity = {
-                equipment_identity(item): item
-                for item in (() if snapshot is None else snapshot.inventory)
-                if item.is_equipment
+                equipment_move_identity(item): item
+                for item in observed_inventory
             }
             home_by_identity = {
-                equipment_identity(item): item
+                equipment_move_identity(item): item
                 for item in known_home_items
-                if item.is_equipment
             }
             owned_by_identity = {
-                equipment_identity(owned.item): owned
+                equipment_move_identity(owned.item): owned
                 for owned in self._equipment_catalog.items
             }
             self._equipment_transaction_owned_items = [
                 (identity, slot)
                 for identity, slot in self._equipment_transaction_owned_items
-                if f"identity:{identity}"
-                not in self._equipment_transaction_failed_items
+                if (
+                    identity not in owned_by_identity
+                    or not self._equipment_memory_contains(
+                        self._equipment_transaction_failed_items,
+                        owned_by_identity[identity],
+                    )
+                )
                 and not (
                     identity in owned_by_identity
                     and owned_by_identity[identity].identification_incomplete
@@ -1430,10 +1463,6 @@ class EquipmentMixin:
                 restore_item = pack_by_identity.get(identity)
                 if restore_item is None and identity in owned_by_identity:
                     restore_item = owned_by_identity[identity].item
-                # Checkpoint recovery can retain only the count-bearing digest,
-                # which is not reversible into a move identity.  That legacy
-                # recovery case remains on the existing identity fallback;
-                # every construction with an observed item carries move_identity.
                 restore_move_identity = (
                     equipment_move_identity(restore_item)
                     if restore_item is not None
@@ -1442,7 +1471,12 @@ class EquipmentMixin:
                 if identity in pack_identities or snapshot is None:
                     restore_actions.append(
                         EquipmentTransaction(
-                            PHASE_EQUIP, "equip", item_id, slot, identity,
+                            PHASE_EQUIP, "equip", item_id, slot,
+                            (
+                                identity
+                                if restore_item is None
+                                else equipment_identity(restore_item)
+                            ),
                             restore_move_identity,
                         )
                     )
@@ -1450,13 +1484,16 @@ class EquipmentMixin:
                     restore_actions.extend((
                         EquipmentTransaction(
                             PHASE_HOME_PREPARE, "withdraw", item_id,
-                            item_identity=identity,
+                            item_identity=equipment_identity(
+                                home_by_identity[identity]
+                            ),
                             move_identity=equipment_move_identity(
                                 home_by_identity[identity]
                             ),
                         ),
                         EquipmentTransaction(
-                            PHASE_EQUIP, "equip", item_id, slot, identity,
+                            PHASE_EQUIP, "equip", item_id, slot,
+                            equipment_identity(home_by_identity[identity]),
                             equipment_move_identity(home_by_identity[identity]),
                         ),
                     ))
@@ -1500,9 +1537,12 @@ class EquipmentMixin:
         self, item: InventoryItem | StoreItem
     ) -> bool:
         """Return whether live transaction provenance protects this item."""
-        identity = equipment_identity(item)
+        identities = {
+            equipment_move_identity(item),
+            equipment_identity(item),
+        }
         return any(
-            owned_identity == identity
+            owned_identity in identities
             for owned_identity, _ in self._equipment_transaction_owned_items
         )
 
