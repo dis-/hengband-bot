@@ -256,6 +256,49 @@ class LevelUpStatPromptPins(ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["6", "ay"])
 
+    def test_round2_p1_bootstrap_answers_recorded_prompt_then_becomes_ready(self):
+        game, _client, executor = self.make()
+        game.screen = self.recorded_screen()
+        game.screens = [command_screen(2)]
+
+        result = executor.observe_boundary(deadline=9999999999)
+
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(game.accepted, ["ay"])
+        self.assertNotIn("<stuck-prompt>", result.reason or "")
+
+    def test_round2_p2_persistent_bootstrap_prompt_answers_once_then_terminals(self):
+        game, _client, executor = self.make()
+        game.screen = self.recorded_screen()
+        game.screens = [self.recorded_screen()]
+
+        result = executor.observe_boundary(deadline=9999999999)
+
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(game.accepted, ["ay"])
+        self.assertIn("phase=classification", result.reason)
+        self.assertIn("reason=a", result.reason)
+
+    def test_round2_p3_unknown_bootstrap_screen_still_terminals(self):
+        modal_game, _client, modal_executor = self.make()
+        modal_game.screen = self.recorded_screen()
+        modal_game.screens = [command_screen(2)]
+        self.assertEqual(
+            modal_executor.observe_boundary(deadline=9999999999).outcome,
+            "ready",
+        )
+
+        game, _client, executor = self.make()
+        game.screen = prompt_screen("An unknown prompt")
+        game.screen["lines"][23] = ""
+
+        result = executor.observe_boundary(deadline=9999999999)
+
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertEqual(game.accepted, [])
+        self.assertIn("phase=classification", result.reason)
+        self.assertIn("reason=unrecognized", result.reason)
+
     def test_p2_eighteen_slash_value_orders_above_plain_seventeen(self):
         # All values come from the recording; move its 18/63 onto Strength and
         # its 17 onto Dexterity to pin the game's displayed-stat ordering.
@@ -730,7 +773,8 @@ class Stage2bHistoricalIncidentPin(ProductionHarness):
                     callers.append(path.name)
         self.assertEqual(
             callers,
-            ["control_client.py", "input_executor.py", "input_executor.py"],
+            ["control_client.py", "input_executor.py", "input_executor.py",
+             "input_executor.py"],
         )
 
     def test_accepted_callback_once_per_accepted_segment_unknown_is_zero(self):

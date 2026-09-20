@@ -836,13 +836,28 @@ class OperationExecutor:
             self.active.timing[f"{op}_wait_ms"] += (time.perf_counter() - started) * 1000
         return result
 
-    def _observe_decidable(self, operation: Operation | None, deadline: float) -> OperationResult:
+    def _answer_observed_level_up(
+            self, operation: Operation | None, match: ScreenMatch,
+            deadline: float) -> OperationResult:
+        outcome = self.client.post_keys(
+            match.feature + "y", expected_count=2, deadline=deadline)
+        if outcome.status is not KeyPostStatus.ACCEPTED:
+            return self._terminal(
+                operation, "keys", outcome.reason or outcome.status.value,
+                match, outcome)
+        return self._observe_decidable(
+            operation, deadline, answer_level_up=False)
+
+    def _observe_decidable(self, operation: Operation | None, deadline: float,
+                           *, answer_level_up: bool = True) -> OperationResult:
         screen_value = self._request("screen", deadline, term=0, attrs=False)
         if screen_value is None:
             return self._terminal(operation, "screen", "read-only request failed")
         match = self._classify(screen_value)
         if match.kind is ScreenKind.DEATH:
             return self._death(operation, match)
+        if match.kind is ScreenKind.LEVEL_UP_STAT and answer_level_up:
+            return self._answer_observed_level_up(operation, match, deadline)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
         screen_epoch = self.client.observation_epoch
@@ -852,8 +867,11 @@ class OperationExecutor:
         if self.client.observation_epoch != screen_epoch:
             # The state retry invalidated S. Restart S -> T within the original
             # caller deadline; the deadline selects failure, never readiness.
-            return self._observe_decidable(operation, deadline)
+            return self._observe_decidable(
+                operation, deadline, answer_level_up=answer_level_up)
         match = self._classify(screen_value, state)
+        if match.kind is ScreenKind.LEVEL_UP_STAT and answer_level_up:
+            return self._answer_observed_level_up(operation, match, deadline)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
         board = self._finish_board(state, screen_value, match)
