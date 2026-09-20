@@ -2509,8 +2509,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot, current_owner, self.last_reason,
             key if isinstance(key, DecisionCandidate) else None,
         )
+        town_kill_owns_visible_target = (
+            (
+                (self.last_reason or "").startswith("town:kill-mob")
+                or self.last_reason == "melee"
+            )
+            and any(not monster.pet for monster in snapshot.visible_monsters)
+        )
         if (
             in_town
+            and not town_kill_owns_visible_target
             and not arbiter.preview_may_select(
                 self.last_reason, vector, retirement_key=current_retirement_key
             )

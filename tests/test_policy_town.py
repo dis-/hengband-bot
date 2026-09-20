@@ -15013,3 +15013,101 @@ class TownPriorityStage3Round2RecordedTest(unittest.TestCase):
             (key, policy.last_reason), (WAIT_KEY, "shop:travel:await-entry")
         )
         self.assertIsNotNone(policy._store_visit)
+
+
+class TownKillMobAlternationRecordedTest(unittest.TestCase):
+    """Pins town extermination against the recorded moving-monster race."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-2025-kill-mob-shop-alternation.jsonl.gz"
+        )
+        raw = fixture.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == (
+            "4c3aa1f9b3a135a4f2afccbaef89d095fd2d5d4d9d17f76dd4b0ff2d6cd63473"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        assert len(cls.rows) == 33
+
+    def _replay(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        # Row 2 is the recorded ``~9`` result that produced the live Home
+        # catalogue.  Feed that public observer on this same policy before the
+        # decision replay so unrelated catalogue acquisition cannot mask combat.
+        self.assertTrue(policy.consume_home_knowledge(self.rows[2].store.items))
+        replay_rows = self.rows[18:]
+        decisions = []
+        for snapshot in replay_rows:
+            key = policy.choose_key(snapshot)
+            decisions.append((str(key), policy.last_reason))
+        return policy, replay_rows, decisions
+
+    def test_p1_every_recorded_adjacent_visible_monster_is_attacked(self):
+        policy, replay_rows, decisions = self._replay()
+        adjacent = [
+            (snapshot, decisions[index])
+            for index, snapshot in enumerate(replay_rows)
+            if any(
+                not monster.pet and monster.distance <= 1
+                for monster in snapshot.visible_monsters
+            )
+        ]
+
+        self.assertEqual(len(adjacent), 10)
+        for snapshot, (key, reason) in adjacent:
+            targets = sorted(
+                (
+                    monster for monster in snapshot.visible_monsters
+                    if not monster.pet and monster.distance <= 1
+                ),
+                key=lambda monster: monster.distance,
+            )
+            self.assertIn(reason, {"melee", "town:kill-mob-attack"})
+            self.assertEqual(
+                key,
+                policy._direction_key(
+                    snapshot.player.position, targets[0].position
+                ),
+            )
+
+    def test_p2_recorded_replay_never_retires_kill_owner(self):
+        _policy, _replay_rows, decisions = self._replay()
+
+        self.assertNotIn(
+            "town:blocked:owner-retired",
+            {reason for _key, reason in decisions},
+        )
+
+    def test_p3_visible_monster_keeps_reason_sequence_in_kill_family(self):
+        _policy, replay_rows, decisions = self._replay()
+        visible_reasons = [
+            decisions[index][1]
+            for index, snapshot in enumerate(replay_rows)
+            if any(not monster.pet for monster in snapshot.visible_monsters)
+        ]
+
+        self.assertEqual(len(visible_reasons), 13)
+        self.assertTrue(
+            all(
+                reason == "melee" or reason.startswith("town:kill-mob")
+                for reason in visible_reasons
+            ),
+            visible_reasons,
+        )
+
+    def test_p4_recorded_monster_free_row_starts_shop_errand(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+
+        key = policy.choose_key(self.rows[0])
+
+        self.assertFalse(self.rows[0].visible_monsters)
+        self.assertEqual((str(key), policy.last_reason), ("5", "shop:travel:await-entry"))
