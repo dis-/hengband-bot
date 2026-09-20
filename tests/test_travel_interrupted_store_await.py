@@ -102,7 +102,7 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertEqual(interrupted.completed_operation_owner, "shop:travel")
         self.assertEqual(interrupted.completed_operation_sequence, 1)
 
-    def test_recorded_later_turn_board_without_executor_binding_replans(self):
+    def test_recorded_later_turn_board_without_executor_binding_keeps_waiting(self):
         rows = recorded_rows()
         policy = HengbotPolicy()
         before = parse_snapshot(rows[0], {})
@@ -112,8 +112,8 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
 
         unbound = parse_snapshot(rows[-1], {})
         self.assertIsNone(unbound.completed_operation_sequence)
-        self.assertEqual(policy.choose_key(unbound), TRAVEL)
-        self.assertEqual(policy.last_reason, "store:entry-interrupted-replan")
+        policy.choose_key(unbound)
+        self.assertNotEqual(policy.last_reason, "store:entry-interrupted-replan")
 
     def test_recorded_equipment_home_travel_owner_replans_interruption(self):
         rows = [
@@ -243,6 +243,14 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
             (45, 123),
         )
 
+        prior = parse_snapshot(incident_rows[-2], self.monrace)
+        self.assertEqual(
+            (prior.turn, prior.player.position.y, prior.player.position.x),
+            (3_985_604, 37, 105),
+        )
+        self.assertEqual(policy.choose_key(prior), "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+
         reroute = policy.choose_key(short)
         self.assertEqual(
             (reroute, policy.last_reason),
@@ -265,10 +273,10 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
 
         self.assertEqual(decisions[1], (TRAVEL, "shop:travel"))
-        self.assertEqual(decisions[2], (
+        self.assertEqual(decisions[4], (
             TRAVEL, "store:entry-interrupted-replan",
         ))
-        self.assertEqual(decisions[3], (
+        self.assertEqual(decisions[5], (
             "9", "store:entry-interrupted-replan",
         ))
         self.assertEqual(policy._town_travel_fallback.y, 45)

@@ -3126,28 +3126,36 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 state = self._town_travel_state
                 short_travel = bool(
                     state is not None
-                    and entry_observation_pending
+                    and visit is not None
+                    and not visit.operation_posted
+                    and not entry_observation_pending
                     and (self._store_entry_wait_key or "").startswith("\x1b`")
                     and snapshot.turn > state.last_turn
                     and snapshot.player.position != state.goal
+                    and snapshot.player.position.distance_to(state.goal)
+                    < state.best_distance
                 )
                 if short_travel:
-                    # A later-turn surface board cannot be the lagged board
-                    # paired with the native-travel post.  When it is still
-                    # short of the entrance, the travel completed without
-                    # entering; release the observation barrier and let the
-                    # existing approach owner route again immediately.
+                    # The prior decision already consumed the lagged surface
+                    # board paired with the native-travel post.  A subsequent
+                    # later-turn board still short of the entrance proves the
+                    # travel completed without entering; release the barrier
+                    # and let the existing approach owner route immediately.
                     self._store_entry_posted_owner = None
                     if self._store_visit is not None:
                         self._store_visit.transition(StoreVisitPhase.APPROACHING)
-                    step = self._shopping_approach_step(
-                        snapshot, posted_entry_owner
+                    self.last_reason = "store:entry-interrupted-replan"
+                    travel = self._town_travel_key(
+                        snapshot,
+                        state.goal,
+                        self._store_entry_wait_key,
+                        self.last_reason,
                     )
-                    if step is not None:
-                        self.last_reason = "store:entry-interrupted-replan"
-                        return self._shopping_approach_key(
-                            snapshot, step, self.last_reason
-                        )
+                    if travel is not None:
+                        self._store_entry_wait_owner = posted_entry_owner
+                        self._store_entry_wait_key = travel
+                        self._store_entry_wait_turn = snapshot.turn
+                        return travel
                 if (
                     state is not None
                     and (self._store_entry_wait_key or "").startswith("\x1b`")
