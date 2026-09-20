@@ -8408,10 +8408,10 @@ class TownMapNightRoutingTest(unittest.TestCase):
         self.assertTrue(policy.confirm_key_posted(travel))
         goal = policy._town_travel_state.goal
 
-        self.assertEqual(policy.choose_key(snap), "1")
-        self.assertEqual(policy.last_reason, "store:entry-interrupted-replan")
-        self.assertEqual(policy._town_travel_fallback, goal)
-        self.assertIsNone(policy._town_travel_state)
+        self.assertEqual(policy.choose_key(snap), "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertIsNone(policy._town_travel_fallback)
+        self.assertEqual(policy._town_travel_state.goal, goal)
 
 class WildernessSafetyTest(unittest.TestCase):
     def _wild_grids(self):
