@@ -2682,7 +2682,10 @@ class TownMixin:
             # for this visit; exposing one as a supplier masks the established
             # fundraising settlement path.
             return None, False
-        if self._equipment_retired_worn_item_ids or (
+        retired_worn_item_ids = getattr(
+            self, "_equipment_retired_worn_item_ids", frozenset()
+        )
+        if retired_worn_item_ids or (
             self._equipment_failure_unexecutable_this_visit(
                 snapshot,
                 self._equipment_optimization_preparation,
@@ -2696,7 +2699,7 @@ class TownMixin:
             if not self._town_need_supplier_reachable(snapshot, need):
                 continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
-                self._equipment_retired_worn_item_ids
+                retired_worn_item_ids
                 or "equipment-opt" in retired
                 or "equipment-txn" in retired
             ):

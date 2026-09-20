@@ -182,8 +182,10 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         unknown_policy, _ = self._seed_through_incident(maps=False)
         unknown = parse_snapshot(self._without_entrance(source), self.monrace)
         unknown_key = unknown_policy.choose_key(unknown)
+        # A reachable required-supply supplier outranks an approach to a
+        # remembered (not currently visible) town item.
         self.assertEqual((str(unknown_key), unknown_policy.last_reason),
-                         ("7", "seek-loot"))
+                         ("\x1b`n%.", "shop:travel"))
         self.assertEqual(unknown_policy.decision_attribution, "town-errand")
         self.assertNotIn("quest-request", unknown_policy._town_turn_arbiter._retired)
 

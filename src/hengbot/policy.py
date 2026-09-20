@@ -4750,6 +4750,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             self._release_choke_plan("floor-change")
 
+    def _required_supply_suppresses_normal_loot(
+        self, snapshot: Snapshot
+    ) -> bool:
+        if not snapshot.in_town:
+            return False
+        supplier = self._actionable_departure_supplier(snapshot)
+        if supplier is None:
+            return False
+        return not any(
+            grid.currently_observed and grid.object_count > 0
+            for grid in snapshot.grids.values()
+        )
+
     def _decide(self, snapshot: Snapshot) -> str:
         self._evaluate_cross_decision_latches(snapshot)
         # Admission of an already-built Home transaction precedes evaluators
@@ -5797,13 +5810,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if equipment_transaction is not None:
             return equipment_transaction
 
-        required_supply_supplier = (
-            self._actionable_departure_supplier(snapshot)
-            if snapshot.in_town else None
-        )
         if (
             not self._emergency_return_active
-            and required_supply_supplier is None
+            and not self._required_supply_suppresses_normal_loot(snapshot)
         ):
             loot = self._normal_loot_key(snapshot, strategic_hostiles)
             if loot is not None:

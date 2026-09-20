@@ -15146,6 +15146,16 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
                 parse_snapshot(json.loads(line), cls.monrace) for line in stream
             ]
 
+        visible_loot_fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "equipment-in-home-town0-2305.jsonl.gz"
+        )
+        with gzip.open(visible_loot_fixture, "rt", encoding="utf-8") as stream:
+            cls.visible_loot_rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+
     def _policy_with_recorded_catalogue(self):
         policy = HengbotPolicy(monrace_knowledge=self.monrace)
         self.assertTrue(
@@ -15190,3 +15200,24 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
 
         normal_loot.assert_not_called()
         self.assertEqual(decisions, [("\x1b`n(.", "shop:travel")] * 10)
+
+    def test_p3_recorded_visible_loot_is_not_suppressed(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        self.assertTrue(
+            policy.consume_home_knowledge(self.visible_loot_rows[9].store.items)
+        )
+        policy.choose_key(self.visible_loot_rows[0])
+        snapshot = self.visible_loot_rows[1]
+
+        visible = [
+            grid.position
+            for grid in snapshot.grids.values()
+            if grid.currently_observed and grid.object_count > 0
+        ]
+        self.assertEqual(visible, [Position(36, 119)])
+        self.assertEqual(
+            policy._actionable_departure_supplier(snapshot), STORE_MAGIC
+        )
+        self.assertFalse(
+            policy._required_supply_suppresses_normal_loot(snapshot)
+        )
