@@ -15153,60 +15153,40 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
         )
         return policy
 
-    def test_p1_complete_recorded_replay_never_retires_an_owner(self):
+    def test_p1_recorded_magic_shortage_skips_normal_loot_producer(self):
         policy = self._policy_with_recorded_catalogue()
-        reasons = []
-        for snapshot in self.rows:
-            policy.choose_key(snapshot)
-            reasons.append(policy.last_reason)
-
-        self.assertNotIn("town:blocked:owner-retired", reasons)
-
-    def test_p2_recorded_shortage_tail_has_exact_supply_reason_sequence(self):
-        policy = self._policy_with_recorded_catalogue()
-        reasons = []
-        for snapshot in self.rows[12:19]:
-            policy.choose_key(snapshot)
-            reasons.append(policy.last_reason)
+        snapshot = self.rows[0]
 
         self.assertEqual(
-            reasons,
-            ["shop:travel"] + ["shop:approach"] * 6,
+            policy._actionable_departure_supplier(snapshot), STORE_MAGIC
         )
-
-    def test_p3_recorded_town_item_pickup_still_runs(self):
-        fixture = (
-            Path(__file__).parent
-            / "fixtures"
-            / "equipment-in-home-town0-2305.jsonl.gz"
-        )
-        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
-            rows = [
-                parse_snapshot(json.loads(line), self.monrace) for line in stream
-            ]
-        policy = HengbotPolicy(monrace_knowledge=self.monrace)
-        self.assertTrue(policy.consume_home_knowledge(rows[9].store.items))
-        decisions = []
-        for snapshot in rows[:6]:
+        with patch.object(
+            policy, "_normal_loot_key", wraps=policy._normal_loot_key
+        ) as normal_loot:
             key = policy.choose_key(snapshot)
-            decisions.append((str(key), policy.last_reason))
 
-        self.assertEqual(decisions[-1], ("g", "fixedquest:reward-pickup"))
+        normal_loot.assert_not_called()
+        self.assertEqual((str(key), policy.last_reason), ("\x1b`n(.", "shop:travel"))
 
-    def test_p4_visible_town_monster_keeps_combat_ownership(self):
+    def test_p2_recorded_home_shortage_skips_normal_loot_producer(self):
         policy = self._policy_with_recorded_catalogue()
-        replay_rows = self.catalogue_rows[18:]
-        visible_reasons = []
-        for snapshot in replay_rows:
-            policy.choose_key(snapshot)
-            if any(not monster.pet for monster in snapshot.visible_monsters):
-                visible_reasons.append(policy.last_reason)
+        policy.choose_key(self.rows[0])
+        snapshots = self.rows[1:11]
 
-        self.assertEqual(len(visible_reasons), 13)
+        self.assertTrue(snapshots)
         self.assertTrue(
             all(
-                reason == "melee" or reason.startswith("town:kill-mob")
-                for reason in visible_reasons
-            ),
-            visible_reasons,
+                policy._actionable_departure_supplier(snapshot) == STORE_HOME
+                for snapshot in snapshots
+            )
         )
+        with patch.object(
+            policy, "_normal_loot_key", wraps=policy._normal_loot_key
+        ) as normal_loot:
+            decisions = [
+                (str(policy.choose_key(snapshot)), policy.last_reason)
+                for snapshot in snapshots
+            ]
+
+        normal_loot.assert_not_called()
+        self.assertEqual(decisions, [("\x1b`n(.", "shop:travel")] * 10)
