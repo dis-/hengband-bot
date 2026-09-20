@@ -605,7 +605,7 @@ class WeightOverloadTownTest(unittest.TestCase):
             )
             policy._home_rejected_deposits.add(policy._item_signature(selected))
 
-        self.assertEqual(selected_slots[0], "d")
+        self.assertEqual(selected_slots[0], "p")
 
     def test_suffixed_categories_are_required_by_overweight_predicate(self):
         snapshot = self._recorded_pre_ammo_purchase()
@@ -5783,8 +5783,8 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
 
         deposit_key = policy.choose_key(parse_snapshot(page))
 
-        self.assertEqual(deposit_key, "didhdg2\r\x1b")
-        self.assertEqual(policy.last_reason, "home:atomic-deposit")
+        self.assertEqual(deposit_key, "dw\x1b")
+        self.assertEqual(policy.last_reason, "home:weight-overload-deposit")
         self.assertIsNone(policy._home_pending_item)
 
     def test_catalogue_shortage_reserve_yields_only_to_departure_blockers(self):

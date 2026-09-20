@@ -1847,6 +1847,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
         # Store purchases are retained for the rest of the current town visit.
         self._town_visit_purchases: set[tuple[str, int, int]] = set()
+        self._town_visit_purchase_quantities: dict[tuple[str, int, int], int] = {}
         # Successful sales are retained for the same town visit. Buying the
         # same tval/sval item back is semantic churn, not shopping progress.
         self._town_visit_sale_signatures: set[tuple[int, int]] = set()
@@ -3483,6 +3484,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if confirmed:
                 self._town_visit_purchases.add(watched_signature)
+                bought = max(
+                    0,
+                    self._inventory_signature_count(snapshot, watched_signature)
+                    - before_count,
+                )
+                self._town_visit_purchase_quantities[watched_signature] = (
+                    self._town_visit_purchase_quantities.get(watched_signature, 0)
+                    + bought
+                )
                 # A successful purchase is fresh evidence for this supplier.
                 # In particular, the repetition repair may have inherited an
                 # attempted-store latch and restock wait from the cycle it is
@@ -3861,7 +3871,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = (
                 "home:atomic-withdraw"
                 if key.lstrip().startswith(BUY_KEY)
-                else "home:atomic-deposit"
+                else (
+                    "home:weight-overload-deposit"
+                    if self._inventory_overweight(snapshot)
+                    else "home:atomic-deposit"
+                )
             )
         elif (
             snapshot.store is not None

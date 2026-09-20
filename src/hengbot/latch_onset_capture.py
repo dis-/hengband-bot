@@ -102,6 +102,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
+    restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
     restored.__dict__.setdefault("_staged_prompt_chain", None)
     restored.__dict__.setdefault("_prompt_gated_posting", True)
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
@@ -148,6 +149,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         )
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
+    ledger = restored.__dict__.get("_town_visit_ledger")
+    if ledger is not None:
+        ledger.__dict__.setdefault("blocked_store_work_signatures", {})
+        ledger.__dict__.setdefault("rearmed_work_signatures", set())
     # Older checkpoints can retain the two pre-ARB restocked-*-unreachable
     # values.  Normalize them at the compatibility boundary so restored work
     # follows the surviving canonical release path without keeping either

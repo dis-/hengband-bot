@@ -1136,6 +1136,9 @@ class ShopMixin:
         if release_visit_bound:
             self._town_visit_ledger.blocked_stores.discard(store_type)
             self._town_visit_ledger.blocked_store_limits.pop(store_type, None)
+            self._town_visit_ledger.blocked_store_work_signatures.pop(
+                store_type, None
+            )
             self._town_visit_ledger.approach_fails.pop(store_type, None)
         if (
             release_visit_bound

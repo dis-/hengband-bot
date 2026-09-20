@@ -528,12 +528,15 @@ class HomeMixin:
             item.tval == TVAL_POTION
             and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
         )
-        if (
-            signature in self._town_visit_purchases
-            and not capped_emergency_potion
-            and not obsolete_oil
-        ):
-            return item.count, "visit-purchase"
+        purchased = 0
+        if not capped_emergency_potion and not obsolete_oil:
+            purchased = min(
+                item.count,
+                self._town_visit_purchase_quantities.get(
+                    signature,
+                    item.count if signature in self._town_visit_purchases else 0,
+                ),
+            )
 
         target = 0
         branch = None
@@ -710,14 +713,18 @@ class HomeMixin:
                 target = max(target, required - equipped)
                 branch = f"carry-strategy:{carry_name}"
         if target <= 0:
-            return 0, None
+            return (
+                (purchased, "visit-purchase") if purchased > 0 else (0, None)
+            )
         before = 0
         for candidate in snapshot.inventory:
             if candidate.slot == item.slot:
                 break
             if matches(candidate):
                 before += candidate.count
-        reservation = min(item.count, max(0, target - before))
+        ledger_reservation = min(item.count, max(0, target - before))
+        purchased_still_needed = min(purchased, ledger_reservation)
+        reservation = max(ledger_reservation, purchased_still_needed)
         return reservation, (branch or "unlabelled") if reservation > 0 else None
 
     def retention_reservation_state(self, snapshot: Snapshot) -> dict[str, object]:
@@ -857,28 +864,19 @@ class HomeMixin:
                 and self._retention_reservation(snapshot, item) == 0
             )
 
+        mining_planned = self._fundraising_mode in {
+            "prepare", "mine", "scavenge"
+        }
+
         def priority(item: InventoryItem) -> tuple[int, int, str]:
-            noncombat_bulk = not (
-                item.is_equipment
-                or item.is_ammo
-                or item.is_potion
-                or item.is_scroll
-                or item.is_wand_staff
-                or item.is_food
-                or item.is_oil
-                or item.is_light
-                or item.is_digging_tool
-                or item.is_bounty
-                or self._is_high_value_book(item)
-            )
             category = (
                 0
-                if noncombat_bulk
+                if item.is_equipment and item.is_cursed
                 else 1
-                if item.is_ammo
-                else 2
-                if item.is_equipment
+                if item.is_digging_tool and not mining_planned
                 else 3
+                if required_supply(item)
+                else 2
             )
             removable_weight = item.weight * self._retention_surplus(snapshot, item)
             return category, -removable_weight, item.slot
@@ -898,24 +896,15 @@ class HomeMixin:
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot
         ]
-        required = [item for item in candidates if required_supply(item)]
-        if required:
-            excess = (
-                self._inventory_weight(snapshot)
-                - (self._inventory_weight_limit(snapshot) or 0)
-            )
-            # A Home put ends the visit.  First prefer a surplus which clears the
-            # excess by itself; otherwise take the largest removable weight so
-            # the greedy sequence uses the fewest such full visits it can.
-            return min(
-                required,
-                key=lambda item: (
-                    item.weight * self._retention_surplus(snapshot, item) < excess,
-                    -item.weight * self._retention_surplus(snapshot, item),
-                    item.slot,
-                ),
-            )
-        return min(candidates, key=priority, default=None)
+        excess = (
+            self._inventory_weight(snapshot)
+            - (self._inventory_weight_limit(snapshot) or 0)
+        )
+        clears = [
+            item for item in candidates
+            if item.weight * self._retention_surplus(snapshot, item) >= excess
+        ]
+        return min(clears or candidates, key=priority, default=None)
 
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
@@ -2023,7 +2012,11 @@ class HomeMixin:
         self._stage_home_operation(
             snapshot, "".join(operations) + LEAVE_STORE_KEY
         )
-        self.last_reason = "home:atomic-deposit"
+        self.last_reason = (
+            "home:weight-overload-deposit"
+            if self._inventory_overweight(snapshot)
+            else "home:atomic-deposit"
+        )
         return WAIT_KEY
 
     def _home_deposit_batch(
@@ -2110,7 +2103,11 @@ class HomeMixin:
         visit.composed_key = operation_key
         visit.posted_sequence = self._decision_sequence
         visit.posted_turn = snapshot.turn
-        self.last_reason = "home:atomic-deposit"
+        self.last_reason = (
+            "home:weight-overload-deposit"
+            if self._inventory_overweight(snapshot)
+            else "home:atomic-deposit"
+        )
         return operation_key
 
     def _home_operation_visit(self) -> StoreVisit | None:

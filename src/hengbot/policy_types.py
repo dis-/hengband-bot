@@ -326,6 +326,10 @@ class TownVisitLedger:
     unsatisfied_passes: Counter[int] = field(default_factory=Counter)
     blocked_stores: set[int] = field(default_factory=set)
     blocked_store_limits: dict[int, int] = field(default_factory=dict)
+    blocked_store_work_signatures: dict[int, tuple[object, ...] | None] = field(
+        default_factory=dict
+    )
+    rearmed_work_signatures: set[tuple[object, ...]] = field(default_factory=set)
     passes_since_progress: int = 0
     drift_warnings: list[str] = field(default_factory=list)
     satisfied_needs: set[tuple[int, str]] = field(default_factory=set)

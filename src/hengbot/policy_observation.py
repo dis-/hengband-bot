@@ -643,6 +643,7 @@ class ObservationMixin:
             self._pending_recall_dungeon_id = None
             self._town_recall_issue_watch = None
             self._town_visit_purchases.clear()
+            self._town_visit_purchase_quantities.clear()
             self._town_visit_sale_signatures.clear()
             self.town_visit_report = None
             self._quest_light_attempted.clear()

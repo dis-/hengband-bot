@@ -2493,6 +2493,32 @@ class TownMixin:
         specs = {spec.category: spec for spec in self._town_need_registry()}
         for need in self._enumerate_live_store_claims(snapshot):
             spec = specs.get(need.category)
+            if (
+                need.store_type == STORE_HOME
+                and spec is not None
+                and spec.departure_blocking
+                and need.category == "weight-overload"
+                and self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            ):
+                deposit = self._overweight_home_deposit(snapshot)
+                signature = (
+                    (need.category, *self._item_signature(deposit))
+                    if deposit is not None
+                    else (need.category, "no-actionable-deposit")
+                )
+                installed = self._town_visit_ledger.blocked_store_work_signatures.get(
+                    STORE_HOME
+                )
+                if (
+                    deposit is not None
+                    and signature != installed
+                    and signature
+                    not in self._town_visit_ledger.rearmed_work_signatures
+                ):
+                    self._town_visit_ledger.rearmed_work_signatures.add(signature)
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
             equipment_owner = need.category in {
                 "equipment-work", "equipment-transaction"
             }
@@ -2529,8 +2555,13 @@ class TownMixin:
                     need.store_type == STORE_HOME
                     and need.category == "weight-overload"
                     and self._inventory_overweight(snapshot)
-                    and self._town_visit_ledger.approach_fails[STORE_HOME]
-                    >= self._town_store_visit_limit(STORE_HOME)
+                    and (
+                        self._town_visit_ledger.approach_fails[STORE_HOME]
+                        >= self._town_store_visit_limit(STORE_HOME)
+                        or self._town_store_blocked_under_applicable_bound(
+                            STORE_HOME
+                        )
+                    )
                 ):
                     # Claim retirement is still the town-liveness outcome, but
                     # an overweight character has no alternate supplier.  Hand
@@ -3085,6 +3116,15 @@ class TownMixin:
         # remain cumulative, but a later owner with a different applicable
         # bound is denied only when its own bound is exhausted.
         self._town_visit_ledger.blocked_store_limits[store_type] = limit
+        if store_type == STORE_HOME and self._inventory_overweight(snapshot):
+            deposit = self._overweight_home_deposit(snapshot)
+            self._town_visit_ledger.blocked_store_work_signatures[store_type] = (
+                ("weight-overload", *self._item_signature(deposit))
+                if deposit is not None
+                else ("weight-overload", "no-actionable-deposit")
+            )
+        else:
+            self._town_visit_ledger.blocked_store_work_signatures[store_type] = None
         self._release_blocked_store_latches(store_type)
         plan.current_stop_passes = 0
         plan.index += 1

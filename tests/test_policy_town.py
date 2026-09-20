@@ -15372,3 +15372,103 @@ class TownNeedRecursionRecordedTest(unittest.TestCase):
             "RecursionError: future-cycle-sentinel",
         )
         self.assertEqual(facts["equipment_optimization"], {})
+
+
+class TownWeightDepartureRecordedTest(unittest.TestCase):
+    """Pins overweight Home work from the immutable post-bounty recording."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        cls.fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260921-0536-no-claim-after-bounty.jsonl.gz"
+        )
+        assert hashlib.sha256(cls.fixture.read_bytes()).hexdigest() == (
+            "a08358713ccebc812fc28916bcdb08c1a79b04f03cc253bb61ff4b622ef89d59"
+        )
+        with gzip.open(cls.fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        assert len(cls.rows) == 177
+        cls.replay_result = None
+
+    def _replay(self):
+        if self.replay_result is not None:
+            return self.replay_result
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        decisions = []
+        selected = None
+        selected_snapshot = None
+        for index, snapshot in enumerate(self.rows):
+            if index == 84:
+                selected = policy._overweight_home_deposit(snapshot)
+                selected_snapshot = snapshot
+            key = policy.choose_key(snapshot)
+            decisions.append((str(key), policy.last_reason))
+        type(self).replay_result = (
+            policy, decisions, selected_snapshot, selected
+        )
+        return self.replay_result
+
+    def test_r1_recorded_public_replay_posts_weight_owner_not_generic_terminal(self):
+        policy, decisions, _snapshot, _selected = self._replay()
+
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 5)
+        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
+        self.assertNotIn(
+            "town:blocked:no-actionable-claim-owner",
+            {reason for _key, reason in decisions},
+        )
+        self.assertIn("home:weight-overload-deposit", {
+            reason for _key, reason in decisions
+        })
+
+    def test_r2_recorded_weight_work_selects_home_route_and_non_supply(self):
+        policy, decisions, snapshot, selected = self._replay()
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(decisions[84], ("dp\x1b", "home:weight-overload-deposit"))
+        self.assertTrue(selected.is_equipment)
+        self.assertFalse(any(
+            category in {"recall", "teleport", "cure-critical", "food"}
+            for category in policy._cross_town_item_categories(selected)
+        ))
+        self.assertIn(selected, snapshot.inventory)
+
+    def test_r3_selected_recorded_item_alone_clears_excess(self):
+        policy, _decisions, snapshot, selected = self._replay()
+
+        excess = policy._inventory_weight(snapshot) - policy._inventory_weight_limit(snapshot)
+        self.assertEqual(excess, 7)
+        self.assertEqual(selected.weight, 50)
+        self.assertTrue(selected.is_cursed)
+        self.assertGreaterEqual(
+            selected.weight * policy._retention_surplus(snapshot, selected), excess
+        )
+
+    def test_r4_recorded_replay_never_falls_to_anonymous_liveness_terminal(self):
+        _policy, decisions, _snapshot, _selected = self._replay()
+
+        reasons = {reason for _key, reason in decisions}
+        self.assertNotIn("town:blocked:no-actionable-claim-owner", reasons)
+        self.assertIn("home:weight-overload-deposit", reasons)
+
+    def test_r5_recorded_required_supply_floors_are_not_shed(self):
+        policy, _decisions, snapshot, selected = self._replay()
+        ledger = policy._supply_ledger(snapshot, policy._planned_depth())
+
+        self.assertFalse(selected.is_digging_tool)
+        for name, predicate in (
+            ("recall", lambda item: item.is_recall_scroll),
+            ("teleport", lambda item: item.is_teleport_scroll),
+            ("cure", lambda item: item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL),
+            ("food", lambda item: item.is_food),
+        ):
+            self.assertGreaterEqual(
+                ledger[name].count, ledger[name].required_departure
+            )
+            self.assertFalse(predicate(selected))
