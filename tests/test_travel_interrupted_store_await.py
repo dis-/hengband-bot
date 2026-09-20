@@ -29,6 +29,10 @@ GENUINE_ENTRY = (
     ROOT / "tests" / "fixtures" /
     "barrier-home-auto-entry-lines-1-23.jsonl.gz"
 )
+EMPTY_KEY_INCIDENT = (
+    ROOT / "tests" / "fixtures" /
+    "incident-20260920-1658-store-entry-await-observation.jsonl.gz"
+)
 SECOND_PROMPT_REPLAY = (
     ROOT / "jsonlog" /
     "replay-20260917-2355-travel-interrupt-state.jsonl"
@@ -208,6 +212,31 @@ class TravelInterruptedStoreAwaitTest(unittest.TestCase):
         self.assertEqual(policy._store_visit.posted_sequence, 1)
         self.assertEqual(policy._store_visit.phase, StoreVisitPhase.ENTERING)
         self.assertEqual(TRAVEL, policy._store_visit.composed_key)
+
+    def test_recorded_abandoned_travel_releases_empty_key_barrier(self):
+        with gzip.open(EMPTY_KEY_INCIDENT, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        policy.prime(parse_snapshot(rows[0], self.monrace))
+
+        decisions = []
+        for row in rows[:6]:
+            key = policy.choose_key(parse_snapshot(row, self.monrace))
+            decisions.append((str(key), policy.last_reason))
+            if key:
+                policy.confirm_key_posted(key)
+
+        self.assertEqual(decisions[1], (TRAVEL, "shop:travel"))
+        self.assertEqual(decisions[4], (
+            TRAVEL, "store:entry-interrupted-replan",
+        ))
+        self.assertEqual(decisions[5], (
+            "9", "store:entry-interrupted-replan",
+        ))
+        self.assertEqual(policy._town_travel_fallback.y, 45)
+        self.assertEqual(policy._town_travel_fallback.x, 123)
+        self.assertEqual(policy._store_entry_posted_owner, 7)
+        self.assertEqual(policy._store_entry_wait_key, "9")
 
     def test_fixture_freezes_incident_state_facts(self):
         rows = recorded_rows()

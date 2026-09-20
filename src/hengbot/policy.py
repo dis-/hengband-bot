@@ -3123,6 +3123,29 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # attempt walk instead of retrying the same native route.
                     self._town_travel_fallback = state.goal
                     self._town_travel_state = None
+                    if (
+                        entry_observation_pending
+                        and snapshot.player.position != state.goal
+                    ):
+                        # The native route has stopped away from its entrance,
+                        # so there is no longer an entry observation to await.
+                        # Release the post and immediately let the established
+                        # approach owner route using the walking fallback.
+                        self._store_entry_posted_owner = None
+                        if self._store_visit is not None:
+                            self._store_visit.transition(
+                                StoreVisitPhase.APPROACHING
+                            )
+                        step = self._shopping_approach_step(
+                            snapshot, posted_entry_owner
+                        )
+                        if step is not None:
+                            self.last_reason = (
+                                "store:entry-interrupted-replan"
+                            )
+                            return self._shopping_approach_key(
+                                snapshot, step, self.last_reason
+                            )
                 if entry_observation_pending:
                     self.last_reason = "store:entry-await-observation"
                     return ""

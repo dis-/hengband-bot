@@ -3614,7 +3614,7 @@ def _run_follow(
                     # JSONL has already supplied the policy input and chosen
                     # command. TCP observations remain structurally downstream.
                     pending_batch_row["decided"] = True
-                    if key is None:
+                    if key is None or key == "":
                         decision_facts = _capture_decision_facts(snapshot, policy)
                         recorder.after_decision(policy, snapshot)
                         decision_timing["total_ms"] = round(
