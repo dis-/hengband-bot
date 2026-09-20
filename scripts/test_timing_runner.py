@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "tests"
 DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-timings.json"
 DEFAULT_SUMMARY_OUTPUT = ROOT / "jsonlog" / "test-timings-summary.json"
+EXCLUDED_TEST_PREFIXES = ("tests.test_cli.DecisionTimingTest.",)
 
 
 def standard_modules() -> list[str]:
@@ -27,8 +28,24 @@ def standard_modules() -> list[str]:
     return [
         f"tests.{path.stem}"
         for path in sorted(TESTS.glob("test*.py"), key=lambda item: item.name)
-        if path.name != "test_cli.py"
     ]
+
+
+def iter_tests(suite: unittest.TestSuite):
+    """Yield individual tests from a possibly nested unittest suite."""
+    for test in suite:
+        if isinstance(test, unittest.TestSuite):
+            yield from iter_tests(test)
+        else:
+            yield test
+
+
+def load_standard_suite(modules: list[str]) -> unittest.TestSuite:
+    suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
+    return unittest.TestSuite(
+        test for test in iter_tests(suite)
+        if not test.id().startswith(EXCLUDED_TEST_PREFIXES)
+    )
 
 
 def normalize_modules(values: list[str] | None) -> list[str]:
@@ -124,7 +141,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--modules",
         nargs="+",
-        help="module names (space- or comma-separated); default is every test_*.py except test_cli.py",
+        help="module names (space- or comma-separated); default is every test*.py",
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
@@ -152,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["HENGBOT_HOME_HISTORY_DIR"] = history_dir
         print(f"Home history: {history_dir}")
         try:
-            suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
+            suite = load_standard_suite(modules)
             started = time.perf_counter()
             result = unittest.TextTestRunner(resultclass=TimingResult, verbosity=1).run(suite)
             total_seconds = time.perf_counter() - started

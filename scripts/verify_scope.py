@@ -422,15 +422,28 @@ def run_scope(root: Path, scope: dict[str, object], timeout: float, stderr_dir: 
     return results
 
 
-def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, bool]:
+def copy_runtime_artifacts(source: Path, destination: Path) -> dict[str, object]:
     """Copy ignored evidence into a worktree; never link, move, or touch source."""
-    present = {}
+    present: dict[str, object] = {}
     for name in ("incident-captures", "evidence"):
         src, dst = source / name, destination / name
         present[name] = src.is_dir()
         if src.is_dir():
             before = artifact_inventory(source)[name]
-            shutil.copytree(src, dst, copy_function=shutil.copy2)
+            skipped_existing: list[str] = []
+
+            def copy_unless_checked_out(src_file: str, dst_file: str) -> str:
+                if Path(dst_file).exists():
+                    skipped_existing.append(
+                        str(Path(dst_file).relative_to(dst)).replace("\\", "/")
+                    )
+                    return dst_file
+                return shutil.copy2(src_file, dst_file)
+
+            shutil.copytree(
+                src, dst, copy_function=copy_unless_checked_out, dirs_exist_ok=True
+            )
+            present[f"{name}/skipped_existing"] = sorted(skipped_existing)
             if is_reparse_point(dst) or artifact_inventory(source)[name] != before:
                 raise RuntimeError(f"unsafe or source-mutating artifact copy: {name}")
     incident_files = sorted((source / "jsonlog").glob("incident-*.jsonl"))

@@ -50,10 +50,14 @@ class ParallelRunnerSelfTest(unittest.TestCase):
             runner.SERIAL_MODULES,
             {
                 "tests.test_absorbing_states",
+                "tests.test_cli",
                 "tests.test_latch_onset_capture",
                 "tests.test_policy_structure",
             },
         )
+
+    def test_standing_identity_contains_cli(self) -> None:
+        self.assertIn("tests.test_cli", runner.standard_modules())
 
     def test_serial_modules_are_excluded_from_pool_and_run_after_it(self) -> None:
         writer = "tests.test_policy"

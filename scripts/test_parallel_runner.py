@@ -39,6 +39,7 @@ DEFAULT_STREAMS = ROOT / "jsonlog" / "test-parallel-streams"
 # removal can follow a separately measured optimization.
 SERIAL_MODULES: frozenset[str] = frozenset({
     "tests.test_absorbing_states",
+    "tests.test_cli",
     "tests.test_latch_onset_capture",
     "tests.test_policy_structure",
 })

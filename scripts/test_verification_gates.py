@@ -115,6 +115,32 @@ class VerificationGateSelfTest(unittest.TestCase):
             (destination / "evidence/x").write_text("changed")
             self.assertEqual((marker.read_text(), marker.stat().st_mtime_ns), ("x", before))
 
+    def test_artifact_copy_merges_with_checkout_and_preserves_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as source_name, tempfile.TemporaryDirectory() as destination_name:
+            source, destination = Path(source_name), Path(destination_name)
+            collision = Path("incident-captures/tracked/snapshots.jsonl")
+            additional = Path("incident-captures/untracked/snapshots.jsonl")
+            (source / collision.parent).mkdir(parents=True)
+            (source / additional.parent).mkdir(parents=True)
+            (destination / collision.parent).mkdir(parents=True)
+            (source / collision).write_bytes(b"local ignored evidence\n")
+            (source / additional).write_bytes(b"additional evidence\n")
+            (destination / collision).write_bytes(b"checked-out version\n")
+            before = {
+                path.relative_to(source): (path.read_bytes(), path.stat().st_mtime_ns)
+                for path in source.rglob("*") if path.is_file()
+            }
+
+            present = verify_scope.copy_runtime_artifacts(source, destination)
+
+            self.assertEqual((destination / collision).read_bytes(), b"checked-out version\n")
+            self.assertEqual((destination / additional).read_bytes(), b"additional evidence\n")
+            self.assertEqual(present["incident-captures/skipped_existing"], ["tracked/snapshots.jsonl"])
+            self.assertEqual({
+                path.relative_to(source): (path.read_bytes(), path.stat().st_mtime_ns)
+                for path in source.rglob("*") if path.is_file()
+            }, before)
+
     def test_incident_jsonl_files_are_copied_without_touching_source(self) -> None:
         with tempfile.TemporaryDirectory() as source_name, tempfile.TemporaryDirectory() as destination_name:
             source, destination = Path(source_name), Path(destination_name)
