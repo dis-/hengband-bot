@@ -2765,7 +2765,22 @@ class HomeMixin:
             # work.  It is process-independent, so a restart cannot resurrect
             # the visit-count-bounded route.
             return False
-        needs = self._enumerate_town_needs(snapshot)
+        # This query consumes only Home-store categories.  Launcher enchanting
+        # is an Alchemist-only optional need, and evaluating its actionability
+        # asks for town departure readiness, which can in turn ask whether an
+        # equipment failure has a Home owner.  Exclude that irrelevant
+        # candidate here so this Home-only projection cannot recurse through
+        # the departure gate.
+        previous_include_launcher_enchant = getattr(
+            self, "_town_need_evaluation_include_launcher_enchant", True
+        )
+        self._town_need_evaluation_include_launcher_enchant = False
+        try:
+            needs = self._enumerate_town_needs(snapshot)
+        finally:
+            self._town_need_evaluation_include_launcher_enchant = (
+                previous_include_launcher_enchant
+            )
         home_categories = {
             need.category for need in needs if need.store_type == STORE_HOME
         }

@@ -57,6 +57,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
+    _capture_decision_facts,
     _dispatch_response_lines,
     _send_new_decision_key,
     _send_stall_recovery_nudge,
@@ -15221,3 +15222,78 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
         self.assertFalse(
             policy._required_supply_suppresses_normal_loot(snapshot)
         )
+
+
+class TownNeedRecursionRecordedTest(unittest.TestCase):
+    """Pins the incident row against the Home/launcher departure cycle."""
+
+    @classmethod
+    def setUpClass(cls):
+        fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260921-0204-equipment-withdraw-item-missing.jsonl.gz"
+        )
+        assert hashlib.sha256(fixture.read_bytes()).hexdigest() == (
+            "4c3eef5477922f9936a80a0fa288f60923a65b47c00cca941a3231bb21091871"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [parse_snapshot(json.loads(line), {}) for line in stream]
+        assert len(cls.rows) == 15
+
+    def _produced_policy_and_decision(self):
+        policy = HengbotPolicy()
+        key = policy.choose_key(self.rows[0])
+        return policy, key, policy.last_reason
+
+    def test_p1_recorded_decision_facts_complete_without_recursion(self):
+        policy, _key, _reason = self._produced_policy_and_decision()
+        # Revert-proof wall: the launcher predicate is the irrelevant edge
+        # that used to be reached by this Home-only producer/consumer query.
+        with patch.object(
+            policy,
+            "_launcher_enchant_registration_actionable",
+            side_effect=RecursionError("town-need-cycle-sentinel"),
+        ):
+            self.assertTrue(policy._home_owner_goal_pending(self.rows[0]))
+        facts = _capture_decision_facts(self.rows[0], policy)
+
+        self.assertNotIn("capture_error", facts)
+        self.assertIn("equipment_optimization", facts)
+
+    def test_p2_recorded_policy_key_and_reason_survive_home_projection(self):
+        policy, key, reason = self._produced_policy_and_decision()
+        with patch.object(
+            policy,
+            "_launcher_enchant_registration_actionable",
+            side_effect=RecursionError("town-need-cycle-sentinel"),
+        ):
+            self.assertTrue(policy._home_owner_goal_pending(self.rows[0]))
+
+        self.assertEqual((key, reason), ("\x1b`n(.", "shop:travel"))
+
+    def test_p3_recorded_departure_readiness_contract_is_unchanged(self):
+        policy, _key, _reason = self._produced_policy_and_decision()
+        with patch.object(
+            policy,
+            "_launcher_enchant_registration_actionable",
+            side_effect=RecursionError("town-need-cycle-sentinel"),
+        ):
+            self.assertTrue(policy._home_owner_goal_pending(self.rows[0]))
+            ready = policy._town_departure_ready(self.rows[0])
+
+        self.assertFalse(ready)
+
+    def test_future_telemetry_recursion_is_recorded_instead_of_raised(self):
+        policy, _key, _reason = self._produced_policy_and_decision()
+        with patch.object(
+            policy,
+            "equipment_optimization_state",
+            side_effect=RecursionError("future-cycle-sentinel"),
+        ):
+            facts = _capture_decision_facts(self.rows[0], policy)
+
+        self.assertEqual(
+            facts["capture_error"],
+            "RecursionError: future-cycle-sentinel",
+        )
+        self.assertEqual(facts["equipment_optimization"], {})

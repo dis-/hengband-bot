@@ -1362,19 +1362,34 @@ def _depth_safety(snapshot, policy) -> dict:
 _AUTO_TOWN_STALL_REPORT = object()
 
 
+def _empty_decision_facts() -> dict:
+    """Return the stable decision-fact schema without evaluating policy state."""
+    return {
+        "requirements": [], "abandoned_quest_carries": {},
+        "over_extension": {}, "depth_safety": {}, "threat_prediction": {},
+        "equipment_optimization": {}, "loot": {}, "mining": {},
+        "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
+        "departure_block": {}, "cross_town_shopping": {},
+        "quest_strategy": None,
+        "retention_reservations": [], "deposit_keep_conflict": None,
+        "staged_prompt_chain": None,
+    }
+
+
 def _capture_decision_facts(snapshot, policy) -> dict:
-    """Evaluate decision-row policy telemetry once, before the writer phase."""
+    """Evaluate decision-row policy telemetry without endangering the driver."""
     if policy is None:
-        return {
-            "requirements": [], "abandoned_quest_carries": {},
-            "over_extension": {}, "depth_safety": {}, "threat_prediction": {},
-            "equipment_optimization": {}, "loot": {}, "mining": {},
-            "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
-            "departure_block": {}, "cross_town_shopping": {},
-            "quest_strategy": None,
-            "retention_reservations": [], "deposit_keep_conflict": None,
-            "staged_prompt_chain": None,
-        }
+        return _empty_decision_facts()
+    try:
+        return _capture_decision_facts_unchecked(snapshot, policy)
+    except RecursionError as exc:
+        facts = _empty_decision_facts()
+        facts["capture_error"] = f"{type(exc).__name__}: {exc}"
+        return facts
+
+
+def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
+    """Evaluate decision-row policy telemetry once, before the writer phase."""
     fixedquest_readiness = policy.fixed_quest_readiness_state()
     retention = policy.retention_reservation_state(snapshot)
     quest_id = snapshot.floor_key[2] or int(fixedquest_readiness.get("quest_id", 0))
