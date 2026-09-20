@@ -8127,7 +8127,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         requirements = {
             entry["item"]: entry for entry in policy.procurement_requirements(snapshot)
         }
-        self.assertEqual(requirements["Word of Recall scrolls"]["missing"], 2)
+        self.assertEqual(requirements["Word of Recall scrolls"]["missing"], 3)
         self.assertEqual(requirements["Flasks of oil"]["missing"], 1)
         needs = policy._enumerate_town_needs(snapshot)
         self.assertIn(policy_module.TownNeed(STORE_GENERAL, "oil", "normal"), needs)

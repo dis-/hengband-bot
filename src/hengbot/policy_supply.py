@@ -183,6 +183,7 @@ class SupplyMixin:
                     required_departure
                     and snapshot.in_town
                     and not snapshot.player.recalling
+                    and self._fundraising_mode is None
                     and self._town_recall_destination(snapshot)[0] is not None
                 ):
                     # The departure action consumes one scroll before dungeon

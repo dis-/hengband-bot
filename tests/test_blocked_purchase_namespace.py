@@ -172,7 +172,7 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
         rearmed = replace(
             snapshot,
             inventory=[
-                replace(snapshot.inventory[0], count=10),
+                replace(snapshot.inventory[0], count=11),
                 replace(snapshot.inventory[1], count=15),
                 replace(snapshot.inventory[2], count=10),
             ],
