@@ -150,14 +150,6 @@ def _modal_recovery_action(recovery_attempts: int) -> str:
 def _silent_game_incident(window_pid) -> str:
     """Give process death priority when terminal modal recovery is exhausted."""
     return "stuck-prompt" if _game_process_alive(window_pid) else "player-death"
-# Every tenth level Hengband blocks outside the command loop and asks for a stat
-# (a-f), then confirmation. The screen ignores Escape and emits no snapshot.
-# After two harmless Esc nudges, alternate Strength and confirmation only when
-# the last observed page was outside a store. A DEFAULT_Y purchase confirmation
-# is reachable only from a store page; a level-up prompt is not.
-LEVEL_UP_STAT_CHOICE = "a"
-LEVEL_UP_RECOVERY_START = 2
-
 # Loop / stuck detection. If the character stays confined to a handful of tiles
 # on a single floor for this many consecutive decisions, it is looping — an
 # exploration oscillation the policy's own anti-stuck guards (visit penalty,
@@ -2593,15 +2585,8 @@ def _stall_recovery_key(
     last_player_level: int | None,
     last_snapshot_in_store: bool,
 ) -> tuple[str, str]:
-    if (
-        not last_snapshot_in_store
-        and last_player_level is not None
-        and last_player_level % 10 in (8, 9)
-        and nudge_streak >= LEVEL_UP_RECOVERY_START
-    ):
-        if (nudge_streak - LEVEL_UP_RECOVERY_START) % 2 == 0:
-            return LEVEL_UP_STAT_CHOICE, f"<level-stat:{LEVEL_UP_STAT_CHOICE}>"
-        return "y", "<level-stat:y>"
+    # input_executor owns visible level-up prompts and chooses from their
+    # displayed values. A no-snapshot stall has no fair-play values to compare.
     return NUDGE_KEY, "<esc>"
 
 

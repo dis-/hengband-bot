@@ -4403,11 +4403,11 @@ class RolloverTest(unittest.TestCase):
 
 
 class StallRecoveryTest(unittest.TestCase):
-    def test_level_29_stall_recovery_escapes_stat_prompt_outside_store(self):
+    def test_level_29_stall_recovery_has_no_blind_stat_answer(self):
         self.assertEqual(_stall_recovery_key(0, 29, False), ("\x1b", "<esc>"))
         self.assertEqual(_stall_recovery_key(1, 29, False), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(2, 29, False), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(3, 29, False), ("y", "<level-stat:y>"))
+        self.assertEqual(_stall_recovery_key(2, 29, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 29, False), ("\x1b", "<esc>"))
 
     def test_level_29_store_stall_never_affirms_default_y(self):
         safe_default_y_answers = {"\x1b", "n", "N"}
@@ -4581,21 +4581,21 @@ class StallRecoveryTest(unittest.TestCase):
             STORE_ITEM_PROMPT_DELAY_SECONDS,
         )
 
-    def test_answers_the_level_ten_stat_prompt_after_escape_nudges(self):
+    def test_level_ten_stall_never_guesses_without_visible_values(self):
         self.assertEqual(_stall_recovery_key(0, 9, False), ("\x1b", "<esc>"))
         self.assertEqual(_stall_recovery_key(1, 9, False), ("\x1b", "<esc>"))
-        self.assertEqual(_stall_recovery_key(2, 9, False), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(3, 9, False), ("y", "<level-stat:y>"))
+        self.assertEqual(_stall_recovery_key(2, 9, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 9, False), ("\x1b", "<esc>"))
 
-    def test_keeps_retrying_the_stat_answers_if_a_key_was_lost(self):
-        self.assertEqual(_stall_recovery_key(4, 9, False), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(5, 9, False), ("y", "<level-stat:y>"))
+    def test_later_stall_recovery_still_never_guesses_a_stat(self):
+        self.assertEqual(_stall_recovery_key(4, 9, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(5, 9, False), ("\x1b", "<esc>"))
 
     def test_covers_a_two_level_jump_over_the_stat_threshold(self):
         # One out-of-depth kill can jump 8→10; the last snapshot still says
         # clvl 8, and the stat screen is up all the same.
-        self.assertEqual(_stall_recovery_key(2, 8, False), ("a", "<level-stat:a>"))
-        self.assertEqual(_stall_recovery_key(3, 18, False), ("y", "<level-stat:y>"))
+        self.assertEqual(_stall_recovery_key(2, 8, False), ("\x1b", "<esc>"))
+        self.assertEqual(_stall_recovery_key(3, 18, False), ("\x1b", "<esc>"))
 
     def test_does_not_send_stat_answers_at_other_levels(self):
         self.assertEqual(_stall_recovery_key(2, 7, False), ("\x1b", "<esc>"))

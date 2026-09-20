@@ -31,6 +31,7 @@ class ScreenKind(str, Enum):
     IDENTIFY_VIEWER_FINAL = "identify-viewer-final"
     CHARACTER = "character"
     FILE_NAME = "file-name"
+    LEVEL_UP_STAT = "level-up-stat"
     DEATH = "death"
     UNKNOWN = "unknown"
 
@@ -81,6 +82,38 @@ def _char_at_cell(row: str, column: int) -> str | None:
     return None
 
 
+_LEVEL_UP_ROW = re.compile(
+    r"^.*?([a-f])\)\s+[^()]+\s*\([^()]+?\s+(18/\d+|\d+)\)\s*$"
+)
+
+
+def _level_up_stat_choice(lines: Sequence[str]) -> str | None:
+    """Return the visible Str/Con/Dex minimum, in that tie-break order."""
+    values: dict[str, tuple[int, int]] = {}
+    option_rows: list[int] = []
+    for row, line in enumerate(lines):
+        match = _LEVEL_UP_ROW.match(line.rstrip())
+        if match is None:
+            continue
+        option_rows.append(row)
+        shown = match.group(2)
+        if "/" in shown:
+            base, bonus = shown.split("/", 1)
+            values[match.group(1)] = (int(base), int(bonus))
+        else:
+            values[match.group(1)] = (int(shown), 0)
+    if set(values) != set("abcdef"):
+        return None
+    first_option = min(option_rows)
+    if not any(
+        line.rstrip().endswith(("?", "？"))
+        or "Which stat do you want to raise?" in line
+        for line in lines[:first_option]
+    ):
+        return None
+    return min(("a", "e", "d"), key=values.__getitem__)
+
+
 def _state_player_matches_cursor(
         state: Mapping[str, object] | None, cursor_x: int, cursor_y: int) -> bool | None:
     """Validate that state contains a player, without assuming a panel origin.
@@ -111,6 +144,12 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if not lines:
         return ScreenMatch(ScreenKind.UNKNOWN, "empty-screen")
     row0 = lines[0]
+
+    # player/player-status.cpp:2841-2870. This modal cannot be dismissed with
+    # Escape: it requires one of the six visible rows and then confirmation.
+    level_up_choice = _level_up_stat_choice(lines)
+    if level_up_choice is not None:
+        return ScreenMatch(ScreenKind.LEVEL_UP_STAT, level_up_choice)
 
     # player/player-damage.cpp:471,503; core/game-closer.cpp:53.
     terminal = ("You die.", "You are broken.", "Stand by for later score registration?",
@@ -903,6 +942,11 @@ class OperationExecutor:
             return self._death(self.active, match)
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline, role="auxiliary-request")
+        if match.kind is ScreenKind.LEVEL_UP_STAT:
+            # Queued atomically, then consumed by the selection and input_check
+            # reads in order.
+            return self._post_and_barrier(match.feature + "y", deadline,
+                                          role="auxiliary-request")
         if self.active.owner.startswith("identify:full"):
             if match.kind is ScreenKind.IDENTIFY_VIEWER_PAGE:
                 # screen_object() owns an arbitrary number of attribute pages.

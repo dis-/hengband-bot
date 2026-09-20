@@ -6,6 +6,7 @@ from pathlib import Path
 import ast
 import hashlib
 import gzip
+import re
 import unittest
 import time
 from io import StringIO
@@ -219,6 +220,73 @@ class ProductionHarness(unittest.TestCase):
             "grid_map": {"runs": []}, "messages": list(messages),
             "store": {"store_type": 4, "items": []},
         }
+
+
+class LevelUpStatPromptPins(ProductionHarness):
+    FIXTURE = (Path(__file__).with_name("fixtures") /
+               "screen-20260920-levelup-stat-prompt.json")
+
+    def recorded_screen(self):
+        return json.loads(self.FIXTURE.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def with_values(screen, values):
+        derived = copy.deepcopy(screen)
+        for row, value in zip(range(2, 8), values):
+            derived["lines"][row] = re.sub(
+                r"(18/\d+|\d+)(\)\s*)$", rf"{value}\2",
+                derived["lines"][row].rstrip(),
+            )
+        return derived
+
+    def test_p1_recorded_prompt_is_owned_and_composes_strength_then_yes(self):
+        screen = self.recorded_screen()
+        match = classify_screen(screen)
+        self.assertEqual((match.kind, match.feature),
+                         (ScreenKind.LEVEL_UP_STAT, "a"))
+
+        game, _client, executor = self.make()
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome,
+                         "ready")
+        game.screens = [screen, command_screen(3)]
+        result = executor.submit(
+            Operation(90, "melee", "6", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["6", "ay"])
+
+    def test_p2_eighteen_slash_value_orders_above_plain_seventeen(self):
+        # All values come from the recording; move its 18/63 onto Strength and
+        # its 17 onto Dexterity to pin the game's displayed-stat ordering.
+        screen = self.with_values(
+            self.recorded_screen(), ("18/63", "13", "18", "17", "18", "15")
+        )
+        self.assertEqual(classify_screen(screen).feature, "d")
+
+    def test_p3_int_wis_chr_are_never_candidates_even_when_lowest(self):
+        screen = self.with_values(
+            self.recorded_screen(), ("17", "1", "2", "19", "18", "3")
+        )
+        self.assertEqual(classify_screen(screen).feature, "a")
+
+    def test_p4_centered_yes_no_and_character_dump_are_not_captured(self):
+        self.assertEqual(classify_screen(self.recorded_screen()).kind,
+                         ScreenKind.LEVEL_UP_STAT)
+        fixture_dir = Path(__file__).with_name("fixtures") / "live-screens"
+        centered = json.loads((
+            fixture_dir / "31-town-character-dump-stuck-20260915-1100.json"
+        ).read_text(encoding="utf-8"))["result"]
+        centered["lines"][21] = " " * 65 + "Proceed? [Y/n]"
+        match = classify_screen(centered)
+        self.assertEqual((match.kind, match.feature),
+                         (ScreenKind.UNKNOWN,
+                          "unrecognized-centered-character-confirm"))
+
+        dump = json.loads((
+            fixture_dir / "33-town-dump-after-overwrite-y-20260915.json"
+        ).read_text(encoding="utf-8"))["result"]
+        self.assertEqual(classify_screen(dump).kind, ScreenKind.CHARACTER)
 
 
 class AcceptedObservationRetryPins(ProductionHarness):
