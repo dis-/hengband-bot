@@ -90,8 +90,17 @@ class LatchOnsetCaptureTest(unittest.TestCase):
             row["predecision_policy_checkpoint_pickle_b64"],
         )
         slim = checkpoint(old_policy)
+        slim_state = pickle.loads(base64.b64decode(slim))
+        slim_state.pop("_town_order_operation", None)
+        slim_state.pop("_town_order_expected_observation", None)
+        legacy_slim = base64.b64encode(
+            pickle.dumps(slim_state, protocol=5)
+        ).decode("ascii")
 
-        replay = restore_checkpoint(policy_module.HengbotPolicy, slim)
+        replay = restore_checkpoint(policy_module.HengbotPolicy, legacy_slim)
+
+        self.assertIsNone(replay._town_order_operation)
+        self.assertIsNone(replay._town_order_expected_observation)
 
         expected_key = (
             "5pZ47\rpW2\rpypu2\rpqpk6\rpi30\rph87\rpf6\rpe29\rpdpa9\r\x1b"
