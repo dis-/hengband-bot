@@ -19,13 +19,15 @@ from hengbot.input_executor import (
 )
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _send_new_decision_key,
-    _send_prompt_gated_decision_key, _store_buy_continuations,
+    _home_modal_continuation, _send_prompt_gated_decision_key,
+    _store_buy_continuations,
 )
 from hengbot.model import (
     SV_SCROLL_ENCHANT_WEAPON_TO_HIT, TVAL_SCROLL,
     Position, Snapshot, parse_snapshot,
 )
-from hengbot.policy import ConservativePolicy
+from hengbot.policy import ConservativePolicy, STORE_HOME
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.quest_navigator import QuestFloorNavigator
 
@@ -1017,6 +1019,70 @@ class ScreenClassifierTest(unittest.TestCase):
 
 
 class TcpBarrierPinTest(ProductionHarness):
+    def test_p1_calibration_restore_consumes_recorded_outside_knowledge_menu(self):
+        fixture_dir = Path(__file__).with_name("fixtures")
+        viewer = json.loads((fixture_dir / "live-screens" /
+            "26-knowledge-viewer-stuck-20260915-0534.json").read_text(
+                encoding="utf-8"))["result"]
+        recorded_menu = json.loads((fixture_dir /
+            "screen-19-29-knowledge.json").read_text(encoding="utf-8"))
+        map_return = json.loads((fixture_dir / "live-screens" /
+            "03-after-knowledge-esc.json").read_text(
+                encoding="utf-8"))["screen"]["result"]
+        self.assertEqual(classify_screen(recorded_menu).kind,
+                         ScreenKind.KNOWLEDGE)
+
+        game, _client, executor = self.make()
+        game.screens = [viewer, recorded_menu, map_return]
+        self.assertEqual(executor.observe_boundary(
+            deadline=9999999999).outcome, "ready")
+        prefix, continuations = _home_modal_continuation(
+            SimpleNamespace(store=None), HOME_KNOWLEDGE_MACRO,
+            "calibration:request-restore-knowledge",
+        )
+        result = executor.submit(Operation(
+            2341, "calibration:request-restore-knowledge", prefix,
+            executor.ready_board, continuations,
+        ), deadline=9999999999)
+
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(result.screen.kind, ScreenKind.COMMAND)
+        self.assertEqual(result.operation.accepted_segments,
+                         ["~9", "\x1b", "\x1b"])
+
+    def test_p2_inside_home_knowledge_continuations_remain_exact(self):
+        inside = SimpleNamespace(store=SimpleNamespace(store_type=STORE_HOME))
+        prefix, continuations = _home_modal_continuation(
+            inside, HOME_KNOWLEDGE_MACRO, "home:test",
+        )
+        self.assertEqual(prefix, "~9")
+        self.assertEqual(
+            [(item.kinds, item.keys, item.feature, item.exact_feature)
+             for item in continuations],
+            [
+                (frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
+                 "home-inventory", True),
+                (frozenset({ScreenKind.KNOWLEDGE}), "\x1b", None, False),
+            ],
+        )
+
+    def test_p3_unrelated_macro_still_terminals_on_recorded_knowledge_menu(self):
+        recorded_menu = json.loads((Path(__file__).with_name("fixtures") /
+            "screen-19-29-knowledge.json").read_text(encoding="utf-8"))
+        game, _client, executor = self.make()
+        game.screens = [recorded_menu]
+        self.assertEqual(executor.observe_boundary(
+            deadline=9999999999).outcome, "ready")
+        self.assertIsNone(_home_modal_continuation(
+            SimpleNamespace(store=None), "x", "unrelated:owner",
+        ))
+        result = executor.submit(Operation(
+            2342, "unrelated:owner", "x", executor.ready_board,
+        ), deadline=9999999999)
+        self.assertEqual(result.outcome, "stuck-prompt")
+        self.assertIn("unowned knowledge", result.reason)
+        self.assertEqual(game.accepted, ["x"])
+
     def _identify_incident_fixture(self):
         return json.loads((Path(__file__).with_name("fixtures") / "live-screens" /
                            "20-sweep-identify-item-target.json").read_text(

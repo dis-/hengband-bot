@@ -2147,7 +2147,16 @@ def _merge_send_timing(decision_timing: dict, send) -> None:
 
 
 def _home_modal_continuation(snapshot, key: str, owner: str):
-    """Own each source-proven Home modal boundary through the STORE return."""
+    """Own each source-proven Home modal boundary through its caller return."""
+    if key == HOME_KNOWLEDGE_MACRO:
+        return "~9", [
+            Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
+                         "home-inventory", exact_feature=True),
+            # cmd-knowledge.cpp:27-72,111-114,171-174: '9' returns to the
+            # menu loop; menu ESC restores its saved caller, STORE inside
+            # Home and COMMAND when the same macro was opened on the map.
+            Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
+        ]
     if (
         key != CHARACTER_DUMP_MACRO
         and (
@@ -2157,14 +2166,6 @@ def _home_modal_continuation(snapshot, key: str, owner: str):
         )
     ):
         return None
-    if key == HOME_KNOWLEDGE_MACRO:
-        return "~9", [
-            Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
-                         "home-inventory", exact_feature=True),
-            # cmd-knowledge.cpp:27-72,111-114: '9' returns to the menu loop;
-            # only this menu ESC returns to the calling store.
-            Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
-        ]
     if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO}:
         return "C", [
             Continuation(frozenset({ScreenKind.CHARACTER}), "f"),
