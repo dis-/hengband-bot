@@ -173,11 +173,22 @@ class SupplyMixin:
             obtainable = bool(home_has_supply or evidenced_stores or candidates)
             threshold_depth = max(depth, self._planned_depth()) if kind == "teleport" else depth
             if kind == "recall":
-                required_return = required_departure = (
+                required_return = (
                     0
                     if self._fundraising_mode in {"mine", "scavenge"}
                     else self._recall_required_target(snapshot)
                 )
+                required_departure = required_return
+                if (
+                    required_departure
+                    and snapshot.in_town
+                    and not snapshot.player.recalling
+                    and self._town_recall_destination(snapshot)[0] is not None
+                ):
+                    # The departure action consumes one scroll before dungeon
+                    # entry observes the standing expedition stock.  This is
+                    # action input, not a change to the standing recall target.
+                    required_departure += 1
             else:
                 required_return = self._supply_threshold(
                     kind, "return", threshold_depth

@@ -8895,7 +8895,31 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(pol._town_special_key(snap), "rra")
         self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
-    def test_six_scrolls_permit_tenth_floor_yeek_recall_departure(self):
+    def test_seven_scrolls_permit_tenth_floor_yeek_recall_departure(self):
+        pol, snap = self._ready_town(
+            10, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE, recall_depth=10
+        )
+        snap = replace(
+            snap,
+            inventory=[
+                replace(
+                    entry,
+                    count=(
+                        7
+                        if entry.tval == TVAL_SCROLL
+                        and entry.sval == SV_SCROLL_WORD_OF_RECALL
+                        else 20
+                    ),
+                )
+                for entry in snap.inventory
+            ] + [item("i", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20)],
+            dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
+        )
+
+        self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+
+    def test_six_scrolls_refuse_tenth_floor_yeek_recall_departure(self):
         pol, snap = self._ready_town(
             10, DUNGEON_YEEK_CAVE, DUNGEON_YEEK_CAVE, recall_depth=10
         )
@@ -8916,8 +8940,8 @@ class TownRecallReturnTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_YEEK_CAVE: 10},
         )
 
-        self.assertEqual(pol._town_special_key(snap), "rra")
-        self.assertEqual(pol.last_reason, "town:recall-to-yeek-cave")
+        self.assertNotEqual(pol._town_special_key(snap), "rra")
+        self.assertNotEqual(pol.last_reason, "town:recall-to-yeek-cave")
 
     def test_five_scrolls_refuse_tenth_floor_yeek_recall_departure(self):
         pol, snap = self._ready_town(
@@ -8953,7 +8977,7 @@ class TownRecallReturnTest(unittest.TestCase):
                 replace(
                     entry,
                     count=(
-                        6
+                        7
                         if entry.tval == TVAL_SCROLL
                         and entry.sval == SV_SCROLL_WORD_OF_RECALL
                         else 20
@@ -14754,4 +14778,131 @@ class RecordedHomeSupplyDeadlockTest(unittest.TestCase):
         self.assertIsNone(policy._town_terminal_transitions(snapshot))
         self.assertNotEqual(
             policy.last_reason, "town:blocked:departure-unsatisfiable"
+        )
+
+
+class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
+    """Pins terminal town departure against the recorded recall-stock race."""
+
+    @classmethod
+    def setUpClass(cls):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-1233-recall-stock-race.jsonl.gz"
+        )
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        cls.before = cls.rows[103]
+        cls.after = cls.rows[104]
+        assert cls.before.turn == 3897771
+        assert cls.after.turn == 3897779
+
+    def _policy_at_departure(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        # The dungeon recording is the real producer of destination/depth state
+        # on the same policy instance consumed by the town decision.
+        policy.choose_key(self.rows[0])
+        return policy
+
+    @staticmethod
+    def _recall_count(snapshot):
+        return sum(item.count for item in snapshot.inventory if item.is_recall_scroll)
+
+    def test_p1_exact_target_recording_refuses_departure_read(self):
+        policy = self._policy_at_departure()
+        self.assertEqual(self._recall_count(self.before), 10)
+
+        key = policy.choose_key(self.before)
+
+        self.assertFalse(str(key).startswith(READ_KEY))
+        self.assertNotEqual(policy.last_reason, "town:recall-to-angband")
+        recall = policy._supply_ledger(self.before, policy._planned_depth())["recall"]
+        self.assertEqual((recall.count, recall.required_departure), (10, 11))
+
+    def test_p2_exact_target_recording_runs_procurement_not_fallback(self):
+        policy = self._policy_at_departure()
+
+        key = policy.choose_key(self.before)
+        requirement = next(
+            row
+            for row in policy.procurement_requirements(self.before)
+            if row["item"] == "Word of Recall scrolls"
+        )
+
+        self.assertEqual(requirement, {
+            "item": "Word of Recall scrolls",
+            "current": 10,
+            "target": 11,
+            "missing": 1,
+        })
+        self.assertFalse(policy.last_reason.startswith(("stuck:", "town:blocked:")))
+        self.assertTrue(policy.last_reason.startswith("shop:"), (key, policy.last_reason))
+
+    def test_p3_recorded_optional_errand_precedes_ready_departure(self):
+        policy = self._policy_at_departure()
+        # Wall only departure readiness after the real recorded need producer:
+        # the assertion is which public-path owner wins, not readiness itself.
+        with patch.object(policy, "_town_departure_ready", return_value=True), patch.object(
+            policy,
+            "_recall_town_departure_conjuncts",
+            return_value={"recorded-ready-wall": True},
+        ):
+            key = policy.choose_key(self.before)
+
+        self.assertFalse(str(key).startswith(READ_KEY))
+        self.assertTrue(
+            set(policy._town_claim_categories)
+            & {"ammo-home-first", "ammo", "black-market", "deposit"}
+        )
+
+    def test_p4_attempted_surplus_deposit_does_not_block_departure(self):
+        policy = self._policy_at_departure()
+        # Feed the recorded Home entry/exit through choose_key so the visit
+        # attempt is produced by the real public path on this policy.
+        for snapshot in self.rows[:104]:
+            policy.choose_key(snapshot)
+        self.assertGreater(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
+        recall = policy._supply_ledger(self.before, policy._planned_depth())["recall"]
+        self.assertEqual((recall.count, recall.required_departure), (10, 11))
+
+        with patch.object(
+            policy, "_enumerate_live_store_claims", return_value=[]
+        ), patch.object(
+            policy,
+            "_recall_town_departure_conjuncts",
+            return_value={"recorded-ready-wall": True},
+        ):
+            key = policy.choose_key(self.before)
+
+        self.assertIn("town:character-dump", policy.last_reason)
+        self.assertNotIn("deposit", policy.last_reason)
+
+    def test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow(self):
+        policy = self._policy_at_departure()
+        observations = []
+        for snapshot in self.rows[103:]:
+            key = policy.choose_key(snapshot)
+            observations.append((str(key), policy.last_reason))
+
+        self.assertFalse(any("recall-to-" in reason for _key, reason in observations))
+        self.assertFalse(any(reason.startswith("town:blocked:") for _key, reason in observations))
+        self.assertFalse(any(reason.startswith("stuck:") for _key, reason in observations))
+        requirement = next(
+            row
+            for row in policy.procurement_requirements(self.before)
+            if row["item"] == "Word of Recall scrolls"
+        )
+        self.assertEqual((requirement["current"], requirement["target"]), (10, 11))
+        self.assertTrue(
+            any(
+                reason.startswith(("shop:", "town:wait-restock:", "town:recall-stockout-mining"))
+                for _key, reason in observations
+            ),
+            observations,
         )

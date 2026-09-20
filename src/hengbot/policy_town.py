@@ -2432,6 +2432,14 @@ class TownMixin:
         self._refresh_nonhome_effect_refusals(snapshot)
         claims: list[str] = []
         departure_ready: bool | None = None
+        terminal_optional_categories = {
+            "ammo-home-first",
+            "ammo",
+            "throwing-torches",
+            "launcher-enchant",
+            "black-market",
+            "deposit",
+        }
         specs = {spec.category: spec for spec in self._town_need_registry()}
         for need in self._enumerate_live_store_claims(snapshot):
             spec = specs.get(need.category)
@@ -2487,7 +2495,15 @@ class TownMixin:
             if spec is not None and not spec.departure_blocking:
                 if departure_ready is None:
                     departure_ready = self._town_departure_ready(snapshot)
-                if departure_ready:
+                if departure_ready and (
+                    need.category not in terminal_optional_categories
+                    or not self._town_need_supplier_reachable(snapshot, need)
+                    or (
+                        snapshot.store is not None
+                        and snapshot.store.store_type == need.store_type
+                        and self._next_purchase(snapshot) is None
+                    )
+                ):
                     continue
             if need.category not in claims:
                 claims.append(need.category)
