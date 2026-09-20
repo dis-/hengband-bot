@@ -38,6 +38,7 @@ from hengbot.model import (
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
     HOME_CHARACTER_DUMP_MACRO,
+    HOME_KNOWLEDGE_MACRO,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     PACK_CAPACITY,
     STORE_STUCK_LIMIT,
@@ -1025,5 +1026,28 @@ class CalibrationMixin:
                 self.last_reason = "calibration:request-naked-character"
                 return HOME_CHARACTER_DUMP_MACRO if in_home else CHARACTER_DUMP_MACRO
             self.last_reason = "calibration:await-capture"
+            return WAIT_KEY
+        if phase == "restore-supplies":
+            # Each successful Home withdrawal invalidates its page-relative
+            # addresses.  Calibration still owns the next decision, so renew
+            # that address space before allowing its open visit to enter Home.
+            # Otherwise the visit arrives with an address-less restore claim,
+            # reports home-knowledge-invalidated, and the phase falls through
+            # without any producer able to restore the deposited supplies.
+            if not self._home_knowledge_current or self._home_knowledge_invalidated:
+                if (
+                    not self._home_knowledge_scan_requested
+                    and self._home_knowledge_scan_epoch is None
+                ):
+                    self.last_reason = "calibration:request-restore-knowledge"
+                    return HOME_KNOWLEDGE_MACRO
+                self.last_reason = "calibration:await-restore-knowledge"
+                return WAIT_KEY
+            step = self._shopping_approach_step(snapshot, STORE_HOME)
+            if step is not None:
+                return self._shopping_approach_key(
+                    snapshot, step, "calibration:restore-travel"
+                )
+            self.last_reason = "calibration:restore-home-unreachable"
             return WAIT_KEY
         return None

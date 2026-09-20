@@ -2680,10 +2680,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             key = policy.choose_key(snapshot)
             policy.confirm_key_posted(key)
             reasons[policy.last_reason] += 1
-            if policy.last_reason.startswith(
-                "town:blocked:home-claim-uncomposable:"
-            ):
-                break
             if inside:
                 # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
                 if key == " ":
@@ -2711,6 +2707,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                     self.fail((decision, "unexpected in-store key", key, policy.last_reason))
             # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the knowledge request is the public protocol event this replay must answer
             elif key == "~9\x1b\x1b":
+                policy.consume_home_knowledge(tuple(stock))
+                policy._home_page_size = 12
+                on_entrance = True
+                top = 0
+            elif key == policy_module.HOME_KNOWLEDGE_MACRO:
                 policy.consume_home_knowledge(tuple(stock))
                 policy._home_page_size = 12
                 on_entrance = True
@@ -2770,19 +2771,15 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         restored = {
             policy._item_signature(carried) for carried in inventory
         } & target_signatures
-        self.assertEqual(len(restored), 1, (reasons, decision, len(inventory)))
-        self.assertEqual(withdrawals, 1)
+        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
+        self.assertEqual(withdrawals, 12)
         self.assertLess(decision + 1, 300)
-        self.assertEqual(
-            policy._town_store_attempted[STORE_HOME],
-            "claim-uncomposable:calibration-restore:home-knowledge-invalidated",
-        )
         self.assertEqual(
             reasons[
                 "town:blocked:home-claim-uncomposable:calibration-restore:"
                 "home-knowledge-invalidated"
             ],
-            1,
+            0,
         )
         self.acceptance_restore_metrics = {
             "decisions": decision + 1,
@@ -2790,21 +2787,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "entries": entries,
             "withdrawal_decisions": withdrawal_decisions,
         }
-        # The successful take still resets its pass. The following visit's
-        # uncomposable unchanged claim owns exactly one unsatisfied pass.
-        self.assertGreater(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
-        self.assertLessEqual(
-            policy._town_visit_ledger.store_visits[STORE_HOME], entries
+        # Every successful take refreshes the address space before the next.
+        self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
+        self.assertEqual(
+            policy._town_visit_ledger.need_attempts.get("calibration-restore", 0),
+            0,
         )
-        self.assertLessEqual(
-            policy._town_visit_ledger.need_attempts.get(
-                "calibration-restore", 0
-            ),
-            1,
-        )
-        self.assertLessEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], entries
-        )
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
     def test_public_restore_attempt_does_not_release_home_approach_bound(self):
         policy = HengbotPolicy()
         pack = self._real_pack()

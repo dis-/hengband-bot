@@ -15,6 +15,7 @@ import hengbot.equipment_mutation as equipment_mutation_module
 import hengbot.policy as policy_module
 import hengbot.policy_calibration as policy_calibration_module
 from hengbot.cli import POLICY_FINAL_STOP_REASONS
+from hengbot.cli import _dispatch_response_lines
 from hengbot.equipment_optimizer import (
     OwnedEquipment,
     equipment_identity,
@@ -45,6 +46,7 @@ from hengbot.model import (
     TVAL_SWORD,
     parse_snapshot,
 )
+from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, STORE_STUCK_LIMIT, WAIT_KEY
 try:
     from policy_fixtures import grid, hostile, item, player, store_item
@@ -127,6 +129,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         policy.choose_key(replace(restore_entrance, inventory=restored, turn=4))
 
         self.assertIsNone(policy._calibration_phase)
+
         self.assertEqual(policy._calibration_restore_signatures, [])
         self.assertEqual(policy._calibration_restore_move_identities, {})
         self.assertEqual(policy._home_pending_quantities, {})
@@ -2198,3 +2201,91 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             )
         )
         self.assertIsNone(policy._calibration_phase)
+
+
+class CalibrationRestoreSuppliesRecordedPins(unittest.TestCase):
+    """Recorded public-path pins for the 2026-09-20 restore stranding."""
+
+    FIXTURE = Path(__file__).parent / "fixtures" / (
+        "incident-20260920-1354-no-actionable-claim-owner.jsonl.gz"
+    )
+    MONRACES = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+
+    @classmethod
+    def _replay(cls):
+        with gzip.open(cls.FIXTURE, "rt", encoding="utf-8") as stream:
+            lines = list(stream)
+        knowledge = load_monrace_knowledge(cls.MONRACES)
+        policy = HengbotPolicy()
+        decisions = []
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            for index, line in enumerate(lines):
+                payload = json.loads(line)
+                snapshot = parse_snapshot(payload, knowledge)
+                key = policy.choose_key(snapshot)
+                decisions.append({
+                    "index": index,
+                    "key": key,
+                    "reason": policy.last_reason,
+                    "phase": policy._calibration_phase,
+                    "knowledge_current": policy._home_knowledge_current,
+                })
+                if key:
+                    policy.confirm_key_posted(key)
+                if payload.get("type") in {"knowledge", "character", "look"}:
+                    _dispatch_response_lines(
+                        [line], policy, lambda _request: True,
+                        knowledge_ledger_path=ledger,
+                    )
+        return decisions
+
+    def test_p1_restore_span_never_has_no_actionable_claim_owner(self):
+        decisions = self._replay()
+        restore = [row for row in decisions if row["phase"] == "restore-supplies"]
+        self.assertTrue(restore)
+        self.assertNotIn(
+            "town:blocked:no-actionable-claim-owner",
+            [row["reason"] for row in restore],
+        )
+        self.assertEqual(
+            decisions[127]["reason"],
+            "calibration:request-restore-knowledge",
+        )
+
+    def test_p2_recorded_restore_posts_the_composed_withdrawal(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8") as stream:
+            lines = list(stream)
+        knowledge = load_monrace_knowledge(self.MONRACES)
+        policy = HengbotPolicy()
+        with TemporaryDirectory() as directory:
+            ledger = Path(directory) / "knowledge.jsonl"
+            for line in lines[:128]:
+                payload = json.loads(line)
+                key = policy.choose_key(parse_snapshot(payload, knowledge))
+                if key:
+                    policy.confirm_key_posted(key)
+                if payload.get("type") in {"knowledge", "character", "look"}:
+                    _dispatch_response_lines(
+                        [line], policy, lambda _request: True,
+                        knowledge_ledger_path=ledger,
+                    )
+            # The capture contains intervening duplicate boards emitted while
+            # the requested ~9 response was in flight.  Consume that recorded
+            # response, then the next recorded Home-entrance row.
+            _dispatch_response_lines(
+                [lines[132]], policy, lambda _request: True,
+                knowledge_ledger_path=ledger,
+            )
+            key = policy.choose_key(
+                parse_snapshot(json.loads(lines[134]), knowledge)
+            )
+        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+        self.assertEqual(key, "5 pSpQ2\rpP\x1b")
+
+    def test_p3_invalidated_catalogue_cannot_fake_an_item_match(self):
+        missing = self._replay()[127]
+        self.assertEqual(missing["phase"], "restore-supplies")
+        self.assertFalse(missing["knowledge_current"])
+        self.assertEqual(missing["reason"], "calibration:request-restore-knowledge")
+        self.assertEqual(missing["key"], policy_module.HOME_KNOWLEDGE_MACRO)

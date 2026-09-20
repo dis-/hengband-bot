@@ -1745,10 +1745,21 @@ class EquipmentMixin:
             return key
 
         if action.kind == "withdraw":
+            def matches_withdrawal(item: InventoryItem | StoreItem) -> bool:
+                return bool(
+                    item.is_equipment
+                    and (
+                        equipment_identity(item) == action.item_identity
+                        or (
+                            action.move_identity is not None
+                            and equipment_move_identity(item) == action.move_identity
+                        )
+                    )
+                )
+
             selected = next((
                 (index, item) for index, item in enumerate(store.items)
-                if item.is_equipment
-                and equipment_identity(item) == action.item_identity
+                if matches_withdrawal(item)
             ), None)
             if selected is not None and session.physical_context == "home":
                 index, target = selected
@@ -1780,8 +1791,7 @@ class EquipmentMixin:
                 self.last_reason = "equipment-transaction:withdraw"
                 return key
             target_observed = any(
-                item.is_equipment
-                and equipment_identity(item) == action.item_identity
+                matches_withdrawal(item)
                 for index, item in enumerate(self._home_knowledge_items)
                 if index < self._home_knowledge_valid_before
             )
@@ -1789,8 +1799,7 @@ class EquipmentMixin:
                 if (
                     self._open_home_page_is_complete(snapshot)
                     and any(
-                        item.is_equipment
-                        and equipment_identity(item) == action.item_identity
+                        matches_withdrawal(item)
                         for item in snapshot.store.items
                     )
                 ):
