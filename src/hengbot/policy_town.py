@@ -1429,6 +1429,15 @@ class TownMixin:
         """Route shortage relief before any transaction that may need a slot."""
         if not self._town_space_deposit_actionable(snapshot):
             return None
+        if (
+            len(snapshot.inventory) < PACK_CAPACITY
+            and self._town_order_step4_pending(snapshot)
+        ):
+            # A merely tight pack is the normal-order surplus deposit (step
+            # 10), not the common full-pack deposit (step 3).  Let the town
+            # order owner finish reward/bounty work before that optional Home
+            # route can acquire the store arbiter.
+            return None
         if self._fixed_quest_prepare_return_required(snapshot):
             # Stage-2 travel is an already-owned continuation.  Keep the
             # shortage actionable for earlier scan suppression and departure
@@ -1440,6 +1449,47 @@ class TownMixin:
             return None
         self.last_reason = "shop:approach"
         return self._shopping_approach_key(snapshot, step, "shop:travel")
+
+    @staticmethod
+    def _town_order_step4_pending(snapshot: Snapshot) -> bool:
+        """Whether recorded normal-order reward work still exists."""
+        return bool(
+            snapshot.in_town
+            and any(item.is_bounty for item in snapshot.inventory)
+        )
+
+    def _town_order_step4_key(self, snapshot: Snapshot) -> str | None:
+        """Select normal-order step 4 through the permanent town owner."""
+        if not self._town_order_step4_pending(snapshot):
+            if self._town_order_operation == "normal-step4-bounty":
+                self._town_order_operation = None
+                self._town_order_expected_observation = None
+            return None
+
+        self._town_order_operation = "normal-step4-bounty"
+        self._town_order_expected_observation = "bounty-removed"
+        if snapshot.store is not None:
+            # An ordinary supplier observation is not an in-flight operation:
+            # no item command has been selected or posted yet.  Close that UI
+            # without saving it for the step-5 one-shot continuation.
+            self._shop_observation = None
+            self.last_reason = "bounty:leave-supplier"
+            return LEAVE_STORE_KEY
+        return self._bounty_cashout_key(snapshot)
+
+    def _town_order_select_required_supply(self, snapshot: Snapshot) -> int | None:
+        """Record step 5 selection before its existing executor is entered."""
+        if self._town_order_step4_pending(snapshot):
+            return None
+        supplier = self._actionable_departure_supplier(snapshot)
+        if supplier is None:
+            if self._town_order_operation == "normal-step5-required-supplies":
+                self._town_order_operation = None
+                self._town_order_expected_observation = None
+            return None
+        self._town_order_operation = "normal-step5-required-supplies"
+        self._town_order_expected_observation = "departure-supplies-ready"
+        return supplier
 
     def _recall_town_departure_conjuncts(self, snapshot: Snapshot) -> dict[str, bool]:
         """Return the complete leaf set consumed by a town recall decision."""

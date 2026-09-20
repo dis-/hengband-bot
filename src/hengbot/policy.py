@@ -2518,9 +2518,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             and any(not monster.pet for monster in snapshot.visible_monsters)
         )
+        town_order_owns_step4 = bool(
+            self._town_order_operation == "normal-step4-bounty"
+            and self._town_order_step4_pending(snapshot)
+            and (self.last_reason or "").startswith("bounty:")
+        )
         if (
             in_town
             and not town_kill_owns_visible_target
+            and not town_order_owns_step4
             and not arbiter.preview_may_select(
                 self.last_reason, vector, retirement_key=current_retirement_key
             )
@@ -4920,6 +4926,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
         # In a store the town map and monsters are irrelevant — only buy/leave.
         if snapshot.store is not None:
+            if (
+                snapshot.store.store_type != STORE_HOME
+                and self._store_visit is not None
+                and not self._store_visit.operation_posted
+                and len(snapshot.inventory) < PACK_CAPACITY
+            ):
+                ordered = self._town_order_step4_key(snapshot)
+                if ordered is not None:
+                    return ordered
             if snapshot.store.store_type != STORE_HOME:
                 self._town_supplier_stock[snapshot.store.store_type] = snapshot.store
                 self._town_supplier_stock_observations[snapshot.store.store_type] = (
@@ -5642,7 +5657,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if stat_gain is not None:
             return stat_gain
 
-        bounty = self._bounty_cashout_key(snapshot)
+        bounty = self._town_order_step4_key(snapshot)
         if bounty is not None:
             return bounty
 
@@ -5905,6 +5920,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         #     General Store to buy one. A brass lantern lights radius 2 vs a torch's
         #     radius 1 — seeing the dark is what the Half-Troll lacked when it died.
         if snapshot.in_town:
+            self._town_order_select_required_supply(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:
                 # The former router performed terminal bookkeeping before it

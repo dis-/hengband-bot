@@ -92,7 +92,7 @@ class TownTurnArbiter:
             registration("departure", ("depart", "descend", "recall", "return:", "stair:", "postlevel:", "repetition-depart", "town:repetition-depart", "town:entrance", "town:wait-recall", "town:await-recall-confirmation", "town:recall-to-", "town:cancel-", "town:unsafe-recall-fallback", "wilderness:no-safe-route"), "stairs, recall, or floor delta"),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
-            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off"), "quest request or phase advance"),
+            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off", "bounty:leave"), "quest request or phase advance"),
             registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:"), "block release or visible stop"),
             registration("misc", ("policy:", "town:misc:", "town:character-dump", "periodic:", "explore", "melee", "hunt", "seek-loot", "wait"), "town progress vector delta"),
         )

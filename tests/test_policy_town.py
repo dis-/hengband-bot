@@ -15016,6 +15016,81 @@ class TownPriorityStage3Round2RecordedTest(unittest.TestCase):
         self.assertIsNotNone(policy._store_visit)
 
 
+class TownPriorityStage3Round3RecordedTest(unittest.TestCase):
+    """Pins the single town owner against the bounty/supplier recording."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260921-0255-bounty-shop-alternation.jsonl.gz"
+        )
+        assert hashlib.sha256(fixture.read_bytes()).hexdigest() == (
+            "e362d9a7109ccd9005793be13ca7d773299aaa98291132cc7743d7b9b660a99d"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        assert len(cls.rows) == 27
+
+    def _replay(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        decisions = []
+        for snapshot in self.rows:
+            key = policy.choose_key(snapshot)
+            decisions.append(
+                (str(key), policy.last_reason, bool(policy._town_progress_invariant_defect))
+            )
+        return policy, decisions
+
+    def test_p1_recorded_replay_has_no_retirement_or_bounty_shop_cycle(self):
+        _policy, decisions = self._replay()
+        reasons = [reason for _key, reason, _corrected in decisions]
+
+        self.assertNotIn("town:blocked:owner-retired", reasons)
+        self.assertFalse(
+            any(
+                left.startswith("bounty:") and right.startswith("shop:")
+                for left, right in zip(reasons, reasons[1:])
+            ),
+            reasons,
+        )
+
+    def test_p2_recorded_shortage_posts_exact_step4_reason_sequence(self):
+        policy, decisions = self._replay()
+        requirements = {
+            row["item"]: (row["current"], row["target"])
+            for row in policy.procurement_requirements(self.rows[-1])
+        }
+
+        self.assertEqual(requirements["Word of Recall scrolls"], (8, 11))
+        self.assertEqual(requirements["Teleport scrolls"], (13, 15))
+        self.assertEqual(
+            [reason for _key, reason, _corrected in decisions[17:]],
+            [
+                "bounty:approach",
+                "bounty:leave-supplier",
+                "bounty:approach",
+                "bounty:approach",
+                "bounty:approach",
+                "bounty:leave-supplier",
+                "bounty:approach",
+                "bounty:approach",
+                "bounty:approach",
+                "bounty:leave-supplier",
+            ],
+        )
+        self.assertEqual(
+            sum(corrected for _key, _reason, corrected in decisions[17:]), 0
+        )
+        self.assertEqual(policy._town_order_operation, "normal-step4-bounty")
+
+
 class TownKillMobAlternationRecordedTest(unittest.TestCase):
     """Pins town extermination against the recorded moving-monster race."""
 
