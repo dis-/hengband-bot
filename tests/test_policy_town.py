@@ -14906,3 +14906,110 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
             ),
             observations,
         )
+
+
+class TownPriorityStage3Round2RecordedTest(unittest.TestCase):
+    """Pins the departure-owned wait against the recorded post-read shop loop."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-1846-owner-retired.jsonl.gz"
+        )
+        raw = fixture.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == (
+            "632f85c13182ae6c79e339d766b888fee764658bfb571c6b2ed3510db87a5598"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        assert len(cls.rows) == 16
+
+    def _replay(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        decisions = []
+        for snapshot in self.rows:
+            key = policy.choose_key(snapshot)
+            decisions.append((str(key), policy.last_reason))
+        return policy, decisions
+
+    def test_p1_armed_departure_owns_every_recorded_decision(self):
+        policy, decisions = self._replay()
+
+        self.assertEqual(policy.procurement_requirements(self.rows[-1]), [])
+        self.assertEqual(
+            decisions,
+            [
+                ("5", "town:wait-recall"),
+                ("5", "town:wait-recall"),
+                ("5", "town:wait-recall"),
+                ("5", "town:wait-recall"),
+                ("5", "town:wait-recall"),
+                ("5", "town:wait-recall"),
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+                ("1", "town:wait-recall-step-off"),
+                ("5", "town:wait-recall"),
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+                ("1", "town:wait-recall-step-off"),
+                ("5", "town:wait-recall"),
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+            ],
+        )
+
+    def test_p2_recorded_replay_never_retires_the_departure_owner(self):
+        _policy, decisions = self._replay()
+
+        self.assertNotIn("town:blocked:owner-retired", {
+            reason for _key, reason in decisions
+        })
+
+    def test_p3_observed_empty_shop_is_left_without_reapproach(self):
+        policy, decisions = self._replay()
+
+        self.assertEqual(
+            decisions[6:],
+            [
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+                ("1", "town:wait-recall-step-off"),
+                ("5", "town:wait-recall"),
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+                ("1", "town:wait-recall-step-off"),
+                ("5", "town:wait-recall"),
+                ("1", "town:wait-recall-step-off"),
+                (LEAVE_STORE_KEY, "town:wait-recall-leave"),
+            ],
+        )
+        self.assertFalse(any(reason.startswith("shop:") for _key, reason in decisions))
+        self.assertIsNone(policy._store_visit)
+
+    def test_p4_unarmed_recorded_shortage_still_starts_shop_errand(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-1233-recall-stock-race.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [
+                parse_snapshot(json.loads(line), self.monrace) for line in stream
+            ]
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        policy.choose_key(rows[0])
+
+        key = policy.choose_key(rows[103])
+
+        self.assertFalse(rows[103].player.recalling)
+        self.assertEqual(
+            (key, policy.last_reason), (WAIT_KEY, "shop:travel:await-entry")
+        )
+        self.assertIsNotNone(policy._store_visit)

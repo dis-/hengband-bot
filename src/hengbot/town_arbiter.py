@@ -41,6 +41,7 @@ RECALL_ACTIVATION_MAX_GAME_TURNS = (
 )
 RECALL_WAIT_REASONS = frozenset({
     "town:wait-recall",
+    "town:wait-recall-leave",
     "town:wait-recall-step-off",
     "town:await-recall-confirmation",
 })

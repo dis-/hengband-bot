@@ -2843,6 +2843,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
+        if snapshot.store is not None and snapshot.player.recalling:
+            # A lagged or externally observed store page cannot revive shopping
+            # after departure is armed.  Leave under the departure owner so the
+            # store handler cannot recover a fresh visit and later re-approach it.
+            self._close_store_visit("recall-in-flight")
+            self.last_reason = "town:wait-recall-leave"
+            return LEAVE_STORE_KEY
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -5494,17 +5501,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         cancel_unsafe_recall = self._town_cancel_unsafe_recall_key(snapshot)
         if cancel_unsafe_recall is not None:
             return cancel_unsafe_recall
-        if (
-            self._startup_town_recall
-            and snapshot.in_town
-            and snapshot.player.recalling
-        ):
-            # A policy process may attach after Hengband has already accepted a
-            # town recall.  Once the explicit hard-safety checks above have
-            # passed, do not run the fresh process's incomplete Home/catalog
-            # state through the ordinary departure planner: it can only invent
-            # soft blockers and cancel an engine-owned action.  Store tiles are
-            # still stepped off so the pending recall can complete normally.
+        if snapshot.in_town and snapshot.player.recalling:
+            # Once Hengband has accepted a town recall, departure owns every
+            # remaining surface decision.  This covers both a fresh process
+            # attaching to an engine-owned recall and a recall armed by this
+            # policy: rebuilding the optional town plan here could otherwise
+            # start a new shop/Home errand after the final departure read.
+            # Store tiles are still stepped off so the recall can complete.
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.is_store:
                 neighbors = self._walkable_neighbors(
