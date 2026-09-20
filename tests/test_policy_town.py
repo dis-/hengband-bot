@@ -15111,3 +15111,102 @@ class TownKillMobAlternationRecordedTest(unittest.TestCase):
 
         self.assertFalse(self.rows[0].visible_monsters)
         self.assertEqual((str(key), policy.last_reason), ("5", "shop:travel:await-entry"))
+
+
+class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
+    """Pins required supplies above remembered opportunistic town loot."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-2112-seek-loot-shop-alternation.jsonl.gz"
+        )
+        raw = fixture.read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == (
+            "d4f379344153bbb6e28eaf1f94fa68979aaa8f4dccda13de9bb89a183d77ad2b"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            cls.rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+        assert len(cls.rows) == 21
+
+        catalogue_fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "incident-20260920-2025-kill-mob-shop-alternation.jsonl.gz"
+        )
+        with gzip.open(catalogue_fixture, "rt", encoding="utf-8") as stream:
+            cls.catalogue_rows = [
+                parse_snapshot(json.loads(line), cls.monrace) for line in stream
+            ]
+
+    def _policy_with_recorded_catalogue(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        self.assertTrue(
+            policy.consume_home_knowledge(self.catalogue_rows[2].store.items)
+        )
+        return policy
+
+    def test_p1_complete_recorded_replay_never_retires_an_owner(self):
+        policy = self._policy_with_recorded_catalogue()
+        reasons = []
+        for snapshot in self.rows:
+            policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+
+        self.assertNotIn("town:blocked:owner-retired", reasons)
+
+    def test_p2_recorded_shortage_tail_has_exact_supply_reason_sequence(self):
+        policy = self._policy_with_recorded_catalogue()
+        reasons = []
+        for snapshot in self.rows[12:19]:
+            policy.choose_key(snapshot)
+            reasons.append(policy.last_reason)
+
+        self.assertEqual(
+            reasons,
+            ["shop:travel"] + ["shop:approach"] * 6,
+        )
+
+    def test_p3_recorded_town_item_pickup_still_runs(self):
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "equipment-in-home-town0-2305.jsonl.gz"
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [
+                parse_snapshot(json.loads(line), self.monrace) for line in stream
+            ]
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        self.assertTrue(policy.consume_home_knowledge(rows[9].store.items))
+        decisions = []
+        for snapshot in rows[:6]:
+            key = policy.choose_key(snapshot)
+            decisions.append((str(key), policy.last_reason))
+
+        self.assertEqual(decisions[-1], ("g", "fixedquest:reward-pickup"))
+
+    def test_p4_visible_town_monster_keeps_combat_ownership(self):
+        policy = self._policy_with_recorded_catalogue()
+        replay_rows = self.catalogue_rows[18:]
+        visible_reasons = []
+        for snapshot in replay_rows:
+            policy.choose_key(snapshot)
+            if any(not monster.pet for monster in snapshot.visible_monsters):
+                visible_reasons.append(policy.last_reason)
+
+        self.assertEqual(len(visible_reasons), 13)
+        self.assertTrue(
+            all(
+                reason == "melee" or reason.startswith("town:kill-mob")
+                for reason in visible_reasons
+            ),
+            visible_reasons,
+        )

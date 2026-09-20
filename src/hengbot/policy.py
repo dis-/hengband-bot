@@ -5797,7 +5797,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if equipment_transaction is not None:
             return equipment_transaction
 
-        if not self._emergency_return_active:
+        required_supply_supplier = (
+            self._actionable_departure_supplier(snapshot)
+            if snapshot.in_town else None
+        )
+        if (
+            not self._emergency_return_active
+            and required_supply_supplier is None
+        ):
             loot = self._normal_loot_key(snapshot, strategic_hostiles)
             if loot is not None:
                 return loot
