@@ -1354,8 +1354,7 @@ class TownMixin:
             "mp_full": player.mp >= player.max_mp,
             "temporary_status_clear": self._temporary_status_clear(snapshot),
             "organization_complete": (
-                len(snapshot.inventory) < PACK_CAPACITY
-                or self._find_town_organization_surplus(snapshot) is None
+                self._find_town_organization_surplus(snapshot) is None
             ),
             "equipment_departure_ready": self._equipment_departure_ready(snapshot),
             "home_candidate_resolved": (
