@@ -2575,7 +2575,7 @@ class CombatTest(unittest.TestCase):
                 index, cell.y, cell.x,
                 distance=position.distance_to(cell), race_id=69,
                 can_multiply=True,
-                max_melee_damage=10 if visible_count <= 3 else 7,
+                max_melee_damage=20 if visible_count <= 3 else 7,
             )
             for index, cell in enumerate(monster_cells, 106)
         ]
@@ -2604,11 +2604,15 @@ class CombatTest(unittest.TestCase):
 
         contracted = self._orc_cave_choke_cycle_snapshot(mouth, 1)
         second = policy.choose_key(contracted)
-        self.assertEqual((second, policy.last_reason), ("1", "hunt"))
+        self.assertEqual((second, policy.last_reason), ("8", "melee:choke-reposition"))
+        self.assertNotIn(policy.last_reason, {"hunt", "seek-loot", "explore"})
+
+        held = self._orc_cave_choke_cycle_snapshot(choke, 3)
+        self.assertEqual(policy.choose_key(held), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "melee:choke-hold")
         state = policy.choke_engagement_state()
-        self.assertEqual((state["phase"], state["release_cause"]), (
-            "release", "low-threat",
-        ))
+        self.assertEqual(state["phase"], "hold")
+        self.assertIsNone(state["release_cause"])
 
     def test_recorded_worm_swarm_below_ten_percent_never_starts_choke(self):
         capture = Path(__file__).parent / "fixtures" / (
@@ -2737,6 +2741,66 @@ class CombatTest(unittest.TestCase):
             ("release", "low-threat"),
         )
         self.assertEqual(state["decisions_consumed"], 2)
+
+    def test_choke_reposition_measured_five_cell_wander_has_absolute_bound(self):
+        destination = Position(9, 65)
+        far_wander = [Position(5, 73), Position(6, 73)]
+        middle_wander = [Position(4, 72), Position(5, 72)]
+        wander = (
+            far_wander * 10
+            + middle_wander * 9
+            + [Position(3, 71), Position(5, 73)]
+        )
+        policy = HengbotPolicy()
+        policy._choke_engagement_plan = policy_module.ChokeEngagementPlan(
+            floor=(7, 24, 0),
+            phase="reposition",
+            destination=destination,
+            covered_retreat_direction=(-1, 1),
+            trigger_last_seen={186: Position(4, 66), 190: Position(4, 67)},
+            start_exp=1,
+            start_gold=3000,
+            start_breeder_count=2,
+            last_player_hp=668,
+            closest_destination_distance=9,
+        )
+
+        keys = []
+        for decision, position in enumerate(wander):
+            visible = [
+                hostile(
+                    index, position.y, position.x - offset,
+                    distance=offset, race_id=911, can_multiply=True,
+                    max_melee_damage=10,
+                )
+                for index, offset in ((186, 1), (190, 2))
+            ]
+            snapshot = Snapshot(
+                replace(player(position.y, position.x, hp=668, max_hp=668), exp=1),
+                {
+                    Position(y, x): grid(y, x, lit=True, in_view=True)
+                    for y in range(2, 11) for x in range(64, 74)
+                },
+                visible, floor_key=(7, 24, 0), turn=decision + 1,
+            )
+            policy._build_grid_index(snapshot)
+            key = policy._choke_engagement_key(
+                snapshot,
+                snapshot.visible_monsters,
+                policy._physical_adjacent_hostiles(snapshot),
+            )
+            if policy.choke_engagement_state()["release_cause"] is not None:
+                break
+            keys.append(key)
+
+        state = policy.choke_engagement_state()
+        self.assertEqual(
+            (state["phase"], state["release_cause"]),
+            ("release", "engagement-stall-bound"),
+        )
+        self.assertLess(state["decisions_consumed"], 40)
+        self.assertEqual(40 - state["decisions_consumed"], 16)
+        self.assertEqual(state["closest_destination_distance"], 7)
 
     def test_multiplied_immobile_breeders_release_and_explore_elsewhere(self):
         origin = Position(10, 10)
@@ -2891,13 +2955,12 @@ class CombatTest(unittest.TestCase):
             self._orc_cave_choke_cycle_snapshot(Position(28, 170), 1)
         )
         state = progressing.choke_engagement_state()
-        self.assertEqual((key, progressing.last_reason), ("1", "hunt"))
-        self.assertEqual(
-            progressing.choke_engagement_state()["release_cause"], "low-threat"
-        )
+        self.assertEqual((key, progressing.last_reason), (
+            "8", "melee:choke-reposition",
+        ))
         self.assertEqual((state["phase"], state["no_progress_decisions"],
                           state["release_cause"]), (
-            "release", 0, "low-threat",
+            "reposition", 0, None,
         ))
 
     def test_open_capture_mouth_is_never_accepted_as_choke_hold(self):
@@ -3376,16 +3439,16 @@ class CombatTest(unittest.TestCase):
         self.assertIn(breeder_cell, policy._engagement_avoid_cells)
         self.assertEqual(snapshot.floor_key, policy._choke_engagement_plan.floor)
 
-    def test_moving_player_does_not_choke_zero_predicted_damage_monsters(self):
+    def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
         snapshot = self._mouse_swarm_snapshot()
         current_player = Position(10, 11)
         current_monsters = [
             replace(
                 monster,
-                position=Position(9 + index, 14),
-                distance=3,
+                position=Position(9 + index, 13),
+                distance=2,
                 can_multiply=False,
-                max_melee_damage=20,
+                max_melee_damage=5,
             )
             for index, monster in enumerate(snapshot.visible_monsters)
         ]
@@ -3416,8 +3479,7 @@ class CombatTest(unittest.TestCase):
         ):
             key = policy._melee_swarm_combat_key(snapshot, current_monsters, [])
 
-        self.assertIsNone(key)
-        self.assertEqual(policy.choke_engagement_state(), {})
+        self.assertEqual((key, policy.last_reason), ("4", "melee:choke"))
 
     def test_player_approach_does_not_make_stationary_monsters_converge(self):
         snapshot = self._mouse_swarm_snapshot()
