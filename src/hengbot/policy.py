@@ -5947,6 +5947,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         #     General Store to buy one. A brass lantern lights radius 2 vs a torch's
         #     radius 1 — seeing the dark is what the Half-Troll lacked when it died.
         if snapshot.in_town:
+            self._end_fundraising_set_at_gold_target(snapshot)
             self._town_order_select_required_supply(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:

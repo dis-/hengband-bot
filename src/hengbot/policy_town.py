@@ -3348,10 +3348,8 @@ class TownMixin:
             if town_id != current and town_id in TOWN_TELEPORT_BUILDING_TYPES
         )
 
-    def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
-        """Apply ordered state changes only after the plan walk is exhausted."""
-        if self._town_restock_suppressed or snapshot.player.class_id < 0:
-            return
+    def _end_fundraising_set_at_gold_target(self, snapshot: Snapshot) -> None:
+        """End a funded set without waiting for its town errands to exhaust."""
         if (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not (
@@ -3364,6 +3362,12 @@ class TownMixin:
             self._planned_mining_runs = None
             self._identify_staff_mining_plan = False
             self._town_store_attempted.clear()
+
+    def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
+        """Apply ordered state changes only after the plan walk is exhausted."""
+        if self._town_restock_suppressed or snapshot.player.class_id < 0:
+            return
+        self._end_fundraising_set_at_gold_target(snapshot)
         if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)
             if target is None:

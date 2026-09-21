@@ -1706,3 +1706,34 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         ]
         self.assertEqual(keys, [None] * DIGGER_WIELD_LIMIT)
         self.assertEqual(pol._digger_wield_attempts, 0)
+
+
+class FundraisingSetEndRecordedTest(unittest.TestCase):
+    def setUp(self):
+        self.town = Snapshot(
+            player(10, 10, gold=18449, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=(0, 0, 0), town_flag=True,
+        )
+
+    def test_recorded_town_return_ends_funded_set_with_live_claims(self):
+        policy = HengbotPolicy()
+        policy._start_fundraising(replace(
+            self.town, player=replace(self.town.player, gold=1000)
+        ))
+        self.assertTrue(policy._town_claims_active(self.town))
+
+        policy.choose_key(self.town)
+
+        self.assertIsNone(policy._fundraising_mode)
+
+    def test_identify_staff_plan_remains_exempt_at_target(self):
+        policy = HengbotPolicy()
+        policy._start_fundraising(replace(
+            self.town, player=replace(self.town.player, gold=1000)
+        ))
+        policy._identify_staff_mining_plan = True
+        with patch.object(policy, "_identify_staff_ready", return_value=False):
+            policy._end_fundraising_set_at_gold_target(self.town)
+        self.assertEqual(policy._fundraising_mode, "prepare")
