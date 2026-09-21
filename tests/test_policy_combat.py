@@ -1,5 +1,6 @@
 import ast
 import gzip
+import hashlib
 import inspect
 import json
 import os
@@ -492,11 +493,10 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
     def test_recorded_prepare_choke_route_does_not_swap_adjacent_cells(self):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260919-2334-prepare-choke-oscillation"
-            / "snapshots.jsonl"
+            Path(__file__).parent / "fixtures" / "prepare-choke-snapshots.jsonl"
         )
+        self.assertEqual(hashlib.sha256(capture.read_bytes()).hexdigest(),
+                         "b55a378647f634f3b1f5363745865c510cdd15dbbe58da77c9b7d9eb823ab90b")
         monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
         self.assertTrue(capture.is_file(), f"missing committed capture: {capture}")
         self.assertTrue(monraces.is_file(), f"missing monster knowledge: {monraces}")
@@ -523,11 +523,10 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
     def test_recorded_detected_pack_holds_the_reached_choke(self):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260920-0025-choke-vs-loot-oscillation"
-            / "snapshots.jsonl"
+            Path(__file__).parent / "fixtures" / "choke-vs-loot-snapshots.jsonl"
         )
+        self.assertEqual(hashlib.sha256(capture.read_bytes()).hexdigest(),
+                         "fe1a40b13a77d90e6db1cf3f83fcdf1d7533a8eb22ccf8a38280265c4698a15c")
         monraces = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
         self.assertTrue(capture.is_file(), f"missing committed capture: {capture}")
         self.assertTrue(monraces.is_file(), f"missing monster knowledge: {monraces}")
@@ -1098,10 +1097,8 @@ class CombatTest(unittest.TestCase):
 
     def test_real_capture_weak_breeders_do_not_spend_escape_scroll(self):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260730-1543-fundraise-loot-oscillation"
-            / "last-snapshots.jsonl"
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-fundraise-loot-oscillation.jsonl"
         )
         monraces = Path(
             r"C:\hengband\.worktrees\bot-json-output\lib\edit"
@@ -1237,10 +1234,8 @@ class CombatTest(unittest.TestCase):
 
     def test_incident_wait_cycle_replay_leaves_six_cell_set(self):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260730-1543-fundraise-loot-oscillation"
-            / "last-snapshots.jsonl"
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-fundraise-loot-oscillation.jsonl"
         )
         monraces = Path(
             r"C:\hengband\.worktrees\bot-json-output\lib\edit"
@@ -3913,14 +3908,10 @@ class CombatTest(unittest.TestCase):
 
     def test_incident_breakthrough_routes_advance_monotonically_to_upstairs(self):
         captures = [
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260729-1943-breakthrough-oscillation"
-            / "oscillation-turn.jsonl",
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260729-2009-breakthrough-retreat"
-            / "retreat-turn191760.jsonl",
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-breakthrough-oscillation.jsonl",
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-breakthrough-retreat.jsonl",
         ]
         monraces = Path(
             r"C:\hengband\.worktrees\bot-json-output\lib\edit"
@@ -4047,18 +4038,12 @@ class CombatTest(unittest.TestCase):
 
     def test_incident_breakthrough_replay_uses_chronological_capture_memory(self):
         captures = [
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260729-1943-breakthrough-oscillation"
-            / "oscillation-turn.jsonl",
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260729-2009-breakthrough-retreat"
-            / "retreat-turn191760.jsonl",
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260729-2038-monotone-deadend"
-            / "deadend.jsonl",
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-breakthrough-oscillation.jsonl",
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-breakthrough-retreat.jsonl",
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-monotone-deadend.jsonl",
         ]
         monraces = Path(
             r"C:\hengband\.worktrees\bot-json-output\lib\edit"

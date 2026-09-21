@@ -632,10 +632,8 @@ class DescentTargetExpiryTest(unittest.TestCase):
 
 class UnenterableExploreGoalTest(unittest.TestCase):
     CAPTURE = (
-        Path(__file__).parents[1]
-        / "incident-captures"
-        / "20260730-0712-west-pocket-loop"
-        / "pocket-turn457749.jsonl"
+        Path(__file__).parent / "fixtures"
+        / "needs-fresh-west-pocket-loop.jsonl"
     )
     GOAL = Position(16, 3)
     RING = (
@@ -755,10 +753,8 @@ class UnenterableExploreGoalTest(unittest.TestCase):
 
 class NavigationInvariantTest(unittest.TestCase):
     GIVEUP_CAPTURE = (
-        Path(__file__).parents[1]
-        / "incident-captures"
-        / "20260730-0257-exploration-giveup"
-        / "giveup-turn437868.jsonl"
+        Path(__file__).parent / "fixtures"
+        / "needs-fresh-exploration-giveup.jsonl"
     )
 
     def _quiet_room(self, *, upstairs=False, inventory=()):

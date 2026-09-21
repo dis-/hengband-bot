@@ -5401,9 +5401,9 @@ class HomeWithdrawTargetUnobservedRecordedPins(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260921-101603-town-blocked-owner-retired"
+            Path(__file__).parent
+            / "fixtures"
+            / "needs-fresh-home-withdraw-target-unobserved"
         )
         with gzip.open(
             capture / "snapshots" / "snapshots-current.jsonl.gz",

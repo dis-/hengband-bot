@@ -419,7 +419,7 @@ class CapturedSequenceEquivalenceTest(unittest.TestCase):
             Path(r"C:\hengband\.worktrees\bot-json-output\lib\edit\MonraceDefinitions.jsonc")
         )
         for capture in self.CAPTURES:
-            path = ROOT / "incident-captures" / capture / "snapshots" / "snapshots-current.jsonl.gz"
+            path = ROOT / "tests" / "fixtures" / f"needs-fresh-{capture}.jsonl.gz"
             legacy = LegacyPolicy()
             cached = HengbotPolicy()
             primed = False

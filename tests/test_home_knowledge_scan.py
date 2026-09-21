@@ -585,16 +585,14 @@ class HomeKnowledgeScanTest(unittest.TestCase):
 
     def test_stalled_capture_requests_home_knowledge_and_completes(self):
         capture = (
-            Path(__file__).parents[1]
-            / "incident-captures"
-            / "20260731-063654-loop-detected"
-            / "decision-tail.jsonl"
+            Path(__file__).parent / "fixtures"
+            / "needs-fresh-home-seek-processing-page-capture.jsonl"
         )
-        if capture.exists():
-            with capture.open("rb") as stream:
-                stream.seek(max(0, capture.stat().st_size - 256 * 1024))
-                tail = stream.read().decode("utf-8", errors="replace")
-            self.assertIn('"reason": "home:seek-processing-page"', tail)
+        self.assertTrue(capture.is_file(), "needs fresh live capture")
+        with capture.open("rb") as stream:
+            stream.seek(max(0, capture.stat().st_size - 256 * 1024))
+            tail = stream.read().decode("utf-8", errors="replace")
+        self.assertIn('"reason": "home:seek-processing-page"', tail)
 
         policy = HengbotPolicy()
         policy._next_required_store_type = lambda _snapshot: STORE_HOME

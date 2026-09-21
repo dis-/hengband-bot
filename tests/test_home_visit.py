@@ -1,4 +1,5 @@
 import ast
+import hashlib
 import json
 from pathlib import Path
 import unittest
@@ -400,8 +401,13 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         )
 
     def test_door_bounce_capture_collapses_to_report_and_durable_budget(self):
+        fixture = "tests/fixtures/home-door-bounce-decisions.jsonl"
+        self.assertEqual(
+            hashlib.sha256((self.ROOT / fixture).read_bytes()).hexdigest(),
+            "5c8bd8fa9b5d39a7ff057566e504b701c4a3a9a8dd8598db89933776186fbd77",
+        )
         rows = self._rows(
-            "incident-captures/20260818-001502-loop-detected/decision-tail.jsonl",
+            fixture,
             {
                 "shop:approach", "store:entry-await-observation",
                 "home:route-claim-unfulfilled",

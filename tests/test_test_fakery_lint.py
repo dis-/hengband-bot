@@ -1,3 +1,4 @@
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -8,6 +9,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from test_fakery_lint import LIMITATIONS, analyze_source, scan_tests  # noqa: E402
+
+
+def incident_capture_reads(source):
+    """Return test-source literals that depend on recorder-owned captures."""
+    tree = ast.parse(source)
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and "incident-captures" in node.value.replace("\\", "/")
+    ]
 
 
 HISTORICAL_CASES = (
@@ -219,6 +232,25 @@ class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED_INSTANCES = 13
     # Six scan-only exception sites were deleted with their mechanism.
     DECLARED_FINDING_RATCHET = 125
+
+    def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
+        bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'
+        good = 'capture = Path("tests/fixtures/frozen-snapshots.jsonl")\n'
+        self.assertEqual(
+            incident_capture_reads(bad),
+            ["incident-captures/evicted/snapshots.jsonl"],
+        )
+        self.assertEqual(incident_capture_reads(good), [])
+
+    def test_tree_has_no_recorder_owned_capture_reads(self):
+        findings = {}
+        for path in sorted((ROOT / "tests").glob("test_*.py")):
+            if path.name in {"test_flight_recorder.py", Path(__file__).name}:
+                continue
+            matches = incident_capture_reads(path.read_text(encoding="utf-8"))
+            if matches:
+                findings[path.name] = matches
+        self.assertEqual(findings, {})
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()
