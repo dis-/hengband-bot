@@ -436,6 +436,12 @@ class ChokeEngagementPlan:
     sight_loss_decisions: int = 0
     no_progress_decisions: int = 0
     release_cause: str | None = None
+    # melee-threat-p95-adjacency / user 2026-09-22 「構えない場合（開けた場所）
+    # の予測で判定（推奨）」: the cell where the plan was decided.  The
+    # choke's own 10%/50% checks cap melee adjacency at THIS cell, never at
+    # the choke itself.  None (a plan restored from before this field) means
+    # unknown -> K = 8.
+    origin: Position | None = None
 
 
 @dataclass(frozen=True)

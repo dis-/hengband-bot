@@ -832,9 +832,7 @@ class CombatTest(unittest.TestCase):
         self.assertIsNotNone(policy._ranged_attack_key(snapshot, [monster], []))
 
     @staticmethod
-    def _mouse_swarm_snapshot(
-        *, at_choke=False, adjacent=False, ranged=False, mouse_damage=3
-    ):
+    def _mouse_swarm_snapshot(*, at_choke=False, adjacent=False, ranged=False):
         origin = Position(10, 9) if at_choke else Position(10, 10)
         grids = {
             Position(y, x): grid(y, x)
@@ -868,7 +866,7 @@ class CombatTest(unittest.TestCase):
                 x,
                 distance=origin.distance_to(Position(y, x)),
                 can_multiply=True,
-                max_melee_damage=mouse_damage,
+                max_melee_damage=3,
                 max_ranged_damage=6 if ranged and index == 1 else 0,
             )
             for index, (y, x) in enumerate(positions, 1)
@@ -3121,26 +3119,20 @@ class CombatTest(unittest.TestCase):
         room = Position(29, 169)
         mouth = Position(28, 170)
         choke = Position(27, 170)
-        # melee-threat-p95-adjacency: at the choke (27, 170) only K = 2 orcs
-        # reach the player, so the capped prediction (133 -> 49) fell below
-        # the unchanged 10% bound of HP 565 (56.5) and the floor-abandon exit
-        # was no longer reached there (melee instead).  HP 565 -> 480 keeps
-        # the choke in the band (49 / 480 = 10.2%).
-        HP = 480
         policy = HengbotPolicy()
-        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9, hp=HP))
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
         policy._choke_engagement_plan.sight_loss_decisions = (
             policy_module.EXTENDED_STUCK_WINDOW
         )
 
-        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0, hp=HP))
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0))
         self.assertEqual(
             policy.choke_engagement_state()["release_cause"],
             "sight-loss-bound",
         )
         posted = []
         for turn, position in enumerate((room, mouth, choke), 2):
-            snapshot = self._orc_cave_choke_cycle_snapshot(position, 9, hp=HP)
+            snapshot = self._orc_cave_choke_cycle_snapshot(position, 9)
             snapshot = replace(
                 snapshot,
                 grids={
@@ -3802,14 +3794,7 @@ class CombatTest(unittest.TestCase):
         )
 
     def test_productive_choke_hold_survives_long_breeder_window(self):
-        # melee-threat-p95-adjacency: at this choke only K = 2 mice can
-        # stand next to the player, so the capped prediction (24 ->
-        # 12) fell below the unchanged 10% choke lower bound (17.2 of HP 172).
-        # Mouse damage 3 -> 5 keeps the choke threat in the 10-50% band
-        # (20 / 172 = 12%) this pin exercises.
-        base = self._mouse_swarm_snapshot(
-            at_choke=True, adjacent=False, mouse_damage=5
-        )
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         policy = HengbotPolicy()
 
         for decision in range(45):
@@ -3886,11 +3871,7 @@ class CombatTest(unittest.TestCase):
                 hostile(
                     index, y, x,
                     distance=position.distance_to(Position(y, x)),
-                    # melee-threat-p95-adjacency: 2 -> 7.  At the choke only
-                    # K = 2 breeders reach the player; with 2 the capped
-                    # prediction (32 -> 8) fell below the unchanged 10% choke
-                    # bound (20.5 of HP 205); 7 keeps it in the band.
-                    race_id=31, can_multiply=True, max_melee_damage=7,
+                    race_id=31, can_multiply=True, max_melee_damage=2,
                 )
                 for index, (y, x) in enumerate(positions, 1)
             ]
@@ -3946,15 +3927,111 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(on_stairs), "<")
         self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
 
-    def test_shrinking_breeder_swarm_stays_at_choke(self):
-        # melee-threat-p95-adjacency: at this choke only K = 2 mice can
-        # stand next to the player, so the capped prediction (24 ->
-        # 12) fell below the unchanged 10% choke lower bound (17.2 of HP 172).
-        # Mouse damage 3 -> 5 keeps the choke threat in the 10-50% band
-        # (20 / 172 = 12%) this pin exercises.
-        base = self._mouse_swarm_snapshot(
-            at_choke=True, adjacent=False, mouse_damage=5
+    def test_choke_is_judged_by_open_ground_damage_not_its_own_cap(self):
+        # User decision 2026-09-22 「構えない場合（開けた場所）の予測で判定（推奨）」
+        # (melee-threat-p95-adjacency follow-up): the choke's own 10%/50%
+        # checks cap melee adjacency at the plan's ORIGIN, so the choke's K
+        # cannot release the plan it was chosen for.  Board: the mouse swarm
+        # (4 mice, 3 damage, HP 172, bound 17.2) with the corridor closed at
+        # its west end, so the planned choke (10, 8) admits one mouse.
+        def board(position, turn, *, at_choke, cells=None):
+            base = self._mouse_swarm_snapshot(at_choke=at_choke, adjacent=False)
+            grids = dict(base.grids)
+            for y, x in ((9, 7), (10, 7), (11, 7)):
+                grids[Position(y, x)] = grid(y, x, passable=False)
+            monsters = base.visible_monsters
+            if cells is not None:
+                for monster in monsters:
+                    grids[monster.position] = replace(
+                        grids[monster.position], has_monster=False
+                    )
+                monsters = [
+                    replace(monster, position=Position(*cell))
+                    for monster, cell in zip(monsters, cells)
+                ]
+                for monster in monsters:
+                    grids[monster.position] = replace(
+                        grids[monster.position], has_monster=True
+                    )
+            monsters = [
+                replace(monster, distance=position.distance_to(monster.position))
+                for monster in monsters
+            ]
+            return replace(
+                base,
+                grids=grids,
+                player=replace(base.player, position=position),
+                visible_monsters=monsters,
+                turn=turn,
+            )
+
+        policy = HengbotPolicy()
+        policy._fundraising_mode = "mine"
+
+        # Open ground (10, 10): 36 / 172 = 21% -> a choke plan toward (10, 8).
+        opening = board(Position(10, 10), 1, at_choke=False)
+        self.assertEqual(
+            policy.threat_prediction(
+                opening, opening.visible_monsters, 3
+            )["operational_total"],
+            36,
         )
+        self.assertEqual(policy.choose_key(opening), "4")
+        self.assertEqual(policy.last_reason, "melee:choke")
+        plan = policy._choke_engagement_plan
+        self.assertEqual(
+            (plan.destination, plan.origin), (Position(10, 8), Position(10, 10))
+        )
+
+        # In the corridor (10, 9) the current-cell prediction is 12 (K = 2),
+        # below the bound; the plan is judged at its origin and continues.
+        corridor = board(Position(10, 9), 2, at_choke=True)
+        self.assertEqual(
+            policy.threat_prediction(
+                corridor, corridor.visible_monsters, 3
+            )["operational_total"],
+            12,
+        )
+        self.assertEqual(policy.choose_key(corridor), "4")
+        self.assertEqual(policy.last_reason, "melee:choke-reposition")
+        self.assertIsNone(policy.choke_engagement_state()["release_cause"])
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+
+        # At the choke with the mice following: current-cell 9 (K = 1), the
+        # origin-capped value stays in the band -> the choke holds.
+        near = [(10, 10), (10, 11), (10, 12), (9, 11)]
+        for turn in range(3, 6):
+            held = board(Position(10, 8), turn, at_choke=True, cells=near)
+            self.assertEqual(
+                policy.threat_prediction(
+                    held, held.visible_monsters, 3
+                )["operational_total"],
+                9,
+            )
+            self.assertGreaterEqual(
+                policy._choke_predicted_damage(held, held.visible_monsters),
+                held.player.hp * 0.10,
+            )
+            self.assertEqual(policy.choose_key(held), WAIT_KEY)
+            self.assertEqual(policy.last_reason, "melee:choke-hold")
+        state = policy.choke_engagement_state()
+        self.assertEqual((state["phase"], state["release_cause"]), ("hold", None))
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+
+        # Restored-checkpoint cover: a plan pickled before ``origin`` existed
+        # has no instance value; the class default None means unknown -> K = 8.
+        restored = policy._choke_engagement_plan
+        del restored.__dict__["origin"]
+        self.assertIsNone(restored.origin)
+        self.assertEqual(
+            policy._choke_predicted_damage(held, held.visible_monsters),
+            policy.threat_prediction(
+                held, held.visible_monsters, 3, melee_slots=(8, 0)
+            )["operational_total"],
+        )
+
+    def test_shrinking_breeder_swarm_stays_at_choke(self):
+        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
 

@@ -2213,6 +2213,7 @@ class CombatMixin:
         *,
         contact: bool = False,
         player_speed: int | None = None,
+        melee_slots: tuple[int, int] | None = None,
     ) -> dict:
         """Damage prediction over ``turns`` player turns.
 
@@ -2226,7 +2227,9 @@ class CombatMixin:
 
         ``contact`` evaluates every monster as already adjacent with a clear
         line of fire (the detected-threat tiers fight "from contact");
-        ``player_speed`` overrides the player's speed for the action count.
+        ``player_speed`` overrides the player's speed for the action count;
+        ``melee_slots`` overrides the (floor, wall) slots counted at the
+        player's cell (the choke checks count them at the plan's origin).
         """
         # The aggregate-p95 convolution below costs hundreds of milliseconds per
         # deep-floor caster, and one decision asks for the same prediction up to
@@ -2244,6 +2247,7 @@ class CombatMixin:
             tuple(id(monster) for monster in hostiles),
             contact,
             player_speed,
+            melee_slots,
         )
         cached = self._threat_prediction_memo.get(memo_key)
         if cached is not None and cached[0] is snapshot:
@@ -2492,7 +2496,9 @@ class CombatMixin:
         # slot when one is left, otherwise a floor slot.  With two slot kinds
         # (floor: anyone; wall: wall-passers only) this greedy order is an
         # optimal assignment.  Monsters without a slot contribute ranged only.
-        floor_slots, wall_slots = self._melee_adjacency_slots(snapshot)
+        if melee_slots is None:
+            melee_slots = self._melee_adjacency_slots(snapshot)
+        floor_slots, wall_slots = melee_slots
         for row in rows:
             row["melee_slot"] = False
         for row in sorted(
@@ -2530,7 +2536,7 @@ class CombatMixin:
             "total": total,
             "operational_total": operational_total,
             "expected_total": ceil(expected_total),
-            "melee_slots": self._melee_adjacency_slots(snapshot),
+            "melee_slots": melee_slots,
             "monsters": rows,
         }
         if len(self._threat_prediction_memo) >= THREAT_PREDICTION_MEMO_LIMIT:
@@ -2562,8 +2568,11 @@ class CombatMixin:
             for blow in knowledge.blows
         )
 
-    def _melee_adjacency_slots(self, snapshot: Snapshot) -> tuple[int, int]:
-        """(floor slots, extra wall slots) among the 8 cells around the player.
+    def _melee_adjacency_slots(
+        self, snapshot: Snapshot, position: Position | None = None
+    ) -> tuple[int, int]:
+        """(floor slots, extra wall slots) among the 8 cells around ``position``
+        (default: the player's cell).
 
         A floor slot is a cell any monster could stand on: an enterable cell
         (floor, open or closed door -- the monster path model's own rule) or a
@@ -2573,7 +2582,7 @@ class CombatMixin:
         """
         floor = 0
         wall = 0
-        origin = snapshot.player.position
+        origin = snapshot.player.position if position is None else position
         for dy, dx in NEIGHBOR_OFFSETS:
             grid = snapshot.grid_at(Position(origin.y + dy, origin.x + dx))
             if grid is None or not grid.known or grid.enterable:
@@ -2684,7 +2693,7 @@ class CombatMixin:
 
         if not swarm:
             return None
-        predicted_damage = self._predicted_damage(snapshot, hostiles, turns=3)
+        predicted_damage = self._choke_predicted_damage(snapshot, hostiles)
         if predicted_damage < (
             snapshot.player.hp * CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO
         ):
@@ -2737,6 +2746,7 @@ class CombatMixin:
                         snapshot.player.position.distance_to(destination)
                     ),
                     last_movement=(snapshot.player.position, step),
+                    origin=snapshot.player.position,
                 )
                 self._inherit_choke_outcome_budget(
                     snapshot, self._choke_engagement_plan
@@ -2775,6 +2785,7 @@ class CombatMixin:
                     ),
                     last_player_hp=snapshot.player.hp,
                     closest_destination_distance=0,
+                    origin=snapshot.player.position,
                 )
                 self._inherit_choke_outcome_budget(
                     snapshot, self._choke_engagement_plan
@@ -2787,6 +2798,32 @@ class CombatMixin:
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
+    def _choke_predicted_damage(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> int:
+        """Operational 3-turn damage for the choke's own 10%/50% checks.
+
+        User decision 2026-09-22 「構えない場合（開けた場所）の予測で判定（推奨）」:
+        the choke is judged by the damage taken WITHOUT it.  Melee adjacency
+        is capped at the active plan's origin (the cell where it was decided;
+        unknown origin -> K = 8), so the choke's own K = 2 cap can never
+        release it; with no active plan the current cell is the origin.
+        Emergency/flee decisions keep the current-cell prediction.
+        """
+        plan = self._choke_engagement_plan
+        if plan is not None and self._choke_plan_active(snapshot):
+            origin = getattr(plan, "origin", None)
+            slots = (
+                self._melee_adjacency_slots(snapshot, origin)
+                if origin is not None
+                else (len(NEIGHBOR_OFFSETS), 0)
+            )
+        else:
+            slots = self._melee_adjacency_slots(snapshot)
+        return self.threat_prediction(
+            snapshot, hostiles, 3, melee_slots=slots
+        )["operational_total"]
+
     def _choke_plan_active(self, snapshot: Snapshot) -> bool:
         plan = self._choke_engagement_plan
         return bool(
@@ -2851,7 +2888,7 @@ class CombatMixin:
                 else "swarm-growth"
             )
             return None
-        predicted_damage = self._predicted_damage(snapshot, hostiles, turns=3)
+        predicted_damage = self._choke_predicted_damage(snapshot, hostiles)
         if (
             snapshot.player.hp_ratio < FLEE_HP_RATIO
             or predicted_damage >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
