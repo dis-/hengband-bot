@@ -1,0 +1,5 @@
+Source: incident-captures/20260921-224839-loop-detected/
+Selection: every decision of the bot process started 2026-09-21 22:45:39+09:00 (sequence 1..627; the loop-detected stop record is excluded).
+Boundary rule: walking back from the final emitter row, each decision's input ends drain(previous decision) rows earlier; when that row's turn differs from the decision record's turn the boundary moves back to the matching row (decisions [2, 53, 423, 523]).
+Decisions: 627; emitter rows: 766 of 766; decompressed sha256: 19de53925ce5091d44930ecc79ade9f7dda813575b4e429a8a3267a0e67f8ca0
+Calibration: the live file was rewritten mid-run (22:47:43); the fixture is the last preserved pre-run content (recall-stockout-set-end-20260921.character-calibration.json, fields equal to the rewritten file except observed_turn) sha256 d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd286edf7

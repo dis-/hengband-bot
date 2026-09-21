@@ -1598,6 +1598,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # tile beside them stays a permanent frontier and we oscillate toward it.
         self._blocked_unknown: set[tuple[int, int]] = set()
         self._rest_count = 0
+        # Last detected-threat rest tiering (esp-threat-rest); diagnostic only,
+        # rewritten before every read.
+        self._esp_threat_assessment: dict | None = None
         self._last_move_key: str | None = None
         self._last_move_pos: Position | None = None
         self._move_repeat = 0
@@ -4835,6 +4838,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _decide(self, snapshot: Snapshot) -> str:
+        # Diagnostic: describes this decision's rest check only.
+        self._esp_threat_assessment = None
         self._evaluate_cross_decision_latches(snapshot)
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
@@ -6054,11 +6059,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and player.food_state in {"normal", "full", "gorged"}
             and self._rest_count < REST_CAP
         ):
-            # Note: resting burns many turns (= food). Skip it when hungry so we
-            # don't starve — bot-test died of starvation partly from over-resting.
-            self._rest_count += 1
-            self.last_reason = "rest"
-            return REST_MACRO
+            # Awake monsters known only by telepathy/detection interrupt every
+            # rest (live Angband 41F loop, 2026-09-21): the user-confirmed
+            # tiers hunt, keep exploring, or leave the floor instead.
+            suppress_rest, esp_threat = self._esp_threat_rest_key(
+                snapshot, strategic_hostiles
+            )
+            if esp_threat is not None:
+                return esp_threat
+            if not suppress_rest:
+                # Note: resting burns many turns (= food). Skip it when hungry
+                # so we don't starve — bot-test died of starvation partly from
+                # over-resting.
+                self._rest_count += 1
+                self.last_reason = "rest"
+                return REST_MACRO
 
         # 5. Descend when standing on a downstairs or dungeon entrance — only
         #    while healthy, so we never dive deeper than we can handle.

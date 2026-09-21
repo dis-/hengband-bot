@@ -370,6 +370,17 @@ ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 # User decision 2026-09-21: threats below 10% of current HP do not justify
 # starting or maintaining a melee choke engagement.
 CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO = 0.10
+# User decision 2026-09-21/22 (esp-threat-rest, 「この仕様で発注」): when the
+# player wants to rest (HP below REST_TARGET_HP_RATIO, the user's 90%), awake
+# monsters known only by telepathy/detection are tiered by the sum of their
+# per-action maximum damage divided by CURRENT HP: below 10% WEAK (go and kill
+# them, then rest), 10-50% MEDIUM (no rest, keep exploring), 50% and above
+# STRONG (kill if feasible with permitted supplies, else leave the floor).
+# Feasibility may spend Healing and Speed potions but always keeps two of each
+# (「緊急用に2本残して使う（推奨）」).  Specification values, not tuning knobs.
+ESP_THREAT_WEAK_RATIO = 0.10
+ESP_THREAT_STRONG_RATIO = 0.50
+ESP_THREAT_POTION_RESERVE = 2
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
 

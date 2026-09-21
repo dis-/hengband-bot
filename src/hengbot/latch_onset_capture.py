@@ -110,6 +110,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # Older captures predate the recall-stockout time-pass flag; False keeps
     # their former set-end behavior (no stockout exemption).
     restored.__dict__.setdefault("_recall_stockout_mining_plan", False)
+    # Older captures predate the detected-threat rest tiering record; None is
+    # the "no assessment yet" value it is rewritten from on every rest check.
+    restored.__dict__.setdefault("_esp_threat_assessment", None)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
     # Equipment departure can now consult a calibration deferral even when a
     # legacy checkpoint reaches the calibration-required optimizer return.

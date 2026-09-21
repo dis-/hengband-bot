@@ -22,11 +22,15 @@ from hengbot.policy_constants import (
     CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
     EMERGENCY_RETURN_COUNT,
     ENGAGEMENT_AVOID_DAMAGE_RATIO,
+    ESP_THREAT_POTION_RESERVE,
+    ESP_THREAT_STRONG_RATIO,
+    ESP_THREAT_WEAK_RATIO,
     FIRE_KEY,
     FIXED_QUEST_HEAL_HP_RATIO,
     FLEE_HP_RATIO,
     HEAL_HP_RATIO,
     HEAL_POTION_SVALS,
+    HEALING_POTION_HP,
     HUNT_HP_RATIO,
     HUNT_MAX_HOSTILES,
     HUNT_RANGE,
@@ -36,6 +40,7 @@ from hengbot.policy_constants import (
     RESIST_FLAG_BY_ABILITY,
     SUMMONER_EXPOSED_NEIGHBORS,
     SUMMONER_RANGED_KILL_SHOTS,
+    SPEED_POTION_BONUS,
     SWARM_COUNT,
     SWARM_LOOKAHEAD,
     THREAT_PREDICTION_MEMO_LIMIT,
@@ -512,6 +517,12 @@ class CombatMixin:
                 return QUAFF_KEY + speed.slot
         return key
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
+        return self._strategic_subset(snapshot, snapshot.visible_monsters)
+
+    def _strategic_subset(
+        self, snapshot: Snapshot, monsters: list[MonsterState]
+    ) -> list[MonsterState]:
+        """Hostiles not set aside by an existing floor-level breeder decision."""
         giveup_plan = self._choke_engagement_plan
         ignoring_immobile_breeders = (
             giveup_plan is not None
@@ -523,7 +534,7 @@ class CombatMixin:
         )
         return [
             monster
-            for monster in snapshot.visible_monsters
+            for monster in monsters
             if (
                 monster.hostile
                 and not (ignoring_immobile_breeders and monster.can_multiply)
@@ -533,6 +544,268 @@ class CombatMixin:
                 )
             )
         ]
+
+    # ------------------------------------------------- detected-threat rest
+    # User-confirmed specification 2026-09-21/22 (topic esp-threat-rest,
+    # final answer 「この仕様で発注」).  Awake monsters known only through
+    # telepathy/detection interrupt every rest; tier them instead of resting.
+
+    def _esp_threat_assess(
+        self, snapshot: Snapshot
+    ) -> tuple[dict | None, list[MonsterState]]:
+        """Tier the awake detection-only hostiles for the rest decision."""
+        # Floor-level breeder decisions (break-through, choke give-up) keep
+        # their exclusions, exactly as for the visible strategic list.
+        awake = [
+            monster
+            for monster in self._strategic_subset(
+                snapshot, snapshot.detected_monsters
+            )
+            if not monster.asleep
+        ]
+        # Summoners and paralysers keep their existing handling (「既存の決定
+        # を優先」): they are not tiered.  A paralyser is special only while
+        # the existing classifier treats it so (no Free Action held).
+        paralyser_indices = {
+            monster.index
+            for monster in self._paralyzing_monsters(snapshot, awake)
+        }
+        special = [
+            monster
+            for monster in awake
+            if monster.can_summon or monster.index in paralyser_indices
+        ]
+        tiered = [monster for monster in awake if monster not in special]
+        if not tiered:
+            return None, []
+        strength = sum(
+            max(monster.max_melee_damage, monster.max_ranged_damage)
+            for monster in tiered
+        )
+        hp = snapshot.player.hp
+        ratio = strength / max(1, hp)
+        tier = (
+            "weak"
+            if ratio < ESP_THREAT_WEAK_RATIO
+            else "medium"
+            if ratio < ESP_THREAT_STRONG_RATIO
+            else "strong"
+        )
+        assessment: dict = {
+            "tier": tier,
+            "strength": strength,
+            "hp": hp,
+            "ratio": ratio,
+            "monsters": [
+                (
+                    monster.index,
+                    monster.race_id,
+                    max(monster.max_melee_damage, monster.max_ranged_damage),
+                )
+                for monster in tiered
+            ],
+            "special": [monster.index for monster in special],
+            "breeders": [
+                monster.index for monster in tiered if monster.can_multiply
+            ],
+        }
+        if tier == "strong":
+            assessment["feasibility"] = self._esp_threat_kill_feasibility(
+                snapshot, tiered
+            )
+        return assessment, tiered
+
+    def _esp_threat_kill_feasibility(
+        self, snapshot: Snapshot, monsters: list[MonsterState]
+    ) -> dict:
+        """Whether the permitted supplies kill the group before it takes half HP.
+
+        Modelling (declared in the esp-threat-rest fix event):
+        - player damage per player turn is the existing main-hand (plus a
+          melee sub-hand) DPS, or the existing per-shot launcher estimate while
+          matching ammunition lasts, whichever kills each monster sooner;
+          attack wands/rods add nothing because the policy has no attack-device
+          damage model and never aims one;
+        - monsters are fought one after another from contact (no approach
+          time), and every monster keeps acting until the whole group is dead;
+        - each monster action deals its per-action maximum (the tier measure),
+          with the existing speed-energy action count;
+        - Potions of Speed and Healing above the two-of-each reserve may be
+          spent; one Speed dose (tried with and without) adds
+          SPEED_POTION_BONUS for the whole fight and costs a turn; each Healing
+          dose restores HEALING_POTION_HP and costs
+          a turn, is credited only if it outheals one turn of damage, and no
+          more doses are credited than the fight's attack turns (the unique
+          fight projection's rules).  Departure-reserved items (Word of Recall,
+          Teleportation, Cure Critical Wounds, ...) are never counted.
+        """
+        player = snapshot.player
+        weapon = next(
+            (
+                item for item in snapshot.equipment
+                if item.slot == "main_hand"
+                and (item.is_melee_weapon or item.is_digging_tool)
+            ),
+            None,
+        )
+        melee = (
+            self._main_hand_dps(snapshot, weapon)
+            if weapon is not None and player.main_hand_blows > 0
+            else 0.0
+        )
+        sub_weapon = next(
+            (
+                item for item in snapshot.equipment
+                if item.slot == "sub_hand" and item.is_melee_weapon
+            ),
+            None,
+        )
+        if sub_weapon is not None and player.sub_hand_blows > 0:
+            melee += self._sub_hand_dps(snapshot, sub_weapon)
+        ranged = self._estimated_ranged_damage_per_shot(snapshot)
+        launcher = self._equipped_launcher(snapshot)
+        ammo = (
+            sum(
+                item.count
+                for item in snapshot.inventory
+                if item.tval == launcher.ammo_tval
+            )
+            if launcher is not None and ranged > 0
+            else 0
+        )
+        speed_spare = max(
+            0,
+            self._exact_potion_count(snapshot, SV_POTION_SPEED)
+            - ESP_THREAT_POTION_RESERVE,
+        )
+        healing_spare = max(
+            0,
+            self._exact_potion_count(snapshot, SV_POTION_HEALING)
+            - ESP_THREAT_POTION_RESERVE,
+        )
+        result: dict = {
+            "melee_per_turn": melee,
+            "ranged_per_shot": ranged,
+            "ammo": ammo,
+            "speed_spare": speed_spare,
+            "healing_spare": healing_spare,
+            "budget": player.hp / 2,
+            "feasible": False,
+        }
+        attack_turns = 0
+        shots_left = ammo
+        for monster in sorted(monsters, key=lambda m: (m.distance, m.index)):
+            melee_turns = ceil(monster.hp / melee) if melee > 0 else None
+            shots = ceil(monster.hp / ranged) if ranged > 0 else None
+            if (
+                shots is not None
+                and shots <= shots_left
+                and (melee_turns is None or shots < melee_turns)
+            ):
+                attack_turns += max(1, shots)
+                shots_left -= shots
+            elif melee_turns is not None:
+                attack_turns += max(1, melee_turns)
+            else:
+                result["attack_turns"] = None
+                return result
+        result["attack_turns"] = attack_turns
+        per_action = [
+            (monster, max(monster.max_melee_damage, monster.max_ranged_damage))
+            for monster in monsters
+        ]
+
+        def incoming(player_speed: int, turns: int) -> int:
+            return sum(
+                self._monster_actions(monster.speed, player_speed, turns) * damage
+                for monster, damage in per_action
+            )
+
+        # As in the unique fight projection, a Speed dose is one option, not
+        # a forced cost: try the fight without and (if spare) with it.
+        for speed_uses in ((0, 1) if speed_spare > 0 else (0,)):
+            player_speed = player.speed + speed_uses * SPEED_POTION_BONUS
+            doses = (
+                min(healing_spare, attack_turns)
+                if HEALING_POTION_HP >= incoming(player_speed, 1)
+                else 0
+            )
+            for healing_uses in range(doses + 1):
+                turns = attack_turns + speed_uses + healing_uses
+                damage = incoming(player_speed, turns)
+                result.update(
+                    turns=turns,
+                    incoming=damage,
+                    speed_uses=speed_uses,
+                    healing_uses=healing_uses,
+                )
+                if damage - healing_uses * HEALING_POTION_HP < player.hp / 2:
+                    result["feasible"] = True
+                    return result
+        return result
+
+    def _esp_threat_rest_key(
+        self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
+    ) -> tuple[bool, str | None]:
+        """Replace a rest that awake detection-only hostiles would interrupt.
+
+        Called only where the ordinary rest rule would rest.  Returns
+        ``(suppress_rest, key)``; ``(False, None)`` keeps the existing rest.
+        A suppressed rest with no key falls through to exploration.
+        """
+        assessment, tiered = self._esp_threat_assess(snapshot)
+        self._esp_threat_assessment = assessment
+        if assessment is None:
+            return False, None
+        tier = assessment["tier"]
+        breeders = [monster for monster in tiered if monster.can_multiply]
+        if tier == "strong":
+            action = (
+                "hunt" if assessment["feasibility"]["feasible"] else "leave"
+            )
+            targets = tiered
+        elif tier == "weak" or breeders:
+            # Breeders are hunted like the WEAK tier (「放置すると増える」).
+            action = "hunt"
+            targets = breeders or tiered
+        else:
+            action = "explore"
+            targets = []
+        assessment["action"] = action
+        if action == "hunt":
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: any(
+                    grid.position.distance_to(target.position) <= 1
+                    for target in targets
+                ),
+            )
+            if step is None or step in self._engagement_avoid_cells:
+                assessment["action"] = "hunt-unreachable"
+                return True, None
+            self.last_reason = f"esp-threat:hunt-{tier}"
+            return True, self._step_toward(snapshot, step)
+        if action == "leave":
+            if self._escape_state.owner not in {None, "return"}:
+                assessment["action"] = "leave-owner-busy"
+                return True, None
+            # Leave through the existing return machinery: up-stairs underfoot
+            # first, Word of Recall deeper than the walk-out depth, else walk
+            # to the nearest known up-stairs.
+            self._returning_to_town = True
+            self._last_return_trigger = "esp-threat"
+            key = self._return_to_town_key(snapshot, strategic_hostiles)
+            if key is None:
+                assessment["action"] = "leave-unavailable"
+                return True, None
+            if self.last_reason.startswith("return:"):
+                self.last_reason = (
+                    "esp-threat:leave-" + self.last_reason[len("return:"):]
+                )
+            self._escape_state.enter("return", self.last_reason)
+            return True, key
+        return True, None
+
     def _perceived_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         """Return de-duplicated sight and detection records for anticipation."""
         perceived: dict[int, MonsterState] = {
