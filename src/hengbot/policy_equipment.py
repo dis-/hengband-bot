@@ -2000,6 +2000,20 @@ class EquipmentMixin:
         )
         if complete_now:
             self._record_confirmed_loadout(snapshot)
+        mechanically_deferred_calibration = bool(
+            preparation is not None
+            and preparation.blockers == ("calibration-required",)
+            and self._calibration_deferral_cause
+            == "unremovable-cursed-equipment"
+            and any(item.is_cursed for item in snapshot.equipment)
+            and (
+                any(
+                    item.is_cursed and self._curse_unremovable(item)
+                    for item in snapshot.equipment
+                )
+                or not self._normal_remove_curse_actionable_this_visit(snapshot)
+            )
+        )
         premise = bool(
             not complete_now
             and self._equipment_transaction_session is None
@@ -2007,7 +2021,7 @@ class EquipmentMixin:
             and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
-        ready = complete_now
+        ready = complete_now or mechanically_deferred_calibration
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers

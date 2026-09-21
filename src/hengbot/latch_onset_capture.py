@@ -108,6 +108,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # former terminal-transition behavior.
     restored.__dict__.setdefault("_identify_staff_mining_plan", False)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
+    # Equipment departure can now consult a calibration deferral even when a
+    # legacy checkpoint reaches the calibration-required optimizer return.
+    restored.__dict__.setdefault("_calibration_deferral_cause", None)
+    restored.__dict__.setdefault("_calibration_deferral_reason", None)
     restored.__dict__.setdefault("_prompt_gated_posting", True)
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
     restored.__dict__.setdefault("_town_restock_last_wait_turn", None)

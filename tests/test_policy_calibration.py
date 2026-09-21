@@ -2237,6 +2237,133 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertIsNone(policy._calibration_phase)
 
 
+class DeferredCalibrationDepartureRecordedPins(unittest.TestCase):
+    FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "deferred-calibration-blocks-departure-20260921.jsonl.gz"
+    )
+
+    def _snapshots(self):
+        with gzip.open(self.FIXTURE, "rt", encoding="utf-8") as stream:
+            return [parse_snapshot(json.loads(line), {}) for line in stream]
+
+    def _produce_unremovable_curse_deferral(self):
+        snapshots = self._snapshots()
+        self.assertEqual(
+            [snapshot.turn for snapshot in snapshots],
+            [
+                4195476, 4195480, 4195483, 4195492, 4195496,
+                4195500, 4195503, 4195510, 4195517, 4195524,
+                4195531, 4195536, 4195549, 4195556, 4195566,
+                4195575, 4195591, 4195601, 4195608, 4195618,
+                4195626, 4195632, 4197638,
+            ],
+        )
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+        for snapshot in snapshots[:12]:
+            key = policy.choose_key(snapshot)
+            if key:
+                policy.confirm_key_posted(key)
+        self.assertEqual(
+            policy._calibration_deferral_cause,
+            "unremovable-cursed-equipment",
+        )
+        return policy, snapshots
+
+    @staticmethod
+    def _calibration_required_preparation():
+        return policy_module.WarriorOptimizationPreparation(
+            SimpleNamespace(), None, None, ("calibration-required",)
+        )
+
+    def test_deferred_unremovable_curse_releases_recorded_departure(self):
+        policy, snapshots = self._produce_unremovable_curse_deferral()
+        deferred = snapshots[-2]
+        for snapshot in snapshots[12:-2]:
+            key = policy.choose_key(snapshot)
+            if key:
+                policy.confirm_key_posted(key)
+        self.assertTrue(
+            any(item.is_cursed for item in deferred.equipment)
+            and (
+                any(
+                    item.is_cursed and policy._curse_unremovable(item)
+                    for item in deferred.equipment
+                )
+                or not policy._normal_remove_curse_actionable_this_visit(
+                    deferred
+                )
+            )
+        )
+
+        with patch.object(
+            policy,
+            "_prepare_equipment_optimization",
+            return_value=self._calibration_required_preparation(),
+        ):
+            key = policy.choose_key(deferred)
+            self.assertTrue(policy._equipment_departure_ready(deferred))
+            self.assertNotEqual(
+                policy.last_reason,
+                "town:blocked:equipment-calibration-required",
+            )
+            self.assertNotEqual(key, "")
+
+    def test_calibration_still_blocks_without_a_mechanical_deferral(self):
+        produced, snapshots = self._produce_unremovable_curse_deferral()
+        deferred = snapshots[-2]
+        with patch.object(
+            produced,
+            "_prepare_equipment_optimization",
+            return_value=self._calibration_required_preparation(),
+        ):
+            self.assertTrue(produced._equipment_departure_ready(deferred))
+
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(())
+
+        with patch.object(
+            policy,
+            "_prepare_equipment_optimization",
+            return_value=self._calibration_required_preparation(),
+        ):
+            self.assertFalse(policy._equipment_departure_ready(deferred))
+
+    def test_observed_absence_of_curse_rearms_calibration(self):
+        policy, snapshots = self._produce_unremovable_curse_deferral()
+        deferred = snapshots[-2]
+        resolved = snapshots[-1]
+        self.assertFalse(
+            any(
+                item.is_cursed and policy._curse_unremovable(item)
+                for item in resolved.equipment
+            )
+        )
+
+        with patch.object(
+            policy,
+            "_prepare_equipment_optimization",
+            return_value=self._calibration_required_preparation(),
+        ):
+            self.assertTrue(policy._equipment_departure_ready(deferred))
+            self.assertFalse(policy._equipment_departure_ready(resolved))
+
+    def test_legacy_checkpoint_defaults_cover_newly_reachable_reads(self):
+        state = vars(HengbotPolicy()).copy()
+        state.pop("_calibration_deferral_cause")
+        state.pop("_calibration_deferral_reason")
+        encoded = base64.b64encode(
+            pickle.dumps(state, protocol=5)
+        ).decode("ascii")
+
+        restored = restore_checkpoint(HengbotPolicy, encoded)
+
+        self.assertIsNone(restored._calibration_deferral_cause)
+        self.assertIsNone(restored._calibration_deferral_reason)
+
+
 class CalibrationRestoreSuppliesRecordedPins(unittest.TestCase):
     """Recorded public-path pins for the 2026-09-20 restore stranding."""
 
