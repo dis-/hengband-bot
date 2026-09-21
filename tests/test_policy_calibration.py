@@ -63,15 +63,18 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
     def test_legacy_policy_initializes_calibration_restore_move_identities(self):
         policy = HengbotPolicy()
         del policy._calibration_restore_move_identities
+        del policy._calibration_restore_item_ids
 
         policy.choose_key(self._snapshot())
 
         self.assertEqual(policy._calibration_restore_move_identities, {})
+        self.assertEqual(policy._calibration_restore_item_ids, {})
 
     def test_new_policy_initializes_calibration_restore_move_identities(self):
         policy = HengbotPolicy()
 
         self.assertEqual(policy._calibration_restore_move_identities, {})
+        self.assertEqual(policy._calibration_restore_item_ids, {})
 
     def test_batch_cleanup_then_redress_twins_compose_withdrawal(self):
         def sword(letter, bonus, *, store=False, known_flags=frozenset()):
@@ -106,6 +109,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             store=StoreState(STORE_HOME, [], stock_num=0, page_size=52),
         )
         self.assertEqual(policy.choose_key(empty_home), "dbda\x1b")
+        self.assertEqual(len(policy._calibration_restore_item_ids), 2)
         policy.choose_key(replace(entrance, inventory=[], turn=1))
 
         deposited = [

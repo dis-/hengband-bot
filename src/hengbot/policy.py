@@ -2096,6 +2096,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_restore_move_identities: dict[
             tuple[str, int, int], str
         ] = {}
+        self._calibration_restore_item_ids: dict[
+            tuple[str, int, int], str
+        ] = {}
         self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
         self._calibration_session_target: str | None = None
         self._calibration_aborts_this_visit = 0
@@ -2348,6 +2351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._calibration_entry_refusal = None
         if not hasattr(self, "_calibration_restore_move_identities"):
             self._calibration_restore_move_identities = {}
+        if not hasattr(self, "_calibration_restore_item_ids"):
+            self._calibration_restore_item_ids = {}
         if not hasattr(self, "_equipment_transaction_route_abandonment"):
             self._equipment_transaction_route_abandonment = None
         if not hasattr(self, "_equipment_transaction_route_terminal_pending"):
@@ -3319,6 +3324,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if signature in self._calibration_restore_signatures:
                     self._calibration_restore_signatures.remove(signature)
                 self._calibration_restore_move_identities.pop(signature, None)
+                self._calibration_restore_item_ids.pop(signature, None)
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
                 self._home_pending_quantities.pop(signature, None)
@@ -3419,6 +3425,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if signature in self._calibration_restore_signatures:
                         self._calibration_restore_signatures.remove(signature)
                     self._calibration_restore_move_identities.pop(signature, None)
+                    self._calibration_restore_item_ids.pop(signature, None)
                     self._home_pending_quantities.pop(signature, None)
                     if self._home_pending_item == signature:
                         self._home_pending_item = None

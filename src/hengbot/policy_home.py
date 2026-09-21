@@ -364,6 +364,8 @@ class HomeMixin:
         snapshot: Snapshot,
         signature: tuple[str, int, int],
         catalogue_index: int,
+        *,
+        calibration_owner_signature: tuple[str, int, int] | None = None,
     ) -> str:
         """Open each Home page until the target has an observed selector."""
         probe = getattr(self, "_home_withdraw_page_probe", None)
@@ -398,6 +400,33 @@ class HomeMixin:
                 )
         self._home_candidate_waiting = False
         self._identification_source_reservation = None
+        if calibration_owner_signature is not None:
+            if calibration_owner_signature in self._calibration_restore_signatures:
+                self._calibration_restore_signatures.remove(
+                    calibration_owner_signature
+                )
+            self._calibration_restore_move_identities.pop(
+                calibration_owner_signature, None
+            )
+            self._calibration_restore_item_ids.pop(
+                calibration_owner_signature, None
+            )
+            self._home_pending_quantities.pop(calibration_owner_signature, None)
+            if self._home_pending_item == calibration_owner_signature:
+                self._home_pending_item = None
+                self._home_pending_quantity = None
+            self._home_pending_batch = [
+                candidate
+                for candidate in self._home_pending_batch
+                if candidate != calibration_owner_signature
+            ]
+            self._home_procurement_batch_active = bool(self._home_pending_batch)
+            if (
+                self._calibration_phase == "restore-supplies"
+                and not self._calibration_restore_signatures
+            ):
+                self._calibration_phase = None
+                self._calibration_home_rearm_eligible = False
         self._town_blocked_reason = "home-withdraw-target-absent"
         self.last_reason = "town:blocked:home-withdraw-target-absent"
         return WAIT_KEY
@@ -1295,6 +1324,62 @@ class HomeMixin:
                     restore_owner_signature = restore_signature
                     reason = "calibration:atomic-restore-withdraw"
                     break
+                move_identity = self._calibration_restore_move_identities.get(
+                    restore_signature
+                )
+                stable_item_id = getattr(
+                    self, "_calibration_restore_item_ids", {}
+                ).get(restore_signature)
+                catalogued_restore = next(
+                    (
+                        owned
+                        for owned in self._equipment_catalog.items
+                        if owned.origin == "home"
+                        and (
+                            owned.id == stable_item_id
+                            or self._item_signature(owned.item)
+                            == restore_signature
+                            or (
+                                move_identity is not None
+                                and equipment_move_identity(owned.item)
+                                == move_identity
+                            )
+                        )
+                    ),
+                    None,
+                )
+                catalogued_slot = next(
+                    (
+                        (index, item)
+                        for index, item in address_slots
+                        if catalogued_restore is not None
+                        and self._item_signature(item)
+                        == self._item_signature(catalogued_restore.item)
+                    ),
+                    None,
+                )
+                if catalogued_slot is not None:
+                    candidate_index, candidate = catalogued_slot
+                    candidate_signature = self._item_signature(candidate)
+                    observed_address = self._home_observed_addresses.get(
+                        candidate_signature
+                    )
+                    if (
+                        observed_address is None
+                        or observed_address[0] != self._home_scan_item_count
+                        or observed_address[1] != self._home_page_size
+                    ):
+                        return self._probe_unobserved_home_withdrawal(
+                            snapshot,
+                            candidate_signature,
+                            candidate_index,
+                            calibration_owner_signature=restore_signature,
+                        )
+                    signature = candidate_signature
+                    selecting_branch = "calibration-restore"
+                    restore_owner_signature = restore_signature
+                    reason = "calibration:atomic-restore-withdraw"
+                    break
         if (
             not transaction_withdraw_pending
             and signature is None
@@ -1672,6 +1757,9 @@ class HomeMixin:
             self._calibration_restore_move_identities.pop(
                 restore_owner_signature, None
             )
+            self._calibration_restore_item_ids.pop(
+                restore_owner_signature, None
+            )
         self._home_pending_quantity = None
         getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False
@@ -1715,6 +1803,7 @@ class HomeMixin:
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
             self._calibration_restore_move_identities.pop(signature, None)
+            self._calibration_restore_item_ids.pop(signature, None)
             self._home_pending_quantities.pop(signature, None)
             self._equipment_catalog.record_home_withdrawal(
                 withdrawn,
@@ -1899,6 +1988,7 @@ class HomeMixin:
             if signature in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.remove(signature)
             self._calibration_restore_move_identities.pop(signature, None)
+            self._calibration_restore_item_ids.pop(signature, None)
             self._home_pending_quantities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None
@@ -2088,6 +2178,21 @@ class HomeMixin:
                     len(snapshot.inventory),
                 ),
             )
+            if signature in self._calibration_restore_signatures:
+                deposited_owned = next(
+                    (
+                        owned
+                        for owned in self._equipment_catalog.items
+                        if owned.origin == "home"
+                        and equipment_move_identity(owned.item)
+                        == equipment_move_identity(item)
+                    ),
+                    None,
+                )
+                if deposited_owned is not None:
+                    self._calibration_restore_item_ids[signature] = (
+                        deposited_owned.id
+                    )
         if not operations:
             return None
         self._home_entry_operation_posted = True

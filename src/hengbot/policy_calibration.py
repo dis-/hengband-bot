@@ -590,6 +590,9 @@ class CalibrationMixin:
                     self._calibration_restore_move_identities.pop(
                         owner_signature, None
                     )
+                    self._calibration_restore_item_ids.pop(
+                        owner_signature, None
+                    )
                 self._calibration_restore_signatures.extend(restore)
                 self._calibration_phase = "restore-supplies"
                 self._rearm_town_store_for_new_work(
@@ -781,6 +784,7 @@ class CalibrationMixin:
             self._calibration_phase = None
             self._calibration_restore_signatures.clear()
             self._calibration_restore_move_identities.clear()
+            self._calibration_restore_item_ids.clear()
             if self._calibration_session_owned():
                 self._equipment_transaction_session = None
             self._calibration_session_target = None
@@ -903,6 +907,7 @@ class CalibrationMixin:
                         )
                     self._calibration_restore_signatures.clear()
                     self._calibration_restore_move_identities.clear()
+                    self._calibration_restore_item_ids.clear()
                     self._calibration_phase = None
                     self._calibration_home_rearm_eligible = False
             elif STORE_HOME in self._town_store_attempted:
