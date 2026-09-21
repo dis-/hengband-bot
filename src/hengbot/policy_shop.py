@@ -3723,11 +3723,23 @@ class ShopMixin:
                 if home_gate is ProcurementHomeGate.BLOCKED:
                     self._publish_purchase_home_block()
                     return WAIT_KEY
-                self._rearm_town_store_for_new_work(
-                    STORE_HOME, release_visit_bound=True
+                home_first_signature = (
+                    "home-first-purchase",
+                    store.store_type,
+                    *self._item_signature(item),
                 )
-                self.last_reason = "shop:home-first-before-purchase"
-                return LEAVE_STORE_KEY
+                if (
+                    home_first_signature
+                    not in self._town_visit_ledger.rearmed_work_signatures
+                ):
+                    self._town_visit_ledger.rearmed_work_signatures.add(
+                        home_first_signature
+                    )
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
+                    self.last_reason = "shop:home-first-before-purchase"
+                    return LEAVE_STORE_KEY
             signature = self._item_signature(item)
             # Bail out of a purchase that never takes effect. A registered buy
             # drops our gold (so the signature changes and the counter resets);
