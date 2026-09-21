@@ -2244,7 +2244,11 @@ class CombatMixin:
         if plan.sight_loss_decisions > EXTENDED_STUCK_WINDOW:
             self._release_choke_plan("sight-loss-bound")
             return None
-        if predicted_damage < (
+        # The lower bound judges an observed threat.  While every trigger is
+        # out of sight there is nothing to judge, and the blind hold keeps its
+        # own bound above (sight-loss-bound); releasing here would end a
+        # breeder choke attempt on the first unseen decision.
+        if visible_triggers and predicted_damage < (
             snapshot.player.hp * CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO
         ):
             self._release_choke_plan("low-threat")

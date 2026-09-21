@@ -2607,8 +2607,8 @@ class CombatTest(unittest.TestCase):
         self.assertEqual((second, policy.last_reason), ("8", "melee:choke-reposition"))
         self.assertNotIn(policy.last_reason, {"hunt", "seek-loot", "explore"})
 
-        held = self._orc_cave_choke_cycle_snapshot(choke, 3)
-        self.assertEqual(policy.choose_key(held), WAIT_KEY)
+        unseen = self._orc_cave_choke_cycle_snapshot(choke, 0)
+        self.assertEqual(policy.choose_key(unseen), WAIT_KEY)
         self.assertEqual(policy.last_reason, "melee:choke-hold")
         state = policy.choke_engagement_state()
         self.assertEqual(state["phase"], "hold")
@@ -2684,7 +2684,7 @@ class CombatTest(unittest.TestCase):
             turn=1,
         )
 
-    def test_choke_reposition_releases_immediately_when_threat_disappears(self):
+    def test_choke_reposition_releases_when_visible_trigger_threat_is_trivial(self):
         destination = Position(9, 65)
         far_wander = [Position(5, 73), Position(6, 73)]
         middle_wander = [Position(4, 72), Position(5, 72)]
@@ -2767,14 +2767,20 @@ class CombatTest(unittest.TestCase):
 
         keys = []
         for decision, position in enumerate(wander):
-            visible = [
-                hostile(
-                    index, position.y, position.x - offset,
-                    distance=offset, race_id=911, can_multiply=True,
-                    max_melee_damage=10,
-                )
-                for index, offset in ((186, 1), (190, 2))
-            ]
+            # Same measured cadence as the recording: the triggers are seen
+            # once every ten decisions and unseen in between.  When seen they
+            # are a material threat (70 >= 10% of 668), so the stall bound,
+            # not the lower bound, is what ends the wander.
+            visible = []
+            if decision % 10 == 0:
+                visible = [
+                    hostile(
+                        index, position.y, position.x - offset,
+                        distance=offset, race_id=911, can_multiply=True,
+                        max_melee_damage=10,
+                    )
+                    for index, offset in ((186, 1), (190, 2))
+                ]
             snapshot = Snapshot(
                 replace(player(position.y, position.x, hp=668, max_hp=668), exp=1),
                 {
@@ -2987,13 +2993,21 @@ class CombatTest(unittest.TestCase):
 
         emergency = HengbotPolicy()
         emergency.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        danger = self._orc_cave_choke_cycle_snapshot(mouth, 1, hp=20)
+        # The original 3-damage trigger: at hp 20 it is above the 10% lower
+        # bound (2) and below the emergency owner, so the choke plan's own
+        # hp-authority release is what fires.
         danger = replace(
-            self._orc_cave_choke_cycle_snapshot(mouth, 1, hp=20),
+            danger,
+            visible_monsters=[
+                replace(monster, max_melee_damage=3)
+                for monster in danger.visible_monsters
+            ],
             inventory=[item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR)],
         )
         emergency.choose_key(danger)
         self.assertEqual(
-            emergency.choke_engagement_state()["release_cause"], "hp-emergency"
+            emergency.choke_engagement_state()["release_cause"], "hp-authority"
         )
 
         breakthrough = HengbotPolicy()
@@ -3077,6 +3091,29 @@ class CombatTest(unittest.TestCase):
             (state["phase"], state["release_cause"]),
             ("release", "sight-loss-bound"),
         )
+
+    def test_unseen_triggers_do_not_release_choke_as_low_threat(self):
+        # An unseen trigger is not a trivial one: the blind hold keeps its own
+        # sight-loss bound, and a release here would latch the floor's breeder
+        # choke attempt as ended and send the bot home when the swarm reappears.
+        room = Position(29, 169)
+        mouth = Position(28, 170)
+        policy = HengbotPolicy()
+        self.assertEqual(
+            policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9)), "9"
+        )
+
+        blind = []
+        for _ in range(3):
+            key = policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0))
+            state = policy.choke_engagement_state()
+            blind.append((key, policy.last_reason, state["release_cause"]))
+        self.assertEqual(blind, [("8", "melee:choke-reposition", None)] * 3)
+        self.assertEqual(policy.choke_engagement_state()["sight_loss_decisions"], 3)
+        self.assertIsNone(policy._breeder_choke_attempt_ended_floor)
+
+        key = policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 9))
+        self.assertEqual((key, policy.last_reason), ("8", "melee:choke-reposition"))
 
     def test_released_breeder_choke_abandons_floor_instead_of_rearming(self):
         room = Position(29, 169)
