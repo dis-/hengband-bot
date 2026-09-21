@@ -976,6 +976,18 @@ class ObservationMixin:
         plan.index += 1
         self._set_town_store_attempted(store_type, snapshot.turn, "observed-operation-uncomposable")
         if store_type == STORE_HOME:
+            home_visit = getattr(self, "_home_visit", None)
+            signature = (
+                "home-observed-operation-uncomposable",
+                self._home_claim_signature(getattr(home_visit, "request", None)),
+                self._town_observable_effect_state(snapshot),
+            )
+            if signature in self._town_visit_ledger.rearmed_work_signatures:
+                self._town_visit_ledger.blocked_stores.add(STORE_HOME)
+                self._town_blocked_reason = "home-operation-uncomposable"
+                self.last_reason = "town:blocked:home-operation-uncomposable"
+                return True
+            self._town_visit_ledger.rearmed_work_signatures.add(signature)
             self._release_blocked_store_latches(store_type)
         else:
             self._town_visit_ledger.nonhome_attempted_without_effect[

@@ -5217,6 +5217,43 @@ class TownErrandPlanTest(unittest.TestCase):
         self.assertNotIn(WAIT_KEY, following)
         self.assertNotEqual(policy._store_entry_wait_owner, STORE_HOME)
 
+    def test_home_uncomposable_release_is_once_per_work_signature(self):
+        policy = HengbotPolicy()
+        snapshot = replace(
+            self._snapshot(),
+            grids={Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_HOME
+            )},
+        )
+        policy._equipment_catalog.home_scan_complete = True
+        policy._home_knowledge_items = ()
+        policy._home_knowledge_valid_before = 1
+
+        def observe(current):
+            policy._shopping_approach_store_type = STORE_HOME
+            policy._town_errand_plan = TownErrandPlan(
+                [STORE_HOME], need_categories={STORE_HOME: ("deposit",)}
+            )
+            policy._home_knowledge_current = True
+            return policy._resolve_observed_uncomposable_stop(current)
+
+        policy._home_candidate_waiting = True
+        self.assertTrue(observe(snapshot))
+        self.assertFalse(policy._home_candidate_waiting)
+
+        policy._home_candidate_waiting = True
+        self.assertTrue(observe(snapshot))
+        self.assertTrue(policy._home_candidate_waiting)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:home-operation-uncomposable"
+        )
+
+        changed = replace(
+            snapshot, player=replace(snapshot.player, gold=snapshot.player.gold + 1)
+        )
+        self.assertTrue(observe(changed))
+        self.assertFalse(policy._home_candidate_waiting)
+
     def test_observed_uncomposable_nonhome_stop_advances_without_entry(self):
         policy = HengbotPolicy()
         entrance = replace(
