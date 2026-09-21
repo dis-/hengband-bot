@@ -2913,17 +2913,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (
             snapshot.store is None
             and snapshot.in_town
-            and self._home_knowledge_scan_inflight
-        ):
-            # A posted complete-Home request still owns this town visit until
-            # its response arrives or leaving town settles it.  Optional town
-            # errands must not be needed merely to keep unrelated exploration
-            # from taking over after the request's input owner has retired.
-            self.last_reason = "town:blocked:owner-retired"
-            return WAIT_KEY
-        if (
-            snapshot.store is None
-            and snapshot.in_town
             and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
             and self._active_quest_id(snapshot) is None
             and "quest-request" not in self._town_turn_arbiter._retired
