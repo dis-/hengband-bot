@@ -5397,6 +5397,102 @@ class ComposedWithdrawWrongItemRecordedPins(unittest.TestCase):
         self.assertEqual(" " * page + BUY_KEY + "a" + LEAVE_STORE_KEY, " pa\x1b")
 
 
+class HomeWithdrawTargetUnobservedRecordedPins(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        capture = (
+            Path(__file__).parents[1]
+            / "incident-captures"
+            / "20260921-101603-town-blocked-owner-retired"
+        )
+        with gzip.open(
+            capture / "snapshots" / "snapshots-current.jsonl.gz",
+            "rt", encoding="utf-8",
+        ) as stream:
+            cls.rows = [json.loads(line) for line in stream if line.strip()]
+
+    def _policy_and_target(self):
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge(tuple(
+            _parse_items(self.rows[17]["knowledge"]["items"])
+        ))
+        policy._record_observed_home_addresses(parse_snapshot(self.rows[16]))
+        target = next(
+            owned for owned in policy._equipment_catalog.items
+            if owned.id == "home:b50a2a2b591fa854:0"
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE,
+            "withdraw",
+            target.id,
+            item_identity=("pre-observation-identity", 34, 2),
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 0)
+            )
+        )
+        policy._shopping_approach_store_type = STORE_HOME
+        entrance = parse_snapshot(self.rows[24])
+        return policy, target, entrance
+
+    def test_h1_recorded_knowledge_target_pages_before_withdrawal(self):
+        policy, _target, entrance = self._policy_and_target()
+
+        key = policy._atomic_home_withdraw_key(
+            entrance, entrance.player.position
+        )
+
+        self.assertEqual(key, WAIT_KEY + " ")
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw-page-probe")
+        self.assertIsNone(policy._home_atomic_withdraw_pending)
+
+    def test_h2_recorded_page_observation_binds_the_displayed_letter(self):
+        policy, target, entrance = self._policy_and_target()
+        policy._record_observed_home_addresses(parse_snapshot(self.rows[22]))
+
+        key = policy._atomic_home_withdraw_key(
+            entrance, entrance.player.position
+        )
+
+        self.assertEqual(key, WAIT_KEY + " " + BUY_KEY + "u" + LEAVE_STORE_KEY)
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry["selected_signature"],
+            list(policy._item_signature(target.item)),
+        )
+        self.assertEqual(policy._home_atomic_withdraw_telemetry["resolved_letter"], "u")
+
+    def test_h3_all_recorded_home_pages_absent_clears_departure_latch(self):
+        policy, _target, entrance = self._policy_and_target()
+        policy._home_candidate_waiting = True
+        policy._identification_source_reservation = {"owner": "home-candidate"}
+
+        keys = [
+            policy._atomic_home_withdraw_key(entrance, entrance.player.position)
+            for _ in range(4)
+        ]
+
+        self.assertEqual(keys[:3], [WAIT_KEY + " ", WAIT_KEY, WAIT_KEY + "  "])
+        self.assertEqual(keys[3], WAIT_KEY)
+        self.assertEqual(policy.last_reason, "town:blocked:home-withdraw-target-absent")
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertIsNone(policy._identification_source_reservation)
+        self.assertEqual(policy._town_blocked_reason, "home-withdraw-target-absent")
+
+    def test_pre_probe_checkpoint_lazily_restores_the_probe_state(self):
+        policy, _target, entrance = self._policy_and_target()
+        del policy._home_withdraw_page_probe
+        restored = restore_checkpoint(type(policy), checkpoint(policy))
+
+        self.assertEqual(
+            restored._atomic_home_withdraw_key(
+                entrance, entrance.player.position
+            ),
+            WAIT_KEY + " ",
+        )
+        self.assertEqual(restored._home_withdraw_page_probe[1], (1,))
+
+
 class RecordedHomeProcurementBatchMembershipTest(unittest.TestCase):
     def test_light_ready_recorded_batch_excludes_added_home_torches(self):
         rows = [

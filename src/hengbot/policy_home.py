@@ -359,6 +359,49 @@ class HomeMixin:
                         self._deferred_home_items.discard(signature)
                         self._retried_deferred_home_items.discard(signature)
 
+    def _probe_unobserved_home_withdrawal(
+        self,
+        snapshot: Snapshot,
+        signature: tuple[str, int, int],
+        catalogue_index: int,
+    ) -> str:
+        """Open each Home page until the target has an observed selector."""
+        probe = getattr(self, "_home_withdraw_page_probe", None)
+        attempted = probe[1] if probe is not None and probe[0] == signature else ()
+        page_count = max(
+            1,
+            (
+                (self._home_scan_item_count or len(self._home_knowledge_items))
+                + self._home_page_size - 1
+            )
+            // self._home_page_size,
+        )
+        target_page = catalogue_index // self._home_page_size
+        page_order = (target_page, *(
+            page for page in range(page_count) if page != target_page
+        ))
+        next_page = next((page for page in page_order if page not in attempted), None)
+        if next_page is not None:
+            self._home_withdraw_page_probe = (
+                signature, (*attempted, next_page),
+            )
+            self.last_reason = "home:atomic-withdraw-page-probe"
+            return WAIT_KEY + (" " * next_page)
+
+        self._home_withdraw_page_probe = None
+        deferred = self._defer_unobserved_home_withdrawal(signature)
+        self._record_digger_home_withdraw_failure(deferred)
+        if self._home_errand.active:
+            for _ in range(self._town_store_visit_limit(STORE_HOME)):
+                self._home_errand.observe_unaddressed_entry(
+                    self._town_store_visit_limit(STORE_HOME), "target-absent"
+                )
+        self._home_candidate_waiting = False
+        self._identification_source_reservation = None
+        self._town_blocked_reason = "home-withdraw-target-absent"
+        self.last_reason = "town:blocked:home-withdraw-target-absent"
+        return WAIT_KEY
+
     @staticmethod
     def _open_home_page_is_complete(snapshot: Snapshot) -> bool:
         """Whether the displayed page proves it contains the whole Home."""
@@ -1262,60 +1305,100 @@ class HomeMixin:
                 signature = batch_signature
                 selecting_branch = "home-pending-batch"
         if signature is None:
-            unaddressable_signatures = {
-                candidate
-                for candidate in (
-                    self._home_pending_item,
-                    *self._calibration_restore_signatures,
-                    *self._home_pending_batch,
+            catalogued_transaction_target = next(
+                (
+                    owned.item
+                    for owned in self._equipment_catalog.items
+                    if action is not None
+                    and action.kind == "withdraw"
+                    and owned.origin == "home"
+                    and owned.id == action.item_id
+                ),
+                None,
+            )
+            catalogued_transaction_slot = (
+                next(
                     (
-                        self._home_errand.request.signature
-                        if self._home_errand.active
-                        and self._home_errand.request is not None
-                        else None
+                        (index, item)
+                        for index, item in address_slots
+                        if catalogued_transaction_target is not None
+                        and self._item_signature(item)
+                        == self._item_signature(catalogued_transaction_target)
                     ),
+                    None,
                 )
-                if candidate is not None
-            }
-            complete_open_page_match = (
-                self._home_scan_source == "observed-home-page"
-                and any(
-                    self._item_signature(item) in unaddressable_signatures
-                    or (
-                        action is not None
-                        and action.kind == "withdraw"
-                        and item.is_equipment
-                        and equipment_identity(item) == action.item_identity
-                    )
-                    for index, item in enumerate(self._home_knowledge_items)
-                    if index >= self._home_knowledge_valid_before
+                if catalogued_transaction_target is not None
+                else None
+            )
+            if catalogued_transaction_slot is not None:
+                candidate_index, candidate = catalogued_transaction_slot
+                candidate_signature = self._item_signature(candidate)
+                observed_address = self._home_observed_addresses.get(
+                    candidate_signature
                 )
-            )
-            if complete_open_page_match:
-                self._invalidate_home_observation()
-                self.last_reason = "home:await-fresh-knowledge"
-                return None
-            self.last_reason = "home:atomic-withdraw-target-unobserved"
-            deferred = self._defer_unobserved_home_withdrawal()
-            self._record_digger_home_withdraw_failure(deferred)
-            plan = self._town_errand_plan
-            categories = (
-                plan.need_categories.get(STORE_HOME, ())
-                if plan is not None else ()
-            )
-            for category in categories:
-                if category in {"identification-withdrawal", "equipment-work"}:
-                    self._post_owner_expectation(
-                        snapshot, f"home-withdrawal:{category}",
-                        "inventory", "equipment",
+                if (
+                    observed_address is None
+                    or observed_address[0] != self._home_scan_item_count
+                    or observed_address[1] != self._home_page_size
+                ):
+                    return self._probe_unobserved_home_withdrawal(
+                        snapshot, candidate_signature, candidate_index
                     )
-            # We are already outside on the Home entrance.  Escape is a no-op
-            # there and identical repost recovery only turns it into ESC/look
-            # churn.  Make the failed visit observable by stepping off; normal
-            # routing may then re-enter once, or use the two-failure fallback.
-            return self._town_entrance_step_off_key(
-                snapshot, "home:atomic-withdraw-target-unobserved"
-            )
+                signature = candidate_signature
+                selecting_branch = "equipment-transaction"
+                transaction_identity = equipment_identity(candidate)
+                reason = "equipment-transaction:atomic-withdraw"
+            if signature is None:
+                unaddressable_signatures = {
+                    candidate
+                    for candidate in (
+                        self._home_pending_item,
+                        *self._calibration_restore_signatures,
+                        *self._home_pending_batch,
+                        (
+                            self._home_errand.request.signature
+                            if self._home_errand.active
+                            and self._home_errand.request is not None
+                            else None
+                        ),
+                    )
+                    if candidate is not None
+                }
+                complete_open_page_match = (
+                    self._home_scan_source == "observed-home-page"
+                    and any(
+                        self._item_signature(item) in unaddressable_signatures
+                        or (
+                            action is not None
+                            and action.kind == "withdraw"
+                            and item.is_equipment
+                            and equipment_identity(item) == action.item_identity
+                        )
+                        for index, item in enumerate(self._home_knowledge_items)
+                        if index >= self._home_knowledge_valid_before
+                    )
+                )
+                if complete_open_page_match:
+                    self._invalidate_home_observation()
+                    self.last_reason = "home:await-fresh-knowledge"
+                    return None
+                self.last_reason = "home:atomic-withdraw-target-unobserved"
+                deferred = self._defer_unobserved_home_withdrawal()
+                self._record_digger_home_withdraw_failure(deferred)
+                plan = self._town_errand_plan
+                categories = (
+                    plan.need_categories.get(STORE_HOME, ())
+                    if plan is not None else ()
+                )
+                for category in categories:
+                    if category in {"identification-withdrawal", "equipment-work"}:
+                        self._post_owner_expectation(
+                            snapshot, f"home-withdrawal:{category}",
+                            "inventory", "equipment",
+                        )
+                return self._town_entrance_step_off_key(
+                    snapshot, "home:atomic-withdraw-target-unobserved"
+                )
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
                 self._town_store_visit_limit(STORE_HOME), "target-unobserved"
@@ -1358,10 +1441,11 @@ class HomeMixin:
                 self._record_digger_home_withdraw_failure(deferred)
             return LEAVE_STORE_KEY
         catalogue_index, item = selected
+        observed_address = self._home_observed_addresses.get(signature)
+        self._home_withdraw_page_probe = None
         page, page_pos = divmod(catalogue_index, self._home_page_size)
         letter = self._home_page_letter(page_pos)
         resolved_index = catalogue_index
-        observed_address = self._home_observed_addresses.get(signature)
         if (
             observed_address is not None
             and observed_address[0] == self._home_scan_item_count
@@ -1838,6 +1922,7 @@ class HomeMixin:
         self._home_knowledge_invalidated = True
         self._home_processing_seen_pages.clear()
         self._home_observed_addresses.clear()
+        self._home_withdraw_page_probe = None
         self._home_star_remove_curse_count = None
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False

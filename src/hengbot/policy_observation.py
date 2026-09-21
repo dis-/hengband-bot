@@ -525,6 +525,7 @@ class ObservationMixin:
             self._staged_shop_approach = None
             self._pending_shop_approach = None
             self._home_processing_seen_pages.clear()
+            self._home_withdraw_page_probe = None
             self._home_digger_seen_pages.clear()
             self._home_pending_batch.clear()
             getattr(self, "_home_pending_quantities", {}).clear()

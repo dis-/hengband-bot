@@ -2022,6 +2022,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_observed_addresses: dict[
             tuple[str, int, int], tuple[int, int, int, str] | None
         ] = {}
+        # A knowledge-only withdrawal must visit Home pages until its selector
+        # is observed.  Store the target and pages already requested so a
+        # missing target terminates after one bounded pass over the Home.
+        self._home_withdraw_page_probe: tuple[
+            tuple[str, int, int], tuple[int, ...]
+        ] | None = None
         # Consumables are deliberately absent from OwnedEquipmentCatalog.  Keep
         # the one Home consumable whose exact stock matters in the complete
         # duplicate-preserving knowledge catalogue.
