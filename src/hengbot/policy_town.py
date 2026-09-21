@@ -174,6 +174,27 @@ class TownMixin:
             # town fingerprint.  Admit each real step until the loot producer
             # picks up the target or clears it through a named blocker.
             goal = self._loot_target
+        elif owner == "cross-town" and (
+            reason or self.last_reason or ""
+        ).startswith("town:morivant-full-identify:travel-") and (
+            getattr(self, "_morivant_full_identify", None) is not None
+        ):
+            # The *Identify* expedition walks to this town's teleport building
+            # along the route _town_teleport_route steps on.  Its remaining
+            # BFS edges are the walk's distance: each real step closes it, and
+            # a walk that stops closing it repeats this vector and stays
+            # bounded by the owner's existing budget.
+            positions = self._town_teleport_building_positions(snapshot)
+            route = (
+                self._town_teleport_building_route(snapshot, positions)
+                if positions else None
+            )
+            if route is None:
+                return durable
+            return durable + ((
+                "locomotion", owner, snapshot.floor_key, route.target,
+                route.remaining_edges,
+            ),)
         if goal is None:
             return durable
         if owner == "misc":
@@ -4740,17 +4761,9 @@ class TownMixin:
         self, snapshot: Snapshot, destination_town_id: int
     ) -> TownTeleportRoute:
         """Select the exact teleport route and retain its graph rank."""
-        current_town_id = self._effective_town_id(snapshot)
-        inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(current_town_id)
-        if inn_type is None:
+        positions = self._town_teleport_building_positions(snapshot)
+        if positions is None:
             return TownTeleportRoute(failure="no-inn-type")
-        positions = frozenset(
-            grid.position for grid in snapshot.grids.values()
-            if grid.building_type == inn_type
-        )
-        if not positions and self._town_map_active(snapshot):
-            position = self._town_map.building_position(inn_type)
-            positions = frozenset({position}) if position is not None else frozenset()
         if snapshot.player.position in positions:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
@@ -4758,15 +4771,7 @@ class TownMixin:
                     key=self._step_toward(snapshot, neighbors[0])
                 )
             return TownTeleportRoute(failure="no-legal-exit")
-        route = min(
-            (candidate for candidate in (
-                self._town_map_goal_route(snapshot, position) for position in positions
-            ) if candidate is not None),
-            key=lambda candidate: snapshot.player.position.distance_to(
-                candidate.first_step
-            ),
-            default=None,
-        )
+        route = self._town_teleport_building_route(snapshot, positions)
         if route is None:
             return TownTeleportRoute(
                 failure="no-inn-target" if not positions else "no-legal-path"
@@ -4778,6 +4783,36 @@ class TownMixin:
         return TownTeleportRoute(
             route=route,
             key=self._step_toward(snapshot, route.first_step, tail=suffix),
+        )
+
+    def _town_teleport_building_positions(
+        self, snapshot: Snapshot
+    ) -> frozenset[Position] | None:
+        """The current town's teleport-building cells; None without one."""
+        inn_type = TOWN_TELEPORT_BUILDING_TYPES.get(self._effective_town_id(snapshot))
+        if inn_type is None:
+            return None
+        positions = frozenset(
+            grid.position for grid in snapshot.grids.values()
+            if grid.building_type == inn_type
+        )
+        if not positions and self._town_map_active(snapshot):
+            position = self._town_map.building_position(inn_type)
+            positions = frozenset({position}) if position is not None else frozenset()
+        return positions
+
+    def _town_teleport_building_route(
+        self, snapshot: Snapshot, positions: frozenset[Position]
+    ) -> TownMapRoute | None:
+        """The route the teleport walk steps along; emits and records nothing."""
+        return min(
+            (candidate for candidate in (
+                self._town_map_goal_route(snapshot, position) for position in positions
+            ) if candidate is not None),
+            key=lambda candidate: snapshot.player.position.distance_to(
+                candidate.first_step
+            ),
+            default=None,
         )
 
     def _read_dungeon_recall_scroll_key(

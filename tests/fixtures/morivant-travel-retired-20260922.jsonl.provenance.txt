@@ -1,0 +1,5 @@
+Source: incident-captures/20260922-031509-town-blocked-owner-retired/ (decision-tail.jsonl) and its snapshots-current-full-generation.jsonl.gz (the live generation after the stop, sha256 6bfdeb13e375c08fa9a81db84d16db2be474cfdc28d4f3212a4dd11c07455001; the capture's 16 MiB snapshot tail is its exact byte suffix).
+Selection: every decision of the bot process started 2026-09-22 03:11:43+09:00 (sequence 1..708).
+Boundary rule: walking back from the final emitter row, each decision's input ends drain(previous decision) rows earlier; when that row's turn differs from the decision record's turn the boundary moves back to the matching row (decisions [187, 358, 360, 658]).
+Decisions: 708; emitter rows: 923 of 7627; decompressed sha256: 59560b3a54bcda4506ab56d2f93426510268bb62da8c78021bb3d87869f9f3a6
+Calibration: the live file was rewritten mid-run (03:13:09); the tests use tests/fixtures/esp-threat-rest-20260921.character-calibration.json (fields equal to the rewritten file except observed_turn) sha256 d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd286edf7
