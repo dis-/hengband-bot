@@ -910,15 +910,21 @@ class NavigationMixin:
                 ):
                     self._descent_refusal_reason = "fundraising-light-shortage"
                     return True
+                if not self._town_restock_suppressed:
+                    departure_conjuncts = self._town_departure_conjuncts(snapshot)
                 if not self._town_restock_suppressed and (
-                    self._rumor_unlock_pending
-                    or not self._town_departure_ready(snapshot)
+                    self._rumor_unlock_pending or not all(departure_conjuncts.values())
                 ):
                     self._descent_refusal_reason = (
                         "rumor-unlock-pending"
                         if self._rumor_unlock_pending
                         else "town-departure-not-ready"
                     )
+                    if self._descent_refusal_reason == "town-departure-not-ready":
+                        self._departure_block = self._departure_block_state(
+                            snapshot, departure_conjuncts
+                        )
+                        self._departure_block_sequence = self._decision_sequence
                     return True
             if self._fundraising_mode in {"mine", "scavenge"}:
                 # A threat ascent from Yeek 1F defers deeper movement on that
