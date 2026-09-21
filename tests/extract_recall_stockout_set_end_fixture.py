@@ -14,7 +14,6 @@ import gzip
 import hashlib
 import io
 import json
-import shutil
 from pathlib import Path
 
 
@@ -117,8 +116,12 @@ def main() -> None:
         )
         + "\n",
         encoding="utf-8",
+        newline="\n",
     )
-    shutil.copyfile(CALIBRATION_SOURCE, CALIBRATION)
+    # LF bytes: git normalizes committed text and the tests hash the bytes.
+    CALIBRATION.write_bytes(
+        CALIBRATION_SOURCE.read_bytes().replace(b"\r\n", b"\n")
+    )
     PROVENANCE.write_text(
         "Source: incident-captures/20260921-193842-town-blocked-owner-retired/\n"
         "Selection: every decision of the bot process started 2026-09-21 "
@@ -134,6 +137,7 @@ def main() -> None:
         "17:08, before the run) sha256 "
         f"{hashlib.sha256(CALIBRATION.read_bytes()).hexdigest()}\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

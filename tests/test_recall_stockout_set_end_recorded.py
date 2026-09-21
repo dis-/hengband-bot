@@ -50,8 +50,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "recall-stockout-set-end-20260921.jsonl.gz"
 CALIBRATION = FIXTURES / "recall-stockout-set-end-20260921.character-calibration.json"
 FIXTURE_SHA256 = "a18d5e6cec3e9a8ff5ea8d0ba997f201cdfbe4b1493933d69be615ff36911558"
-BOUNDARIES_SHA256 = "20be1d3e5668dbcf3d9281e88d22039879447f85703e2ff19e08c62207764746"
-CALIBRATION_SHA256 = "2019f81541f374b063d4a1698096f31b9a0c569d673a94834990298d308ba683"
+BOUNDARIES_SHA256 = "53b906d917a7d0750feeb45dc6fb96eb2b18bfe1d50aebbcec274395f8f21d26"
+CALIBRATION_SHA256 = "d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd286edf7"
 # Decisions whose replayed (key, reason) differ from the recorded ones before
 # the stockout start: 501-503 (a mid-run equipment-transaction Home trip) and
 # 1417-1421 (a travel interruption the live executor reported).  The replay
