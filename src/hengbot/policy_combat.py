@@ -13,6 +13,10 @@ from hengbot.monster_ranged_evaluator import (
     expected_ability_hp_damage,
     maximum_ability_hp_damage,
 )
+from hengbot.monster_melee_evaluator import (
+    melee_damage_percentile,
+    reduced_dice_distribution,
+)
 from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
@@ -578,10 +582,15 @@ class CombatMixin:
         tiered = [monster for monster in awake if monster not in special]
         if not tiered:
             return None, []
-        strength = sum(
-            max(monster.max_melee_damage, monster.max_ranged_damage)
-            for monster in tiered
+        # melee-threat-p95-adjacency (user 2026-09-22 「検知敵の段階にも適用
+        # する」): the strength is ONE player turn of the revised model -- the
+        # p95 melee / aggregate-p95 ranged operational total over a one-turn
+        # horizon, every tiered monster evaluated from contact (adjacent, clear
+        # line of fire) and melee capped by the K slots around the player.
+        prediction = self._esp_threat_prediction(
+            snapshot, tiered, snapshot.player.speed
         )
+        strength = prediction["operational_total"]
         hp = snapshot.player.hp
         ratio = strength / max(1, hp)
         tier = (
@@ -600,9 +609,15 @@ class CombatMixin:
                 (
                     monster.index,
                     monster.race_id,
-                    max(monster.max_melee_damage, monster.max_ranged_damage),
+                    row["operational_contribution"],
                 )
-                for monster in tiered
+                for monster, row in zip(tiered, prediction["monsters"])
+            ],
+            "melee_slots": prediction["melee_slots"],
+            "in_melee_slot": [
+                monster.index
+                for monster, row in zip(tiered, prediction["monsters"])
+                if row["melee_slot"]
             ],
             "special": [monster.index for monster in special],
             "breeders": [
@@ -637,9 +652,10 @@ class CombatMixin:
           damage model and never aims one;
         - monsters are fought one after another from contact (no approach
           time), and every monster keeps acting until the whole group is dead;
-        - every turn deals the one-turn maximum of the whole group
-          (existing _monster_actions for one turn times the per-action
-          maximum), the same number the committed hunt uses before each turn;
+        - every turn deals one player turn of the whole group's operational
+          damage (_esp_threat_prediction: the p95/adjacency threat model over
+          a one-turn horizon, from contact), the same number the committed
+          hunt uses before each turn;
         - the fight is simulated turn by turn with the committed hunt's own
           drink rule: before a turn, if HP minus one turn of maximum damage
           would fall below ``floor_hp``, drink a Potion of Healing above the
@@ -734,10 +750,10 @@ class CombatMixin:
         # a forced cost: try the fight without and (if spare) with it.
         for speed_uses in ((0, 1) if speed_spare > 0 else (0,)):
             quaff_turn = self._esp_threat_turn_damage(
-                monsters, player.speed
+                snapshot, monsters, player.speed
             )
             per_turn = self._esp_threat_turn_damage(
-                monsters, player.speed + speed_uses * SPEED_POTION_BONUS
+                snapshot, monsters, player.speed + speed_uses * SPEED_POTION_BONUS
             )
             hp = player.hp
             spare = healing_spare
@@ -773,15 +789,27 @@ class CombatMixin:
                 return result
         return result
 
-    def _esp_threat_turn_damage(
-        self, monsters: list[MonsterState], player_speed: int
-    ) -> int:
-        """One player turn of the group's maximum damage (estimate = trigger)."""
-        return sum(
-            self._monster_actions(monster.speed, player_speed, 1)
-            * max(monster.max_melee_damage, monster.max_ranged_damage)
-            for monster in monsters
+    def _esp_threat_prediction(
+        self,
+        snapshot: Snapshot,
+        monsters: list[MonsterState],
+        player_speed: int,
+    ) -> dict:
+        """One player turn of the revised threat model, every monster at contact."""
+        return self.threat_prediction(
+            snapshot, monsters, 1, contact=True, player_speed=player_speed
         )
+
+    def _esp_threat_turn_damage(
+        self,
+        snapshot: Snapshot,
+        monsters: list[MonsterState],
+        player_speed: int,
+    ) -> int:
+        """One player turn of the group's operational damage (estimate = trigger)."""
+        return self._esp_threat_prediction(snapshot, monsters, player_speed)[
+            "operational_total"
+        ]
 
     def _esp_threat_hunt_key(
         self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
@@ -834,7 +862,7 @@ class CombatMixin:
             if monster.index not in hunt["indices"] and not monster.asleep
         ]
         player = snapshot.player
-        turn_damage = self._esp_threat_turn_damage(group, player.speed)
+        turn_damage = self._esp_threat_turn_damage(snapshot, group, player.speed)
         hunt["turn_damage"] = turn_damage
         if player.hp - turn_damage < hunt["floor_hp"]:
             healing = self._find_exact_potion(snapshot, SV_POTION_HEALING)
@@ -2178,8 +2206,28 @@ class CombatMixin:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
     def threat_prediction(
-        self, snapshot: Snapshot, hostiles: list[MonsterState], turns: int = 3
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        turns: int = 3,
+        *,
+        contact: bool = False,
+        player_speed: int | None = None,
     ) -> dict:
+        """Damage prediction over ``turns`` player turns.
+
+        ``total`` is the theoretical maximum (every blow hits at maximum dice).
+        ``operational_total`` / ``expected_total`` follow the user-confirmed
+        melee-threat-p95-adjacency specification (2026-09-22): per monster the
+        melee side is the exact 95th percentile (expected: hit probability x
+        the average reduced die) and only the monsters holding one of the K
+        melee slots around the player contribute melee; every other monster
+        contributes its ranged part only.
+
+        ``contact`` evaluates every monster as already adjacent with a clear
+        line of fire (the detected-threat tiers fight "from contact");
+        ``player_speed`` overrides the player's speed for the action count.
+        """
         # The aggregate-p95 convolution below costs hundreds of milliseconds per
         # deep-floor caster, and one decision asks for the same prediction up to
         # six times (emergency/return gates plus the decision-log telemetry).
@@ -2194,19 +2242,31 @@ class CombatMixin:
             snapshot.turn,
             turns,
             tuple(id(monster) for monster in hostiles),
+            contact,
+            player_speed,
         )
         cached = self._threat_prediction_memo.get(memo_key)
         if cached is not None and cached[0] is snapshot:
             return cached[1]
         total = 0
-        operational_total = 0
-        expected_total = 0.0
-        monsters = []
+        speed = snapshot.player.speed if player_speed is None else player_speed
+        rows = []
         for monster in hostiles:
-            actions = self._monster_actions(monster.speed, snapshot.player.speed, turns)
+            actions = self._monster_actions(monster.speed, speed, turns)
             melee = 0
+            operational_melee = 0
             expected_melee = 0.0
-            path_distance = self._monster_path_distance(snapshot, monster.position)
+            melee_attacks = 0
+            melee_percentile = None
+            distance = 1 if contact else monster.distance
+            path_distance = (
+                1
+                if contact
+                else self._monster_path_distance(snapshot, monster.position)
+            )
+            in_line_of_fire = contact or self._has_line_of_fire(
+                snapshot, monster.position, snapshot.player.position
+            )
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags
@@ -2215,15 +2275,13 @@ class CombatMixin:
             can_teleport_player_to = bool(
                 knowledge is not None
                 and "TELE_TO" in knowledge.abilities
-                and self._has_line_of_fire(
-                    snapshot, monster.position, snapshot.player.position
-                )
+                and in_line_of_fire
             )
             teleport_to_probability = 0.0
             if can_teleport_player_to and knowledge is not None:
                 teleport_selection = ability_selection_probabilities(
                     knowledge,
-                    SpellSelectionContext(distance=max(1, monster.distance)),
+                    SpellSelectionContext(distance=max(1, distance)),
                 )
                 teleport_to_probability = (
                     knowledge.spell_frequency
@@ -2260,31 +2318,35 @@ class CombatMixin:
                 if self_destructs_on_melee:
                     attacks = min(attacks, 1)
                     expected_attacks = min(expected_attacks, 1.0)
+                melee_attacks = attacks
                 if knowledge is not None and knowledge.blows:
                     melee_per_action = sum(
                         self._maximum_melee_blow_damage(snapshot, blow.effect, blow.dice_num * blow.dice_sides)
                         for blow in knowledge.blows
                     )
-                    expected_melee_per_action = sum(
-                        self._maximum_melee_blow_damage(snapshot, blow.effect, blow.dice_num * blow.dice_sides)
-                        * self._melee_hit_probability(
-                            blow.effect, knowledge.level, snapshot.player.ac, monster.stunned
-                        )
-                        for blow in knowledge.blows
-                    )
                     melee = attacks * melee_per_action
-                    expected_melee = expected_attacks * expected_melee_per_action
+                    melee_percentile = melee_damage_percentile(
+                        self._melee_blow_distributions(
+                            snapshot, knowledge, monster.stunned
+                        ),
+                        attacks,
+                    )
+                    operational_melee = melee_percentile.total_damage
+                    expected_melee = (
+                        expected_attacks * melee_percentile.expected_per_action
+                    )
                 else:
+                    # No blow dice without race knowledge: the emitted
+                    # per-action maximum stays the only available value.
                     melee = attacks * monster.max_melee_damage
+                    operational_melee = melee
                     expected_melee = expected_attacks * monster.max_melee_damage
             ranged = 0
             operational_ranged = 0
             expected_ranged = 0.0
             cause_predictions = []
             aggregate_ranged = None
-            if monster.max_ranged_damage > 0 and self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
-            ):
+            if monster.max_ranged_damage > 0 and in_line_of_fire:
                 if knowledge is not None and knowledge.abilities:
                     flags = frozenset(
                         flag
@@ -2306,7 +2368,7 @@ class CombatMixin:
                     }
                     ranged = actions * max(maximum_by_ability.values(), default=0)
                     selection_context = SpellSelectionContext(
-                        distance=max(1, monster.distance)
+                        distance=max(1, distance)
                     )
                     selection = ability_selection_probabilities(
                         knowledge, selection_context
@@ -2363,12 +2425,8 @@ class CombatMixin:
                     operational_ranged = ranged
                     expected_ranged = float(ranged)
             contribution = max(melee, ranged)
-            operational_contribution = max(melee, operational_ranged)
-            expected_contribution = max(expected_melee, expected_ranged)
             total += contribution
-            operational_total += operational_contribution
-            expected_total += expected_contribution
-            monsters.append(
+            rows.append(
                 {
                     "name": monster.name,
                     "race_id": monster.race_id,
@@ -2403,24 +2461,127 @@ class CombatMixin:
                         if aggregate_ranged is not None
                         else False
                     ),
-                    "operational_contribution": operational_contribution,
                     "cause_predictions": cause_predictions,
+                    "operational_melee_prediction": operational_melee,
+                    "operational_melee_probability_any_damage": (
+                        melee_percentile.probability_any_damage
+                        if melee_percentile is not None
+                        else 0.0
+                    ),
+                    "operational_melee_floor_applied": (
+                        melee_percentile.floor_applied
+                        if melee_percentile is not None
+                        else False
+                    ),
                     "expected_melee_prediction": expected_melee,
                     "expected_ranged_prediction": expected_ranged,
-                    "expected_contribution": expected_contribution,
+                    "melee_attacks": melee_attacks,
+                    "wall_passer": bool(
+                        knowledge is not None
+                        and (
+                            "PASS_WALL" in knowledge.flags
+                            or "KILL_WALL" in knowledge.flags
+                        )
+                    ),
                 }
             )
+        # Adjacency cap (spec 2): only K monsters can stand next to the player.
+        # Among the monsters able to become adjacent within the horizon (a
+        # positive melee attack count), the K with the largest operational
+        # melee take the slots, largest first; a wall-passer takes a wall
+        # slot when one is left, otherwise a floor slot.  With two slot kinds
+        # (floor: anyone; wall: wall-passers only) this greedy order is an
+        # optimal assignment.  Monsters without a slot contribute ranged only.
+        floor_slots, wall_slots = self._melee_adjacency_slots(snapshot)
+        for row in rows:
+            row["melee_slot"] = False
+        for row in sorted(
+            (row for row in rows if row["melee_attacks"] > 0),
+            key=lambda row: -row["operational_melee_prediction"],
+        ):
+            if row["wall_passer"] and wall_slots > 0:
+                wall_slots -= 1
+            elif floor_slots > 0:
+                floor_slots -= 1
+            else:
+                continue
+            row["melee_slot"] = True
+        operational_total = 0
+        expected_total = 0.0
+        for row in rows:
+            if row["melee_slot"]:
+                row["operational_contribution"] = max(
+                    row["operational_melee_prediction"],
+                    row["operational_ranged_prediction"],
+                )
+                row["expected_contribution"] = max(
+                    row["expected_melee_prediction"],
+                    row["expected_ranged_prediction"],
+                )
+            else:
+                row["operational_contribution"] = row[
+                    "operational_ranged_prediction"
+                ]
+                row["expected_contribution"] = row["expected_ranged_prediction"]
+            operational_total += row["operational_contribution"]
+            expected_total += row["expected_contribution"]
         result = {
             "turns": turns,
             "total": total,
             "operational_total": operational_total,
             "expected_total": ceil(expected_total),
-            "monsters": monsters,
+            "melee_slots": self._melee_adjacency_slots(snapshot),
+            "monsters": rows,
         }
         if len(self._threat_prediction_memo) >= THREAT_PREDICTION_MEMO_LIMIT:
             self._threat_prediction_memo.clear()
         self._threat_prediction_memo[memo_key] = (snapshot, result)
         return result
+    def _melee_blow_distributions(
+        self, snapshot: Snapshot, knowledge, stunned: bool
+    ) -> tuple:
+        """Per blow: (hit probability, reduced damage distribution on a hit).
+
+        The rolled dice value goes through the same per-blow reduction the
+        theoretical maximum uses (_maximum_melee_blow_damage: AC for HURT /
+        SHATTER / SUPERHURT, elemental and poison resistances).
+        """
+        return tuple(
+            (
+                self._melee_hit_probability(
+                    blow.effect, knowledge.level, snapshot.player.ac, stunned
+                ),
+                reduced_dice_distribution(
+                    blow.dice_num,
+                    blow.dice_sides,
+                    lambda roll, effect=blow.effect: (
+                        self._maximum_melee_blow_damage(snapshot, effect, roll)
+                    ),
+                ),
+            )
+            for blow in knowledge.blows
+        )
+
+    def _melee_adjacency_slots(self, snapshot: Snapshot) -> tuple[int, int]:
+        """(floor slots, extra wall slots) among the 8 cells around the player.
+
+        A floor slot is a cell any monster could stand on: an enterable cell
+        (floor, open or closed door -- the monster path model's own rule) or a
+        cell the player has not seen (unknown terrain is not assumed to be
+        wall).  A wall slot is a known non-permanent wall cell; only a
+        PASS_WALL / KILL_WALL monster can stand there.
+        """
+        floor = 0
+        wall = 0
+        origin = snapshot.player.position
+        for dy, dx in NEIGHBOR_OFFSETS:
+            grid = snapshot.grid_at(Position(origin.y + dy, origin.x + dx))
+            if grid is None or not grid.known or grid.enterable:
+                floor += 1
+            elif grid.wall and not grid.permanent:
+                wall += 1
+        return floor, wall
+
     @staticmethod
     def _melee_hit_probability(
         effect: str, monster_level: int, player_ac: int, stunned: bool

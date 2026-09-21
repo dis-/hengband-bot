@@ -2,13 +2,19 @@
 
 User-confirmed specification (2026-09-21/22, 「この仕様で発注」): when the player
 wants to rest, awake monsters known only by telepathy/detection are tiered by
-the sum of their per-action maximum damage over CURRENT HP -- below 10% hunt
+their damage over CURRENT HP -- below 10% hunt
 them, 10-50% keep exploring, 50% and above kill if feasible with the permitted
 supplies (Speed/Healing above a reserve of two each) else leave the floor.
 
 Live incident: Angband 41F, 2026-09-21 22:45:39-22:48:39 (one bot process,
 627 decisions): with the awake ESP group present every rest lasted one turn
 until the loop detector stopped the bot.
+
+Strength measure (melee-threat-p95-adjacency, user 2026-09-22 「検知敵の段階
+にも適用する」): one player turn of the revised threat model -- per monster the
+p95 melee / aggregate-p95 ranged over a one-turn horizon, every monster from
+contact, melee capped by the K slots around the player -- replacing the sum of
+per-action maxima.
 
 Substrates:
 - E1 lifetime: every recorded decision of the process replayed through the
@@ -76,11 +82,15 @@ LOOP_REST = 625
 FIRST_LOOP_REST = 555
 
 WEAK = 230  # per-action maximum 22
-HOUND = 338  # エア・ハウンド: melee 34, ranged 40
-MONK = 870  # 黒衣の修行僧: melee 54, ranged 132
+HOUND = 338  # エア・ハウンド: per action melee 34, ranged 40; one turn 20
+MONK = 870  # 黒衣の修行僧: per action melee 54, ranged 132; one turn 102
 SUMMONER = 224  # can_summon, no paralysing blow
 PARALYSER = 311  # PARALYZE blow, no summons
-BREEDER = 529  # MULTIPLY, per-action maximum 100
+# melee-threat-p95-adjacency (user 2026-09-22): the tier measure is one player
+# turn of the p95/adjacency model, from contact.  529 (per-action maximum 100,
+# one turn 20 / 379 = 5%, WEAK) no longer exercises a MEDIUM breeder; 680 does
+# (per-action maximum 118 = 31%, one turn 103 / 379 = 27%).
+BREEDER = 680  # MULTIPLY, one turn 103 (was 529)
 WEAK_BREEDER = 1101  # MULTIPLY, per-action maximum 24
 CORRIDOR = Position(24, 28)  # unknown cell north of the 625 corridor
 
@@ -249,13 +259,14 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual(snapshot.dungeon_level, 41)
         self.assertEqual(snapshot.visible_monsters, [])
         self.assertLess(snapshot.player.hp / snapshot.player.max_hp, 0.90)
-        # Recorded: ('R&\r', 'rest').  STRONG (1010 / 379), not killable.
+        # Recorded: ('R&\r', 'rest').  STRONG (549 / 379; the sum of
+        # per-action maxima was 1010), not killable.
         self.assertEqual(
             decided[FIRST_DETECTED_REST], ["rf", "esp-threat:leave-recall"]
         )
         self.assertEqual(
             (assessment["tier"], assessment["strength"], assessment["hp"]),
-            ("strong", 1010, 379),
+            ("strong", 549, 379),
         )
         self.assertFalse(assessment["feasibility"]["feasible"])
         self.assertEqual(assessment["action"], "leave")
@@ -265,33 +276,38 @@ class EspThreatRestTest(unittest.TestCase):
         )
         self.assertTrue(recall.is_recall_scroll)
 
-    def test_e1_loop_board_restart_leaves_by_recall(self):
+    def test_e1_loop_board_restart_is_medium_under_p95_adjacency(self):
+        # T4 (melee-threat-p95-adjacency, user 2026-09-22 「検知敵の段階にも
+        # 適用する」): the recorded 41F group re-evaluated.  Before: the sum of
+        # per-action maxima 132 (monk) + 4 x 40 (hounds) = 292 / 479 = 61%,
+        # STRONG, infeasible -> ('rg', 'esp-threat:leave-recall').
         policy, snapshot = self._fresh(LOOP_REST)
         self.assertEqual(self.boundaries["recorded"][LOOP_REST - 1], ["R&\r", "rest"])
 
         key, reason, assessment = self._decide(policy, snapshot)
 
-        self.assertEqual((key, reason), ("rg", "esp-threat:leave-recall"))
-        # 132 (monk) + 4 x 40 (hounds) over current HP 479; the asleep unique
-        # (index 83, 202) is not counted.
+        # Now one player turn (speed 114) from contact: the monk 2 actions,
+        # melee p95 102 (ranged p95 72); each hound 1 action, melee p95 20
+        # (ranged p95 13).  The player's corridor cell (27, 28) has 3 floor
+        # slots (+5 wall slots no member can use): the monk and two hounds
+        # contribute max(melee, ranged), the other two hounds ranged only:
+        # 102 + 20 + 20 + 13 + 13 = 168 / 479 = 35% -> MEDIUM -> explore.
+        self.assertEqual((key, reason), ("8", "explore"))
         self.assertEqual(
             (assessment["tier"], assessment["strength"], assessment["hp"]),
-            ("strong", 292, 479),
+            ("medium", 168, 479),
         )
+        self.assertEqual(assessment["action"], "explore")
+        self.assertNotIn("feasibility", assessment)
         self.assertEqual(
-            sorted(race for _index, race, _damage in assessment["monsters"]),
-            [HOUND, HOUND, HOUND, HOUND, MONK],
+            assessment["monsters"],
+            [(31, MONK, 102), (60, HOUND, 20), (61, HOUND, 20),
+             (64, HOUND, 13), (70, HOUND, 13)],
         )
+        self.assertEqual(assessment["melee_slots"], (3, 5))
+        self.assertEqual(assessment["in_melee_slot"], [31, 60, 61])
+        # The asleep unique (index 83, 202) is still not counted.
         self.assertNotIn(83, [index for index, *_ in assessment["monsters"]])
-        feasibility = assessment["feasibility"]
-        self.assertFalse(feasibility["feasible"])
-        self.assertEqual(
-            (feasibility["speed_spare"], feasibility["healing_spare"]), (8, 7)
-        )
-        self.assertTrue(
-            next(item for item in snapshot.inventory if item.slot == "g")
-            .is_recall_scroll
-        )
 
     # ------------------------------------------------------------- E3 live
     def test_e3_first_loop_rest_medium_tier_keeps_exploring(self):
@@ -302,12 +318,13 @@ class EspThreatRestTest(unittest.TestCase):
 
         key, reason, assessment = self._decide(policy, snapshot)
 
-        # The monk alone: 132 / 355 = 37% -> MEDIUM: no rest, exploration.
+        # The monk alone: 102 / 355 = 29% (was 132 / 355 = 37%) -> MEDIUM:
+        # no rest, exploration.
         self.assertNotEqual(key, REST_MACRO)
         self.assertEqual(reason, "explore")
         self.assertEqual(
             (assessment["tier"], assessment["strength"], assessment["hp"]),
-            ("medium", 132, 355),
+            ("medium", 102, 355),
         )
         self.assertEqual(assessment["action"], "explore")
 
@@ -329,7 +346,7 @@ class EspThreatRestTest(unittest.TestCase):
         return policy, replace(snapshot, **snapshot_changes)
 
     def test_e2_weak_tier_hunts_then_rests(self):
-        # Board: one awake 22-damage monster (22 / 379 = 6%).
+        # Board: one awake 22-damage monster (22 / 379 = 6%; one turn p95 22).
         policy, board = self._board(WEAK)
 
         key, reason, assessment = self._decide(policy, board)
@@ -345,8 +362,9 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertIsNone(assessment)
 
     def test_e3_medium_board_does_not_rest(self):
-        # Board: one awake hound (40 / 379 = 11%).
-        policy, board = self._board(HOUND)
+        # Board: one awake monk (102 / 379 = 27%).  The hound this board used
+        # (40 / 379 = 11%) is 20 / 379 = 5% (WEAK) under the p95 model.
+        policy, board = self._board(MONK)
 
         key, reason, assessment = self._decide(policy, board)
 
@@ -407,13 +425,14 @@ class EspThreatRestTest(unittest.TestCase):
         return replace(board, player=replace(board.player, hp=hp), **changes)
 
     def test_e4_strong_feasible_commits_and_drinks_per_the_estimate(self):
-        # Board: HP 70, the hound (40 / 70 = 57%, STRONG) with the recorded
-        # 9 Healing / 10 Speed potions.
-        policy, board, _hound = self._restart_board(70)
+        # Board: HP 38, the hound (20 / 38 = 53%, STRONG) with the recorded
+        # 9 Healing / 10 Speed potions.  (Was HP 70 with the hound's per-action
+        # maximum 40 = 57%; under the p95 model 20 / 70 = 29% is MEDIUM.)
+        policy, board, _hound = self._restart_board(38)
 
         key, reason, assessment = self._decide(policy, board)
 
-        # The estimate's first simulated turn is a drink (70 - 40 < 35), so
+        # The estimate's first simulated turn is a drink (38 - 20 < 19), so
         # the committed hunt's first action is the same drink.
         self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
         self.assertEqual(assessment["tier"], "strong")
@@ -426,20 +445,20 @@ class EspThreatRestTest(unittest.TestCase):
                 feasibility["healing_uses"],
                 feasibility["speed_uses"],
             ),
-            (True, 35.0, 40, 1, 0),
+            (True, 19.0, 20, 1, 0),
         )
         self.assertEqual(policy._esp_threat_hunt["indices"], frozenset({60}))
-        self.assertEqual(policy._esp_threat_hunt["floor_hp"], 35.0)
+        self.assertEqual(policy._esp_threat_hunt["floor_hp"], 19.0)
         potion = next(item for item in board.inventory if item.slot == "d")
         self.assertEqual(potion.sval, SV_POTION_HEALING)
 
     def test_e5_reserves_are_never_counted(self):
-        # Boards: the E4 fight with changed potion counts (10 Cure Critical
-        # Wounds carried each time, never counted).
+        # Boards: the E4 fight (HP 38, was 70 -- see E4) with changed potion
+        # counts (10 Cure Critical Wounds carried each time, never counted).
         outcomes = {}
         for healing, speed in ((2, 10), (3, 2), (2, 2)):
             policy, board, _hound = self._restart_board(
-                70, healing=healing, speed=speed
+                38, healing=healing, speed=speed
             )
             key, reason, assessment = self._decide(policy, board)
             self.assertTrue(reason.startswith("esp-threat:"), reason)
@@ -473,14 +492,14 @@ class EspThreatRestTest(unittest.TestCase):
         )
 
     def test_e9_committed_hunt_executes_the_estimate(self):
-        policy, board, hound = self._restart_board(70)
+        policy, board, hound = self._restart_board(38)
         key, reason, _assessment = self._decide(policy, board)
         self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
         policy.confirm_key_posted(key)
 
-        # Healed to 370: 370 - 40 >= 35, the re-estimate stays feasible, so
+        # Healed to 338: 338 - 20 >= 19, the re-estimate stays feasible, so
         # the hunt steps toward the hound (still detection-only).
-        board = self._next_board(board, 370)
+        board = self._next_board(board, 338)
         key, reason, _assessment = self._decide(policy, board)
         self.assertEqual((key, reason), ("8", "esp-threat:hunt-strong"))
         self.assertTrue(policy._esp_threat_hunt["estimate"]["feasible"])
@@ -498,14 +517,15 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual((key, reason), ("8", "melee:esp-threat-hunt"))
         policy.confirm_key_posted(key)
 
-        # HP 70 in contact: 70 - 40 < 35 -> drink (not the emergency ladder).
-        board = self._next_board(board, 70)
+        # HP 38 in contact: 38 - 20 < 19 -> drink (not the emergency ladder).
+        # (Was HP 70: 70 - 40 < 35 with the per-action maximum.)
+        board = self._next_board(board, 38)
         key, reason, _assessment = self._decide(policy, board)
         self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
-        self.assertEqual(policy._esp_threat_hunt["turn_damage"], 40)
+        self.assertEqual(policy._esp_threat_hunt["turn_damage"], 20)
         policy.confirm_key_posted(key)
 
-        # HP 70 with only the two reserve potions left: the hunt ends
+        # HP 38 with only the two reserve potions left: the hunt ends
         # "reserve" and takes the existing leave path.
         board = replace(
             self._with_potions(board, healing=2), player=board.player
@@ -517,9 +537,12 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertTrue(policy._returning_to_town)
 
     def test_e9_committed_hunt_ends_infeasible_or_cleared(self):
-        # Infeasible: the monk joins in sight (2 actions x 132 + 40 = 304 per
-        # turn > one Healing dose) at HP 400 -> no drink, re-estimate fails.
-        policy, board, hound = self._restart_board(70)
+        # Infeasible: the monk joins in sight at HP 400.  One turn is now
+        # 102 (monk) + 20 (hound) = 122 (92 after the Speed dose), so no drink
+        # is due (400 - 122 >= 19), but the 22-attack-turn fight exhausts the
+        # 7 spare Healing doses -> the re-estimate fails.  (Was 2 x 132 + 40
+        # = 304 per turn, above one Healing dose.)
+        policy, board, hound = self._restart_board(38)
         key, _reason, _assessment = self._decide(policy, board)
         policy.confirm_key_posted(key)
         monk = next(
@@ -541,7 +564,7 @@ class EspThreatRestTest(unittest.TestCase):
 
         # Cleared: the hound is no longer perceived -> hunt released and the
         # ordinary rest resumes (HP 330 < 90%).
-        policy, board, _hound = self._restart_board(70)
+        policy, board, _hound = self._restart_board(38)
         key, _reason, _assessment = self._decide(policy, board)
         policy.confirm_key_posted(key)
         board = self._next_board(board, 370, detected_monsters=[])
@@ -599,8 +622,8 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual((key, reason), (REST_MACRO, "rest"))
         self.assertIsNone(assessment)
 
-        # Board: with the recorded Free Action a paralyser is ordinary (78 /
-        # 379 = 21%, MEDIUM).
+        # Board: with the recorded Free Action a paralyser is ordinary (47 /
+        # 379 = 12%, MEDIUM; was 78 / 379 = 21%).
         policy, board = self._board(PARALYSER)
         key, reason, assessment = self._decide(policy, board)
         self.assertNotEqual(key, REST_MACRO)
@@ -622,14 +645,14 @@ class EspThreatRestTest(unittest.TestCase):
         def breeder(race_id):
             return [self._as_race(anchor, race_id, position=far, distance=8)]
 
-        # One awake breeder whose 100 / 379 = 26% is MEDIUM.
+        # One awake breeder whose 103 / 379 = 27% is MEDIUM.
         policy, board = self._board(detected_monsters=breeder(BREEDER))
         key, reason, assessment = self._decide(policy, board)
         self.assertEqual(reason, "esp-threat:hunt-medium")
         self.assertNotEqual(key, REST_MACRO)
         self.assertEqual(assessment["tier"], "medium")
 
-        # A weak breeder (24 / 379 = 6%).
+        # A weak breeder (8 / 379 = 2%; was 24 / 379 = 6%).
         policy, board = self._board(detected_monsters=breeder(WEAK_BREEDER))
         key, reason, assessment = self._decide(policy, board)
         self.assertEqual(

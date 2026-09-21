@@ -123,7 +123,16 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
             sequence for sequence in range(1, TERMINAL)
             if decided[sequence] != recorded[sequence - 1]
         ]
-        self.assertEqual(divergent, [])
+        # melee-threat-p95-adjacency (user 2026-09-22) moved exactly these
+        # recorded decisions (was []; every other decision still matches):
+        # 153 emergency:teleport -> melee (HP 370, operational 554 -> 316),
+        # 155 return:recall -> rest (follows 153: no teleport was read),
+        # 158 emergency:teleport -> melee (HP 341, 372 -> 210),
+        # 618 emergency:teleport -> melee (HP 413, 468 -> 243),
+        # 620 esp-threat:leave-recall -> explore (STRONG 263 / 416 -> MEDIUM
+        # 131 / 416).  The recorded boards after each are the live keys'
+        # effects; the town walk 699..708 below is unaffected.
+        self.assertEqual(divergent, [153, 155, 158, 618, 620])
         self.assertEqual(recorded[TERMINAL - 1], ["5", "town:blocked:owner-retired"])
 
     def test_m1_recorded_walk_closing_its_distance_is_not_retired(self):

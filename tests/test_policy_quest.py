@@ -9898,7 +9898,11 @@ class DungeonConquestTest(unittest.TestCase):
     def test_does_not_target_labyrinth_without_a_viable_guardian_kit(self):
         policy = self._guardian_policy()
 
-        self.assertIsNone(policy._conquest_target(self._minotaur_snapshot(1)))
+        # melee-threat-p95-adjacency: with 1 Healing (+ the Speed dose) the
+        # Minotaur fight is now viable (hasted p95 491 / 573 over 8 / 9 turns
+        # against 400 HP + one Healing; the maximum was 990 / 1170), so the
+        # nonviable kit is 0 Healing (was 1).
+        self.assertIsNone(policy._conquest_target(self._minotaur_snapshot(0)))
         self.assertEqual(policy._conquest_target(self._minotaur_snapshot(5)), 4)
 
     def test_targets_beatable_yeek_guardian_even_after_angband_is_unlocked(self):
@@ -10063,8 +10067,10 @@ class DungeonConquestTest(unittest.TestCase):
 
     def test_returns_from_penultimate_floor_when_guardian_kit_is_insufficient(self):
         policy = self._guardian_policy()
+        # melee-threat-p95-adjacency: 1 Healing is now a viable kit (see
+        # test_does_not_target_labyrinth_without_a_viable_guardian_kit).
         snapshot = replace(
-            self._minotaur_snapshot(1),
+            self._minotaur_snapshot(0),
             floor_key=(4, 17, 0),
             town_flag=False,
             grids={Position(10, 10): grid(10, 10, downstairs=True)},

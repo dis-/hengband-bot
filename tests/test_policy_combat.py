@@ -832,7 +832,9 @@ class CombatTest(unittest.TestCase):
         self.assertIsNotNone(policy._ranged_attack_key(snapshot, [monster], []))
 
     @staticmethod
-    def _mouse_swarm_snapshot(*, at_choke=False, adjacent=False, ranged=False):
+    def _mouse_swarm_snapshot(
+        *, at_choke=False, adjacent=False, ranged=False, mouse_damage=3
+    ):
         origin = Position(10, 9) if at_choke else Position(10, 10)
         grids = {
             Position(y, x): grid(y, x)
@@ -866,7 +868,7 @@ class CombatTest(unittest.TestCase):
                 x,
                 distance=origin.distance_to(Position(y, x)),
                 can_multiply=True,
-                max_melee_damage=3,
+                max_melee_damage=mouse_damage,
                 max_ranged_damage=6 if ranged and index == 1 else 0,
             )
             for index, (y, x) in enumerate(positions, 1)
@@ -3119,20 +3121,26 @@ class CombatTest(unittest.TestCase):
         room = Position(29, 169)
         mouth = Position(28, 170)
         choke = Position(27, 170)
+        # melee-threat-p95-adjacency: at the choke (27, 170) only K = 2 orcs
+        # reach the player, so the capped prediction (133 -> 49) fell below
+        # the unchanged 10% bound of HP 565 (56.5) and the floor-abandon exit
+        # was no longer reached there (melee instead).  HP 565 -> 480 keeps
+        # the choke in the band (49 / 480 = 10.2%).
+        HP = 480
         policy = HengbotPolicy()
-        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9))
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(room, 9, hp=HP))
         policy._choke_engagement_plan.sight_loss_decisions = (
             policy_module.EXTENDED_STUCK_WINDOW
         )
 
-        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0))
+        policy.choose_key(self._orc_cave_choke_cycle_snapshot(mouth, 0, hp=HP))
         self.assertEqual(
             policy.choke_engagement_state()["release_cause"],
             "sight-loss-bound",
         )
         posted = []
         for turn, position in enumerate((room, mouth, choke), 2):
-            snapshot = self._orc_cave_choke_cycle_snapshot(position, 9)
+            snapshot = self._orc_cave_choke_cycle_snapshot(position, 9, hp=HP)
             snapshot = replace(
                 snapshot,
                 grids={
@@ -3794,7 +3802,14 @@ class CombatTest(unittest.TestCase):
         )
 
     def test_productive_choke_hold_survives_long_breeder_window(self):
-        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        # melee-threat-p95-adjacency: at this choke only K = 2 mice can
+        # stand next to the player, so the capped prediction (24 ->
+        # 12) fell below the unchanged 10% choke lower bound (17.2 of HP 172).
+        # Mouse damage 3 -> 5 keeps the choke threat in the 10-50% band
+        # (20 / 172 = 12%) this pin exercises.
+        base = self._mouse_swarm_snapshot(
+            at_choke=True, adjacent=False, mouse_damage=5
+        )
         policy = HengbotPolicy()
 
         for decision in range(45):
@@ -3871,7 +3886,11 @@ class CombatTest(unittest.TestCase):
                 hostile(
                     index, y, x,
                     distance=position.distance_to(Position(y, x)),
-                    race_id=31, can_multiply=True, max_melee_damage=2,
+                    # melee-threat-p95-adjacency: 2 -> 7.  At the choke only
+                    # K = 2 breeders reach the player; with 2 the capped
+                    # prediction (32 -> 8) fell below the unchanged 10% choke
+                    # bound (20.5 of HP 205); 7 keeps it in the band.
+                    race_id=31, can_multiply=True, max_melee_damage=7,
                 )
                 for index, (y, x) in enumerate(positions, 1)
             ]
@@ -3928,7 +3947,14 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
 
     def test_shrinking_breeder_swarm_stays_at_choke(self):
-        base = self._mouse_swarm_snapshot(at_choke=True, adjacent=False)
+        # melee-threat-p95-adjacency: at this choke only K = 2 mice can
+        # stand next to the player, so the capped prediction (24 ->
+        # 12) fell below the unchanged 10% choke lower bound (17.2 of HP 172).
+        # Mouse damage 3 -> 5 keeps the choke threat in the 10-50% band
+        # (20 / 172 = 12%) this pin exercises.
+        base = self._mouse_swarm_snapshot(
+            at_choke=True, adjacent=False, mouse_damage=5
+        )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
 
@@ -6504,7 +6530,11 @@ class PredictiveEscapeTest(unittest.TestCase):
         ).threat_prediction(snap, [monster], turns=1)
 
         self.assertEqual(prediction["monsters"][0]["actions"], 2)
-        self.assertEqual(prediction["operational_total"], 384)
+        # melee-threat-p95-adjacency (user 2026-09-22): 384 (2 actions x 4
+        # blows x the AC-reduced SUPERHURT maximum 48) stays the theoretical
+        # total; the operational value is now the exact 95th percentile.
+        self.assertEqual(prediction["total"], 384)
+        self.assertEqual(prediction["operational_total"], 296)
 
     def test_corrected_incident_threat_no_longer_outpaces_healing_potion(self):
         monster = replace(
@@ -6543,7 +6573,9 @@ class PredictiveEscapeTest(unittest.TestCase):
             snap, [monster], turns=1, expected=True
         )
 
-        self.assertEqual(expected, 294)
+        # melee-threat-p95-adjacency: hit probability x the AVERAGE reduced
+        # die (was x the maximum die: 294).
+        self.assertEqual(expected, 226)
         self.assertIs(
             policy._find_heal_potion(snap, expected_damage=expected), healing
         )
@@ -6758,8 +6790,12 @@ class PredictiveEscapeTest(unittest.TestCase):
         detail = prediction["monsters"][0]
         self.assertEqual(detail["actions"], 4)
         self.assertEqual(detail["melee_prediction"], 64)
-        self.assertEqual(detail["operational_contribution"], 64)
-        self.assertLessEqual(detail["expected_contribution"], 64)
+        # melee-threat-p95-adjacency: the operational contribution is the
+        # p95 of 4 actions of the 4d4 HURT blow alone (was the maximum 64);
+        # the 500d1 HUNGRY dice would put it near 2000.
+        self.assertEqual(detail["operational_melee_prediction"], 47)
+        self.assertEqual(detail["operational_contribution"], 47)
+        self.assertLessEqual(detail["expected_contribution"], 47)
 
     def test_cause_spell_participates_in_aggregate_operational_danger(self):
         monster = replace(
@@ -6804,15 +6840,18 @@ class PredictiveEscapeTest(unittest.TestCase):
 
         detail = prediction["monsters"][0]
         self.assertEqual(prediction["total"], 384)
-        self.assertEqual(prediction["operational_total"], 85)
+        # melee-threat-p95-adjacency: melee operational is the p95 (54) of
+        # the 85 theoretical maximum; the aggregate ranged p95 stays below it.
+        self.assertEqual(prediction["operational_total"], 54)
         self.assertEqual(detail["melee_prediction"], 85)
-        self.assertLess(detail["operational_ranged_prediction"], 85)
+        self.assertEqual(detail["operational_melee_prediction"], 54)
+        self.assertLess(detail["operational_ranged_prediction"], 54)
         self.assertGreater(
             detail["operational_ranged_probability_any_damage"], 0.0
         )
         self.assertFalse(detail["operational_ranged_floor_applied"])
         self.assertEqual(detail["cause_predictions"][0]["damage_p95"], 47)
-        self.assertEqual(policy._predicted_damage(snap, [monster], 3), 85)
+        self.assertEqual(policy._predicted_damage(snap, [monster], 3), 54)
 
     def test_wall_blocks_melee_reach_and_ranged_line_of_fire(self):
         monster = hostile(
@@ -7910,7 +7949,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             max_hp=200,
             monster_hp=100,
             monster_speed=120,
-            blow_sides=30,
+            blow_sides=40,  # p95 model: was 30 (see fix event)
             inventory=[
                 item("s", TVAL_POTION, SV_POTION_SPEED),
                 item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
@@ -8199,8 +8238,10 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertIsNone(policy._unique_combat_committed_race_id)
 
     def _cure_critical_guardian(
-        self, *, hp=463, cure_count=20, monster_speed=115, blow_sides=14
+        self, *, hp=463, cure_count=20, monster_speed=115, blow_sides=24
     ):
+        # melee-threat-p95-adjacency: blow_sides 14 -> 24 keeps one turn above
+        # a Cure Critical Wounds dose under the p95 model (see fix event).
         snapshot, monster, knowledge = self._snapshot(
             hp=hp,
             max_hp=463,
@@ -8306,7 +8347,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             max_hp=200,
             monster_hp=100,
             monster_speed=120,
-            blow_sides=30,
+            blow_sides=40,  # p95 model: was 30 (see fix event)
             inventory=[
                 item("s", TVAL_POTION, SV_POTION_SPEED),
                 item("h", TVAL_POTION, SV_POTION_HEALING, count=3),
@@ -8340,7 +8381,7 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             hp=80,
             monster_hp=300,
             monster_speed=110,
-            blow_sides=41,
+            blow_sides=70,  # p95 model: was 41 (see fix event)
             inventory=inventory,
         )
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
