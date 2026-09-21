@@ -1601,6 +1601,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Last detected-threat rest tiering (esp-threat-rest); diagnostic only,
         # rewritten before every read.
         self._esp_threat_assessment: dict | None = None
+        # Committed STRONG-tier hunt (floor, indices, floor_hp, speed plan)
+        # and the cause that last ended one.
+        self._esp_threat_hunt: dict | None = None
+        self._esp_threat_hunt_end: str | None = None
         self._last_move_key: str | None = None
         self._last_move_pos: Position | None = None
         self._move_repeat = 0
@@ -4838,9 +4842,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _decide(self, snapshot: Snapshot) -> str:
+        self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
-        self._evaluate_cross_decision_latches(snapshot)
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;
@@ -5068,6 +5072,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if profile is not None
             else strategic_hostiles
         )
+        # A committed STRONG-tier hunt (esp-threat-rest) owns its fight,
+        # including Healing drinks, ahead of the emergency/flee ladder.
+        esp_threat_hunt = self._esp_threat_hunt_key(
+            snapshot, strategic_hostiles
+        )
+        if esp_threat_hunt is not None:
+            return esp_threat_hunt
         summoner_ranged = self._summoner_ranged_kill_key(
             snapshot, emergency_hostiles
         )

@@ -616,9 +616,18 @@ class CombatMixin:
         return assessment, tiered
 
     def _esp_threat_kill_feasibility(
-        self, snapshot: Snapshot, monsters: list[MonsterState]
+        self,
+        snapshot: Snapshot,
+        monsters: list[MonsterState],
+        *,
+        floor_hp: float | None = None,
+        speed_available: bool = True,
     ) -> dict:
         """Whether the permitted supplies kill the group before it takes half HP.
+
+        ``floor_hp`` is the HP the fight must never go below: half of the HP
+        at commitment (the default, current HP / 2), kept fixed while a
+        committed hunt re-estimates the remaining fight.
 
         Modelling (declared in the esp-threat-rest fix event):
         - player damage per player turn is the existing main-hand (plus a
@@ -628,16 +637,21 @@ class CombatMixin:
           damage model and never aims one;
         - monsters are fought one after another from contact (no approach
           time), and every monster keeps acting until the whole group is dead;
-        - each monster action deals its per-action maximum (the tier measure),
-          with the existing speed-energy action count;
-        - Potions of Speed and Healing above the two-of-each reserve may be
-          spent; one Speed dose (tried with and without) adds
-          SPEED_POTION_BONUS for the whole fight and costs a turn; each Healing
-          dose restores HEALING_POTION_HP and costs
-          a turn, is credited only if it outheals one turn of damage, and no
-          more doses are credited than the fight's attack turns (the unique
-          fight projection's rules).  Departure-reserved items (Word of Recall,
-          Teleportation, Cure Critical Wounds, ...) are never counted.
+        - every turn deals the one-turn maximum of the whole group
+          (existing _monster_actions for one turn times the per-action
+          maximum), the same number the committed hunt uses before each turn;
+        - the fight is simulated turn by turn with the committed hunt's own
+          drink rule: before a turn, if HP minus one turn of maximum damage
+          would fall below ``floor_hp``, drink a Potion of Healing above the
+          two-potion reserve (HEALING_POTION_HP, capped at max HP; a dose is
+          usable only if it outheals one turn, the unique fight projection's
+          rule), otherwise attack (or drink the planned Speed dose first);
+          no spare dose when one is needed means infeasible;
+        - one Speed dose above the two-potion reserve is tried as an option
+          (without first): it costs a turn at the current speed and then adds
+          SPEED_POTION_BONUS for the rest of the fight (duration not modelled).
+          Departure-reserved items (Word of Recall, Teleportation, Cure
+          Critical Wounds, ...) are never counted.
         """
         player = snapshot.player
         weapon = next(
@@ -673,11 +687,17 @@ class CombatMixin:
             if launcher is not None and ranged > 0
             else 0
         )
-        speed_spare = max(
-            0,
-            self._exact_potion_count(snapshot, SV_POTION_SPEED)
-            - ESP_THREAT_POTION_RESERVE,
+        speed_spare = (
+            max(
+                0,
+                self._exact_potion_count(snapshot, SV_POTION_SPEED)
+                - ESP_THREAT_POTION_RESERVE,
+            )
+            if speed_available
+            else 0
         )
+        if floor_hp is None:
+            floor_hp = player.hp / 2
         healing_spare = max(
             0,
             self._exact_potion_count(snapshot, SV_POTION_HEALING)
@@ -689,7 +709,7 @@ class CombatMixin:
             "ammo": ammo,
             "speed_spare": speed_spare,
             "healing_spare": healing_spare,
-            "budget": player.hp / 2,
+            "floor_hp": floor_hp,
             "feasible": False,
         }
         attack_turns = 0
@@ -710,39 +730,212 @@ class CombatMixin:
                 result["attack_turns"] = None
                 return result
         result["attack_turns"] = attack_turns
-        per_action = [
-            (monster, max(monster.max_melee_damage, monster.max_ranged_damage))
-            for monster in monsters
-        ]
-
-        def incoming(player_speed: int, turns: int) -> int:
-            return sum(
-                self._monster_actions(monster.speed, player_speed, turns) * damage
-                for monster, damage in per_action
-            )
-
         # As in the unique fight projection, a Speed dose is one option, not
         # a forced cost: try the fight without and (if spare) with it.
         for speed_uses in ((0, 1) if speed_spare > 0 else (0,)):
-            player_speed = player.speed + speed_uses * SPEED_POTION_BONUS
-            doses = (
-                min(healing_spare, attack_turns)
-                if HEALING_POTION_HP >= incoming(player_speed, 1)
-                else 0
+            quaff_turn = self._esp_threat_turn_damage(
+                monsters, player.speed
             )
-            for healing_uses in range(doses + 1):
-                turns = attack_turns + speed_uses + healing_uses
-                damage = incoming(player_speed, turns)
-                result.update(
-                    turns=turns,
-                    incoming=damage,
-                    speed_uses=speed_uses,
-                    healing_uses=healing_uses,
-                )
-                if damage - healing_uses * HEALING_POTION_HP < player.hp / 2:
-                    result["feasible"] = True
-                    return result
+            per_turn = self._esp_threat_turn_damage(
+                monsters, player.speed + speed_uses * SPEED_POTION_BONUS
+            )
+            hp = player.hp
+            spare = healing_spare
+            remaining = attack_turns
+            pending_speed = speed_uses
+            healing_uses = 0
+            turns = 0
+            feasible = True
+            while remaining > 0:
+                damage = quaff_turn if pending_speed else per_turn
+                if hp - damage < floor_hp:
+                    if spare <= 0 or HEALING_POTION_HP < damage:
+                        feasible = False
+                        break
+                    hp = min(player.max_hp, hp + HEALING_POTION_HP)
+                    spare -= 1
+                    healing_uses += 1
+                elif pending_speed:
+                    pending_speed = 0
+                else:
+                    remaining -= 1
+                hp -= damage
+                turns += 1
+            result.update(
+                turns=turns,
+                per_turn=per_turn,
+                speed_uses=speed_uses,
+                healing_uses=healing_uses,
+                end_hp=hp,
+            )
+            if feasible:
+                result["feasible"] = True
+                return result
         return result
+
+    def _esp_threat_turn_damage(
+        self, monsters: list[MonsterState], player_speed: int
+    ) -> int:
+        """One player turn of the group's maximum damage (estimate = trigger)."""
+        return sum(
+            self._monster_actions(monster.speed, player_speed, 1)
+            * max(monster.max_melee_damage, monster.max_ranged_damage)
+            for monster in monsters
+        )
+
+    def _esp_threat_hunt_key(
+        self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
+    ) -> str | None:
+        """Own the fight of a committed STRONG-tier hunt (esp-threat-rest).
+
+        User decision 2026-09-22 (「回復薬を実際に飲む経路」): the fight that the
+        feasibility estimate declared winnable is executed with the estimate's
+        own rules, ahead of the emergency/flee ladder which was not designed
+        for it.  Per decision, in order:
+        - ends ``cleared`` (hunt released, ordinary ladder) when no committed
+          monster is perceived (killed or lost), on a floor change, or when a
+          summoner/paralyser becomes visible (existing decisions take over);
+        - drink: HP minus one turn of the group's maximum damage below the
+          commitment floor (half the HP at commitment) -> quaff Healing if one
+          above the two-potion reserve is carried and outheals a turn,
+          otherwise the hunt ends ``reserve`` -> the existing leave path;
+        - the remaining fight is re-estimated against the same floor; an
+          infeasible estimate ends the hunt ``infeasible`` -> leave path;
+        - the planned Speed dose is drunk once a committed monster is seen;
+        - attack: melee an adjacent group member, else the existing ranged
+          attack, else step toward a committed monster; no step ends the hunt
+          ``unreachable`` -> leave path.
+        """
+        hunt = getattr(self, "_esp_threat_hunt", None)
+        if hunt is None:
+            return None
+        if snapshot.in_town or snapshot.floor_key != hunt["floor"]:
+            return self._esp_threat_end_hunt("cleared")
+        perceived = {
+            monster.index: monster
+            for monster in (*snapshot.detected_monsters, *snapshot.visible_monsters)
+            if monster.hostile
+        }
+        committed = [
+            perceived[index] for index in hunt["indices"] if index in perceived
+        ]
+        if not committed:
+            return self._esp_threat_end_hunt("cleared")
+        visible_special = [
+            monster
+            for monster in strategic_hostiles
+            if monster.can_summon
+        ] + self._paralyzing_monsters(snapshot, strategic_hostiles)
+        if visible_special:
+            return self._esp_threat_end_hunt("cleared")
+        group = committed + [
+            monster
+            for monster in strategic_hostiles
+            if monster.index not in hunt["indices"] and not monster.asleep
+        ]
+        player = snapshot.player
+        turn_damage = self._esp_threat_turn_damage(group, player.speed)
+        hunt["turn_damage"] = turn_damage
+        if player.hp - turn_damage < hunt["floor_hp"]:
+            healing = self._find_exact_potion(snapshot, SV_POTION_HEALING)
+            if (
+                healing is not None
+                and self._exact_potion_count(snapshot, SV_POTION_HEALING)
+                > ESP_THREAT_POTION_RESERVE
+                and HEALING_POTION_HP >= turn_damage
+            ):
+                self.last_reason = "esp-threat:hunt-heal"
+                return QUAFF_KEY + healing.slot
+            return self._esp_threat_end_hunt("reserve", snapshot, strategic_hostiles)
+        estimate = self._esp_threat_kill_feasibility(
+            snapshot,
+            group,
+            floor_hp=hunt["floor_hp"],
+            speed_available=not hunt["speed_drunk"],
+        )
+        hunt["estimate"] = estimate
+        if not estimate["feasible"]:
+            return self._esp_threat_end_hunt(
+                "infeasible", snapshot, strategic_hostiles
+            )
+        visible_committed = [
+            monster for monster in snapshot.visible_monsters
+            if monster.index in hunt["indices"]
+        ]
+        if (
+            hunt["speed_planned"]
+            and not hunt["speed_drunk"]
+            and visible_committed
+        ):
+            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            if (
+                speed is not None
+                and self._exact_potion_count(snapshot, SV_POTION_SPEED)
+                > ESP_THREAT_POTION_RESERVE
+            ):
+                hunt["speed_drunk"] = True
+                self.last_reason = "esp-threat:hunt-speed"
+                return QUAFF_KEY + speed.slot
+        adjacent = [
+            monster for monster in strategic_hostiles
+            if monster.distance <= 1
+        ]
+        if adjacent and not player.afraid:
+            self.last_reason = "melee:esp-threat-hunt"
+            return self._direction_key(
+                player.position, self._weakest(adjacent).position
+            )
+        ranged = self._ranged_attack_key(
+            snapshot, visible_committed or strategic_hostiles, adjacent
+        )
+        if ranged is not None:
+            return ranged
+        step = self._nearest_goal_step(
+            snapshot,
+            lambda grid: any(
+                grid.position.distance_to(monster.position) <= 1
+                for monster in committed
+            ),
+        )
+        if step is None or step in self._engagement_avoid_cells:
+            return self._esp_threat_end_hunt(
+                "unreachable", snapshot, strategic_hostiles
+            )
+        self.last_reason = "esp-threat:hunt-strong"
+        return self._step_toward(snapshot, step)
+
+    def _esp_threat_end_hunt(
+        self,
+        cause: str,
+        snapshot: Snapshot | None = None,
+        strategic_hostiles: list[MonsterState] | None = None,
+    ) -> str | None:
+        """Release the committed hunt; non-cleared ends take the leave path."""
+        self._esp_threat_hunt = None
+        self._esp_threat_hunt_end = cause
+        if cause == "cleared" or snapshot is None:
+            return None
+        return self._esp_threat_leave_key(snapshot, strategic_hostiles or [])
+
+    def _esp_threat_leave_key(
+        self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
+    ) -> str | None:
+        """Leave through the existing return machinery (esp-threat:leave-X)."""
+        if self._escape_state.owner not in {None, "return"}:
+            return None
+        # Up-stairs underfoot first, Word of Recall deeper than the walk-out
+        # depth, else walk to the nearest known up-stairs.
+        self._returning_to_town = True
+        self._last_return_trigger = "esp-threat"
+        key = self._return_to_town_key(snapshot, strategic_hostiles)
+        if key is None:
+            return None
+        if self.last_reason.startswith("return:"):
+            self.last_reason = (
+                "esp-threat:leave-" + self.last_reason[len("return:"):]
+            )
+        self._escape_state.enter("return", self.last_reason)
+        return key
 
     def _esp_threat_rest_key(
         self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
@@ -772,6 +965,22 @@ class CombatMixin:
             action = "explore"
             targets = []
         assessment["action"] = action
+        if action == "hunt" and tier == "strong":
+            feasibility = assessment["feasibility"]
+            self._esp_threat_hunt = {
+                "floor": snapshot.floor_key,
+                "indices": frozenset(monster.index for monster in tiered),
+                "floor_hp": feasibility["floor_hp"],
+                "speed_planned": feasibility["speed_uses"] > 0,
+                "speed_drunk": False,
+            }
+            self._esp_threat_hunt_end = None
+            key = self._esp_threat_hunt_key(snapshot, strategic_hostiles)
+            if key is None:
+                assessment["action"] = "hunt-ended:" + str(
+                    self._esp_threat_hunt_end
+                )
+            return True, key
         if action == "hunt":
             step = self._nearest_goal_step(
                 snapshot,
@@ -786,23 +995,9 @@ class CombatMixin:
             self.last_reason = f"esp-threat:hunt-{tier}"
             return True, self._step_toward(snapshot, step)
         if action == "leave":
-            if self._escape_state.owner not in {None, "return"}:
-                assessment["action"] = "leave-owner-busy"
-                return True, None
-            # Leave through the existing return machinery: up-stairs underfoot
-            # first, Word of Recall deeper than the walk-out depth, else walk
-            # to the nearest known up-stairs.
-            self._returning_to_town = True
-            self._last_return_trigger = "esp-threat"
-            key = self._return_to_town_key(snapshot, strategic_hostiles)
+            key = self._esp_threat_leave_key(snapshot, strategic_hostiles)
             if key is None:
                 assessment["action"] = "leave-unavailable"
-                return True, None
-            if self.last_reason.startswith("return:"):
-                self.last_reason = (
-                    "esp-threat:leave-" + self.last_reason[len("return:"):]
-                )
-            self._escape_state.enter("return", self.last_reason)
             return True, key
         return True, None
 

@@ -18,10 +18,14 @@ Substrates:
   point of divergence.
 - E1/E3 restart: a fresh policy (a bot restart on the parked game) decides the
   recorded input row of decision 625 / 555.
-- E2-E8 boards: the lifetime policy after decision 137 (deep copies) and the
-  recorded decision-138 input with only the change named in each test
-  (detected list or one recorded monster re-raced, potion counts, stair
+- E2, E3, E4-stairs, E6-E8 boards: the lifetime policy after decision 137
+  (deep copies) and the recorded decision-138 input with only the change
+  named in each test (detected list or one recorded monster re-raced, stair
   underfoot, Free Action source).
+- E4-feasible, E5, E9 boards (committed hunt): a restarted policy on the
+  recorded decision-625 input with the named HP, potion counts and monster
+  placements (an HP change on the lifetime policy would be observed as
+  damage and skip the rest rule).
 Walls: Home history/disposal files and the calibration file live in a
 temporary directory (the calibration file is the last preserved pre-run copy;
 see the fixture provenance).  No wall touches the rest/tier/exit producers.
@@ -78,7 +82,7 @@ SUMMONER = 224  # can_summon, no paralysing blow
 PARALYSER = 311  # PARALYZE blow, no summons
 BREEDER = 529  # MULTIPLY, per-action maximum 100
 WEAK_BREEDER = 1101  # MULTIPLY, per-action maximum 24
-STRONG_KILLABLE = 545  # per-action maximum 190, 130 HP, speed 110
+CORRIDOR = Position(24, 28)  # unknown cell north of the 625 corridor
 
 
 def _policy(directory: Path, monrace) -> HengbotPolicy:
@@ -352,22 +356,6 @@ class EspThreatRestTest(unittest.TestCase):
             (assessment["tier"], assessment["action"]), ("medium", "explore")
         )
 
-    def test_e4_strong_feasible_hunts(self):
-        # Board: one awake 190-damage, 130-HP, speed-110 monster (190 / 379 =
-        # 50.1%) with the recorded 9 Healing / 10 Speed potions.
-        policy, board = self._board(STRONG_KILLABLE)
-
-        key, reason, assessment = self._decide(policy, board)
-
-        self.assertEqual(reason, "esp-threat:hunt-strong")
-        self.assertNotEqual(key, REST_MACRO)
-        self.assertEqual(assessment["tier"], "strong")
-        feasibility = assessment["feasibility"]
-        self.assertTrue(feasibility["feasible"])
-        self.assertEqual(
-            (feasibility["speed_uses"], feasibility["healing_uses"]), (0, 4)
-        )
-
     def test_e4_strong_infeasible_takes_stairs_underfoot(self):
         # Board: the recorded group with the player's grid an in-view up
         # staircase.
@@ -385,17 +373,73 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual(assessment["tier"], "strong")
         self.assertFalse(assessment["feasibility"]["feasible"])
 
+    # ------------------------------------------------ restart-board fights
+    # Boards: a restarted policy (no HP history, so an arbitrary HP is not a
+    # damage observation) on the recorded decision-625 input with ONLY the
+    # named changes.  The committed monster is recorded hound 60 moved to the
+    # unknown corridor cell (24, 28), whose neighbour (25, 28) is the only
+    # walkable emitted cell it can be approached through.
+    def _restart_board(self, hp, *, healing=None, speed=None, **changes):
+        policy, snapshot = self._fresh(LOOP_REST)
+        hound = next(m for m in snapshot.detected_monsters if m.index == 60)
+        self.assertIsNone(snapshot.grid_at(CORRIDOR))
+        corridor_hound = replace(
+            hound,
+            position=CORRIDOR,
+            distance=CORRIDOR.distance_to(snapshot.player.position),
+        )
+        if healing is not None or speed is not None:
+            counts = {}
+            if healing is not None:
+                counts["healing"] = healing
+            if speed is not None:
+                counts["speed"] = speed
+            snapshot = self._with_potions(snapshot, **counts)
+        changes.setdefault("detected_monsters", [corridor_hound])
+        board = replace(
+            snapshot,
+            player=replace(snapshot.player, hp=hp),
+            **changes,
+        )
+        return policy, board, corridor_hound
+
+    def _next_board(self, board, hp, **changes):
+        return replace(board, player=replace(board.player, hp=hp), **changes)
+
+    def test_e4_strong_feasible_commits_and_drinks_per_the_estimate(self):
+        # Board: HP 70, the hound (40 / 70 = 57%, STRONG) with the recorded
+        # 9 Healing / 10 Speed potions.
+        policy, board, _hound = self._restart_board(70)
+
+        key, reason, assessment = self._decide(policy, board)
+
+        # The estimate's first simulated turn is a drink (70 - 40 < 35), so
+        # the committed hunt's first action is the same drink.
+        self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
+        self.assertEqual(assessment["tier"], "strong")
+        feasibility = assessment["feasibility"]
+        self.assertEqual(
+            (
+                feasibility["feasible"],
+                feasibility["floor_hp"],
+                feasibility["per_turn"],
+                feasibility["healing_uses"],
+                feasibility["speed_uses"],
+            ),
+            (True, 35.0, 40, 1, 0),
+        )
+        self.assertEqual(policy._esp_threat_hunt["indices"], frozenset({60}))
+        self.assertEqual(policy._esp_threat_hunt["floor_hp"], 35.0)
+        potion = next(item for item in board.inventory if item.slot == "d")
+        self.assertEqual(potion.sval, SV_POTION_HEALING)
+
     def test_e5_reserves_are_never_counted(self):
-        # Boards: the E4 fight with changed potion counts.  Cure Critical
-        # Wounds (10 carried) is never counted.
-        _decided, snapshot, _assessment, _trigger = self._lifetime()
+        # Boards: the E4 fight with changed potion counts (10 Cure Critical
+        # Wounds carried each time, never counted).
         outcomes = {}
-        for healing, speed in ((2, 2), (3, 3), (4, 3), (4, 2)):
-            policy, board = self._board(
-                STRONG_KILLABLE,
-                inventory=self._with_potions(
-                    snapshot, healing=healing, speed=speed
-                ).inventory,
+        for healing, speed in ((2, 10), (3, 2), (2, 2)):
+            policy, board, _hound = self._restart_board(
+                70, healing=healing, speed=speed
             )
             key, reason, assessment = self._decide(policy, board)
             self.assertTrue(reason.startswith("esp-threat:"), reason)
@@ -418,15 +462,109 @@ class EspThreatRestTest(unittest.TestCase):
                     next(item for item in board.inventory if item.slot == key[1:])
                     .is_recall_scroll
                 )
+                self.assertIsNone(policy._esp_threat_hunt)
         self.assertEqual(
             outcomes,
             {
+                (2, 10): (0, 8, False, "esp-threat:leave-recall"),
+                (3, 2): (1, 0, True, "esp-threat:hunt-heal"),
                 (2, 2): (0, 0, False, "esp-threat:leave-recall"),
-                (3, 3): (1, 1, False, "esp-threat:leave-recall"),
-                (4, 3): (2, 1, True, "esp-threat:hunt-strong"),
-                (4, 2): (2, 0, False, "esp-threat:leave-recall"),
             },
         )
+
+    def test_e9_committed_hunt_executes_the_estimate(self):
+        policy, board, hound = self._restart_board(70)
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
+        policy.confirm_key_posted(key)
+
+        # Healed to 370: 370 - 40 >= 35, the re-estimate stays feasible, so
+        # the hunt steps toward the hound (still detection-only).
+        board = self._next_board(board, 370)
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("8", "esp-threat:hunt-strong"))
+        self.assertTrue(policy._esp_threat_hunt["estimate"]["feasible"])
+        policy.confirm_key_posted(key)
+
+        # Board: the hound now visible and adjacent (26, 28) at HP 330: the
+        # hunt melees it instead of the existing flee/threat ladder.
+        adjacent = replace(
+            hound, position=Position(26, 28), distance=1, perception="direct"
+        )
+        board = self._next_board(
+            board, 330, visible_monsters=[adjacent], detected_monsters=[]
+        )
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("8", "melee:esp-threat-hunt"))
+        policy.confirm_key_posted(key)
+
+        # HP 70 in contact: 70 - 40 < 35 -> drink (not the emergency ladder).
+        board = self._next_board(board, 70)
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
+        self.assertEqual(policy._esp_threat_hunt["turn_damage"], 40)
+        policy.confirm_key_posted(key)
+
+        # HP 70 with only the two reserve potions left: the hunt ends
+        # "reserve" and takes the existing leave path.
+        board = replace(
+            self._with_potions(board, healing=2), player=board.player
+        )
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("rg", "esp-threat:leave-recall"))
+        self.assertIsNone(policy._esp_threat_hunt)
+        self.assertEqual(policy._esp_threat_hunt_end, "reserve")
+        self.assertTrue(policy._returning_to_town)
+
+    def test_e9_committed_hunt_ends_infeasible_or_cleared(self):
+        # Infeasible: the monk joins in sight (2 actions x 132 + 40 = 304 per
+        # turn > one Healing dose) at HP 400 -> no drink, re-estimate fails.
+        policy, board, hound = self._restart_board(70)
+        key, _reason, _assessment = self._decide(policy, board)
+        policy.confirm_key_posted(key)
+        monk = next(
+            m for m in self._fresh(LOOP_REST)[1].detected_monsters
+            if m.index == 31
+        )
+        board = self._next_board(
+            board,
+            400,
+            visible_monsters=[
+                replace(monk, position=Position(25, 28), distance=2,
+                        perception="direct")
+            ],
+        )
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), ("rg", "esp-threat:leave-recall"))
+        self.assertEqual(policy._esp_threat_hunt_end, "infeasible")
+        self.assertIsNone(policy._esp_threat_hunt)
+
+        # Cleared: the hound is no longer perceived -> hunt released and the
+        # ordinary rest resumes (HP 330 < 90%).
+        policy, board, _hound = self._restart_board(70)
+        key, _reason, _assessment = self._decide(policy, board)
+        policy.confirm_key_posted(key)
+        board = self._next_board(board, 370, detected_monsters=[])
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertEqual((key, reason), (REST_MACRO, "rest"))
+        self.assertIsNone(policy._esp_threat_hunt)
+        self.assertEqual(policy._esp_threat_hunt_end, "cleared")
+
+    def test_e9_no_hunt_owner_without_a_commitment(self):
+        # Board: the same adjacent hound at HP 70 on a restarted policy that
+        # never committed: the existing ladder decides, no esp-threat action.
+        policy, board, hound = self._restart_board(70)
+        board = replace(
+            board,
+            visible_monsters=[
+                replace(hound, position=Position(26, 28), distance=1,
+                        perception="direct")
+            ],
+            detected_monsters=[],
+        )
+        key, reason, _assessment = self._decide(policy, board)
+        self.assertFalse(reason.startswith(("esp-threat:", "melee:esp")), reason)
+        self.assertIsNone(policy._esp_threat_hunt)
 
     def test_e6_only_asleep_detected_keeps_the_rest(self):
         # Board: every recorded detected monster asleep.

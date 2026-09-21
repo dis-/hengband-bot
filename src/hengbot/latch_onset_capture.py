@@ -113,6 +113,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # Older captures predate the detected-threat rest tiering record; None is
     # the "no assessment yet" value it is rewritten from on every rest check.
     restored.__dict__.setdefault("_esp_threat_assessment", None)
+    # No committed detected-threat hunt existed before the owner was added.
+    restored.__dict__.setdefault("_esp_threat_hunt", None)
+    restored.__dict__.setdefault("_esp_threat_hunt_end", None)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
     # Equipment departure can now consult a calibration deferral even when a
     # legacy checkpoint reaches the calibration-required optimizer return.
