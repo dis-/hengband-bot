@@ -1,0 +1,5 @@
+Source: incident-captures/20260921-193842-town-blocked-owner-retired/
+Selection: every decision of the bot process started 2026-09-21 19:33:56+09:00 (sequence 1..1431).
+Boundary rule: walking back from the final emitter row, each decision's input ends drain(previous decision) rows earlier; when that row's turn differs from the decision record's turn the boundary moves back to the matching row (decisions [35, 498, 516, 1408] received one row drained outside an active operation).
+Decisions: 1431; emitter rows: 1560; decompressed sha256: 4180f898a0482c643e5037398ce3d30b7a3c85732a4de5aaa638a903c0d37e50
+Calibration: jsonlog/character-calibration.json (mtime 2026-09-21 17:08, before the run) sha256 2019f81541f374b063d4a1698096f31b9a0c569d673a94834990298d308ba683

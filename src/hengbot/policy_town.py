@@ -1782,7 +1782,11 @@ class TownMixin:
         needs: list[TownNeed] = []
         fundraising_active = (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
-            and snapshot.player.gold < FUNDRAISING_GOLD_TARGET
+            and (
+                snapshot.player.gold < FUNDRAISING_GOLD_TARGET
+                # The D1 time-pass still needs its D3 kit above the target.
+                or self._recall_stockout_run_outstanding(snapshot)
+            )
             and not self._opening_q34_active(snapshot)
         )
         star_reserve_surplus = (
@@ -3372,6 +3376,21 @@ class TownMixin:
             if town_id != current and town_id in TOWN_TELEPORT_BUILDING_TYPES
         )
 
+    def _recall_stockout_run_outstanding(self, snapshot: Snapshot) -> bool:
+        """Whether the D1 recall-stockout time-pass still owes its run.
+
+        Bounded by the stockout itself: once recall is no longer short or a
+        supplier becomes actionable, the run is an ordinary set again.  A
+        completed run is not outstanding; the next supplier page starts the
+        next one.
+        """
+        return bool(
+            getattr(self, "_recall_stockout_mining_plan", False)
+            and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            and self._mining_runs_completed < self._effective_mining_run_target()
+            and self._recall_stockout_persists(snapshot)
+        )
+
     def _end_fundraising_set_at_gold_target(self, snapshot: Snapshot) -> None:
         """End a funded set without waiting for its town errands to exhaust."""
         if (
@@ -3381,10 +3400,14 @@ class TownMixin:
                 and not self._identify_staff_ready(snapshot)
             )
             and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            # D1 time-pass, not a funding set: the D2 gold end does not apply
+            # to its outstanding run while the recall stockout persists.
+            and not self._recall_stockout_run_outstanding(snapshot)
         ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
             self._identify_staff_mining_plan = False
+            self._recall_stockout_mining_plan = False
             self._town_store_attempted.clear()
 
     def _town_terminal_transitions(self, snapshot: Snapshot) -> None:
@@ -4339,6 +4362,7 @@ class TownMixin:
             self._mining_runs_completed = 0
             self._planned_mining_runs = None
             self._identify_staff_mining_plan = False
+            self._recall_stockout_mining_plan = False
             self._town_store_attempted.clear()
             self._town_restock_suppressed = False
             self._town_errand_plan = None

@@ -1930,6 +1930,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
         self._identify_staff_mining_plan = False
+        # Marks the one-run D1 recall-stockout time-pass (not a funding set):
+        # the gold set-end leaves it running while the stockout persists.
+        self._recall_stockout_mining_plan = False
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
@@ -8932,6 +8935,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         self._planned_mining_runs = planned_total
         self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
         self._fundraising_mode = "mine"
         return True
 
@@ -8961,6 +8965,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_restock_wait_until = None
                 self._planned_mining_runs = 1
                 self._identify_staff_mining_plan = False
+                self._recall_stockout_mining_plan = False
                 self._mining_runs_completed = 0
                 self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
@@ -9030,6 +9035,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if owned_kit:
                 self._planned_mining_runs = 1
                 self._identify_staff_mining_plan = False
+                self._recall_stockout_mining_plan = True
                 self._fundraising_mode = "prepare"
                 self._mining_runs_completed = 0
                 self._town_restock_rechecked.difference_update(recall_stores)
@@ -9052,15 +9058,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Enter the local one-run wait flow once both suppliers are disproved."""
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
-        recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         if (
-            recall.count >= recall.required_departure
-            or recall.obtainable
+            not self._recall_stockout_persists(snapshot)
             or not self._food_ready(snapshot)
         ):
             return False
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = True
         self._mining_runs_completed = 0
         self._fundraising_mode = "prepare"
         self._town_restock_waiting_for = ()
@@ -9072,6 +9077,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._cross_town_shopping = None
         self._retire_town_errand_plan_for_rebuild()
         return True
+
+    def _recall_stockout_persists(self, snapshot: Snapshot) -> bool:
+        """Whether recall is short for departure with no actionable supplier.
+
+        Judged against the ordinary (non-fundraising) departure requirement:
+        the one-run time-pass itself reshapes the in-run recall requirement
+        (zero while mining), which is not the shortage it waits out.
+        """
+        mode = self._fundraising_mode
+        self._fundraising_mode = None
+        try:
+            recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
+        finally:
+            self._fundraising_mode = mode
+        return recall.count < recall.required_departure and not recall.obtainable
 
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
@@ -9119,6 +9139,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = True
+        self._recall_stockout_mining_plan = False
         self._fundraising_mode = "prepare"
         self._mining_runs_completed = 0
         self._town_store_attempted.clear()
@@ -9343,6 +9364,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
@@ -9398,6 +9420,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
