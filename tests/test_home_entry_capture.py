@@ -98,10 +98,15 @@ class HomeEntryCaptureTest(unittest.TestCase):
             self.skipTest("committed Gate-1 fixture is not present")
         with path.open(encoding="utf-8") as stream:
             record = json.loads(stream.readline())
+        legacy_state = pickle.loads(base64.b64decode(
+            record["predecision_policy_checkpoint_pickle_b64"]
+        ))
+        self.assertNotIn("_identify_staff_mining_plan", legacy_state)
         policy = restore_checkpoint(
             test_policy.HengbotPolicy,
             record["predecision_policy_checkpoint_pickle_b64"],
         )
+        self.assertFalse(policy._identify_staff_mining_plan)
         inside = pickle.loads(
             base64.b64decode(record["decision_snapshot_pickle_b64"])
         )

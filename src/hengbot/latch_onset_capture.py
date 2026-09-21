@@ -103,6 +103,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
+    # Fundraising set-end now runs on every town decision.  Older captures
+    # predate the identify-staff mining-plan flag; False preserves their
+    # former terminal-transition behavior.
+    restored.__dict__.setdefault("_identify_staff_mining_plan", False)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
     restored.__dict__.setdefault("_prompt_gated_posting", True)
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
