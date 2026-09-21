@@ -434,6 +434,35 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             policy._item_signature(cure),
             policy._calibration_restore_signatures,
         )
+        # The real calibration-deposit producer above owns this signature until
+        # restore completes.  Even if its returned stack makes the pack heavy,
+        # the overweight owner must choose other work instead of undoing it.
+        owned = item("b", TVAL_SWORD, 1, name="owned", is_equipment=True,
+                     is_cursed=True)
+        owned_snapshot = replace(snapshot, inventory=[owned])
+        self.assertEqual(
+            policy._home_deposit_key(owned_snapshot, owned),
+            policy_module.SELL_KEY + "b",
+        )
+        returned = replace(owned, weight=10_000)
+        other = replace(
+            item("b", TVAL_SWORD, 1, name="other", is_equipment=True,
+                 is_cursed=True),
+            slot="c",
+            weight=10_000,
+        )
+        overweight = replace(
+            snapshot,
+            player=replace(snapshot.player, stat_index=(0, 0, 0, 0, 0, 0)),
+            inventory=[returned, other],
+        )
+        policy._calibration_phase = None
+        self.assertTrue(policy._inventory_overweight(overweight))
+        self.assertEqual(policy._overweight_home_deposit(overweight), other)
+        self.assertNotEqual(
+            policy._item_signature(policy._overweight_home_deposit(overweight)),
+            policy._item_signature(returned),
+        )
 
     def test_calibration_staff_merge_restores_by_count_free_identity(self):
         policy = self._scan_complete_policy()

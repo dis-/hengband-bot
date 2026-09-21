@@ -813,7 +813,10 @@ class HomeMixin:
     def _overweight_home_deposit(
         self, snapshot: Snapshot
     ) -> InventoryItem | None:
-        if not self._inventory_overweight(snapshot):
+        if (
+            self._equipment_mutation.state.name != "IDLE"
+            or not self._inventory_overweight(snapshot)
+        ):
             return None
 
         blocking_categories = {
@@ -894,6 +897,8 @@ class HomeMixin:
             and not item.is_bounty
             and not self._is_wanted_jewelry(snapshot, item)
             and self._item_signature(item) not in self._home_rejected_deposits
+            and self._item_signature(item)
+            not in self._calibration_restore_signatures
             and self._item_signature(item) not in self._home_pending_batch
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot
