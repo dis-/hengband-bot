@@ -30,6 +30,7 @@ from policy_fixtures import (
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from hengbot.equipment_optimizer import equipment_move_identity
+from support.lost_substrate import needs_fresh_live_capture
 import test_policy as fixture
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
 from hengbot.policy import FOOD_TYPE_MANA
@@ -5397,6 +5398,13 @@ class ComposedWithdrawWrongItemRecordedPins(unittest.TestCase):
         self.assertEqual(" " * page + BUY_KEY + "a" + LEAVE_STORE_KEY, " pa\x1b")
 
 
+# Evicted source: incident-captures/20260921-101603-town-blocked-owner-retired.
+# Lift: freeze the next automatic capture of this scene into tests/fixtures with
+# a sha256 assertion, then delete this marker and decrement the count pin.
+@needs_fresh_live_capture(
+    "home:atomic-withdraw-page-probe "
+    "(Home withdrawal target absent from the observed page)"
+)
 class HomeWithdrawTargetUnobservedRecordedPins(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

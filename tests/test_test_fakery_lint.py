@@ -23,6 +23,28 @@ def incident_capture_reads(source):
     ]
 
 
+def lost_substrate_skip_sites(path, source):
+    """Return explicit lost-substrate marker sites and their scene arguments."""
+    tree = ast.parse(source)
+    sites = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            if (
+                isinstance(decorator, ast.Call)
+                and isinstance(decorator.func, ast.Name)
+                and decorator.func.id == "needs_fresh_live_capture"
+            ):
+                scene = "".join(
+                    part.value
+                    for part in decorator.args
+                    if isinstance(part, ast.Constant) and isinstance(part.value, str)
+                )
+                sites.append((path.name, node.name, scene))
+    return sites
+
+
 HISTORICAL_CASES = (
     ("optimizer precompletion", "594053f", "tests/test_policy.py", "test_mining_walk_in_is_the_only_zero_recall_entry", "subject-precompleted"),
     ("fundraising premise overwrite", "0de8159", "tests/test_policy.py", "test_incomplete_optimizer_blocks_normal_direct_entrance", "invariant-input-overwritten"),
@@ -251,6 +273,33 @@ class TestTreeFakeryLint(unittest.TestCase):
             if matches:
                 findings[path.name] = matches
         self.assertEqual(findings, {})
+
+    def test_lost_substrate_skip_count_is_pinned(self):
+        sites = []
+        for path in sorted((ROOT / "tests").rglob("*.py")):
+            sites.extend(
+                lost_substrate_skip_sites(
+                    path.relative_to(ROOT / "tests"),
+                    path.read_text(encoding="utf-8"),
+                )
+            )
+        self.assertEqual(len(sites), 2)
+        self.assertEqual(
+            sorted(sites),
+            [
+                (
+                    "test_home_knowledge_scan.py",
+                    "test_stalled_capture_has_seek_processing_page_provenance",
+                    "home:seek-processing-page",
+                ),
+                (
+                    "test_policy_home.py",
+                    "HomeWithdrawTargetUnobservedRecordedPins",
+                    "home:atomic-withdraw-page-probe "
+                    "(Home withdrawal target absent from the observed page)",
+                ),
+            ],
+        )
 
     def test_tree_has_only_catalogued_undeclared_shapes(self):
         findings = scan_tests()

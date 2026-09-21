@@ -31,6 +31,7 @@ from hengbot.home_entry_capture import STATE_FIELDS
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from policy_fixtures import store_item
 from support.faithful_home import FaithfulHomeGame
+from support.lost_substrate import needs_fresh_live_capture
 
 
 def setUpModule():
@@ -583,7 +584,11 @@ class HomeKnowledgeScanTest(unittest.TestCase):
         self.assertEqual(policy._home_processing_seen_pages, set())
         self.assertIsNone(policy._home_knowledge_scan_leave_turn)
 
-    def test_stalled_capture_requests_home_knowledge_and_completes(self):
+    # Evicted source: incident-captures/20260731-063654-loop-detected.
+    # Lift: freeze the next automatic capture of this scene into tests/fixtures
+    # with a sha256 assertion, then delete this marker and decrement the count pin.
+    @needs_fresh_live_capture("home:seek-processing-page")
+    def test_stalled_capture_has_seek_processing_page_provenance(self):
         capture = (
             Path(__file__).parent / "fixtures"
             / "needs-fresh-home-seek-processing-page-capture.jsonl"
@@ -594,6 +599,7 @@ class HomeKnowledgeScanTest(unittest.TestCase):
             tail = stream.read().decode("utf-8", errors="replace")
         self.assertIn('"reason": "home:seek-processing-page"', tail)
 
+    def test_stalled_capture_requests_home_knowledge_and_completes(self):
         policy = HengbotPolicy()
         policy._next_required_store_type = lambda _snapshot: STORE_HOME
         policy._home_processing_seen_pages.add((("a", "captured", 17, 1),))
