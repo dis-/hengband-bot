@@ -3269,7 +3269,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         approaching_monsters = [
             hostile(
                 index, y, x, distance=Position(10, 10).distance_to(Position(y, x)),
-                can_multiply=True, max_melee_damage=1,
+                # 3 (was 1): the armed choke step predicts 39 >= 10% of hp
+                # 172, so the melee choke still starts under the lower bound.
+                can_multiply=True, max_melee_damage=3,
             )
             for index, (y, x) in enumerate(
                 [(10, 12), (9, 12), (11, 12), (10, 13)], 1
