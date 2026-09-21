@@ -169,6 +169,11 @@ class TownMixin:
                     pending = getattr(self, "_pending_one_step_explore", None)
                     if pending is not None:
                         goal = pending[1]
+        elif owner == "misc" and (reason or self.last_reason) == "seek-loot":
+            # A committed town-loot walk is locomotion, not a repeated durable
+            # town fingerprint.  Admit each real step until the loot producer
+            # picks up the target or clears it through a named blocker.
+            goal = self._loot_target
         if goal is None:
             return durable
         if owner == "misc":
@@ -962,6 +967,24 @@ class TownMixin:
     ) -> str:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
+        if (
+            self._loot_target is not None
+            and not self._emergency_return_active
+            and (
+                self._shopping_approach_store_type is not None
+                or str(key).startswith("\x1b`n")
+                or proposed_reason.startswith(("shop:", "town:enchant-"))
+            )
+        ):
+            # The downstream seam sees the actual winning optional errand.
+            # Keep an admitted town-loot walk until pickup or until the loot
+            # producer names a safety/defer release; never alternate owners.
+            committed_loot = self._normal_loot_key(
+                snapshot, self._strategic_hostiles(snapshot)
+            )
+            if committed_loot is not None:
+                self._town_begin_progress_decision(snapshot)
+                return committed_loot
         self._town_begin_progress_decision(snapshot)
         if self._preserve_unavailable_quest_candidate(key):
             return key

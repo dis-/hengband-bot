@@ -1,0 +1,4 @@
+Source: incident-captures/20260921-180239-town-blocked-owner-retired/
+Selection: decision inputs from 2026-09-21 18:02:23+09:00 onward.
+Boundary rule: the initial input row plus each previous decision's timing.jsonl_drain_records emitter rows; emitter rows are not decisions.
+Decisions: 19; emitter rows: 26; decompressed sha256: 106068ebda2c67a7f59f6025bc5710474006770ddfde25213b6bf1023b84b5fa

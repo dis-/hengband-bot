@@ -58,6 +58,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.cli import (
     POLICY_FINAL_STOP_REASONS,
     _capture_decision_facts,
+    _consume_response_sequence,
     _dispatch_response_lines,
     _send_new_decision_key,
     _send_stall_recovery_nudge,
@@ -15297,6 +15298,57 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
         self.assertFalse(
             policy._required_supply_suppresses_normal_loot(snapshot)
         )
+
+
+class TownLootSupplierCommitmentRecordedTest(unittest.TestCase):
+    """Pins the 18:02 committed loot walk above optional shop work."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.monrace = load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")
+        )
+        cls.fixture = (
+            Path(__file__).parent / "fixtures"
+            / "town-loot-supplier-alternation-20260921.jsonl.gz"
+        )
+        assert hashlib.sha256(cls.fixture.read_bytes()).hexdigest() == (
+            "3640b3b452e37b2aa8c4db2ecca70b3213dc07f030473b4c7b7da6fc5627766f"
+        )
+        cls.boundaries = json.loads(
+            cls.fixture.with_suffix(".boundaries.json").read_text(encoding="utf-8")
+        )
+        with gzip.open(cls.fixture, "rt", encoding="utf-8") as stream:
+            cls.lines = list(stream)
+
+    def test_a1_recorded_committed_loot_walk_is_not_preempted(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        decisions = []
+        cursor = 0
+        with TemporaryDirectory() as directory:
+            for decision_index in range(7):
+                count = 1 if decision_index == 0 else self.boundaries["drains"][
+                    decision_index - 1
+                ]
+                segment = self.lines[cursor : cursor + count]
+                cursor += count
+                _decoded, snapshots = _consume_response_sequence(
+                    segment, policy, lambda _key: True, self.monrace,
+                    knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+                )
+                key = policy.choose_key(snapshots[-1])
+                decisions.append((str(key), policy.last_reason))
+                policy.confirm_key_posted(key)
+
+        self.assertEqual(decisions, [
+            ("9", "seek-loot"),
+            ("~9\x1b\x1b", "home:request-knowledge-scan"),
+            ("7", "seek-loot"),
+            ("9", "seek-loot"),
+            ("9", "seek-loot"),
+            ("9", "seek-loot"),
+            ("8", "seek-loot"),
+        ])
 
 
 class TownNeedRecursionRecordedTest(unittest.TestCase):
