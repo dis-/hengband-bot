@@ -866,7 +866,7 @@ class CombatTest(unittest.TestCase):
                 x,
                 distance=origin.distance_to(Position(y, x)),
                 can_multiply=True,
-                max_melee_damage=1,
+                max_melee_damage=3,
                 max_ranged_damage=6 if ranged and index == 1 else 0,
             )
             for index, (y, x) in enumerate(positions, 1)
@@ -2574,7 +2574,8 @@ class CombatTest(unittest.TestCase):
             hostile(
                 index, cell.y, cell.x,
                 distance=position.distance_to(cell), race_id=69,
-                can_multiply=True, max_melee_damage=3,
+                can_multiply=True,
+                max_melee_damage=10 if visible_count <= 3 else 7,
             )
             for index, cell in enumerate(monster_cells, 106)
         ]
@@ -2603,15 +2604,35 @@ class CombatTest(unittest.TestCase):
 
         contracted = self._orc_cave_choke_cycle_snapshot(mouth, 1)
         second = policy.choose_key(contracted)
-        self.assertEqual((second, policy.last_reason), ("8", "melee:choke-reposition"))
-        self.assertNotIn(policy.last_reason, {"hunt", "seek-loot", "explore"})
-
-        unseen = self._orc_cave_choke_cycle_snapshot(choke, 0)
-        self.assertEqual(policy.choose_key(unseen), WAIT_KEY)
-        self.assertEqual(policy.last_reason, "melee:choke-hold")
+        self.assertEqual((second, policy.last_reason), ("1", "hunt"))
         state = policy.choke_engagement_state()
-        self.assertEqual(state["phase"], "hold")
-        self.assertIsNone(state["release_cause"])
+        self.assertEqual((state["phase"], state["release_cause"]), (
+            "release", "low-threat",
+        ))
+
+    def test_recorded_worm_swarm_below_ten_percent_never_starts_choke(self):
+        capture = Path(__file__).parent / "fixtures" / (
+            "choke-hold-lower-bound-20260921.jsonl"
+        )
+        self.assertEqual(
+            hashlib.sha256(capture.read_bytes()).hexdigest(),
+            "6cb58659031c8a2e906d085c23afac5e83eb122d76f4ca58c90a5cf813f31733",
+        )
+        knowledge = load_monrace_knowledge(
+            Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+        )
+        policy = HengbotPolicy(monrace_knowledge=knowledge)
+        decisions = []
+        for line in capture.read_text(encoding="utf-8").splitlines():
+            snapshot = parse_snapshot(json.loads(line), knowledge)
+            key = policy.choose_key(snapshot)
+            decisions.append((snapshot.turn, key, policy.last_reason))
+
+        self.assertEqual(decisions[0], (4324256, "7", "melee"))
+        self.assertFalse(any(reason.startswith("melee:choke")
+                             for _turn, _key, reason in decisions))
+        self.assertFalse(any(key == WAIT_KEY for _turn, key, _reason in decisions))
+        self.assertEqual(policy.choke_engagement_state(), {})
 
     @staticmethod
     def _quartz_choke_reposition_snapshot(position, *, visible):
@@ -2659,7 +2680,7 @@ class CombatTest(unittest.TestCase):
             turn=1,
         )
 
-    def test_choke_reposition_measured_five_cell_wander_has_absolute_bound(self):
+    def test_choke_reposition_releases_immediately_when_threat_disappears(self):
         destination = Position(9, 65)
         far_wander = [Position(5, 73), Position(6, 73)]
         middle_wander = [Position(4, 72), Position(5, 72)]
@@ -2713,11 +2734,9 @@ class CombatTest(unittest.TestCase):
         state = policy.choke_engagement_state()
         self.assertEqual(
             (state["phase"], state["release_cause"]),
-            ("release", "engagement-stall-bound"),
+            ("release", "low-threat"),
         )
-        self.assertLess(state["decisions_consumed"], 40)
-        self.assertEqual(40 - state["decisions_consumed"], 16)
-        self.assertEqual(state["closest_destination_distance"], 7)
+        self.assertEqual(state["decisions_consumed"], 2)
 
     def test_multiplied_immobile_breeders_release_and_explore_elsewhere(self):
         origin = Position(10, 10)
@@ -2733,7 +2752,7 @@ class CombatTest(unittest.TestCase):
         monsters = [
             hostile(
                 index, cell.y, cell.x, distance=origin.distance_to(cell),
-                race_id=911, can_multiply=True, max_melee_damage=1,
+                race_id=911, can_multiply=True, max_melee_damage=20,
             )
             for index, cell in enumerate(
                 sorted(
@@ -2830,7 +2849,7 @@ class CombatTest(unittest.TestCase):
         grids[mobile_cell] = replace(grids[mobile_cell], has_monster=True)
         mobile = hostile(
             2, mobile_cell.y, mobile_cell.x, distance=1,
-            race_id=912, max_melee_damage=1,
+            race_id=912, max_melee_damage=20,
         )
         snapshot = Snapshot(
             player(origin.y, origin.x, hp=500, max_hp=500),
@@ -2872,12 +2891,13 @@ class CombatTest(unittest.TestCase):
             self._orc_cave_choke_cycle_snapshot(Position(28, 170), 1)
         )
         state = progressing.choke_engagement_state()
-        self.assertEqual((key, progressing.last_reason), (
-            "8", "melee:choke-reposition",
-        ))
+        self.assertEqual((key, progressing.last_reason), ("1", "hunt"))
+        self.assertEqual(
+            progressing.choke_engagement_state()["release_cause"], "low-threat"
+        )
         self.assertEqual((state["phase"], state["no_progress_decisions"],
                           state["release_cause"]), (
-            "reposition", 0, None,
+            "release", 0, "low-threat",
         ))
 
     def test_open_capture_mouth_is_never_accepted_as_choke_hold(self):
@@ -2910,7 +2930,7 @@ class CombatTest(unittest.TestCase):
         )
         emergency.choose_key(danger)
         self.assertEqual(
-            emergency.choke_engagement_state()["release_cause"], "hp-authority"
+            emergency.choke_engagement_state()["release_cause"], "hp-emergency"
         )
 
         breakthrough = HengbotPolicy()
@@ -3136,12 +3156,12 @@ class CombatTest(unittest.TestCase):
 
     def test_choke_hold_releases_after_bounded_no_engagement_progress(self):
         adjacent = [
-            hostile(1, 10, 11, distance=1, max_melee_damage=3, race_id=500),
-            hostile(2, 10, 9, distance=1, max_melee_damage=3, race_id=500),
+            hostile(1, 10, 11, distance=1, max_melee_damage=20, race_id=500),
+            hostile(2, 10, 9, distance=1, max_melee_damage=20, race_id=500),
         ]
         far = [
-            hostile(1, 10, 12, distance=2, max_melee_damage=3, race_id=500),
-            hostile(2, 10, 8, distance=2, max_melee_damage=3, race_id=500),
+            hostile(1, 10, 12, distance=2, max_melee_damage=20, race_id=500),
+            hostile(2, 10, 8, distance=2, max_melee_damage=20, race_id=500),
         ]
         policy = HengbotPolicy()
         armed = self._stationary_choke_snapshot(adjacent)
@@ -3165,7 +3185,7 @@ class CombatTest(unittest.TestCase):
     def test_choke_hold_adjacent_breeder_swarm_hits_outcome_bound(self):
         adjacent = [
             hostile(
-                index, 10, x, distance=1, max_melee_damage=3,
+                index, 10, x, distance=1, max_melee_damage=20,
                 race_id=500, can_multiply=True,
             )
             for index, x in ((1, 11), (2, 9))
@@ -3197,7 +3217,7 @@ class CombatTest(unittest.TestCase):
     def test_choke_outcome_budget_survives_release_and_same_trigger_replan(self):
         monsters = [
             hostile(
-                index, 10, x, distance=1, max_melee_damage=3,
+                index, 10, x, distance=1, max_melee_damage=20,
                 race_id=500, can_multiply=True,
             )
             for index, x in ((1, 11), (2, 9))
@@ -3295,7 +3315,7 @@ class CombatTest(unittest.TestCase):
     def test_productive_choke_outcomes_replenish_existing_budget(self):
         monsters = [
             hostile(
-                index, 10, x, distance=1, max_melee_damage=3,
+                index, 10, x, distance=1, max_melee_damage=20,
                 race_id=500, can_multiply=True,
             )
             for index, x in ((1, 11), (2, 9))
@@ -3356,7 +3376,7 @@ class CombatTest(unittest.TestCase):
         self.assertIn(breeder_cell, policy._engagement_avoid_cells)
         self.assertEqual(snapshot.floor_key, policy._choke_engagement_plan.floor)
 
-    def test_moving_player_still_prepares_for_monsters_that_moved_closer(self):
+    def test_moving_player_does_not_choke_zero_predicted_damage_monsters(self):
         snapshot = self._mouse_swarm_snapshot()
         current_player = Position(10, 11)
         current_monsters = [
@@ -3365,6 +3385,7 @@ class CombatTest(unittest.TestCase):
                 position=Position(9 + index, 14),
                 distance=3,
                 can_multiply=False,
+                max_melee_damage=20,
             )
             for index, monster in enumerate(snapshot.visible_monsters)
         ]
@@ -3395,7 +3416,8 @@ class CombatTest(unittest.TestCase):
         ):
             key = policy._melee_swarm_combat_key(snapshot, current_monsters, [])
 
-        self.assertEqual((key, policy.last_reason), ("4", "melee:choke"))
+        self.assertIsNone(key)
+        self.assertEqual(policy.choke_engagement_state(), {})
 
     def test_player_approach_does_not_make_stationary_monsters_converge(self):
         snapshot = self._mouse_swarm_snapshot()
@@ -3694,6 +3716,7 @@ class CombatTest(unittest.TestCase):
                 base.visible_monsters[index],
                 position=Position(10, 11 + index),
                 distance=2 + index,
+                max_melee_damage=10,
             )
             for index in range(2)
         ]
@@ -3749,7 +3772,7 @@ class CombatTest(unittest.TestCase):
                 hostile(
                     index, y, x,
                     distance=position.distance_to(Position(y, x)),
-                    race_id=31, can_multiply=True, max_melee_damage=1,
+                    race_id=31, can_multiply=True, max_melee_damage=2,
                 )
                 for index, (y, x) in enumerate(positions, 1)
             ]

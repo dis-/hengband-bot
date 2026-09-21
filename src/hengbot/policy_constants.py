@@ -367,6 +367,9 @@ HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
 FIXED_QUEST_HEAL_HP_RATIO = 0.30
 EMERGENCY_RETURN_COUNT = 2
 ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
+# User decision 2026-09-21: threats below 10% of current HP do not justify
+# starting or maintaining a melee choke engagement.
+CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO = 0.10
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
 

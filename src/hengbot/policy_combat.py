@@ -19,6 +19,7 @@ from hengbot.policy_constants import (
     BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
+    CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
     EMERGENCY_RETURN_COUNT,
     ENGAGEMENT_AVOID_DAMAGE_RATIO,
     FIRE_KEY,
@@ -2054,7 +2055,12 @@ class CombatMixin:
 
         if not swarm:
             return None
-        if self._predicted_damage(snapshot, hostiles, turns=3) >= (
+        predicted_damage = self._predicted_damage(snapshot, hostiles, turns=3)
+        if predicted_damage < (
+            snapshot.player.hp * CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO
+        ):
+            return None
+        if predicted_damage >= (
             snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
         ):
             return None
@@ -2200,6 +2206,8 @@ class CombatMixin:
         self._spend_choke_outcome_budget(
             snapshot, plan, len(visible_triggers), len(breeder_population)
         )
+        if plan.release_cause is not None:
+            return None
         if len(breeder_population) > plan.start_breeder_count:
             immobile_multipliers = bool(breeder_population) and all(
                 monster.can_multiply
@@ -2214,10 +2222,10 @@ class CombatMixin:
                 else "swarm-growth"
             )
             return None
+        predicted_damage = self._predicted_damage(snapshot, hostiles, turns=3)
         if (
             snapshot.player.hp_ratio < FLEE_HP_RATIO
-            or self._predicted_damage(snapshot, hostiles, turns=3)
-            >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
+            or predicted_damage >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
             or self._should_flee(snapshot, hostiles, adjacent)
         ):
             self._release_choke_plan("hp-authority")
@@ -2235,6 +2243,11 @@ class CombatMixin:
         # the choke strategy promises only a bounded hold.
         if plan.sight_loss_decisions > EXTENDED_STUCK_WINDOW:
             self._release_choke_plan("sight-loss-bound")
+            return None
+        if predicted_damage < (
+            snapshot.player.hp * CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO
+        ):
+            self._release_choke_plan("low-threat")
             return None
         if snapshot.player.position != plan.destination:
             plan.phase = "reposition"
