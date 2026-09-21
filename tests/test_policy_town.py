@@ -15350,6 +15350,53 @@ class TownLootSupplierCommitmentRecordedTest(unittest.TestCase):
             ("8", "seek-loot"),
         ])
 
+    def test_b1_recorded_recall_stockout_starts_local_mining(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace)
+        cursor = 0
+        decisions = {}
+        recorded_requirement = None
+        with TemporaryDirectory() as directory:
+            for decision_index in range(12):
+                count = 1 if decision_index == 0 else self.boundaries["drains"][
+                    decision_index - 1
+                ]
+                segment = self.lines[cursor : cursor + count]
+                cursor += count
+                _decoded, snapshots = _consume_response_sequence(
+                    segment, policy, lambda _key: True, self.monrace,
+                    knowledge_ledger_path=Path(directory) / "knowledge.jsonl",
+                )
+                if decision_index not in {7, 10, 11}:
+                    continue
+                if decision_index == 10:
+                    recorded_requirement = next(
+                        row for row in policy.procurement_requirements(snapshots[-1])
+                        if row["item"] == "Word of Recall scrolls"
+                    )
+                key = policy.choose_key(snapshots[-1])
+                decisions[decision_index + 1] = (str(key), policy.last_reason)
+                policy.confirm_key_posted(key)
+
+        self.assertEqual(
+            recorded_requirement,
+            {
+                "item": "Word of Recall scrolls",
+                "current": 9,
+                "target": 11,
+                "missing": 2,
+                "blocked_reason": "no-actionable-supplier",
+            },
+        )
+        self.assertEqual(
+            decisions[11], ("\x1b", "town:recall-stockout-mining")
+        )
+        self.assertEqual(
+            (policy._fundraising_mode, policy._planned_mining_runs),
+            ("prepare", 1),
+        )
+        self.assertFalse(decisions[12][1].startswith("shop:"), decisions[12])
+        self.assertIsNone(policy._cross_town_shopping)
+
 
 class TownNeedRecursionRecordedTest(unittest.TestCase):
     """Pins the incident row against the Home/launcher departure cycle."""

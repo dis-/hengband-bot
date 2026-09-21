@@ -4969,6 +4969,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot.turn,
                 )
                 self._observe_restock_supplier_page(snapshot)
+                if self._start_unobtainable_recall_stockout_mining(snapshot):
+                    self.last_reason = "town:recall-stockout-mining"
+                    return LEAVE_STORE_KEY
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
             if staged_operation is not None:
@@ -9042,6 +9045,34 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = self._restock_wait_reason(snapshot)
         self._town_restock_last_wait_turn = snapshot.turn
         return RESTOCK_WAIT_MACRO
+
+    def _start_unobtainable_recall_stockout_mining(
+        self, snapshot: Snapshot
+    ) -> bool:
+        """Enter the local one-run wait flow once both suppliers are disproved."""
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            return False
+        recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
+        if (
+            recall.count >= recall.required_departure
+            or recall.obtainable
+            or not self._food_ready(snapshot)
+        ):
+            return False
+        self._planned_mining_runs = 1
+        self._identify_staff_mining_plan = False
+        self._mining_runs_completed = 0
+        self._fundraising_mode = "prepare"
+        self._town_restock_waiting_for = ()
+        self._town_restock_wait_until = None
+        self._town_store_attempted.clear()
+        self._town_restock_rechecked.difference_update(
+            (STORE_TEMPLE, STORE_ALCHEMIST)
+        )
+        self._cross_town_shopping = None
+        self._retire_town_errand_plan_for_rebuild()
+        return True
+
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
         """Whether both local, ordered Identify-staff suppliers are exhausted."""
