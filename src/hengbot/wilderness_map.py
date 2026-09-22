@@ -1,9 +1,15 @@
-"""Static global-wilderness routing from Hengband's WildernessDefinition.txt."""
+"""Static global-wilderness routing from Hengband's WildernessDefinition data.
+
+The upstream sync (hengband b262fcf3bc) replaced lib/edit/WildernessDefinition.txt
+with WildernessDefinition.jsonc; the .jsonc is preferred and the .txt is read only
+as a fallback for game trees that predate the change.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from heapq import heappop, heappush
+import json
 from pathlib import Path
 
 
@@ -88,7 +94,18 @@ class WildernessMap:
 
 
 def load_wilderness_map(path: Path) -> WildernessMap:
-    """Load the first (normal-game) wilderness layout block."""
+    """Load the normal-game wilderness layout from a .jsonc or legacy .txt file."""
+    if path.suffix.lower() == ".jsonc":
+        rows = _jsonc_layout_rows(path)
+    else:
+        rows = _txt_layout_rows(path)
+    if not rows or any(len(row) != len(rows[0]) for row in rows):
+        raise ValueError(f"invalid wilderness layout: {path}")
+    return WildernessMap(tuple(rows))
+
+
+def _txt_layout_rows(path: Path) -> list[str]:
+    """The first W:D: block of the legacy .txt (the normal-game layout)."""
     rows: list[str] = []
     for raw in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
         if raw.startswith("W:D:"):
@@ -96,12 +113,33 @@ def load_wilderness_map(path: Path) -> WildernessMap:
             continue
         if rows:
             break
-    if not rows or any(len(row) != len(rows[0]) for row in rows):
+    return rows
+
+
+def _jsonc_layout_rows(path: Path) -> list[str]:
+    """``maps.normal.layout`` of WildernessDefinition.jsonc (same rows as the .txt)."""
+    from hengbot.monrace_knowledge import _strip_jsonc
+
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8-sig")))
+    try:
+        layout = data["maps"]["normal"]["layout"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"invalid wilderness layout: {path}") from exc
+    if not isinstance(layout, list) or not all(isinstance(row, str) for row in layout):
         raise ValueError(f"invalid wilderness layout: {path}")
-    return WildernessMap(tuple(rows))
+    width, height = data.get("width"), data.get("height")
+    if (width is not None and any(len(row) != width for row in layout)) or (
+        height is not None and len(layout) != height
+    ):
+        raise ValueError(f"invalid wilderness layout: {path}")
+    return list(layout)
+
+
+WILDERNESS_DEFINITION_NAMES = ("WildernessDefinition.jsonc", "WildernessDefinition.txt")
 
 
 def find_wilderness_definition(start: Path | None = None) -> Path | None:
+    """Nearest lib/edit wilderness definition, preferring the .jsonc."""
     bases = [base for base in (start, Path.cwd()) if base is not None]
     seen: set[Path] = set()
     for base in bases:
@@ -109,7 +147,8 @@ def find_wilderness_definition(start: Path | None = None) -> Path | None:
             if directory in seen:
                 continue
             seen.add(directory)
-            candidate = directory / "lib" / "edit" / "WildernessDefinition.txt"
-            if candidate.is_file():
-                return candidate
+            for name in WILDERNESS_DEFINITION_NAMES:
+                candidate = directory / "lib" / "edit" / name
+                if candidate.is_file():
+                    return candidate
     return None
