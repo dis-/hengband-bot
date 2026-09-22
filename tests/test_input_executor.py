@@ -1,5 +1,6 @@
 """Input causal-barrier pins using a source-derived one-request-per-hook fake."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 import copy
 from pathlib import Path

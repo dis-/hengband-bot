@@ -7,6 +7,7 @@ an item, key posting, policy invocation, blocker set, warm state, or causal
 effect to any historical decision.
 """
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import gzip
 import json
 import unittest

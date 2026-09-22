@@ -14,9 +14,11 @@ import test_timing_runner as runner
 class TimingRunnerSelfTest(unittest.TestCase):
     def test_main_exports_single_history_root_under_run_temp(self) -> None:
         observed: list[Path] = []
+        runtime: list[Path] = []
 
         def load(names):
             observed.append(Path(os.environ["HENGBOT_HOME_HISTORY_DIR"]))
+            runtime.append(Path(os.environ["HENGBOT_RUNTIME_DIR"]))
             return unittest.TestSuite()
 
         result = mock.Mock()
@@ -43,9 +45,11 @@ class TimingRunnerSelfTest(unittest.TestCase):
                     "--summary-output", str(summary), "--top", "0",
                 ])
                 self.assertNotIn("HENGBOT_HOME_HISTORY_DIR", os.environ)
+                self.assertNotIn("HENGBOT_RUNTIME_DIR", os.environ)
 
             self.assertEqual(status, 0)
             self.assertEqual(observed, [run_root])
+            self.assertEqual(runtime, [run_root / "runtime"])
 
 
 if __name__ == "__main__":

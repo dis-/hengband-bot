@@ -39,6 +39,7 @@ see the fixture provenance).  No wall touches the rest/tier/exit producers.
 
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import copy
 import gzip
 import hashlib

@@ -1,5 +1,6 @@
 """CLI regression pin for empty decisions that command nothing."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 import threading
 import time

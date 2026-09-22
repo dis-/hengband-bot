@@ -164,10 +164,17 @@ def main(argv: list[str] | None = None) -> int:
 
     modules = normalize_modules(args.modules)
     supplied_history_dir = os.environ.get("HENGBOT_HOME_HISTORY_DIR")
+    supplied_runtime_dir = os.environ.get("HENGBOT_RUNTIME_DIR")
     with tempfile.TemporaryDirectory(prefix="hengbot-serial-history-") as directory:
         history_dir = supplied_history_dir or directory
         os.environ["HENGBOT_HOME_HISTORY_DIR"] = history_dir
+        # Runtime files (loadout report, confirmed loadout, exploration
+        # ledger...) must never land in the live bot's jsonlog/.
+        runtime_dir = supplied_runtime_dir or str(Path(directory) / "runtime")
+        Path(runtime_dir).mkdir(parents=True, exist_ok=True)
+        os.environ["HENGBOT_RUNTIME_DIR"] = runtime_dir
         print(f"Home history: {history_dir}")
+        print(f"Runtime files: {runtime_dir}")
         try:
             suite = load_standard_suite(modules)
             started = time.perf_counter()
@@ -176,6 +183,8 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             if supplied_history_dir is None:
                 os.environ.pop("HENGBOT_HOME_HISTORY_DIR", None)
+            if supplied_runtime_dir is None:
+                os.environ.pop("HENGBOT_RUNTIME_DIR", None)
 
     payload = {
         "generated_at": datetime.now(timezone.utc).astimezone().isoformat(),

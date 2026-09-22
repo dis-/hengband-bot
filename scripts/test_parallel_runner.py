@@ -35,9 +35,9 @@ DEFAULT_OUTPUT = ROOT / "jsonlog" / "test-parallel-timings.json"
 DEFAULT_SUMMARY = ROOT / "jsonlog" / "test-parallel-timings-summary.json"
 DEFAULT_STREAMS = ROOT / "jsonlog" / "test-parallel-streams"
 
-# HENGBOT_HOME_HISTORY_DIR isolates every worker's durable files.  Keep these
-# historically risky modules mutually serial in one dedicated shard, but run
-# that shard concurrently with the LPT-balanced pool.
+# HENGBOT_HOME_HISTORY_DIR and HENGBOT_RUNTIME_DIR isolate every worker's
+# durable files.  Keep these historically risky modules mutually serial in one
+# dedicated shard, but run that shard concurrently with the LPT-balanced pool.
 SERIAL_MODULES: frozenset[str] = frozenset({
     "tests.test_absorbing_states",
     "tests.test_cli",
@@ -159,6 +159,9 @@ def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) ->
     history_dir = worker_temp / "home-history"
     history_dir.mkdir()
     env["HENGBOT_HOME_HISTORY_DIR"] = str(history_dir)
+    runtime_dir = worker_temp / "runtime"
+    runtime_dir.mkdir()
+    env["HENGBOT_RUNTIME_DIR"] = str(runtime_dir)
     command = [sys.executable, str(ROOT / "scripts" / "test_timing_runner.py"),
                "--modules", *modules, "--output", str(timing_path),
                "--summary-output", str(summary_path), "--top", "0", "--no-receipt"]
@@ -169,6 +172,7 @@ def run_shard(index: int, modules: list[str], temp_root: Path, streams: Path) ->
     stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
     return {"name": name, "modules": modules, "returncode": run.returncode,
             "home_history_dir": str(history_dir),
+            "runtime_dir": str(runtime_dir),
             "wall_seconds": time.perf_counter() - started, "payload": payload,
             "failures": outcome_ids(stderr_text, "FAIL"),
             "errors": outcome_ids(stderr_text, "ERROR"),

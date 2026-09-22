@@ -1,5 +1,6 @@
 """Characterization tests for exploration commitment stages 1 and 2."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import ast
 import json
 import unittest

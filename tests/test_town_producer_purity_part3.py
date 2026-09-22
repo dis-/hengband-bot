@@ -1,3 +1,5 @@
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+
 import unittest
 
 from town_producer_purity_matrix import assert_partition_is_pure

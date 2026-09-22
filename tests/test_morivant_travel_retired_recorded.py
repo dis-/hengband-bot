@@ -25,6 +25,7 @@ No wall touches the Morivant producer, the progress core or the arbiter.
 
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import copy
 import gzip
 import hashlib

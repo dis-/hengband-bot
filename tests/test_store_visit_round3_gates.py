@@ -1,5 +1,6 @@
 """Keep the standalone T2 evidence gates reachable from unittest discovery."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import unittest
 
 from store_visit_constructed_reproduction import measure as measure_reproduction

@@ -17,6 +17,7 @@ from hengbot.monrace_knowledge import (
     load_monrace_knowledge,
 )
 from hengbot.policy_types import OwnerProgressCore
+from hengbot.runtime_paths import isolate_restored_runtime_paths
 
 
 CAPTURE_DECISIONS_AFTER_ONSET = 2
@@ -81,6 +82,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored._latch_capture_remaining = 0
     restored._home_entry_capture = None
     restored._staged_shop_approach = None
+    # Checkpoints carry the live bot's file locations; an isolated (test)
+    # session must never write them.  No-op without the overrides.
+    isolate_restored_runtime_paths(restored)
     if "_monrace_knowledge" not in restored.__dict__:
         definitions = find_monrace_definitions(Path(__file__), None)
         if definitions is None:

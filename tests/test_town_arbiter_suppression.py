@@ -1,5 +1,6 @@
 """ARB-2 pins ported from the suppression-release work branch."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import gzip
 import json
 import unittest

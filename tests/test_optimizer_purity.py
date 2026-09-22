@@ -14,6 +14,7 @@ against the measurement's documented derived values (base_str 116 / base_dex
 it reproduced the exact measured flip on the unmodified pre-P1 code.
 """
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 import unittest
 from dataclasses import replace

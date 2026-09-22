@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import base64
 import gzip
 import json

@@ -1,5 +1,6 @@
 """Structural guards for the behavior-preserving policy mixin split."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import base64
 import importlib
 import json

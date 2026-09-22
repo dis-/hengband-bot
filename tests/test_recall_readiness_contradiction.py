@@ -1,5 +1,6 @@
 """Focused E1/E2 pins; all scenarios are constructed, never historical replay."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 from dataclasses import replace
 import unittest
 from unittest.mock import patch

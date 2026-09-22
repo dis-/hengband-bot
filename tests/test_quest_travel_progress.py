@@ -7,6 +7,7 @@ request/response and q22 travel observations at turns 2856171, 2856179,
 2856635, and 2856646.  Repeated turns retain distinct emitted record types.
 """
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import copy
 import gzip
 import json

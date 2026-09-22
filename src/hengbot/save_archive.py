@@ -11,10 +11,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from hengbot.runtime_paths import configured_runtime_dir
+
 
 LIVE_SAVE_PATH = Path(r"C:\hengband\BOT_PLAY")
 ARCHIVE_REPOSITORY_PATH = Path(r"C:\hengband-save-archive")
 SAVE_CONFIRMATION_SECONDS = 10.0
+
+
+def archive_repository_path() -> Path:
+    """The save archive; an isolated session keeps it beside its runtime dir."""
+    runtime = configured_runtime_dir()
+    return ARCHIVE_REPOSITORY_PATH if runtime is None else runtime / "save-archive"
 
 
 def _digest(path: Path) -> str:
@@ -102,7 +110,7 @@ class SaveArchiveCoordinator:
     ) -> None:
         self.live_save = live_save
         self.repository = repository or ArchiveRepository(
-            ARCHIVE_REPOSITORY_PATH, log=log
+            archive_repository_path(), log=log
         )
         self.confirmation_seconds = confirmation_seconds
         self.log = log

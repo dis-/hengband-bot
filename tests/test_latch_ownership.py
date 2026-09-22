@@ -1,3 +1,5 @@
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+
 import ast
 from pathlib import Path
 from types import SimpleNamespace

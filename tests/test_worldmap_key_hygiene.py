@@ -1,3 +1,5 @@
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+
 import json
 from dataclasses import replace
 from pathlib import Path

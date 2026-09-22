@@ -76,12 +76,29 @@ class HomeDisposalState:
             root = Path(configured_root) if configured_root else Path.cwd()
         else:
             root = Path(root)
-        return cls(
+        return cls(*cls._repo_paths(root))
+
+    @staticmethod
+    def _repo_paths(root: Path) -> tuple[Path, Path, Path, Path]:
+        return (
             root / "home-withdraw-history.jsonc",
             root / "home-disposal-decisions.jsonc",
             root / "jsonlog" / "home-disposal-queue.json",
             root / "jsonlog" / "sol-events.jsonl",
         )
+
+    def relocate(self, root: Path) -> None:
+        """Point future reads and writes at ``root``'s repository layout.
+
+        Used when a checkpoint captured from the live bot is restored in an
+        isolated test session; the in-memory history is kept as captured.
+        """
+        (
+            self.history_path,
+            self.decisions_path,
+            self.queue_path,
+            self.events_path,
+        ) = self._repo_paths(Path(root))
 
     @staticmethod
     def _loadable_history_record(record: object) -> bool:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 from pathlib import Path
 import subprocess

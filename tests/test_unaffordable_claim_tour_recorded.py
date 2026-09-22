@@ -33,6 +33,7 @@ each on a collaborator that is not under test:
 
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import copy
 import gzip
 import hashlib

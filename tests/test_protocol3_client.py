@@ -21,6 +21,7 @@ directory (tests.test_esp_threat_rest_recorded._policy).
 
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import copy
 import gzip
 import hashlib

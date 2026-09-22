@@ -1,5 +1,6 @@
 """D3 retirement-key pins using constructed incident-shaped events."""
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import unittest
 
 from dataclasses import replace

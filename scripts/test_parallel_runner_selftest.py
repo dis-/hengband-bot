@@ -16,10 +16,12 @@ import test_parallel_runner as runner
 class ParallelRunnerSelfTest(unittest.TestCase):
     def test_run_shard_exports_distinct_history_roots_under_run_temp(self) -> None:
         exported: list[Path] = []
+        runtime: list[Path] = []
 
         def fake_run(command, **kwargs):
             history_dir = Path(kwargs["env"]["HENGBOT_HOME_HISTORY_DIR"])
             exported.append(history_dir)
+            runtime.append(Path(kwargs["env"]["HENGBOT_RUNTIME_DIR"]))
             output = Path(command[command.index("--output") + 1])
             output.write_text(json.dumps({"tests": []}), encoding="utf-8")
             return mock.Mock(returncode=0)
@@ -36,6 +38,9 @@ class ParallelRunnerSelfTest(unittest.TestCase):
             self.assertTrue(all(path.parent.parent == temp_root for path in exported))
             self.assertTrue(all(path.name == "home-history" and path.is_dir() for path in exported))
             self.assertEqual([Path(row["home_history_dir"]) for row in rows], exported)
+            self.assertEqual(len(set(runtime)), 2)
+            self.assertTrue(all(path.parent.parent == temp_root for path in runtime))
+            self.assertTrue(all(path.name == "runtime" and path.is_dir() for path in runtime))
 
     def test_unknown_module_uses_median_without_discarding_known_lpt_weights(self) -> None:
         modules = ["tests.heavy", "tests.medium", "tests.light", "tests.new"]

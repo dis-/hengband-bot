@@ -59,6 +59,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
+from hengbot.runtime_paths import runtime_dir, runtime_path
 from hengbot.emit_ownership import emit_ownership_verdict, movement_destination
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
@@ -2771,7 +2772,7 @@ def _record_tcp_shadow(args, jsonl_state: Mapping[str, object], sequence: int) -
         path=(
             args.decision_log.with_name("tcp-shadow-diff.jsonl")
             if args.decision_log is not None
-            else Path("jsonlog/tcp-shadow-diff.jsonl")
+            else runtime_path("tcp-shadow-diff.jsonl")
         ),
         rotate_bytes=args.recorder_log_rotate_bytes,
         generations=args.recorder_log_generations,
@@ -3073,7 +3074,7 @@ def main(argv: list[str] | None = None) -> int:
         damaging_terrain_ids=damaging_terrain_ids,
         quest_knowledge=quest_knowledge,
         quest_strategies=quest_strategies,
-        exploration_ledger_path=EXPLORATION_LEDGER_PATH,
+        exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),
         baseitem_costs=baseitem_costs,
     )
     policy._prompt_gated_posting = shadow_client is not None
@@ -3250,7 +3251,7 @@ def _run_follow(
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
     recorder_root = (
-        args.decision_log.parent if args.decision_log is not None else Path("jsonlog")
+        args.decision_log.parent if args.decision_log is not None else runtime_dir()
     )
     recorder = FlightRecorder(
         recorder_root,

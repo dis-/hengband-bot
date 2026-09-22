@@ -13,6 +13,7 @@ excluded, so there are no case heuristics and no false positives on
 
 from __future__ import annotations
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import builtins
 import dis
 import importlib

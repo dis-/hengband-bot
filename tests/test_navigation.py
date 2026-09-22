@@ -8,6 +8,7 @@ doomed goal to each other for 1600+ decisions while the character ate its
 last ration and reached food_state "weak" with an empty pack.
 """
 
+import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 import unittest
 from collections import Counter
