@@ -625,7 +625,9 @@ class CalibrationMixin:
         # abort count stay spent.  Recovery must reopen DEPARTURE (the guard),
         # never the calibration budget — resetting it here re-armed an
         # indefinitely repeatable same-town strip/fail/redress cycle.
-        # Calibration retries on a later visit via the fresh-visit reset.
+        # Calibration retries on a later visit via the fresh-visit reset, or
+        # in this one via _release_cured_calibration_deferral when the recorded
+        # deferral CAUSE is observed gone (which spends no extra budget).
         if self._calibration_deferral_reason is not None:
             self._town_order_operation = "calibration-deferred"
             self._town_order_expected_observation = "redressed"
@@ -761,8 +763,41 @@ class CalibrationMixin:
         self.last_reason = "calibration:captured"
         return True
 
+    def _release_cured_calibration_deferral(self, snapshot: Snapshot) -> None:
+        """Re-open calibration once its cursed-equipment deferral is cured.
+
+        ``unremovable-cursed-equipment`` is the one deferral cause whose
+        premise the bot can still act on inside the same visit: the strip
+        cannot bare a cursed slot, and ``_equipment_departure_ready`` grants
+        the matching departure exemption only WHILE that curse is worn.  The
+        bot then reads a Remove Curse scroll (``town:remove-curse``), which
+        withdraws the exemption and leaves the deferral latched — calibration
+        refused as ``visit-blocked`` while departure stays gated on
+        ``calibration-required``.  No key leaves that state.
+
+        So the deferral lasts exactly as long as its own cause.  The visit's
+        abort counter is deliberately NOT reset: a board that keeps producing
+        cursed slots still converges on the spent-budget deferral, so this
+        can never re-arm an unbounded strip/fail/redress cycle.
+        """
+        if (
+            not snapshot.in_town
+            or not self._calibration_blocked_this_visit
+            or self._calibration_deferral_cause != "unremovable-cursed-equipment"
+            or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
+            or any(
+                item.is_equipment and item.is_cursed
+                for item in snapshot.equipment
+            )
+        ):
+            return
+        self._calibration_blocked_this_visit = False
+        self._calibration_deferral_cause = None
+        self._calibration_deferral_reason = None
+
     def _calibration_observe(self, snapshot: Snapshot) -> None:
         """Advance the calibration state machine from each new snapshot."""
+        self._release_cured_calibration_deferral(snapshot)
         self._restore_calibration_redress_obligation(snapshot)
         phase = self._calibration_phase
         if (

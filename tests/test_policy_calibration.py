@@ -2352,6 +2352,38 @@ class DeferredCalibrationDepartureRecordedPins(unittest.TestCase):
             self.assertTrue(policy._equipment_departure_ready(deferred))
             self.assertFalse(policy._equipment_departure_ready(resolved))
 
+    def test_cured_curse_releases_the_visit_blocked_calibration_refusal(self):
+        """The deferral lasts exactly as long as the curse that caused it.
+
+        Its departure exemption is withdrawn the moment the curse is gone
+        (the pin above), so the refusal must be withdrawn with it; otherwise
+        calibration stays ``visit-blocked`` while departure stays gated on
+        ``calibration-required`` and no key leaves that state.
+        """
+        policy, snapshots = self._produce_unremovable_curse_deferral()
+        deferred = snapshots[-2]
+        resolved = snapshots[-1]
+        self.assertTrue(policy._calibration_blocked_this_visit)
+        self.assertEqual(
+            policy.calibration_entry_state(deferred)["entry_blocker"],
+            "visit-blocked",
+        )
+        self.assertFalse(any(item.is_cursed for item in resolved.equipment))
+        spent = policy._calibration_aborts_this_visit
+
+        policy._calibration_observe(resolved)
+
+        self.assertFalse(policy._calibration_blocked_this_visit)
+        self.assertIsNone(policy._calibration_deferral_cause)
+        self.assertIsNone(policy._calibration_deferral_reason)
+        self.assertNotEqual(
+            policy.calibration_entry_state(resolved)["entry_blocker"],
+            "visit-blocked",
+        )
+        # The release refunds nothing: the visit's abort budget still bounds
+        # how often the deferral may be reopened.
+        self.assertEqual(policy._calibration_aborts_this_visit, spent)
+
     def test_legacy_checkpoint_defaults_cover_newly_reachable_reads(self):
         state = vars(HengbotPolicy()).copy()
         state.pop("_calibration_deferral_cause")
