@@ -22,19 +22,26 @@ handled separately).  Without it the recorded town visits diverge (a known
 harness effect of the capture, present on the pre-change code as well); the
 dungeon decisions reproduce the recording.  No pin below reads a divergent
 town decision; town pins are value-level or decide on an independent copy.
+The Temple check (user 2026-09-22 「町にいれば神殿を確かめに行く（推奨）」) is
+pinned on the recorded first-visit departure board (list index 20, drained,
+potion carried, Temple unobserved; recorded ('rja', town:recall-to-angband)).
 Walls, each declared:
 - W1 (recorded periodic save/dump requests, temporary Home/calibration
   files): as in the unaffordable-claim-tour replay.
-- W2: from list index 2788 the recorded rows are the pre-decision lifetime
-  (the potion stays carried, then is deposited).  The replayed policy's drain
-  view is walled to "unknown" (the protocol-2 behaviour, pinned unchanged by
-  X7) so the recording remains its own trajectory; every later pin decides on
-  an independent copy with the wall removed.
+- W2: the recorded rows are the pre-decision lifetime (the potion stays
+  carried, the drained town visits never look at the Temple, the potion is
+  deposited).  The replayed policy's drain view is walled to "unknown" (the
+  protocol-2 behaviour, pinned unchanged by X7) so the recording remains its
+  own trajectory.  The wall is lifted only for the recorded decision 2787
+  (X1), for the per-board value probes of X4, and on the independent copies
+  every other pin decides on.
 - W3 (X5): the capture-less replay never posted the recorded ``~9`` of list
   index 4256, so the recorded ``~9`` response row of 4257 is delivered to the
   copy's Home-knowledge consumer (consume_home_knowledge, which the CLI calls
   for an accepted response).
-Hand-built boards (declared at each use): the recorded Temple page / outside
+Hand-built boards (declared at each use): the recorded Temple page (with or
+without its Restore Life Levels) shown on the index-20 board; the recorded
+index-20 board with the drain filled; the recorded Temple page / outside
 boards with the recorded Experience potion inserted into the pack and the
 recorded 6,367-point drain applied; the recorded 4257 board with the player on
 the Home entrance tile; the following board with the withdrawn potion added.
@@ -71,9 +78,9 @@ import test_unaffordable_claim_tour_recorded as tour
 
 
 # List indices into the recorded decisions (decision_sequence + 4).
+FIRST_DEPARTURE = 20     # recorded ('rja', 'town:recall-to-angband'), drained
 DRAINED_LAST = 2785      # last board whose player row is drained
 EXPERIENCE_QUAFF = 2787  # first safe board after the drain was filled
-WALL_FROM = 2788
 DEPOSIT = 3001           # board of the recorded idle-dead-weight deposit
 HOME_PAGE = 3004         # Home page listing the deposited potion
 TEMPLE_PAGE = 3061       # Temple page: Restore Life Levels 'k' at 633 gold
@@ -162,7 +169,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
     def _replay(cls):
         if cls.replay is not None:
             return cls.replay
-        result = {"decisions": {}, "drained_town": [], "boards": {}}
+        result = {"decisions": {}, "drained_boards": [], "boards": {}}
         directory = cls.directory
         policy, monrace = tour._live_like_policy(directory)
         for index in range(HOME_SCAN + 1):
@@ -176,17 +183,28 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
                 result["experience_item"] = _potion(
                     snapshot, SV_POTION_EXPERIENCE
                 )
-            if index <= DRAINED_LAST and snapshot.in_town:
+            policy.__dict__.pop("_experience_drain_known", None)
+            if index <= DRAINED_LAST:
+                # Value probes of the unwalled owner on the recorded board.
                 potion = _potion(snapshot, SV_POTION_EXPERIENCE)
-                result["drained_town"].append((
+                result["drained_boards"].append((
                     index,
+                    snapshot.in_town,
                     snapshot.player.exp_drained,
-                    policy._retention_reservation_detail(snapshot, potion),
-                    policy._experience_restore_supplier(snapshot),
+                    policy._experience_potion_quaff_key(
+                        snapshot, policy._physical_hostiles(snapshot)
+                    ),
+                    policy._retention_reservation_detail(snapshot, potion)
+                    if potion is not None else None,
+                    policy._experience_restore_supplier(snapshot)
+                    if snapshot.in_town else None,
                 ))
-            if index == WALL_FROM:
+            if index != EXPERIENCE_QUAFF:
                 policy._experience_drain_known = _drain_unknown
-            if index in {DEPOSIT, HOME_PAGE, TEMPLE_PAGE, AFTER_TEMPLE, HOME_SCAN}:
+            if index in {
+                FIRST_DEPARTURE, DEPOSIT, HOME_PAGE, TEMPLE_PAGE,
+                AFTER_TEMPLE, HOME_SCAN,
+            }:
                 result["boards"][index] = (
                     _unwalled_copy(policy), snapshot, tour._independent_copy(policy)
                 )
@@ -222,34 +240,96 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         replay = self._replay()
         decisions = replay["decisions"]
         recorded = self.boundaries["recorded"]
-        drained = [
-            index for index in range(DRAINED_LAST + 1)
-            if decisions[index][2] and decisions[index][3]
-        ]
-        # Pin vacuity: the drained, potion-carrying span is the recorded 0..2785.
-        self.assertEqual(drained, list(range(DRAINED_LAST + 1)))
+        boards = replay["drained_boards"]
+        # Pin vacuity: every board 0..2785 is drained with the potion carried.
+        self.assertEqual([entry[0] for entry in boards], list(range(DRAINED_LAST + 1)))
+        self.assertEqual({entry[2] for entry in boards}, {True})
+        self.assertGreater(sum(entry[1] for entry in boards), 100)
+        # Unwalled owner on every recorded drained board: no drink, kept,
+        # and no observed shelf offers Restore Life Levels.
         self.assertEqual(
-            [
-                index for index in drained
-                if decisions[index][0][1].startswith("experience:")
-            ],
-            [],
+            {entry[3:] for entry in boards},
+            {(None, (1, "experience-potion"), None)},
         )
-        # Every dungeon decision of the drained span is the recorded one.
+        # Substrate check: the walled replay reproduces the recorded dungeon
+        # decisions of the drained span.
         self.assertEqual(
             [
-                index for index in drained
+                index for index in range(DRAINED_LAST + 1)
                 if not decisions[index][1]
                 and list(decisions[index][0]) != recorded[index]
             ],
             [],
         )
-        town = replay["drained_town"]
-        self.assertGreater(len(town), 100)
+
+    def test_t1_drained_in_town_routes_to_the_unobserved_temple(self):
+        policy, snapshot = self._board(FIRST_DEPARTURE)
         self.assertEqual(
-            {(entry[1], entry[2], entry[3]) for entry in town},
-            {(True, (1, "experience-potion"), None)},
+            self.boundaries["recorded"][FIRST_DEPARTURE],
+            ["rja", "town:recall-to-angband"],
         )
+        self.assertTrue(snapshot.in_town and snapshot.player.exp_drained)
+        self.assertIsNotNone(_potion(snapshot, SV_POTION_EXPERIENCE))
+        self.assertIsNone(_potion(snapshot, SV_POTION_RESTORE_EXP))
+        self.assertIsNone(policy._town_supplier_stock_observations.get(STORE_TEMPLE))
+        self.assertEqual(_decide(policy, snapshot), ("\x1b`n$.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_TEMPLE)
+        self.assertEqual(policy._town_claim_categories, ["experience-restore-check"])
+
+    def _temple_page_board(self, snapshot, *, with_restore):
+        """Hand-built: the recorded 3061 Temple page shown on this board."""
+        _policy, temple = self._board(TEMPLE_PAGE)
+        items = [
+            item for item in temple.store.items
+            if with_restore
+            or (item.tval, item.sval) != (TVAL_POTION, SV_POTION_RESTORE_EXP)
+        ]
+        return replace(snapshot, store=replace(temple.store, items=items))
+
+    def test_t2_temple_observed_without_restore_departure_proceeds(self):
+        policy, snapshot = self._board(FIRST_DEPARTURE)
+        page = self._temple_page_board(snapshot, with_restore=False)
+        self.assertEqual(_decide(policy, page), ("\x1b", "shop:observe-and-leave"))
+        # The next outside board: no further Temple trip, the recorded recall.
+        outside = replace(snapshot, turn=snapshot.turn + 1)
+        self.assertFalse(policy._experience_restore_check_wanted(outside))
+        self.assertIsNone(policy._experience_restore_supplier(outside))
+        self.assertEqual(_decide(policy, outside), ("rja", "town:recall-to-angband"))
+        self.assertEqual(policy._town_claim_categories, [])
+        # The potion is kept, not drunk, while the drain remains.
+        self.assertEqual(
+            policy._retention_reservation_detail(
+                outside, _potion(outside, SV_POTION_EXPERIENCE)
+            ),
+            (1, "experience-potion"),
+        )
+
+    def test_t3_temple_observed_with_restore_buys_it(self):
+        policy, snapshot = self._board(FIRST_DEPARTURE)
+        page = self._temple_page_board(snapshot, with_restore=True)
+        bought = policy._next_purchase(page)
+        self.assertEqual(
+            (getattr(bought, "letter", None), getattr(bought, "sval", None)),
+            ("k", SV_POTION_RESTORE_EXP),
+        )
+        self.assertEqual(
+            _decide(policy, page),
+            ("\x1b", "town-progress-invariant:continue-observed-shop"),
+        )
+        # Outside, the observed shelf now owns the (existing X3) purchase.
+        outside = replace(snapshot, turn=snapshot.turn + 1)
+        self.assertFalse(policy._experience_restore_check_wanted(outside))
+        self.assertEqual(policy._experience_restore_supplier(outside), STORE_TEMPLE)
+        self.assertEqual(_decide(policy, outside), ("\x1b`n$.", "shop:travel"))
+        self.assertEqual(policy._town_claim_categories, ["experience-restore"])
+
+    def test_t4_not_drained_no_temple_trip(self):
+        policy, snapshot = self._board(FIRST_DEPARTURE)
+        # Hand-built: the recorded board with the drain filled.
+        undrained = _with_pack(snapshot, drained=False)
+        self.assertFalse(policy._experience_restore_check_wanted(undrained))
+        self.assertEqual(_decide(policy, undrained), ("qg", "experience:quaff"))
+        self.assertEqual(policy._town_claim_categories, [])
 
     def test_x6_disposal_and_deposit_selectors_never_pick_the_potion(self):
         policy, snapshot = self._board(DEPOSIT)

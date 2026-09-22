@@ -513,14 +513,39 @@ class ShopMixin:
         )
 
     def _experience_restore_purchase_wanted(self, snapshot: Snapshot) -> bool:
-        """Drained, an Experience potion carried, and no restore carried."""
+        """Drained, an Experience potion carried or at Home, no restore carried."""
         return bool(
             self._experience_drain_known(snapshot)
             and snapshot.player.exp_drained
-            and self._carried_aware_potion(snapshot, SV_POTION_EXPERIENCE)
-            is not None
             and self._carried_aware_potion(snapshot, SV_POTION_RESTORE_EXP)
             is None
+            and (
+                self._carried_aware_potion(snapshot, SV_POTION_EXPERIENCE)
+                is not None
+                or self._home_experience_potion(snapshot) is not None
+            )
+        )
+
+    def _experience_restore_check_wanted(self, snapshot: Snapshot) -> bool:
+        """Look at the Temple's shelf once per town visit (user 2026-09-22).
+
+        The Temple is the regular seller of Restore Life Levels.  Once its page
+        is observed in this town visit, the observed-shelf supplier decides; a
+        shelf without one ends the attempt for the visit.
+        """
+        if (
+            not self._experience_restore_purchase_wanted(snapshot)
+            or STORE_TEMPLE in self._town_store_attempted
+        ):
+            return False
+        observation = self._town_supplier_stock_observations.get(STORE_TEMPLE)
+        if (
+            observation is not None
+            and observation[0] == self._effective_town_id(snapshot)
+        ):
+            return False
+        return self._town_need_supplier_reachable(
+            snapshot, TownNeed(STORE_TEMPLE, "experience-restore-check", "normal")
         )
 
     def _restore_life_levels_purchase(self, snapshot: Snapshot) -> StoreItem | None:
