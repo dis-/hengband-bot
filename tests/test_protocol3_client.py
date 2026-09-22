@@ -385,7 +385,7 @@ class SkillListCacheTest(unittest.TestCase):
 
 
 FIRST_LIVE_ROW = FIXTURES / "protocol3-first-row-20260922.jsonl"
-# jsonlog/bot-state-fixed.jsonl at 2026-09-22 14:59 (sha256 464fbc1b..., the
+# Copied from the live game's JSONL state log at 2026-09-22 14:59 (sha256 464fbc1b..., the
 # first protocol-3 row of the swapped exe), trailing CRLF stored as LF.
 FIRST_LIVE_ROW_SHA256 = "974f5233c487aa39fc33ec5cf95b54d8f3d54df8d16b450aabf117cbbd9aec16"
 
