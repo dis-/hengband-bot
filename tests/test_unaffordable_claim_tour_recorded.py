@@ -14,9 +14,14 @@ and retired (town:blocked:owner-retired) without trying to depart.
 Substrate: every recorded decision of the process lifetime, replayed through
 the public response path on one policy (tests/extract_unaffordable_claim_tour_
 fixture.py).  The replay also runs the live driver's per-decision telemetry
-capture (cli._capture_decision_facts), because the live process ran it and its
-equipment evaluation is part of the state the decisions depend on.  Walls,
-each on a collaborator that is not under test:
+capture, because the live process ran it and its equipment evaluation is part
+of the state the decisions depend on.  The recorded process ran the capture
+BEFORE it was made a pure observer (2026-09-23, pure-decision-telemetry), so
+the replay reproduces that driver with the unscoped evaluation the process
+actually performed (_recorded_process_capture below; the recording is
+otherwise not reproducible from list index 2643, where the capture's cached
+equipment result changed the live key).  Walls, each on a collaborator that
+is not under test:
 - the recorded periodic save/dump decisions receive the CLI timer request
   that produced them;
 - Home history/disposal files and the calibration file live in a temporary
@@ -45,7 +50,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.baseitem_knowledge import load_baseitem_costs
-from hengbot.cli import _capture_decision_facts, _consume_response_sequence
+from hengbot.cli import (
+    _capture_decision_facts_unchecked,
+    _consume_response_sequence,
+)
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
 from hengbot.model import STORE_ALCHEMIST, STORE_BLACK
@@ -116,6 +124,17 @@ def _drain_unknown(_snapshot) -> bool:
     return False
 
 
+def _recorded_process_capture(policy: HengbotPolicy, snapshot) -> None:
+    """The per-decision telemetry capture as the recorded process ran it.
+
+    WALL: the live driver evaluated the decision-row facts directly on its
+    policy, so its evaluators' memoization (the equipment optimization
+    preparation above all) entered the next decisions.  cli now scopes the
+    capture as a pure observer; this replay is of the earlier driver.
+    """
+    _capture_decision_facts_unchecked(policy.with_known_skill_exp(snapshot), policy)
+
+
 def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
     """Deep copy whose cached NeedSpec closures are rebuilt on the copy.
 
@@ -176,7 +195,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
                 decisions[index] = (str(key), policy.last_reason)
-                _capture_decision_facts(snapshot, policy)
+                _recorded_process_capture(policy, snapshot)
                 policy.confirm_key_posted(key)
 
             # Value-level view of the two optional claims on the recorded
@@ -247,7 +266,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 "claims": list(policy._town_claim_categories),
                 "departure_block": policy._departure_block,
             }
-            _capture_decision_facts(snapshot, policy)
+            _recorded_process_capture(policy, snapshot)
             policy.confirm_key_posted(key)
             # The character dump posts no game time: the following board is
             # the same state, on which the departure reads Word of Recall.

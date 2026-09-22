@@ -1379,8 +1379,88 @@ def _empty_decision_facts() -> dict:
     }
 
 
+_OBSERVER_COPIED_CONTAINERS = (dict, list, set, deque)
+# Policy attributes that are not containers themselves but memoize in place
+# inside their own objects.  The warrior evaluator cache holds the component
+# memos of one combat context (warrior_optimization.WarriorEvaluatorCache),
+# and an optimizer search run for telemetry both fills them and replaces the
+# evaluator when its context differs.
+_OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
+_OBSERVER_MEMO_OBJECT_DEPTH = 2
+
+
+def _observer_container_copy(value):
+    """Copy a container and every container nested in it (not other objects)."""
+    if isinstance(value, dict):
+        duplicate = copy.copy(value)
+        for key, item in value.items():
+            if isinstance(item, _OBSERVER_COPIED_CONTAINERS):
+                duplicate[key] = _observer_container_copy(item)
+        return duplicate
+    if isinstance(value, (list, deque)):
+        duplicate = copy.copy(value)
+        for index, item in enumerate(value):
+            if isinstance(item, _OBSERVER_COPIED_CONTAINERS):
+                duplicate[index] = _observer_container_copy(item)
+        return duplicate
+    return copy.copy(value)
+
+
+def _observer_memo_object_copy(value, depth: int = _OBSERVER_MEMO_OBJECT_DEPTH):
+    """Copy an object that memoizes into its own attributes, with its memos."""
+    if not hasattr(value, "__dict__") or depth <= 0:
+        return value
+    duplicate = copy.copy(value)
+    for name, attribute in vars(value).items():
+        if isinstance(attribute, _OBSERVER_COPIED_CONTAINERS):
+            setattr(duplicate, name, _observer_container_copy(attribute))
+        elif hasattr(attribute, "__dict__"):
+            setattr(duplicate, name, _observer_memo_object_copy(attribute, depth - 1))
+    return duplicate
+
+
+class _PolicyObserverScope:
+    """Run telemetry evaluators as observers: every policy binding survives.
+
+    The decision-row evaluators share their implementation with the decision
+    path, and that implementation memoizes into the policy (the equipment
+    optimization preparation, the town fact and need caches, the threat and
+    fixed-quest memos, the lazily loaded calibration).  Telemetry must not
+    feed any of that into a later decision, so inside this scope the
+    evaluators see the policy's current state with private copies of its
+    containers, and on exit every attribute binding is put back exactly: an
+    attribute rebound, created or deleted by an evaluator is restored, and an
+    in-place write lands in a discarded copy.
+    """
+
+    def __init__(self, policy):
+        self._policy = policy
+        self._bindings = None
+
+    def __enter__(self):
+        state = self._policy.__dict__
+        self._bindings = dict(state)
+        for name, value in self._bindings.items():
+            if isinstance(value, _OBSERVER_COPIED_CONTAINERS):
+                state[name] = _observer_container_copy(value)
+            elif name in _OBSERVER_COPIED_MEMO_OBJECTS and value is not None:
+                state[name] = _observer_memo_object_copy(value)
+        return self._policy
+
+    def __exit__(self, *_exc):
+        state = self._policy.__dict__
+        state.clear()
+        state.update(self._bindings)
+        self._bindings = None
+        return False
+
+
 def _capture_decision_facts(snapshot, policy) -> dict:
-    """Evaluate decision-row policy telemetry without endangering the driver."""
+    """Evaluate decision-row policy telemetry without endangering the driver.
+
+    The capture is a pure observer: whether it runs, and how often, never
+    changes a later decision, key or policy state (see _PolicyObserverScope).
+    """
     if policy is None:
         return _empty_decision_facts()
     # Protocol 3: read the board the policy decided on (the ~f skill list
@@ -1389,12 +1469,13 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     known_board = getattr(policy, "with_known_skill_exp", None)
     if known_board is not None:
         snapshot = known_board(snapshot)
-    try:
-        return _capture_decision_facts_unchecked(snapshot, policy)
-    except RecursionError as exc:
-        facts = _empty_decision_facts()
-        facts["capture_error"] = f"{type(exc).__name__}: {exc}"
-        return facts
+    with _PolicyObserverScope(policy):
+        try:
+            return _capture_decision_facts_unchecked(snapshot, policy)
+        except RecursionError as exc:
+            facts = _empty_decision_facts()
+            facts["capture_error"] = f"{type(exc).__name__}: {exc}"
+            return facts
 
 
 def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
