@@ -31,6 +31,7 @@ TRANSIENT_DEFAULTS = {
     "object_tvals": (),
     "lit": False,
     "in_view": False,
+    "map_lighting": None,
     "currently_observed": False,
 }
 
@@ -250,7 +251,7 @@ class TownLatencyCacheTest(unittest.TestCase):
         pos = Position(2, 3)
         observed = grid(
             pos, has_monster=True, monster_index=17, object_count=2,
-            object_tvals=(70,), lit=True, in_view=True, currently_observed=True,
+            object_tvals=(70,), lit=True, in_view=True, map_lighting=1, currently_observed=True,
         )
         policy = HengbotPolicy()
         first = policy._with_grid_memory(snapshot({pos: observed}))

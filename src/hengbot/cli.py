@@ -23,6 +23,7 @@ from hengbot.model import (
     _parse_items,
     parse_snapshot,
 )
+from hengbot.protocol import NON_BOARD_SNAPSHOT_TYPES, snapshot_protocol_version
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.terrain_knowledge import (
@@ -4371,7 +4372,7 @@ def _snapshot_entries_in_order(
             print(f"invalid snapshot: {data}", file=sys.stderr)
             continue
         try:
-            if data.get("type") in {"knowledge", "look", "character"}:
+            if data.get("type") in NON_BOARD_SNAPSHOT_TYPES:
                 continue
             snapshots.append(parse_snapshot(data, monrace_knowledge))
         except MissingMonraceKnowledgeError:
@@ -4419,7 +4420,7 @@ def _newest_snapshot_entry(
             print(f"invalid snapshot: {data}", file=sys.stderr)
             continue
         try:
-            if data.get("type") in {"knowledge", "look", "character"}:
+            if data.get("type") in NON_BOARD_SNAPSHOT_TYPES:
                 continue
             parse_started_at = time.perf_counter()
             snapshot = parse_snapshot(data, monrace_knowledge)
@@ -4550,7 +4551,7 @@ def _dispatch_response_lines(
             response_type = data.get("type")
         except (AttributeError, TypeError):
             continue
-        if response_type not in {"knowledge", "look", "character"}:
+        if response_type not in NON_BOARD_SNAPSHOT_TYPES:
             observe_visit = getattr(policy, "observe_town_visit_epoch", None)
             if observe_visit is not None:
                 observe_visit(
@@ -4580,7 +4581,9 @@ def _dispatch_response_lines(
         )
         if response_type == "knowledge" and isinstance(knowledge, dict):
             knowledge_items = knowledge.get("items", ())
-            parsed_knowledge_items = tuple(_parse_items(knowledge_items))
+            parsed_knowledge_items = tuple(
+                _parse_items(knowledge_items, protocol=snapshot_protocol_version(data))
+            )
             _append_capture_ledger(
                 knowledge_ledger_path or KNOWLEDGE_RESPONSE_LEDGER_PATH,
                 {

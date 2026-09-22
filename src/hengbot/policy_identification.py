@@ -689,7 +689,7 @@ class IdentificationMixin:
                     and it.aware
                     and it.sval == SV_ROD_IDENTIFY
                     and it.known
-                    and it.timeout == 0
+                    and not it.charging
                     and available(it),
                 )
                 if rod is not None:

@@ -5,6 +5,21 @@ from dataclasses import dataclass, field
 from typing import Any, Iterator, Mapping
 
 from hengbot.monrace_knowledge import MonraceKnowledge
+from hengbot.protocol import (
+    BOARD_SNAPSHOT_TYPES,
+    NON_BOARD_SNAPSHOT_TYPES,
+    PROTOCOL_LEGACY,
+    PROTOCOL_SCREEN_PARITY,
+    ProtocolSchemaError,
+    grid_lighting,
+    require,
+    require_int,
+    snapshot_protocol_version,
+    v3_item_charging,
+    v3_item_fuel,
+    v3_player_skills,
+    v3_weapon_proficiency,
+)
 
 
 class MissingMonraceKnowledgeError(ValueError):
@@ -46,7 +61,9 @@ _GRID_SIDECAR_NAMES = {
 }
 
 
-def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _decode_grid_map(
+    grid_map: Mapping[str, Any], protocol: int = PROTOCOL_LEGACY
+) -> list[dict[str, Any]]:
     palette = grid_map.get("palette", [])
     sidecars = {
         (int(cell["y"]), int(cell["x"])): cell
@@ -60,10 +77,19 @@ def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
         terrain_id, flag_bits, terrain_bits, known_value = palette[
             int(palette_index_value)
         ]
-        flags = {
-            name: bool(int(flag_bits) & (1 << index))
-            for index, name in enumerate(_GRID_FLAG_NAMES)
-        }
+        if protocol >= PROTOCOL_SCREEN_PARITY:
+            # Protocol 3: slot 1 is the lighting variant (0 normal, 1 lit,
+            # 2 dark), never CAVE bits; decoding it as bits would read a lit
+            # tile as ``mark`` and a dark one as ``cave_known``.  Protocol 2
+            # always sent 0 here, so every CAVE flag stays false as before.
+            lighting: int | None = grid_lighting(flag_bits)
+            flags = {name: False for name in _GRID_FLAG_NAMES}
+        else:
+            lighting = None
+            flags = {
+                name: bool(int(flag_bits) & (1 << index))
+                for index, name in enumerate(_GRID_FLAG_NAMES)
+            }
         terrain = {
             name: bool(int(terrain_bits) & (1 << index))
             for index, name in enumerate(_GRID_TERRAIN_NAMES)
@@ -86,6 +112,7 @@ def _decode_grid_map(grid_map: Mapping[str, Any]) -> list[dict[str, Any]]:
                 "object_count": 0,
                 "object_tvals": [],
                 "visibility_flags_present": "found_items" in grid_map,
+                "lighting": lighting,
             }
             for encoded, decoded in _GRID_SIDECAR_NAMES.items():
                 cell = sidecars.get((y, x), {})
@@ -349,17 +376,48 @@ class PlayerState:
     # source are retained so an all-false map remains distinguishable from the
     # legacy flat boolean format.
     ability_sources: Mapping[str, frozenset[str]] = field(default_factory=AbilitySources)
-    stat_cur: tuple[int, ...] = ()  # six natural values, before equipment pval
+    # Six natural values, before equipment pval.  None under protocol 3,
+    # which no longer exports the raw value (not printed, not derivable).
+    stat_cur: tuple[int, ...] | None = ()
     stat_max: tuple[int, ...] = ()
     stat_use: tuple[int, ...] = ()  # six currently modified values
     stat_index: tuple[int, ...] = ()  # indices used by Hengband's adjustment tables
+    # Protocol 3: the character sheet's undrained total ("top"); () before.
+    stat_top: tuple[int, ...] = ()
     melee_skill: int = 0
     shooting_skill: int = 0
     saving_skill: int = 0
     device_skill: int = 0
     stealth_skill: int = 0
-    two_weapon_skill: int = 0
-    shield_skill: int = 0
+    # skill_exp of two-weapon combat and shield: None under protocol 3, whose
+    # board does not print them (only the ~f skill list does).
+    two_weapon_skill: int | None = 0
+    shield_skill: int | None = 0
+    # Protocol-3 screen values (None when the emitter predates them).
+    max_exp: int | None = None
+    exp_drained: bool | None = None
+    max_level: int | None = None
+    level_drained: bool | None = None
+    status_bar: tuple[str, ...] | None = None
+    cut_rank: int | None = None
+    stun_rank: int | None = None
+    # (value, text, color, riding) of the speed field.
+    speed_display: tuple[int, str, str, bool] | None = None
+
+    @property
+    def printed_stat_cur_key(self) -> tuple[int, ...]:
+        """Protocol-3 stand-in for ``stat_cur``: the printed max per stat,
+        negated when the stat is drained.
+
+        The raw value is not printed; for an undrained stat it equals the max,
+        and a drained one is marked.  A further drain of an already drained
+        stat is not visible and does not change this key.
+        """
+        drained = frozenset(self.drained_stats)
+        return tuple(
+            -int(value) if name in drained else int(value)
+            for name, value in zip(STAT_NAMES, self.stat_max)
+        )
 
     @property
     def hp_ratio(self) -> float:
@@ -395,7 +453,8 @@ class InventoryItem:
     charges: int = 0  # wand/staff charges (item pval)
     pval: int = 0
     fuel: int = 0  # remaining turns for torches, lanterns, and oil flasks
-    timeout: int = 0
+    # Raw recharge timeout: protocol 2 only (None under protocol 3).
+    timeout: int | None = 0
     is_equipment: bool = False
     is_ego: bool = False
     is_artifact: bool = False
@@ -413,6 +472,13 @@ class InventoryItem:
     pseudo_feeling: str = ""
     weight: int = 0  # internal decipounds, displayed to the player as pounds
     weapon_proficiency: int = 0
+    # "(charging)" shown on the item (protocol 2: timeout > 0).
+    charging: bool = False
+    # Protocol 3 only: rods' "(N charging)" count, the printed lamp life and
+    # the proficiency rank of the ~d list.
+    charging_count: int | None = None
+    light_turns: int | None = None
+    weapon_proficiency_rank: int | None = None
 
     @property
     def is_potion(self) -> bool:
@@ -575,7 +641,11 @@ class StoreItem:
     weight: int = 0
     weapon_proficiency: int = 0
     fuel: int = 0
-    timeout: int = 0
+    timeout: int | None = 0
+    charging: bool = False
+    charging_count: int | None = None
+    light_turns: int | None = None
+    weapon_proficiency_rank: int | None = None
     # JSON omission is semantically different from an exported zero/false.
     # Hand-built StoreItems must opt in to whatever structured evidence their
     # test or caller intends to model.
@@ -677,6 +747,8 @@ class GridState:
     mnlt: bool = False
     mndk: bool = False
     visibility_flags_present: bool = False
+    # Protocol 3 map lighting variant (0 normal, 1 lit, 2 dark); None before.
+    map_lighting: int | None = None
     allows_los: bool = True
     # Player memory, distinct from the emitter's authoritative terrain truth.
     # Hengband rejects tunnelling an unmarked wall before consuming energy.
@@ -733,6 +805,12 @@ class MonsterState:
     max_ranged_damage: int = 0
     can_multiply: bool = False
     perception: str = "direct"
+    # Protocol 3: the level printed for a race the player has killed (None
+    # when not printed) and the health-bar speed/invulnerability markers.
+    displayed_level: int | None = None
+    fast: bool | None = None
+    slow: bool | None = None
+    invulnerable: bool | None = None
 
     @property
     def hostile(self) -> bool:
@@ -811,6 +889,12 @@ class Snapshot:
     completed_operation_sequence: int | None = None
     completed_operation_owner: str | None = None
     completed_operation_receipt: dict[str, object] | None = None
+    protocol_version: int = PROTOCOL_LEGACY
+    # Protocol-3 screen values (None when the emitter predates them).
+    dungeon_name: str | None = None
+    clock: tuple[int | None, int, int] | None = None  # (day, hour, minute)
+    # (known, index, length, color, conditions) of the tracked-monster bar.
+    health_bar: tuple[bool, int | None, int | None, str | None, tuple[str, ...]] | None = None
 
     def in_bounds(self, position: Position) -> bool:
         # With unknown dimensions, treat everything as in-bounds (no filtering).
@@ -868,6 +952,12 @@ def _estimated_monster_hp(max_hp: int, health: str) -> int:
 def parse_snapshot(
     data: dict[str, Any], monrace_knowledge: dict[int, MonraceKnowledge] | None = None
 ) -> Snapshot:
+    protocol = snapshot_protocol_version(data)
+    v3 = protocol >= PROTOCOL_SCREEN_PARITY
+    if v3 and require(data, "type", "snapshot") not in BOARD_SNAPSHOT_TYPES:
+        raise ProtocolSchemaError(
+            f"protocol 3 {data.get('type')!r} snapshot is not a board"
+        )
     player_data = data["player"]
     status = player_data.get("status", {})
     melee = player_data.get("melee", {})
@@ -901,11 +991,48 @@ def parse_snapshot(
         )
     )
     stat_names = tuple(STAT_NAMES)
-    stat_cur = tuple(int(stats.get(name, {}).get("cur", 0)) for name in stat_names)
-    stat_max = tuple(int(stats.get(name, {}).get("max", 0)) for name in stat_names)
-    stat_use = tuple(int(stats.get(name, {}).get("use", 0)) for name in stat_names)
-    stat_index = tuple(int(stats.get(name, {}).get("index", 0)) for name in stat_names)
-    skills = player_data.get("skills", {})
+    equipment_data = data.get("equipment", [])
+    if v3:
+        # stats.<stat>.cur is gone (never printed, not derivable from the
+        # printed values); read the printed max/top/use/index/drained.
+        v3_stats = {
+            name: require(stats, name, "player.stats") for name in stat_names
+        }
+        stat_cur: tuple[int, ...] | None = None
+        stat_max = tuple(
+            require_int(v3_stats[name], "max", f"player.stats.{name}") for name in stat_names
+        )
+        stat_top = tuple(
+            require_int(v3_stats[name], "top", f"player.stats.{name}") for name in stat_names
+        )
+        stat_use = tuple(
+            require_int(v3_stats[name], "use", f"player.stats.{name}") for name in stat_names
+        )
+        stat_index = tuple(
+            require_int(v3_stats[name], "index", f"player.stats.{name}")
+            for name in stat_names
+        )
+        for name in stat_names:
+            require(v3_stats[name], "drained", f"player.stats.{name}")
+        skill_values = v3_player_skills(player_data, equipment_data)
+    else:
+        stat_cur = tuple(int(stats.get(name, {}).get("cur", 0)) for name in stat_names)
+        stat_max = tuple(int(stats.get(name, {}).get("max", 0)) for name in stat_names)
+        stat_top = ()
+        stat_use = tuple(int(stats.get(name, {}).get("use", 0)) for name in stat_names)
+        stat_index = tuple(int(stats.get(name, {}).get("index", 0)) for name in stat_names)
+        skills = player_data.get("skills", {})
+        skill_values = {
+            "melee_skill": int(skills.get("melee", 0)),
+            "shooting_skill": int(skills.get("shooting", skills.get("melee", 0))),
+            "saving_skill": int(skills.get("saving", 0)),
+            "device_skill": int(skills.get("device", 0)),
+            "stealth_skill": int(skills.get("stealth", 0)),
+            "two_weapon_skill": int(skills.get("two_weapon", 0)),
+            "shield_skill": int(skills.get("shield", 0)),
+        }
+    raw_speed_display = player_data.get("speed_display")
+    status_bar_data = player_data.get("status_bar")
     player = PlayerState(
         position=Position(int(player_data["y"]), int(player_data["x"])),
         hp=int(player_data["hp"]),
@@ -944,13 +1071,33 @@ def parse_snapshot(
         stat_max=stat_max,
         stat_use=stat_use,
         stat_index=stat_index,
-        melee_skill=int(skills.get("melee", 0)),
-        shooting_skill=int(skills.get("shooting", skills.get("melee", 0))),
-        saving_skill=int(skills.get("saving", 0)),
-        device_skill=int(skills.get("device", 0)),
-        stealth_skill=int(skills.get("stealth", 0)),
-        two_weapon_skill=int(skills.get("two_weapon", 0)),
-        shield_skill=int(skills.get("shield", 0)),
+        stat_top=stat_top,
+        **skill_values,
+        max_exp=_optional_int(player_data.get("max_exp")),
+        exp_drained=_optional_bool(player_data.get("exp_drained")),
+        max_level=_optional_int(player_data.get("max_level")),
+        level_drained=_optional_bool(player_data.get("level_drained")),
+        status_bar=(
+            tuple(
+                str(entry.get("key"))
+                for entry in status_bar_data
+                if isinstance(entry, Mapping)
+            )
+            if isinstance(status_bar_data, list)
+            else None
+        ),
+        cut_rank=_optional_int(status.get("cut_rank")),
+        stun_rank=_optional_int(status.get("stun_rank")),
+        speed_display=(
+            (
+                int(raw_speed_display.get("value", 0)),
+                str(raw_speed_display.get("text", "")),
+                str(raw_speed_display.get("color", "")),
+                bool(raw_speed_display.get("riding", False)),
+            )
+            if isinstance(raw_speed_display, Mapping)
+            else None
+        ),
     )
 
     floor_data = data.get("floor", {})
@@ -962,7 +1109,7 @@ def parse_snapshot(
         "schema_error", False
     )
     grid_records = (
-        _decode_grid_map(grid_map)
+        _decode_grid_map(grid_map, protocol)
         if grid_map_valid
         else data.get("nearby_grids", [])
     )
@@ -1021,6 +1168,7 @@ def parse_snapshot(
             visibility_flags_present=bool(
                 grid_data.get("visibility_flags_present", False)
             ),
+            map_lighting=grid_data.get("lighting"),
             marked=_as_bool(flags.get("mark", False)),
             allows_los=allows_los,
         )
@@ -1086,6 +1234,7 @@ def parse_snapshot(
                 max_melee_damage=knowledge.max_melee_damage,
                 max_ranged_damage=knowledge.max_ranged_damage,
                 can_multiply=knowledge.can_multiply,
+                **_monster_screen_fields(monster_data),
             )
         )
 
@@ -1146,6 +1295,7 @@ def parse_snapshot(
                 max_ranged_damage=knowledge.max_ranged_damage,
                 can_multiply=knowledge.can_multiply,
                 perception="detected",
+                **_monster_screen_fields(monster_data),
             )
         )
 
@@ -1293,8 +1443,8 @@ def parse_snapshot(
         ),
         town_id=int(floor_data.get("town_id", -1)),
         town_index=int(floor_data.get("town_index", 0)),
-        inventory=_parse_items(data.get("inventory", [])),
-        equipment=_parse_items(data.get("equipment", [])),
+        inventory=_parse_items(data.get("inventory", []), protocol=protocol),
+        equipment=_parse_items(equipment_data, protocol=protocol),
         equipment_observed="equipment" in data,
         can_see_own_grid=data.get("player", {}).get("can_see_own_grid"),
         grids_observed=(
@@ -1312,7 +1462,7 @@ def parse_snapshot(
         feeling=feeling,
         light_radius=light_radius,
         found_items=found_items,
-        store=_parse_store(data.get("store")),
+        store=_parse_store(data.get("store"), protocol=protocol),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(
             int(dungeon_id) for dungeon_id in progress.get("entered_dungeon_ids", [])
@@ -1335,10 +1485,91 @@ def parse_snapshot(
             progress.get("angband_recall_unlocked", False)
         ),
         quests=quests,
+        protocol_version=protocol,
+        dungeon_name=(
+            str(floor_data["dungeon_name"])
+            if isinstance(floor_data.get("dungeon_name"), str)
+            else None
+        ),
+        clock=_parse_clock(data.get("clock")),
+        health_bar=_parse_health_bar(data.get("health_bar")),
     )
 
 
-def _parse_store(store_data: Any) -> "StoreState | None":
+def _optional_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _monster_screen_fields(monster_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Protocol-3 per-monster screen values (absent keys stay None)."""
+    return {
+        "displayed_level": _optional_int(monster_data.get("level")),
+        "fast": _optional_bool(monster_data.get("fast")),
+        "slow": _optional_bool(monster_data.get("slow")),
+        "invulnerable": _optional_bool(monster_data.get("invulnerable")),
+    }
+
+
+def _parse_clock(clock: Any) -> tuple[int | None, int, int] | None:
+    if not isinstance(clock, Mapping):
+        return None
+    hour, minute = _optional_int(clock.get("hour")), _optional_int(clock.get("minute"))
+    if hour is None or minute is None:
+        return None
+    return (_optional_int(clock.get("day")), hour, minute)
+
+
+def _parse_health_bar(bar: Any):
+    if not isinstance(bar, Mapping):
+        return None
+    conditions = bar.get("conditions", [])
+    return (
+        bool(bar.get("known", False)),
+        _optional_int(bar.get("index")),
+        _optional_int(bar.get("length")),
+        str(bar["color"]) if isinstance(bar.get("color"), str) else None,
+        tuple(str(value) for value in conditions) if isinstance(conditions, list) else (),
+    )
+
+
+def _item_protocol_fields(
+    item_data: Mapping[str, Any], *, protocol: int, tval: int, sval: int, known: bool
+) -> dict[str, Any]:
+    """Fuel, charging and proficiency fields, dispatched on the protocol.
+
+    Protocol 2 exported the raw ``fuel`` / ``timeout`` / ``weapon_proficiency``;
+    protocol 3 removed the first two and gates the number of the third.  The
+    protocol-3 path never reads a removed key.
+    """
+    if protocol >= PROTOCOL_SCREEN_PARITY:
+        charging, charging_count = v3_item_charging(item_data, tval=tval, known=known)
+        proficiency, rank = v3_weapon_proficiency(item_data)
+        light_turns = item_data.get("light_turns") if known else None
+        return {
+            "fuel": v3_item_fuel(item_data, tval=tval, sval=sval, known=known),
+            "timeout": None,
+            "charging": charging,
+            "charging_count": charging_count,
+            "light_turns": int(light_turns) if light_turns is not None else None,
+            "weapon_proficiency": proficiency,
+            "weapon_proficiency_rank": rank,
+        }
+    timeout = int(item_data.get("timeout", 0))
+    return {
+        "fuel": int(item_data.get("fuel", 0)),
+        "timeout": timeout,
+        "charging": timeout > 0,
+        "weapon_proficiency": int(item_data.get("weapon_proficiency", 0)),
+    }
+
+
+def _parse_store(store_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> "StoreState | None":
     if not store_data:
         return None
     items = []
@@ -1374,10 +1605,14 @@ def _parse_store(store_data: Any) -> "StoreState | None":
             pval=charges if tval in {TVAL_WAND, TVAL_STAFF} else int(it.get("pval", 0)),
             pseudo_feeling=str(it.get("pseudo_feeling", "")),
             weight=int(it.get("weight", 0)),
-            weapon_proficiency=int(it.get("weapon_proficiency", 0)),
-            fuel=int(it.get("fuel", 0)),
-            timeout=int(it.get("timeout", 0)),
-            exported_fields=frozenset(str(key) for key in it),
+            **_item_protocol_fields(
+                it,
+                protocol=protocol,
+                tval=tval,
+                sval=int(it.get("sval", -1)),
+                known=_as_bool(it.get("known", False)),
+            ),
+            exported_fields=_exported_fields(it, protocol),
         ))
     return StoreState(
         store_type=int(store_data.get("store_type", -1)),
@@ -1409,24 +1644,33 @@ def _store_item_charges(item_data: Any, *, name: str, tval: int) -> int:
     return int(match.group(1)) if match else 0
 
 
-def _parse_items(items_data: Any) -> list[InventoryItem]:
+def _exported_fields(item_data: Mapping[str, Any], protocol: int) -> frozenset[str]:
+    """Keys the store row exported, naming protocol-3 fuel evidence ``fuel``."""
+    fields = {str(key) for key in item_data}
+    if protocol >= PROTOCOL_SCREEN_PARITY and "light_turns" in fields:
+        fields.add("fuel")
+    return frozenset(fields)
+
+
+def _parse_items(items_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> list[InventoryItem]:
     items: list[InventoryItem] = []
     for item_data in items_data or []:
         dice = item_data.get("damage_dice", {})
+        tval = int(item_data.get("tval", 0))
+        sval = int(item_data.get("sval", -1))
+        known = _as_bool(item_data.get("known", False))
         items.append(
             InventoryItem(
                 slot=str(item_data.get("slot", "")),
                 name=str(item_data.get("name", "")),
                 count=int(item_data.get("count", 1)),
-                tval=int(item_data.get("tval", 0)),
-                sval=int(item_data.get("sval", -1)),
+                tval=tval,
+                sval=sval,
                 aware=_as_bool(item_data.get("aware", False)),
-                known=_as_bool(item_data.get("known", False)),
+                known=known,
                 fully_known=_as_bool(item_data.get("fully_known", False)),
                 charges=int(item_data.get("charges", 0)),
                 pval=int(item_data.get("pval", 0)),
-                fuel=int(item_data.get("fuel", 0)),
-                timeout=int(item_data.get("timeout", 0)),
                 is_equipment=_as_bool(item_data.get("is_equipment", False)),
                 is_ego=_as_bool(item_data.get("is_ego", False)),
                 is_artifact=_as_bool(item_data.get("is_artifact", False)),
@@ -1445,7 +1689,9 @@ def _parse_items(items_data: Any) -> list[InventoryItem]:
                 ),
                 pseudo_feeling=str(item_data.get("pseudo_feeling", "")),
                 weight=int(item_data.get("weight", 0)),
-                weapon_proficiency=int(item_data.get("weapon_proficiency", 0)),
+                **_item_protocol_fields(
+                    item_data, protocol=protocol, tval=tval, sval=sval, known=known
+                ),
             )
         )
     return items

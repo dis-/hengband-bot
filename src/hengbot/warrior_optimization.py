@@ -32,6 +32,7 @@ from hengbot.equipment_transaction_planner import (
 from hengbot.model import InventoryItem, PLAYER_CLASS_WARRIOR, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
+from hengbot.protocol import require_skill_exp
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -170,7 +171,14 @@ class CharacterCalibration:
             return "character-identity"
         if player.level != self.level:
             return "level"
-        if tuple(player.stat_cur) != self.stat_cur:
+        if player.stat_cur is not None:
+            if tuple(player.stat_cur) != self.stat_cur:
+                return "stat_cur"
+        elif player.printed_stat_cur_key != self.stat_cur:
+            # Protocol 3 prints no raw stat_cur; compare the printed key
+            # (max, negated when drained).  A protocol-2 calibration's
+            # stat_cur matches it exactly when the natural stats are the
+            # recorded ones and undrained.
             return "stat_cur"
         if tuple(pinned_identities) != self.pinned_identities:
             return "pinned-set"
@@ -305,7 +313,11 @@ def warrior_optimizer_input_key(
             "class_id": player.class_id,
             "personality_id": player.personality_id,
             "level": player.level,
-            "stat_cur": player.stat_cur,
+            "stat_cur": (
+                player.stat_cur
+                if player.stat_cur is not None
+                else player.printed_stat_cur_key
+            ),
             "speed": player.speed,
             "melee_skill": player.melee_skill,
             "shooting_skill": getattr(player, "shooting_skill", player.melee_skill),
@@ -370,7 +382,8 @@ def calibrate_character_constants(
     ]
     if removable:
         return None
-    if len(player.stat_cur) < 6 or len(player.stat_use) < 6:
+    natural = player.stat_cur if player.stat_cur is not None else player.stat_max
+    if len(natural) < 6 or len(player.stat_use) < 6:
         return None
     if player.stat_use[0] <= 0 or player.stat_use[3] <= 0 or player.stat_use[4] <= 0:
         return None
@@ -379,7 +392,7 @@ def calibrate_character_constants(
     naked_defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_stats[3],
-        shield_skill=player.shield_skill,
+        shield_skill=require_skill_exp(player, "shield_skill"),
         base_speed=player.speed,
         saving_skill=player.saving_skill,
     )
@@ -400,7 +413,13 @@ def calibrate_character_constants(
         class_id=player.class_id,
         personality_id=player.personality_id,
         level=player.level,
-        stat_cur=tuple(player.stat_cur),
+        # Protocol 3 prints no raw stat_cur: record the printed key instead
+        # (the max, negated when drained), which stale_reason compares.
+        stat_cur=(
+            tuple(player.stat_cur)
+            if player.stat_cur is not None
+            else player.printed_stat_cur_key
+        ),
         base_stats=base_stats,
         base_hp=base_hp,
         base_ac_bonus=base_ac_bonus,
@@ -532,7 +551,7 @@ def weapon_expected_dps(
         natural_str=calibration.base_stats[0],
         natural_dex=calibration.base_stats[3],
         melee_skill=snapshot.player.melee_skill,
-        two_weapon_skill=snapshot.player.two_weapon_skill,
+        two_weapon_skill=require_skill_exp(snapshot.player, "two_weapon_skill"),
     )
     replacement = OwnedEquipment("sale-candidate", weapon, "pack")
     slots = tuple(
@@ -608,7 +627,9 @@ def prepare_warrior_optimization(
     player = snapshot.player
     if player.class_id != PLAYER_CLASS_WARRIOR:
         blockers.append("unsupported-class")
-    if len(player.stat_cur) < 4 or player.stat_cur[0] <= 0 or player.stat_cur[3] <= 0:
+    # Protocol 3 prints no raw stat_cur; the printed natural max stands in.
+    natural = player.stat_cur if player.stat_cur is not None else player.stat_max
+    if len(natural) < 4 or natural[0] <= 0 or natural[3] <= 0:
         blockers.append("missing-natural-stats")
     if not knowledge:
         blockers.append("missing-monrace-knowledge")
@@ -684,7 +705,7 @@ def prepare_warrior_optimization(
     defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_dex,
-        shield_skill=player.shield_skill,
+        shield_skill=require_skill_exp(player, "shield_skill"),
         base_ac_bonus=base_ac_bonus,
         base_speed=player.speed - _equipment_speed(current),
         saving_skill=player.saving_skill,
@@ -697,7 +718,7 @@ def prepare_warrior_optimization(
             natural_dex=base_dex,
             melee_skill=player.melee_skill,
             shooting_skill=getattr(player, "shooting_skill", player.melee_skill),
-            two_weapon_skill=player.two_weapon_skill,
+            two_weapon_skill=require_skill_exp(player, "two_weapon_skill"),
         ),
         defense=defense,
         current_hp=max(1, player.max_hp),

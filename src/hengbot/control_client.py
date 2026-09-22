@@ -430,7 +430,11 @@ def append_shadow_diff(
     left_messages = left.get("messages")
     right_messages = right.get("messages")
     if isinstance(left_messages, list) and isinstance(right_messages, list):
-        right["messages"] = right_messages[-len(left_messages):] if left_messages else []
+        # Protocol 3 no longer truncates the JSONL delta at 32 lines, so it
+        # can outgrow the TCP history; compare the common tail.
+        common = min(len(left_messages), len(right_messages))
+        left["messages"] = left_messages[-common:] if common else []
+        right["messages"] = right_messages[-common:] if common else []
     # Store JSONL snapshots identify their emission site as ``store``; TCP state
     # uses the command-loop snapshot type ``player_turn`` for the same state.
     if left.get("type") == "store" and right.get("type") == "player_turn":

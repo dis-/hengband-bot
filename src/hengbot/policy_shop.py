@@ -2018,7 +2018,7 @@ class ShopMixin:
         if isinstance(item, StoreItem):
             exported = getattr(item, "exported_fields", frozenset())
             fields = (
-                "aware", "known", "fully_known", "pval", "fuel", "timeout",
+                "aware", "known", "fully_known", "pval", "fuel", "timeout", "charging",
                 "is_ego", "is_artifact", "is_cursed", "is_broken",
                 "to_h", "to_d", "to_a", "ac", "known_flags",
             )

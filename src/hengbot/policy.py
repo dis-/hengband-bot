@@ -2268,6 +2268,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 object_tvals=(),
                 lit=False,
                 in_view=False,
+                # Protocol 3 lighting variant: how the map draws the cell now.
+                map_lighting=None,
                 currently_observed=False,
             )
         merged = dict(remembered)

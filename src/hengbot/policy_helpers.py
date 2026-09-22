@@ -143,7 +143,9 @@ class PolicyHelpersMixin:
     def consume_look(self, data: dict[str, object]) -> None:
         """Record the floor identities returned by the existing look channel."""
         from hengbot.model import _parse_items
+        from hengbot.protocol import snapshot_protocol_version
 
+        protocol = snapshot_protocol_version(data)
         look = data.get("look")
         if not isinstance(look, dict):
             return
@@ -155,7 +157,9 @@ class PolicyHelpersMixin:
                 position = Position(int(grid_data["y"]), int(grid_data["x"]))
             except (KeyError, TypeError, ValueError):
                 continue
-            records[position] = tuple(_parse_items(grid_data.get("items", [])))
+            records[position] = tuple(
+                _parse_items(grid_data.get("items", []), protocol=protocol)
+            )
         self._look_floor_items = records
         self._look_probe_inflight = False
     def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
