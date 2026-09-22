@@ -54,6 +54,7 @@ from hengbot.policy_constants import (
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
+    SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
@@ -2164,6 +2165,14 @@ def _merge_send_timing(decision_timing: dict, send) -> None:
 
 def _home_modal_continuation(snapshot, key: str, owner: str):
     """Own each source-proven Home modal boundary through its caller return."""
+    if key == SKILL_KNOWLEDGE_MACRO:
+        # cmd-knowledge.cpp case 'f': the skill list opens the same file
+        # viewer as '9' and returns to the knowledge menu, closed by ESC.
+        return "~f", [
+            Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
+                         "skill-proficiency", exact_feature=True),
+            Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
+        ]
     if key == HOME_KNOWLEDGE_MACRO:
         return "~9", [
             Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
@@ -4610,6 +4619,14 @@ def _dispatch_response_lines(
             )
         if requested_home_knowledge:
             policy.consume_home_knowledge(parsed_knowledge_items)
+        elif (
+            response_type == "knowledge"
+            and isinstance(knowledge, dict)
+            and knowledge.get("category") == "skill_exp"
+            and knowledge.get("menu_key") == "f"
+            and getattr(policy, "_skill_exp_request_inflight", False)
+        ):
+            policy.consume_skill_knowledge(data)
         elif response_type == "character":
             character = data.get("character")
             if isinstance(character, dict) and hasattr(

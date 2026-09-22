@@ -275,10 +275,15 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
             r"\[[^,\[\]]+, Home Inventory, Line \d+/\d+\]", viewer_title)
         japanese_home_title = re.fullmatch(
             r"\[[^,\[\]]+, 我が家のアイテム, \d+/\d+\]", viewer_title)
+        # knowledge-experiences.cpp:192 supplies the skill list caption (~f).
+        skill_title = re.fullmatch(
+            r"\[[^,\[\]]+, (?:Miscellaneous Proficiency, Line |技能の経験値, )\d+/\d+\]",
+            viewer_title)
         source_title = re.fullmatch(
             r"\[[^\[\]]+, (?:Line )?\d+/\d+\]", viewer_title)
         if source_title and viewer_footer in viewer_footers:
             feature = ("home-inventory" if english_home_title or japanese_home_title
+                       else "skill-proficiency" if skill_title
                        else viewer_title)
             return ScreenMatch(ScreenKind.FILE_VIEWER, feature, 0, viewer_x)
 
@@ -286,7 +291,12 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     title = width == 80 and row0.startswith("[") and row0.endswith("]") and (
         ", Line " in row0 or ("/" in row0 and "Line" not in row0))
     if title and lines[-1] in viewer_footers:
-        feature = "home-inventory" if ("Home Inventory" in row0 or "我が家のアイテム" in row0) else row0
+        feature = (
+            "home-inventory" if ("Home Inventory" in row0 or "我が家のアイテム" in row0)
+            else "skill-proficiency"
+            if ("Miscellaneous Proficiency" in row0 or "技能の経験値" in row0)
+            else row0
+        )
         return ScreenMatch(ScreenKind.FILE_VIEWER, feature, 0, 0)
     # cmd-visual/cmd-draw.cpp:143.
     character_footers = ("['c' to change name, 'f' to file, 'h' to change mode, or ESC]",

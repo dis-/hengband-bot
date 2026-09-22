@@ -8,7 +8,7 @@ from math import ceil
 import json
 import re
 from enum import Enum
-from typing import Callable, Iterable, Literal
+from typing import Callable, Iterable, Literal, Mapping
 from pathlib import Path
 
 from hengbot.latch_onset_capture import (
@@ -163,6 +163,7 @@ from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
+    SKILL_KNOWLEDGE_MACRO,
     CHEST_COLLECT_BUDGET,
     CHEST_DISARM_BUDGET,
     CHEST_DISARM_KEY,
@@ -363,6 +364,7 @@ from hengbot.monster_ranged_evaluator import (
     maximum_ability_hp_damage,
 )
 from hengbot.projection_path import projection_path
+from hengbot.protocol import ProtocolSchemaError
 from hengbot.warrior_optimization import (
     INCREMENTAL_SEARCH_CATALOG_THRESHOLD,
     CharacterCalibration,
@@ -2046,6 +2048,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_knowledge_scan_inflight = False
         self._home_knowledge_scan_retries_remaining = 1
         self._home_knowledge_scan_epoch: int | None = None
+        # Protocol 3 only: the ~f skill list's two-weapon / shield skill_exp,
+        # (two_weapon, shield, level read at, town visit epoch read in).
+        # None = unknown; see _skill_exp_cache_valid for invalidation.
+        self._skill_exp_cache: tuple[int, int, int, int | None] | None = None
+        self._skill_exp_request_inflight = False
         # A Home leave can briefly yield an interleaved surface page while the
         # game still owns input in the store loop.  A later turn is positive
         # evidence that an ordinary command was processed after that leave.
@@ -2387,6 +2394,35 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_claim_uncomposable_signature = None
         if not hasattr(self, "_equipment_fresh_search_target_ids"):
             self._equipment_fresh_search_target_ids = frozenset()
+        # Restored checkpoints predate the protocol-3 skill list cache:
+        # absent means unknown (protocol 2 never reads it).
+        if not hasattr(self, "_skill_exp_cache"):
+            self._skill_exp_cache = None
+        if not hasattr(self, "_skill_exp_request_inflight"):
+            self._skill_exp_request_inflight = False
+        snapshot = self._with_cached_skill_exp(snapshot)
+        # Protocol 3: before any evaluator needs the two-weapon / shield
+        # skill_exp, read them off the ~f skill list.  Like the look probe
+        # below, this observation-only key costs no game time and is not a
+        # policy turn: no decision bookkeeping runs, so the decision on the
+        # unchanged board that follows is the one the bot would have made.
+        skill_request = self._skill_exp_request_key(snapshot)
+        if skill_request is not None:
+            arbiter.observe(
+                in_town=bool(snapshot.in_town or snapshot.store is not None),
+                reason=self.last_reason,
+                progress_vector=self._town_arbiter_progress_vector(
+                    snapshot, self.last_reason
+                ),
+                probe=True,
+                retirement_key_for=lambda owner: self._town_retirement_clearance_key(
+                    snapshot, owner
+                ),
+            )
+            self.decision_attribution = arbiter.decision_owner_for_reason(
+                self.last_reason
+            )
+            return skill_request
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
         current_progress_core = self._owner_progress_core(snapshot)
@@ -4607,6 +4643,101 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._look_probe_inflight = True
         self.last_reason = "loot:look-floor-items"
         return "l\x1b"
+
+    def _skill_exp_cache_valid(self, snapshot: Snapshot) -> bool:
+        """Whether the cached ~f values still describe this character.
+
+        skill_exp only grows through combat (two-weapon blows, shield use),
+        which never happens inside a town visit.  The cache is therefore
+        invalid when it is empty, when the character level differs from
+        the level it was read at, or when the board is in town under a
+        different town visit (a new arrival) than the one it was read in.
+        """
+        cache = getattr(self, "_skill_exp_cache", None)
+        if cache is None:
+            return False
+        _two_weapon, _shield, level, visit_epoch = cache
+        if level != snapshot.player.level:
+            return False
+        current_epoch = getattr(self, "_town_visit_epoch", None)
+        return not (
+            snapshot.in_town
+            and current_epoch is not None
+            and current_epoch != visit_epoch
+        )
+
+    def _with_cached_skill_exp(self, snapshot: Snapshot) -> Snapshot:
+        """Fill protocol-3 two-weapon / shield skill_exp from a valid cache."""
+        if getattr(snapshot, "protocol_version", 2) < 3:
+            return snapshot
+        if not self._skill_exp_cache_valid(snapshot):
+            return snapshot
+        two_weapon, shield, _level, _epoch = self._skill_exp_cache
+        return replace(
+            snapshot,
+            player=replace(
+                snapshot.player, two_weapon_skill=two_weapon, shield_skill=shield
+            ),
+        )
+
+    def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
+        """Request ~f while a protocol-3 board lacks the skill list values."""
+        if getattr(snapshot, "protocol_version", 2) < 3:
+            return None
+        if (
+            snapshot.player.two_weapon_skill is not None
+            and snapshot.player.shield_skill is not None
+        ):
+            return None
+        if any(
+            home_page_message_body(message).startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
+            for message in snapshot.messages
+        ):
+            # An open TR_WARNING [y/n] prompt would consume the request keys;
+            # its handler (which needs no evaluator) owns this board.
+            return None
+        if getattr(self, "_skill_exp_request_inflight", False):
+            # The emitter writes the skill list before the viewer opens,
+            # so a board after the posted request without it is a
+            # protocol defect, not something to retry blindly.
+            raise ProtocolSchemaError(
+                "the requested ~f skill list did not arrive before the next board"
+            )
+        self.last_reason = "periodic:skill-exp-knowledge"
+        return SKILL_KNOWLEDGE_MACRO
+
+    def consume_skill_knowledge(self, data: Mapping[str, object]) -> None:
+        """Cache the ~f skill list (knowledge category skill_exp).
+
+        SKILL_EXP rows are PlayerSkillKindType ids (1 TWO_WEAPON,
+        3 SHIELD); ``exp`` is printed only under show_actual_value and is
+        capped at the class maximum, as on screen.
+        """
+        knowledge = data.get("knowledge")
+        rows = knowledge.get("skills") if isinstance(knowledge, Mapping) else None
+        if not isinstance(rows, list):
+            raise ProtocolSchemaError("skill_exp knowledge lacks skills")
+        by_id = {
+            row.get("id"): row for row in rows if isinstance(row, Mapping)
+        }
+        values = []
+        for skill_id in (1, 3):
+            row = by_id.get(skill_id)
+            exp = row.get("exp") if row is not None else None
+            if isinstance(exp, bool) or not isinstance(exp, int):
+                raise ProtocolSchemaError(
+                    f"skill_exp knowledge row {skill_id} has no exp; "
+                    "the save must enable show_actual_value"
+                )
+            values.append(exp)
+        player = data.get("player")
+        level = player.get("level") if isinstance(player, Mapping) else None
+        if isinstance(level, bool) or not isinstance(level, int):
+            raise ProtocolSchemaError("skill_exp knowledge lacks player.level")
+        self._skill_exp_cache = (
+            values[0], values[1], level, getattr(self, "_town_visit_epoch", None)
+        )
+        self._skill_exp_request_inflight = False
 
     def request_character_dump(self) -> None:
         """Latch a CLI timer request until an ordinary quiet filler decision."""
@@ -8048,6 +8179,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_knowledge_scan_requested = True
             self._home_knowledge_scan_inflight = True
             self._home_knowledge_scan_epoch = self._town_visit_epoch
+            return True
+        if key == SKILL_KNOWLEDGE_MACRO:
+            self._skill_exp_request_inflight = True
             return True
         if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO} and self._calibration_naked_dump_prepared:
             self._calibration_naked_dump_prepared = False

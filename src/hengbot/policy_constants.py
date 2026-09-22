@@ -106,6 +106,10 @@ DESTROY_COMMAND = "k"
 CHARACTER_DUMP_MACRO = "Cf\ry\x1b\x1b"
 HOME_CHARACTER_DUMP_MACRO = "Cf\ry\x1b"
 HOME_KNOWLEDGE_MACRO = "~9\x1b"
+# Protocol 3: the two-weapon / shield skill_exp are printed only by the
+# knowledge skill list (cmd-knowledge.cpp case 'f'), whose JSON the emitter
+# publishes before the file viewer opens.  Closed like ``~9``.
+SKILL_KNOWLEDGE_MACRO = "~f\x1b"
 EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT = STORE_STUCK_LIMIT
 
 LOW_VALUE_POTION_SVALS = frozenset({28, 34})

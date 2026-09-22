@@ -321,6 +321,40 @@ def derive_row(row: dict) -> dict:
     return row
 
 
+# ClassSkillDefinitions.jsonc "skills" max_exp for the warrior (class 0):
+# MARTIAL_ARTS 8000, TWO_WEAPON 8000, RIDING 5000, SHIELD 8000.
+_WARRIOR_SKILL_MAX = {0: 8000, 1: 8000, 2: 5000, 3: 8000}
+_SKILL_NAMES = {0: "マーシャルアーツ", 1: "二刀流", 2: "乗馬", 3: "盾"}
+_RIDING_RANKS = (500, 2000, 5000, 8000)  # PlayerSkill::riding_skill_rank bounds
+
+
+def derive_skill_knowledge_row(board: dict) -> dict:
+    """The ~f response (knowledge category skill_exp) for a protocol-2 board.
+
+    make_knowledge_json SKILL_EXP (bot-json-output.cpp:2215-2231): one row per
+    PlayerSkillKindType with id, name, at_max, rank and, under
+    show_actual_value, exp = min(exp, max) and max.  TWO_WEAPON and SHIELD
+    come from the recorded player.skills; MARTIAL_ARTS and RIDING are not in
+    protocol 2 and use the warrior's start_exp 0 (placeholders).
+    """
+    if int(board["player"].get("class_id", -1)) != 0:
+        raise ValueError("skill maxima are tabulated for the warrior only")
+    skills = board["player"]["skills"]
+    raw = {0: 0, 1: int(skills["two_weapon"]), 2: 0, 3: int(skills["shield"])}
+    rows = []
+    for skill_id in range(4):
+        exp, top = raw[skill_id], _WARRIOR_SKILL_MAX[skill_id]
+        bounds = _RIDING_RANKS if skill_id == 2 else _WEAPON_EXP_RANKS
+        rows.append({
+            "id": skill_id, "name": _SKILL_NAMES[skill_id], "at_max": exp >= top,
+            "rank": sum(exp >= bound for bound in bounds),
+            "exp": min(exp, top), "max": top,
+        })
+    row = derive_row(dict(board, type="knowledge"))
+    row["knowledge"] = {"category": "skill_exp", "menu_key": "f", "skills": rows}
+    return row
+
+
 def derive_lines(lines: list[str]) -> list[str]:
     return [json.dumps(derive_row(json.loads(line)), ensure_ascii=False) + "\n" for line in lines]
 

@@ -29,10 +29,16 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from derive_protocol3_fixture import derive_item, derive_lines, derive_row
+from derive_protocol3_fixture import (
+    derive_item,
+    derive_lines,
+    derive_row,
+    derive_skill_knowledge_row,
+)
 from hengbot.cli import _consume_response_sequence, _newest_snapshot_entry
 from hengbot.model import TVAL_LITE, TVAL_ROD, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
 from hengbot.protocol import ProtocolSchemaError
 from hengbot.warrior_optimization import CharacterCalibration
 from test_esp_threat_rest_recorded import (
@@ -55,7 +61,8 @@ DUNGEON_DECISIONS = (
     (625, "8", "explore"),
 )
 # A town decision: the equipment evaluators need two_weapon / shield skill_exp,
-# which the protocol-3 board does not print (only the ~f list does).
+# which the protocol-3 board does not print; the bot first reads the ~f list
+# (user decision 「ボットが ~f を開いて記憶する（推奨）」).
 TOWN_DECISION = (500, "\x1b`n(.", "shop:travel")
 
 
@@ -85,6 +92,19 @@ class _Substrate:
         return cls.loaded
 
 
+def _last_board_line(segment: list[str]) -> str:
+    return [
+        line for line in segment
+        if json.loads(line).get("type") in {"player_turn", "store"}
+    ][-1]
+
+
+def _skill_list_response(v2: list[str], starts: list[int], sequence: int) -> str:
+    """The derived ~f response for a recorded decision's final protocol-2 board."""
+    board = json.loads(_last_board_line(v2[starts[sequence - 1] : starts[sequence]]))
+    return json.dumps(derive_skill_knowledge_row(board), ensure_ascii=False) + "\n"
+
+
 def _board(lines: list[str], index: int = 0) -> dict:
     rows = [json.loads(line) for line in lines]
     return [row for row in rows if row.get("type") == "player_turn"][index]
@@ -102,7 +122,9 @@ class P1SameDecisionTest(unittest.TestCase):
     """P1: the same recorded decision under v2 and under the derived v3 row."""
 
     def _decide(self, lines, sequence):
-        _v2, _v3, starts, monrace = _Substrate.get()
+        """A restarted bot decides the recorded row; under protocol 3 it
+        first reads the ~f skill list (answered with the derived response)."""
+        v2, _v3, starts, monrace = _Substrate.get()
         with TemporaryDirectory() as raw:
             directory = Path(raw)
             policy = _policy(directory, monrace)
@@ -112,6 +134,18 @@ class P1SameDecisionTest(unittest.TestCase):
                 knowledge_ledger_path=directory / "knowledge.jsonl",
             )
             key = policy.choose_key(snapshots[-1])
+            if snapshots[-1].protocol_version >= 3:
+                self.assertEqual(
+                    (key, policy.last_reason),
+                    (SKILL_KNOWLEDGE_MACRO, "periodic:skill-exp-knowledge"),
+                )
+                policy.confirm_key_posted(key)
+                _decoded, snapshots = _consume_response_sequence(
+                    [_skill_list_response(v2, starts, sequence), _last_board_line(segment)],
+                    policy, lambda _key: True, monrace,
+                    knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                key = policy.choose_key(snapshots[-1])
             return snapshots[-1], (str(key), policy.last_reason)
 
     def test_p1_dungeon_decisions_match_under_v2_and_derived_v3(self):
@@ -125,12 +159,218 @@ class P1SameDecisionTest(unittest.TestCase):
                 self.assertEqual(decided2, (key, reason))
                 self.assertEqual(decided3, (key, reason))
 
-    def test_p1_town_decision_fails_loudly_without_skill_exp(self):
-        v2, v3, _starts, _monrace = _Substrate.get()
+    def test_p1_town_decision_requests_skill_list_then_matches_v2(self):
+        v2, v3, starts, monrace = _Substrate.get()
         sequence, key, reason = TOWN_DECISION
         self.assertEqual(self._decide(v2, sequence)[1], (key, reason))
-        with self.assertRaisesRegex(ProtocolSchemaError, "two_weapon_skill"):
-            self._decide(v3, sequence)
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = _policy(directory, monrace)
+            segment = v3[starts[sequence - 1] : starts[sequence]]
+            _decoded, snapshots = _consume_response_sequence(
+                segment, policy, lambda _key: True, monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            first = policy.choose_key(snapshots[-1])
+            self.assertEqual(
+                (first, policy.last_reason),
+                (SKILL_KNOWLEDGE_MACRO, "periodic:skill-exp-knowledge"),
+            )
+            self.assertTrue(policy.confirm_key_posted(first))
+            response = _skill_list_response(v2, starts, sequence)
+            _decoded, snapshots = _consume_response_sequence(
+                [response, _last_board_line(segment)], policy, lambda _key: True,
+                monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            self.assertEqual(policy._skill_exp_cache[:2], (4000, 4000))
+            second = policy.choose_key(snapshots[-1])
+            self.assertEqual((second, policy.last_reason), (key, reason))
+
+    def test_p1_missing_skill_list_response_fails_loudly(self):
+        _v2, v3, starts, monrace = _Substrate.get()
+        sequence = TOWN_DECISION[0]
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = _policy(directory, monrace)
+            segment = v3[starts[sequence - 1] : starts[sequence]]
+            _decoded, snapshots = _consume_response_sequence(
+                segment, policy, lambda _key: True, monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            policy.confirm_key_posted(policy.choose_key(snapshots[-1]))
+            _decoded, snapshots = _consume_response_sequence(
+                [_last_board_line(segment)], policy, lambda _key: True, monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            with self.assertRaisesRegex(ProtocolSchemaError, "~f skill list"):
+                policy.choose_key(snapshots[-1])
+
+
+class P1LifetimeTest(unittest.TestCase):
+    """P1 on the whole recorded lifetime prefix, where state accumulates.
+
+    Decisions 1..137 of the recorded 41F process are faithful (the esp-threat
+    fix changes decision 138 onwards).  Replayed through the public response
+    path from the derived protocol-3 rows -- answering each ~f request with
+    the derived skill list -- they must equal the recorded (key, reason).
+    The pre-fix client, reading the protocol-3 rows with silent defaults,
+    diverges at decisions 4 and 7 (town equipment calibration and purchase).
+    """
+
+    def test_p1_lifetime_prefix_matches_the_recording_under_v3(self):
+        v2, v3, starts, monrace = _Substrate.get()
+        recorded = json.loads(
+            FIXTURE.with_suffix(".boundaries.json").read_text(encoding="utf-8")
+        )["recorded"]
+        requested_at = []
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = _policy(directory, monrace)
+            for sequence in range(1, 138):
+                segment = v3[starts[sequence - 1] : starts[sequence]]
+                _decoded, snapshots = _consume_response_sequence(
+                    segment, policy, lambda _key: True, monrace,
+                    knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                key = policy.choose_key(snapshots[-1])
+                if key == SKILL_KNOWLEDGE_MACRO:
+                    requested_at.append(sequence)
+                    self.assertEqual(policy.last_reason, "periodic:skill-exp-knowledge")
+                    policy.confirm_key_posted(key)
+                    _decoded, snapshots = _consume_response_sequence(
+                        [_skill_list_response(v2, starts, sequence),
+                         _last_board_line(segment)],
+                        policy, lambda _key: True, monrace,
+                        knowledge_ledger_path=directory / "knowledge.jsonl",
+                    )
+                    key = policy.choose_key(snapshots[-1])
+                with self.subTest(sequence=sequence):
+                    self.assertEqual([str(key), policy.last_reason], recorded[sequence - 1])
+                policy.confirm_key_posted(key)
+        self.assertEqual(requested_at, [1])
+
+
+class SkillListCacheTest(unittest.TestCase):
+    """The ~f cache: request flow, invalidation rule and restored checkpoints.
+
+    Rule: the cache (two_weapon, shield, level read at, town visit epoch read
+    in) is unknown until the first ~f response; it becomes invalid when the
+    character level differs from the level it was read at, or when a board in
+    town belongs to a different town visit (a new arrival) than the one it was
+    read in.  Dungeon boards never invalidate it by themselves.
+    """
+
+    def _fresh(self, directory):
+        _v2, _v3, _starts, monrace = _Substrate.get()
+        return _policy(directory, monrace)
+
+    def _feed(self, policy, directory, lines):
+        _v2, _v3, _starts, monrace = _Substrate.get()
+        _decoded, snapshots = _consume_response_sequence(
+            lines, policy, lambda _key: True, monrace,
+            knowledge_ledger_path=directory / "knowledge.jsonl",
+        )
+        return snapshots[-1]
+
+    def _read_skill_list(self, policy, directory, sequence):
+        v2, v3, starts, _monrace = _Substrate.get()
+        segment = v3[starts[sequence - 1] : starts[sequence]]
+        board = self._feed(policy, directory, segment)
+        key = policy.choose_key(board)
+        self.assertEqual(key, SKILL_KNOWLEDGE_MACRO)
+        policy.confirm_key_posted(key)
+        return self._feed(
+            policy, directory,
+            [_skill_list_response(v2, starts, sequence), _last_board_line(segment)],
+        )
+
+    def test_new_town_visit_and_level_change_invalidate_dungeon_does_not(self):
+        _v2, v3, starts, _monrace = _Substrate.get()
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            town = self._read_skill_list(policy, directory, 500)
+            self.assertNotEqual(policy.choose_key(town), SKILL_KNOWLEDGE_MACRO)
+            cache = policy._skill_exp_cache
+            self.assertEqual(cache[:3], (4000, 4000, 31))
+            # Recorded dungeon row (41F): same level, no new visit -> cached.
+            dungeon = self._feed(policy, directory, v3[starts[599] : starts[600]])
+            self.assertFalse(dungeon.in_town)
+            self.assertNotEqual(policy.choose_key(dungeon), SKILL_KNOWLEDGE_MACRO)
+            self.assertEqual(policy._skill_exp_cache, cache)
+            # The same row one level higher (derived) invalidates it.
+            row = json.loads(_last_board_line(v3[starts[599] : starts[600]]))
+            row["player"]["level"] += 1
+            higher = self._feed(policy, directory, [json.dumps(row, ensure_ascii=False)])
+            self.assertEqual(policy.choose_key(higher), SKILL_KNOWLEDGE_MACRO)
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            self._read_skill_list(policy, directory, 1)
+            first_epoch = policy._skill_exp_cache[3]
+            # The recorded dive (decision 200, 41F), then the recorded town
+            # arrival after it (decision 423): a new visit.
+            self._feed(policy, directory, v3[starts[199] : starts[200]])
+            arrival = self._feed(policy, directory, v3[starts[422] : starts[423]])
+            self.assertTrue(arrival.in_town)
+            self.assertNotEqual(policy._town_visit_epoch, first_epoch)
+            self.assertEqual(policy.choose_key(arrival), SKILL_KNOWLEDGE_MACRO)
+
+    def test_protocol_2_never_requests_the_skill_list(self):
+        v2, _v3, starts, _monrace = _Substrate.get()
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            board = self._feed(policy, directory, v2[starts[499] : starts[500]])
+            self.assertNotEqual(policy.choose_key(board), SKILL_KNOWLEDGE_MACRO)
+            self.assertIsNone(policy._skill_exp_cache)
+            self.assertEqual(board.player.two_weapon_skill, 4000)
+
+    def test_restored_checkpoint_without_the_cache_requests_the_list(self):
+        _v2, v3, starts, _monrace = _Substrate.get()
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            del policy.__dict__["_skill_exp_cache"]
+            del policy.__dict__["_skill_exp_request_inflight"]
+            board = self._feed(policy, directory, v3[starts[499] : starts[500]])
+            self.assertEqual(policy.choose_key(board), SKILL_KNOWLEDGE_MACRO)
+            self.assertIsNone(policy._skill_exp_cache)
+
+    def test_skill_list_without_numbers_fails_loudly(self):
+        v2, _v3, starts, _monrace = _Substrate.get()
+        row = json.loads(_skill_list_response(v2, starts, 500))
+        for entry in row["knowledge"]["skills"]:
+            entry.pop("exp")
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            policy._skill_exp_request_inflight = True
+            with self.assertRaisesRegex(ProtocolSchemaError, "show_actual_value"):
+                self._feed(policy, directory, [json.dumps(row, ensure_ascii=False)])
+
+    def test_request_is_closed_like_home_knowledge(self):
+        from hengbot.cli import _home_modal_continuation
+        from hengbot.input_executor import ScreenKind, classify_screen
+
+        prefix, continuations = _home_modal_continuation(None, SKILL_KNOWLEDGE_MACRO, "x")
+        self.assertEqual(prefix, "~f")
+        self.assertEqual(
+            [(c.kinds, c.keys, c.feature) for c in continuations],
+            [
+                (frozenset({ScreenKind.FILE_VIEWER}), "\x1b", "skill-proficiency"),
+                (frozenset({ScreenKind.KNOWLEDGE}), "\x1b", None),
+            ],
+        )
+        # Derived from the recorded ~9 viewer screen: only the caption
+        # (knowledge-experiences.cpp:192) differs for ~f.
+        screen = json.loads(
+            (FIXTURES / "live-screens" / "26-knowledge-viewer-stuck-20260915-0534.json")
+            .read_text(encoding="utf-8")
+        )["result"]
+        screen["lines"][0] = screen["lines"][0].replace("我が家のアイテム", "技能の経験値")
+        match = classify_screen(screen)
+        self.assertEqual((match.kind, match.feature), (ScreenKind.FILE_VIEWER, "skill-proficiency"))
 
 
 class P2UnknownProtocolTest(unittest.TestCase):
