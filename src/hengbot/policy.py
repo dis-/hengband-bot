@@ -4666,6 +4666,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and current_epoch != visit_epoch
         )
 
+    def with_known_skill_exp(self, snapshot: Snapshot) -> Snapshot:
+        """Public: the board as the policy sees it (protocol-3 ~f values filled).
+
+        Telemetry and report paths outside choose_key read this board so
+        they agree with the decision; before ~f is read the values stay
+        None and every evaluator reports them unknown.
+        """
+        if not hasattr(self, "_skill_exp_cache"):
+            return snapshot
+        return self._with_cached_skill_exp(snapshot)
+
     def _with_cached_skill_exp(self, snapshot: Snapshot) -> Snapshot:
         """Fill protocol-3 two-weapon / shield skill_exp from a valid cache."""
         if getattr(snapshot, "protocol_version", 2) < 3:

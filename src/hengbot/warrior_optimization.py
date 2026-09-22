@@ -32,7 +32,7 @@ from hengbot.equipment_transaction_planner import (
 from hengbot.model import InventoryItem, PLAYER_CLASS_WARRIOR, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
-from hengbot.protocol import require_skill_exp
+from hengbot.protocol import skill_exp_known
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -375,6 +375,9 @@ def calibrate_character_constants(
     precondition: town, temporary statuses clear, no visible hostiles, HP full.
     """
     player = snapshot.player
+    if not skill_exp_known(player, ("shield_skill",)):
+        # Protocol 3 before the ~f skill list was read: not observable yet.
+        return None
     removable = [
         item
         for item in snapshot.equipment
@@ -392,7 +395,7 @@ def calibrate_character_constants(
     naked_defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_stats[3],
-        shield_skill=require_skill_exp(player, "shield_skill"),
+        shield_skill=player.shield_skill,
         base_speed=player.speed,
         saving_skill=player.saving_skill,
     )
@@ -536,7 +539,9 @@ def weapon_expected_dps(
     The worn slot layout itself is a legitimate physical input here: the
     question asked is "this weapon in MY current off-hand configuration".
     """
-    if calibration is None:
+    if calibration is None or not skill_exp_known(snapshot.player, ("two_weapon_skill",)):
+        # Unknown two-weapon skill_exp (protocol 3 before ~f) is as
+        # unknowable as a missing calibration: fail closed.
         return None
     equipped = tuple(
         OwnedEquipment(
@@ -551,7 +556,7 @@ def weapon_expected_dps(
         natural_str=calibration.base_stats[0],
         natural_dex=calibration.base_stats[3],
         melee_skill=snapshot.player.melee_skill,
-        two_weapon_skill=require_skill_exp(snapshot.player, "two_weapon_skill"),
+        two_weapon_skill=snapshot.player.two_weapon_skill,
     )
     replacement = OwnedEquipment("sale-candidate", weapon, "pack")
     slots = tuple(
@@ -631,6 +636,9 @@ def prepare_warrior_optimization(
     natural = player.stat_cur if player.stat_cur is not None else player.stat_max
     if len(natural) < 4 or natural[0] <= 0 or natural[3] <= 0:
         blockers.append("missing-natural-stats")
+    if not skill_exp_known(player):
+        # Protocol 3: the ~f skill list has not been read yet.
+        blockers.append("skill-exp-unknown")
     if not knowledge:
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
@@ -705,7 +713,7 @@ def prepare_warrior_optimization(
     defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_dex,
-        shield_skill=require_skill_exp(player, "shield_skill"),
+        shield_skill=player.shield_skill,
         base_ac_bonus=base_ac_bonus,
         base_speed=player.speed - _equipment_speed(current),
         saving_skill=player.saving_skill,
@@ -718,7 +726,7 @@ def prepare_warrior_optimization(
             natural_dex=base_dex,
             melee_skill=player.melee_skill,
             shooting_skill=getattr(player, "shooting_skill", player.melee_skill),
-            two_weapon_skill=require_skill_exp(player, "two_weapon_skill"),
+            two_weapon_skill=player.two_weapon_skill,
         ),
         defense=defense,
         current_hp=max(1, player.max_hp),

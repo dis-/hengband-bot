@@ -326,14 +326,17 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
     }
 
 
-def require_skill_exp(player: Any, name: str) -> int:
-    """A two_weapon/shield skill_exp the evaluators need, or a loud failure."""
-    value = getattr(player, name)
-    if value is None:
-        raise ProtocolSchemaError(
-            f"{name} is not on the protocol-3 board (only the ~f skill list prints it)"
-        )
-    return int(value)
+def skill_exp_known(player: Any, names: tuple[str, ...] = ("two_weapon_skill", "shield_skill")) -> bool:
+    """Whether the board carries the two-weapon / shield skill_exp.
+
+    Protocol 3 prints them only on the ~f skill list; until the policy has
+    read it they are None.  Evaluators then report the value as unknown and
+    fail closed (like a missing calibration) instead of guessing 0; the
+    decision path requests ~f before any evaluation.
+    """
+    # Only an explicit None is unknown: PlayerState carries both fields on
+    # every protocol, and None only under protocol 3 before ~f was read.
+    return all(getattr(player, name, 0) is not None for name in names)
 
 
 _LIGHT_TURNS_RE = re.compile(r"[\(（](\d+)ターンの寿命[\)）]|\(with (\d+) turns of light\)")

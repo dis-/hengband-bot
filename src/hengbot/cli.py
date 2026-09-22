@@ -1382,6 +1382,12 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     """Evaluate decision-row policy telemetry without endangering the driver."""
     if policy is None:
         return _empty_decision_facts()
+    # Protocol 3: read the board the policy decided on (the ~f skill list
+    # values filled in); while they are unknown every evaluator reports its
+    # result as unknown/blocked rather than raising.
+    known_board = getattr(policy, "with_known_skill_exp", None)
+    if known_board is not None:
+        snapshot = known_board(snapshot)
     try:
         return _capture_decision_facts_unchecked(snapshot, policy)
     except RecursionError as exc:

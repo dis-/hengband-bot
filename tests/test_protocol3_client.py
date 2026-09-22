@@ -316,6 +316,17 @@ class SkillListCacheTest(unittest.TestCase):
             self.assertNotEqual(policy._town_visit_epoch, first_epoch)
             self.assertEqual(policy.choose_key(arrival), SKILL_KNOWLEDGE_MACRO)
 
+    def test_telemetry_reads_the_cached_values_after_the_skill_list(self):
+        from hengbot.cli import _capture_decision_facts
+
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            board = self._read_skill_list(policy, directory, 500)
+            self.assertIsNone(board.player.two_weapon_skill)  # the raw board
+            facts = _capture_decision_facts(board, policy)
+            self.assertNotIn("skill-exp-unknown", json.dumps(facts["equipment_optimization"]))
+
     def test_protocol_2_never_requests_the_skill_list(self):
         v2, _v3, starts, _monrace = _Substrate.get()
         with TemporaryDirectory() as raw:
@@ -371,6 +382,99 @@ class SkillListCacheTest(unittest.TestCase):
         screen["lines"][0] = screen["lines"][0].replace("我が家のアイテム", "技能の経験値")
         match = classify_screen(screen)
         self.assertEqual((match.kind, match.feature), (ScreenKind.FILE_VIEWER, "skill-proficiency"))
+
+
+FIRST_LIVE_ROW = FIXTURES / "protocol3-first-row-20260922.jsonl"
+# jsonlog/bot-state-fixed.jsonl at 2026-09-22 14:59 (sha256 464fbc1b..., the
+# first protocol-3 row of the swapped exe), trailing CRLF stored as LF.
+FIRST_LIVE_ROW_SHA256 = "974f5233c487aa39fc33ec5cf95b54d8f3d54df8d16b450aabf117cbbd9aec16"
+
+
+class CliStartupTest(unittest.TestCase):
+    """The live failure after the exe swap, driven through the bot's own entry.
+
+    2026-09-22: the first protocol-3 board killed the bot inside decision
+    telemetry (_capture_decision_facts -> equipment_optimization_state ->
+    ... -> weapon_expected_dps) before the ~f cache existed.  ``main --once``
+    runs prime, choose_key, validate_read_key, decision telemetry and the
+    decision-log writer on one board with a fresh policy -- the startup path.
+    Wall: the policy is the test's walled policy (Home files and calibration
+    in a temporary directory); the decision log lives there too.
+    """
+
+    def _once(self, row: str):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+
+        from hengbot.cli import main
+
+        _v2, _v3, _starts, monrace = _Substrate.get()
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            state = directory / "state.jsonl"
+            state.write_text(row if row.endswith("\n") else row + "\n", encoding="utf-8")
+            decisions = directory / "decisions.jsonl"
+            policy = _policy(directory, monrace)
+            stdout = StringIO()
+            with (
+                patch("hengbot.cli.ConservativePolicy", return_value=policy),
+                patch("hengbot.cli._bot_play_macros_ready", return_value=True),
+                redirect_stdout(stdout),
+            ):
+                result = main([
+                    "--once", "--state-file", str(state),
+                    "--decision-log", str(decisions),
+                    "--monrace-definitions", str(EDIT / "MonraceDefinitions.jsonc"),
+                ])
+            records = [
+                json.loads(line)
+                for line in decisions.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            return result, stdout.getvalue(), records, policy
+
+    def _assert_skill_list_first(self, row: str):
+        result, printed, records, policy = self._once(row)
+        self.assertEqual(result, 0)
+        self.assertEqual(printed.splitlines(), [SKILL_KNOWLEDGE_MACRO])
+        decision = [record for record in records if record.get("key") is not None][-1]
+        self.assertEqual(
+            (decision["key"], decision["reason"]),
+            (SKILL_KNOWLEDGE_MACRO, "periodic:skill-exp-knowledge"),
+        )
+        self.assertIn("skill-exp-unknown", json.dumps(decision["equipment_optimization"]))
+        self.assertIsNone(policy._skill_exp_cache)
+
+    def test_once_on_the_derived_v3_town_row_requests_the_skill_list(self):
+        _v2, v3, starts, _monrace = _Substrate.get()
+        self._assert_skill_list_first(
+            _last_board_line(v3[starts[TOWN_DECISION[0] - 1] : starts[TOWN_DECISION[0]]])
+        )
+
+    def test_once_on_the_recorded_first_protocol_3_row_requests_the_skill_list(self):
+        self.assertEqual(
+            hashlib.sha256(FIRST_LIVE_ROW.read_bytes()).hexdigest(), FIRST_LIVE_ROW_SHA256
+        )
+        self._assert_skill_list_first(FIRST_LIVE_ROW.read_text(encoding="utf-8"))
+
+    def test_recorded_first_protocol_3_row_derives_the_recorded_skills(self):
+        # Same character before the swap: the recorded protocol-2 board of
+        # the 41F capture carried melee 194, shooting 148, saving 75,
+        # device 26, stealth 8 at level 31.
+        _v2, _v3, _starts, monrace = _Substrate.get()
+        v2_player = _board(_Substrate.get()[0])["player"]
+        live = parse_snapshot(json.loads(FIRST_LIVE_ROW.read_text(encoding="utf-8")), monrace)
+        self.assertEqual(live.protocol_version, 3)
+        self.assertEqual(live.player.level, v2_player["level"])
+        skills = v2_player["skills"]
+        self.assertEqual(
+            (live.player.melee_skill, live.player.shooting_skill, live.player.saving_skill,
+             live.player.device_skill, live.player.stealth_skill),
+            (skills["melee"], skills["shooting"], skills["saving"],
+             skills["device"], skills["stealth"]),
+        )
+        self.assertEqual((live.player.two_weapon_skill, live.player.shield_skill), (None, None))
 
 
 class P2UnknownProtocolTest(unittest.TestCase):
