@@ -84,6 +84,22 @@ TOUR_WINDOW = 40
 RECALL_WAIT = 2636
 SKILL_REQUEST = 2640
 FIRST_CAPTURE_DEPENDENT = 2643
+# The tour recording contains the loot/choke alternation this repository fixed
+# on 2026-09-23: at the (15, 16) choke of floor (1, 42, 0) the recorded run
+# bounced between detected:prepare-choke (north) and explore/search (south)
+# until a livelock recall escaped it.  A started anticipatory retreat now
+# commits to the covered cell it chose and, having reached it, holds it under
+# the unchanged 50-turn bound, so the replay answers these boards differently.
+CHOKE_ALTERNATION_FIXED = {
+    1848: ["5", "summoner:hold-choke"],
+    1997: ["5", "summoner:hold-choke"],
+    1999: ["5", "summoner:hold-choke"],
+    2001: ["5", "summoner:hold-choke"],
+    2003: ["5", "summoner:hold-choke"],
+    2011: ["s", "search"],
+    2013: ["5", "summoner:hold-choke"],
+    2014: ["s", "search"],
+}
 MORIVANT_WINDOW = 120
 IDENTITY_MEMOS = frozenset({
     "_fixed_quest_head_cache",
@@ -479,8 +495,32 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             key = silent.validate_read_key(board, silent.choose_key(board))
             replayed.append([str(key), silent.last_reason])
             silent.confirm_key_posted(key)
-        # Substrate fidelity: the capture-free replay is the recording.
-        self.assertEqual(replayed, recorded[:RECALL_WAIT])
+        # Substrate fidelity: the capture-free replay is the recording, board
+        # for board, apart from the eight decisions where the choke-alternation
+        # fix answers the recorded defect (each one is pinned, not skipped).
+        self.assertEqual(
+            [
+                pair for index, pair in enumerate(replayed)
+                if index not in CHOKE_ALTERNATION_FIXED
+            ],
+            [
+                pair for index, pair in enumerate(recorded[:RECALL_WAIT])
+                if index not in CHOKE_ALTERNATION_FIXED
+            ],
+        )
+        self.assertEqual(
+            {index: replayed[index] for index in CHOKE_ALTERNATION_FIXED},
+            CHOKE_ALTERNATION_FIXED,
+        )
+        self.assertEqual(
+            [tuple(recorded[index]) for index in sorted(CHOKE_ALTERNATION_FIXED)],
+            [
+                ("8", "explore"), ("2", "explore"), ("2", "explore"),
+                ("2", "explore"), ("s", "search"),
+                ("2", "breakout:seek-frontier"), ("8", "explore"),
+                ("8", "explore"),
+            ],
+        )
         self.assertEqual(
             recorded[RECALL_WAIT:FIRST_CAPTURE_DEPENDENT + 1],
             [["5", "return:wait-recall"]] * (SKILL_REQUEST - RECALL_WAIT)

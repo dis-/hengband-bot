@@ -405,7 +405,8 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
 
         with patch.object(
-            policy, "_summoner_retreat_step", return_value=Position(9, 9)
+            policy, "_summoner_retreat_route",
+            return_value=(Position(9, 8), Position(9, 9)),
         ) as retreat:
             key = policy._detected_threat_preparation_key(snapshot, [])
 
@@ -434,7 +435,8 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         policy._returning_to_town = True
 
         with patch.object(
-            policy, "_summoner_retreat_step", return_value=Position(9, 9)
+            policy, "_summoner_retreat_route",
+            return_value=(Position(9, 8), Position(9, 9)),
         ):
             key = policy.choose_key(snapshot)
 
@@ -509,10 +511,12 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         knowledge = load_monrace_knowledge(monraces)
         policy = HengbotPolicy(monrace_knowledge=knowledge)
         decisions = []
+        every = []
 
         for row in rows[:9]:
             snapshot = parse_snapshot(row, knowledge)
             key = policy.choose_key(snapshot)
+            every.append((snapshot.player.position, key, policy.last_reason))
             if row["turn"] in {3801585, 3801595}:
                 decisions.append((snapshot.player.position, key))
 
@@ -520,8 +524,16 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             [position for position, _key in decisions],
             [Position(12, 36), Position(12, 35)],
         )
-        self.assertEqual([key for _position, key in decisions], ["8", "4"])
+        # The episode commits to the covered cell it picked on its first
+        # decision (2026-09-23), so the recorded two-cell bounce no longer
+        # re-picks a goal per board: every decision walks the same way.
+        self.assertEqual([key for _position, key in decisions], ["4", "4"])
         self.assertNotEqual([key for _position, key in decisions], ["4", "6"])
+        self.assertEqual(
+            {reason for _position, _key, reason in every},
+            {"detected:prepare-choke"},
+        )
+        self.assertEqual({key for _position, key, _reason in every}, {"4"})
 
     def test_recorded_detected_pack_holds_the_reached_choke(self):
         capture = (
@@ -564,6 +576,111 @@ class DetectedMonsterChannelTest(unittest.TestCase):
                 for first, second in zip(decisions, decisions[1:])
             )
         )
+
+    # --- the anticipatory retreat owns its route until it arrives or retires
+    #     (live 2026-09-23 06:00 loot/choke alternation) --------------------
+    @staticmethod
+    def _retreat_route_board(position, distance, *, turn, detected=None):
+        """A room (openness 8) whose only covered cell is a corridor mouth."""
+        grids = {
+            Position(y, x): grid(y, x)
+            for y in range(9, 12)
+            for x in range(10, 14)
+        }
+        grids.update({Position(10, x): grid(10, x) for x in range(14, 18)})
+        pack = [
+            replace(
+                hostile(index, y, 10, distance=distance, max_melee_damage=20),
+                perception="detected",
+            )
+            for index, y in ((41, 10), (42, 9))
+        ]
+        return Snapshot(
+            player(position.y, position.x, hp=100, max_hp=100),
+            grids,
+            [],
+            detected_monsters=pack if detected is None else detected,
+            turn=turn,
+            floor_key=(1, 10, 0),
+        )
+
+    def _posted_target(self, policy, snapshot, key):
+        """The cell ``key`` steps onto, without hard-coding the key mapping."""
+        origin = snapshot.player.position
+        for dy, dx in NEIGHBOR_OFFSETS:
+            candidate = Position(origin.y + dy, origin.x + dx)
+            if policy._step_toward(snapshot, candidate) == key:
+                return candidate
+        raise AssertionError(f"{key!r} is not a step from {origin}")
+
+    def test_started_retreat_keeps_the_decision_after_its_own_step(self):
+        policy = HengbotPolicy()
+        opening = self._retreat_route_board(Position(10, 12), 3, turn=100)
+        policy._build_grid_index(opening)
+
+        first = policy._detected_threat_preparation_key(opening, [])
+
+        self.assertEqual(policy.last_reason, "detected:prepare-choke")
+        self.assertEqual(policy._detected_threat_route[1], Position(10, 15))
+        self.assertEqual(policy._detected_threat_route[0], opening.floor_key)
+
+        # The step of its own retreat puts the pack outside the convergence
+        # window; re-deciding from scratch here is what handed the decision to
+        # seek-loot, which walked the step back (the recorded loop).
+        closer = self._retreat_route_board(Position(10, 13), 4, turn=110)
+        policy._build_grid_index(closer)
+
+        second = policy._detected_threat_preparation_key(closer, [])
+
+        self.assertEqual(policy.last_reason, "detected:prepare-choke")
+        self.assertEqual(policy._detected_threat_route[1], Position(10, 15))
+        for snapshot, key in ((opening, first), (closer, second)):
+            with self.subTest(position=snapshot.player.position):
+                target = self._posted_target(policy, snapshot, key)
+                self.assertLess(
+                    target.distance_to(Position(10, 15)),
+                    snapshot.player.position.distance_to(Position(10, 15)),
+                )
+
+    def test_reaching_the_committed_cell_hands_over_to_the_bounded_hold(self):
+        policy = HengbotPolicy()
+        opening = self._retreat_route_board(Position(10, 12), 3, turn=100)
+        policy._build_grid_index(opening)
+        policy._detected_threat_preparation_key(opening, [])
+        arrival = self._retreat_route_board(Position(10, 15), 5, turn=130)
+        policy._build_grid_index(arrival)
+
+        key = policy._detected_threat_preparation_key(arrival, [])
+
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "summoner:hold-choke"))
+        self.assertIsNone(policy._detected_threat_route)
+        self.assertEqual(policy._detected_threat_hold, (arrival.floor_key, 130))
+
+    def test_committed_retreat_retires_when_its_pack_is_no_longer_perceived(self):
+        policy = HengbotPolicy()
+        opening = self._retreat_route_board(Position(10, 12), 3, turn=100)
+        policy._build_grid_index(opening)
+        policy._detected_threat_preparation_key(opening, [])
+        gone = self._retreat_route_board(Position(10, 13), 4, turn=110, detected=[])
+        policy._build_grid_index(gone)
+
+        self.assertIsNone(policy._detected_threat_preparation_key(gone, []))
+        self.assertIsNone(policy._detected_threat_route)
+
+    def test_committed_retreat_retires_when_a_hostile_becomes_visible(self):
+        policy = HengbotPolicy()
+        opening = self._retreat_route_board(Position(10, 12), 3, turn=100)
+        policy._build_grid_index(opening)
+        policy._detected_threat_preparation_key(opening, [])
+        seen = self._retreat_route_board(Position(10, 13), 4, turn=110)
+        policy._build_grid_index(seen)
+
+        self.assertIsNone(
+            policy._detected_threat_preparation_key(
+                seen, [hostile(41, 10, 11, distance=2, max_melee_damage=20)]
+            )
+        )
+        self.assertIsNone(policy._detected_threat_route)
 
     def _recorded_hold_rearm_replay(self):
         fixture = (

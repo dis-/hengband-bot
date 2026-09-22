@@ -78,6 +78,25 @@ CALIBRATION_SHA256 = "94e45131a9f886e13ad4f4fcf01ba127384ccea9e8dfbc0b8fea32fff0
 # List index 2701 (decision 2697): a travel interruption the live executor
 # reported ('store:entry-interrupted-replan'); the replay re-converges at 2702.
 KNOWN_HARNESS_DIVERGENCES = {2701}
+# The 2026-09-23 loot/choke alternation fix.  The recorded run abandoned every
+# anticipatory choke the decision before it had just prepared, bouncing with
+# explore/search one cell away (list indices 1848-2014 at the (15, 16) choke of
+# floor (1, 42, 0), where the recording escaped only by a livelock recall, and
+# 3324-3325 at a later one).  A started retreat now keeps the decision to the
+# covered cell it chose and, on reaching it, holds under the unchanged 50-turn
+# detected-threat bound.
+CHOKE_ALTERNATION_FIXED = {
+    1848: ("5", "summoner:hold-choke"),
+    1997: ("5", "summoner:hold-choke"),
+    1999: ("5", "summoner:hold-choke"),
+    2001: ("5", "summoner:hold-choke"),
+    2003: ("5", "summoner:hold-choke"),
+    2011: ("s", "search"),
+    2013: ("5", "summoner:hold-choke"),
+    2014: ("s", "search"),
+    3324: ("4", "detected:prepare-choke"),
+    3325: ("5", "summoner:hold-choke"),
+}
 # List indices (decision_sequence + 4 after the four shared probe sequences).
 AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
@@ -285,7 +304,13 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             for index, decided in decisions.items()
             if list(decided) != recorded[index]
         }
-        self.assertEqual(divergent, KNOWN_HARNESS_DIVERGENCES)
+        self.assertEqual(
+            divergent, KNOWN_HARNESS_DIVERGENCES | set(CHOKE_ALTERNATION_FIXED)
+        )
+        self.assertEqual(
+            {index: decisions[index] for index in CHOKE_ALTERNATION_FIXED},
+            CHOKE_ALTERNATION_FIXED,
+        )
         self.assertEqual(len(decisions), AFTER_PURCHASES)
 
     def test_u2_affordable_optional_purchases_still_happen(self):

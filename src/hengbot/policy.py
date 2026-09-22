@@ -1754,6 +1754,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # detected pack at a reached choke.  Retain an expired episode until an
         # inherited release stimulus occurs so it cannot immediately re-arm.
         self._detected_threat_hold: tuple[tuple[int, int, int], int] | None = None
+        # The anticipatory retreat's committed goal: floor, the covered cell it
+        # chose, and the detected pack it was opened for.  Without it the owner
+        # gives the decision back the moment its own step widens the gap, and
+        # the next owner walks that step back (alternating owners, 2026-09-23).
+        self._detected_threat_route: tuple[
+            tuple[int, int, int], Position, frozenset[int]
+        ] | None = None
         # A plan is disposable, but fruitless work against the same observed
         # swarm is not.  Values are (spent decisions, high-water outcome marker)
         # and live for the whole floor visit so release/re-plan cannot mint a
@@ -11989,8 +11996,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if hold is not None and hold[0] != snapshot.floor_key:
             self._detected_threat_hold = None
             hold = None
+        route = getattr(self, "_detected_threat_route", None)
+        if route is not None and route[0] != snapshot.floor_key:
+            self._detected_threat_route = route = None
         if visible_hostiles:
             self._detected_threat_hold = None
+            self._detected_threat_route = None
             return None
         if (
             hold is not None
@@ -12000,6 +12011,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # Expiry releases this anticipatory owner for the rest of the
             # floor.  Keep the expired episode as the latch until a visible
             # hostile or a floor change supplies the only re-arm stimulus.
+            self._detected_threat_route = None
             return None
         detected = [
             monster
@@ -12008,6 +12020,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
         if not detected:
             self._detected_threat_hold = None
+            self._detected_threat_route = None
             return None
 
         # Keep the lower-certainty channel in the normal damage model, but do
@@ -12026,8 +12039,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for monster in converging
             if monster.max_ranged_damage <= 0
         ]
-        if not breeders and len(melee_threats) < 2:
+        # The pack this owner is already retreating from, still perceived.  Its
+        # own step widens the gap, so re-deciding the convergence gate from the
+        # cell it just reached hands the decision straight back to looting or
+        # exploration, which walks the step back and re-opens the gate: two
+        # owners one cell apart until the loop detector stops the bot (live
+        # 2026-09-23 06:00:17-18, seek-loot '4' <-> detected:prepare-choke '6').
+        # A started retreat therefore keeps the decision until the player
+        # reaches the cell it chose (progress) or the stimulus retires below.
+        committed = (
+            [monster for monster in detected if monster.index in route[2]]
+            if route is not None
+            else []
+        )
+        if not breeders and len(melee_threats) < 2 and not committed:
             self._detected_threat_hold = None
+            self._detected_threat_route = None
             return None
         if (
             self._open_neighbor_count(snapshot, snapshot.player.position)
@@ -12039,6 +12066,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # packs need the same hand-off boundary: the convergence gates
             # above release this hold when the pack disappears, becomes
             # visible, sleeps, moves out of range, or drops below its count.
+            # Standing at a choke is the retreat's own goal: the episode is
+            # handed to the bounded hold, which owns it from here.
+            self._detected_threat_route = None
             hold = self._detected_threat_hold
             if hold is None or hold[0] != snapshot.floor_key:
                 hold = (snapshot.floor_key, snapshot.turn)
@@ -12048,11 +12078,40 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return WAIT_KEY
             return None
         self._detected_threat_hold = None
-        step = self._summoner_retreat_step(
-            snapshot, breeders or melee_threats, detected
+        if route is not None and committed:
+            if snapshot.player.position != route[1]:
+                step = self._position_target_step(snapshot, route[1])
+                if step is not None:
+                    self.last_reason = "detected:prepare-choke"
+                    return self._step_toward(snapshot, step)
+            # Arrived at the chosen cell without it being a choke any more, or
+            # it is no longer reachable: the commitment is spent either way.
+            # Re-derive one below from what is perceived now.
+            self._detected_threat_route = route = None
+            committed = []
+        threats = breeders or melee_threats
+        if not threats:
+            self._detected_threat_route = None
+            return None
+        destination, step = self._summoner_retreat_route(
+            snapshot, threats, detected
         )
         if step is None:
+            self._detected_threat_route = None
             return None
+        # A committed destination is a shortest-path goal, so each decision of
+        # the episode stands strictly closer to it: the retreat leg ends by
+        # arriving, and the hold above then bounds the wait.  The flee fallback
+        # names no cell and commits to nothing.
+        self._detected_threat_route = (
+            None
+            if destination is None or destination == snapshot.player.position
+            else (
+                snapshot.floor_key,
+                destination,
+                frozenset(monster.index for monster in threats),
+            )
+        )
         self.last_reason = "detected:prepare-choke"
         return self._step_toward(snapshot, step)
 
@@ -12489,17 +12548,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )["operational_total"]
         return incoming < snapshot.player.hp
 
-    def _summoner_retreat_step(
+    def _summoner_retreat_route(
         self,
         snapshot: Snapshot,
         summoners: list[MonsterState],
         hostiles: list[MonsterState],
-    ) -> Position | None:
+    ) -> tuple[Position | None, Position | None]:
+        """Return (covered cell to retreat to, first step toward it).
+
+        The destination is the cell this search actually chose, so an owner can
+        commit to it across decisions.  The flee fallback has no destination: it
+        is a direction away from the hostiles, not a place.
+        """
         origin = snapshot.player.position
         origin_distance = min(origin.distance_to(monster.position) for monster in summoners)
         seen = {origin}
         queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
-        candidates: list[tuple[int, int, int, Position]] = []
+        candidates: list[tuple[int, int, int, Position, Position]] = []
 
         while queue:
             position, first_step, path_distance = queue.popleft()
@@ -12513,7 +12578,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and summoner_distance >= origin_distance
                 ):
                     candidates.append(
-                        (path_distance, openness, -summoner_distance, first_step)
+                        (
+                            path_distance,
+                            openness,
+                            -summoner_distance,
+                            first_step,
+                            position,
+                        )
                     )
             for neighbor in self._walkable_neighbors(snapshot, position):
                 if neighbor in seen:
@@ -12528,8 +12599,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
 
         if candidates:
-            return min(candidates, key=lambda candidate: candidate[:3])[3]
-        return self._flee_step(snapshot, hostiles)
+            chosen = min(candidates, key=lambda candidate: candidate[:3])
+            return chosen[4], chosen[3]
+        return None, self._flee_step(snapshot, hostiles)
+
+    def _summoner_retreat_step(
+        self,
+        snapshot: Snapshot,
+        summoners: list[MonsterState],
+        hostiles: list[MonsterState],
+    ) -> Position | None:
+        return self._summoner_retreat_route(snapshot, summoners, hostiles)[1]
 
 
     def _material_melee_engagement(

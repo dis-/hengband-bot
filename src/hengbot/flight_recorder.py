@@ -141,6 +141,12 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unseen_wait_remaining",
         "_unseen_wait_intercepted",
         "_unseen_attack_evidence",
+        # The anticipatory detected-threat episode: its hold and the covered
+        # cell a started retreat committed to.  Their omission is why the
+        # 2026-09-23 loot/choke alternation had to be re-derived by replay
+        # instead of read out of the capture.
+        "_detected_threat_hold",
+        "_detected_threat_route",
         "_engagement_avoid_cells",
         "_paralyzer_avoid_cells",
         "_remembered_paralyzers",

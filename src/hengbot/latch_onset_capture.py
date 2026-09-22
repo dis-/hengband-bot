@@ -117,6 +117,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # Older captures predate the detected-threat rest tiering record; None is
     # the "no assessment yet" value it is rewritten from on every rest check.
     restored.__dict__.setdefault("_esp_threat_assessment", None)
+    # Older captures predate the anticipatory retreat's committed goal; None is
+    # "no episode in progress", the value a fresh preparation writes.
+    restored.__dict__.setdefault("_detected_threat_route", None)
     # No committed detected-threat hunt existed before the owner was added.
     restored.__dict__.setdefault("_esp_threat_hunt", None)
     restored.__dict__.setdefault("_esp_threat_hunt_end", None)
