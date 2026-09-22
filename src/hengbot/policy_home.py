@@ -5,6 +5,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
+from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, ProcurementHomeGate
@@ -625,6 +626,24 @@ class HomeMixin:
             and snapshot.player.class_id >= 0
             and snapshot.player.gold < FUNDRAISING_START_GOLD
         )
+        if (
+            item.tval == TVAL_POTION
+            and item.aware
+            and self._experience_drain_known(snapshot)
+        ):
+            if item.sval == SV_POTION_EXPERIENCE:
+                # Drunk once no drain is left; never surplus meanwhile.
+                return item.count, "experience-potion"
+            if (
+                item.sval == SV_POTION_RESTORE_EXP
+                and snapshot.player.exp_drained
+                and (
+                    self._carried_aware_potion(snapshot, SV_POTION_EXPERIENCE)
+                    is not None
+                    or self._home_experience_potion(snapshot) is not None
+                )
+            ):
+                return item.count, "experience-restore"
         if item.is_recall_scroll:
             target = max(
                 ledger["recall"].required_departure,
@@ -2517,6 +2536,13 @@ class HomeMixin:
         for item in store.items:
             signature = self._item_signature(item)
             if item.tval not in {TVAL_POTION, TVAL_SCROLL, TVAL_WAND, TVAL_STAFF, TVAL_ROD, TVAL_FOOD}:
+                continue
+            if (
+                item.tval == TVAL_POTION
+                and item.sval == SV_POTION_EXPERIENCE
+                and self._experience_drain_known(snapshot)
+            ):
+                # Withdrawn and drunk, never offered for sale or destruction.
                 continue
             self._home_disposal_candidates.setdefault(
                 signature,

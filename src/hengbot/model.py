@@ -277,6 +277,11 @@ SV_POTION_RESIST_COLD = 31
 # Restore-stat potions (sv-potion-types.h), sold by the Alchemist. Each undoes the
 # drain on one ability; the character screen shows which stat is drained.
 STAT_NAMES = ("str", "int", "wis", "dex", "con", "chr")
+# Experience potions (sv-potion-types.h).  Restore Life Levels (the Temple's
+# regular stock) undoes an experience drain; the Potion of Experience grants
+# experience and is drunk once no drain is left for it to merely refill.
+SV_POTION_RESTORE_EXP = 41
+SV_POTION_EXPERIENCE = 59
 SV_POTION_RESTORE_STR = 42
 SV_POTION_RESTORE_INT = 43
 SV_POTION_RESTORE_WIS = 44

@@ -2011,6 +2011,11 @@ class TownMixin:
             add(STORE_HOME, "procurement-home-first", "home-first")
         if self._needs_stat_restore(snapshot) and STORE_ALCHEMIST not in self._town_store_attempted:
             add(STORE_ALCHEMIST, "stat-restore")
+        experience_supplier = self._experience_restore_supplier(snapshot)
+        if experience_supplier is not None:
+            add(experience_supplier, "experience-restore")
+        if self._queue_home_experience_potion(snapshot):
+            add(STORE_HOME, "experience-potion-home", "home-first")
         low_level_sale = self._find_low_level_sale(snapshot)
         if low_level_sale is not None:
             add(STORE_ALCHEMIST, "low-level-sale")
@@ -2453,6 +2458,8 @@ class TownMixin:
             ("space-deposit", "home-first", 1, True),  # Pack reserve gates all later town transactions.
             ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
             ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
+            ("experience-restore", "normal", 1, False),  # Restore before the Experience potion; never blocks departure.
+            ("experience-potion-home", "home-first", 1, False),  # A stored Experience potion is withdrawn to drink.
             ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
             ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
             ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
@@ -2538,6 +2545,8 @@ class TownMixin:
             "launcher-enchant",
             "black-market",
             "deposit",
+            "experience-restore",
+            "experience-potion-home",
         }
         specs = {spec.category: spec for spec in self._town_need_registry()}
         for need in self._enumerate_live_store_claims(snapshot):

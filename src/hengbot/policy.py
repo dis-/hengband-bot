@@ -5846,6 +5846,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if stat_restore is not None:
             return stat_restore
 
+        experience = self._experience_potion_quaff_key(
+            snapshot, physical_hostiles
+        )
+        if experience is not None:
+            return experience
+
         stat_gain = self._stat_gain_quaff_key(snapshot, physical_hostiles)
         if stat_gain is not None:
             return stat_gain

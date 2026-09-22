@@ -21,7 +21,13 @@ each on a collaborator that is not under test:
   that produced them;
 - Home history/disposal files and the calibration file live in a temporary
   directory (the calibration file is the one this process itself rewrote at
-  16:11:02; the file it loaded at start was not retained).
+  16:11:02; the file it loaded at start was not retained);
+- experience-potion (user 2026-09-22) drinks the carried Potion of
+  Experience at list index 2787 (recorded seek-loot; the drain was filled at
+  2786).  The recorded rows after it are the pre-decision lifetime in which
+  the potion stays carried and is deposited, so from 2788 the replay walls the
+  policy's drain view to unknown (the unchanged protocol-2 behaviour); the
+  potion's own pins are in test_experience_potion.
 """
 
 from __future__ import annotations
@@ -61,7 +67,10 @@ BOUNDARIES_SHA256 = "59d574ab2830846cd7d324907ed397ff2ef97ca5660b7d8334298d08960
 CALIBRATION_SHA256 = "94e45131a9f886e13ad4f4fcf01ba127384ccea9e8dfbc0b8fea32fff023cfd8"
 # List index 2701 (decision 2697): a travel interruption the live executor
 # reported ('store:entry-interrupted-replan'); the replay re-converges at 2702.
-KNOWN_HARNESS_DIVERGENCES = {2701}
+# List index 2787 (decision 2783): experience-potion (user 2026-09-22) moved
+# the recorded ('7', 'seek-loot') to ('qg', 'experience:quaff').
+KNOWN_HARNESS_DIVERGENCES = {2701, 2787}
+EXPERIENCE_WALL_FROM = 2788
 # List indices (decision_sequence + 4 after the four shared probe sequences).
 AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
@@ -101,6 +110,11 @@ def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
     shutil.copyfile(CALIBRATION, calibration)
     policy._character_calibration_path = calibration
     return policy, monrace
+
+
+def _drain_unknown(_snapshot) -> bool:
+    """The protocol-2 view of the experience drain (see the module wall)."""
+    return False
 
 
 def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
@@ -152,6 +166,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     knowledge_ledger_path=directory / "knowledge.jsonl",
                 )
                 snapshot = snapshots[-1]
+                if index == EXPERIENCE_WALL_FROM:
+                    policy._experience_drain_known = _drain_unknown
                 if index == AFTER_PURCHASES:
                     break
                 recorded_reason = cls.boundaries["recorded"][index][1]

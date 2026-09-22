@@ -5,6 +5,8 @@ from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.town_arbiter import _new_town_turn_arbiter
+from hengbot.home_errand import HomeErrandRequest
+from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from math import ceil
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.baseitem_knowledge import item_base_cost
@@ -467,6 +469,155 @@ class ShopMixin:
                 self.last_reason = f"restore:quaff-{stat}"
                 return QUAFF_KEY + potion.slot
         return None
+
+    # Potion of Experience (user decision 2026-09-22): drink it right away, but
+    # first undo a temporary experience drain with Restore Life Levels, buying
+    # one from an observed shelf when none is carried.  The drain is printed
+    # only by protocol 3; before it the drain is unknown and nothing here acts.
+    @staticmethod
+    def _experience_drain_known(snapshot: Snapshot) -> bool:
+        player = snapshot.player
+        return player.max_exp is not None and player.exp_drained is not None
+
+    @staticmethod
+    def _carried_aware_potion(
+        snapshot: Snapshot, sval: int
+    ) -> InventoryItem | None:
+        return next(
+            (
+                item
+                for item in snapshot.inventory
+                if item.is_potion and item.aware and item.sval == sval
+            ),
+            None,
+        )
+
+    def _home_experience_potion(self, snapshot: Snapshot) -> InventoryItem | None:
+        """An addressable Potion of Experience in the current Home catalogue."""
+        if (
+            not self._experience_drain_known(snapshot)
+            or not self._home_knowledge_current
+        ):
+            return None
+        return next(
+            (
+                item
+                for index, item in enumerate(self._home_knowledge_items)
+                if index < self._home_knowledge_valid_before
+                and item.tval == TVAL_POTION
+                and item.aware
+                and item.sval == SV_POTION_EXPERIENCE
+                and self._item_signature(item) not in self._deferred_home_items
+            ),
+            None,
+        )
+
+    def _experience_restore_purchase_wanted(self, snapshot: Snapshot) -> bool:
+        """Drained, an Experience potion carried, and no restore carried."""
+        return bool(
+            self._experience_drain_known(snapshot)
+            and snapshot.player.exp_drained
+            and self._carried_aware_potion(snapshot, SV_POTION_EXPERIENCE)
+            is not None
+            and self._carried_aware_potion(snapshot, SV_POTION_RESTORE_EXP)
+            is None
+        )
+
+    def _restore_life_levels_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """The shelf's Restore Life Levels, if wanted and within the reserve."""
+        store = snapshot.store
+        if (
+            store is None
+            or store.store_type == STORE_HOME
+            or not self._experience_restore_purchase_wanted(snapshot)
+        ):
+            return None
+        reserve = self._required_departure_supply_reserve(snapshot)
+        if reserve is None:
+            return None
+        return next(
+            (
+                item
+                for item in store.items
+                if item.tval == TVAL_POTION
+                and item.sval == SV_POTION_RESTORE_EXP
+                and item.count > 0
+                and snapshot.player.gold - item.price >= reserve
+            ),
+            None,
+        )
+
+    def _experience_restore_supplier(self, snapshot: Snapshot) -> int | None:
+        """A store whose page observed this town visit sells the wanted restore."""
+        if not self._experience_restore_purchase_wanted(snapshot):
+            return None
+        for store_type, page in sorted(self._town_supplier_stock.items()):
+            observation = self._town_supplier_stock_observations.get(store_type)
+            if (
+                store_type == STORE_HOME
+                or store_type in self._town_store_attempted
+                or observation is None
+                or observation[0] != self._effective_town_id(snapshot)
+                or observation[1] > snapshot.turn
+                or snapshot.turn - observation[1] >= STORE_RESTOCK_WAIT_TURNS
+            ):
+                continue
+            if self._restore_life_levels_purchase(
+                replace(snapshot, store=page)
+            ) is not None:
+                return store_type
+        return None
+
+    def _queue_home_experience_potion(self, snapshot: Snapshot) -> bool:
+        """File the Home-first withdrawal of a stored Potion of Experience."""
+        errand = self._home_errand
+        if errand.active and errand.request is not None:
+            return errand.request.purpose == "experience-potion"
+        if (
+            not snapshot.in_town
+            or len(snapshot.inventory) >= PACK_CAPACITY
+            or not self._home_available(snapshot)
+        ):
+            return False
+        stored = self._home_experience_potion(snapshot)
+        if stored is None:
+            return False
+        return self._file_home_errand(
+            snapshot,
+            HomeErrandRequest(
+                self._item_signature(stored),
+                max(1, stored.count),
+                "home-catalog",
+                "experience-potion",
+            ),
+            knowledge_current=self._home_knowledge_current,
+        )
+
+    def _experience_potion_quaff_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Drink Restore Life Levels, then the Potion of Experience."""
+        if not self._experience_drain_known(snapshot):
+            return None
+        player = snapshot.player
+        if (
+            snapshot.store is not None
+            or hostiles
+            or player.confused
+            or player.blind
+        ):
+            return None
+        experience = self._carried_aware_potion(snapshot, SV_POTION_EXPERIENCE)
+        if experience is None:
+            return None
+        if player.exp_drained:
+            restore = self._carried_aware_potion(snapshot, SV_POTION_RESTORE_EXP)
+            if restore is None:
+                return None
+            self.last_reason = "experience:quaff-restore-life-levels"
+            return QUAFF_KEY + restore.slot
+        self.last_reason = "experience:quaff"
+        return QUAFF_KEY + experience.slot
 
     @staticmethod
     def _dominated_disposal_store(item: InventoryItem | StoreItem) -> int | None:
@@ -1726,6 +1877,8 @@ class ShopMixin:
             return "speed"
         if item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING:
             return "healing"
+        if item.tval == TVAL_POTION and item.sval == SV_POTION_RESTORE_EXP:
+            return "restore-life-levels"
         if item.is_treasure_detection_scroll:
             return "treasure-detection"
         if item.is_digging_tool:
@@ -1972,6 +2125,7 @@ class ShopMixin:
             if sval is not None:
                 add(rung(f"restore:{stat}", "restore", lambda s=sval: not any(i.tval == TVAL_POTION and i.sval == s and i.aware for i in snapshot.inventory), lambda i, s=sval: i.tval == TVAL_POTION and i.sval == s))
         add(rung("restore:proactive", "restore", lambda: True, lambda i: i.tval == TVAL_POTION and i.sval in set(RESTORE_POTION_SVAL_BY_STAT.values())))
+        add(rung("experience:restore-life-levels", "restore-life-levels", lambda: self._experience_restore_purchase_wanted(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_RESTORE_EXP))
         if strategy is not None:
             force = strategy.required_force
             carry_live = lambda: any(
@@ -2398,6 +2552,9 @@ class ShopMixin:
         restore = self._restore_potion_purchase(snapshot)
         if restore is not None:
             return restore
+        restore_life = self._restore_life_levels_purchase(snapshot)
+        if restore_life is not None:
+            return restore_life
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             force = strategy.required_force
