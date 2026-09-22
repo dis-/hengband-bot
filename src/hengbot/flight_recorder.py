@@ -20,6 +20,10 @@ DEFAULT_CHECKPOINT_INTERVAL = 100
 DEFAULT_LOG_ROTATE_BYTES = 128 * 1024**2
 DEFAULT_LOG_GENERATIONS = 8
 DEFAULT_CAPTURE_LOG_ROTATE_BYTES = 5 * 1024**3
+# A reader (the decision viewer, an editor) may hold the live log without
+# delete sharing for a moment; the rename is retried on a sharing violation.
+LOG_ROTATE_REPLACE_ATTEMPTS = 3
+LOG_ROTATE_RETRY_SECONDS = 0.05
 DEFAULT_SNAPSHOT_GENERATION_BYTES = 64 * 1024**2
 INCIDENT_DECISION_TAIL_BYTES = 16 * 1024**2
 INCIDENT_SNAPSHOT_BYTES = 256 * 1024**2
@@ -236,6 +240,23 @@ def render_remembered_map(policy, snapshot=None) -> str:
     ) + "\n"
 
 
+def _replace_retrying_sharing_violation(source: Path, target: Path) -> None:
+    """``os.replace`` retried while another process holds ``source`` open.
+
+    On Windows a handle opened without FILE_SHARE_DELETE makes the rename fail
+    with WinError 32 (PermissionError).  The rename is atomic, so a retry can
+    neither lose nor duplicate lines; the final failure propagates.
+    """
+    for attempt in range(1, LOG_ROTATE_REPLACE_ATTEMPTS + 1):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == LOG_ROTATE_REPLACE_ATTEMPTS:
+                raise
+            time.sleep(LOG_ROTATE_RETRY_SECONDS)
+
+
 def rotate_log(path: Path | None, max_bytes: int, generations: int) -> None:
     if path is None or max_bytes <= 0:
         return
@@ -249,8 +270,8 @@ def rotate_log(path: Path | None, max_bytes: int, generations: int) -> None:
                 if generation + 1 >= generations:
                     older.unlink()
                 else:
-                    os.replace(older, newer)
-        os.replace(path, path.with_name(f"{path.name}.1"))
+                    _replace_retrying_sharing_violation(older, newer)
+        _replace_retrying_sharing_violation(path, path.with_name(f"{path.name}.1"))
     except OSError as exc:
         _warn(f"rotate {path}", exc)
 

@@ -15,10 +15,12 @@ from unittest.mock import patch
 
 from hengbot.cli import _rewind_if_truncated
 from hengbot.flight_recorder import (
+    LOG_ROTATE_REPLACE_ATTEMPTS,
     FlightRecorder,
     append_session_marker,
     policy_state,
     render_remembered_map,
+    rotate_log,
     safe_filename_component,
 )
 from hengbot.model import Position
@@ -700,6 +702,79 @@ class FlightRecorderTest(unittest.TestCase):
                 [],
             )
             self.assertTrue(recorder.snapshot_path.exists())
+
+
+class RotateLogSharingViolationTest(unittest.TestCase):
+    """Rotation survives a reader briefly holding the live log (WinError 32)."""
+
+    @unittest.skipUnless(os.name == "nt", "Windows share-mode semantics")
+    def test_rotation_retries_a_real_sharing_violation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            live = Path(directory) / "bot-decisions.jsonl"
+            payload = b'{"turn":1}\n{"turn":2}\n'
+            live.write_bytes(payload)
+            # CPython's open() shares read|write but not delete, exactly like
+            # the viewer's former Get-Content handle: the rename must fail.
+            reader = open(live, "rb")
+            sleeps = []
+
+            def reader_lets_go(seconds):
+                sleeps.append(seconds)
+                reader.close()
+
+            warnings = io.StringIO()
+            try:
+                with patch("hengbot.flight_recorder.time.sleep", side_effect=reader_lets_go), \
+                        redirect_stderr(warnings):
+                    rotate_log(live, 1, 1)
+            finally:
+                reader.close()
+
+            self.assertEqual(len(sleeps), 1)
+            self.assertEqual(warnings.getvalue(), "")
+            self.assertFalse(live.exists())
+            self.assertEqual((Path(directory) / "bot-decisions.jsonl.1").read_bytes(), payload)
+
+    def test_rotation_gives_up_after_bounded_attempts_and_keeps_the_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            live = Path(directory) / "bot-decisions.jsonl"
+            payload = b'{"turn":1}\n'
+            live.write_bytes(payload)
+            attempts = []
+
+            def sharing_violation(source, target):
+                attempts.append((Path(source), Path(target)))
+                raise PermissionError(13, "The process cannot access the file", str(source))
+
+            warnings = io.StringIO()
+            with patch("hengbot.flight_recorder.os.replace", side_effect=sharing_violation), \
+                    patch("hengbot.flight_recorder.time.sleep") as sleep, \
+                    redirect_stderr(warnings):
+                rotate_log(live, 1, 1)
+
+            self.assertEqual(len(attempts), LOG_ROTATE_REPLACE_ATTEMPTS)
+            self.assertEqual(sleep.call_count, LOG_ROTATE_REPLACE_ATTEMPTS - 1)
+            self.assertIn("flight recorder failed to rotate", warnings.getvalue())
+            self.assertEqual(live.read_bytes(), payload)
+            self.assertFalse((Path(directory) / "bot-decisions.jsonl.1").exists())
+
+    def test_other_rename_errors_are_not_retried(self):
+        with tempfile.TemporaryDirectory() as directory:
+            live = Path(directory) / "bot-decisions.jsonl"
+            live.write_bytes(b"x\n")
+            calls = []
+
+            def missing(source, target):
+                calls.append(source)
+                raise FileNotFoundError(2, "gone", str(source))
+
+            with patch("hengbot.flight_recorder.os.replace", side_effect=missing), \
+                    patch("hengbot.flight_recorder.time.sleep") as sleep, \
+                    redirect_stderr(io.StringIO()):
+                rotate_log(live, 1, 1)
+
+            self.assertEqual(len(calls), 1)
+            sleep.assert_not_called()
 
 
 if __name__ == "__main__":

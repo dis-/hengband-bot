@@ -6,6 +6,7 @@ param(
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+. (Join-Path $PSScriptRoot 'DecisionLogTail.ps1')
 
 function Format-Key([string]$Key) {
     if ($null -eq $Key) { return "" }
@@ -35,7 +36,7 @@ $script:lastBotRunning = $null
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 500
 $timer.Add_Tick({
-    $line = Get-Content -LiteralPath $DecisionLog -Tail 1 -ErrorAction SilentlyContinue
+    $line = Read-LastLogLine $DecisionLog
     $botPid = Get-Content -LiteralPath $BotPidFile -Raw -ErrorAction SilentlyContinue
     $botRunning = $false
     if ($botPid) {
