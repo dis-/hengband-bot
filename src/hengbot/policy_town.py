@@ -116,6 +116,26 @@ class TownMixin:
             if owner == "store-router" and (reason or self.last_reason) == "bounty:approach":
                 goal = next((position for position, grid in snapshot.grids.items()
                              if grid.building_type == 13), None)
+            if owner == "store-router" and (
+                reason or self.last_reason
+            ) == "town:travel-entrance":
+                # The native-travel leg to the dungeon entrance registers no
+                # store goal.  _town_travel_key set this decision's travel
+                # state for the chosen entrance; its remaining BFS edges are
+                # the walk's distance.  Every multi-cell leg that closes it is
+                # a new vector, and a walk that stops closing it repeats this
+                # vector and stays bounded by the owner's existing budget.
+                state = getattr(self, "_town_travel_state", None)
+                route = (
+                    self._town_map_goal_route(snapshot, state.goal)
+                    if state is not None else None
+                )
+                if route is None:
+                    return durable
+                return durable + ((
+                    "locomotion", owner, snapshot.floor_key, route.target,
+                    route.remaining_edges,
+                ),)
         elif owner == "survival":
             goal = self._town_hunt_target
         elif owner == "departure":
