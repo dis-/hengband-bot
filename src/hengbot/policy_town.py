@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_constants import STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
 from hengbot.policy_types import (
     DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
     TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
@@ -2633,12 +2633,48 @@ class TownMixin:
                         and snapshot.store.store_type == need.store_type
                         and self._next_purchase(snapshot) is None
                     )
+                    or self._observed_supplier_page_wants_nothing(snapshot, need)
                 ):
                     continue
             if need.category not in claims:
                 claims.append(need.category)
         self._town_claim_categories = claims
         return bool(claims)
+
+    def _observed_supplier_page_wants_nothing(
+        self, snapshot: Snapshot, need: TownNeed
+    ) -> bool:
+        """Whether this visit's page of an optional supplier offers nothing.
+
+        The in-store release above answers only while standing on the page.
+        Once outside, the same page observed earlier this visit (same town,
+        before any restock turnover) is the answer: nothing on it is wanted
+        or affordable now, so walking back would observe the same refusal.
+        """
+        if need.store_type == STORE_HOME or (
+            snapshot.store is not None
+            and snapshot.store.store_type == need.store_type
+        ):
+            return False
+        observation = self._town_supplier_stock_observations.get(need.store_type)
+        page = self._town_supplier_stock.get(need.store_type)
+        if (
+            observation is None
+            or page is None
+            or observation[0] != self._effective_town_id(snapshot)
+            or observation[1] > snapshot.turn
+            or snapshot.turn - observation[1] >= STORE_RESTOCK_WAIT_TURNS
+        ):
+            return False
+        # A counterfactual page must not rewrite this decision's shop telemetry.
+        diagnostics = self._shop_selector_diagnostics
+        saved = dict(diagnostics)
+        try:
+            return self._next_purchase(replace(snapshot, store=page)) is None
+        finally:
+            diagnostics.clear()
+            diagnostics.update(saved)
+            self._shop_selector_diagnostics = diagnostics
 
     def _enumerate_town_needs(self, snapshot: Snapshot) -> list[TownNeed]:
         """Return every currently true town errand from the shared registry."""
