@@ -15,6 +15,7 @@ $stateFile = Join-Path $runtime 'codex-dump-publisher-state.json'
 $eventsFile = Join-Path $runtime 'sol-events.jsonl'
 $destination = Join-Path $Worktree 'live\bot-test.txt'
 $self = $MyInvocation.MyCommand.Path
+. (Join-Path $PSScriptRoot 'SolEventLog.ps1')
 
 function Get-FilePid([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -48,7 +49,7 @@ function Add-Event([string]$Type, [string]$Detail) {
         source = 'codex-dump-publisher'
         detail = $Detail
     }
-    Add-Content -LiteralPath $eventsFile -Value ($event | ConvertTo-Json -Compress) -Encoding utf8
+    Add-SolEventLine -Path $eventsFile -Record ($event | ConvertTo-Json -Compress)
 }
 
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null

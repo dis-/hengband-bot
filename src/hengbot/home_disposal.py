@@ -11,6 +11,8 @@ import tempfile
 import time
 from typing import Iterable
 
+from hengbot.sol_events import append_event
+
 
 Signature = tuple[str, int, int]
 CONSUMABLE_TVALS = frozenset({55, 65, 66, 70, 75, 80})
@@ -274,5 +276,4 @@ class HomeDisposalState:
                 "count": len(pending),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            with self.events_path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+            append_event(self.events_path, event)

@@ -16,6 +16,7 @@ $runOutLog = Join-Path $runtime 'sol-supervisor.run.out.log'
 $runErrLog = Join-Path $runtime 'sol-supervisor.run.err.log'
 $operatorScript = Join-Path $BotRoot 'scripts\sol-operator-once.ps1'
 $self = $MyInvocation.MyCommand.Path
+. (Join-Path $PSScriptRoot 'SolEventLog.ps1')
 
 function Get-FilePid([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -51,7 +52,7 @@ function Add-Event([string]$Type, [string]$Detail) {
     $line = $event | ConvertTo-Json -Compress
     for ($attempt = 1; $attempt -le 10; $attempt++) {
         try {
-            Add-Content -LiteralPath $eventsFile -Value $line -Encoding utf8
+            Add-SolEventLine -Path $eventsFile -Record $line
             return
         } catch [System.IO.IOException] {
             if ($attempt -lt 10) { Start-Sleep -Milliseconds 100 }

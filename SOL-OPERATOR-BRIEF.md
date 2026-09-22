@@ -42,6 +42,12 @@ the event log, never assume approval.
 ## Event log protocol (YOUR ONLY CHANNEL TO FABLE)
 Append one JSON line per event to C:\hengband\bot-client\jsonlog\sol-events.jsonl:
   {"time": "<iso8601>", "type": "<type>", "detail": "<one-to-three sentences>", "commit": "<hash-if-fix>"}
+Append ONLY through the validated appender (never Add-Content / Out-File / `>>` /
+hand-written writes, which produced concatenated lines and cp932 mojibake):
+  python scripts\append_sol_event.py --file <utf-8 file holding the event object>
+  (or --json '<object>', or pipe the object on stdin; PowerShell code dot-sources
+  scripts\SolEventLog.ps1 and calls Add-SolEventLine). tests\test_sol_events_hygiene.py
+  fails when any line of the log is not a JSON object.
 Types:
 - "start"   session started (include PIDs)
 - "status"  quiet health summary — at most one per 10 minutes
