@@ -490,6 +490,16 @@ def _new_town_turn_arbiter() -> TownTurnArbiter:
     })
 
 
+def reason_owner_family(reason: str) -> str:
+    """The registered owner family of a reason label, for offline readers.
+
+    One source of truth for the mapping: it asks a throwaway arbiter built
+    from the same registrations the policy uses, so a reader outside the
+    policy can neither see nor disturb the live arbiter's state.
+    """
+    return _new_town_turn_arbiter().owner_for_reason(reason or "")
+
+
 class TownArbiterMixin:
     @property
     def _store_visit(self) -> StoreVisit | None:

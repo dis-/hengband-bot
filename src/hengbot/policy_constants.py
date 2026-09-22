@@ -250,6 +250,29 @@ EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
     }
 )
 
+# Reasons on which the driver stops instead of deciding again.  It lives here,
+# not in cli.py, so a reader of recorded rows (hengbot.stop_shape) can name a
+# policy-declared final stop without importing the driver.  cli.py re-exports
+# it and owns the operator banner for each entry.
+POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset(
+    {
+        "dark:locomotion-exhausted",
+        "town:blocked:departure-unsatisfiable",
+        "town:blocked:overweight-home-unreachable",
+        "town:blocked:owner-retired",
+        "town:blocked:home-known-empty-withdrawal",
+        "town:blocked:home-withdraw-failed-stock-present",
+        "town:blocked:procurement-home-unavailable",
+        "town:blocked:procurement-home-unroutable",
+        "town:blocked:survival-mana-no-charges",
+        "town:blocked:overflow-no-legal-disposal",
+        "town:blocked:recall-readiness-contradiction",
+        "quest:blocked:q34-recovery-no-progress",
+        "quest:blocked:q34-throw-point-unreachable",
+        "wilderness:no-safe-route",
+    }
+)
+
 TUNNEL_KEY = "T"
 
 SEARCH_KEY = "s"

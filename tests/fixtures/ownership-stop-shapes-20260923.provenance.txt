@@ -1,0 +1,5 @@
+Source: incident-captures/{20260923-014342-no-key-exhausted,20260923-034402-loop-detected,20260923-060018-loop-detected}/
+Read: meta.json and decision-tail.jsonl only, each verified by the sha256 pinned in tests/extract_ownership_stop_shapes_fixture.py.
+Selection: the whole recorded reason window (20) and the last 24 decision rows of each capture, projected onto decision_sequence, time, turn, reason, key, floor, store_type, requested_owner, prompt_owner_handoff, arbiter, store_visit, town_emit_ownership; the driver's trailing stop-report row is dropped.
+Decompressed sha256: 01a9b9fcedd2c542cba6ddcf3f619117d7ece56831f4a5fcc4154a1d78705728
+Fixture sha256: c8f4e20b9fb9dcde9281c2be58fd1951eec5f64dc5bb837acd3edcd1d77c1f02

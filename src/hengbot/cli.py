@@ -51,9 +51,9 @@ from hengbot.policy import (
 )
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
-    EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
+    POLICY_FINAL_STOP_REASONS,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
@@ -71,6 +71,10 @@ from hengbot.flight_recorder import (
     append_session_marker,
     map_memory_summary,
     rotate_log,
+)
+from hengbot.ownership_metrics import (
+    OWNERSHIP_METRICS_NAME,
+    OwnershipMetricsLedger,
 )
 from hengbot.save_archive import SaveArchiveCoordinator
 from hengbot.input_executor import (
@@ -383,24 +387,8 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # them forever. A continuous town residence this long is faulty regardless of
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
-POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset(
-    {
-        "dark:locomotion-exhausted",
-        "town:blocked:departure-unsatisfiable",
-        "town:blocked:overweight-home-unreachable",
-        "town:blocked:owner-retired",
-        "town:blocked:home-known-empty-withdrawal",
-        "town:blocked:home-withdraw-failed-stock-present",
-        "town:blocked:procurement-home-unavailable",
-        "town:blocked:procurement-home-unroutable",
-        "town:blocked:survival-mana-no-charges",
-        "town:blocked:overflow-no-legal-disposal",
-        "town:blocked:recall-readiness-contradiction",
-        "quest:blocked:q34-recovery-no-progress",
-        "quest:blocked:q34-throw-point-unreachable",
-        "wilderness:no-safe-route",
-    }
-)
+# Defined in policy_constants so hengbot.stop_shape can read it without
+# importing the driver; re-exported here, where its operator banner lives.
 
 
 def _policy_final_stop_banner(reason: str) -> str:
@@ -1526,6 +1514,7 @@ def _write_decision(
     timing: dict | None = None,
     decision_facts: dict | None = None,
     town_emit_ownership: dict | None = None,
+    ownership_ledger: OwnershipMetricsLedger | None = None,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -1543,8 +1532,7 @@ def _write_decision(
                 if decision_facts is not None
                 else _capture_decision_facts(snapshot, policy)
             )
-            json.dump(
-                _decision_record(
+            record = _decision_record(
                     snapshot,
                     key,
                     reason,
@@ -1749,11 +1737,13 @@ def _write_decision(
                         if policy is not None
                         else None
                     ),
-                ),
-                file,
-                ensure_ascii=False,
-            )
+                )
+            json.dump(record, file, ensure_ascii=False)
             file.write("\n")
+            if ownership_ledger is not None:
+                # Recording only (S0 measurement): the ledger reads the row
+                # that was just written and never answers the driver.
+                ownership_ledger.note_decision(record)
     except OSError as exc:
         print(f"failed to write decision log: {exc}", file=sys.stderr)
 
@@ -3024,18 +3014,27 @@ def main(argv: list[str] | None = None) -> int:
         wait_telemetry.flush()
     args.wait_telemetry = wait_telemetry
 
+    ownership_ledger: OwnershipMetricsLedger | None = None
     if args.decision_log is not None and not args.once:
         rotate_log(
             args.decision_log,
             args.recorder_log_rotate_bytes,
             args.recorder_log_generations,
         )
-        append_session_marker(
+        session_marker = append_session_marker(
             args.decision_log,
             sys.argv if argv is None else argv,
             input_delays=input_delays,
             prompt_japanese=prompt_japanese,
         )
+        # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6).
+        # Its own file: the state log is truncated when the game relaunches.
+        ownership_ledger = OwnershipMetricsLedger(
+            args.decision_log.with_name(OWNERSHIP_METRICS_NAME)
+        )
+        ownership_ledger.note_session_start(session_marker)
+        atexit.register(ownership_ledger.note_session_end, "process-exit")
+    args.ownership_ledger = ownership_ledger
 
     if args.list_windows:
         from hengbot.input_windows import list_windows
@@ -3331,6 +3330,11 @@ def _run_follow(
 ) -> int:
     path = args.state_file
     wait_telemetry: WaitTelemetry = args.wait_telemetry
+    # None for a --once run and for drivers built by tests, which write no
+    # session of their own; every use below is guarded.
+    ownership_ledger: OwnershipMetricsLedger | None = getattr(
+        args, "ownership_ledger", None
+    )
     recorder_root = (
         args.decision_log.parent if args.decision_log is not None else runtime_dir()
     )
@@ -3370,6 +3374,9 @@ def _run_follow(
 
     def incident_stop(kind: str, snapshot) -> int:
         finish_pending_batch()
+        if ownership_ledger is not None:
+            ownership_ledger.note_stop(kind, list(recent_reasons))
+            ownership_ledger.note_session_end(f"incident-stop:{kind}")
         _freeze_incident_safely(
             recorder,
             kind, policy, snapshot, args.decision_log, list(recent_reasons)
@@ -3739,6 +3746,7 @@ def _run_follow(
                             policy, economy_ledger, timing=decision_timing,
                             decision_facts=decision_facts,
                             town_emit_ownership=emit_ownership,
+                            ownership_ledger=ownership_ledger,
                         )
                         print(f"<no-key:{policy.last_reason}>", flush=True)
                         no_key_streak = (
@@ -3814,6 +3822,10 @@ def _run_follow(
                     )
                     last_command_signature = command_signature
                     if stalled_command_count >= STALLED_COMMAND_STATE_LIMIT:
+                        # The driver's own stop report, not a policy decision:
+                        # it is deliberately not offered to the ownership
+                        # ledger, whose evidence is the last decision the
+                        # policy actually produced.
                         _write_decision(
                             args.decision_log,
                             snapshot,
@@ -3857,6 +3869,7 @@ def _run_follow(
                                 ),
                             },
                             decision_facts=decision_facts,
+                            ownership_ledger=ownership_ledger,
                         )
                         print(
                             _policy_final_stop_banner(policy.last_reason),
@@ -4016,6 +4029,7 @@ def _run_follow(
                         town_stall_report, timing=decision_timing,
                         decision_facts=decision_facts,
                         town_emit_ownership=emit_ownership,
+                        ownership_ledger=ownership_ledger,
                     )
                     if posting_contract.last_incident is not None:
                         incident = posting_contract.last_incident
@@ -4061,6 +4075,7 @@ def _run_follow(
                                 policy, economy_ledger, timing=decision_timing,
                                 decision_facts=decision_facts,
                                 town_emit_ownership=emit_ownership,
+                                ownership_ledger=ownership_ledger,
                             )
                             print(f"<no-key:{policy.last_reason}>", flush=True)
                             poll_wait_started_at = time.perf_counter()
@@ -4117,6 +4132,7 @@ def _run_follow(
                             policy, economy_ledger, timing=decision_timing,
                             decision_facts=decision_facts,
                             town_emit_ownership=emit_ownership,
+                            ownership_ledger=ownership_ledger,
                         )
                     if not sent:
                         if sent is SendResult.DESIGNED_WAIT:
@@ -4223,6 +4239,8 @@ def _run_follow(
                         else LOOP_WINDOW
                     )
                     if _is_looping(recent_cells, window=loop_window):
+                        # The driver's own stop report; see the stalled-command
+                        # write above for why the ledger is not offered it.
                         _write_decision(
                             args.decision_log,
                             snapshot,

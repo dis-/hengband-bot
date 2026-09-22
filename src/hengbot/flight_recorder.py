@@ -282,15 +282,13 @@ def rotate_log(path: Path | None, max_bytes: int, generations: int) -> None:
         _warn(f"rotate {path}", exc)
 
 
-def append_session_marker(
-    path: Path | None,
+def session_start_record(
     argv: list[str],
     *,
     input_delays: dict[str, float] | None = None,
     prompt_japanese: bool | None = None,
-) -> None:
-    if path is None:
-        return
+) -> dict:
+    """Build the session-start record: one description of one bot process."""
     commit = None
     try:
         commit = subprocess.run(
@@ -312,6 +310,23 @@ def append_session_marker(
         record["input_delays"] = input_delays
     if prompt_japanese is not None:
         record["prompt_japanese"] = prompt_japanese
+    return record
+
+
+def append_session_marker(
+    path: Path | None,
+    argv: list[str],
+    *,
+    input_delays: dict[str, float] | None = None,
+    prompt_japanese: bool | None = None,
+) -> dict | None:
+    """Write the session-start record and return it, so a second ledger of
+    the same session records the same start rather than describing its own."""
+    if path is None:
+        return None
+    record = session_start_record(
+        argv, input_delays=input_delays, prompt_japanese=prompt_japanese
+    )
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as file:
@@ -319,6 +334,7 @@ def append_session_marker(
             file.write("\n")
     except OSError as exc:
         _warn("append session marker", exc)
+    return record
 
 
 class FlightRecorder:
