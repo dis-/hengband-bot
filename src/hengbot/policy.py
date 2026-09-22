@@ -3080,15 +3080,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for message in snapshot.messages
             )
             here = snapshot.grid_at(snapshot.player.position)
+            # The executor's binding is (sequence, owner), but the owner is the
+            # decision's final reason label, which detectors may relabel (e.g.
+            # the town progress invariant emitting this same native travel as
+            # "...=>town-progress-invariant:approach").  posted_sequence is set
+            # only when the posted key equalled the armed native-travel wait
+            # key, so the sequence alone identifies the travel operation; an
+            # owner-label allowlist left relabelled travels waiting forever.
             interrupted_travel_entry = bool(
                 snapshot.store is None
                 and self._store_visit is not None
                 and (self._store_entry_wait_key or "").startswith("\x1b`")
-                and snapshot.completed_operation_owner in {
-                    "shop:travel",
-                    "equipment-transaction:travel-home",
-                    "town:travel-entrance",
-                }
+                and snapshot.completed_operation_sequence is not None
                 and snapshot.completed_operation_sequence
                     == self._store_visit.posted_sequence
                 and here is not None
