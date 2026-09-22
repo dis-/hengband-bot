@@ -2785,7 +2785,9 @@ class CombatMixin:
                     ),
                     last_player_hp=snapshot.player.hp,
                     closest_destination_distance=0,
-                    origin=snapshot.player.position,
+                    # Started at the choke itself: no open-ground origin cell
+                    # -> the plan's checks use K = 8.
+                    origin=None,
                 )
                 self._inherit_choke_outcome_budget(
                     snapshot, self._choke_engagement_plan
@@ -2807,7 +2809,8 @@ class CombatMixin:
         the choke is judged by the damage taken WITHOUT it.  Melee adjacency
         is capped at the active plan's origin (the cell where it was decided;
         unknown origin -> K = 8), so the choke's own K = 2 cap can never
-        release it; with no active plan the current cell is the origin.
+        release it.  With no active plan (entry) and for a plan started while
+        already standing at the choke (no origin recorded) K = 8.
         Emergency/flee decisions keep the current-cell prediction.
         """
         plan = self._choke_engagement_plan
@@ -2819,7 +2822,9 @@ class CombatMixin:
                 else (len(NEIGHBOR_OFFSETS), 0)
             )
         else:
-            slots = self._melee_adjacency_slots(snapshot)
+            # No active plan: judge entry by open ground (K = 8), never by
+            # the cell the player happens to stand on.
+            slots = (len(NEIGHBOR_OFFSETS), 0)
         return self.threat_prediction(
             snapshot, hostiles, 3, melee_slots=slots
         )["operational_total"]
