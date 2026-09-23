@@ -5077,6 +5077,26 @@ class TownMixin:
             return pending_recall
 
         if player.recalling:
+            # loot-before-recall (user 2026-09-23, 「見えている分は全部拾う」
+            # / 「待ち時間だけに統一（推奨）」): the scroll has been read and
+            # its countdown (randint0(21) + 15 game turns) cannot be shortened
+            # or cancelled, so the decisions it costs are spent collecting what
+            # is visible rather than standing on the spot the drop fell on.
+            # Nothing above this rung changes: survival, the emergencies and
+            # every escape rule already outrank the whole return owner, and the
+            # calm test is re-decided on every board, so one hostile appearing
+            # (or any non-zero threat prediction) restores the wait on that
+            # same decision.  Whatever is not collected when the recall fires
+            # is abandoned, exactly as before.
+            if self._loot_before_recall_calm(snapshot):
+                self._rearm_navigation_ledger_loot()
+                collecting = self._normal_loot_key(
+                    snapshot,
+                    self._strategic_hostiles(snapshot),
+                    seek_reason="return:seek-loot",
+                )
+                if collecting is not None:
+                    return collecting
             self.last_reason = "return:wait-recall"
             return WAIT_KEY
 

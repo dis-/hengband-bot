@@ -994,23 +994,9 @@ RETURN_LOOT_SWEEP_TRIGGERS = frozenset(
 )
 # escape-kit-empty deliberately skips the loot sweep: reaching town before the
 # last escape method is spent is more important than an optional detour.
-# loot-before-recall (user 2026-09-23) licenses an unleashed sweep on ANY other
-# trigger while the board is calm — "no hostile is visible and the threat
-# prediction is zero" is a statement about the board, and these are exactly the
-# returns whose cause a calm board does NOT clear and a detour makes worse: no
-# room to carry what is picked up, a starvation timer with nothing edible left,
-# the last escape method already spent, and darkness (which both refuses the
-# scroll and makes routing unsafe).  _should_start_town_return names them all.
-RETURN_LOOT_SWEEP_CRITICAL_TRIGGERS = frozenset(
-    {
-        "pack-full",
-        "food-hungry",
-        "escape-kit-empty",
-        "light-low",
-        "no-light",
-        "light-empty",
-    }
-)
+# loot-before-recall (user 2026-09-23) needs no trigger of its own here: it
+# collects only inside the recall countdown, which no trigger can shorten, so
+# the critical returns keep this set exactly as it is.
 CURE_CRITICAL_TARGET = 3
 CURE_CRITICAL_DEEP_DEPTH = 10
 CURE_CRITICAL_DEEP_TARGET = 10
@@ -5940,49 +5926,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return chest
 
         # A routine supply return can afford a short sweep for already-seen safe
-        # loot. Hunger, darkness and a full pack never detour.
-        #
-        # loot-before-recall (user 2026-09-23, 「見えている分は全部拾う」): a
-        # return that nothing is threatening collects EVERY visible item first
-        # — the emergency that fired is over once the board holds no hostile
-        # and predicts no damage, and the drop of the unique that was just
-        # killed is ordinary floor loot lying underfoot. That sweep is not
-        # leashed: "all of it" is the decision. The reading of the scroll, the
-        # recall timer and every escape rule are untouched, and a hostile
-        # reappearing closes the gate on that same decision. The critical
-        # resource returns keep their existing "never detour" rule: a calm
-        # board does not clear hunger, darkness, a full pack or a spent escape
-        # kit, and the detour makes each of them worse.
+        # loot. Hunger, darkness, a full pack, and emergency returns never detour.
+        # loot-before-recall (user 2026-09-23) deliberately does NOT widen this
+        # gate: nothing may delay reading the scroll.  The collection it asks
+        # for happens afterwards, inside the recall countdown, where the return
+        # owner would otherwise stand still (_return_to_town_key).
         return_starting = (
             not snapshot.in_town and self._should_start_town_return(snapshot)
         )
-        return_latched = return_starting or self._returning_to_town
-        collect_everything = (
-            return_latched
-            and not player.recalling
-            and self._last_return_trigger
-            not in RETURN_LOOT_SWEEP_CRITICAL_TRIGGERS
-            and self._loot_before_recall_calm(snapshot)
-        )
-        if collect_everything:
-            self._rearm_navigation_ledger_loot()
         if (
-            return_latched
+            (return_starting or self._returning_to_town)
             and not player.recalling
-            and (
-                collect_everything
-                or (
-                    not self._emergency_return_active
-                    and self._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
-                )
-            )
+            and not self._emergency_return_active
+            and self._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
         ):
             return_loot = self._normal_loot_key(
                 snapshot,
                 strategic_hostiles,
-                max_path_distance=(
-                    None if collect_everything else RETURN_LOOT_SWEEP_MAX_DISTANCE
-                ),
+                max_path_distance=RETURN_LOOT_SWEEP_MAX_DISTANCE,
                 seek_reason="return:seek-loot",
             )
             if return_loot is not None:
@@ -11020,13 +10981,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _loot_before_recall_calm(self, snapshot: Snapshot) -> bool:
         """Nothing on this board threatens the player.
 
-        User decision 2026-09-23 (topic loot-before-recall), verbatim:
-        「見えている分は全部拾う」 — after the return/recall trigger has fired,
-        if no hostile is visible and the threat prediction is zero, the bot
-        collects EVERY loot item it can see on the floor before reading the
-        Word of Recall.  Danger returning sends it straight back to the
-        return/survival behaviour, so the whole condition is re-decided on
-        every board rather than latched.
+        User decision 2026-09-23 (topic loot-before-recall):
+        「見えている分は全部拾う」, narrowed by the follow-up answer
+        「待ち時間だけに統一（推奨）」 — reading the Word of Recall is never
+        delayed; the countdown it starts (randint0(21) + 15 game turns, see
+        recall_player in src/spell-kind/spells-world.cpp) is spent collecting
+        the visible floor loot instead of standing still.  Danger returning
+        sends the bot straight back to the wait/survival behaviour, so the
+        whole condition is re-decided on every board rather than latched.
 
         Both of the decision's conditions are checked, plus the detected list:
         a monster known only through telepathy is a hostile the player can see
@@ -11054,10 +11016,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         for NAV_TARGET_STALL_LIMIT decisions.  While an emergency owns every
         decision that is guaranteed: the player is fleeing, not approaching,
         and a teleport moves it bodily away.  The expiry therefore records the
-        flight, not an unreachable item, so the calm board that follows is
-        entitled to judge the route once more.  A position released here is
-        never released again on this floor visit: if it stalls under the new
-        circumstances it expires for good and the return proceeds.
+        flight, not an unreachable item, so the calm recall countdown that
+        follows is entitled to judge the route once more.  A position released
+        here is never released again on this floor visit: if it stalls under
+        the new circumstances it expires for good and the wait resumes.
         """
         for position in sorted(
             self._nav_ledger_deferred_loot - self._loot_ledger_rearmed,

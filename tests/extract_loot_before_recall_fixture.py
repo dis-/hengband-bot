@@ -2,10 +2,11 @@
 
 The capture is the stop that followed the incident (the bot recalled to town
 and stopped on a prompt there), so its retained decision tail and emitter ring
-still hold the dungeon window: Forest 24F, decisions 5280-5386, turn
-5169096-5171822.  Decision 5386 read Word of Recall while seven items lay on
-the floor, three of them under and beside the player, no hostile visible and
-``threat_prediction.total`` zero.
+still hold the dungeon window: Forest 24F, decisions 5280-5424.  Decision 5386
+read Word of Recall while seven items lay on the floor, three of them under and
+beside the player, no hostile visible and ``threat_prediction.total`` zero;
+decisions 5387-5424 then waited in place on that same cell until the countdown
+fired and the floor (with its loot) was left behind.
 
 Each decision's input ends where the previous decision's
 ``timing.jsonl_drain_records`` says, and every boundary row must carry the
@@ -46,7 +47,16 @@ CAPTURE = next(
 OUTPUT = ROOT / "tests" / "fixtures" / "loot-before-recall-20260923.jsonl.gz"
 PROVENANCE = OUTPUT.with_suffix(".provenance.txt")
 FIRST = 5280  # first frozen decision
-LAST = 5386  # the decision that read the recall on top of the drop
+RECALL = 5386  # the decision that read the recall on top of the drop
+LAST = 5387  # the first decision of the recall countdown
+# The countdown decisions after LAST are frozen as RECORDS ONLY.  The fix makes
+# the bot move and pick up from LAST onwards, so their boards stop describing
+# the replayed run at that point and feeding them on would be replay after
+# divergence.  Their value is the evidence of what the live bot did instead:
+# 38 identical waits on the cell the drop fell on.  WAIT_TAIL_LAST stops one
+# short of the recorded 5425, whose sequence the log reuses for the first town
+# decision after the recall fired.
+WAIT_TAIL_LAST = 5424
 
 
 def _emitter_rows() -> list[dict]:
@@ -132,6 +142,18 @@ def main() -> None:
         {"role": "decision-input", "decision": decision, "board": rows[end]}
         for decision, end in selected
     )
+    wait_tail = [
+        decision
+        for decision in decisions
+        if LAST < decision["decision_sequence"] <= WAIT_TAIL_LAST
+    ]
+    if [decision["decision_sequence"] for decision in wait_tail] != list(
+        range(LAST + 1, WAIT_TAIL_LAST + 1)
+    ):
+        raise RuntimeError("the recorded countdown tail is not contiguous")
+    records.extend(
+        {"role": "recorded-wait", "decision": decision} for decision in wait_tail
+    )
     payload = "".join(
         json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
         for record in records
@@ -149,8 +171,12 @@ def main() -> None:
         f"Source: incident-captures/{CAPTURE.name}/\n"
         f"Selection: decisions {FIRST}-{LAST} of the retained decision tail "
         f"({first['time']} - {last['time']}), Forest 24F, turn "
-        f"{first['turn']}-{last['turn']}; decision {LAST} is the recorded "
-        "return:recall 'rg' read on top of the unique's drop.\n"
+        f"{first['turn']}-{last['turn']}; decision {RECALL} is the recorded "
+        "return:recall 'rg' read on top of the unique's drop and decision "
+        f"{LAST} is the first board of the countdown it started.  Decisions "
+        f"{LAST + 1}-{WAIT_TAIL_LAST} ({len(wait_tail)} of them) are frozen as "
+        "records only, without their boards: they are the evidence of the "
+        "waits the live bot spent, not replay input.\n"
         "Boundary rule: walking back from the final emitter row, each "
         "decision's input ends drain(previous decision) rows earlier and must "
         "carry the decision record's turn; the walk validates for all "
