@@ -434,6 +434,10 @@ FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})
 
 MORIVANT_TOWN_ID = 2
 
+# The Outpost: the only town whose map carries the Yeek Cave entrance, so the
+# only town a mining/scavenge walk-in can start from (_is_descent_target).
+OUTPOST_TOWN_ID = 0
+
 MORIVANT_LIBRARY_BUILDING_TYPE = 0
 
 MORIVANT_FULL_IDENTIFY_COST = 1300

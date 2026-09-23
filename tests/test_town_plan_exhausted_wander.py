@@ -20,6 +20,16 @@ frontier, and the last-resort ``stuck:wander`` ran three times until the town
 arbiter retired ``detectors`` and the driver stopped on
 ``town:blocked:owner-retired``.
 
+Fix (user decision 2026-09-24, 「採掘の段で、入口の無い町にいる時はどうします
+か」 -> 「町0へ戻る（推奨）」): the stranded plan returns to the Outpost through
+the cross-town machinery the Morivant *Identify* trip already uses
+(``_town_teleport_key``) and walks in from there.  It never reads a Word of
+Recall: the mine phase refuses recall destinations to conserve scrolls, and
+that intent is unchanged.  The reason keeps the ``town:cross-town`` prefix, so
+the trip is owned and bounded by that family's existing budget and retirement
+rules.  When the return is itself impossible -- no fare, no reachable Inn, no
+legal exit, or this is already town 0 -- the honest stop remains the fallback.
+
 The earlier round's diagnosis (``_departure_supplier_counterfactual`` at the
 departure block clearing ``_town_blocked_reason`` and returning None) is
 refuted for these boards: that whole block is guarded by
@@ -40,7 +50,8 @@ index it had before the first frozen decision), its StoreVisit, its Home
 catalogue bookkeeping, its fundraising mode and planned run count, and this
 visit's purchase/attempt ledgers.  Every pin first asserts the recorded stop it
 reproduces, and P1/P2 assert the recorded ``stuck:wander`` decisions and the
-recorded retirement stop are gone.
+recorded retirement stop are gone.  P5 is the same replay with the Inn fare out
+of reach, which is the one recorded-board change it makes.
 
 Walls, each on a collaborator that is not under test:
 - the Home disposal/history files live in a temporary directory;
@@ -66,16 +77,30 @@ import gzip
 import hashlib
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from tests.policy_fixtures import grid, player
 
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
-from hengbot.model import parse_snapshot
+from hengbot.model import (
+    DUNGEON_YEEK_CAVE,
+    PLAYER_CLASS_WARRIOR,
+    Position,
+    Snapshot,
+    parse_snapshot,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
+from hengbot.policy_constants import (
+    OUTPOST_TOWN_ID,
+    POLICY_FINAL_STOP_REASONS,
+    READ_KEY,
+    TOWN_TELEPORT_COST,
+)
 from hengbot.policy_types import StoreVisit, StoreVisitPhase, TownErrandPlan
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
@@ -100,6 +125,7 @@ WINDOW = (59, 60, 61, 62, 63)
 MORIVANT_TOWN_ID = 2
 ALCHEMIST = 4
 BLOCKED_REASON = "town:blocked:walk-in-entrance-unavailable"
+RETURN_REASON = "town:cross-town-walk-in-return"
 
 
 def _records():
@@ -223,7 +249,7 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
             in fields["_town_visit_purchase_quantities"].items()
         }
 
-    def _drive(self, capture, *, planned_mining_runs=True):
+    def _drive(self, capture, *, planned_mining_runs=True, gold=None):
         """Decide the recorded boards of the window, as the driver would.
 
         The driver stops instead of deciding again once the policy names a
@@ -231,6 +257,11 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         stops there too.
         """
         boards = [self._board(capture, sequence) for sequence in WINDOW]
+        if gold is not None:
+            boards = [
+                replace(board, player=replace(board.player, gold=gold))
+                for board in boards
+            ]
         with TemporaryDirectory() as raw_directory:
             policy = self._fresh_policy(Path(raw_directory))
             policy.prime(boards[0])
@@ -347,27 +378,88 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
                     )
 
     # -- P1 / P2 ---------------------------------------------------------
-    def _assert_named_stop_replaces_the_wander(self, capture):
+    def _assert_cross_town_return_replaces_the_wander(self, capture):
         emitted = self._drive(capture)
         reasons = [reason for _key, reason in emitted]
         # The recorded first decision of the window is unchanged.
         self.assertEqual(reasons[0], "shop:observe-and-leave")
         self.assertEqual(emitted[0][0], self._decision(capture, 59)["key"])
-        # The three recorded wanders and the recorded retirement stop are gone.
+        # The three recorded wanders and the recorded retirement stop are gone,
+        # and so is the blocked stop: the return to the Outpost is available.
         self.assertNotIn("stuck:wander", reasons)
         self.assertNotIn("town:blocked:owner-retired", reasons)
-        # What replaces the first of them names the missing entrance, and the
-        # driver treats it as a declared final stop instead of deciding again,
-        # so the recorded window ends two decisions before the retirement.
+        self.assertNotIn(BLOCKED_REASON, reasons)
+        self.assertEqual(reasons[1:], [RETURN_REASON] * (len(emitted) - 1))
+        # The trip is owned and bounded by the existing cross-town family.
+        self.assertEqual(reason_owner_family(RETURN_REASON), "cross-town")
+        for key, reason in emitted[1:]:
+            # Every step of the return is a walk (optionally carrying the Inn's
+            # own destination selection); the mine phase never spends a scroll.
+            self.assertTrue(key[:1] in set("12346789"), (key, reason))
+            self.assertFalse(key.startswith(READ_KEY), key)
+
+    def test_p1_empty_procurement_stop_returns_to_the_outpost(self):
+        self._assert_cross_town_return_replaces_the_wander(EMPTY_STOP)
+
+    def test_p2_destruction_procurement_stop_returns_to_the_outpost(self):
+        self._assert_cross_town_return_replaces_the_wander(DESTRUCTION_STOP)
+
+    def test_p5_unaffordable_return_still_names_the_missing_entrance(self):
+        """The fallback: the return is refused, so the stop names the cause.
+
+        The same recorded boards with the Inn fare (TOWN_TELEPORT_COST) out of
+        reach.  Nothing else on the page changes: the mining kit is complete
+        either way, so the Alchemist still wants nothing.
+        """
+        emitted = self._drive(EMPTY_STOP, gold=TOWN_TELEPORT_COST - 1)
+        reasons = [reason for _key, reason in emitted]
+        self.assertNotIn("stuck:wander", reasons)
+        self.assertNotIn("town:blocked:owner-retired", reasons)
+        self.assertNotIn(RETURN_REASON, reasons)
         self.assertEqual(reasons[1], BLOCKED_REASON)
         self.assertIn(BLOCKED_REASON, POLICY_FINAL_STOP_REASONS)
+        # The driver stops there instead of deciding again.
         self.assertEqual(len(emitted), 2)
 
-    def test_p1_empty_procurement_stop_names_the_missing_entrance(self):
-        self._assert_named_stop_replaces_the_wander(EMPTY_STOP)
+    def test_p6_a_town_zero_mining_wander_is_left_alone(self):
+        """A mine plan in the Outpost still has a walk-in goal.
 
-    def test_p2_destruction_procurement_stop_names_the_missing_entrance(self):
-        self._assert_named_stop_replaces_the_wander(DESTRUCTION_STOP)
+        Same seam, same winning rung, a town whose emitted board carries the
+        Yeek Cave entrance: the walk-in goal exists, so neither the cross-town
+        return nor the blocked stop can apply and the pre-existing owner keeps
+        the decision.  The walk-in itself is pinned where it already was
+        (tests/test_policy_town.py
+        ``test_mining_walk_in_is_the_only_zero_recall_entry`` and the descent
+        pins in tests/test_policy_navigation.py).
+        """
+        entrance = Position(30, 92)
+        here = Position(30, 90)
+        grids = {
+            Position(30, x): grid(30, x) for x in range(88, 94)
+        }
+        grids[entrance] = grid(
+            entrance.y, entrance.x, entrance=True,
+            entrance_dungeon_id=DUNGEON_YEEK_CAVE,
+        )
+        board = Snapshot(
+            player(here.y, here.x, class_id=PLAYER_CLASS_WARRIOR, gold=5398),
+            grids, [], floor_key=(0, 0, 0), inventory=[], equipment=[],
+            town_id=OUTPOST_TOWN_ID,
+        )
+        with TemporaryDirectory() as raw_directory:
+            policy = self._fresh_policy(Path(raw_directory))
+            policy.prime(board)
+            policy._fundraising_mode = "mine"
+            known = policy.with_known_skill_exp(board)
+            self.assertEqual(policy._town_walk_in_entrance(known), entrance)
+
+            policy.last_reason = "stuck:wander"
+            policy._town_procurement_decision(known, "6")
+
+            self.assertNotIn(policy.last_reason, {RETURN_REASON, BLOCKED_REASON})
+            self.assertNotEqual(
+                policy._town_blocked_reason, "walk-in-entrance-unavailable"
+            )
 
     # -- P3 --------------------------------------------------------------
     def test_the_new_stop_reason_is_registered_everywhere_it_is_read(self):
