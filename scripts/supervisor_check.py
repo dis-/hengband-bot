@@ -34,6 +34,62 @@ BOT_IDLE_SECONDS = 120
 MEASUREMENT_IDLE_SECONDS = 180
 REVIEW_UNPUSHED_SECONDS = 60 * 60
 TAIL_BYTES = 512 * 1024
+# Windows PowerShell's `-Encoding utf8` prepends this to every artifact it
+# writes; it is a mark, never content, and a cp932 console cannot encode it.
+BOM = "﻿"
+
+
+def strip_bom(text: str) -> str:
+    return text.lstrip(BOM)
+
+
+def read_artifact(path: Path) -> str | None:
+    """A text artifact's content, or None when it cannot be read.
+
+    Never raises on the encoding of what it reads: an artifact written by
+    PowerShell carries a BOM, and one written by a Japanese-speaking operator
+    carries text no console codec here is guaranteed to represent.
+    """
+    try:
+        return strip_bom(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return None
+
+
+def configure_stdout(stream=None) -> None:
+    """Make stdout survive text the console codec cannot represent.
+
+    The checker prints what it reads, so a cp932 console would otherwise let a
+    Japanese hold reason - or a single BOM - kill the very process that exists
+    to notice a stall.
+    """
+    stream = sys.stdout if stream is None else stream
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="replace")
+    except (OSError, ValueError, LookupError):
+        try:
+            reconfigure(errors="replace")
+        except (OSError, ValueError, LookupError):
+            pass
+
+
+def emit(line: str, stream=None) -> None:
+    """Print a line even when the stream's codec cannot encode it."""
+    stream = sys.stdout if stream is None else stream
+    try:
+        print(line, file=stream)
+        return
+    except UnicodeEncodeError:
+        pass
+    encoding = getattr(stream, "encoding", None) or "ascii"
+    try:
+        safe = line.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    except (LookupError, UnicodeError):
+        safe = line.encode("ascii", errors="replace").decode("ascii")
+    print(safe, file=stream)
 
 
 def state_dir(explicit: str | None = None) -> Path:
@@ -75,7 +131,7 @@ def tail_rows(path: Path, rows: int, tail_bytes: int = TAIL_BYTES) -> list[dict]
         # A byte-order mark survives the seek when a PowerShell-written file is
         # read from its start, and would otherwise hide the row behind a
         # decode error.
-        line = line.strip().lstrip("﻿")
+        line = strip_bom(line.strip())
         if not line:
             continue
         try:
@@ -88,9 +144,12 @@ def tail_rows(path: Path, rows: int, tail_bytes: int = TAIL_BYTES) -> list[dict]
 
 
 def read_pid(path: Path) -> int | None:
+    text = read_artifact(path)
+    if text is None:
+        return None
     try:
-        return int(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
+        return int(text.strip())
+    except ValueError:
         return None
 
 
@@ -130,10 +189,8 @@ def bot_front(root: Path, now: datetime, alive: bool,
             return False, f"{identity_evidence} but {decision_note} (> {BOT_IDLE_SECONDS}s)"
         return True, f"{identity_evidence}, {decision_note}"
     if hold.exists():
-        try:
-            reason = hold.read_text(encoding="utf-8", errors="replace").strip().splitlines()
-        except OSError:
-            reason = []
+        text = read_artifact(hold)
+        reason = text.strip().splitlines() if text else []
         if reason:
             return True, f"bot stopped under maintenance.hold ({reason[0]}), {decision_note}"
         # An empty hold file would silence this front for as long as it exists,
@@ -251,6 +308,7 @@ def main(argv=None) -> int:
     parser.add_argument("--now", default=None, help="ISO timestamp to evaluate at (testing)")
     parser.add_argument("--quiet", action="store_true", help="print the JSON verdict only")
     arguments = parser.parse_args(argv)
+    configure_stdout()
     now = parse_time(arguments.now) or datetime.now(timezone.utc).astimezone()
     verdict = check(Path(arguments.root), now, arguments.bot_identity)
     verdict["verdict_file"] = str(write_verdict(state_dir(arguments.state_dir),
@@ -258,8 +316,8 @@ def main(argv=None) -> int:
     if not arguments.quiet:
         for name in FRONTS:
             front = verdict["fronts"][name]
-            print(f"{name} {'ok' if front['ok'] else 'stalled'}: {front['evidence']}")
-    print(json.dumps(verdict, ensure_ascii=False))
+            emit(f"{name} {'ok' if front['ok'] else 'stalled'}: {front['evidence']}")
+    emit(json.dumps(verdict, ensure_ascii=False))
     return 1 if verdict["stalled"] else 0
 
 

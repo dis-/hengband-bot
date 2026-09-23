@@ -35,6 +35,14 @@ $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershe
 if (-not (Test-Path -LiteralPath $StateDir)) {
     New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
 }
+$StateDir = (Resolve-Path -LiteralPath $StateDir).ProviderPath
+# Windows PowerShell's `Set-Content -Encoding utf8` prepends a UTF-8 BOM, which
+# a reader on a cp932 console cannot even print.  Write UTF-8 without one.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+function Write-TextNoBom([string]$Path, [string]$Text) {
+    [System.IO.File]::WriteAllText($Path, $Text, $utf8NoBom)
+}
 
 function Resolve-Python {
     if ($Python) { return $Python }
@@ -47,7 +55,8 @@ function Resolve-Python {
 
 function Write-AlertLog([string]$Method, [string]$Front, [string]$Evidence) {
     $line = '{0} {1} {2}: {3}' -f $Now.ToString('o'), $Method, $Front, $Evidence
-    Add-Content -LiteralPath (Join-Path $StateDir 'alerts.log') -Value $line -Encoding utf8
+    [System.IO.File]::AppendAllText((Join-Path $StateDir 'alerts.log'),
+        ($line + [Environment]::NewLine), $utf8NoBom)
 }
 
 function Send-Alert([string]$Front, [string]$Evidence) {
@@ -74,7 +83,8 @@ function Send-Alert([string]$Front, [string]$Evidence) {
         $alerts = Join-Path $StateDir 'alerts'
         if (-not (Test-Path -LiteralPath $alerts)) { New-Item -ItemType Directory -Path $alerts -Force | Out-Null }
         $file = Join-Path $alerts ("alert-{0}-{1}.txt" -f $Now.ToString('yyyyMMdd-HHmmss'), $Front)
-        Set-Content -LiteralPath $file -Encoding utf8 -Value @("$title", "$Evidence")
+        Write-TextNoBom $file ((@("$title", "$Evidence") -join [Environment]::NewLine) +
+            [Environment]::NewLine)
         Write-Output "ALERT-FILE $file"
     } else {
         Write-Output "TOAST $Front"
@@ -84,15 +94,68 @@ function Send-Alert([string]$Front, [string]$Evidence) {
 
 function Get-JsonOrNull([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
-    try { return Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json } catch { return $null }
+    try {
+        $raw = Get-Content -LiteralPath $Path -Raw -Encoding utf8
+        if (-not $raw) { return $null }
+        # A file written by an older PowerShell carries a BOM that
+        # ConvertFrom-Json rejects as an invalid primitive.
+        return ($raw.TrimStart([char]0xFEFF) | ConvertFrom-Json)
+    } catch { return $null }
 }
 
 # 1. Run the checker as the scheduled task, into its own verdict file.
+#    Its stderr is captured: a checker that dies on its own input used to exit
+#    1 - the same code as "a front is stalled" - leave last round's verdict
+#    file behind, and be read as a verdict, so the crash was silent.
 $checker = Join-Path $PSScriptRoot 'supervisor_check.py'
 $interpreter = Resolve-Python
-& $interpreter $checker --root $Root --state-dir $StateDir --source task --quiet `
-    --now $Now.ToString('o') | Out-Null
+$checkerErrors = Join-Path $StateDir 'checker-stderr.txt'
+if (Test-Path -LiteralPath $checkerErrors) { Remove-Item -LiteralPath $checkerErrors -Force }
+$previousPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    & $interpreter $checker --root $Root --state-dir $StateDir --source task --quiet `
+        --now $Now.ToString('o') 2>$checkerErrors | Out-Null
+    $checkerExit = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousPreference
+}
+$checkerStderr = ''
+if (Test-Path -LiteralPath $checkerErrors) {
+    $checkerStderr = (Get-Content -LiteralPath $checkerErrors -Raw)
+    if ($null -eq $checkerStderr) { $checkerStderr = '' }
+    $checkerStderr = $checkerStderr.Trim()
+}
 $verdict = Get-JsonOrNull (Join-Path $StateDir 'verdict-task.json')
+
+# The verdict has to be THIS round's: a crash after the file was written would
+# otherwise be indistinguishable from a healthy run.
+$verdictFresh = $false
+if ($verdict -and $verdict.time) {
+    try {
+        $verdictAge = [Math]::Abs((($Now - [DateTimeOffset]::Parse($verdict.time))).TotalMinutes)
+        $verdictFresh = ($verdictAge -le $SessionVerdictMaxAgeMinutes)
+    } catch { $verdictFresh = $false }
+}
+
+$checkerFault = $null
+if ($checkerExit -ne 0 -and $checkerExit -ne 1) {
+    $checkerFault = "supervisor_check.py exited $checkerExit"
+} elseif (-not $verdict) {
+    $checkerFault = 'supervisor_check.py wrote no parsable verdict file'
+} elseif (-not $verdictFresh) {
+    $checkerFault = ("supervisor_check.py left a stale verdict (time={0})" -f $verdict.time)
+} elseif ($checkerStderr) {
+    $checkerFault = "supervisor_check.py wrote to stderr"
+}
+if ($checkerFault -and $checkerStderr) {
+    # PowerShell wraps a native command's stderr in error records; their
+    # decoration lines carry no information about the failure.
+    $tail = ($checkerStderr -split "\r?\n" |
+             Where-Object { $_.Trim() -and $_.Trim() -notmatch '^(\+|~|At line:)' } |
+             Select-Object -Last 3) -join ' | '
+    if ($tail) { $checkerFault = "{0}: {1}" -f $checkerFault, $tail }
+}
 
 # 2. Update the per-front stall clocks and escalate what has been sustained.
 $statePath = Join-Path $StateDir 'notify-state.json'
@@ -107,40 +170,48 @@ if ($state -and $state.fronts) {
     }
 }
 
-$alerts = 0
-if ($verdict) {
-    foreach ($property in $verdict.fronts.PSObject.Properties) {
-        $name = $property.Name
-        $front = $property.Value
-        if ($front.ok) {
-            $fronts.Remove($name) | Out-Null
-            continue
-        }
-        if (-not $fronts.ContainsKey($name)) {
-            $fronts[$name] = @{ stalled_since = $Now.ToString('o'); last_toast = $null }
-        }
-        $since = [DateTimeOffset]::Parse($fronts[$name].stalled_since)
-        $sustained = ($Now - $since).TotalMinutes
-        $lastToast = $fronts[$name].last_toast
-        $due = $true
-        if ($lastToast) {
-            $due = (($Now - [DateTimeOffset]::Parse($lastToast)).TotalMinutes -ge $RepeatMinutes)
-        }
-        if ($sustained -ge $SustainedMinutes -and $due) {
-            Send-Alert $name ("stalled for {0:N0} min: {1}" -f $sustained, $front.evidence)
-            $fronts[$name].last_toast = $Now.ToString('o')
-            $alerts += 1
-        } else {
-            $why = if ($sustained -lt $SustainedMinutes) {
-                "stalled {0:N0} min (< {1})" -f $sustained, $SustainedMinutes
-            } else {
-                "stalled {0:N0} min, next repeat in {1:N0} min" -f $sustained,
-                    ($RepeatMinutes - ($Now - [DateTimeOffset]::Parse($lastToast)).TotalMinutes)
-            }
-            Write-Output ("HOLD {0} {1}: {2}" -f $name, $why, $front.evidence)
-        }
+$script:alerts = 0
+function Update-Front([string]$Name, [bool]$Ok, [string]$Evidence) {
+    if ($Ok) {
+        $fronts.Remove($Name) | Out-Null
+        return
     }
-} else {
+    if (-not $fronts.ContainsKey($Name)) {
+        $fronts[$Name] = @{ stalled_since = $Now.ToString('o'); last_toast = $null }
+    }
+    $since = [DateTimeOffset]::Parse($fronts[$Name].stalled_since)
+    $sustained = ($Now - $since).TotalMinutes
+    $lastToast = $fronts[$Name].last_toast
+    $due = $true
+    if ($lastToast) {
+        $due = (($Now - [DateTimeOffset]::Parse($lastToast)).TotalMinutes -ge $RepeatMinutes)
+    }
+    if ($sustained -ge $SustainedMinutes -and $due) {
+        Send-Alert $Name ("stalled for {0:N0} min: {1}" -f $sustained, $Evidence)
+        $fronts[$Name].last_toast = $Now.ToString('o')
+        $script:alerts += 1
+    } else {
+        $why = if ($sustained -lt $SustainedMinutes) {
+            "stalled {0:N0} min (< {1})" -f $sustained, $SustainedMinutes
+        } else {
+            "stalled {0:N0} min, next repeat in {1:N0} min" -f $sustained,
+                ($RepeatMinutes - ($Now - [DateTimeOffset]::Parse($lastToast)).TotalMinutes)
+        }
+        Write-Output ("HOLD {0} {1}: {2}" -f $Name, $why, $Evidence)
+    }
+}
+
+# A broken checker is itself a stalled front: it is the mechanism that is
+# supposed to notice a stall, so its silence must never pass for health.
+Update-Front 'checker' (-not $checkerFault) ([string]$checkerFault)
+if ($checkerFault) {
+    Write-Output ("CHECKER-FAULT {0}" -f $checkerFault)
+}
+if ($verdict -and $verdictFresh) {
+    foreach ($property in $verdict.fronts.PSObject.Properties) {
+        Update-Front $property.Name ([bool]$property.Value.ok) ([string]$property.Value.evidence)
+    }
+} elseif (-not $verdict) {
     Write-Output 'NO-VERDICT the checker produced no verdict file'
 }
 
@@ -174,7 +245,7 @@ if ($null -eq $sessionAge -or $sessionAge -ge $SessionVerdictMaxAgeMinutes) {
 
 $save = [ordered]@{ updated = $Now.ToString('o'); fronts = $fronts; session = $sessionState }
 $temporary = "$statePath.$PID.tmp"
-($save | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $temporary -Encoding utf8
+Write-TextNoBom $temporary (($save | ConvertTo-Json -Depth 6) + [Environment]::NewLine)
 Move-Item -LiteralPath $temporary -Destination $statePath -Force
 
 Write-Output ("NOTIFY-DONE alerts={0} stalled={1}" -f $alerts, (($verdict.stalled) -join ','))

@@ -23,6 +23,10 @@ $runtime = Join-Path $Root 'jsonlog'
 if (-not (Test-Path -LiteralPath $runtime)) {
     New-Item -ItemType Directory -Path $runtime | Out-Null
 }
+$runtime = (Resolve-Path -LiteralPath $runtime).ProviderPath
+# Windows PowerShell's `Set-Content -Encoding utf8` prepends a UTF-8 BOM, and
+# the readers of this marker are not required to tolerate one.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $armedAt = [DateTimeOffset]::Now
 $marker = [ordered]@{
     armed_at = $armedAt.ToString('o')
@@ -33,7 +37,8 @@ $marker = [ordered]@{
 }
 $path = Join-Path $runtime 'waker.json'
 $temporary = "$path.$PID.tmp"
-($marker | ConvertTo-Json -Compress) | Set-Content -LiteralPath $temporary -Encoding utf8
+[System.IO.File]::WriteAllText($temporary,
+    (($marker | ConvertTo-Json -Compress) + [Environment]::NewLine), $utf8NoBom)
 Move-Item -LiteralPath $temporary -Destination $path -Force
 Write-Output "WAKER-ARMED $($marker.due_at) pid=$PID seconds=$Seconds"
 
