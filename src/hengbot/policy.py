@@ -994,6 +994,23 @@ RETURN_LOOT_SWEEP_TRIGGERS = frozenset(
 )
 # escape-kit-empty deliberately skips the loot sweep: reaching town before the
 # last escape method is spent is more important than an optional detour.
+# loot-before-recall (user 2026-09-23) licenses an unleashed sweep on ANY other
+# trigger while the board is calm — "no hostile is visible and the threat
+# prediction is zero" is a statement about the board, and these are exactly the
+# returns whose cause a calm board does NOT clear and a detour makes worse: no
+# room to carry what is picked up, a starvation timer with nothing edible left,
+# the last escape method already spent, and darkness (which both refuses the
+# scroll and makes routing unsafe).  _should_start_town_return names them all.
+RETURN_LOOT_SWEEP_CRITICAL_TRIGGERS = frozenset(
+    {
+        "pack-full",
+        "food-hungry",
+        "escape-kit-empty",
+        "light-low",
+        "no-light",
+        "light-empty",
+    }
+)
 CURE_CRITICAL_TARGET = 3
 CURE_CRITICAL_DEEP_DEPTH = 10
 CURE_CRITICAL_DEEP_TARGET = 10
@@ -1577,6 +1594,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
+        # Of the deferred positions, the ones the navigation ledger expired
+        # (blocker "navigation-ledger:loot"), and the ones a calm return has
+        # already handed a second budget.  Both are per floor visit.
+        self._nav_ledger_deferred_loot: set[Position] = set()
+        self._loot_ledger_rearmed: set[Position] = set()
         self._loot_defer_blocker: str | None = None
         self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
@@ -5918,20 +5940,49 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return chest
 
         # A routine supply return can afford a short sweep for already-seen safe
-        # loot. Hunger, darkness, a full pack, and emergency returns never detour.
+        # loot. Hunger, darkness and a full pack never detour.
+        #
+        # loot-before-recall (user 2026-09-23, 「見えている分は全部拾う」): a
+        # return that nothing is threatening collects EVERY visible item first
+        # — the emergency that fired is over once the board holds no hostile
+        # and predicts no damage, and the drop of the unique that was just
+        # killed is ordinary floor loot lying underfoot. That sweep is not
+        # leashed: "all of it" is the decision. The reading of the scroll, the
+        # recall timer and every escape rule are untouched, and a hostile
+        # reappearing closes the gate on that same decision. The critical
+        # resource returns keep their existing "never detour" rule: a calm
+        # board does not clear hunger, darkness, a full pack or a spent escape
+        # kit, and the detour makes each of them worse.
         return_starting = (
             not snapshot.in_town and self._should_start_town_return(snapshot)
         )
-        if (
-            (return_starting or self._returning_to_town)
+        return_latched = return_starting or self._returning_to_town
+        collect_everything = (
+            return_latched
             and not player.recalling
-            and not self._emergency_return_active
-            and self._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
+            and self._last_return_trigger
+            not in RETURN_LOOT_SWEEP_CRITICAL_TRIGGERS
+            and self._loot_before_recall_calm(snapshot)
+        )
+        if collect_everything:
+            self._rearm_navigation_ledger_loot()
+        if (
+            return_latched
+            and not player.recalling
+            and (
+                collect_everything
+                or (
+                    not self._emergency_return_active
+                    and self._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
+                )
+            )
         ):
             return_loot = self._normal_loot_key(
                 snapshot,
                 strategic_hostiles,
-                max_path_distance=RETURN_LOOT_SWEEP_MAX_DISTANCE,
+                max_path_distance=(
+                    None if collect_everything else RETURN_LOOT_SWEEP_MAX_DISTANCE
+                ),
                 seek_reason="return:seek-loot",
             )
             if return_loot is not None:
@@ -10937,6 +10988,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if self._nav_ledger.is_expired("loot", committed_loot):
                 self._deferred_loot.add(committed_loot)
+                self._nav_ledger_deferred_loot.add(committed_loot)
                 self._loot_defer_blocker = "navigation-ledger:loot"
                 if self._loot_target == committed_loot:
                     self._loot_target = None
@@ -10964,6 +11016,62 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if loot.distance_to(monster.position) <= 1
                 )
 
+
+    def _loot_before_recall_calm(self, snapshot: Snapshot) -> bool:
+        """Nothing on this board threatens the player.
+
+        User decision 2026-09-23 (topic loot-before-recall), verbatim:
+        「見えている分は全部拾う」 — after the return/recall trigger has fired,
+        if no hostile is visible and the threat prediction is zero, the bot
+        collects EVERY loot item it can see on the floor before reading the
+        Word of Recall.  Danger returning sends it straight back to the
+        return/survival behaviour, so the whole condition is re-decided on
+        every board rather than latched.
+
+        Both of the decision's conditions are checked, plus the detected list:
+        a monster known only through telepathy is a hostile the player can see
+        on the map.  The prediction is the same quantity the decision log
+        prints as ``threat_prediction.total``; on a board that passes the two
+        emptiness checks it is zero by construction, and it is evaluated (not
+        assumed) so the gate fails first if either list ever admits a monster.
+        """
+        if snapshot.in_town:
+            return False
+        hostiles = [
+            monster for monster in snapshot.visible_monsters if monster.hostile
+        ]
+        detected = [
+            monster for monster in snapshot.detected_monsters if monster.hostile
+        ]
+        if hostiles or detected:
+            return False
+        return self.threat_prediction(snapshot, [*hostiles, *detected])["total"] == 0
+
+    def _rearm_navigation_ledger_loot(self) -> None:
+        """Hand ledger-expired loot one fresh budget, once per floor visit.
+
+        The ledger expires a loot target whose best distance stopped improving
+        for NAV_TARGET_STALL_LIMIT decisions.  While an emergency owns every
+        decision that is guaranteed: the player is fleeing, not approaching,
+        and a teleport moves it bodily away.  The expiry therefore records the
+        flight, not an unreachable item, so the calm board that follows is
+        entitled to judge the route once more.  A position released here is
+        never released again on this floor visit: if it stalls under the new
+        circumstances it expires for good and the return proceeds.
+        """
+        for position in sorted(
+            self._nav_ledger_deferred_loot - self._loot_ledger_rearmed,
+            key=lambda item: (item.y, item.x),
+        ):
+            self._loot_ledger_rearmed.add(position)
+            self._nav_ledger_deferred_loot.discard(position)
+            self._nav_ledger.release("loot", position)
+            self._deferred_loot.discard(position)
+        if (
+            self._loot_defer_blocker == "navigation-ledger:loot"
+            and not self._nav_ledger_deferred_loot
+        ):
+            self._loot_defer_blocker = None
 
     def _has_usable_ranged_option(self, snapshot: Snapshot) -> bool:
         return self._matching_ammo(snapshot) is not None or any(

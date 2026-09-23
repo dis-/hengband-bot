@@ -748,6 +748,8 @@ class ObservationMixin:
             self._known_loot.clear()
             self._loot_target = None
             self._deferred_loot.clear()
+            self._nav_ledger_deferred_loot.clear()
+            self._loot_ledger_rearmed.clear()
             self._loot_defer_blocker = None
             self._remembered_paralyzers.clear()
             self._pending_loot_pickup = None
@@ -889,6 +891,8 @@ class ObservationMixin:
             ):
                 self._known_loot.discard(grid.position)
                 self._deferred_loot.discard(grid.position)
+                self._nav_ledger_deferred_loot.discard(grid.position)
+                self._loot_ledger_rearmed.discard(grid.position)
                 if (
                     self._loot_defer_blocker == "navigation-ledger:loot"
                     and not self._deferred_loot

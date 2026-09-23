@@ -83,6 +83,20 @@ class NavigationLedger:
     def expired_targets(self, kind: str) -> set[Hashable]:
         return {target for k, target in self._expired if k == kind}
 
+    def release(self, kind: str, target: Hashable) -> None:
+        """Return an expired target to selection with a fresh stall budget.
+
+        A stall budget measures ONE set of circumstances.  When the board that
+        produced the plateau is gone (the player was relocated, the threat that
+        owned every decision is dead), the recorded plateau no longer describes
+        the route now available.  Dropping the progress entry together with the
+        expiry makes the next observation commit again from the current
+        distance, so a released target is judged by the new circumstances and
+        expires again on its own if it still cannot be approached.
+        """
+        self._expired.discard((kind, target))
+        self._progress.pop((kind, target), None)
+
     def expire(self, kind: str, target: Hashable) -> None:
         """Expire a target immediately from external rejection evidence."""
         self._expired.add((kind, target))

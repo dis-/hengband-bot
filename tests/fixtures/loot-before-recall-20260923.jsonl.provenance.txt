@@ -1,0 +1,7 @@
+Source: incident-captures/20260923-201024-stuck-prompt/
+Selection: decisions 5280-5386 of the retained decision tail (2026-09-23T20:09:59+0900 - 2026-09-23T20:10:14+0900), Forest 24F, turn 5170448-5171822; decision 5386 is the recorded return:recall 'rg' read on top of the unique's drop.
+Boundary rule: walking back from the final emitter row, each decision's input ends drain(previous decision) rows earlier and must carry the decision record's turn; the walk validates for all 515 retained decisions with no mismatch.  The frozen board of each decision is that END row; decisions whose input drained more than one row: [5380, 5381, 5382].
+Truncated ring: the retained bytes begin mid-member, so everything before the first gzip magic is dropped; the remainder decompressed whole into 3062 rows with no undecodable line.
+Skill list: the recorded ~f skill_exp board of this same run, turn 5160185, player level 33.
+Records: 109; decompressed sha256: a1e282907b5baaede1c9d2c4b77773c44218df83effcaafc3f67fc8923842c1e
+File sha256: 2f4329b3ceafe7d52863ae064f5dcd5868f1a3a4eb2c9308651c17ef9b629262

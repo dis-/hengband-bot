@@ -151,6 +151,11 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_paralyzer_avoid_cells",
         "_remembered_paralyzers",
         "_loot_defer_blocker",
+        # Which deferrals the navigation ledger owns, and which of them a calm
+        # return already re-armed.  Without the split, a capture cannot say why
+        # a visible item was skipped while the bot walked out of the floor.
+        "_nav_ledger_deferred_loot",
+        "_loot_ledger_rearmed",
         "_home_pending_item",
         "_home_pending_quantity",
         "_home_visit",

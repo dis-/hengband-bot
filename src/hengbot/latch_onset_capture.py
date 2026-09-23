@@ -188,6 +188,11 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         restored.__dict__["_town_blocked_reason_value"] = (
             "restock-store-unreachable"
         )
+    # Older captures predate the split of the deferred-loot set by cause.  An
+    # empty pair reproduces their former behavior exactly: nothing is treated
+    # as ledger-expired, so the calm return hands out no second budget.
+    restored.__dict__.setdefault("_nav_ledger_deferred_loot", set())
+    restored.__dict__.setdefault("_loot_ledger_rearmed", set())
     restored.__dict__.setdefault("_dark_goal_counts", Counter())
     restored.__dict__.setdefault("_dark_route", [])
     restored.__dict__.setdefault("_dark_route_goal", None)

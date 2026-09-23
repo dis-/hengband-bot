@@ -110,6 +110,26 @@ class NavigationLedgerTest(unittest.TestCase):
         ledger.reset()
         self.assertFalse(ledger.is_expired("descend", target))
 
+    def test_release_restores_a_full_budget_not_just_the_expiry(self):
+        # A stall budget measures one set of circumstances.  Releasing only the
+        # expiry would re-expire on the very next observation, because the
+        # recorded plateau is still there; the progress entry goes with it.
+        ledger = NavigationLedger(stall_limit=2)
+        target = Position(1, 1)
+        ledger.observe("loot", target, 10)
+        ledger.observe("loot", target, 10)
+        ledger.observe("loot", target, 10)
+        self.assertTrue(ledger.is_expired("loot", target))
+
+        ledger.release("loot", target)
+
+        self.assertFalse(ledger.is_expired("loot", target))
+        self.assertTrue(ledger.observe("loot", target, 10))
+        ledger.observe("loot", target, 10)
+        self.assertFalse(ledger.is_expired("loot", target))
+        ledger.observe("loot", target, 10)
+        self.assertTrue(ledger.is_expired("loot", target))
+
     def test_external_evidence_can_expire_a_target_immediately(self):
         ledger = NavigationLedger()
         target = Position(1, 1)
