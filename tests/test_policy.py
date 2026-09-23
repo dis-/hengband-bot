@@ -1289,45 +1289,94 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
     def test_destruction_scroll_or_charged_staff_satisfies_the_50f_gate(self):
+        """CHANGED 2026-09-23 by user decision
+        「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを
+        禁止する」: while DESTRUCTION_USE_IMPLEMENTED is False, carrying the
+        method no longer opens 50F.  The possession rule it used to assert is
+        still the rule the flag restores, and that is asserted below under the
+        flipped flag, so nothing about the gate itself was loosened.
+        """
         abilities = {"resist_chaos", "resist_neth", "telepathy"}
         scroll = self._at(
             49, abilities,
             inventory=[item("s", TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)],
         )
-        self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(scroll, 50), frozenset()
-        )
-        self.assertTrue(
-            HengbotPolicy()._is_descent_target(scroll, scroll.grids[Position(10, 10)])
-        )
         charged = self._at(
             49, abilities,
             inventory=[item("u", TVAL_STAFF, SV_STAFF_DESTRUCTION, charges=2)],
-        )
-        self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(charged, 50), frozenset()
         )
         empty_staff = self._at(
             49, abilities,
             inventory=[item("u", TVAL_STAFF, SV_STAFF_DESTRUCTION, charges=0)],
         )
-        self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(empty_staff, 50),
-            frozenset({"destruction"}),
-        )
+
+        # The ban: possession is not the missing piece, the use-logic is.
+        from hengbot.policy_constants import DESTRUCTION_USE_IMPLEMENTED
+
+        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
+        for snap in (scroll, charged, empty_staff):
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(snap, 50),
+                frozenset({"destruction"}),
+            )
+            self.assertFalse(
+                HengbotPolicy()._is_descent_target(
+                    snap, snap.grids[Position(10, 10)]
+                )
+            )
+
+        # The possession rule the follow-up round restores, unchanged.
+        with patch(
+            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(scroll, 50),
+                frozenset(),
+            )
+            self.assertTrue(
+                HengbotPolicy()._is_descent_target(
+                    scroll, scroll.grids[Position(10, 10)]
+                )
+            )
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(charged, 50),
+                frozenset(),
+            )
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(empty_staff, 50),
+                frozenset({"destruction"}),
+            )
 
     def test_81f_also_requires_speed_plus_25(self):
+        """CHANGED 2026-09-23 by the same 50F+ ban: 81F is below the cap too,
+        so ``destruction`` is missing there as well while the flag is False.
+        The speed+25 rule itself is untouched and is still asserted on both
+        sides, here and under the flipped flag."""
         abilities = {"resist_chaos", "resist_neth", "telepathy"}
         kit = [item("s", TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)]
         slow = self._at(80, abilities, inventory=kit)  # base speed 110
+        fast = self._at(80, abilities, inventory=kit, speed=135)
+
         self.assertEqual(
             HengbotPolicy()._missing_required_abilities(slow, 81),
-            frozenset({"speed+25"}),
+            frozenset({"speed+25", "destruction"}),
         )
-        fast = self._at(80, abilities, inventory=kit, speed=135)
         self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(fast, 81), frozenset()
+            HengbotPolicy()._missing_required_abilities(fast, 81),
+            frozenset({"destruction"}),
         )
+
+        with patch(
+            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(slow, 81),
+                frozenset({"speed+25"}),
+            )
+            self.assertEqual(
+                HengbotPolicy()._missing_required_abilities(fast, 81),
+                frozenset(),
+            )
 
 
 

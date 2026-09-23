@@ -23,6 +23,15 @@ copy.  This module pins the owner the user decided on 2026-09-23:
    ARRIVAL DEPTH of the current objective alone.  Going to 50F means 5 uses
    and 60F means 10; carrying one use must not raise the requirement because
    the reachable band widened to the 50-80 rung.
+5. 「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを禁止
+   する」 - until the bot can actually USE a *Destruction* method in play,
+   50F+ is forbidden outright; the deepest permitted arrival or descent is
+   49F no matter how many uses are carried.  The ban lives in one named
+   condition, ``DESTRUCTION_USE_IMPLEMENTED``, consulted only by
+   ``_missing_required_abilities``.  Because the requirement above is keyed on
+   the arrival depth, this makes the procurement owner DORMANT in practice --
+   intentionally kept, not deleted, and pinned live again under the flipped
+   flag (see the D7 pins).
 
 Substrate: the recorded board above, which is the stop itself.  Depth variants
 are that same board with the objective's recall arrival depth replaced, because
@@ -58,6 +67,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import (
@@ -76,6 +86,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import (
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
+    DESTRUCTION_USE_IMPLEMENTED,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
     WAIT_KEY,
@@ -429,7 +440,8 @@ class DestructionGateProcurementTest(unittest.TestCase):
         # DECLARED WALL: the band a carrier is given.  A fresh policy has not
         # run the optimizer on this board; the live one would publish 80 here
         # (divable_depth's 50 rung maps to 80 once has_destruction is true).
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: the widened band is the premise the keying must ignore, not the subject
+        # The widened band is the premise the keying must ignore, never the
+        # subject: every assertion below is about the arrival depth.
         policy._equipment_optimization_last_depth = 80
 
         self.assertEqual(policy._planned_depth(), 80)
@@ -500,6 +512,130 @@ class DestructionGateProcurementTest(unittest.TestCase):
         self.assertLess(landing, ANGBAND_ARRIVAL_DEPTH)
         # Diverted to a shallower safe band, the requirement is gone with it.
         self.assertIsNone(self._requirement(policy, board))
+
+    # ---- D7: the 50F+ ban until the use-logic exists ----------------------
+
+    def _fully_stocked(self, board, uses=20):
+        """The same board carrying more uses than any depth could require."""
+        carried = board.inventory[0]
+        return self._carrying(
+            board,
+            replace(
+                carried,
+                slot="z",
+                name="*Destruction*",
+                tval=TVAL_SCROLL,
+                sval=SV_SCROLL_STAR_DESTRUCTION,
+                count=uses,
+                charges=0,
+                aware=True,
+                known=True,
+                fully_known=True,
+                fuel=0,
+                is_equipment=False,
+            ),
+        )
+
+    def test_d7_fifty_f_is_refused_however_many_uses_are_carried(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
+        self.assertEqual(policy._total_destruction_uses(stocked), 20)
+        self.assertEqual(policy._missing_destruction_uses(stocked), 0)
+
+        # Possession is not the missing piece: the use-logic is.
+        self.assertEqual(
+            sorted(
+                policy._missing_required_abilities(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                )
+            ),
+            [DESTRUCTION_GATE_LABEL],
+        )
+        self.assertFalse(
+            policy._destination_depth_allowed(stocked, ANGBAND_ARRIVAL_DEPTH)
+        )
+        self.assertEqual(
+            f"town:blocked:{policy.last_reason}",
+            "town:blocked:depth-gate:destination-50:missing-destruction",
+        )
+        self.assertFalse(
+            policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
+        )
+
+    def test_d7_the_deepest_permitted_arrival_and_descent_is_49f(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        self.assertEqual(
+            policy._missing_required_abilities(
+                stocked, DESTRUCTION_GATE_DEPTH - 1
+            ),
+            frozenset(),
+        )
+        self.assertTrue(
+            policy._destination_depth_allowed(
+                stocked, DESTRUCTION_GATE_DEPTH - 1
+            )
+        )
+        # The first banned floor, and everything below it.
+        for depth in (
+            DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_DEPTH + 1, 60, 80,
+        ):
+            with self.subTest(depth=depth):
+                self.assertIn(
+                    DESTRUCTION_GATE_LABEL,
+                    policy._missing_required_abilities(stocked, depth),
+                )
+                self.assertFalse(
+                    policy._destination_depth_allowed(stocked, depth)
+                )
+
+    def test_d7_the_objective_diverts_to_a_shallower_band_and_never_stops(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        key = policy._town_special_key(stocked)
+
+        self.assertEqual(
+            (key, policy.last_reason), (WAIT_KEY, "town:unsafe-recall-fallback")
+        )
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+        landing = stocked.dungeon_recall_depths[policy._target_dungeon_id]
+        self.assertLess(landing, DESTRUCTION_GATE_DEPTH)
+
+    def test_d7_flipping_the_named_condition_restores_the_50f_behaviour(self):
+        """The follow-up round's green target: one flag, nothing else."""
+        stocked = self._fully_stocked(self.board)
+
+        with patch(
+            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            policy = self._independent()
+            self.assertEqual(
+                policy._missing_required_abilities(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                ),
+                frozenset(),
+            )
+            self.assertTrue(
+                policy._destination_depth_allowed(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                )
+            )
+            self.assertTrue(
+                policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
+            )
+            self.assertIsNone(policy._town_special_key(stocked))
+            self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+            # With the depth reachable again, an empty pack is short 5 uses:
+            # the procurement owner below is dormant, not deleted.
+            empty = self._independent()
+            self.assertEqual(
+                self._requirement(empty, self.board)["missing"], 5
+            )
 
     # ---- D5 -------------------------------------------------------------
 

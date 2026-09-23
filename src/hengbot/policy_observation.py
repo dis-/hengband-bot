@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
+from hengbot.policy_constants import DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_LABEL, DESTRUCTION_USE_IMPLEMENTED, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile
@@ -1024,7 +1024,22 @@ class ObservationMixin:
 
     def _missing_required_abilities(self, snapshot: Snapshot, depth: int) -> frozenset:
         missing = set(required_depth_gates(depth) - snapshot.player.abilities)
-        if DESTRUCTION_GATE_LABEL in missing and self._has_destruction_method(snapshot):
+        # USER DECISION 2026-09-23:
+        # 「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ること
+        # を禁止する」.  Until the bot can actually USE a *Destruction* method
+        # in play, 50F+ is forbidden outright: neither carrying the item nor an
+        # intrinsic ability unlocks the depth, only the missing use-logic does.
+        # This is the ONE place the ban is consulted -- every arrival and
+        # descent owner asks this predicate -- so the round that implements the
+        # use-logic flips DESTRUCTION_USE_IMPLEMENTED and nothing else.  The
+        # gate label, the ability table, the band-descent rule and the
+        # unsafe-recall fallback are untouched: this is an additional cap, and
+        # the refusal keeps its existing `missing-destruction` wording.
+        if depth >= DESTRUCTION_GATE_DEPTH and not DESTRUCTION_USE_IMPLEMENTED:
+            missing.add(DESTRUCTION_GATE_LABEL)
+        elif DESTRUCTION_GATE_LABEL in missing and self._has_destruction_method(
+            snapshot
+        ):
             missing.discard(DESTRUCTION_GATE_LABEL)
         if SPEED_GATE_LABEL in missing and snapshot.player.speed >= SPEED_GATE_MINIMUM:
             # player.speed includes temporary boosts; a hasted check at the

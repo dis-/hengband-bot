@@ -53,12 +53,14 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import DUNGEON_ANGBAND
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import (
     DESTRUCTION_GATE_LABEL,
+    DESTRUCTION_USE_IMPLEMENTED,
     WAIT_KEY,
     required_depth_gates,
 )
@@ -223,6 +225,14 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
         )
 
     def test_f4_a_safe_destination_is_not_diverted(self):
+        """CHANGED 2026-09-23 by user decision
+        「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを
+        禁止する」: while ``DESTRUCTION_USE_IMPLEMENTED`` is False, 50F+ is
+        refused outright, so even a character whose ability set carries the
+        gate label is diverted.  The undiverted behaviour this pin asserted is
+        the behaviour the flag restores, and it is asserted below under the
+        flipped flag -- the fallback itself is unchanged.
+        """
         policy = self._independent()
         # The same board with the *Destruction* gate satisfied by the character.
         safe = replace(
@@ -235,10 +245,22 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             ),
         )
 
-        self.assertTrue(policy._recall_destination_safe(safe, DUNGEON_ANGBAND))
-        self.assertIsNone(policy._town_special_key(safe))
-        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-        self.assertIsNone(policy._alternate_dungeon)
+        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
+        self.assertFalse(policy._recall_destination_safe(safe, DUNGEON_ANGBAND))
+        self.assertEqual(policy._town_special_key(safe), WAIT_KEY)
+        self.assertEqual(policy.last_reason, FALLBACK_REASON)
+        self.assertNotEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+
+        restored = self._independent()
+        with patch(
+            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            self.assertTrue(
+                restored._recall_destination_safe(safe, DUNGEON_ANGBAND)
+            )
+            self.assertIsNone(restored._town_special_key(safe))
+            self.assertEqual(restored._target_dungeon_id, DUNGEON_ANGBAND)
+            self.assertIsNone(restored._alternate_dungeon)
 
 
 if __name__ == "__main__":

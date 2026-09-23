@@ -562,6 +562,16 @@ DESTRUCTION_GATE_DEPTH = 50
 
 DESTRUCTION_GATE_LABEL = "destruction"
 
+# USER DECISION 2026-09-23:
+# 「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを禁止する」.
+# While this is False the deepest permitted arrival or descent is
+# DESTRUCTION_GATE_DEPTH - 1 (49F), no matter how many *Destruction* uses are
+# carried: possession is not the missing piece, the use-logic is.  The round
+# that teaches the bot to actually read the scroll / use the staff in play
+# flips this to True -- that one line plus its own pins is the whole change.
+# It is consulted in exactly one place, HengbotPolicy._missing_required_abilities.
+DESTRUCTION_USE_IMPLEMENTED = False
+
 DESTRUCTION_USES_PER_STEP = 5
 
 DESTRUCTION_USES_STEP_DEPTH = 10
