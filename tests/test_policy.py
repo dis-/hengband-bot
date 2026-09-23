@@ -1327,7 +1327,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
 
         # The possession rule the follow-up round restores, unchanged.
         with patch(
-            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
         ):
             self.assertEqual(
                 HengbotPolicy()._missing_required_abilities(scroll, 50),
@@ -1367,7 +1367,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
         with patch(
-            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
         ):
             self.assertEqual(
                 HengbotPolicy()._missing_required_abilities(slow, 81),

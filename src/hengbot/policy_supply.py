@@ -24,7 +24,7 @@ from hengbot.policy_constants import (
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, UP_STAIRS_KEY, USE_DEVICE_MIN, WAIT_KEY,
-    required_destruction_uses,
+    permitted_dive_depth, required_destruction_uses,
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
@@ -326,11 +326,22 @@ class SupplyMixin:
         the 50-80 rung, and taking the maximum would raise a 50F errand's
         requirement from 5 to 20 the moment the first scroll was bought.
         Going to 50F means 5 uses; going to 60F means 10.
+
+        The answer is finally clamped by ``permitted_dive_depth``.  An
+        objective the 50F+ ban forbids is not an intent anybody may act on:
+        leaving it unclamped published a 5-use shortage for a depth the gate
+        would refuse, which is what stopped the live bot at 22:49 on
+        2026-09-23.  Clamping here, on the one helper the whole *Destruction*
+        owner reads, keeps the requirement, the purchase, the Home-first
+        withdrawal and the retention reservation all consistent with the ban --
+        and all of them come back the moment the constant is flipped.
         """
         target = self._target_dungeon_id
         if target is None:
-            return self._planned_depth()
-        return self._dungeon_entry_depth(snapshot, target, via_recall=True)
+            return permitted_dive_depth(self._planned_depth())
+        return permitted_dive_depth(
+            self._dungeon_entry_depth(snapshot, target, via_recall=True)
+        )
 
     def _required_destruction_uses(self, snapshot: Snapshot) -> int:
         return required_destruction_uses(self._intended_dive_depth(snapshot))

@@ -253,7 +253,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
         restored = self._independent()
         with patch(
-            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
         ):
             self.assertTrue(
                 restored._recall_destination_safe(safe, DUNGEON_ANGBAND)

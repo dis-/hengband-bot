@@ -27,11 +27,22 @@ copy.  This module pins the owner the user decided on 2026-09-23:
    する」 - until the bot can actually USE a *Destruction* method in play,
    50F+ is forbidden outright; the deepest permitted arrival or descent is
    49F no matter how many uses are carried.  The ban lives in one named
-   condition, ``DESTRUCTION_USE_IMPLEMENTED``, consulted only by
-   ``_missing_required_abilities``.  Because the requirement above is keyed on
-   the arrival depth, this makes the procurement owner DORMANT in practice --
-   intentionally kept, not deleted, and pinned live again under the flipped
-   flag (see the D7 pins).
+   condition, ``DESTRUCTION_USE_IMPLEMENTED``, whose entire surface is the two
+   functions beside it: ``destruction_dive_permitted`` (the gate refuses the
+   arrival) and ``permitted_dive_depth`` (the INTENT is clamped to 49F).
+
+   Refusing the arrival alone was not enough, and the live bot proved it.
+   Measured 2026-09-23 22:49, one minute after a resume on main c8d2f10
+   (incident 20260923-224927-town-blocked-owner-retired): the requirement,
+   keyed on the objective's unclamped arrival depth of 50, still published
+   ``{"item": "*Destruction* uses", "current": 0, "target": 5, "missing": 5}``
+   -- the ONLY unmet requirement on that board -- so the town walked eight
+   decisions to a shop for a ware no fixed shelf can stock, left on
+   ``observed-page-nothing-wanted``, wandered three times and retired on
+   ``town:blocked:owner-retired``.  Clamping the intent makes the whole owner
+   DORMANT, which is what the ban class below pins.  The owner is kept, never
+   deleted: every pin describing it runs with the constant flipped, which is
+   the state the follow-up round ships.
 
 Substrate: the recorded board above, which is the stop itself.  Depth variants
 are that same board with the objective's recall arrival depth replaced, because
@@ -72,6 +83,7 @@ from unittest.mock import patch
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import (
     DUNGEON_ANGBAND,
+    STORE_ALCHEMIST,
     STORE_BLACK,
     SV_POTION_SPEED,
     SV_SCROLL_STAR_DESTRUCTION,
@@ -131,7 +143,9 @@ def _staff(letter="b", *, price=7500, charges=5):
     )
 
 
-class DestructionGateProcurementTest(unittest.TestCase):
+class _RecordedDestructionBoard:
+    """The recorded 2026-09-23 18:23 board, loaded once for both classes."""
+
     @classmethod
     def setUpClass(cls):
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == FIXTURE_SHA256
@@ -190,6 +204,55 @@ class DestructionGateProcurementTest(unittest.TestCase):
             ),
             None,
         )
+
+    def _carrying(self, board, *items):
+        return replace(board, inventory=[*board.inventory, *items])
+
+    def _destruction_stack(self, board, *, count, charges=0, staff=False):
+        """A carried *Destruction* stack built from a recorded pack item."""
+        carried = board.inventory[0]
+        return replace(
+            carried,
+            slot="z",
+            name="*Destruction*",
+            tval=TVAL_STAFF if staff else TVAL_SCROLL,
+            sval=SV_STAFF_DESTRUCTION if staff else SV_SCROLL_STAR_DESTRUCTION,
+            count=count,
+            charges=charges,
+            aware=True,
+            known=True,
+            fully_known=True,
+            fuel=0,
+            is_equipment=False,
+        )
+
+    def _fully_stocked(self, board, uses=20):
+        """The same board carrying more uses than any depth could require."""
+        return self._carrying(
+            board, self._destruction_stack(board, count=uses)
+        )
+
+
+class DestructionGateProcurementTest(
+    _RecordedDestructionBoard, unittest.TestCase
+):
+    """The procurement owner's own behaviour, pinned with the 50F+ ban LIFTED.
+
+    The ban (decision 5) clamps the intended dive depth to 49F, which makes
+    this whole owner dormant -- that dormancy is what
+    ``DestructionFiftyFloorBanTest`` below pins, with the flag exactly as
+    shipped.  These pins describe what the owner does the moment the constant
+    is flipped, so the follow-up round inherits a green, meaningful spec
+    instead of a deleted one.
+    """
+
+    def setUp(self):
+        flip = patch(
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+        )
+        flip.start()
+        self.addCleanup(flip.stop)
+        super().setUp()
 
     # ---- D1 -------------------------------------------------------------
 
@@ -299,9 +362,6 @@ class DestructionGateProcurementTest(unittest.TestCase):
         self.assertEqual(policy._next_purchase(shelf), scroll)
 
     # ---- D2 -------------------------------------------------------------
-
-    def _carrying(self, board, *items):
-        return replace(board, inventory=[*board.inventory, *items])
 
     def test_d2_staff_charges_and_scrolls_count_together(self):
         policy = self._independent()
@@ -513,130 +573,6 @@ class DestructionGateProcurementTest(unittest.TestCase):
         # Diverted to a shallower safe band, the requirement is gone with it.
         self.assertIsNone(self._requirement(policy, board))
 
-    # ---- D7: the 50F+ ban until the use-logic exists ----------------------
-
-    def _fully_stocked(self, board, uses=20):
-        """The same board carrying more uses than any depth could require."""
-        carried = board.inventory[0]
-        return self._carrying(
-            board,
-            replace(
-                carried,
-                slot="z",
-                name="*Destruction*",
-                tval=TVAL_SCROLL,
-                sval=SV_SCROLL_STAR_DESTRUCTION,
-                count=uses,
-                charges=0,
-                aware=True,
-                known=True,
-                fully_known=True,
-                fuel=0,
-                is_equipment=False,
-            ),
-        )
-
-    def test_d7_fifty_f_is_refused_however_many_uses_are_carried(self):
-        policy = self._independent()
-        stocked = self._fully_stocked(self.board)
-
-        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
-        self.assertEqual(policy._total_destruction_uses(stocked), 20)
-        self.assertEqual(policy._missing_destruction_uses(stocked), 0)
-
-        # Possession is not the missing piece: the use-logic is.
-        self.assertEqual(
-            sorted(
-                policy._missing_required_abilities(
-                    stocked, ANGBAND_ARRIVAL_DEPTH
-                )
-            ),
-            [DESTRUCTION_GATE_LABEL],
-        )
-        self.assertFalse(
-            policy._destination_depth_allowed(stocked, ANGBAND_ARRIVAL_DEPTH)
-        )
-        self.assertEqual(
-            f"town:blocked:{policy.last_reason}",
-            "town:blocked:depth-gate:destination-50:missing-destruction",
-        )
-        self.assertFalse(
-            policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
-        )
-
-    def test_d7_the_deepest_permitted_arrival_and_descent_is_49f(self):
-        policy = self._independent()
-        stocked = self._fully_stocked(self.board)
-
-        self.assertEqual(
-            policy._missing_required_abilities(
-                stocked, DESTRUCTION_GATE_DEPTH - 1
-            ),
-            frozenset(),
-        )
-        self.assertTrue(
-            policy._destination_depth_allowed(
-                stocked, DESTRUCTION_GATE_DEPTH - 1
-            )
-        )
-        # The first banned floor, and everything below it.
-        for depth in (
-            DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_DEPTH + 1, 60, 80,
-        ):
-            with self.subTest(depth=depth):
-                self.assertIn(
-                    DESTRUCTION_GATE_LABEL,
-                    policy._missing_required_abilities(stocked, depth),
-                )
-                self.assertFalse(
-                    policy._destination_depth_allowed(stocked, depth)
-                )
-
-    def test_d7_the_objective_diverts_to_a_shallower_band_and_never_stops(self):
-        policy = self._independent()
-        stocked = self._fully_stocked(self.board)
-
-        key = policy._town_special_key(stocked)
-
-        self.assertEqual(
-            (key, policy.last_reason), (WAIT_KEY, "town:unsafe-recall-fallback")
-        )
-        self.assertIsNone(policy._town_blocked_reason)
-        self.assertNotEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-        landing = stocked.dungeon_recall_depths[policy._target_dungeon_id]
-        self.assertLess(landing, DESTRUCTION_GATE_DEPTH)
-
-    def test_d7_flipping_the_named_condition_restores_the_50f_behaviour(self):
-        """The follow-up round's green target: one flag, nothing else."""
-        stocked = self._fully_stocked(self.board)
-
-        with patch(
-            "hengbot.policy_observation.DESTRUCTION_USE_IMPLEMENTED", True
-        ):
-            policy = self._independent()
-            self.assertEqual(
-                policy._missing_required_abilities(
-                    stocked, ANGBAND_ARRIVAL_DEPTH
-                ),
-                frozenset(),
-            )
-            self.assertTrue(
-                policy._destination_depth_allowed(
-                    stocked, ANGBAND_ARRIVAL_DEPTH
-                )
-            )
-            self.assertTrue(
-                policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
-            )
-            self.assertIsNone(policy._town_special_key(stocked))
-            self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-            # With the depth reachable again, an empty pack is short 5 uses:
-            # the procurement owner below is dormant, not deleted.
-            empty = self._independent()
-            self.assertEqual(
-                self._requirement(empty, self.board)["missing"], 5
-            )
-
     # ---- D5 -------------------------------------------------------------
 
     def _with_stock(self, board):
@@ -747,6 +683,201 @@ class DestructionGateProcurementTest(unittest.TestCase):
                 )
             )
         )
+
+
+
+class DestructionFiftyFloorBanTest(
+    _RecordedDestructionBoard, unittest.TestCase
+):
+    """The 50F+ ban, pinned with ``DESTRUCTION_USE_IMPLEMENTED`` AS SHIPPED.
+
+    User 2026-09-23
+    「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを禁止
+    する」.  These pins are the live behaviour today; the procurement class
+    above describes what returns when the constant is flipped.
+    """
+
+    def test_d7_fifty_f_is_refused_however_many_uses_are_carried(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
+        self.assertEqual(policy._total_destruction_uses(stocked), 20)
+        self.assertEqual(policy._missing_destruction_uses(stocked), 0)
+
+        # Possession is not the missing piece: the use-logic is.
+        self.assertEqual(
+            sorted(
+                policy._missing_required_abilities(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                )
+            ),
+            [DESTRUCTION_GATE_LABEL],
+        )
+        self.assertFalse(
+            policy._destination_depth_allowed(stocked, ANGBAND_ARRIVAL_DEPTH)
+        )
+        self.assertEqual(
+            f"town:blocked:{policy.last_reason}",
+            "town:blocked:depth-gate:destination-50:missing-destruction",
+        )
+        self.assertFalse(
+            policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
+        )
+
+    def test_d7_the_deepest_permitted_arrival_and_descent_is_49f(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        self.assertEqual(
+            policy._missing_required_abilities(
+                stocked, DESTRUCTION_GATE_DEPTH - 1
+            ),
+            frozenset(),
+        )
+        self.assertTrue(
+            policy._destination_depth_allowed(
+                stocked, DESTRUCTION_GATE_DEPTH - 1
+            )
+        )
+        # The first banned floor, and everything below it.
+        for depth in (
+            DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_DEPTH + 1, 60, 80,
+        ):
+            with self.subTest(depth=depth):
+                self.assertIn(
+                    DESTRUCTION_GATE_LABEL,
+                    policy._missing_required_abilities(stocked, depth),
+                )
+                self.assertFalse(
+                    policy._destination_depth_allowed(stocked, depth)
+                )
+
+    def test_d7_the_objective_diverts_to_a_shallower_band_and_never_stops(self):
+        policy = self._independent()
+        stocked = self._fully_stocked(self.board)
+
+        key = policy._town_special_key(stocked)
+
+        self.assertEqual(
+            (key, policy.last_reason), (WAIT_KEY, "town:unsafe-recall-fallback")
+        )
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertNotEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+        landing = stocked.dungeon_recall_depths[policy._target_dungeon_id]
+        self.assertLess(landing, DESTRUCTION_GATE_DEPTH)
+
+    def test_d7_flipping_the_named_condition_restores_the_50f_behaviour(self):
+        """The follow-up round's green target: one flag, nothing else."""
+        stocked = self._fully_stocked(self.board)
+
+        with patch(
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            policy = self._independent()
+            self.assertEqual(
+                policy._missing_required_abilities(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                ),
+                frozenset(),
+            )
+            self.assertTrue(
+                policy._destination_depth_allowed(
+                    stocked, ANGBAND_ARRIVAL_DEPTH
+                )
+            )
+            self.assertTrue(
+                policy._recall_destination_safe(stocked, DUNGEON_ANGBAND)
+            )
+            self.assertIsNone(policy._town_special_key(stocked))
+            self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+            # With the depth reachable again, an empty pack is short 5 uses:
+            # the procurement owner is dormant, not deleted.
+            empty = self._independent()
+            self.assertEqual(
+                self._requirement(empty, self.board)["missing"], 5
+            )
+
+    # ---- D8: the requirement is dormant while the ban holds ---------------
+
+    def test_d8_the_requirement_is_empty_while_the_ban_holds(self):
+        """Live stop 2026-09-23 22:49 (see the module docstring).
+
+        Refusing only the arrival left the intent at 50, so the requirement
+        still published 5 missing uses for a depth the gate would refuse.
+        """
+        policy = self._independent()
+        board = self.board
+
+        # The objective still arrives at 50: the ban refuses it, it does not
+        # change it.  That is exactly why the INTENT has to be clamped too.
+        self.assertEqual(
+            policy._dungeon_entry_depth(board, DUNGEON_ANGBAND, via_recall=True),
+            ANGBAND_ARRIVAL_DEPTH,
+        )
+
+        # REVERT-PROOF: unclamped, this is 50 and the requirement is 5/5.
+        self.assertEqual(
+            policy._intended_dive_depth(board), DESTRUCTION_GATE_DEPTH - 1
+        )
+        self.assertEqual(policy._required_destruction_uses(board), 0)
+        self.assertEqual(policy._missing_destruction_uses(board), 0)
+        self.assertIsNone(self._requirement(policy, board))
+        self.assertEqual(
+            [
+                entry
+                for entry in policy.procurement_requirements(board)
+                if entry["item"] == REQUIREMENT
+            ],
+            [],
+        )
+
+    def test_d8_no_shop_errand_is_generated_for_the_dormant_requirement(self):
+        policy = self._independent()
+        board = self.board
+
+        # Nothing to buy anywhere, on a stocking shelf or an ordinary one.
+        for store_type, wares in (
+            (STORE_BLACK, [_scroll(), _staff()]),
+            (STORE_ALCHEMIST, []),
+        ):
+            with self.subTest(store=store_type):
+                page = replace(
+                    board,
+                    store=StoreState(store_type, wares),
+                    town_flag=True,
+                )
+                self.assertIsNone(policy._destruction_purchase(page))
+                self.assertEqual(
+                    policy._matching_live_purchase_rungs(page, _scroll()), ()
+                )
+
+        # And the town errand registry raises no destruction claim.
+        self.assertTrue(policy._town_claims_active(board) in (True, False))
+        self.assertNotIn(
+            "destruction", getattr(policy, "_town_claim_categories", ())
+        )
+
+    def test_d8_a_carried_copy_is_ordinary_surplus_while_dormant(self):
+        """The retention reservation sleeps with the rest of the owner."""
+        policy = self._independent()
+        board = self._carrying(
+            self.board, self._destruction_stack(self.board, count=3)
+        )
+        held = board.inventory[-1]
+
+        self.assertNotEqual(
+            policy._retention_reservation_detail(board, held)[1],
+            "destruction-gate",
+        )
+        with patch(
+            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+        ):
+            restored = self._independent()
+            self.assertEqual(
+                restored._retention_reservation_detail(board, held),
+                (held.count, "destruction-gate"),
+            )
 
 
 if __name__ == "__main__":

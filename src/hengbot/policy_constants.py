@@ -569,8 +569,27 @@ DESTRUCTION_GATE_LABEL = "destruction"
 # carried: possession is not the missing piece, the use-logic is.  The round
 # that teaches the bot to actually read the scroll / use the staff in play
 # flips this to True -- that one line plus its own pins is the whole change.
-# It is consulted in exactly one place, HengbotPolicy._missing_required_abilities.
+# Nothing reads this name directly; the two functions below are the whole
+# surface, so a test flips the ban by patching this single module attribute.
 DESTRUCTION_USE_IMPLEMENTED = False
+
+def destruction_dive_permitted(depth: int) -> bool:
+    """Whether ``depth`` may be reached at all under the 50F+ ban."""
+    return DESTRUCTION_USE_IMPLEMENTED or depth < DESTRUCTION_GATE_DEPTH
+
+def permitted_dive_depth(depth: int) -> int:
+    """Clamp an INTENDED depth to the deepest floor the bot may reach.
+
+    The ban refuses the arrival; on its own that left the rest of the policy
+    still believing in the forbidden objective.  Measured 2026-09-23 22:49
+    (incident 20260923-224927-town-blocked-owner-retired): the *Destruction*
+    requirement, keyed on the objective's unclamped arrival depth of 50, still
+    published 5 missing uses, so the town walked to a shop for a ware no fixed
+    shelf can stock, found nothing wanted, wandered and retired.  Clamping the
+    intent here keeps every consumer of it consistent with what the gate will
+    actually permit.
+    """
+    return depth if destruction_dive_permitted(depth) else DESTRUCTION_GATE_DEPTH - 1
 
 DESTRUCTION_USES_PER_STEP = 5
 
