@@ -50,6 +50,38 @@ def cim_rows() -> list[tuple[int, str]]:
     return process_rows(run.stdout)
 
 
+def process_identity(pid: int | None) -> tuple[str, str] | None:
+    """(image name, command line) of a live pid, or None when nothing holds it."""
+    if not pid:
+        return None
+    command = (f"Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}' | "
+               "Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress")
+    run = subprocess.run(["powershell", "-NoProfile", "-Command", command], capture_output=True, text=True)
+    try: row = json.loads(run.stdout or "null")
+    except json.JSONDecodeError: return None
+    if isinstance(row, list): row = row[0] if row else None
+    if not isinstance(row, dict): return None
+    return str(row.get("Name") or ""), str(row.get("CommandLine") or "")
+
+
+def identified_alive(pid: int | None, needle: str) -> tuple[bool, str]:
+    """Liveness AND identity, because a pid file outlives the process that wrote it.
+
+    A recycled pid passes ``alive()`` while belonging to an unrelated program, so
+    a stale ``bot.pid`` would read as a healthy bot (the 2026-09-23 regression).
+    """
+    if not pid:
+        return False, "no pid recorded"
+    identity = process_identity(pid)
+    if identity is None:
+        return False, f"pid {pid} holds no process (stale pid)"
+    name, command = identity
+    if needle.lower() not in command.lower():
+        shown = command[:80] or name
+        return False, f"pid {pid} is {name} ({shown!r}), not {needle} (stale pid)"
+    return True, f"pid {pid} alive as {name}"
+
+
 def sol(args) -> int:
     prompt_name = Path(args.prompt_file).name
     initial = codex_pids(cim_rows(), prompt_name)
