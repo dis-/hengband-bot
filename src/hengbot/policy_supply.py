@@ -312,24 +312,25 @@ class SupplyMixin:
         return charges >= STAFF_IDENTIFY_MIN_CHARGES
 
     def _intended_dive_depth(self, snapshot: Snapshot) -> int:
-        """Deepest floor the current objective intends to reach.
+        """The floor this departure intends to land on: the objective's recall
+        arrival depth, and nothing else (user 2026-09-23
+        「帰還先の到着階だけ（推奨）」).
 
-        ``_planned_depth`` is the *achievable* band, and ``divable_depth``
-        caps that band at 49 while no *Destruction* method is carried.  Keying
-        the requirement on it alone would therefore be circular: the gate the
-        purchase exists to open would keep the depth below the gate.  The
-        objective's recall arrival depth is the other half — the live
-        2026-09-23 stop refused Angband's 50 while the band was still 49 — so
-        the intent is the deeper of the two.
+        Not ``_planned_depth``: ``divable_depth`` caps that band at 49 while no
+        *Destruction* method is carried, so keying the requirement on the band
+        would be circular — the gate the purchase exists to open would hold the
+        depth below the gate.  The live 2026-09-23 stop refused Angband's 50
+        with the band still at 49, and the arrival depth is what it refused.
+
+        Nor the deeper of the two: once one use is carried the band widens to
+        the 50-80 rung, and taking the maximum would raise a 50F errand's
+        requirement from 5 to 20 the moment the first scroll was bought.
+        Going to 50F means 5 uses; going to 60F means 10.
         """
-        depth = self._planned_depth()
         target = self._target_dungeon_id
-        if target is not None:
-            depth = max(
-                depth,
-                self._dungeon_entry_depth(snapshot, target, via_recall=True),
-            )
-        return depth
+        if target is None:
+            return self._planned_depth()
+        return self._dungeon_entry_depth(snapshot, target, via_recall=True)
 
     def _required_destruction_uses(self, snapshot: Snapshot) -> int:
         return required_destruction_uses(self._intended_dive_depth(snapshot))

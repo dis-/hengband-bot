@@ -19,6 +19,10 @@ copy.  This module pins the owner the user decided on 2026-09-23:
 3. 「3 加速+25は装備加速の話なのでスピードの薬とは別」 - the 81F speed+25 gate
    is an EQUIPMENT speed condition; Potions of Speed do not satisfy it and are
    not procured for it here.
+4. 「帰還先の到着階だけ（推奨）」 - the required amount is keyed on the recall
+   ARRIVAL DEPTH of the current objective alone.  Going to 50F means 5 uses
+   and 60F means 10; carrying one use must not raise the requirement because
+   the reachable band widened to the 50-80 rung.
 
 Substrate: the recorded board above, which is the stop itself.  Depth variants
 are that same board with the objective's recall arrival depth replaced, because
@@ -389,6 +393,71 @@ class DestructionGateProcurementTest(unittest.TestCase):
                     )
                 else:
                     self.assertEqual(requirement["target"], target)
+
+    def _one_carried_use(self, board):
+        carried = board.inventory[0]
+        return self._carrying(
+            board,
+            replace(
+                carried,
+                slot="z",
+                name="*Destruction*",
+                tval=TVAL_SCROLL,
+                sval=SV_SCROLL_STAR_DESTRUCTION,
+                count=1,
+                charges=0,
+                aware=True,
+                known=True,
+                fully_known=True,
+                fuel=0,
+                is_equipment=False,
+            ),
+        )
+
+    def test_d3_carrying_one_use_does_not_widen_the_requirement(self):
+        """User 2026-09-23 「帰還先の到着階だけ（推奨）」.
+
+        ``divable_depth`` hands a *Destruction* carrier the whole 50-80 rung,
+        so the optimizer's next pass publishes band 80.  Keyed on the arrival
+        depth alone, a 50F errand still needs 5; keyed on the deeper of band
+        and arrival it would jump to 20 the moment the first scroll was bought.
+        """
+        policy = self._independent()
+        one = self._one_carried_use(
+            self._at_depth(self.board, ANGBAND_ARRIVAL_DEPTH)
+        )
+        # DECLARED WALL: the band a carrier is given.  A fresh policy has not
+        # run the optimizer on this board; the live one would publish 80 here
+        # (divable_depth's 50 rung maps to 80 once has_destruction is true).
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: the widened band is the premise the keying must ignore, not the subject
+        policy._equipment_optimization_last_depth = 80
+
+        self.assertEqual(policy._planned_depth(), 80)
+        self.assertEqual(policy._total_destruction_uses(one), 1)
+
+        # REVERT-PROOF: the arrival depth alone decides.
+        self.assertEqual(
+            policy._intended_dive_depth(one), ANGBAND_ARRIVAL_DEPTH
+        )
+        self.assertEqual(
+            self._requirement(policy, one),
+            {
+                "item": REQUIREMENT,
+                "current": 1,
+                "target": 5,
+                "missing": 4,
+            },
+        )
+        self.assertEqual(policy._missing_destruction_uses(one), 4)
+
+    def test_d3_a_deeper_arrival_raises_it_even_with_a_shallow_band(self):
+        """The converse: only the arrival depth moves the figure."""
+        policy = self._independent()
+        deep = self._one_carried_use(self._at_depth(self.board, 60))
+
+        self.assertLess(policy._planned_depth(), DESTRUCTION_GATE_DEPTH)
+        self.assertEqual(policy._intended_dive_depth(deep), 60)
+        self.assertEqual(self._requirement(policy, deep)["target"], 10)
 
     def test_d3_shallower_than_the_gate_has_no_requirement_at_all(self):
         policy = self._independent()
