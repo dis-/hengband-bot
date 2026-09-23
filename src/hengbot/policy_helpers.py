@@ -393,16 +393,43 @@ class PolicyHelpersMixin:
             return 49
         return SPEED_ENERGY_90[speed - 90]
     @staticmethod
-    def _has_destruction_method(snapshot: Snapshot) -> bool:
+    def _is_destruction_scroll(item: InventoryItem | StoreItem) -> bool:
+        return item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_DESTRUCTION
+
+    @staticmethod
+    def _is_destruction_staff(item: InventoryItem | StoreItem) -> bool:
+        return item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION
+
+    @classmethod
+    def _is_destruction_item(cls, item: InventoryItem | StoreItem) -> bool:
+        """Either carrier of the 50F+ *Destruction* gate, shelf or pack."""
+        return cls._is_destruction_scroll(item) or cls._is_destruction_staff(item)
+
+    def _carried_destruction_uses(self, item: InventoryItem) -> int:
+        """Uses one carried stack supplies.
+
+        User decision 2026-09-23: the staff's remaining charges and the number
+        of scrolls count together, the way the Identify staff's 20 charges are
+        counted.  sval is emitted only for AWARE items and charges only for
+        KNOWN ones (fair play), so an untried staff counts no charges.
+        """
+        if self._is_destruction_scroll(item):
+            return max(0, item.count)
+        if self._is_destruction_staff(item):
+            return self._stack_charges(item)
+        return 0
+
+    def _total_destruction_uses(self, snapshot: Snapshot) -> int:
+        return sum(
+            self._carried_destruction_uses(it) for it in snapshot.inventory
+        )
+
+    def _has_destruction_method(self, snapshot: Snapshot) -> bool:
         """A *Destruction* scroll or a staff with charges left (the AGENTS.md 50F+
         gate). sval is emitted only for AWARE items and charges only for KNOWN
         ones (fair play), so an untried staff conservatively does not count."""
-        for it in snapshot.inventory:
-            if it.tval == TVAL_SCROLL and it.sval == SV_SCROLL_STAR_DESTRUCTION:
-                return True
-            if it.tval == TVAL_STAFF and it.sval == SV_STAFF_DESTRUCTION and it.charges > 0:
-                return True
-        return False
+        return self._total_destruction_uses(snapshot) > 0
+
     def _latch_warning_refusal(self, target: Position) -> None:
         self._warning_refused_cells.add(target)
         self._engagement_avoid_cells.add(target)

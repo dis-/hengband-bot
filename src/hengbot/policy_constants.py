@@ -562,6 +562,23 @@ DESTRUCTION_GATE_DEPTH = 50
 
 DESTRUCTION_GATE_LABEL = "destruction"
 
+DESTRUCTION_USES_PER_STEP = 5
+
+DESTRUCTION_USES_STEP_DEPTH = 10
+
+def required_destruction_uses(depth: int) -> int:
+    """*Destruction* uses required to dive at ``depth`` (user 2026-09-23).
+
+    「50Fで5回、60Fで10回、70Fで15回とする」, and beyond 70F the same step
+    continues: +5 per 10 levels (80F -> 20).  Shallower than the 50F gate
+    depth there is no requirement at all.  A "use" is one Scroll of
+    *Destruction* or one remaining charge of a Staff of *Destruction*.
+    """
+    if depth < DESTRUCTION_GATE_DEPTH:
+        return 0
+    steps = (depth - DESTRUCTION_GATE_DEPTH) // DESTRUCTION_USES_STEP_DEPTH
+    return DESTRUCTION_USES_PER_STEP * (1 + steps)
+
 SPEED_GATE_DEPTH = 81
 
 SPEED_GATE_LABEL = "speed+25"

@@ -24,6 +24,7 @@ from hengbot.policy_constants import (
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, UP_STAIRS_KEY, USE_DEVICE_MIN, WAIT_KEY,
+    required_destruction_uses,
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
@@ -310,6 +311,36 @@ class SupplyMixin:
             )
         return charges >= STAFF_IDENTIFY_MIN_CHARGES
 
+    def _intended_dive_depth(self, snapshot: Snapshot) -> int:
+        """Deepest floor the current objective intends to reach.
+
+        ``_planned_depth`` is the *achievable* band, and ``divable_depth``
+        caps that band at 49 while no *Destruction* method is carried.  Keying
+        the requirement on it alone would therefore be circular: the gate the
+        purchase exists to open would keep the depth below the gate.  The
+        objective's recall arrival depth is the other half — the live
+        2026-09-23 stop refused Angband's 50 while the band was still 49 — so
+        the intent is the deeper of the two.
+        """
+        depth = self._planned_depth()
+        target = self._target_dungeon_id
+        if target is not None:
+            depth = max(
+                depth,
+                self._dungeon_entry_depth(snapshot, target, via_recall=True),
+            )
+        return depth
+
+    def _required_destruction_uses(self, snapshot: Snapshot) -> int:
+        return required_destruction_uses(self._intended_dive_depth(snapshot))
+
+    def _missing_destruction_uses(self, snapshot: Snapshot) -> int:
+        return max(
+            0,
+            self._required_destruction_uses(snapshot)
+            - self._total_destruction_uses(snapshot),
+        )
+
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:
         """Return currently unmet item targets for logs and the policy viewer."""
         requirements: list[dict[str, int | str]] = []
@@ -410,6 +441,14 @@ class SupplyMixin:
                 "Identify staff charges",
                 self._total_identify_staff_charges(snapshot),
                 STAFF_IDENTIFY_MIN_CHARGES,
+            )
+
+        destruction_target = self._required_destruction_uses(snapshot)
+        if destruction_target:
+            require(
+                "*Destruction* uses",
+                self._total_destruction_uses(snapshot),
+                destruction_target,
             )
 
         strategy = self._carry_procurement_strategy(snapshot)
@@ -660,6 +699,11 @@ class SupplyMixin:
     ) -> int:
         """Return the unmet amount from the same ledgers that drive procurement."""
         item_class = self._procurement_class(item)
+        if self._is_destruction_item(item):
+            # Home-first: a stored *Destruction* item is withdrawn before the
+            # shop purchase, and the shortage is the same one the departure
+            # requirement publishes.
+            return self._missing_destruction_uses(snapshot)
         strategy = self._carry_procurement_strategy(snapshot)
         target = self._quest_carry_target_for_item(
             snapshot, item, strategy.required_force if strategy is not None else {}

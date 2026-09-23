@@ -2052,6 +2052,38 @@ class ShopMixin:
                 withdrawal_defect
             )
 
+    def _destruction_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        """The 50F+ *Destruction* gate as a required-for-this-errand purchase.
+
+        User 2026-09-23 「買えるなら買って潜る」: when a town store stocks the
+        method and the money suffices it is bought and the dive proceeds.  It
+        is therefore NOT one of the Black Market optional picks — it ranks
+        above them — but it still leaves the reserve the OTHER required
+        supplies need untouched.  Neither ware sits on a fixed shelf (both are
+        absent from the game's articles-on-sale table), so in practice the
+        supplier is the Black Market; the Home copy is taken first by the
+        ordinary Home-first procurement gate.
+        """
+        store = snapshot.store
+        if store is None or self._missing_destruction_uses(snapshot) <= 0:
+            return None
+        reserve = self._required_departure_supply_reserve(snapshot)
+        if reserve is None:
+            # An unknown required price is not zero: refuse rather than spend
+            # the reserve the other required supplies may still need.
+            return None
+        affordable = [
+            item
+            for item in store.items
+            if self._is_destruction_item(item)
+            and item.count > 0
+            and item.price <= snapshot.player.gold
+            and snapshot.player.gold - item.price >= reserve
+        ]
+        if not affordable:
+            return None
+        return min(affordable, key=lambda item: item.price)
+
     def _black_market_optional_purchase(
         self, snapshot: Snapshot
     ) -> StoreItem | None:
@@ -2143,6 +2175,35 @@ class ShopMixin:
         add(rung("mandatory:food", "food", lambda: snapshot.player.food_type != FOOD_TYPE_MANA and ledger["food"].count < ledger["food"].required_departure, lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL, current=lambda: ledger["food"].count, target=lambda: ledger["food"].required_departure))
         add(rung("mandatory:teleport", "teleport", lambda: ledger["teleport"].count < ledger["teleport"].required_departure, lambda i: i.is_teleport_scroll, current=lambda: ledger["teleport"].count, target=lambda: ledger["teleport"].required_departure))
         add(rung("mandatory:cure", "cure-critical", lambda: ledger["cure"].count < ledger["cure"].required_departure, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL, current=lambda: ledger["cure"].count, target=lambda: ledger["cure"].required_departure))
+        # The 50F+ *Destruction* gate (user 2026-09-23 「買えるなら買って潜る」).
+        # Required for this errand, not a Black Market indulgence: it sits with
+        # the other mandatory rungs and is filtered only by the money reserve
+        # the OTHER required supplies already hold.  Nothing stocks these two
+        # wares on a fixed shelf (they are absent from the game's
+        # articles-on-sale table), so in practice the supplier is the Black
+        # Market or the Home page, both of which reach this same ladder.
+        destruction_reserve: list[int | None] = []
+
+        def destruction_affordable(item) -> bool:
+            if not destruction_reserve:
+                destruction_reserve.append(
+                    self._required_departure_supply_reserve(snapshot)
+                )
+            reserve = destruction_reserve[0]
+            return (
+                reserve is not None
+                and snapshot.player.gold - item.price >= reserve
+            )
+
+        add(rung(
+            "mandatory:destruction",
+            "destruction",
+            lambda: self._missing_destruction_uses(snapshot) > 0,
+            lambda i: self._is_destruction_item(i) and destruction_affordable(i),
+            current=lambda: self._total_destruction_uses(snapshot),
+            target=lambda: self._required_destruction_uses(snapshot),
+            rationale="destruction-gate",
+        ))
         add(rung("identify:normal", "identify", lambda: self._identification_need == "normal" and self._find_identification_source(snapshot, full=False, reliable_only=self._identification_requires_reliable_source(snapshot)) is None, lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_IDENTIFY))
         add(rung("identify:full", "star-identify", lambda: self._identification_need == "full" and self._find_identification_source(snapshot, full=True, reliable_only=self._identification_requires_reliable_source(snapshot)) is None, lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_IDENTIFY))
         for stat in snapshot.player.drained_stats:
@@ -2710,6 +2771,9 @@ class ShopMixin:
             )
             if identify is not None:
                 return identify
+        destruction = self._destruction_purchase(snapshot)
+        if destruction is not None:
+            return destruction
         black_market_optional = self._black_market_optional_purchase(snapshot)
         if black_market_optional is not None:
             return black_market_optional
@@ -2800,6 +2864,12 @@ class ShopMixin:
                 IDENTIFY_PURCHASE_MAX,
                 self._outstanding_identification_count(snapshot, full=full),
             )
+        elif self._is_destruction_item(item):
+            # Uses, not stacks: one staff supplies its charges, one scroll one
+            # use (user 2026-09-23, the Identify-staff counting rule).
+            missing = self._missing_destruction_uses(snapshot)
+            per_unit = max(1, item.pval) if item.tval == TVAL_STAFF else 1
+            needed = (missing + per_unit - 1) // per_unit
         elif item.tval == TVAL_POTION and item.sval in {
             SV_POTION_SPEED,
             SV_POTION_HEALING,

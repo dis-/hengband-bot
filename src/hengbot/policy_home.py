@@ -644,6 +644,14 @@ class HomeMixin:
                 )
             ):
                 return item.count, "experience-restore"
+        if self._is_destruction_item(item) and self._required_destruction_uses(
+            snapshot
+        ):
+            # User 2026-09-23: while the intended target is 50F or deeper the
+            # *Destruction* method is departure equipment, never surplus.  The
+            # whole stack is reserved, so no sale, deposit or destruction
+            # selector can pick it.
+            return item.count, "destruction-gate"
         if item.is_recall_scroll:
             target = max(
                 ledger["recall"].required_departure,
