@@ -89,6 +89,27 @@ AFTER_TEMPLE = 3064      # outside, after the recorded Cure Critical purchase
 HOME_SCAN = 4257         # board after the recorded Home ~9 response
 DRAIN = 6367             # the recorded drain at decision 0 (210,580 - 204,213)
 
+# Declared divergence: the 2026-09-23 loot/choke alternation fix, already
+# declared and pinned in tests/test_unaffordable_claim_tour_recorded.py and
+# tests/test_pure_decision_telemetry.py; this lifetime replays the same
+# recording.  Inside the recorded (15, 16) choke window of floor (1, 42, 0)
+# (list indices 1848-2014, which the recording left only by the livelock
+# recall of 2015) the recorded run abandoned every anticipatory retreat the
+# decision after preparing it, bouncing one cell away with explore/search.  A
+# started retreat now commits to the covered cell it chose and, on reaching
+# it, holds under the unchanged 50-turn detected-threat bound.  Each entry
+# pins recorded pair -> replayed pair, so a change to either side fails.
+CHOKE_ALTERNATION_FIXED = {
+    1848: (("8", "explore"), ("5", "summoner:hold-choke")),
+    1997: (("2", "explore"), ("5", "summoner:hold-choke")),
+    1999: (("2", "explore"), ("5", "summoner:hold-choke")),
+    2001: (("2", "explore"), ("5", "summoner:hold-choke")),
+    2003: (("s", "search"), ("5", "summoner:hold-choke")),
+    2011: (("2", "breakout:seek-frontier"), ("s", "search")),
+    2013: (("8", "explore"), ("5", "summoner:hold-choke")),
+    2014: (("8", "explore"), ("s", "search")),
+}
+
 
 def _potion(snapshot, sval):
     return next(
@@ -253,14 +274,32 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
             {(None, (1, "experience-potion"), None)},
         )
         # Substrate check: the walled replay reproduces the recorded dungeon
-        # decisions of the drained span.
+        # decisions of the drained span, apart from the eight boards of the
+        # declared choke-alternation divergence.
         self.assertEqual(
             [
                 index for index in range(DRAINED_LAST + 1)
                 if not decisions[index][1]
                 and list(decisions[index][0]) != recorded[index]
+                and index not in CHOKE_ALTERNATION_FIXED
             ],
             [],
+        )
+        # Both sides of that divergence are pinned: the recorded abandonment
+        # and the committed retreat that replaces it.
+        self.assertEqual(
+            {
+                index: (tuple(recorded[index]), decisions[index][0])
+                for index in CHOKE_ALTERNATION_FIXED
+            },
+            CHOKE_ALTERNATION_FIXED,
+        )
+        # Each diverging board is a drained dungeon board with the potion
+        # still carried and no hostile in reach: the divergence is the
+        # retreat, never a change of the Experience-potion behaviour.
+        self.assertEqual(
+            {decisions[index][1:] for index in CHOKE_ALTERNATION_FIXED},
+            {(False, True, True, False)},
         )
 
     def test_t1_drained_in_town_routes_to_the_unobserved_temple(self):
