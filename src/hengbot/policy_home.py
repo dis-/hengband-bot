@@ -2152,7 +2152,11 @@ class HomeMixin:
             return key
         deposit = self._find_home_deposit(snapshot)
         if deposit is None:
-            self.last_reason = ""
+            # Declining to compose is not a decision.  Blanking the reason here
+            # erased the one the preceding withdrawal composer had just
+            # recorded, and the caller's remaining fall-through emits a
+            # movement key without setting one, so the decision reached the log
+            # (and the arbiter's reason census) with an empty owner.
             return None
         current = next(
             (

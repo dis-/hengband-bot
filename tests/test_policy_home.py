@@ -4576,7 +4576,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._shopping_approach_step(adjacent, STORE_HOME)
         self.assertIsNone(policy._store_entrance_step_off)
 
-    def test_missing_atomic_deposit_clears_stale_reason(self):
+    def test_missing_atomic_deposit_keeps_the_callers_reason(self):
+        # Changed 2026-09-23 (posted-effect-unobserved): this declined
+        # composition used to blank last_reason.  Every caller of
+        # _shopping_approach_key names its owner before calling, and the
+        # remaining fall-through can emit an approach step without naming one,
+        # so blanking published a decision with an empty reason that neither
+        # the reason census nor the town arbiter can classify.
         policy = HengbotPolicy()
         entrance = self._entrance_snapshot(self._real_pack())
         policy._shopping_approach_store_type = STORE_HOME
@@ -4585,7 +4591,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNone(
             policy._atomic_home_deposit_key(entrance, entrance.player.position)
         )
-        self.assertEqual(policy.last_reason, "")
+        self.assertEqual(policy.last_reason, "home:stale-deposit-reason")
 
     def test_unobserved_atomic_deposit_is_visibly_abandoned_at_bound(self):
         policy = HengbotPolicy()

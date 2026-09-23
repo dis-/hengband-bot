@@ -1,0 +1,7 @@
+Source: incident-captures/ (read from the backup copies under C:/hengband-backups/).
+20260923-181527-town-blocked-owner-retired: ring sha256 0406919b6af619987f073f26d5ac04549148638b0877356d1f4d36cb3e5659ff; tail sha256 a30c9d6d5e31ae0803eddb5b746d49b98d07b1a830738cedd352f28eda525386; ring rows 1748; skill row 1724; decision->row [(1567, 1739), (1568, 1740), (1569, 1741), (1570, 1743)]
+20260923-201024-stuck-prompt: ring sha256 4f42c3b8c6612469b656b82b19bff9a76960cdc02ecb4bd99580e6d0689907f1; tail sha256 2cd233ba1365d78076131f67c36ff307d4dff3656526dcd00266682350b2ca86; ring rows 3062; skill row 3054; decision->row [(5428, 3059), (5429, 3061)]
+20260923-202618-no-key-exhausted: ring sha256 13e8e929b25dbbdccb0153ed7734c571c9f48dfb6ddba8436ce554738871678e; tail sha256 6defc5c519d71ed996bad658de35d2dc28c69f418b0c5cbb655a50d2dc34275c; ring rows 841; skill row 830; decision->row [(628, 838), (629, 839), (630, 840)]
+20260923-181527-town-blocked-owner-retired: policy-state.json sha256 2a0b63a7e3efb8db437728ef2c5650e6f5d1262c8ecc949c5f977f3555c52631; fields ['_home_pending_item', '_home_pending_quantity', '_home_knowledge_current', '_home_knowledge_valid_before', '_home_scan_source', '_home_scan_item_count']
+Records: 13; decompressed sha256: 83e81f46a156447641f5f9e000d4f5c97db46e864e8b32423237ba81de9bd43f
+Compressed sha256: 70855683534d285c13d6849eab1a74c3b7824575efac9c3d54a772d60842bab0

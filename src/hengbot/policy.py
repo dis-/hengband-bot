@@ -2488,6 +2488,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key = home_capture.choose_key(self, snapshot)
         else:
             key = self._choose_key_with_latch_capture(snapshot)
+        # The producers below commit the store visit to the key they return:
+        # an in-store leave arms _store_leave_inflight and a composed one-shot
+        # marks operation_posted.  Every rewrite between here and the return
+        # can replace that key, so remember what the commitment was bound to.
+        decided_key = key
+        decided_visit = self._store_visit
         if (
             key == WAIT_KEY
             and self.last_reason == "warning:blocked-step"
@@ -2780,7 +2786,62 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self.last_reason = (
                         f"town:entrance-wait-refused:{wait_reason or 'wait'}"
                     )
+        self._release_rewritten_store_posting(decided_visit, decided_key, key)
         return key
+
+    def _release_rewritten_store_posting(
+        self, decided_visit, decided_key, key,
+    ) -> None:
+        """Release a store posting whose key never reached the game.
+
+        ``_choose_key`` binds the store visit to the key it returns: an
+        in-store leave arms ``_store_leave_inflight`` and a composed one-shot
+        marks ``operation_posted`` with the entry ``composed_key``.  The public
+        seam then lets detectors and safety rewrites replace that key, and the
+        replacement is what is posted.  The bound command therefore never
+        reached Hengband, yet the visit keeps waiting for the board it would
+        have produced: the entering wait emits no key and the leave
+        confirmation repeats its no-op until a driver bound ends the run.  The
+        posting did not happen, so end it here and let the ordinary machinery
+        re-derive the visit from the next board.  A key that survives this seam
+        unchanged keeps its legitimate wait (pinned by
+        test_policy_shop.test_pin_fresh_home_catalogue_composes_one_shot_purchase
+        and test_posted_effect_unobserved
+        .test_p4_posted_one_shot_still_waits_at_its_own_entrance).
+        """
+        visit = self._store_visit
+        if (
+            visit is None
+            or visit is not decided_visit
+            or decided_key is None
+            or key is None
+            or str(key) == str(decided_key)
+        ):
+            return
+        if (self.last_reason or "").startswith("town:blocked:"):
+            # A town-block terminal is the bot's declared, visible stop and the
+            # block machinery owns the visit through it (see the arbiter
+            # retirement seam above, which closes the retired claim itself).
+            # Only a silent rewrite strands a posting.
+            return
+        entry_bound = (
+            visit.operation_posted
+            and not visit.operation_released
+            and visit.composed_key is not None
+            and str(visit.composed_key) == str(decided_key)
+        )
+        leave_bound = (
+            visit.phase == StoreVisitPhase.LEAVING
+            and visit.posted_sequence == self._decision_sequence
+            and str(decided_key) == LEAVE_STORE_KEY
+        )
+        if not (entry_bound or leave_bound):
+            return
+        self._store_entry_wait_owner = None
+        self._store_entry_wait_turn = None
+        self._town_visit_ledger.pending_store_transaction = None
+        self._town_visit_ledger.pending_store_context_waits = 0
+        self._close_store_visit("posting-rewritten")
 
     @staticmethod
     def _route_unavailable_terminal_candidate(rejected_candidate, key) -> bool:
@@ -4091,6 +4152,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 self.last_reason = "shop:await-leave-generation"
                 key = "\r"
+            elif (
+                self._decision_sequence - leave_generation >= STORE_STUCK_LIMIT
+            ):
+                # The confirmation key of an open Home page is a no-op that
+                # cannot advance the turn, so ``turn > leave_turn`` above is
+                # not reachable by waiting: without a bound this branch repeats
+                # forever and the driver's prompt bound ends the run.  A whole
+                # confirmation budget without a new store generation means the
+                # posted leave never took effect; release the visit and decide
+                # this page again, exactly as the other releases above do.
+                self._close_store_visit("leave-unconfirmed")
+                key = self._decide(snapshot)
             else:
                 # Planning itself may reserve inventory or transaction state.
                 # An unchanged store generation is therefore a hard barrier,
@@ -4223,6 +4296,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
                 and self._equipment_transaction_session is None
+                # The outside composer refuses without a current catalogue
+                # (policy_home._atomic_home_withdraw_key, "await-fresh
+                # knowledge"), and the ~9 scan that makes it current can only
+                # be requested from this page.  Leaving first therefore hands
+                # off to an owner that cannot act: the bot re-enters, leaves
+                # again, and the cycle only ends when the arbiter retires the
+                # owner.  Refresh the catalogue before handing off.
+                and self._home_knowledge_current
+                and not self._home_knowledge_invalidated
                 and (
                     pending_withdrawals := {
                         *(
@@ -5083,14 +5165,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # stay key but before the queued store UI consumes the transaction.
             # The posted macro owns that page just as it owns an intermediate
             # store page; only observed completion or visit closure releases it.
-            self._town_visit_ledger.pending_store_context_waits += 1
+            # That queue is consumed at the entrance the operation was composed
+            # on.  A later turn that finds the player somewhere else proves the
+            # entry never happened and can never happen, so the wait has no
+            # board to wait for; this wait emits no command, and the driver's
+            # no-key bound ends the run long before the retry budget below.
+            here = snapshot.grid_at(snapshot.player.position)
+            posted_turn = self._store_visit.posted_turn
             if (
-                self._town_visit_ledger.pending_store_context_waits
-                < STORE_STUCK_LIMIT
+                posted_turn is not None
+                and snapshot.turn > posted_turn
+                and (here is None or here.store_number != self._store_visit.store_type)
             ):
-                self.last_reason = "shop:one-shot-in-flight"
-                return ""
-            self._close_store_visit("one-shot-entry-unconfirmed")
+                self._close_store_visit("one-shot-entrance-left")
+            else:
+                self._town_visit_ledger.pending_store_context_waits += 1
+                if (
+                    self._town_visit_ledger.pending_store_context_waits
+                    < STORE_STUCK_LIMIT
+                ):
+                    self.last_reason = "shop:one-shot-in-flight"
+                    return ""
+                self._close_store_visit("one-shot-entry-unconfirmed")
         if (
             snapshot.store is None
             and (
