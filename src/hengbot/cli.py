@@ -406,6 +406,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
+        "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
         "wilderness:no-safe-route": "global-map route to town is unavailable",

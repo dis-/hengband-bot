@@ -1,0 +1,5 @@
+Source: incident-captures/ (read from the backup copies under C:/hengband-backups/).
+20260923-224927-town-blocked-owner-retired: ring sha256 7f32016260019956ef4b649df0541a8e2cf5389b5d1dbab86fcbcf028d4d7da1; tail sha256 c123e90fd0f50ef9a4d448145b196f9d680c8304882606550b91fc3b1b67d44e; state sha256 2c5746881dae79c373516bde59df5e208acf188d0f96f0a893db0759bd8217bc; ring rows 1532 (4 empty flush rows dropped); process decisions 64; skill row 1447; decision->row [(59, 1527), (60, 1528), (61, 1529), (62, 1530), (63, 1531)]
+20260923-235359-town-blocked-owner-retired: ring sha256 10003da388179f8f78ad6b245be2d80791cd27876a0a0d6c88cdc2f8a4c20230; tail sha256 777edcac84c28b5cf3bba3730f4cdbc38d2221a406e93e12ca80c5cecb22e7e1; state sha256 a28ba9a69e81e7739b38893f454eb48e1fedea86405810dafdedc8474bb45241; ring rows 1597 (4 empty flush rows dropped); process decisions 64; skill row 1512; decision->row [(59, 1592), (60, 1593), (61, 1594), (62, 1595), (63, 1596)]
+Records: 14; decompressed sha256: 4a466cfe4431b08317b6882766b006018f4343ac3ce8e73d301c53d020266157
+Compressed sha256: 5a1083fa3a7aa7a9d84cb9090e64256a8f0426315eec49f3c71924969764be7d

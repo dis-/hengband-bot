@@ -1144,6 +1144,26 @@ class TownMixin:
                 )
                 self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
                 return WAIT_KEY
+            if (
+                enforce
+                and movement_key
+                and liveness_candidate
+                and self._fundraising_mode in {"mine", "scavenge"}
+                and self._town_walk_in_entrance(snapshot) is None
+            ):
+                # The last-resort town wander won with no claim to repair.  A
+                # mining/scavenge plan refuses every recall destination
+                # (_town_recall_destination) so that the bot walks in at level
+                # one, and this town holds no entrance that walk can use --
+                # _is_descent_target accepts a Yeek Cave entrance only from
+                # town 0, and this town's map has no entrance of its own.  The
+                # descent router therefore reports "no-known-downstairs", a
+                # fully-known town offers no frontier, and the wander ran until
+                # the arbiter retired the owner.  Name the missing entrance.
+                self._town_blocked_reason = "walk-in-entrance-unavailable"
+                self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+                self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
+                return WAIT_KEY
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
@@ -5352,6 +5372,21 @@ class TownMixin:
         ):
             return self._town_map.entrance
         return None
+
+    def _town_walk_in_entrance(self, snapshot: Snapshot) -> Position | None:
+        """The dungeon entrance this town visit could walk into, if any.
+
+        The two sources the descent router itself consults while in town
+        (``_descent_step``): an emitted grid this dungeon target accepts as a
+        walking route, and the static town map's own entrance tile.
+        """
+        for position, grid in snapshot.grids.items():
+            if (
+                self._is_descent_target(snapshot, grid)
+                and not self._is_downstairs_expired(position)
+            ):
+                return position
+        return self._town_map_descent_entrance(snapshot)
 
     def _effective_town_id(self, snapshot: Snapshot) -> int:
         """Recover a missing town id from exported, player-known landmarks."""
