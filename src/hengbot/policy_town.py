@@ -195,9 +195,19 @@ class TownMixin:
             # picks up the target or clears it through a named blocker.
             goal = self._loot_target
         elif owner == "cross-town" and (
-            reason or self.last_reason or ""
-        ).startswith("town:morivant-full-identify:travel-") and (
-            getattr(self, "_morivant_full_identify", None) is not None
+            (
+                (reason or self.last_reason or "").startswith(
+                    "town:morivant-full-identify:travel-"
+                )
+                and getattr(self, "_morivant_full_identify", None) is not None
+            )
+            # The stranded mining/scavenge return to the Outpost walks to the
+            # same teleport building through the same route, so it registers
+            # the same locomotion part.  Without it the walk registered no
+            # distance at all, every step after the first scored no progress,
+            # and the arbiter retired this family nine cells into the walk
+            # (2026-09-24 02:27).
+            or (reason or self.last_reason) == "town:cross-town-walk-in-return"
         ):
             # The *Identify* expedition walks to this town's teleport building
             # along the route _town_teleport_route steps on.  Its remaining

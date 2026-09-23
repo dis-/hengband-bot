@@ -1,31 +1,37 @@
-"""Freeze the two 2026-09-23 town-plan-exhausted-wander stops.
+"""Freeze the three town-plan-exhausted-wander stops of 2026-09-23/24.
 
 Sources (automatic captures; read from the preserved copies under
 C:/hengband-backups/incident-captures/, which are byte-identical to the live
-directories).  All three files of both captures are verified by sha256 before
+directories).  All three files of every capture are verified by sha256 before
 anything is read.  Pass a directory holding the captures as the only argument
 when running from a checkout without them.
 
   20260923-224927-town-blocked-owner-retired  (22:49, procurement *Destruction*)
   20260923-235359-town-blocked-owner-retired  (23:53, empty procurement list)
+  20260924-022725-town-blocked-owner-retired  (02:27, the return walk retired)
 
-Both captures are a whole bot process: a session-start marker, decision 0
-(``periodic:skill-exp-knowledge``) and 63 further decisions ending in the stop.
-Only the closing window is frozen (decisions 59..63: the emptied Alchemist
-page, the three ``stuck:wander`` steps and ``town:blocked:owner-retired``),
-plus the ~f skill list the process read at decision 0, plus the named
-policy-state fields the pins re-attach.
+Every capture is a whole bot process: a session-start marker, decision 0
+(``periodic:skill-exp-knowledge``) and the rest ending in the stop.  Only the
+closing window is frozen -- for the two 2026-09-23 captures decisions 59..63
+(the emptied Alchemist page, the three ``stuck:wander`` steps and
+``town:blocked:owner-retired``), and for the 2026-09-24 capture decisions
+59..69 (the same emptied page, the nine ``town:cross-town-walk-in-return``
+steps the arbiter scored as no progress, and the stop) -- plus the ~f skill
+list the process read at decision 0, plus the named policy-state fields the
+pins re-attach.
 
-Reading the snapshot ring: it is a fixed-size byte ring of concatenated gzip
-members that is overwritten in place, so it usually begins inside a member and
-its first bytes are an unreadable fragment.  ``_ring_rows`` starts at the first
-member that decompresses whole and then chains members by their compressed
-length (``unused_data``), which never mistakes a magic sequence inside
-compressed bytes for a member start.  Both rings here begin mid-member (the
-first whole member starts at byte 663738 and 4916).  Rows that do not parse as
-JSON are dropped; in these two rings the only such rows are the four empty
-lines of four zero-payload flush members, and the script asserts that count.
-The decision tail is a plain file, not a ring.
+Reading the two byte rings: both the snapshot generation and the decision tail
+are fixed-size byte rings overwritten in place, so each usually begins inside a
+record and its first bytes are an unreadable fragment.  The snapshot ring holds
+concatenated gzip members: ``_ring_rows`` starts at the first member that
+decompresses whole and then chains members by their compressed length
+(``unused_data``), which never mistakes a magic sequence inside compressed
+bytes for a member start.  All three rings begin mid-member (the first whole
+member starts at byte 663738, 4916 and 5922).  The decision tail holds plain
+JSON lines, so it is split on newlines directly.  Lines that do not parse as
+JSON are dropped in both; the script asserts how many, and in these captures
+they are only the zero-payload flush members of the snapshot ring and the one
+leading fragment of each decision tail.
 
 Boundary rule (snapshot rows are not one per decision): walking back from the
 final ring row, which is the input of the final decision, each earlier
@@ -64,18 +70,24 @@ RING_NAME = "snapshots/snapshots-current.jsonl.gz"
 TAIL_NAME = "decision-tail.jsonl"
 STATE_NAME = "policy-state.json"
 MAGIC = b"\x1f\x8b\x08"
-WANTED = (59, 60, 61, 62, 63)
-EMPTY_RING_LINES = 4
 
-# capture -> (ring sha256, tail sha256, state sha256)
+# capture -> (ring sha256, tail sha256, unreadable ring lines, unreadable tail
+#             lines, frozen decision sequences)
 CAPTURES = {
     "20260923-224927-town-blocked-owner-retired": (
         "7f32016260019956ef4b649df0541a8e2cf5389b5d1dbab86fcbcf028d4d7da1",
         "c123e90fd0f50ef9a4d448145b196f9d680c8304882606550b91fc3b1b67d44e",
+        4, 1, (59, 60, 61, 62, 63),
     ),
     "20260923-235359-town-blocked-owner-retired": (
         "10003da388179f8f78ad6b245be2d80791cd27876a0a0d6c88cdc2f8a4c20230",
         "777edcac84c28b5cf3bba3730f4cdbc38d2221a406e93e12ca80c5cecb22e7e1",
+        4, 1, (59, 60, 61, 62, 63),
+    ),
+    "20260924-022725-town-blocked-owner-retired": (
+        "4758dc40c23c54a2f24df3a62cc5de1e0e434a14ecdc85a495f8baa059e954c2",
+        "05665e05306d2eaf15123eb89699ed1d64a5b8534a9badab2f306e809c0a027f",
+        3, 1, tuple(range(59, 70)),
     ),
 }
 # Named fields of the capture's own state dump.  "state" holds the errand plan
@@ -130,13 +142,16 @@ def _ring_rows(raw: bytes) -> tuple[list[dict], int]:
     return rows, dropped
 
 
-def _session(raw: bytes) -> list[dict]:
-    """The decisions of the last process in the tail, oldest first."""
+def _session(raw: bytes) -> tuple[list[dict], int]:
+    """The decisions of the last process in the tail ring, oldest first."""
     rows: list[dict] = []
+    dropped = 0
     for line in raw.splitlines():
         try:
             row = json.loads(line)
         except ValueError:
+            if line.strip():
+                dropped += 1
             continue
         if "decision_sequence" in row:
             rows.append(row)
@@ -150,7 +165,7 @@ def _session(raw: bytes) -> list[dict]:
         raise AssertionError("the capture does not hold a whole bot process")
     if session[-1]["reason"] != "town:blocked:owner-retired":
         raise AssertionError("the final decision is not the recorded stop")
-    return session
+    return session, dropped
 
 
 def _matches(board: dict, record: dict) -> bool:
@@ -207,7 +222,9 @@ def main() -> None:
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_CAPTURES
     records: list[dict] = []
     provenance: list[str] = []
-    for name, (ring_sha, tail_sha) in CAPTURES.items():
+    for name, (
+        ring_sha, tail_sha, ring_dropped, tail_dropped, wanted
+    ) in CAPTURES.items():
         capture = root / name
         ring_path = capture / RING_NAME
         tail_path = capture / TAIL_NAME
@@ -217,13 +234,15 @@ def main() -> None:
         if _sha256(tail_path) != tail_sha:
             raise AssertionError(f"{name}: decision tail changed")
         boards, dropped = _ring_rows(ring_path.read_bytes())
-        if dropped != EMPTY_RING_LINES:
+        if dropped != ring_dropped:
             raise AssertionError(f"{name}: unreadable ring rows changed")
-        decisions = _session(tail_path.read_bytes())
+        decisions, tail_fragments = _session(tail_path.read_bytes())
+        if tail_fragments != tail_dropped:
+            raise AssertionError(f"{name}: unreadable tail rows changed")
         ends = _input_ends(decisions, boards)
         by_sequence = {row["decision_sequence"]: row for row in decisions}
         skill_rows = [
-            index for index, board in enumerate(boards[: ends[WANTED[0]]])
+            index for index, board in enumerate(boards[: ends[wanted[0]]])
             if (board.get("knowledge") or {}).get("category") == "skill_exp"
         ]
         if not skill_rows:
@@ -234,7 +253,7 @@ def main() -> None:
             "ring_index": skill_rows[-1],
             "board": boards[skill_rows[-1]],
         })
-        for sequence in WANTED:
+        for sequence in wanted:
             index = ends[sequence]
             records.append({
                 "capture": name,
@@ -256,9 +275,10 @@ def main() -> None:
         provenance.append(
             f"{name}: ring sha256 {ring_sha}; tail sha256 {tail_sha}; "
             f"state sha256 {_sha256(state_path)}; ring rows {len(boards)} "
-            f"({dropped} empty flush rows dropped); process decisions "
+            f"({dropped} empty flush rows dropped, {tail_fragments} leading "
+            f"tail fragment(s) dropped); process decisions "
             f"{len(decisions)}; skill row {skill_rows[-1]}; decision->row "
-            f"{[(s, ends[s]) for s in WANTED]}"
+            f"{[(s, ends[s]) for s in wanted]}"
         )
 
     payload = "".join(

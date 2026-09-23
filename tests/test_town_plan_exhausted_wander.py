@@ -1,9 +1,19 @@
 """Recorded pins: an exhausted town plan must not end in an unbounded wander.
 
-Two stops of the same shape on 2026-09-23, each one minute after a resume
-(22:49 and 23:53; both captures are a whole 64-decision bot process).  The bot
-is in Morivant (town_id 2), whose map has no dungeon entrance and whose emitted
-grids hold none either.  Its plan has one stop, the Alchemist, built for a
+Three stops, each one minute after a resume, each capture a whole bot process.
+Two of the same shape on 2026-09-23 (22:49 and 23:53, 64 decisions each) and
+one on 2026-09-24 02:27 (70 decisions) after the return below had landed: the
+bot walked nine cells toward the Inn, the arbiter scored every step after the
+first as no progress because the walk registered no distance at all, retired
+the ``cross-town`` family and stopped on ``town:blocked:owner-retired``.  The
+return now registers the same locomotion part the Morivant *Identify* walk and
+the entrance travel register -- the remaining BFS edges of the route it walks
+along -- so a closing step is progress and a walk that stops closing is still
+retired by the unchanged bound (P7, P8).
+
+In all three the bot is in Morivant (town_id 2), whose map has no dungeon
+entrance and whose emitted grids hold none either.  Its plan has one stop, the
+Alchemist, built for a
 ``stat-restore`` errand; the observed page wants nothing
 (``observed-page-nothing-wanted``), the plan index moves past its only stop and
 no town claim is left.
@@ -117,11 +127,13 @@ FIXTURE = (
     ROOT / "tests" / "fixtures" / "town-plan-exhausted-wander-20260923.jsonl.gz"
 )
 FIXTURE_SHA256 = (
-    "5a1083fa3a7aa7a9d84cb9090e64256a8f0426315eec49f3c71924969764be7d"
+    "8e10aa20de3ec80c0b832befa01a7946d1a6248597efcd3cb540e17a979f8aba"
 )
 DESTRUCTION_STOP = "20260923-224927-town-blocked-owner-retired"
 EMPTY_STOP = "20260923-235359-town-blocked-owner-retired"
+RETURN_RETIRED = "20260924-022725-town-blocked-owner-retired"
 WINDOW = (59, 60, 61, 62, 63)
+RETURN_WINDOW = tuple(range(59, 70))
 MORIVANT_TOWN_ID = 2
 ALCHEMIST = 4
 BLOCKED_REASON = "town:blocked:walk-in-entrance-unavailable"
@@ -193,10 +205,10 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         policy._character_calibration_path = directory / "character-calibration.json"
         return policy
 
-    def _restore(self, policy, capture, *, planned_mining_runs=True):
+    def _restore(self, policy, capture, *, planned_mining_runs=True, window=WINDOW):
         """Re-attach the recorded pre-decision facts of the frozen window."""
         fields = self.state[capture]
-        decision = self._decision(capture, WINDOW[0])
+        decision = self._decision(capture, window[0])
         plan = fields["_town_errand_plan"]
         # The dump was written after the stop, so its index is already past the
         # only stop.  Rewind to the index the frozen decision was taken with
@@ -249,28 +261,35 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
             in fields["_town_visit_purchase_quantities"].items()
         }
 
-    def _drive(self, capture, *, planned_mining_runs=True, gold=None):
+    def _seeded_policy(self, directory, capture, boards, **restore):
+        policy = self._fresh_policy(directory)
+        policy.prime(boards[0])
+        policy.consume_skill_knowledge(self.skill[capture])
+        self._restore(policy, capture, **restore)
+        return policy
+
+    def _drive(
+        self, capture, *, planned_mining_runs=True, gold=None, window=WINDOW,
+    ):
         """Decide the recorded boards of the window, as the driver would.
 
         The driver stops instead of deciding again once the policy names a
         declared final stop (cli._policy_final_stop_banner), so the replay
         stops there too.
         """
-        boards = [self._board(capture, sequence) for sequence in WINDOW]
+        boards = [self._board(capture, sequence) for sequence in window]
         if gold is not None:
             boards = [
                 replace(board, player=replace(board.player, gold=gold))
                 for board in boards
             ]
         with TemporaryDirectory() as raw_directory:
-            policy = self._fresh_policy(Path(raw_directory))
-            policy.prime(boards[0])
-            policy.consume_skill_knowledge(self.skill[capture])
-            self._restore(
-                policy, capture, planned_mining_runs=planned_mining_runs
+            policy = self._seeded_policy(
+                Path(raw_directory), capture, boards,
+                planned_mining_runs=planned_mining_runs, window=window,
             )
             emitted = []
-            for sequence, board in zip(WINDOW, boards):
+            for sequence, board in zip(window, boards):
                 policy._decision_sequence = sequence
                 key = policy.validate_read_key(board, policy.choose_key(board))
                 emitted.append(
@@ -420,6 +439,112 @@ class TownPlanExhaustedWanderTest(unittest.TestCase):
         self.assertIn(BLOCKED_REASON, POLICY_FINAL_STOP_REASONS)
         # The driver stops there instead of deciding again.
         self.assertEqual(len(emitted), 2)
+
+    # -- P7 / P8 (2026-09-24 02:27) --------------------------------------
+    def test_fixture_freezes_the_retired_return_walk(self):
+        recorded = [
+            (self._decision(RETURN_RETIRED, sequence)["key"],
+             self._decision(RETURN_RETIRED, sequence)["reason"])
+            for sequence in RETURN_WINDOW
+        ]
+        self.assertEqual(recorded[0][1], "shop:observe-and-leave")
+        self.assertEqual(
+            [reason for _key, reason in recorded[1:-1]], [RETURN_REASON] * 9
+        )
+        self.assertEqual(recorded[-1][1], "town:blocked:owner-retired")
+        # The walk moved a cell per decision and the arbiter still scored it
+        # as no progress, so the budget ran out and the family was retired.
+        walk = [
+            self._decision(RETURN_RETIRED, sequence)
+            for sequence in RETURN_WINDOW[1:-1]
+        ]
+        self.assertEqual(
+            [decision["arbiter"]["progress"] for decision in walk],
+            [True] + [False] * 8,
+        )
+        self.assertEqual(walk[-1]["arbiter"]["retirement_set"], ["cross-town"])
+        self.assertEqual(
+            self._decision(RETURN_RETIRED, RETURN_WINDOW[-1])["arbiter"][
+                "retirement_set"
+            ],
+            ["cross-town"],
+        )
+
+    def test_p7_each_closing_step_of_the_return_is_progress(self):
+        """The recorded walk now registers its distance to the Inn.
+
+        The five cells of the recorded walk the emitted board still reaches
+        are decided in order; every step closes the route the return walks
+        along, so its locomotion part changes and the arbiter's own bound is
+        never spent.
+        """
+        boards = [self._board(RETURN_RETIRED, s) for s in RETURN_WINDOW]
+        with TemporaryDirectory() as raw_directory:
+            policy = self._seeded_policy(
+                Path(raw_directory), RETURN_RETIRED, boards,
+                window=RETURN_WINDOW,
+            )
+            vectors = []
+            emitted = []
+            for sequence, board in zip(RETURN_WINDOW, boards):
+                policy._decision_sequence = sequence
+                key = policy.validate_read_key(board, policy.choose_key(board))
+                emitted.append(
+                    (str(key) if key is not None else None, policy.last_reason)
+                )
+                if policy.last_reason == RETURN_REASON:
+                    vectors.append(
+                        policy._town_arbiter_progress_vector(
+                            policy.with_known_skill_exp(board), RETURN_REASON
+                        )[-1]
+                    )
+                policy.confirm_key_posted(key)
+
+        reasons = [reason for _key, reason in emitted]
+        # The recorded retirement stop does not occur ...
+        self.assertNotIn("town:blocked:owner-retired", reasons)
+        self.assertNotIn(BLOCKED_REASON, reasons)
+        self.assertEqual(reasons[0], "shop:observe-and-leave")
+        self.assertEqual(reasons[1:], [RETURN_REASON] * (len(reasons) - 1))
+        # ... because every step registers a closing distance to the Inn.
+        self.assertTrue(vectors)
+        for part in vectors:
+            self.assertEqual(part[:2], ("locomotion", "cross-town"))
+        remaining = [part[-1] for part in vectors]
+        self.assertEqual(remaining, sorted(remaining, reverse=True))
+        self.assertLess(remaining[-1], remaining[0])
+        self.assertEqual(len(set(remaining)), len(remaining))
+
+    def test_p8_a_return_that_stops_closing_is_still_retired(self):
+        """The existing bound is untouched: a walk that never advances retires.
+
+        The recorded board of the first return step is decided again and
+        again with no movement applied, which is what a rejected walk looks
+        like: the locomotion part repeats, so the arbiter spends the same
+        budget it always did.
+        """
+        boards = [self._board(RETURN_RETIRED, s) for s in RETURN_WINDOW]
+        stalled = boards[1]
+        with TemporaryDirectory() as raw_directory:
+            policy = self._seeded_policy(
+                Path(raw_directory), RETURN_RETIRED, boards,
+                window=RETURN_WINDOW,
+            )
+            policy._decision_sequence = RETURN_WINDOW[0]
+            policy.choose_key(boards[0])
+            reasons = []
+            for step in range(20):
+                policy._decision_sequence = RETURN_WINDOW[1] + step
+                key = policy.validate_read_key(
+                    stalled, policy.choose_key(stalled)
+                )
+                reasons.append(policy.last_reason)
+                if policy.last_reason in POLICY_FINAL_STOP_REASONS:
+                    break
+                policy.confirm_key_posted(key)
+
+        self.assertIn("town:blocked:owner-retired", reasons)
+        self.assertEqual(reasons[0], RETURN_REASON)
 
     def test_p6_a_town_zero_mining_wander_is_left_alone(self):
         """A mine plan in the Outpost still has a walk-in goal.
