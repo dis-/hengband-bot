@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy_constants import (
     BARREN_FLOOR_SKIP_THRESHOLD,
@@ -261,6 +262,7 @@ class NavigationMixin:
             grid.in_view and grid.glow and not grid.mndk and grid.allows_los
         )
 
+    @claims(ClaimOwner.DETECTORS)
     def _dark_locomotion_key(self, snapshot: Snapshot) -> str | None:
         """Move without light, then expose exhaustion as a visible stop."""
         if (
@@ -629,6 +631,7 @@ class NavigationMixin:
         self._nav_exhausted = True
         return key
 
+    @claims(ClaimOwner.DETECTORS)
     def _navigation_livelock_key(self, snapshot: Snapshot) -> str | None:
         """Leave (or visibly stop on) a floor where navigation is exhausted (R1).
     

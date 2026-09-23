@@ -78,7 +78,19 @@ from hengbot.equipment_mutation import (
     EquipmentMutationResult,
     EquipmentMutationState,
 )
+from hengbot.claim_register import (
+    ClaimOwner,
+    ClaimRegister,
+    ClaimScope,
+    Goal,
+    claims,
+    observe as claim_observe,
+    owner_of as claim_owner_of,
+    reach as claim_reach,
+    terminal as claim_terminal,
+)
 from hengbot.policy_types import (
+    OWNER_EXPECTATION_MAX_TURNS,
     DecisionCandidate,
     DecisionContext,
     TownTravelProgress,
@@ -338,7 +350,11 @@ from hengbot.policy_constants import (
     UNIQUE_COMBAT_MAX_ATTACKS,
     WIN_QUEST_IDS,
 )
-from hengbot.town_arbiter import TownArbiterMixin, _new_town_turn_arbiter
+from hengbot.town_arbiter import (
+    TownArbiterMixin,
+    _new_town_turn_arbiter,
+    reason_owner_family,
+)
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_identification import IdentificationMixin
 from hengbot.policy_fundraising import FundraisingMixin
@@ -1681,6 +1697,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         }
         self._decision_context: DecisionContext | None = None
         self.decision_attribution = "unregistered"
+        # S1 attribution: the register records who owns each decision and the
+        # goal it declared.  Setting it to None disables recording entirely,
+        # which is how the neutrality pin replays the same boards without it.
+        self._claim_register = ClaimRegister()
+        self.decision_claim: dict | None = None
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2437,6 +2458,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.decision_attribution = arbiter.decision_owner_for_reason(
                 self.last_reason
             )
+            self._record_decision_claim(snapshot, skill_request)
             return skill_request
         self._refresh_carried_equipment_catalog(snapshot)
         self._request_priority_body_rearm(snapshot)
@@ -2481,6 +2503,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.decision_attribution = arbiter.decision_owner_for_reason(
                     decided_reason
                 )
+                self._record_decision_claim(snapshot, key)
                 return key
         self._last_policy_progress_core = current_progress_core
         home_capture = self._home_entry_capture
@@ -2508,8 +2531,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # preserve its no-command seam after the refusal was processed.
             # A later snapshot without the stale prompt returns the ordinary
             # warning:blocked-step wait, while the CLI now bounds quiet None.
+            self._record_decision_claim(snapshot, None)
             return None
         if key is None and self._warning_prompt_stops_decision:
+            self._record_decision_claim(snapshot, None)
             return None
         if (
             key
@@ -2787,7 +2812,180 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         f"town:entrance-wait-refused:{wait_reason or 'wait'}"
                     )
         self._release_rewritten_store_posting(decided_visit, decided_key, key)
+        self._record_decision_claim(snapshot, key)
         return key
+
+    # -- S1 attribution (SOL-DESIGN-ownership-contract.md 3.1, 4, 6/S1) ----
+    #
+    # Recording only.  Nothing below is read back by a producer, the ladder or
+    # the driver, and no branch here can reach a key or a reason.
+
+    def claim(self, owner, goal: Goal, *, non_discardable: bool = False):
+        """``with self.claim(owner, goal):`` -- the marker of design 5.1.
+
+        With recording switched off (``_claim_register is None``) the scope
+        still works and declares into a register nobody reads, so disabling
+        the recording cannot change what a producer does.
+        """
+        register = getattr(self, "_claim_register", None)
+        return ClaimScope(
+            register if register is not None else ClaimRegister(),
+            owner,
+            goal,
+            non_discardable=non_discardable,
+            opened_sequence=self._decision_sequence,
+        )
+
+    def _claim_goal_cell(self, snapshot: Snapshot):
+        """The cell the current owner is already travelling to, if any.
+
+        Only goals the policy has *already* committed to are read; nothing is
+        searched and no distance is recomputed, so this cannot cost a decision
+        anything or disagree with the producer that set the goal.
+        """
+        route = getattr(self, "_detected_threat_route", None)
+        if (
+            isinstance(route, tuple)
+            and len(route) == 3
+            and route[0] == snapshot.floor_key
+            and isinstance(route[1], Position)
+        ):
+            return route[1]
+        visit = getattr(self, "_store_visit", None)
+        if visit is not None and isinstance(visit.goal, Position):
+            return visit.goal
+        approach = getattr(self, "_shopping_approach_goal", None)
+        if isinstance(approach, Position):
+            return approach
+        travel = getattr(self, "_town_travel_state", None)
+        if travel is not None and isinstance(
+            getattr(travel, "goal", None), Position
+        ):
+            return travel.goal
+        dark = getattr(self, "_dark_route_goal", None)
+        if isinstance(dark, Position):
+            return dark
+        return None
+
+    def _claim_expectation(self):
+        """The owner expectation this decision's reason already posted.
+
+        ``OwnerExpectationRegistry`` is keyed by its own owner vocabulary --
+        the reason itself for some producers (``return:recall``) and its
+        leading segment for others (``equipment-transaction``) -- which design
+        section 2 counts as a separate owner notion and S3 folds into the
+        claim.  Until then only those two spellings are looked up, so the goal
+        is taken from an expectation that provably belongs to this reason and
+        never from an unrelated owner's.
+        """
+        registry = getattr(self, "_owner_expectations", None)
+        if registry is None:
+            return None
+        reason = self.last_reason or ""
+        for name in (reason, reason.split(":", 1)[0]):
+            if not name:
+                continue
+            posted = registry.pending(name)
+            if posted is not None:
+                return posted
+        return None
+
+    def _claim_goal(self, snapshot: Snapshot, key) -> Goal:
+        """Declare this decision's goal from state the policy already holds."""
+        cell = self._claim_goal_cell(snapshot)
+        if cell is not None:
+            return claim_reach((cell.y, cell.x))
+        posted = self._claim_expectation()
+        if posted is not None:
+            return claim_observe(
+                posted.expected_changes, OWNER_EXPECTATION_MAX_TURNS
+            )
+        if key is None or key == "":
+            # Design 4: an empty key is a claim waiting for an observation,
+            # never an unattributed board.  With no posted expectation to name
+            # the change, the board itself advancing is the observation.
+            return claim_observe(("turn",), OWNER_EXPECTATION_MAX_TURNS)
+        return claim_terminal(self.last_reason or "policy:none")
+
+    def _claim_owner_retired(self, owner) -> bool:
+        """Whether the arbiter already holds this owner's claim as retired."""
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        telemetry = getattr(arbiter, "telemetry", None) if arbiter else None
+        if not isinstance(telemetry, dict):
+            return False
+        return bool(
+            telemetry.get("retired")
+            and telemetry.get("producer_owner") == owner.value
+        )
+
+    def _record_decision_claim(self, snapshot: Snapshot, key) -> None:
+        """Attribute this decision to a claim and record it for the row.
+
+        The declaration point of design section 4.  It runs on the decided
+        board at the ``choose_key`` exit, so the claim, its goal and the
+        measured distance to that goal reach the decision row as plain data
+        (like ``decision_attribution``).  It deliberately does *not* run in
+        the telemetry capture: that is an observer scope whose work is
+        discarded (design 5.4), so a claim computed there would never be the
+        claim the decision was made under.
+        """
+        register = getattr(self, "_claim_register", None)
+        if register is None:
+            self.decision_claim = None
+            return
+        position = snapshot.player.position
+        closed = None
+        standing = register.current
+        if (
+            standing is not None
+            and standing.closed is None
+            and standing.goal.kind == "Reach"
+            and standing.goal.cell == (position.y, position.x)
+        ):
+            # The board shows the declared cell reached: the goal is met, so
+            # the claim closes here and the next owner change is explicit.
+            finished = register.complete()
+            closed = {
+                "claim_id": finished.claim_id,
+                "owner": finished.owner.value,
+                "state": finished.state.value,
+                "closed": finished.closed,
+            }
+        reason = self.last_reason or ""
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        # ``choose_key`` builds the arbiter before any of its exits, but a
+        # restored checkpoint can still carry ``None`` here; the module-level
+        # reader answers from the same registrations in that case.
+        owner = claim_owner_of(
+            arbiter.owner_for_reason(reason)
+            if arbiter is not None
+            else reason_owner_family(reason)
+        )
+        goal = self._claim_goal(snapshot, key)
+        register.declare(owner, goal, opened_sequence=self._decision_sequence)
+        if self._claim_owner_retired(owner):
+            claim = register.retire()
+        elif key is None or key == "":
+            claim = register.await_observation()
+        else:
+            claim = register.keep_active()
+        distance = (
+            position.distance_to(Position(*claim.goal.cell))
+            if claim.goal.kind == "Reach" and claim.goal.cell is not None
+            else None
+        )
+        self.decision_claim = {
+            **claim.as_dict(distance=distance),
+            "decision_sequence": self._decision_sequence,
+            "reason": reason,
+            "closed_claim": closed,
+        }
+        if isinstance(key, DecisionCandidate):
+            # Design 5.4: the declaration token travels on the candidate that
+            # already carries the decision's provenance, rather than on a
+            # second str subclass.  Nothing reads it before S2's port-side
+            # check, so writing it cannot change this decision.
+            key.claim_id = claim.claim_id
 
     def _release_rewritten_store_posting(
         self, decided_visit, decided_key, key,
@@ -4732,6 +4930,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _look_probe_key(self, snapshot: Snapshot) -> str:
         self._look_floor_key = snapshot.floor_key
         self._look_floor_items.clear()
@@ -4791,6 +4990,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
         )
 
+    @claims(ClaimOwner.MISC)
     def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
         """Request ~f while a protocol-3 board lacks the skill list values."""
         if getattr(snapshot, "protocol_version", 2) < 3:
@@ -4859,6 +5059,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._periodic_save_requested = True
 
 
+    @claims(ClaimOwner.MISC)
     def _periodic_game_save_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler with Ctrl-S; saving consumes no game energy."""
         if (
@@ -4871,6 +5072,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = "periodic:game-save"
         return "\x13"
 
+    @claims(ClaimOwner.MISC)
     def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler action without delaying combat or prompts."""
         if (
@@ -6846,6 +7048,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         )
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _summoner_ranged_kill_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -7081,6 +7284,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.IDENTIFICATION)
     def _verified_destroy_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
         """Destroy a selected item while detecting refused or stalled attempts."""
         transaction = self._equipment_transaction_session
@@ -7227,6 +7431,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return self._item_matches_purchase_rung(snapshot, item)
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> str | None:
@@ -9081,6 +9286,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.SURVIVAL)
     def _stat_gain_quaff_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -9443,6 +9649,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         return STORE_MAGIC in self._town_store_attempted
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
         self._planned_mining_runs = 1
@@ -10102,6 +10309,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._heavy_cursed_items.add(signature)
             self._heavy_curse_inscription_pending = signature
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _heavy_curse_inscription_key(self, snapshot: Snapshot) -> str | None:
         stale_tag = next(
             (
@@ -10317,6 +10525,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.DETECTORS)
     def _breakout_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         """Re-arm the weapon displaced solely for a dig-to-stairs breakout."""
         if self._breakout_dig_floor is None:
@@ -10553,6 +10762,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return PICKUP_KEY + ("a" * here.object_count)
         return PICKUP_KEY
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _victory_loot_key(self, snapshot: Snapshot) -> str | None:
         if not self._yeek_victory_loot or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE:
             return None
@@ -10740,6 +10950,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _telmora_q2_travel_key(
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
@@ -12088,6 +12299,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         plan.no_progress_decisions = spent
         self._choke_outcome_budgets[key] = (spent, high)
 
+    @claims(ClaimOwner.MISC)
     def _immobile_breeder_giveup_key(self, snapshot: Snapshot) -> str | None:
         plan = self._choke_engagement_plan
         if (
@@ -12165,6 +12377,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return destination, step
 
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _detected_threat_preparation_key(
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
     ) -> str | None:

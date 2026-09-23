@@ -171,6 +171,16 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
                 "restock-wait-exhausted",
             ),
         )
+    # Checkpoints pickled before the S1 claim register carry neither the
+    # register nor the recorded claim.  A fresh register is the honest value:
+    # the restored policy has declared nothing yet, and its first decision
+    # opens claim 1 exactly as a fresh process would.
+    # ``town_arbiter`` imports this module, and the register imports the
+    # arbiter's families, so the import is local to break that cycle.
+    from hengbot.claim_register import ClaimRegister
+
+    restored.__dict__.setdefault("_claim_register", ClaimRegister())
+    restored.__dict__.setdefault("decision_claim", None)
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")

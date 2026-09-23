@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -1162,6 +1163,7 @@ class HomeMixin:
             return True
         return False
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _home_deposit_key(
         self,
         snapshot: Snapshot,
@@ -2273,6 +2275,7 @@ class HomeMixin:
             )
         return tuple(selected)
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _open_home_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Compose one deposit operation from a barrier-bound open Home page."""
         visit = self._store_visit
@@ -2530,6 +2533,7 @@ class HomeMixin:
             snapshot, lambda item: (item.tval, item.sval) == signature[1:]
         )
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _home_disposal_home_key(self, snapshot: Snapshot) -> str | None:
         store = snapshot.store
         if store is None or store.store_type != STORE_HOME:
@@ -2584,6 +2588,7 @@ class HomeMixin:
         self.last_reason = "home-disposal:scan-complete"
         return LEAVE_STORE_KEY
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _home_disposal_processing_key(self, snapshot: Snapshot) -> str | None:
         if self._home_disposal_pending is None or not snapshot.in_town or snapshot.store is not None:
             return None
@@ -2861,6 +2866,7 @@ class HomeMixin:
             return True
         return False
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _home_dominated_disposal_key(self, snapshot: Snapshot) -> str | None:
         store = snapshot.store
         if store is None or store.store_type != STORE_HOME:

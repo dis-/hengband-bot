@@ -4,6 +4,7 @@ from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -428,6 +429,7 @@ class CombatMixin:
             return self._direction_key(snapshot.player.position, target.position)
 
         return key
+    @claims(ClaimOwner.UNREGISTERED)
     def _flee_sustain_key(self, snapshot: Snapshot, key: str) -> str:
         """Spend healing/haste to keep a live escape episode moving."""
         if not hasattr(snapshot, "visible_monsters"):
@@ -811,6 +813,7 @@ class CombatMixin:
             "operational_total"
         ]
 
+    @claims(ClaimOwner.MISC)
     def _esp_threat_hunt_key(
         self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
     ) -> str | None:
@@ -965,6 +968,7 @@ class CombatMixin:
         self._escape_state.enter("return", self.last_reason)
         return key
 
+    @claims(ClaimOwner.MISC)
     def _esp_threat_rest_key(
         self, snapshot: Snapshot, strategic_hostiles: list[MonsterState]
     ) -> tuple[bool, str | None]:
@@ -2627,6 +2631,7 @@ class CombatMixin:
         threshold = player_ac * 3 // 4
         normal_hit = max(0.0, (accuracy - threshold) / accuracy)
         return 0.05 + 0.90 * normal_hit
+    @claims(ClaimOwner.MISC)
     def _melee_swarm_combat_key(
         self,
         snapshot: Snapshot,
@@ -2851,6 +2856,7 @@ class CombatMixin:
             len(self._remembered_marked_t),
             snapshot.player.hp,
         )
+    @claims(ClaimOwner.MISC)
     def _choke_engagement_key(
         self,
         snapshot: Snapshot,
@@ -2985,6 +2991,7 @@ class CombatMixin:
             )
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
+    @claims(ClaimOwner.UNREGISTERED)
     def _breeder_breakthrough_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -3041,6 +3048,7 @@ class CombatMixin:
             and snapshot.floor_key[0] == fled[0]
             and snapshot.dungeon_level < fled[1]
         )
+    @claims(ClaimOwner.UNREGISTERED)
     def _breeder_breakthrough_escape_key(self, snapshot: Snapshot) -> str | None:
         """The breakthrough's own exits: ascend, route upstairs, or discover.
 

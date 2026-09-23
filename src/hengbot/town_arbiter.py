@@ -39,6 +39,11 @@ HENGBAND_TURNS_PER_TICK = 10
 RECALL_ACTIVATION_MAX_GAME_TURNS = (
     RECALL_ACTIVATION_MAX_PLAYER_TURNS * HENGBAND_TURNS_PER_TICK
 )
+# The family ``owner_for_reason`` answers for a reason no registration claims.
+# It is a real owner name in every reader (stop_shape.CATCH_ALL_FAMILIES, the
+# decision row's ``arbiter.owner``), so the claim register enumerates it too.
+UNREGISTERED_FAMILY = "unregistered"
+
 RECALL_WAIT_REASONS = frozenset({
     "town:wait-recall",
     "town:wait-recall-leave",
@@ -179,7 +184,7 @@ class TownTurnArbiter:
         for entry in self._ordered:
             if entry.reason_prefixes and normalized.startswith(entry.reason_prefixes):
                 return entry.name
-        return "unregistered"
+        return UNREGISTERED_FAMILY
 
     def decision_owner_for_reason(self, reason: str) -> str:
         """Attribute a completed decision to its emitted reason family."""
@@ -498,6 +503,29 @@ def reason_owner_family(reason: str) -> str:
     policy can neither see nor disturb the live arbiter's state.
     """
     return _new_town_turn_arbiter().owner_for_reason(reason or "")
+
+
+def owner_families() -> tuple[str, ...]:
+    """The registered owner family names, in registration order.
+
+    The same throwaway arbiter ``reason_owner_family`` uses, so a reader that
+    needs the whole set (the claim register's owner enum) derives it from the
+    registrations rather than repeating them.
+    """
+    return tuple(_new_town_turn_arbiter().registry)
+
+
+def owner_family_budgets() -> dict[str, int]:
+    """Each registered family's own budget, by name.
+
+    These are the budgets the registrations already carry (each one derived
+    from an existing policy constant); nothing new is introduced here.
+    ``UNREGISTERED_FAMILY`` has no registration and therefore no budget.
+    """
+    return {
+        name: entry.budget
+        for name, entry in _new_town_turn_arbiter().registry.items()
+    }
 
 
 class TownArbiterMixin:

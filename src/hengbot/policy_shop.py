@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, DETECTION_SCROLL_BUFFER, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
@@ -454,6 +455,7 @@ class ShopMixin:
                 return item
         return None
 
+    @claims(ClaimOwner.SURVIVAL)
     def _stat_restore_quaff_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -618,6 +620,7 @@ class ShopMixin:
             knowledge_current=self._home_knowledge_current,
         )
 
+    @claims(ClaimOwner.SURVIVAL)
     def _experience_potion_quaff_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -709,6 +712,7 @@ class ShopMixin:
             self._town_store_attempted.pop(store_type, None)
         return store_types[0]
 
+    @claims(ClaimOwner.STORE_ROUTER)
     def _released_restock_store_key(
         self, snapshot: Snapshot, store_types: tuple[int, ...]
     ) -> str:
@@ -1376,6 +1380,7 @@ class ShopMixin:
             "target_town_id": expedition.target_town_id,
         }
 
+    @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
         shortages = self._cross_town_shortages(snapshot)
         unobtainable = self._cross_town_unobtainable_categories(
@@ -3054,6 +3059,7 @@ class ShopMixin:
                     result.append(organization)
         return result
 
+    @claims(ClaimOwner.SHOP_SELL)
     def _batch_sell_key(
         self,
         snapshot: Snapshot,

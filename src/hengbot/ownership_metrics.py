@@ -1,4 +1,4 @@
-"""Session ledger for the ownership-contract S0 measurement.
+"""Session ledger (S0) and per-decision claim ledger (S1).
 
 ``SOL-DESIGN-ownership-contract.md`` section 6 stage S0: measure, change
 nothing.  The ledger is written beside the decision log as its own file
@@ -33,6 +33,30 @@ recorded -- the ``decision_time`` of its last ``decision-progress`` or
 ``stop`` -- and the reader says which of the two it used.  The heartbeat
 interval bounds how much of a killed session's runtime can be lost.
 
+The S1 claim ledger is a **sibling file** (``jsonlog/ownership-claims.jsonl``),
+not more record kinds in this one.  Why: the file above holds a handful of
+records per session (one start, one heartbeat a minute, one stop, one end) and
+its reader scans it whole to produce the baseline; the claim ledger holds one
+record per *decision*, three orders of magnitude more.  Folding them together
+would make the S0 baseline read the whole decision stream, would tie the
+rotation of one to the other, and would make a torn high-volume append able to
+hide a session record.  Both files are written from the same point -- the
+driver, after the decision row it is describing has been written -- and the
+report reads both.  Their rate: a claim record is roughly a quarter of a
+kilobyte, so an hour of live play at the bot's observed decision rate is under
+a megabyte.
+
+``claim``
+    One decision's declared claim, copied out of the decision row that
+    ``choose_key`` wrote: its id, owner, goal, state, ``closed``, budget and
+    measured distance to the goal, plus the row's own reason, key, turn and
+    sequence, and ``producer`` -- ``stop_shape.producer_identity`` of the same
+    reason.  The producer exists because two of the arbiter's twenty families
+    (``misc`` and ``unregistered``) are catch-alls holding every dungeon
+    producer, so a family-only breakdown cannot see a ``seek-loot`` /
+    ``melee`` handoff.  It is the identity the S0 classifier already uses; the
+    claim's own ``owner`` stays one of the families that exist today.
+
 Concurrency.  The live bot may be writing its own files while a reader runs,
 and a rotation may rename this file between two appends (the precedent is the
 decision-log rotation of round 8f2c689): no handle is held between writes,
@@ -42,6 +66,7 @@ dropped rather than raised into the driver.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 import json
@@ -50,10 +75,11 @@ from pathlib import Path
 import sys
 import time
 
-from hengbot.stop_shape import SHAPES, classify_stop
+from hengbot.stop_shape import SHAPES, classify_stop, producer_identity
 
 
 OWNERSHIP_METRICS_NAME = "ownership-metrics.jsonl"
+OWNERSHIP_CLAIMS_NAME = "ownership-claims.jsonl"
 # Recording cadence only: it bounds how much runtime a killed session can lose
 # and changes no decision, key or reason.
 PROGRESS_INTERVAL_SECONDS = 60.0
@@ -62,6 +88,12 @@ RECORD_SESSION_START = "session-start"
 RECORD_DECISION_PROGRESS = "decision-progress"
 RECORD_STOP = "stop"
 RECORD_SESSION_END = "session-end"
+RECORD_CLAIM = "claim"
+
+# How many distinct claimless reasons the session ledger names before it stops
+# adding new ones.  It bounds a counter over an unbounded label space; the
+# claim ledger itself carries every reason that did declare one.
+CLAIMLESS_REASON_LIMIT = 64
 
 RUNTIME_SOURCE_SESSION_END = "session-end"
 RUNTIME_SOURCE_LAST_DECISION = "last-decision-row"
@@ -75,11 +107,17 @@ class OwnershipMetricsLedger:
         self,
         path: Path,
         *,
+        claims_path: Path | None = None,
         progress_interval_seconds: float = PROGRESS_INTERVAL_SECONDS,
         clock=time.strftime,
         elapsed=time.monotonic,
     ) -> None:
         self.path = Path(path)
+        self.claims_path = (
+            Path(claims_path)
+            if claims_path is not None
+            else self.path.with_name(OWNERSHIP_CLAIMS_NAME)
+        )
         self.progress_interval_seconds = progress_interval_seconds
         self._clock = clock
         self._elapsed = elapsed
@@ -93,16 +131,22 @@ class OwnershipMetricsLedger:
         self._last_decision_sequence = None
         self._last_progress_at: float | None = None
         self._ended = False
+        self._claims = 0
+        self._last_claim: dict | None = None
+        self._implicit_handoffs = 0
+        self._handoff_pairs: Counter[str] = Counter()
+        self._claimless_reasons: Counter[str] = Counter()
 
     # -- writing ---------------------------------------------------------
 
     def _time(self) -> str:
         return self._clock("%Y-%m-%dT%H:%M:%S%z")
 
-    def _append(self, record: dict) -> None:
+    def _append(self, record: dict, path: Path | None = None) -> None:
+        target = self.path if path is None else path
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as file:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("a", encoding="utf-8") as file:
                 json.dump(record, file, ensure_ascii=False)
                 file.write("\n")
         except OSError as exc:
@@ -113,6 +157,10 @@ class OwnershipMetricsLedger:
             "decisions": self._decisions,
             "town_decisions": self._town_decisions,
             "arbiter_owner_changes": self._arbiter_owner_changes,
+            "claims": self._claims,
+            "implicit_handoffs": self._implicit_handoffs,
+            "implicit_handoff_pairs": dict(self._handoff_pairs),
+            "claimless_reasons": dict(self._claimless_reasons),
             "decision_sequence": self._last_decision_sequence,
             "decision_time": self._last_decision_time,
         }
@@ -129,9 +177,53 @@ class OwnershipMetricsLedger:
         record["session"] = self._session
         self._append(record)
 
+    def _note_claim(self, row: Mapping) -> None:
+        """Copy the row's declared claim into the sibling claim ledger."""
+        claim = row.get("claim")
+        reason = row.get("reason") or ""
+        if not isinstance(claim, Mapping) or claim.get("claim_id") is None:
+            if len(self._claimless_reasons) < CLAIMLESS_REASON_LIMIT or (
+                reason in self._claimless_reasons
+            ):
+                self._claimless_reasons[reason] += 1
+            return
+        self._claims += 1
+        record = {
+            "kind": RECORD_CLAIM,
+            "session": self._session,
+            "time": row.get("time"),
+            "decision_sequence": row.get("decision_sequence"),
+            "turn": row.get("turn"),
+            "reason": reason,
+            "key": row.get("key"),
+            "producer": producer_identity(reason),
+            **{
+                name: claim.get(name)
+                for name in (
+                    "claim_id",
+                    "owner",
+                    "goal",
+                    "state",
+                    "closed",
+                    "budget",
+                    "non_discardable",
+                    "distance",
+                    "closed_claim",
+                )
+            },
+        }
+        if is_implicit_handoff(self._last_claim, record):
+            self._implicit_handoffs += 1
+            self._handoff_pairs[
+                handoff_pair(self._last_claim["owner"], record["owner"])
+            ] += 1
+        self._last_claim = record
+        self._append(record, self.claims_path)
+
     def note_decision(self, row: Mapping) -> None:
         """Observe one decision row exactly as it was written to the log."""
         self._decisions += 1
+        self._note_claim(row)
         arbiter = row.get("arbiter")
         if isinstance(arbiter, Mapping):
             self._town_decisions += 1
@@ -206,6 +298,79 @@ class OwnershipMetricsLedger:
         )
 
 
+# -- the implicit-handoff metric (design 5.2) ----------------------------
+
+
+def handoff_pair(previous_owner: object, owner: object) -> str:
+    """One breakdown key, ``from>to``, JSON keys being strings."""
+    return f"{previous_owner}>{owner}"
+
+
+def _closure_of(previous: Mapping, current: Mapping | None) -> str | None:
+    """The ``release``/``complete``/``retired`` that ended ``previous``.
+
+    A claim can close on its own row (it ran out of budget and was recorded
+    ``retired``) or on the row that observes its goal reached -- that row
+    carries the closed claim in ``closed_claim``, because arrival is only
+    visible on the board after the step.  Both count as explicit.
+    """
+    closed = previous.get("closed")
+    if closed:
+        return str(closed)
+    if current is None:
+        return None
+    finished = current.get("closed_claim")
+    if (
+        isinstance(finished, Mapping)
+        and finished.get("claim_id") == previous.get("claim_id")
+        and finished.get("closed")
+    ):
+        return str(finished["closed"])
+    return None
+
+
+def is_implicit_handoff(previous: Mapping | None, current: Mapping) -> bool:
+    """Design 5.2: the owner changed and nothing ended the previous claim."""
+    if not isinstance(previous, Mapping):
+        return False
+    if previous.get("session") != current.get("session"):
+        return False
+    if previous.get("owner") == current.get("owner"):
+        return False
+    return _closure_of(previous, current) is None
+
+
+def implicit_handoffs(rows: Sequence[Mapping], *, by: str = "owner") -> dict:
+    """Count implicit handoffs over claim rows, in file order.
+
+    ``by`` names the identity compared: ``owner`` is the design's family
+    breakdown; ``producer`` refines the two catch-all families by the reason's
+    own leading segment (``stop_shape.producer_identity``), which is the only
+    way a ``seek-loot`` / ``melee`` handoff is visible at all; ``claim_id``
+    counts every unended claim that gave way to another, whatever its family.
+    """
+    total = 0
+    pairs: Counter[str] = Counter()
+    previous: Mapping | None = None
+    for row in rows:
+        if row.get("kind") not in (None, RECORD_CLAIM):
+            continue
+        if previous is not None and previous.get("session") == row.get("session"):
+            changed = previous.get(by) != row.get(by)
+            if changed and _closure_of(previous, row) is None:
+                total += 1
+                pairs[handoff_pair(previous.get(by), row.get(by))] += 1
+        previous = row
+    return {
+        "by": by,
+        "rows": sum(
+            1 for row in rows if row.get("kind") in (None, RECORD_CLAIM)
+        ),
+        "implicit_handoffs": total,
+        "pairs": dict(pairs.most_common()),
+    }
+
+
 # -- reading -------------------------------------------------------------
 
 
@@ -274,6 +439,8 @@ def summarise_sessions(records: Iterable[Mapping]) -> list[dict]:
                 "decisions": 0,
                 "town_decisions": 0,
                 "arbiter_owner_changes": 0,
+                "claims": 0,
+                "implicit_handoffs": 0,
                 "stops": [],
             }
         return sessions[key]
@@ -286,7 +453,13 @@ def summarise_sessions(records: Iterable[Mapping]) -> list[dict]:
             entry["pid"] = record.get("pid")
             entry["git_commit"] = record.get("git_commit")
             continue
-        for name in ("decisions", "town_decisions", "arbiter_owner_changes"):
+        for name in (
+            "decisions",
+            "town_decisions",
+            "arbiter_owner_changes",
+            "claims",
+            "implicit_handoffs",
+        ):
             value = record.get(name)
             if isinstance(value, int):
                 entry[name] = max(entry[name], value)
@@ -342,6 +515,8 @@ def aggregate(summaries: Sequence[Mapping]) -> dict:
     decisions = sum(summary["decisions"] for summary in summaries)
     town = sum(summary["town_decisions"] for summary in summaries)
     changes = sum(summary["arbiter_owner_changes"] for summary in summaries)
+    claims = sum(summary["claims"] for summary in summaries)
+    handoffs = sum(summary["implicit_handoffs"] for summary in summaries)
     sources: dict[str, int] = {}
     for summary in summaries:
         sources[summary["runtime_source"]] = (
@@ -355,6 +530,10 @@ def aggregate(summaries: Sequence[Mapping]) -> dict:
         "decisions": decisions,
         "town_decisions": town,
         "arbiter_owner_changes": changes,
+        "claims": claims,
+        "claim_share": claims / decisions if decisions else None,
+        "implicit_handoffs": handoffs,
+        "implicit_handoffs_per_hour": handoffs / hours if hours > 0 else None,
         "stops": dict(shapes),
         "stops_total": sum(shapes.values()),
         "stops_per_hour": (

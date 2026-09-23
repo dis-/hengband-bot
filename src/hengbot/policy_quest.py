@@ -10,6 +10,7 @@ import re
 from enum import Enum
 from typing import Callable, Iterable, Literal
 from pathlib import Path
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
@@ -961,6 +962,7 @@ class QuestMixin:
             ), int(tools["wall_breach"])
         return None
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _quest_sweep_pack_space_key(
         self, snapshot: Snapshot, floor_grid: GridState
     ) -> str | None:
@@ -1105,6 +1107,7 @@ class QuestMixin:
         finally:
             self._fundraising_mode = fundraising_mode
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _morivant_home_item_key(self, snapshot: Snapshot) -> str | None:
         """Run the expedition's Home withdrawals and bounded restore ledger."""
         expedition = self._morivant_full_identify
@@ -1285,6 +1288,7 @@ class QuestMixin:
         self._finish_morivant_full_identify()
         return LEAVE_STORE_KEY
 
+    @claims(ClaimOwner.CROSS_TOWN)
     def _morivant_full_identify_key(self, snapshot: Snapshot) -> str | None:
         """Batch carried *Identify* work through Morivant's Library."""
         if not snapshot.in_town or snapshot.store is not None:
@@ -1491,6 +1495,7 @@ class QuestMixin:
         }
         return next((digit for digit in "0123456789" if digit not in used), None)
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _conquest_loot_key(self, snapshot: Snapshot) -> str | None:
         # After killing a dungeon's final guardian, sweep its floor for the drop
         # BEFORE any return trigger (even the emergency latch) recalls us out — the
@@ -1595,6 +1600,7 @@ class QuestMixin:
             return None
         return self._first_item(snapshot, lambda item: item.tval == ammo_tval)
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _q2_ranged_core_key(
         self,
         snapshot: Snapshot,
@@ -1713,6 +1719,7 @@ class QuestMixin:
             + self._direction_key(snapshot.player.position, target.position)
         )
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _q2_encounter_key(
         self,
         snapshot: Snapshot,
@@ -4822,6 +4829,7 @@ class QuestMixin:
             route_declaration=declaration, identity=identity,
         )
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _fixed_quest_enter_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         positions = self._fixed_quest_entrance_positions(snapshot, quest_id)
         if not positions:
@@ -4911,6 +4919,7 @@ class QuestMixin:
         self.last_reason = "fixedquest:enter" if step in positions else "fixedquest:approach"
         return self._step_toward(snapshot, step)
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _fixed_quest_exit_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and here.has_quest_exit:
@@ -5546,6 +5555,7 @@ class QuestMixin:
         active = self._taken_dungeon_kill_level_quest(snapshot)
         return active is None or snapshot.dungeon_level < active[1].level
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _kill_quest_floor_recovery_key(self, snapshot: Snapshot) -> str | None:
         """Recover an overshoot, or finish the downward half of regeneration."""
         active = self._taken_dungeon_kill_level_quest(snapshot)

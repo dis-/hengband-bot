@@ -70,9 +70,22 @@ class QuestTravelDeclaration:
 
 
 class DecisionCandidate(str):
-    """A string-compatible immutable decision carrying unforgeable provenance."""
+    """A string-compatible immutable decision carrying unforgeable provenance.
 
-    __slots__ = ("reason", "identity", "decision_identity", "route_declaration")
+    ``claim_id`` is the ownership contract's declaration token (design 5.4):
+    it is carried here rather than in a second ``str`` subclass, because route
+    authorization is decided by ``isinstance(key, DecisionCandidate)`` and five
+    test files pin ``route_declaration`` on exactly this type.  It is plain
+    data (an integer id or ``None``), so it survives pickling with the rest.
+    """
+
+    __slots__ = (
+        "reason",
+        "identity",
+        "decision_identity",
+        "route_declaration",
+        "claim_id",
+    )
 
     def __new__(
         cls,
@@ -82,6 +95,7 @@ class DecisionCandidate(str):
         decision_identity: object,
         route_declaration: QuestTravelDeclaration | None = None,
         identity: object | None = None,
+        claim_id: int | None = None,
     ) -> "DecisionCandidate":
         value = str.__new__(cls, key)
         candidate_identity = object() if identity is None else identity
@@ -89,6 +103,7 @@ class DecisionCandidate(str):
         value.identity = candidate_identity
         value.decision_identity = decision_identity
         value.route_declaration = route_declaration
+        value.claim_id = claim_id
         return value
 
     def __reduce__(self):
@@ -100,6 +115,7 @@ class DecisionCandidate(str):
                 self.decision_identity,
                 self.route_declaration,
                 self.identity,
+                self.claim_id,
             ),
         )
 
@@ -110,13 +126,20 @@ def _restore_decision_candidate(
     decision_identity: object,
     route_declaration: QuestTravelDeclaration | None,
     identity: object,
+    claim_id: int | None = None,
 ) -> DecisionCandidate:
+    """Rebuild a candidate, including from a checkpoint pickled before S1.
+
+    Those payloads carry five arguments and no ``claim_id``; the default keeps
+    them loadable, and the restored candidate simply carries no declaration.
+    """
     return DecisionCandidate(
         key,
         reason=reason,
         decision_identity=decision_identity,
         route_declaration=route_declaration,
         identity=identity,
+        claim_id=claim_id,
     )
 
 
@@ -293,6 +316,14 @@ class OwnerExpectationRegistry:
 
     def is_pending(self, owner: str) -> bool:
         return owner in self._pending
+
+    def pending(self, owner: str) -> OwnerExpectation | None:
+        """The posted expectation of one owner, for readers.
+
+        The claim register's ``Observe`` goal copies the expectation a producer
+        already posted rather than inventing one; this is the read-only way in.
+        """
+        return self._pending.get(owner)
 
     def release(self, owner: str) -> None:
         self._pending.pop(owner, None)

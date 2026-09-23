@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import replace
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_HOME, STORE_MAGIC, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,
@@ -840,6 +841,7 @@ class SupplyMixin:
                 selected = replace(base, required_force=force)
         return selected
 
+    @claims(ClaimOwner.SURVIVAL)
     def _mana_food_loot_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -1103,6 +1105,7 @@ class SupplyMixin:
         self.last_reason = "town:blocked:survival-mana-no-charges"
         return WAIT_KEY
 
+    @claims(ClaimOwner.SURVIVAL)
     def _mana_food_floor_pickup_key(self, snapshot: Snapshot) -> str | None:
         """Use the existing mana-food pickup owner without dungeon-only gates."""
         candidates = {
@@ -1214,6 +1217,7 @@ class SupplyMixin:
         self._unseen_retreat_target = None
         return first_steps[0] if first_steps else None
 
+    @claims(ClaimOwner.MISC)
     def _unseen_retreat_intercept_key(
         self,
         snapshot: Snapshot,
@@ -1236,6 +1240,7 @@ class SupplyMixin:
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _unseen_retreat_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

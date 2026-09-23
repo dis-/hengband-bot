@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -63,6 +64,7 @@ from hengbot.quest_navigator import PICKUP_KEY
 
 
 class IdentificationMixin:
+    @claims(ClaimOwner.UNREGISTERED)
     def _chest_processing_key(
         self,
         snapshot: Snapshot,
@@ -460,6 +462,7 @@ class IdentificationMixin:
             "inventory:destroy-disposable-item",
         )
 
+    @claims(ClaimOwner.UNREGISTERED)
     def _full_pack_loot_triage_key(self, snapshot: Snapshot) -> str | None:
         """Identify and exchange valuable guardian loot before permitting return."""
         destroy = self._full_pack_destroy_key(snapshot)

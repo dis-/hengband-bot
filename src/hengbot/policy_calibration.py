@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 import json
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.equipment_optimizer import (
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
@@ -956,6 +957,7 @@ class CalibrationMixin:
             ):
                 self._rearm_town_store_for_new_work(STORE_HOME)
 
+    @claims(ClaimOwner.CALIBRATION)
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
         in_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME

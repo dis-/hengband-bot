@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
     STORE_ALCHEMIST,
@@ -392,6 +393,7 @@ class FundraisingMixin:
                 return self._mining_tunnel_key(snapshot, cell.position)
         return None
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _mining_tunnel_key(
         self,
         snapshot: Snapshot,
@@ -528,6 +530,7 @@ class FundraisingMixin:
                 )
         return None
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _mining_closure_key(self, snapshot: Snapshot) -> str:
         """Collect or permanently drop every detected target on this floor."""
         if self._mining_sweep_steps >= MINING_SWEEP_HARD_LIMIT:
@@ -671,6 +674,7 @@ class FundraisingMixin:
                 len(snapshot.grids), self._mining_sweep_revealed_grids
             )
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _mining_tapped_out_key(self, snapshot: Snapshot) -> str:
         """No distance-1 vein is reachable right now. Mining opens new floor, so
         first resume the sweep if fresh in-radius frontiers appeared (a dug vein

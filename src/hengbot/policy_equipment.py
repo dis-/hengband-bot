@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan
 
 from collections import Counter, deque
@@ -1573,6 +1574,7 @@ class EquipmentMixin:
         self.last_reason = self._equipment_transaction_restore_terminal
         return WAIT_KEY
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
             return LEAVE_STORE_KEY
@@ -1838,6 +1840,7 @@ class EquipmentMixin:
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
         return LEAVE_STORE_KEY
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_town_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.store is not None:
             return None
@@ -2097,6 +2100,7 @@ class EquipmentMixin:
             return worn < 2 and (not item.known or self._ring_candidate(item))
         return False
 
+    @claims(ClaimOwner.IDENTIFICATION)
     def _town_equipped_identification_key(self, snapshot: Snapshot) -> str | None:
         """Identify worn gear that the equipment optimizer counts incomplete.
 
@@ -2621,6 +2625,7 @@ class EquipmentMixin:
                 return scroll
         return None
 
+    @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
         if (
             not snapshot.in_town

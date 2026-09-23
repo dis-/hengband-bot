@@ -848,6 +848,7 @@ def _decision_record(
     home_atomic_withdraw: dict | None = None,
     home_candidate_waiting: bool | None = None,
     identification_need: str | None = None,
+    claim: dict | None = None,
 ) -> dict:
     player = snapshot.player
     active_status = [
@@ -873,6 +874,9 @@ def _decision_record(
         "key": key,
         "home_candidate_waiting": home_candidate_waiting,
         "identification_need": identification_need,
+        # The ownership contract's S1 attribution, written by ``choose_key``
+        # as plain data.  Absent on a row no ``choose_key`` produced.
+        **({"claim": claim} if claim else {}),
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
@@ -1736,6 +1740,16 @@ def _write_decision(
                     (
                         getattr(policy, "_identification_need", None)
                         if policy is not None
+                        else None
+                    ),
+                    (
+                        claim
+                        if policy is not None
+                        and isinstance(
+                            claim := getattr(policy, "decision_claim", None), dict
+                        )
+                        and claim.get("decision_sequence")
+                        == getattr(policy, "_decision_sequence", None)
                         else None
                     ),
                 )
@@ -3028,8 +3042,9 @@ def main(argv: list[str] | None = None) -> int:
             input_delays=input_delays,
             prompt_japanese=prompt_japanese,
         )
-        # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6).
-        # Its own file: the state log is truncated when the game relaunches.
+        # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6),
+        # plus the S1 claim ledger it writes beside itself.  Their own files:
+        # the state log is truncated when the game relaunches.
         ownership_ledger = OwnershipMetricsLedger(
             args.decision_log.with_name(OWNERSHIP_METRICS_NAME)
         )
