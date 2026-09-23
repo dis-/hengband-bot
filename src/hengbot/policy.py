@@ -8488,11 +8488,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return "equipment-incomplete-catalog"
         return None
 
-    def _activate_safe_recall_fallback(self, snapshot: Snapshot) -> int | None:
-        """Select the shallowest entered dungeon when the current recall is unsafe."""
+    def _activate_safe_recall_fallback(
+        self, snapshot: Snapshot, unsafe_depth: int
+    ) -> int | None:
+        """Select the shallowest entered dungeon below an unsafe destination.
+
+        ``unsafe_depth`` is the arrival depth the caller refused, not
+        ``snapshot.recall_depth``.  The two differ whenever the objective's
+        destination is not the destination the Word of Recall currently
+        points at: the live 2026-09-23 18:23 board refused Angband's 50
+        while the scroll still pointed at the Yeek cave's 13, so bounding the
+        alternates by the board's own recall depth demanded a landing shallower
+        than 12 and rejected every safe dungeon the character had entered.
+        """
         alternate = self._pick_alternate_dungeon(
             snapshot,
-            max_entry_depth=max(1, snapshot.recall_depth - 1),
+            max_entry_depth=max(1, unsafe_depth - 1),
         )
         if alternate is None:
             return None

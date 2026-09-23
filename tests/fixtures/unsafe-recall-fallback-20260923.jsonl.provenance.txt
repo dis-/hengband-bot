@@ -1,0 +1,5 @@
+Source: incident-captures/20260923-182351-town-blocked-owner-retired/ (read from the backup copy under C:/hengband-backups/).
+decision-tail.jsonl sha256 efc5893ed1ed0c991e95838f18ed0f28352527183e5a9765c6adc2b2117fa0a4; snapshots/snapshots-current.jsonl.gz sha256 2cefe4810743a454ecc6325549267b5ef4aa0a80174357ac7b4363ef589397c3
+Selection: the last 6 emitter rows of the retained ring; the last one carries the stop's turn (5118399).
+Recorded decisions kept: the final 5 (reasons ['town:blocked:no-actionable-claim-owner', 'probe', 'town:blocked:no-actionable-claim-owner', 'town:blocked:depth-gate:destination-50:missing-destruction', 'town:blocked:owner-retired']).
+Emitter rows: 6; decompressed sha256: 9f5ddd9279fffef400d992005f17de952b687a15b981552b31b2d32df62f91f3

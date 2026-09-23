@@ -4743,7 +4743,12 @@ class TownMixin:
             and snapshot.angband_recall_unlocked
             and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
         ):
-            if self._activate_safe_recall_fallback(snapshot) is not None:
+            destination_depth = self._dungeon_entry_depth(
+                snapshot, DUNGEON_ANGBAND, via_recall=True
+            )
+            if self._activate_safe_recall_fallback(
+                snapshot, destination_depth
+            ) is not None:
                 self.last_reason = "town:unsafe-recall-fallback"
                 return WAIT_KEY
             if self._town_claims_active(snapshot):
@@ -4757,9 +4762,6 @@ class TownMixin:
             if self._outstanding_equipment_work():
                 self._town_blocked_reason = "equipment-work-home-route-exhausted"
                 return self._town_blocked_key(snapshot)
-            destination_depth = self._dungeon_entry_depth(
-                snapshot, DUNGEON_ANGBAND, via_recall=True
-            )
             if not self._destination_depth_allowed(snapshot, destination_depth):
                 self._town_blocked_reason = self.last_reason
                 return self._town_blocked_key(snapshot)
