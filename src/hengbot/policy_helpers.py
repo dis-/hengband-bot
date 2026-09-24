@@ -325,8 +325,16 @@ class PolicyHelpersMixin:
         max_entry_depth: int | None = None,
         prefer_deepest: bool = False,
         allow_yeek_cave: bool = False,
+        guardian_bounce: bool = False,
     ) -> int | None:
-        """Choose the shallowest safe dungeon already available to Recall."""
+        """Choose the shallowest safe dungeon already available to Recall.
+
+        ``guardian_bounce``: the empty-dive valve fired on guardian bounces
+        only.  The depth was never the problem, so the candidate landing is not
+        bounded by the bounced one (user decision 2026-09-25,
+        「倒せない階でなければ深くても可」); the guardian-floor and
+        required-ability checks below still apply.
+        """
         # The deepest already-unlocked dungeon — excluding the over-deep main one
         # and the Yeek Cave reserved for fundraising — whose floor is SHALLOWER
         # than the depth we could not loot at. Deepest-that-still-fits is the most
@@ -355,7 +363,10 @@ class PolicyHelpersMixin:
                 continue  # the one we are leaving — never re-pick it, always step down
             landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
-                if landing_depth >= self._last_overextended_depth:
+                if (
+                    not guardian_bounce
+                    and landing_depth >= self._last_overextended_depth
+                ):
                     continue
             elif landing_depth > max_entry_depth:
                 continue

@@ -345,9 +345,9 @@ class ObservationMixin:
         # The target the bot pursued up to this board, i.e. the recall target of
         # a dive that ends on it.  Target selection below starts over from
         # Angband once its recall is unlocked and only then re-applies an active
-        # alternate or conquest target, so reading _target_dungeon_id in the
-        # over-extension judgement would see Angband for every such dive
-        # (live 2026-09-25: seven Orc-cave guardian bounces, streak held at 0).
+        # alternate or conquest target, so the dive judgement (which reads
+        # _target_dungeon_id after that reset) sees Angband for every such dive;
+        # the guardian-bounce count reads this instead.
         pursued_target = self._target_dungeon_id
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
@@ -390,10 +390,13 @@ class ObservationMixin:
         elif prev_dungeon != 0 and self._dive_dungeon is not None:
             # A dive just ended. Judge only normal dives of the recall target —
             # fundraising mining of the Yeek Cave is a separate mode, not a dive.
-            if (
-                self._dive_dungeon == pursued_target
-                and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
-            ):
+            normal_dive = self._fundraising_mode not in {
+                "prepare", "mine", "scavenge"
+            }
+            guardian_bounce = (
+                self._last_return_trigger == "guardian-kit-insufficient"
+            )
+            if self._dive_dungeon == self._target_dungeon_id and normal_dive:
                 start_depth = self._dive_start_recall_depth or 0
                 end_depth = snapshot.dungeon_recall_depths.get(
                     self._dive_dungeon,
@@ -414,10 +417,11 @@ class ObservationMixin:
                 if self._dive_loot > OVEREXTEND_LOOT_MAX:
                     # A real haul proves the character can handle this depth.
                     self._target_empty_dives = 0
+                    self._guardian_bounce_dives = 0
                 elif self._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
                     # Unproductive AND forced to bail out repeatedly = over-extended.
                     self._target_empty_dives += 1
-                elif self._last_return_trigger == "guardian-kit-insufficient":
+                elif guardian_bounce:
                     # A guardian we cannot yet beat recalls us straight back with
                     # no real dive. Uncounted, it flip-flops town<->guardian
                     # forever, burning ~2 recall scrolls a round trip until the
@@ -427,11 +431,30 @@ class ObservationMixin:
                     # and switches to a productive dungeon; the latch may
                     # re-select the guardian later once the kit can beat it.
                     self._target_empty_dives += 1
+                    self._guardian_bounce_dives = (
+                        getattr(self, "_guardian_bounce_dives", 0) + 1
+                    )
                 # else: unproductive but no real danger (found nothing, or a single
                 # scare) — HOLD the streak. Weak evidence must not ADVANCE the count,
                 # but a lone quiet dive between genuinely bad ones must not RESET it
                 # to zero either, or the switch could never accumulate. Only a
                 # profitable dive clears the suspicion.
+            elif (
+                self._dive_dungeon == pursued_target
+                and normal_dive
+                and guardian_bounce
+            ):
+                # The same guardian bounce of an alternate or conquest target
+                # while Angband's recall is unlocked: the judgement above reads
+                # the Angband target this observation already reset, so it
+                # never saw these dives (live 2026-09-25: seven Orc-cave
+                # bounces, streak held at 0).  Only the bounce is counted here;
+                # the depth-progress and over-extension judgements keep judging
+                # exactly the dives they judged before.
+                self._target_empty_dives += 1
+                self._guardian_bounce_dives = (
+                    getattr(self, "_guardian_bounce_dives", 0) + 1
+                )
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
@@ -448,8 +471,19 @@ class ObservationMixin:
             self._alternate_dungeon = None
             self._last_overextended_depth = 0
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
+            # User decision 2026-09-25 (guardian-recall-pingpong-r2,
+            # 「倒せない階でなければ深くても可」): when every dive of the streak
+            # was a guardian bounce, the character was not over-extended by
+            # depth, so the switch may land deeper than the bounced landing as
+            # long as that landing is not a guardian floor the kit cannot pass.
+            guardian_bounces_only = (
+                getattr(self, "_guardian_bounce_dives", 0)
+                >= self._target_empty_dives
+            )
             self._last_overextended_depth = snapshot.recall_depth
-            alt = self._pick_alternate_dungeon(snapshot)
+            alt = self._pick_alternate_dungeon(
+                snapshot, guardian_bounce=guardian_bounces_only
+            )
             if alt is not None:
                 self._alternate_dungeon = alt
                 # The safety valve must demote even a latched conquest target.
@@ -457,6 +491,7 @@ class ObservationMixin:
                 # but must not immediately override the alternate below.
                 self._conquest_committed = None
             self._target_empty_dives = 0
+            self._guardian_bounce_dives = 0
         if (
             snapshot.in_town
             and self._alternate_dungeon is None

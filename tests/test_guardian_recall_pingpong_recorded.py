@@ -23,8 +23,15 @@ _target_dungeon_id``), but the same observation first resets
 re-applies the alternate AFTER the judgement.  On all three recorded arrivals
 the dive dungeon was 3 and the target read there was 1, so every bounce was
 skipped: the recorded ``over_extended_dive_streak`` and
-``last_overextended_depth`` stay 0 for the whole run.  The judgement now reads
-the target the bot pursued up to the arriving board.
+``last_overextended_depth`` stay 0 for the whole run.  The guardian-bounce
+count now reads the target the bot pursued up to the arriving board (the
+depth-progress and over-extension judgements are unchanged).
+
+Round 2, user decision 2026-09-25 (「倒せない階でなければ深くても可」): once the
+bounces are counted, the valve found nothing shallower than the bounced
+landing 23 and kept the Orc cave.  A valve fired by guardian bounces only is
+now bounded by "the landing is not a guardian floor the kit cannot pass"
+instead of "shallower than the bounced landing", so it picks Forest (24).
 
 Substrate: tests/fixtures/guardian-recall-pingpong-20260925.jsonl.gz, frozen by
 tests/extract_guardian_recall_pingpong_fixture.py at the recorded decision
@@ -175,6 +182,9 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                             index,
                             policy._target_empty_dives,
                             policy._last_overextended_depth,
+                            policy._guardian_bounce_dives,
+                            policy._alternate_dungeon,
+                            policy._target_dungeon_id,
                         )
                     )
                 policy.confirm_key_posted(key)
@@ -242,20 +252,46 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         _decided, arrivals, valve_calls = self._live()
         # The landing in town is observed on the decision after each recorded
         # first town decision (84, 177, 257).
-        observed = [index for index, _streak, _depth in arrivals]
+        observed = [arrival[0] for arrival in arrivals]
         self.assertEqual(observed, [index + 1 for index in ARRIVALS])
         self.assertEqual(EMPTY_DIVE_LIMIT, 3)
-        # The first two bounces advance the streak; the third reaches the limit,
-        # so the valve fires on that very observation: it records the bounced
-        # landing as the over-extended depth, consults the picker and restarts
-        # the streak.
+        # The first two bounces advance the streak (and its guardian-bounce
+        # share); the third reaches the limit, so the valve fires on that very
+        # observation: it records the bounced landing as the over-extended
+        # depth, consults the picker and restarts the streak.
         self.assertEqual(
-            [(streak, depth) for _index, streak, depth in arrivals],
-            [(1, 0), (2, 0), (0, ORC_CAVE_LANDING)],
+            [arrival[1:4] for arrival in arrivals],
+            [(1, 0, 1), (2, 0, 2), (0, ORC_CAVE_LANDING, 0)],
         )
         self.assertEqual(
             [(index, kwargs, depth) for index, kwargs, depth, _r in valve_calls],
-            [(observed[2], {}, ORC_CAVE_LANDING)],
+            [(observed[2], {"guardian_bounce": True}, ORC_CAVE_LANDING)],
+        )
+
+    # ------------------------------------------------------------ G1 (r2)
+    def test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing(self):
+        """User decision 2026-09-25 「倒せない階でなければ深くても可」.
+
+        After the three recorded bounces nothing below the bounced landing 23
+        qualifies (Labyrinth 18 is a conquered forgetting maze, Yeek cave and
+        Angband are never fallbacks).  The valve fired by guardian bounces may
+        land deeper: the shallowest landing that is not a blocked guardian
+        floor is Forest's 24.  The live state stayed on the Orc cave.
+        """
+        decided, arrivals, valve_calls = self._live()
+        index, _streak, _depth, _bounces, alternate, target = arrivals[2]
+        self.assertEqual([call[3] for call in valve_calls], [FOREST])
+        self.assertEqual((alternate, target), (FOREST, FOREST))
+        self.assertEqual(self.recorded[index]["alternate_dungeon_id"], ORC_CAVE)
+        # The switch itself posts nothing different inside the window: every
+        # recorded decision up to 262 is still reproduced (see the fidelity
+        # test); the next recall to the alternate lies beyond the window.
+        self.assertEqual(
+            decided[index:],
+            [
+                (self.recorded[i]["key"], self.recorded[i]["reason"])
+                for i in range(index, LAST + 1)
+            ],
         )
 
     # ------------------------------------------------------------ G1

@@ -1271,6 +1271,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._dive_loot = 0  # items grabbed on the current dive
         self._dive_emergencies = 0  # emergency escapes forced on the current dive
         self._target_empty_dives = 0  # consecutive over-extended dives of the target
+        # How many dives of that streak were guardian-kit-insufficient bounces.
+        # Restored checkpoints predating it read 0 (getattr), i.e. the streak is
+        # judged as ordinary over-extension.
+        self._guardian_bounce_dives = 0
         # Loot is useful, but it is not dungeon progression.  Keep a separate
         # leash for repeated Recall expeditions that never raise that dungeon's
         # saved landing depth; otherwise a few trivial pickups can keep the bot
