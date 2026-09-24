@@ -6,6 +6,7 @@ from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.baseitem_knowledge import item_base_cost
@@ -231,16 +232,18 @@ class IdentificationMixin:
                     self._chest_preopen_objects = None
                     return None
                 self.last_reason = "chest:step-off"
-                self._declare_reach(neighbors[0])
+                self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, neighbors[0])
             if distance > 1:
                 self._claim_target_capture = []
-                step = self._nearest_goal_step(
-                    snapshot,
-                    lambda g: g.position != chest_pos
-                    and g.position.distance_to(chest_pos) == 1,
-                )
-                step_target = self._take_claim_target()
+                try:
+                    step = self._nearest_goal_step(
+                        snapshot,
+                        lambda g: g.position != chest_pos
+                        and g.position.distance_to(chest_pos) == 1,
+                    )
+                finally:
+                    step_target = self._take_claim_target()
                 if step is None:
                     self._chest_position = None
                     self._chest_phase_counts = {}
@@ -332,7 +335,7 @@ class IdentificationMixin:
                 self.last_reason = "chest:drop-unreachable-reserved"
                 return CHEST_DROP_KEY + chest.slot
             self.last_reason = "chest:return-reserved-position"
-            self._declare_reach(step)
+            self._declare_reach(target)
             return self._step_toward(snapshot, step)
         self._chest_drop_origin = player.position
         self._chest_phase_counts = {}
@@ -1077,15 +1080,17 @@ class IdentificationMixin:
                 > RANGED_MAX_DISTANCE
             ):
                 self._claim_target_capture = []
-                step = self._nearest_goal_step(
-                    snapshot,
-                    lambda grid: (
-                        grid.position not in self._paralyzer_avoid_cells
-                        and grid.position.distance_to(target.position)
-                        <= RANGED_MAX_DISTANCE
-                    ),
-                )
-                step_target = self._take_claim_target()
+                try:
+                    step = self._nearest_goal_step(
+                        snapshot,
+                        lambda grid: (
+                            grid.position not in self._paralyzer_avoid_cells
+                            and grid.position.distance_to(target.position)
+                            <= RANGED_MAX_DISTANCE
+                        ),
+                    )
+                finally:
+                    step_target = self._take_claim_target()
                 if step is not None:
                     self.last_reason = "paralyzer-guard:approach-range"
                     self._declare_reach(step_target)

@@ -42,6 +42,9 @@ Round 3 (design rev 9.3): R1 ``ReadOnlySatisfactionTest``, R2
 ``SurvivalTriggerStartOnlyTest``, R5 ``LastKnownCellTest``, R6
 ``HomeEffectSourceTest``, R7 ``TeleportAdoptionTest``.
 
+Round 4: F1 ``ReservedChestCellTest``, F2 ``OneStepNoteTest``, F3
+``CaptureRobustnessTest``, F4 ``CachedUpstairsTargetTest``.
+
 Restored checkpoints: every attribute S2a.1 adds or newly reads is covered
 (``RestoredCheckpointTest``).
 
@@ -1501,6 +1504,166 @@ class TeleportAdoptionTest(unittest.TestCase):
         claim = _exit(policy, board, "town:cross-town-walk-in-return")
         self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [41, 131]})
         self.assertIsNone(claim["goal_note"])
+
+
+# -- round 4 -----------------------------------------------------------------
+
+
+def _declaration_after(reason_literal):
+    """The declaration calls that follow ``self.last_reason = <literal>``."""
+    found = []
+    for path in sorted(PACKAGE.glob("policy*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for parent in ast.walk(tree):
+            body = getattr(parent, "body", None)
+            if not isinstance(body, list):
+                continue
+            for index, stmt in enumerate(body[:-1]):
+                if not (
+                    isinstance(stmt, ast.Assign)
+                    and isinstance(stmt.targets[0], ast.Attribute)
+                    and stmt.targets[0].attr == "last_reason"
+                ):
+                    continue
+                value = stmt.value
+                text = (
+                    value.value if isinstance(value, ast.Constant)
+                    else ast.unparse(value)
+                )
+                if text != reason_literal:
+                    continue
+                call = getattr(body[index + 1], "value", None)
+                if isinstance(call, ast.Call):
+                    found.append(ast.unparse(call))
+    return found
+
+
+class ReservedChestCellTest(unittest.TestCase):
+    """Round 4 (F1): the chest walk names the reserved cell."""
+
+    def test_the_reserved_cell_is_declared_not_the_first_step(self):
+        self.assertEqual(
+            _declaration_after("chest:return-reserved-position"),
+            ["self._declare_reach(target)"],
+        )
+
+
+class OneStepNoteTest(unittest.TestCase):
+    """Round 4 (F2): one-step walks are noted and counted apart in (c)."""
+
+    ONE_STEP_REASONS = (
+        "emergency:seek-upstairs", "fundraise:seek-upstairs",
+        "fundraise:seek-upstairs-wander", "threat:avoid-engagement",
+        "threat:paralyzer-avoid", "threat:reposition", "status-threat:retreat",
+        "town:wait-recall-step-off", "bounty:step-off", "chest:step-off",
+    )
+
+    def test_the_one_step_sites_carry_the_note(self):
+        for reason in self.ONE_STEP_REASONS:
+            with self.subTest(reason=reason):
+                calls = _declaration_after(reason)
+                self.assertTrue(
+                    any("note=CLAIM_GOAL_NOTE_ONE_STEP" in call for call in calls),
+                    calls,
+                )
+        # the mixed reasons keep their far-target site un-noted
+        for reason in ("emergency:seek-upstairs", "fundraise:seek-upstairs"):
+            with self.subTest(far_target=reason):
+                self.assertTrue(
+                    any("_target" in call and "note=" not in call
+                        for call in _declaration_after(reason)),
+                )
+
+    def test_the_note_reaches_the_row(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy.last_reason = "threat:avoid-engagement"
+        policy._declare_reach(Position(3, 98), note="one-step")
+        claim = _exit(policy, board, "threat:avoid-engagement", "1")
+        self.assertEqual(claim["goal_note"], "one-step")
+        self.assertFalse(claim["goal_missing"])
+
+    def test_c_breaks_reach_endings_down_by_the_note(self):
+        rows = [
+            dict(_claim_row(1, "escape", "Reach", reason="emergency:seek-upstairs"),
+                 goal_note="one-step"),
+            _claim_row(2, "escape", "Reach", reason="emergency:seek-upstairs",
+                       closed_claim={"claim_id": 1, "goal_kind": "Reach",
+                                     "state": "complete", "closed": "complete",
+                                     "closed_reason": "reached"}),
+            _claim_row(3, "idle", "Terminal", reason="wait"),
+        ]
+        endings = gate_numbers(rows)["endings"]
+        self.assertEqual(endings["escape/Reach:one-step"]["complete"], 1)
+        self.assertEqual(endings["escape/Reach"]["abandoned"], 1)
+
+
+class CaptureRobustnessTest(unittest.TestCase):
+    """Round 4 (F3): no capture outlives its call or its decision."""
+
+    def test_a_raising_helper_leaves_no_capture(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("helper failed")
+
+        policy._nearest_goal_step = boom
+        with self.assertRaises(RuntimeError):
+            policy._fixed_quest_exit_key(board, 1)
+        self.assertNotIn("_claim_target_capture", policy.__dict__)
+
+    def test_a_leftover_capture_is_cleared_at_the_decision_boundary(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy._claim_target_capture = [Position(1, 1)]
+        policy.choose_key(board)
+        self.assertNotIn("_claim_target_capture", policy.__dict__)
+
+    def test_a_restored_checkpoint_carries_no_capture(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+        state = dict(policy.__dict__)
+        state["_claim_target_capture"] = [Position(1, 1)]
+        state.pop("_town_turn_arbiter", None)
+        encoded = base64.b64encode(pickle.dumps(state)).decode("ascii")
+        restored = restore_checkpoint(HengbotPolicy, encoded)
+        self.assertNotIn("_claim_target_capture", restored.__dict__)
+
+
+class CachedUpstairsTargetTest(unittest.TestCase):
+    """Round 4 (F4): a second read of the cached up-stairs step still
+    declares its target."""
+
+    def test_the_second_call_in_a_decision_declares_the_target(self):
+        from test_policy_town import ReturnToTownTest
+
+        helper = ReturnToTownTest()
+        snapshot = helper._exit_owner_snapshot(10)
+        policy = helper._prepare_exit_owner_policy(snapshot)
+        policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+        self.assertEqual(
+            policy.decision_claim["goal"], {"kind": "Reach", "cell": [10, 14]}
+        )
+        # the same decision asks again: the step comes from the cache
+        policy._decision_goal = None
+        policy._return_to_town_key(snapshot, [])
+        self.assertEqual(policy.last_reason, "return:seek-upstairs")
+        self.assertEqual(policy._decision_goal[1], reach((10, 14)))
+
+    def test_revert_proof_without_the_cached_target_the_second_call_declares_none(self):
+        from test_policy_town import ReturnToTownTest
+        from hengbot import policy_town
+
+        helper = ReturnToTownTest()
+        snapshot = helper._exit_owner_snapshot(10)
+        policy = helper._prepare_exit_owner_policy(snapshot)
+        policy.choose_key(snapshot)
+        policy._escape_state.ledger.pop(policy_town.CLAIM_UPSTAIRS_TARGET_KEY)
+        policy._decision_goal = None
+        policy._return_to_town_key(snapshot, [])
+        self.assertIsNone(policy._decision_goal)
 
 
 # -- B4 ----------------------------------------------------------------------

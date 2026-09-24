@@ -6,6 +6,7 @@ from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
@@ -307,11 +308,13 @@ class FundraisingMixin:
             step = self._least_visited_neighbor(snapshot)
             if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
-                self._declare_reach(step)
+                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, step)
         self._claim_target_capture = []
-        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        finally:
+            step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
             self._declare_reach(step_target)
@@ -357,7 +360,7 @@ class FundraisingMixin:
                 not oscillation_cells or step not in oscillation_cells
             ):
                 self.last_reason = "fundraise:seek-upstairs-wander"
-                self._declare_reach(step)
+                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, step)
         # Terminal: no reachable up-stairs, nothing to explore, and no walkable
         # neighbour that escapes a confined cycle (a mining tunnel can wall us into a

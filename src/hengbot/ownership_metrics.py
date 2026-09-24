@@ -417,6 +417,7 @@ ENDING_ABANDONED = "abandoned"
 # A claim still open on the last row of its session: it did not end at all
 # inside the ledger, so it is neither closed nor abandoned.
 ENDING_OPEN = "open-at-end"
+REACH_NOTE_BUCKETS = frozenset({"one-step", "last-known"})
 ENDINGS = (
     ENDING_COMPLETE,
     ENDING_RELEASE,
@@ -504,7 +505,9 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
         cell), both rows outside survival -- invisible to (a).
     (c) ``endings``: per ``owner/kind``, how each Reach/Observe claim ended --
         complete / release / retired / expired / suspended / abandoned, plus
-        ``open-at-end`` for a claim the session's last row still held -- and
+        ``open-at-end`` for a claim the session's last row still held (a
+        Reach goal noted ``one-step`` or ``last-known`` is counted under
+        ``owner/Reach:<note>``) -- and
         ``goal_missing`` rows per owner, per reason (``no-slot`` /
         ``owner-mismatch``), and ``owner_mismatch`` rows per owner (every row
         whose producer's slot belonged to another owner, Observe included).
@@ -562,7 +565,17 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
             kind = _goal_kind(first)
             owner = str(owner_of(first))
             if kind in GOAL_KINDS_THAT_SPAN:
-                bucket = endings.setdefault(f"{owner}/{kind}", Counter())
+                # Round 4 (F2): a Reach goal noted ``one-step`` (a flee or
+                # least-visited step, a step-off) or ``last-known`` ends in
+                # its own bucket, so S2b can tell it from a far-target walk
+                # under the same owner (and the same reason).
+                note = first.get("goal_note")
+                name = (
+                    f"{owner}/{kind}:{note}"
+                    if kind == "Reach" and note in REACH_NOTE_BUCKETS
+                    else f"{owner}/{kind}"
+                )
+                bucket = endings.setdefault(name, Counter())
                 bucket[_ending(run, following)] += 1
             elif kind == "Terminal":
                 kept = [row for row in run if not row.get("goal_missing")]

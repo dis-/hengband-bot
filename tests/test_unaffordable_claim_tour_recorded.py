@@ -137,8 +137,15 @@ S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
     "home-visit/Observe": {"complete": 12, "release": 1, "abandoned": 4},
     "equipment-txn/Observe": {"complete": 11, "abandoned": 1},
-    "floor-loot/Reach": {"complete": 70, "abandoned": 3},
-    "positioning/Reach": {"complete": 15, "release": 1},
+    # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
+    # paralyzer-avoid steps) are counted apart; the totals are unchanged
+    # (floor-loot 70 complete, positioning 15 complete).
+    "floor-loot/Reach": {"complete": 68, "abandoned": 3},
+    "floor-loot/Reach:one-step": {"complete": 2},
+    "positioning/Reach": {"complete": 10, "release": 1},
+    "positioning/Reach:one-step": {"complete": 5},
+    "departure/Reach": {"complete": 2},
+    "departure/Reach:one-step": {"complete": 6},
 }
 
 

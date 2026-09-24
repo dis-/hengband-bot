@@ -878,8 +878,10 @@ class SupplyMixin:
             )
 
         self._claim_target_capture = []
-        step = self._nearest_position_step(snapshot, candidates)
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_position_step(snapshot, candidates)
+        finally:
+            step_target = self._take_claim_target()
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"
@@ -997,8 +999,10 @@ class SupplyMixin:
             self.last_reason = exit_reason
             return UP_STAIRS_KEY
         self._claim_target_capture = []
-        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        finally:
+            step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "survival:seek-exit"
             self._declare_reach(step_target)
@@ -1133,8 +1137,10 @@ class SupplyMixin:
                 trigger_reason="mana-food:trigger-autodestroy",
             )
         self._claim_target_capture = []
-        step = self._nearest_position_step(snapshot, candidates)
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_position_step(snapshot, candidates)
+        finally:
+            step_target = self._take_claim_target()
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"

@@ -5,7 +5,12 @@ from hengbot.claim_goal_typing import (
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     GOAL_NOTE_LAST_KNOWN as CLAIM_GOAL_NOTE_LAST_KNOWN,
+    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
+
+# Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
+# the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
+CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
@@ -1405,7 +1410,7 @@ class TownMixin:
             or prior_reason == "equipment-transaction:abandon-blocked"
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
-            self._declare_reach(step)
+            self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
         return key
 
     def _release_stale_town_block(self, snapshot: Snapshot) -> None:
@@ -4616,10 +4621,12 @@ class TownMixin:
                 self.last_reason = "town:rumor-needs-funds"
                 return WAIT_KEY
             self._claim_target_capture = []
-            step = self._nearest_goal_step(
-                snapshot, lambda grid: grid.building_type == INN_BUILDING_TYPE
-            )
-            step_target = self._take_claim_target()
+            try:
+                step = self._nearest_goal_step(
+                    snapshot, lambda grid: grid.building_type == INN_BUILDING_TYPE
+                )
+            finally:
+                step_target = self._take_claim_target()
             if step is None and self._town_map_active(snapshot):
                 # At night / far off, the inn is unlit and absent from the emitted
                 # grids; route to its remembered position from the static town map
@@ -4762,7 +4769,7 @@ class TownMixin:
                     )
                     if neighbors:
                         self.last_reason = "town:wait-recall-step-off"
-                        self._declare_reach(neighbors[0])
+                        self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                         return self._step_toward(snapshot, neighbors[0])
                 self.last_reason = "town:wait-recall"
                 return WAIT_KEY
@@ -5223,12 +5230,23 @@ class TownMixin:
             return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
         self._claim_target_capture = []
-        upstairs_step = self._escape_state.read_once(
-            snapshot,
-            "return:upstairs-step",
-            lambda: self._nearest_goal_step(snapshot, self._is_upstairs_target),
-        )
-        upstairs_step_target = self._take_claim_target()
+        try:
+            upstairs_step = self._escape_state.read_once(
+                snapshot,
+                "return:upstairs-step",
+                lambda: self._nearest_goal_step(snapshot, self._is_upstairs_target),
+            )
+        finally:
+            upstairs_step_target = self._take_claim_target()
+        # Round 4 (F4), record-only: ``read_once`` caches the step for the
+        # decision, so a second read captures nothing; keep the target beside
+        # the cached step in the same per-decision ledger.
+        if upstairs_step_target is not None:
+            self._escape_state.ledger[CLAIM_UPSTAIRS_TARGET_KEY] = upstairs_step_target
+        else:
+            upstairs_step_target = self._escape_state.ledger.get(
+                CLAIM_UPSTAIRS_TARGET_KEY
+            )
         assert upstairs_step is None or isinstance(upstairs_step, Position)
         wall_owner = (
             self._escape_state.owner == "return"
@@ -5261,8 +5279,10 @@ class TownMixin:
                     self.last_reason = "return:search-upstairs"
                     return SEARCH_KEY
                 self._claim_target_capture = []
-                step = self._secret_wall_search_step(snapshot)
-                step_target = self._take_claim_target()
+                try:
+                    step = self._secret_wall_search_step(snapshot)
+                finally:
+                    step_target = self._take_claim_target()
                 if step is not None:
                     self.last_reason = "return:seek-secret-wall"
                     self._declare_reach(step_target)
@@ -5322,8 +5342,10 @@ class TownMixin:
                 self.last_reason = "return:search-upstairs"
                 return SEARCH_KEY
             self._claim_target_capture = []
-            step = self._secret_wall_search_step(snapshot)
-            step_target = self._take_claim_target()
+            try:
+                step = self._secret_wall_search_step(snapshot)
+            finally:
+                step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "return:seek-secret-wall"
                 self._declare_reach(step_target)

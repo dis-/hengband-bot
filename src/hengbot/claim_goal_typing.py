@@ -578,6 +578,10 @@ GOAL_NOTE_NO_SLOT = "no-slot"
 GOAL_NOTE_OWNER_MISMATCH = "owner-mismatch"
 # Rev 9.3: a walk to where a lost chase target was last seen.
 GOAL_NOTE_LAST_KNOWN = "last-known"
+# Round 4 (F2): a genuinely one-step walk (a flee step, a least-visited step,
+# a step-off) under a reason that can also name a far target; the gate's (c)
+# counts these apart.
+GOAL_NOTE_ONE_STEP = "one-step"
 # Internal: the slot ``_town_teleport_key`` wrote, which its caller may adopt.
 TELEPORT_WALK_NOTE = "teleport-walk"
 

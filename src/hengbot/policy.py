@@ -104,6 +104,7 @@ from hengbot.claim_goal_typing import (
     GOAL_NOTE_NO_SLOT as CLAIM_GOAL_NOTE_NO_SLOT,
     GOAL_NOTE_OWNER_MISMATCH as CLAIM_GOAL_NOTE_OWNER_MISMATCH,
     TELEPORT_WALK_NOTE as CLAIM_TELEPORT_WALK_NOTE,
+    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
     HOME_EFFECT_OWNERS as CLAIM_HOME_EFFECT_OWNERS,
     HOME_EFFECT_SOURCES as CLAIM_HOME_EFFECT_SOURCES,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
@@ -2376,6 +2377,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # declaration at the exit reads nothing else.  Record-only.
         self._decision_goal = None
         self._decision_expectation = None
+        # Round 4 (F3): an armed path-target capture never outlives the
+        # decision that armed it (each arm/take pair is also try/finally).
+        self.__dict__.pop("_claim_target_capture", None)
         self._staged_prompt_chain = None
         self._intentional_entrance_activation = False
         pending_reward = self._fixed_quest_reward_pending
@@ -6295,7 +6299,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "status-threat:retreat"
-                self._declare_reach(step)
+                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, step)
             if not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
@@ -6479,7 +6483,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
-                self._declare_reach(step)
+                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, step)
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
@@ -6535,7 +6539,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if neighbors:
                     self.last_reason = "town:wait-recall-step-off"
-                    self._declare_reach(neighbors[0])
+                    self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                     return self._step_toward(snapshot, neighbors[0])
             self.last_reason = "town:wait-recall"
             return WAIT_KEY
@@ -6555,8 +6559,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.in_town and not physical_hostiles:
             if self._took_damage:
                 self._claim_target_capture = []
-                shelter = self._nearest_goal_step(snapshot, lambda grid: grid.is_store)
-                shelter_target = self._take_claim_target()
+                try:
+                    shelter = self._nearest_goal_step(snapshot, lambda grid: grid.is_store)
+                finally:
+                    shelter_target = self._take_claim_target()
                 if shelter is not None:
                     self.last_reason = "town:seek-shelter"
                     self._declare_reach(shelter_target)
@@ -7095,7 +7101,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
-                self._declare_reach(step)
+                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, step)
 
         # 6. Head for a known downstairs / dungeon entrance: path straight there
@@ -7308,8 +7314,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "search"
                 return SEARCH_KEY
             self._claim_target_capture = []
-            step = self._secret_wall_search_step(snapshot)
-            step_target = self._take_claim_target()
+            try:
+                step = self._secret_wall_search_step(snapshot)
+            finally:
+                step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "seek-secret-wall"
                 self._declare_reach(step_target)
@@ -7322,15 +7330,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         floor_exit_locked = self._floor_navigation_exit_locked(snapshot)
         allow_descent = not self._descent_is_blocked(snapshot)
         self._claim_target_capture = []
-        step = self._nearest_goal_step(
-            snapshot,
-            lambda g: not floor_exit_locked
-            and (
-                self._is_upstairs_target(g)
-                or (allow_descent and self._is_descent_target(snapshot, g))
-            ),
-        )
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda g: not floor_exit_locked
+                and (
+                    self._is_upstairs_target(g)
+                    or (allow_descent and self._is_descent_target(snapshot, g))
+                ),
+            )
+        finally:
+            step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
             self._declare_reach(step_target)
@@ -11681,16 +11691,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
                 self.last_reason = "bounty:step-off"
-                self._declare_reach(neighbors[0])
+                self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return self._step_toward(snapshot, neighbors[0])
             return None
 
         self._claim_target_capture = []
-        step = self._nearest_goal_step(
-            snapshot,
-            lambda grid: grid.building_type == HUNTER_OFFICE_BUILDING_TYPE,
-        )
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: grid.building_type == HUNTER_OFFICE_BUILDING_TYPE,
+            )
+        finally:
+            step_target = self._take_claim_target()
         if step is None and office_pos is not None:
             step = self._town_map_goal_step(snapshot, office_pos)
         if step is None:

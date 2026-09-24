@@ -4,6 +4,7 @@ from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
+from hengbot.claim_goal_typing import GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.monster_ranged_evaluator import (
@@ -923,14 +924,16 @@ class CombatMixin:
         if ranged is not None:
             return ranged
         self._claim_target_capture = []
-        step = self._nearest_goal_step(
-            snapshot,
-            lambda grid: any(
-                grid.position.distance_to(monster.position) <= 1
-                for monster in committed
-            ),
-        )
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(
+                snapshot,
+                lambda grid: any(
+                    grid.position.distance_to(monster.position) <= 1
+                    for monster in committed
+                ),
+            )
+        finally:
+            step_target = self._take_claim_target()
         if step is None or step in self._engagement_avoid_cells:
             return self._esp_threat_end_hunt(
                 "unreachable", snapshot, strategic_hostiles
@@ -1020,14 +1023,16 @@ class CombatMixin:
             return True, key
         if action == "hunt":
             self._claim_target_capture = []
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda grid: any(
-                    grid.position.distance_to(target.position) <= 1
-                    for target in targets
-                ),
-            )
-            step_target = self._take_claim_target()
+            try:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda grid: any(
+                        grid.position.distance_to(target.position) <= 1
+                        for target in targets
+                    ),
+                )
+            finally:
+                step_target = self._take_claim_target()
             if step is None or step in self._engagement_avoid_cells:
                 assessment["action"] = "hunt-unreachable"
                 return True, None
@@ -1936,10 +1941,12 @@ class CombatMixin:
                         self.last_reason = "emergency:heal"
                         return QUAFF_KEY + potion.slot
                 self._claim_target_capture = []
-                route_step = self._nearest_goal_step(
-                    snapshot, self._is_upstairs_target
-                )
-                route_step_target = self._take_claim_target()
+                try:
+                    route_step = self._nearest_goal_step(
+                        snapshot, self._is_upstairs_target
+                    )
+                finally:
+                    route_step_target = self._take_claim_target()
                 if route_step is None:
                     blocker = self._blocking_escape_melee_key(
                         snapshot, hostiles, self._is_upstairs_target
@@ -1956,7 +1963,7 @@ class CombatMixin:
                     self._is_oscillating() and flee_step in set(self._recent)
                 ):
                     self.last_reason = "emergency:seek-upstairs"
-                    self._declare_reach(flee_step)
+                    self._declare_reach(flee_step, note=CLAIM_GOAL_NOTE_ONE_STEP)
                     return self._step_toward(snapshot, flee_step)
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
@@ -2145,7 +2152,7 @@ class CombatMixin:
             return None
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
-        self._declare_reach(step)
+        self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
         return self._step_toward(
             snapshot, step, allow_paralyzer_ring_escape=True
         )

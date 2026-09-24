@@ -700,8 +700,10 @@ class NavigationMixin:
                 self.last_reason = "livelock:ascend"
                 return UP_STAIRS_KEY
             self._claim_target_capture = []
-            step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-            step_target = self._take_claim_target()
+            try:
+                step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+            finally:
+                step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "livelock:seek-upstairs"
                 self._declare_reach(step_target)
@@ -857,8 +859,10 @@ class NavigationMixin:
         # reaching the stairs breaks contact where circling the same room never
         # can — the decisive escape when there is no recall or teleport left.
         self._claim_target_capture = []
-        to_stairs = self._nearest_goal_step(snapshot, self._is_upstairs_target)
-        to_stairs_target = self._take_claim_target()
+        try:
+            to_stairs = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        finally:
+            to_stairs_target = self._take_claim_target()
         if to_stairs is not None:
             self.last_reason = "combat:disengage-seek-upstairs"
             self._declare_reach(to_stairs_target)

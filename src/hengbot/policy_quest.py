@@ -1370,12 +1370,14 @@ class QuestMixin:
                 else None
             )
             self._claim_target_capture = []
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda grid: grid.building_type
-                == MORIVANT_LIBRARY_BUILDING_TYPE,
-            )
-            step_target = self._take_claim_target()
+            try:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda grid: grid.building_type
+                    == MORIVANT_LIBRARY_BUILDING_TYPE,
+                )
+            finally:
+                step_target = self._take_claim_target()
             if step is None and library_pos is not None:
                 step = self._town_map_goal_step(snapshot, library_pos)
             if step is not None:
@@ -3688,13 +3690,15 @@ class QuestMixin:
                 final_target_goal = target_position
                 if step is None:
                     self._claim_target_capture = []
-                    step = self._nearest_goal_step(
-                        snapshot,
-                        lambda candidate: (
-                            candidate.position.distance_to(target_position) <= 1
-                        ),
-                    )
-                    final_target_goal = self._take_claim_target()
+                    try:
+                        step = self._nearest_goal_step(
+                            snapshot,
+                            lambda candidate: (
+                                candidate.position.distance_to(target_position) <= 1
+                            ),
+                        )
+                    finally:
+                        final_target_goal = self._take_claim_target()
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-final-target"
                     self._declare_reach(final_target_goal)
@@ -4953,8 +4957,10 @@ class QuestMixin:
             self.last_reason = "fixedquest:exit"
             return UP_STAIRS_KEY
         self._claim_target_capture = []
-        step = self._nearest_goal_step(snapshot, lambda grid: grid.has_quest_exit)
-        step_target = self._take_claim_target()
+        try:
+            step = self._nearest_goal_step(snapshot, lambda grid: grid.has_quest_exit)
+        finally:
+            step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "fixedquest:seek-exit"
             self._declare_reach(step_target)
