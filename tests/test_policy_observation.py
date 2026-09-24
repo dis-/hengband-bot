@@ -1171,6 +1171,115 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         self.assertEqual(policy._conquest_committed, self.ORC_CAVE)
         self.assertIsNone(policy._alternate_dungeon)
 
+    def _recall_ready_town(self, landings, *, angband_unlocked):
+        """A town board on which the town router reads Word of Recall.
+
+        The supplies cover a 23F expedition (the landing every world below
+        uses for the Orc cave), so the departure gate is open and the next
+        departure action is the recall read itself.
+        """
+        inventory = [
+            item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=25),
+            item("t", TVAL_SCROLL, 9, count=25),
+            item("f", TVAL_FOOD, 35, count=9),
+            item("o", TVAL_FLASK, SV_FLASK_OIL, count=9, fuel=500),
+            item("c", TVAL_POTION, 36, count=10),
+            item("s", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=20),
+        ]
+        return replace(
+            self._board(
+                (0, 0, 0), self.ORC_CAVE, landings,
+                angband_unlocked=angband_unlocked,
+            ),
+            player=player(
+                10, 10, hp=592, max_hp=592, level=33, gold=2000,
+                class_id=PLAYER_CLASS_WARRIOR, abilities=self.ABILITIES,
+            ),
+            width=198,
+            height=66,
+            inventory=inventory,
+            equipment=[
+                item("g", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True)
+            ],
+        )
+
+    def test_town_never_recalls_onto_a_blocked_guardian_landing(self):
+        """G3 extended to the path of the 2026-09-25 06:22:31 recall.
+
+        Live: the conquest latch (_conquest_committed) committed the Orc cave
+        on a board whose kit could beat its guardian and then held it after
+        the kit changed, so the town router recalled onto landing 23, the
+        guardian floor, and the dive came straight back
+        (guardian-kit-insufficient).  Whatever put the target there (a
+        latched conquest or a latched alternate), the town router never
+        chooses a recall destination whose landing is a guardian floor the
+        current kit cannot pass.  It switches the way the guardian valve does
+        (user decision 2026-09-25, 「倒せない階でなければ深くても可」: the
+        shallowest landing that is not a blocked guardian floor, deeper
+        allowed) and recalls there; with no such landing it ends the run
+        visibly (「見える形で停止する」, town:blocked:guardian-bounce-no-alternate).
+        """
+        worlds = {
+            "shallower": (self.SHALLOWER, self.FOREST),
+            "deeper-only": (self.DEEPER_ONLY, self.FOREST),
+            "all-blocked": (self.ALL_BLOCKED, None),
+        }
+        for world, (landings, productive) in worlds.items():
+            for role, attribute in self.ROLES.items():
+                for angband_unlocked in (True, False):
+                    with self.subTest(
+                        world=world, role=role, angband_unlocked=angband_unlocked
+                    ):
+                        policy = self._policy(landings)
+                        setattr(policy, attribute, self.ORC_CAVE)
+                        policy._deepest_level = landings[self.ORC_CAVE]
+                        policy._char_dump_done_this_visit = True
+                        board = self._recall_ready_town(
+                            landings, angband_unlocked=angband_unlocked
+                        )
+                        policy._observe(board)
+                        # The path: the latched role makes the Orc cave the
+                        # target, and its landing is a blocked guardian floor.
+                        self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
+                        self.assertTrue(policy._guardian_floor_blocked(
+                            board, self.ORC_CAVE, landings[self.ORC_CAVE]
+                        ))
+                        orc_cave_recall = "rr" + policy._recall_selection_key(
+                            board, self.ORC_CAVE
+                        )
+                        key = policy._town_special_key(board)
+                        self.assertNotEqual(key, orc_cave_recall)
+                        if productive is None:
+                            self.assertEqual(
+                                policy.last_reason,
+                                f"town:blocked:{self.TERMINAL}",
+                            )
+                            self.assertIn(
+                                policy.last_reason, POLICY_FINAL_STOP_REASONS
+                            )
+                            continue
+                        self.assertEqual(
+                            (key, policy.last_reason),
+                            ("5", "town:unsafe-recall-fallback"),
+                        )
+                        self.assertEqual(
+                            (
+                                policy._alternate_dungeon,
+                                policy._target_dungeon_id,
+                                policy._conquest_committed,
+                            ),
+                            (productive, productive, None),
+                        )
+                        # The same board then recalls to the switched landing.
+                        key = policy._town_special_key(board)
+                        self.assertEqual(
+                            policy.last_reason, "town:recall-to-alt-dungeon"
+                        )
+                        self.assertEqual(
+                            key,
+                            "rr" + policy._recall_selection_key(board, productive),
+                        )
+
     def test_picker_skips_a_landing_on_a_blocked_guardian_floor(self):
         policy = self._policy(self.SHALLOWER)
         policy._last_overextended_depth = 23

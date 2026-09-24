@@ -8388,11 +8388,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _recall_destination_safe(
-        self, snapshot: Snapshot, dungeon_id: int
+        self, snapshot: Snapshot, dungeon_id: int, *, guardian_gate: bool = True
     ) -> bool:
-        """Reject recall when its landing floor violates mandatory depth gates."""
+        """Reject recall when its landing floor violates mandatory depth gates.
+
+        ``guardian_gate``: also reject a landing that is a guardian floor the
+        current kit cannot pass.  Such a recall is answered at once by the
+        guardian-kit-insufficient return (live 2026-09-25 06:22:31: the
+        conquest latch held the Orc cave after the kit that made its guardian
+        beatable was changed, and the recall landed on 23, its guardian
+        floor).  ``False`` asks whether the landing is refused for that
+        reason alone.
+        """
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
-        return not self._missing_required_abilities(snapshot, depth)
+        if self._missing_required_abilities(snapshot, depth):
+            return False
+        return not (
+            guardian_gate
+            and self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
+        )
+
+    def _recall_landing_guardian_blocked(
+        self, snapshot: Snapshot, dungeon_id: int, depth: int
+    ) -> bool:
+        """Whether a recall to ``dungeon_id`` lands on a blocked guardian floor."""
+        return self._guardian_floor_blocked(snapshot, dungeon_id, depth)
 
     def _recall_departure_minimum(self, snapshot: Snapshot) -> int:
         """Hard minimum that must remain available when leaving town."""
@@ -9286,7 +9306,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return None
 
     def _activate_safe_recall_fallback(
-        self, snapshot: Snapshot, unsafe_depth: int
+        self, snapshot: Snapshot, unsafe_depth: int, *,
+        guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
         """Select the shallowest entered dungeon below an unsafe destination.
 
@@ -9297,11 +9318,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         while the scroll still pointed at the Yeek cave's 13, so bounding the
         alternates by the board's own recall depth demanded a landing shallower
         than 12 and rejected every safe dungeon the character had entered.
+
+        ``guardian_bounced_dungeon``: the destination was refused only
+        because its landing is a guardian floor the kit cannot pass.  The
+        recall would be a guardian bounce, so the choice is the guardian
+        valve's (user decision 2026-09-25, 「倒せない階でなければ深くても可」):
+        any landing that is not a blocked guardian floor, deeper allowed,
+        never the refused dungeon itself.
         """
-        alternate = self._pick_alternate_dungeon(
-            snapshot,
-            max_entry_depth=max(1, unsafe_depth - 1),
-        )
+        if guardian_bounced_dungeon is not None:
+            alternate = self._pick_alternate_dungeon(
+                snapshot, guardian_bounced_dungeon=guardian_bounced_dungeon
+            )
+        else:
+            alternate = self._pick_alternate_dungeon(
+                snapshot,
+                max_entry_depth=max(1, unsafe_depth - 1),
+            )
         if alternate is None:
             return None
         self._alternate_dungeon = alternate

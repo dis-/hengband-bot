@@ -39,18 +39,36 @@ Walls, each declared:
   travel of 2026 (``store:entry-interrupted-replan`` recorded).  With the
   binding the pre-fix code reproduces all 2,052 recorded decisions, the
   stop included.
+- DECLARED WALL (live replay only, orc-cave-residual-path): the live town
+  router had no guardian-landing gate, so the replay answers
+  ``_recall_landing_guardian_blocked`` with False; otherwise the 06:22:31
+  recall to the Orc cave (B below) would be refused and every later recorded
+  board, the walk included, would be counterfactual.  B1 decides the 06:22:31
+  board without it.
 No wall touches the approach producer, the progress vector or the arbiter.
+
+B (orc-cave-residual-path, same capture): 06:22:31 ``town:recall-to-alt-
+dungeon`` 'rhc' read Word of Recall to the Orc cave (target 3, no alternate,
+streak 0), whose landing 23 is its guardian floor; at 06:22:50 the dive came
+straight back (``guardian-kit-insufficient``).  The target came from the
+conquest latch (``_conquest_target`` / ``_conquest_committed``), committed at
+sequence 1890 on a mid-transaction kit that could beat the guardian and kept
+after the kit changed (B1 path test).  The town router now refuses a recall
+whose landing is a guardian floor the current kit cannot pass
+(``_guardian_floor_blocked``) and switches like the guardian valve.
 """
 
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+import copy
 import gzip
 import hashlib
 import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -76,10 +94,21 @@ WALK_START = 2036  # sequence 2032: the first shop:approach step after the fight
 WALK_END = 2050  # sequence 2046: the live retirement
 STOP = 2051  # sequence 2047: town:blocked:owner-retired
 STORE_7_ENTRANCE = [45, 123]
+# B (orc-cave-residual-path): the Orc cave path, by log index.
+ORC_CAVE = 3
+FOREST = 7
+ORC_CAVE_LANDING = 23  # recorded dungeon_recall_depths[3]; its guardian floor
+LATCH = 1893  # sequence 1890, 06:21:37: _conquest_target commits the Orc cave
+KIT_CHANGED = 1899  # sequence 1896: the shield is on, the guardian unbeatable
+RECALL = 1966  # sequence 1963, 06:22:31: 'rhc' town:recall-to-alt-dungeon
+BOUNCE = 1991  # sequence 1988, 06:22:50: 'rh' return:recall from (3, 23)
+PATH = (LATCH - 1, LATCH, KIT_CHANGED - 1, KIT_CHANGED, RECALL, BOUNCE)
 
 
 class TownApproachRetiredRecordedTest(unittest.TestCase):
     replay = None
+    path = None
+    fixed_recall = None
 
     @classmethod
     def setUpClass(cls):
@@ -122,7 +151,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         return segment
 
     @classmethod
-    def _decide(cls, policy, index, directory):
+    def _consume(cls, policy, index, directory):
         _decoded, snapshots = _consume_response_sequence(
             cls._board_lines(index), policy, lambda _key: True, cls.monrace,
             knowledge_ledger_path=directory / "knowledge.jsonl",
@@ -132,7 +161,19 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             policy.request_game_save()
         elif recorded_reason == "periodic:character-dump":
             policy.request_character_dump()
-        key = policy.choose_key(snapshots[-1])
+        return snapshots[-1]
+
+    @staticmethod
+    def _decide(policy, snapshot, *, live_gate=True):
+        if live_gate:
+            # DECLARED WALL (live replay): see the module docstring.
+            with patch.object(
+                policy, "_recall_landing_guardian_blocked", return_value=False,
+                create=True,  # pre-fix code has no gate: fail by assertion
+            ):
+                key = policy.choose_key(snapshot)
+        else:
+            key = policy.choose_key(snapshot)
         telemetry = policy._town_turn_arbiter.telemetry or {}
         claim = policy.decision_claim or {}
         decided = {
@@ -156,12 +197,42 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:
             return cls.replay
+        cls.path = {}
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             policy = cls._new_policy(directory)
-            cls.replay = [
-                cls._decide(policy, index, directory) for index in range(STOP + 1)
-            ]
+            replay = []
+            for index in range(STOP + 1):
+                snapshot = cls._consume(policy, index, directory)
+                if index == RECALL:
+                    # B1: the fixed town router on the live state and board
+                    # of the 06:22:31 recall, deciding twice on that board.
+                    fixed = copy.deepcopy(policy)
+                    cls.fixed_recall = []
+                    for _decision in range(2):
+                        row = cls._decide(fixed, snapshot, live_gate=False)
+                        row.update(
+                            alternate=fixed._alternate_dungeon,
+                            target=fixed._target_dungeon_id,
+                            conquest=fixed._conquest_committed,
+                            forest_selection=fixed._recall_selection_key(
+                                snapshot, FOREST
+                            ),
+                        )
+                        cls.fixed_recall.append(row)
+                replay.append(cls._decide(policy, snapshot))
+                if index in PATH:
+                    cls.path[index] = (
+                        policy._conquest_committed,
+                        policy._target_dungeon_id,
+                        policy._alternate_dungeon,
+                        policy._guardian_floor_blocked(
+                            snapshot, ORC_CAVE,
+                            snapshot.dungeon_recall_depths[ORC_CAVE],
+                        ),
+                        (snapshot.floor_key[0], snapshot.floor_key[1]),
+                    )
+            cls.replay = replay
         return cls.replay
 
     # ------------------------------------------------------------ recorded
@@ -201,16 +272,16 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         )
 
     # ------------------------------------------------------------ A1
-    def test_replay_reproduces_the_run_up_to_the_walk(self):
+    def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
         self.assertEqual(
             [
                 index
-                for index in range(WALK_START)
+                for index in range(STOP + 1)
                 if (replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            [],
+            [STOP],
         )
 
     def test_a1_walk_whose_claimed_distance_falls_is_not_retired(self):
@@ -250,6 +321,93 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # The recorded stop board is one more step of the same walk.
         self.assertEqual(walk[-1]["reason"], "shop:approach")
         self.assertIn(walk[-1]["key"], set("12346789"))
+
+    # ------------------------------------------------------------ B
+    def test_recorded_recall_onto_the_orc_cave_guardian_floor(self):
+        recorded = self.recorded
+        # Angband is the target (no alternate) until the conquest latch.
+        self.assertEqual(
+            {
+                (row["target_dungeon_id"], row["alternate_dungeon_id"])
+                for row in recorded[:LATCH]
+            },
+            {(1, None)},
+        )
+        self.assertEqual(
+            {
+                (row["target_dungeon_id"], row["alternate_dungeon_id"])
+                for row in recorded[LATCH:RECALL + 1]
+            },
+            {(ORC_CAVE, None)},
+        )
+        row = recorded[RECALL]
+        self.assertEqual(
+            (row["decision_sequence"], row["key"], row["reason"],
+             row["over_extended_dive_streak"]),
+            (1963, "rhc", "town:recall-to-alt-dungeon", 0),
+        )
+        row = recorded[BOUNCE]
+        self.assertEqual(
+            (row["key"], row["reason"], row["dungeon_id"], row["level"],
+             row["last_return_trigger"]),
+            ("rh", "return:recall", ORC_CAVE, ORC_CAVE_LANDING,
+             "guardian-kit-insufficient"),
+        )
+
+    def test_b1_path_is_the_conquest_latch_held_after_the_kit_changed(self):
+        """The path that made the Orc cave the recall target, on the replay.
+
+        The recorded ``over_extension`` rows show the target turning to 3
+        with no alternate at sequence 1890 -- neither the picker nor the
+        unsafe-recall fallback (both set an alternate).  On the replay
+        (which reproduces every recorded decision) that is
+        ``_conquest_target``: mid equipment transaction the two-handed
+        scythe had no shield beside it and the Orc cave guardian projected
+        as beatable, so the latch committed 3.  Six decisions later the
+        shield was worn, the guardian floor became blocked, and the latch --
+        which by design breaks only on structural change -- kept the target
+        through the 06:22:31 recall and the bounce.
+        """
+        self._replay()
+        self.assertEqual(
+            self.path,
+            {
+                LATCH - 1: (None, 1, None, True, (0, 0)),
+                LATCH: (ORC_CAVE, ORC_CAVE, None, False, (0, 0)),
+                KIT_CHANGED - 1: (ORC_CAVE, ORC_CAVE, None, False, (0, 0)),
+                KIT_CHANGED: (ORC_CAVE, ORC_CAVE, None, True, (0, 0)),
+                RECALL: (ORC_CAVE, ORC_CAVE, None, True, (0, 0)),
+                BOUNCE: (ORC_CAVE, ORC_CAVE, None, True, (ORC_CAVE, ORC_CAVE_LANDING)),
+            },
+        )
+
+    def test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave(self):
+        """User decisions 2026-09-25 (guardian-recall-pingpong r2/r3).
+
+        On the live state and the recorded board of the 06:22:31 recall the
+        fixed town router refuses the landing on the blocked guardian floor
+        and switches as the guardian valve does: the shallowest landing that
+        is not a blocked guardian floor, deeper allowed -- Forest (24).  The
+        same board then recalls to Forest instead of the Orc cave.
+        """
+        self._replay()
+        switch, recall = self.fixed_recall
+        # The recorded board stands on the Black Market entrance (the
+        # 06:22:30 observe-and-leave), so the switch's WAIT is emitted as the
+        # existing entrance step-off wrapper.
+        self.assertEqual(
+            switch["reason"],
+            "town:entrance-step-off:town:unsafe-recall-fallback",
+            self.fixed_recall,
+        )
+        self.assertIn(switch["key"], set("12346789"))
+        self.assertEqual(
+            (switch["alternate"], switch["target"], switch["conquest"]),
+            (FOREST, FOREST, None),
+        )
+        self.assertEqual(recall["reason"], "town:recall-to-alt-dungeon")
+        self.assertEqual(recall["key"], "rh" + recall["forest_selection"])
+        self.assertNotEqual(recall["key"], self.recorded[RECALL]["key"])
 
 
 if __name__ == "__main__":

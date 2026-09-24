@@ -59,6 +59,12 @@ Walls, each declared:
   ``alternate_dungeon_id`` of the deciding row while the policy holds no
   alternate (decision 8 only).  The arrival judgement and the valve are not
   walled; the valve's own picker call at the third arrival is the real one.
+- DECLARED WALL (live replay only, added with orc-cave-residual-path
+  2026-09-25): the live town router had no guardian-landing gate, so the
+  replay answers ``_recall_landing_guardian_blocked`` with False; otherwise
+  the recalls to the Orc cave's blocked landing (13, 92, 185) would be
+  refused and every later recorded board would be counterfactual.  G1's
+  fixed replay and the r3 board run without it.
 """
 
 from __future__ import annotations
@@ -184,7 +190,15 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                     )
                     return result
 
-                with patch.object(policy, "_pick_alternate_dungeon", pick):
+                # DECLARED WALL (orc-cave-residual-path, 2026-09-25): the live
+                # town router had no guardian-landing gate either; it read
+                # every recall to the Orc cave's blocked landing 23.
+                with patch.object(
+                    policy, "_pick_alternate_dungeon", pick
+                ), patch.object(
+                    policy, "_recall_landing_guardian_blocked",
+                    return_value=False, create=True,
+                ):
                     key = policy.choose_key(snapshot)
                 decided.append((str(key), policy.last_reason))
                 if (

@@ -4432,21 +4432,33 @@ class TownMixin:
         return WAIT_KEY
 
     def _town_recall_destination(
-        self, snapshot: Snapshot
+        self, snapshot: Snapshot, *, guardian_gate: bool = True
     ) -> tuple[str | None, int]:
-        """Choose the voluntary town-recall destination without issuing it."""
+        """Choose the voluntary town-recall destination without issuing it.
+
+        ``guardian_gate=False`` names the destination that would be chosen
+        if landings on a blocked guardian floor were not refused; the
+        departure gate below uses it to tell that refusal apart.
+        """
+        def safe(dungeon_id: int) -> bool:
+            if guardian_gate:
+                return self._recall_destination_safe(snapshot, dungeon_id)
+            return self._recall_destination_safe(
+                snapshot, dungeon_id, guardian_gate=False
+            )
+
         recall_dest = None
         recall_dungeon_id = self._target_dungeon_id
         if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
-            and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+            and safe(DUNGEON_ANGBAND)
         ):
             recall_dest = "angband"
         elif (
             self._target_dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
             and self._target_dungeon_id in snapshot.entered_dungeon_ids
-            and self._recall_destination_safe(snapshot, self._target_dungeon_id)
+            and safe(self._target_dungeon_id)
         ):
             recall_dest = "alt-dungeon"
         elif (
@@ -4454,7 +4466,7 @@ class TownMixin:
             and self._fundraising_mode not in {"mine", "scavenge"}
             and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
-            and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)
+            and safe(DUNGEON_YEEK_CAVE)
         ):
             recall_dest = "yeek-cave"
         return recall_dest, recall_dungeon_id
@@ -4859,6 +4871,37 @@ class TownMixin:
         # supply plan before its next shop stop.  With no town claim left, make
         # the genuine no-destination state a visible terminal instead of an
         # unlatched WAIT that is reconsidered forever.
+        if recall_dest is None:
+            gated_destination, gated_dungeon = self._town_recall_destination(
+                snapshot, guardian_gate=False
+            )
+            if gated_destination is not None:
+                # The recall would land on a guardian floor the current kit
+                # cannot pass: whatever made it the target (a conquest latch
+                # committed on an earlier kit, a latched alternate whose
+                # landing has since reached its guardian floor), the dive
+                # would come straight back (guardian-kit-insufficient).
+                # Switch the way the guardian valve does and, with no
+                # landing left, stop visibly (user decisions 2026-09-25,
+                # guardian-recall-pingpong r2/r3).
+                destination_depth = self._dungeon_entry_depth(
+                    snapshot, gated_dungeon, via_recall=True
+                )
+                if self._activate_safe_recall_fallback(
+                    snapshot, destination_depth,
+                    guardian_bounced_dungeon=gated_dungeon,
+                ) is not None:
+                    self.last_reason = "town:unsafe-recall-fallback"
+                    return WAIT_KEY
+                if self._town_claims_active(snapshot):
+                    return None
+                if self._equipment_work_home_route_available():
+                    return None
+                if self._outstanding_equipment_work():
+                    self._town_blocked_reason = "equipment-work-home-route-exhausted"
+                    return self._town_blocked_key(snapshot)
+                self._town_blocked_reason = "guardian-bounce-no-alternate"
+                return self._town_blocked_key(snapshot)
         if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
