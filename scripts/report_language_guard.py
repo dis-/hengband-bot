@@ -136,7 +136,24 @@ def last_assistant_text(transcript: Path) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def _force_utf8_output() -> None:
+    """Claude Code reads hook output as UTF-8 whatever the console codec is.
+
+    Left alone, Python writes stderr in the console's code page (cp932 on this
+    host, or whatever PYTHONIOENCODING says), and the Japanese blocking message
+    would reach the assistant as mojibake.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def main(argv=None) -> int:
+    _force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(Path(__file__).resolve().parents[1]),
                         help="repository root holding jsonlog/ (for the kill switch)")
@@ -174,12 +191,7 @@ def main(argv=None) -> int:
         "直前の報告を日本語で書き直してください。コード・パス・コミット名はそのままで構いません。"
         f"（停止スイッチ: {Path(arguments.root) / KILL_SWITCH}）"
     )
-    stream = getattr(sys.stderr, "buffer", None)
-    if stream is not None:
-        stream.write((message + "\n").encode("utf-8"))
-        stream.flush()
-    else:
-        print(message, file=sys.stderr)
+    print(message, file=sys.stderr, flush=True)
     return 2
 
 

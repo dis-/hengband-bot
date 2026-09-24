@@ -7,6 +7,7 @@ synthetic JSONL file in a temporary directory; no real transcript is read.
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -90,6 +91,41 @@ class ReportLanguageGuardTest(unittest.TestCase):
         message = run.stderr.decode("utf-8")
         self.assertIn("日本語で書き直してください", message)
         self.assertIn("報告は日本語で。", message)
+
+    def test_the_blocking_message_is_utf8_whatever_the_console_codec(self):
+        """Claude Code decodes hook stderr as UTF-8; cp932 bytes arrive garbled."""
+        path = self.transcript(user_prompt("報告して"), assistant(text(ENGLISH_REPORT)))
+        base = {key: value for key, value in os.environ.items()
+                if key not in ("PYTHONIOENCODING", "PYTHONUTF8")}
+        for label, extra in (("unset", {}),
+                             ("cp932", {"PYTHONIOENCODING": "cp932"}),
+                             ("utf8-mode-off", {"PYTHONUTF8": "0",
+                                                "PYTHONIOENCODING": "cp932:strict"})):
+            with self.subTest(environment=label):
+                run = subprocess.run(
+                    [sys.executable, str(SCRIPT), "--root", str(self.root)],
+                    input=json.dumps(self.stop(path)).encode("utf-8"),
+                    capture_output=True, timeout=60, env=dict(base, **extra))
+                self.assertEqual(run.returncode, 2)
+                message = run.stderr.decode("utf-8")  # strict: mojibake raises
+                self.assertIn("日本語で書き直してください", message)
+                self.assertIn("報告は日本語で。", message)
+
+    def test_the_fail_open_note_is_utf8_whatever_the_console_codec(self):
+        """The note quotes the OS error, which names a possibly Japanese path."""
+        missing = self.directory / "報告の記録.jsonl"
+        base = {key: value for key, value in os.environ.items()
+                if key not in ("PYTHONIOENCODING", "PYTHONUTF8")}
+        for label, extra in (("unset", {}), ("cp932", {"PYTHONIOENCODING": "cp932"})):
+            with self.subTest(environment=label):
+                run = subprocess.run(
+                    [sys.executable, str(SCRIPT), "--root", str(self.root)],
+                    input=json.dumps(self.stop(missing)).encode("utf-8"),
+                    capture_output=True, timeout=60, env=dict(base, **extra))
+                self.assertEqual(run.returncode, 0)
+                note = run.stderr.decode("utf-8")  # strict: cp932 bytes raise
+                self.assertIn("not checking", note)
+                self.assertIn("報告の記録.jsonl", note)
 
     def test_a_short_message_under_the_minimum_passes(self):
         path = self.transcript(user_prompt("状況は？"), assistant(text("Pushed. All green.")))
