@@ -181,6 +181,16 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
 
     restored.__dict__.setdefault("_claim_register", ClaimRegister())
     restored.__dict__.setdefault("decision_claim", None)
+    # S2a.1: the per-decision goal slots (reset at every ``choose_key`` entry
+    # anyway), the register's pending closing, and the expectation
+    # registry's record of why it popped an owner.  Absent means "nothing
+    # recorded yet", which is exactly what a fresh process holds.
+    restored.__dict__.setdefault("_decision_goal", None)
+    restored.__dict__.setdefault("_decision_expectation", None)
+    restored.__dict__.setdefault("_hunt_step_target", None)
+    register = restored.__dict__.get("_claim_register")
+    if register is not None:
+        register.__dict__.setdefault("_closing", None)
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")
@@ -214,6 +224,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     )
     registry = restored.__dict__.get("_owner_expectations")
     if registry is not None:
+        registry.__dict__.setdefault("_pops", [])
         for owner, pending in tuple(registry._pending.items()):
             core = pending.progress_core
             if not hasattr(core, "decision_sequence"):

@@ -23,6 +23,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.policy_types import (
+    OWNER_EXPECTATION_MAX_TURNS,
     EmissionState,
     OwnerProgressCore,
     StoreVisit,
@@ -848,6 +849,12 @@ class TownArbiterMixin:
             ):
                 self._batch_sell_pending = None
         visit.close(outcome)
+        # S2a.1 (design rev 9 item 3): one record-only line covers all the
+        # ``_close_store_visit(`` call sites -- the visit's goal is released
+        # with the outcome as its label.  Nothing reads it back.
+        closed_hook = getattr(self, "_claim_store_visit_closed", None)
+        if closed_hook is not None:
+            closed_hook(visit, outcome)
         self._store_visit_last_closed = visit
         self._store_visit = None
 
@@ -927,6 +934,15 @@ class TownArbiterMixin:
     ) -> None:
         self._owner_expectations.post(
             owner, self._owner_progress_core(snapshot), *expected_changes
+        )
+        # S2a.1 (design rev 9 item 2): posting an expectation is the
+        # producer naming the observation this decision waits for.  Record
+        # it in the per-decision slot; nothing selects on it.  The register
+        # imports this module's families, so its import is local.
+        from hengbot.claim_register import observe as claim_observe
+
+        self._decision_expectation = claim_observe(
+            expected_changes, OWNER_EXPECTATION_MAX_TURNS, source=owner
         )
 
     def _owner_may_select(self, snapshot: Snapshot, owner: str) -> bool:

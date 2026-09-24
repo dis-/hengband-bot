@@ -308,6 +308,7 @@ class NavigationMixin:
                     if self._dark_route_goal is not None:
                         goal = self._dark_route_goal
                         self._dark_goal_counts[(goal.y, goal.x)] += 1
+                        self._complete_claim_goal("dark-route-arrived", goal)
                     self._clear_dark_route()
     
         if not self._dark_route:
@@ -321,6 +322,7 @@ class NavigationMixin:
             self._dark_route_expected = step
             key = self._step_toward(snapshot, step)
             self.last_reason = "dark:backtrack"
+            self._declare_reach(self._dark_route_goal)
             return key
     
         step = self._probe_unknown_step(snapshot)
@@ -597,6 +599,7 @@ class NavigationMixin:
         ):
             return key
     
+        self._release_claim_goal("loot-refused-with-evidence", self._loot_target)
         self._loot_target = None
         self._close_store_visit("refused-with-evidence")
         self._descent_target_goal = None
@@ -1081,6 +1084,8 @@ class NavigationMixin:
         # choose another stair rather than path away and then back to this one.
         targets.discard(origin)
         if self._nav_ledger.descent_target == origin:
+            # Standing on the committed stair: the walk arrived.
+            self._complete_claim_goal("descent-arrived", origin)
             self._nav_ledger.clear_descent_route()
         if not targets:
             # Night in a static town: the '>' entrance is unlit and absent from
@@ -1118,6 +1123,7 @@ class NavigationMixin:
         ) is None:
             avoided_store_cells.clear()
         if origin == target:
+            self._complete_claim_goal("descent-arrived", target)
             self._nav_ledger.clear_descent_route()
             self._descent_refusal_reason = "standing-on-target"
             return None
@@ -1135,6 +1141,7 @@ class NavigationMixin:
                 # use remaining length, while fresh BFS uses distance from origin.
                 self._nav_ledger.observe("descend", target, len(route))
                 if self._nav_ledger.is_expired("descend", target):
+                    self._release_claim_goal("descent-expired", target)
                     self._descent_target_goal = None
                     self._descent_refusal_reason = "expired-target"
                     return None
@@ -1143,6 +1150,7 @@ class NavigationMixin:
                     if route[-1] == target
                     else "approach-descent"
                 )
+                self._declare_reach(target)
                 return nxt
             # A wall/monster or an off-path survival/combat move invalidates
             # only the path.  The target remains owned by the ledger.
@@ -1162,6 +1170,7 @@ class NavigationMixin:
                 # the game keeps rejecting accumulates stall here.
                 self._nav_ledger.observe("descend", pos, path_distance)
                 if self._nav_ledger.is_expired("descend", pos):
+                    self._release_claim_goal("descent-expired", pos)
                     self._descent_target_goal = None
                     self._descent_refusal_reason = "expired-target"
                     return None
@@ -1173,6 +1182,7 @@ class NavigationMixin:
                 path.reverse()
                 self._nav_ledger.commit_descent_route(target, path)
                 self.last_reason = "seek-downstairs"
+                self._declare_reach(target)
                 return first
             grid = snapshot.grids.get(pos)
             if pos != origin and grid is not None:
@@ -1211,6 +1221,7 @@ class NavigationMixin:
             # yield this stair — expire it.
             self._nav_ledger.observe("descend", target, best_score[2])
             if self._nav_ledger.is_expired("descend", target):
+                self._release_claim_goal("descent-expired", target)
                 self._descent_target_goal = None
                 return None
             path = []
@@ -1221,10 +1232,12 @@ class NavigationMixin:
             path.reverse()
             self._nav_ledger.commit_descent_route(target, path)
             self.last_reason = "approach-descent"
+            self._declare_reach(target)
         else:
             # No path and no frontier can make progress toward this commitment.
             # Expire it now so deterministic selection cannot choose it again.
             self._nav_ledger.expire("descend", target)
+            self._release_claim_goal("descent-no-route", target)
             self._descent_target_goal = None
         return best_first
 
@@ -1246,6 +1259,9 @@ class NavigationMixin:
                 self._retire_explore_goal(identity)
                 identity = None
             elif self._explore_goal_is_complete(snapshot, identity):
+                self._complete_claim_goal(
+                    "explore-goal-complete", identity.position
+                )
                 self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
                 self._explore_goal_identity = None
                 self._explore_path = []

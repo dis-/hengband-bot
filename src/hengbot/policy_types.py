@@ -259,11 +259,37 @@ class OwnerExpectation:
     expected_changes: frozenset[str]
 
 
+EXPECTATION_POP_SATISFIED = "satisfied"
+EXPECTATION_POP_EXPIRED = "expired"
+EXPECTATION_POP_FLOOR = "floor"
+EXPECTATION_POP_RELEASED = "released"
+
+
 class OwnerExpectationRegistry:
-    """Yield result-waiting owners until their issuing progress core changes."""
+    """Yield result-waiting owners until their issuing progress core changes.
+
+    S2a.1 (design rev 9 item 3): every pop also records *why* -- the expected
+    change arrived (``satisfied``), ``OWNER_EXPECTATION_MAX_TURNS`` decisions
+    passed (``expired``), the floor changed (``floor``) or the owner released
+    it (``released``).  The record is read only by the claim register's
+    declaration point, which completes an ``Observe`` claim on ``satisfied``
+    alone; no selection reads it.  A registry pickled before S2a.1 has no
+    ``_pops``; ``_record_pop`` and ``drain_pops`` create it on first use.
+    """
 
     def __init__(self) -> None:
         self._pending: dict[str, OwnerExpectation] = {}
+        self._pops: list[tuple[str, str]] = []
+
+    def _record_pop(self, owner: str, why: str) -> None:
+        self.__dict__.setdefault("_pops", []).append((owner, why))
+
+    def drain_pops(self) -> list[tuple[str, str]]:
+        """The ``(owner, why)`` pops since the last drain, oldest first."""
+        pops = self.__dict__.setdefault("_pops", [])
+        drained = list(pops)
+        pops.clear()
+        return drained
 
     def post(
         self,
@@ -290,12 +316,14 @@ class OwnerExpectationRegistry:
             return True
         if pending.progress_core.floor != progress_core.floor:
             self._pending.pop(owner, None)
+            self._record_pop(owner, EXPECTATION_POP_FLOOR)
             return True
         if (
             progress_core.decision_sequence - pending.progress_core.decision_sequence
             >= OWNER_EXPECTATION_MAX_TURNS
         ):
             self._pending.pop(owner, None)
+            self._record_pop(owner, EXPECTATION_POP_EXPIRED)
             return True
         if any(
             getattr(pending.progress_core, component)
@@ -303,6 +331,7 @@ class OwnerExpectationRegistry:
             for component in pending.expected_changes
         ):
             self._pending.pop(owner, None)
+            self._record_pop(owner, EXPECTATION_POP_SATISFIED)
             return True
         return False
 
@@ -326,7 +355,8 @@ class OwnerExpectationRegistry:
         return self._pending.get(owner)
 
     def release(self, owner: str) -> None:
-        self._pending.pop(owner, None)
+        if self._pending.pop(owner, None) is not None:
+            self._record_pop(owner, EXPECTATION_POP_RELEASED)
 
 @dataclass(frozen=True)
 class TownNeed:

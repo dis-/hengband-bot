@@ -88,8 +88,20 @@ from hengbot.claim_register import (
     owner_of as claim_owner_of,
     reach as claim_reach,
     terminal as claim_terminal,
+    GOAL_OBSERVE as CLAIM_GOAL_OBSERVE,
+    GOAL_REACH as CLAIM_GOAL_REACH,
+    GOAL_TERMINAL as CLAIM_GOAL_TERMINAL,
+)
+from hengbot.claim_goal_typing import (
+    FLOOR_CHANGE as CLAIM_FLOOR_CHANGE,
+    FLOOR_EXPECTATION as CLAIM_FLOOR_EXPECTATION,
+    OBSERVE_WITHIN as CLAIM_OBSERVE_WITHIN,
+    STORE_OPERATION as CLAIM_OBSERVE_STORE_OPERATION,
+    goal_typing as claim_goal_typing,
+    is_survival as claim_is_survival,
 )
 from hengbot.policy_types import (
+    EXPECTATION_POP_SATISFIED,
     OWNER_EXPECTATION_MAX_TURNS,
     DecisionCandidate,
     DecisionContext,
@@ -2342,6 +2354,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        # S2a.1 (design rev 9 item 2): the per-decision goal slot.  Only a
+        # producer writes it, on the board whose key uses its target; the
+        # declaration at the exit reads nothing else.  Record-only.
+        self._decision_goal = None
+        self._decision_expectation = None
         self._staged_prompt_chain = None
         self._intentional_entrance_activation = False
         pending_reward = self._fixed_quest_reward_pending
@@ -2753,7 +2770,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # retired Home approach after observation so a same-decision
             # counterfactual cannot leak its target across owner stamps.
             self._close_store_visit("equipment-transaction-owner-retired")
+            self._release_claim_goal(
+                "shop-approach:equipment-transaction-owner-retired",
+                self._shopping_approach_goal,
+            )
             self._shopping_approach_goal = None
+            self._release_town_travel_claim(
+                "town-travel:equipment-transaction-owner-retired"
+            )
             self._town_travel_state = None
             self._town_travel_fallback = None
         here = snapshot.grid_at(snapshot.player.position)
@@ -2836,76 +2860,169 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             opened_sequence=self._decision_sequence,
         )
 
-    def _claim_goal_cell(self, snapshot: Snapshot):
-        """The cell the current owner is already travelling to, if any.
+    # -- S2a.1 goal slot and closing paths (design rev 9.1 items 2-3) -------
+    #
+    # Every helper below is record-only: it writes the per-decision goal slot
+    # or calls the claim register, and returns nothing a producer reads.  A
+    # producer calls them on the board that uses its own target; the
+    # declaration at the ``choose_key`` exit reads only the slot.
 
-        Only goals the policy has *already* committed to are read; nothing is
-        searched and no distance is recomputed, so this cannot cost a decision
-        anything or disagree with the producer that set the goal.
+    def _declare_reach(self, cell) -> None:
+        """The producer names the cell this decision walks toward.
+
+        The slot is stamped with the reason the producer has *already* set
+        for this decision, so a later rewrite that relabels the decision (a
+        detector, the entrance step-off, a retirement rewrite) cannot inherit
+        the cell: the declaration only accepts a slot whose stamp is the
+        decision's final reason.
         """
-        route = getattr(self, "_detected_threat_route", None)
-        if (
-            isinstance(route, tuple)
-            and len(route) == 3
-            and route[0] == snapshot.floor_key
-            and isinstance(route[1], Position)
-        ):
-            return route[1]
-        visit = getattr(self, "_store_visit", None)
-        if visit is not None and isinstance(visit.goal, Position):
-            return visit.goal
-        approach = getattr(self, "_shopping_approach_goal", None)
-        if isinstance(approach, Position):
-            return approach
-        travel = getattr(self, "_town_travel_state", None)
-        if travel is not None and isinstance(
-            getattr(travel, "goal", None), Position
-        ):
-            return travel.goal
-        dark = getattr(self, "_dark_route_goal", None)
-        if isinstance(dark, Position):
-            return dark
-        return None
-
-    def _claim_expectation(self):
-        """The owner expectation this decision's reason already posted.
-
-        ``OwnerExpectationRegistry`` is keyed by its own owner vocabulary --
-        the reason itself for some producers (``return:recall``) and its
-        leading segment for others (``equipment-transaction``) -- which design
-        section 2 counts as a separate owner notion and S3 folds into the
-        claim.  Until then only those two spellings are looked up, so the goal
-        is taken from an expectation that provably belongs to this reason and
-        never from an unrelated owner's.
-        """
-        registry = getattr(self, "_owner_expectations", None)
-        if registry is None:
-            return None
-        reason = self.last_reason or ""
-        for name in (reason, reason.split(":", 1)[0]):
-            if not name:
-                continue
-            posted = registry.pending(name)
-            if posted is not None:
-                return posted
-        return None
-
-    def _claim_goal(self, snapshot: Snapshot, key) -> Goal:
-        """Declare this decision's goal from state the policy already holds."""
-        cell = self._claim_goal_cell(snapshot)
-        if cell is not None:
-            return claim_reach((cell.y, cell.x))
-        posted = self._claim_expectation()
-        if posted is not None:
-            return claim_observe(
-                posted.expected_changes, OWNER_EXPECTATION_MAX_TURNS
+        if isinstance(cell, Position):
+            self._decision_goal = (
+                self.last_reason or "",
+                claim_reach((cell.y, cell.x)),
             )
-        if key is None or key == "":
-            # Design 4: an empty key is a claim waiting for an observation,
-            # never an unattributed board.  With no posted expectation to name
-            # the change, the board itself advancing is the observation.
-            return claim_observe(("turn",), OWNER_EXPECTATION_MAX_TURNS)
-        return claim_terminal(self.last_reason or "policy:none")
+
+    _CLAIM_ANY_CELL = object()
+
+    def _claim_close(
+        self,
+        event: str,
+        label: str,
+        *,
+        cell=_CLAIM_ANY_CELL,
+        kinds: tuple[str, ...] | None = None,
+        owner: ClaimOwner | None = None,
+        observe_sources: tuple[str, ...] | None = None,
+    ) -> None:
+        """Close the standing claim when it is the goal being ended here.
+
+        The standing claim is the one the previous decision declared.  It is
+        closed only when it is still open, of one of ``kinds``, owned by
+        ``owner`` when one is named, and -- when the site names the ``cell``
+        it is dropping -- a Reach goal aimed at exactly that cell (a site
+        whose cell is ``None`` had no goal to drop and closes nothing).  A
+        site that names a cell closes only Reach goals unless it says
+        otherwise; an ``Observe`` goal is closed only when
+        ``observe_sources`` is ``None`` or names its source.  So a site that
+        drops *its* goal can never close another owner's.
+        """
+        register = getattr(self, "_claim_register", None)
+        standing = register.current if register is not None else None
+        if standing is None or not standing.is_open:
+            return
+        cell_named = cell is not self._CLAIM_ANY_CELL
+        if kinds is None:
+            kinds = (
+                (CLAIM_GOAL_REACH,)
+                if cell_named
+                else (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
+            )
+        goal = standing.goal
+        if goal.kind not in kinds:
+            return
+        if owner is not None and standing.owner != owner:
+            return
+        if goal.kind == CLAIM_GOAL_REACH and cell_named:
+            if not isinstance(cell, Position) or goal.cell != (cell.y, cell.x):
+                return
+        if (
+            goal.kind == CLAIM_GOAL_OBSERVE
+            and observe_sources is not None
+            and goal.source not in observe_sources
+        ):
+            return
+        if event == "complete":
+            register.complete(label)
+        else:
+            register.release(label)
+
+    def _release_claim_goal(
+        self, label: str, cell=_CLAIM_ANY_CELL, **scope
+    ) -> None:
+        """A producer gives up its multi-decision goal (design rev 9 item 3)."""
+        self._claim_close("release", label, cell=cell, **scope)
+
+    def _complete_claim_goal(
+        self, label: str, cell=_CLAIM_ANY_CELL, **scope
+    ) -> None:
+        """A producer's own arrival or confirmation branch saw the goal met."""
+        self._claim_close("complete", label, cell=cell, **scope)
+
+    def _complete_observed_effect(self, label: str) -> None:
+        """A posted store/Home operation's effect was confirmed (item 3)."""
+        self._complete_claim_goal(label, kinds=(CLAIM_GOAL_OBSERVE,))
+
+    def _claim_store_visit_closed(self, visit, outcome: str) -> None:
+        """``_close_store_visit`` ended the visit that owned a store goal.
+
+        The visit's entrance (``visit.goal``) is the Reach goal of the trip
+        and its posted operation is the ``Observe`` goal of the store owner.
+        A normal leave (``completed``) is not a give-up: the operation's own
+        confirmation site judges its effect, so only the other outcomes
+        release.
+        """
+        if outcome == "completed":
+            return
+        self._release_claim_goal(
+            f"store-visit:{outcome}",
+            getattr(visit, "goal", None),
+            kinds=(CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE),
+            observe_sources=(CLAIM_OBSERVE_STORE_OPERATION,),
+        )
+
+    def _claim_goal(
+        self, snapshot: Snapshot, key, owner: ClaimOwner, reason: str, standing
+    ) -> tuple[Goal, bool]:
+        """This decision's goal, from the slot only; and whether it is missing.
+
+        Design rev 9 item 2.  The kind comes from the checked-in typing table
+        (``claim_goal_typing``); the content comes from what the producer
+        wrote on this board:
+
+        * ``Reach``: the slot's cell, when the slot is stamped with this
+          decision's reason; otherwise the decision declares ``Terminal`` and
+          records ``goal_missing``.
+        * ``Observe``: a floor change is always the table's own content; any
+          other ``Observe`` takes the expectation the producer posted on this
+          board, else the same owner's still-open ``Observe`` claim (a
+          transaction's later keys continue it), else the table's content.
+        * ``Terminal``: the effect label.
+        """
+        row = claim_goal_typing(owner.value, reason)
+        effect = claim_terminal(reason or "policy:none")
+        if row is None or row.kind == CLAIM_GOAL_TERMINAL:
+            return effect, False
+        if row.kind == CLAIM_GOAL_REACH:
+            slot = getattr(self, "_decision_goal", None)
+            if (
+                isinstance(slot, tuple)
+                and len(slot) == 2
+                and slot[0] == reason
+                and isinstance(slot[1], Goal)
+                and slot[1].kind == CLAIM_GOAL_REACH
+            ):
+                return slot[1], False
+            return effect, True
+        within = CLAIM_OBSERVE_WITHIN.get(row.content, OWNER_EXPECTATION_MAX_TURNS)
+        if row.content == CLAIM_FLOOR_CHANGE:
+            return (
+                claim_observe(
+                    CLAIM_FLOOR_EXPECTATION, within, source=CLAIM_FLOOR_CHANGE
+                ),
+                False,
+            )
+        posted = getattr(self, "_decision_expectation", None)
+        if isinstance(posted, Goal) and posted.kind == CLAIM_GOAL_OBSERVE:
+            return posted, False
+        if (
+            standing is not None
+            and standing.is_open
+            and standing.owner == owner
+            and standing.goal.kind == CLAIM_GOAL_OBSERVE
+            and standing.goal.source != CLAIM_FLOOR_CHANGE
+        ):
+            return standing.goal, False
+        return claim_observe((row.content,), within, source=row.content), False
 
     def _claim_owner_retired(self, owner) -> bool:
         """Whether the arbiter already holds this owner's claim as retired."""
@@ -2918,6 +3035,52 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and telemetry.get("producer_owner") == owner.value
         )
 
+    def _claim_exit_completion(self, snapshot: Snapshot, standing, pops) -> None:
+        """Close the standing claim on what this board shows (design item 3).
+
+        * Reach: the player stands on the goal cell on the claim's own floor
+          (never on the open wilderness, whose grids are not local-map
+          cells), or stands in the store whose entrance is the goal.
+        * Observe, floor change: ``snapshot.floor_key`` differs from the
+          floor the claim was opened on.
+        * Observe, posted expectation: the registry popped that expectation
+          because the expected change arrived (``satisfied``); an expired or
+          floor-change pop completes nothing.
+        """
+        if standing is None or not standing.is_open:
+            return
+        goal = standing.goal
+        position = snapshot.player.position
+        same_floor = standing.floor is None or tuple(standing.floor) == tuple(
+            snapshot.floor_key
+        )
+        if goal.kind == CLAIM_GOAL_REACH and goal.cell is not None:
+            if not same_floor or snapshot.on_open_wilderness:
+                return
+            if goal.cell == (position.y, position.x):
+                self._complete_claim_goal("reached")
+                return
+            visit = getattr(self, "_store_visit", None)
+            entrance = getattr(visit, "goal", None)
+            if (
+                snapshot.store is not None
+                and isinstance(entrance, Position)
+                and goal.cell == (entrance.y, entrance.x)
+            ):
+                self._complete_claim_goal("entered-store")
+            return
+        if goal.kind != CLAIM_GOAL_OBSERVE:
+            return
+        if goal.source == CLAIM_FLOOR_CHANGE:
+            if standing.floor is not None and not same_floor:
+                self._complete_claim_goal("floor-changed")
+            return
+        if any(
+            owner == goal.source and why == EXPECTATION_POP_SATISFIED
+            for owner, why in pops
+        ):
+            self._complete_claim_goal("expectation-satisfied")
+
     def _record_decision_claim(self, snapshot: Snapshot, key) -> None:
         """Attribute this decision to a claim and record it for the row.
 
@@ -2928,30 +3091,44 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         the telemetry capture: that is an observer scope whose work is
         discarded (design 5.4), so a claim computed there would never be the
         claim the decision was made under.
+
+        S2a.1 (design rev 9.1): before declaring, the previous decision's
+        claim is closed if this board ends it -- a closing a producer already
+        recorded during this decision, the exit's own completion test, or the
+        survival preemption (``suspend``, survival only).  The row carries the
+        closed claim as ``closed_claim``, because the row that owned it is
+        already written.
         """
+        registry = getattr(self, "_owner_expectations", None)
+        pops = (
+            registry.drain_pops()
+            if registry is not None and hasattr(registry, "drain_pops")
+            else []
+        )
         register = getattr(self, "_claim_register", None)
         if register is None:
             self.decision_claim = None
             return
         position = snapshot.player.position
-        closed = None
+        reason = self.last_reason or ""
+        standing = register.current
+        self._claim_exit_completion(snapshot, standing, pops)
+        survival = claim_is_survival(
+            reason, getattr(self, "_last_return_trigger", None)
+        )
         standing = register.current
         if (
-            standing is not None
-            and standing.closed is None
-            and standing.goal.kind == "Reach"
-            and standing.goal.cell == (position.y, position.x)
+            survival
+            and standing is not None
+            and standing.is_open
+            and not standing.survival
+            and standing.goal.kind in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
         ):
-            # The board shows the declared cell reached: the goal is met, so
-            # the claim closes here and the next owner change is explicit.
-            finished = register.complete()
-            closed = {
-                "claim_id": finished.claim_id,
-                "owner": finished.owner.value,
-                "state": finished.state.value,
-                "closed": finished.closed,
-            }
-        reason = self.last_reason or ""
+            # Design rev 9 item 3: survival preempts and suspends; it is the
+            # only caller of ``suspend``.
+            register.suspend("survival-preemption")
+        finished = register.take_closing()
+        closed = finished.closing_dict() if finished is not None else None
         arbiter = getattr(self, "_town_turn_arbiter", None)
         # ``choose_key`` builds the arbiter before any of its exits, but a
         # restored checkpoint can still carry ``None`` here; the module-level
@@ -2968,8 +3145,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if arbiter is not None
             else reason_owner_family(reason)
         )
-        goal = self._claim_goal(snapshot, key)
-        register.declare(owner, goal, opened_sequence=self._decision_sequence)
+        goal, goal_missing = self._claim_goal(
+            snapshot, key, owner, reason, register.current
+        )
+        register.declare(
+            owner,
+            goal,
+            opened_sequence=self._decision_sequence,
+            floor=snapshot.floor_key,
+            survival=survival,
+        )
         if self._claim_owner_retired(owner):
             claim = register.retire()
         elif key is None or key == "":
@@ -2978,7 +3163,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim = register.keep_active()
         distance = (
             position.distance_to(Position(*claim.goal.cell))
-            if claim.goal.kind == "Reach" and claim.goal.cell is not None
+            if claim.goal.kind == CLAIM_GOAL_REACH and claim.goal.cell is not None
             else None
         )
         self.decision_claim = {
@@ -2986,6 +3171,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "decision_sequence": self._decision_sequence,
             "reason": reason,
             "closed_claim": closed,
+            "goal_missing": goal_missing,
+            "survival": survival,
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
@@ -3402,6 +3589,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if self._store_visit is not None:
                     self._store_visit.transition(StoreVisitPhase.APPROACHING)
                 if interrupted_travel_entry:
+                    self._release_town_travel_claim(
+                        "town-travel:interrupted-entry"
+                    )
                     self._town_travel_state = None
                 step = self._shopping_approach_step(
                     snapshot, posted_entry_owner
@@ -3524,6 +3714,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     # A duplicate board after the original post alone is only
                     # a lagged entry observation and must retain the barrier.
                     self._town_travel_fallback = state.goal
+                    self._release_town_travel_claim(
+                        "town-travel:interrupted-replan-repeated"
+                    )
                     self._town_travel_state = None
                     if (
                         entry_observation_pending
@@ -3632,6 +3825,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_atomic_withdraw_posted_turn = None
             self._home_entry_operation_posted = False
             if after_count >= before_count + quantity:
+                # Design rev 9 item 3: the posted Home withdrawal's effect is
+                # confirmed.  Before ``_release_invalid_store_visit``, which
+                # can close the visit before the exit sees it.
+                self._complete_observed_effect("home-withdraw-observed")
                 if (
                     self._store_visit is not None
                     and self._store_visit.store_type == STORE_HOME
@@ -3828,6 +4025,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or snapshot.player.gold < before_gold
             )
             if confirmed:
+                # Design rev 9 item 3: the posted purchase is confirmed.
+                self._complete_observed_effect("purchase-observed")
                 self._town_visit_purchases.add(watched_signature)
                 bought = max(
                     0,
@@ -4059,6 +4258,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 deposit_observed = len(landed) == len(entries)
                 if deposit_observed:
+                    # Design rev 9 item 3: the posted Home deposit's effect is
+                    # confirmed, before ``_release_invalid_store_visit``.
+                    self._complete_observed_effect("home-deposit-observed")
                     if (
                         self._store_visit is not None
                         and self._store_visit.store_type == STORE_HOME
@@ -6014,6 +6216,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
         if combat_adjacent and not player.afraid:
+            # The hunt closed on its hostile: combat takes over.
+            self._complete_claim_goal(
+                "hunt-closed-to-melee",
+                kinds=(CLAIM_GOAL_REACH,),
+                owner=ClaimOwner.HUNT,
+            )
             self.last_reason = "melee"
             return self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
@@ -6061,6 +6269,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             step = self._hunt_step(snapshot, quest_targets, allow_cooling=False)
             if step is not None:
                 self.last_reason = "hunt:quest-target"
+                self._declare_reach(getattr(self, "_hunt_step_target", None))
                 return self._step_toward(snapshot, step)
 
         # 2s. Survival gate (R1): starvation safety is mode- and objective-
@@ -6103,6 +6312,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if neighbors:
                     self.last_reason = "town:wait-recall-step-off"
+                    self._declare_reach(neighbors[0])
                     return self._step_toward(snapshot, neighbors[0])
             self.last_reason = "town:wait-recall"
             return WAIT_KEY
@@ -6673,6 +6883,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 clear_step = self._hunt_step(snapshot, strategic_hostiles)
                 if clear_step is not None:
                     self.last_reason = "clear-descent"
+                    self._declare_reach(
+                        getattr(self, "_hunt_step_target", None)
+                    )
                     return self._step_toward(snapshot, clear_step)
             travel = self._entrance_travel_key(snapshot, self._descent_target_goal)
             if travel is not None:
@@ -6690,6 +6903,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         step = self._hunt_step(snapshot, strategic_hostiles)
         if step is not None:
             self.last_reason = "hunt"
+            self._declare_reach(getattr(self, "_hunt_step_target", None))
             return self._step_toward(snapshot, step)
 
         # 7b. Escape a walled-off floor. If we have spent STUCK_ESCAPE_LIMIT turns
@@ -6787,6 +7001,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._recent.clear()
                 self._stuck_escape_streak = 0
                 self.last_reason = "breakout:seek-frontier"
+                self._declare_explore_goal()
                 return self._step_toward(snapshot, step)
             # No reachable unexplored floor or frontier remains. Only now use a
             # local least-visited step to keep moving while secret-wall searches
@@ -6820,6 +7035,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         step = self._explore_step(snapshot)
         if step is not None:
             self.last_reason = "explore"
+            self._declare_explore_goal()
             return self._step_toward(snapshot, step)
 
         # The planner deliberately excludes the current tile as a destination.
@@ -7635,6 +7851,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _clear_dark_route(self) -> None:
         self._dark_route.clear()
+        self._release_claim_goal(
+            "dark-route-cleared", getattr(self, "_dark_route_goal", None)
+        )
         self._dark_route_goal = None
         self._dark_route_expected = None
 
@@ -8619,6 +8838,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             state = self._town_travel_state
             if state is not None:
                 self._town_travel_fallback = state.goal
+                self._release_town_travel_claim("town-travel:posting-refused")
                 self._town_travel_state = None
         if (
             owner in {"shop:leave", "shop:await-leave-confirmation"}
@@ -10151,6 +10371,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.player.position.distance_to(goal) >= state.best_distance
         ):
             self._town_travel_fallback = goal
+            self._release_town_travel_claim("town-travel:entrance-rejected")
             self._town_travel_state = None
             return None
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
@@ -10676,6 +10897,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (neighbor, neighbor if first_step is None else first_step)
                 )
         if target not in candidates:
+            self._release_claim_goal("treasure-no-route", target)
             self._treasure_target = None
         return None
 
@@ -10794,6 +11016,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         step = self._loot_step(snapshot)
         if step is not None:
             self.last_reason = "victory:seek-loot"
+            self._declare_reach(self._loot_target)
             return self._step_toward(snapshot, step)
         self._returning_to_town = True
         return self._return_to_town_key(
@@ -11269,6 +11492,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._nav_ledger_deferred_loot.add(committed_loot)
                 self._loot_defer_blocker = "navigation-ledger:loot"
                 if self._loot_target == committed_loot:
+                    self._release_claim_goal(
+                        "loot-navigation-expired", committed_loot
+                    )
                     self._loot_target = None
         identity = self._explore_goal_identity
         if identity is not None:
@@ -12401,9 +12627,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             hold = None
         route = getattr(self, "_detected_threat_route", None)
         if route is not None and route[0] != snapshot.floor_key:
+            self._release_claim_goal("choke-floor-changed", route[1])
             self._detected_threat_route = route = None
         if visible_hostiles:
             self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-hostile-visible", route[1])
             self._detected_threat_route = None
             return None
         if (
@@ -12414,6 +12643,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # Expiry releases this anticipatory owner for the rest of the
             # floor.  Keep the expired episode as the latch until a visible
             # hostile or a floor change supplies the only re-arm stimulus.
+            if route is not None:
+                self._release_claim_goal("choke-hold-expired", route[1])
             self._detected_threat_route = None
             return None
         detected = [
@@ -12423,6 +12654,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
         if not detected:
             self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-threat-undetected", route[1])
             self._detected_threat_route = None
             return None
 
@@ -12457,6 +12690,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if not breeders and len(melee_threats) < 2 and not committed:
             self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-threat-dispersed", route[1])
             self._detected_threat_route = None
             return None
         if (
@@ -12471,6 +12706,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # visible, sleeps, moves out of range, or drops below its count.
             # Standing at a choke is the retreat's own goal: the episode is
             # handed to the bounded hold, which owns it from here.
+            if route is not None:
+                self._complete_claim_goal("choke-reached", route[1])
             self._detected_threat_route = None
             hold = self._detected_threat_hold
             if hold is None or hold[0] != snapshot.floor_key:
@@ -12486,10 +12723,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = self._position_target_step(snapshot, route[1])
                 if step is not None:
                     self.last_reason = "detected:prepare-choke"
+                    self._declare_reach(route[1])
                     return self._step_toward(snapshot, step)
             # Arrived at the chosen cell without it being a choke any more, or
             # it is no longer reachable: the commitment is spent either way.
             # Re-derive one below from what is perceived now.
+            if snapshot.player.position == route[1]:
+                self._complete_claim_goal("choke-cell-reached", route[1])
+            else:
+                self._release_claim_goal("choke-cell-unreachable", route[1])
             self._detected_threat_route = route = None
             committed = []
         threats = breeders or melee_threats
@@ -12516,6 +12758,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         )
         self.last_reason = "detected:prepare-choke"
+        if self._detected_threat_route is not None:
+            self._declare_reach(self._detected_threat_route[1])
         return self._step_toward(snapshot, step)
 
 
@@ -13136,8 +13380,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _retire_explore_goal(
         self, identity: ExplorationGoalIdentity
     ) -> None:
+        self._release_claim_goal("explore-goal-retired", identity.position)
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self._explore_goal_identity = None
+
+    def _release_town_travel_claim(self, label: str) -> None:
+        """Record-only: native travel toward ``_town_travel_state.goal`` ends."""
+        state = getattr(self, "_town_travel_state", None)
+        self._release_claim_goal(label, getattr(state, "goal", None))
+
+    def _declare_explore_goal(self) -> None:
+        """Record-only: the explore producer's committed goal cell."""
+        identity = self._explore_goal_identity
+        if identity is not None:
+            self._declare_reach(identity.position)
 
     def _route_to_explore_goal(
         self,

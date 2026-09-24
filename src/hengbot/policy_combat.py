@@ -3401,4 +3401,7 @@ class CombatMixin:
         )
         if step in self._engagement_avoid_cells:
             return None
+        # Record-only (S2a.1): the hostile this step closes on; the caller
+        # that turns the step into its key names it as the decision's goal.
+        self._hunt_step_target = target.position
         return step

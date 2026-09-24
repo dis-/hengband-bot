@@ -20,6 +20,15 @@ twice more: by ``producer``, which separates the dungeon producers the two
 catch-all families hold, and by ``claim_id``, which counts every unended claim
 that gave way to another.  The first is the number design 5.2 gates S2 on; the
 other two say where it is hiding when the family breakdown looks quiet.
+
+Last, the four numbers S2b's gate reads (design rev 9.1 item 4,
+``ownership_metrics.gate_numbers``): (a) owner changes that left a Reach /
+Observe claim unclosed, (b) the same owner replacing its own unclosed Reach /
+Observe goal, both outside survival; (c) how every Reach / Observe claim ended,
+per owner and kind, with ``goal_missing`` per owner; and (d) Terminal claims
+that spanned several rows while the player moved.  Since a Terminal claim now
+closes when it is posted, the implicit-handoff counts above fall mechanically;
+(c) and (d) are printed beside them so a fall caused by wrong typing shows.
 """
 
 from __future__ import annotations
@@ -32,10 +41,12 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hengbot.ownership_metrics import (  # noqa: E402
+    ENDINGS,
     OWNERSHIP_CLAIMS_NAME,
     RUNTIME_SOURCE_LAST_DECISION,
     RUNTIME_SOURCE_NONE,
     aggregate,
+    gate_numbers,
     implicit_handoffs,
     read_records,
     summarise_sessions,
@@ -61,6 +72,55 @@ NO_CLAIM_LEDGER = (
 )
 
 
+def gate_report(rows, hours: float | None = None, *, owner_of=None) -> list[str]:
+    """Design rev 9.1 item 4: the four numbers S2b's gate reads."""
+    gate = gate_numbers(rows, owner_of=owner_of)
+
+    def rate(count: int) -> str:
+        return f"{count / hours:.3f}" if hours else "n/a"
+
+    dropped = gate["dropped_by_other_owner"]
+    retargets = gate["retargets"]
+    mistyped = gate["mistyped_terminal"]
+    lines = [
+        "S2b gate (design rev 9.1 item 4), outside survival for (a)/(b):",
+        f"(a) owner changes with the previous Reach/Observe claim not closed "
+        f"{dropped['count']:>5}   per runtime hour {rate(dropped['count'])}",
+    ]
+    for pair, times in list(dropped["pairs"].items())[:20]:
+        lines.append(f"    {pair:<48} {times}")
+    lines.append(
+        f"(b) same owner replacing its unclosed Reach/Observe goal      "
+        f"{retargets['count']:>5}   per runtime hour {rate(retargets['count'])}"
+    )
+    for owner, times in list(retargets["by_owner"].items())[:20]:
+        lines.append(f"    {owner:<48} {times}")
+    lines.append(
+        "(c) how Reach/Observe claims ended, per owner/kind: "
+        + " / ".join(ENDINGS)
+    )
+    for name, counts in gate["endings"].items():
+        lines.append(
+            f"    {name:<40} "
+            + " ".join(f"{counts[ending]:>5}" for ending in ENDINGS)
+        )
+    if not gate["endings"]:
+        lines.append("    (no Reach/Observe claim)")
+    lines.append("    goal_missing rows per owner:")
+    for owner, times in gate["goal_missing"].items():
+        lines.append(f"      {owner:<46} {times}")
+    if not gate["goal_missing"]:
+        lines.append("      (none)")
+    lines.append(
+        f"(d) multi-row Terminal claims whose position changed           "
+        f"{mistyped['count']:>5}   (position unknown: "
+        f"{mistyped['position_unknown']})"
+    )
+    for owner, times in list(mistyped["by_owner"].items())[:20]:
+        lines.append(f"    {owner:<48} {times}")
+    return lines
+
+
 def claim_report(rows, hours: float | None) -> list[str]:
     """Design 5.2, from the claim ledger: implicit owner changes per hour."""
     lines = [f"claim rows     {len(rows)}"]
@@ -77,6 +137,7 @@ def claim_report(rows, hours: float | None) -> list[str]:
             lines.append(f"    {pair:<48} {times}")
         if not measured["pairs"]:
             lines.append("    (none)")
+    lines.extend(gate_report(rows, hours))
     return lines
 
 
@@ -232,6 +293,7 @@ def main(argv: list[str] | None = None) -> int:
                         implicit_handoffs(claim_rows, by=by)
                         for by in CLAIM_BREAKDOWNS
                     ],
+                    "gate": gate_numbers(claim_rows),
                 },
                 "blind_spot": BLIND_SPOT,
             },

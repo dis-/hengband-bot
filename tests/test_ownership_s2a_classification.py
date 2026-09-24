@@ -56,6 +56,10 @@ a claim with a ``Terminal`` goal has no closure path at all in S1
 (``ClaimRegister.release`` and ``.suspend`` have no caller, and ``complete``
 fires only when a ``Reach`` cell is reached), so 1,808 of those 2,591 claims
 could never end explicitly.  That is recorded in the report, not fixed here.
+
+Stage S2a.1 fixed it (``tests/test_ownership_s2a1_closure.py``): all three
+owner changes of this replay are now closed, so A4 pins the three changes as
+raw owner changes and the implicit count as 0 (before and after the census).
 """
 
 from __future__ import annotations
@@ -88,7 +92,7 @@ from hengbot.town_arbiter import (
 
 import ownership_claim_lint
 
-from test_ownership_claims import _Replay, _rows, _volatile_free
+from test_ownership_claims import _Replay, _owner_changes, _rows, _volatile_free
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,7 +151,13 @@ AFTER_PAIRS = {
     "combat>positioning": 1,
 }
 AFTER_CATCH_ALL_ROWS = 0
-IMPLICIT_HANDOFFS = 3
+# The three owner changes of the window, closed or not.  S2a measured all
+# three as implicit; S2a.1 (design rev 9.1 item 3) closes each of them -- the
+# explore goal completes, the positioning retreat is released, melee is a
+# Terminal claim closed on posting -- so the implicit count is now 0, under
+# either census.  The pairs are pinned as raw owner changes instead.
+OWNER_CHANGES = 3
+IMPLICIT_HANDOFFS = 0
 
 
 def _trajectory_digest(trajectory) -> str:
@@ -363,11 +373,14 @@ class ImplicitHandoffTest(unittest.TestCase):
                 if record["owner"] in CATCH_ALL_FAMILIES),
             AFTER_CATCH_ALL_ROWS,
         )
+        self.assertEqual(_owner_changes(claims), AFTER_PAIRS)
+        self.assertEqual(_owner_changes(claims, by="producer"), AFTER_PAIRS)
+        self.assertEqual(sum(AFTER_PAIRS.values()), OWNER_CHANGES)
         by_owner = implicit_handoffs(claims)
         self.assertEqual(by_owner["implicit_handoffs"], IMPLICIT_HANDOFFS)
-        self.assertEqual(by_owner["pairs"], AFTER_PAIRS)
+        self.assertEqual(by_owner["pairs"], {})
         self.assertEqual(
-            implicit_handoffs(claims, by="producer")["pairs"], AFTER_PAIRS
+            implicit_handoffs(claims, by="producer")["pairs"], {}
         )
 
     def test_a4_reverting_the_census_restores_the_s1_numbers(self):
@@ -394,9 +407,11 @@ class ImplicitHandoffTest(unittest.TestCase):
                 if record["owner"] in CATCH_ALL_FAMILIES),
             BEFORE_CATCH_ALL_ROWS,
         )
+        self.assertEqual(_owner_changes(claims), BEFORE_PAIRS)
+        self.assertEqual(sum(BEFORE_PAIRS.values()), OWNER_CHANGES)
         by_owner = implicit_handoffs(claims)
         self.assertEqual(by_owner["implicit_handoffs"], IMPLICIT_HANDOFFS)
-        self.assertEqual(by_owner["pairs"], BEFORE_PAIRS)
+        self.assertEqual(by_owner["pairs"], {})
         # And the guard on the guard: the hook really is restored afterwards.
         self.assertIsNot(
             TownTurnArbiter.ownership_family, TownTurnArbiter.owner_for_reason

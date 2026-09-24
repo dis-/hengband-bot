@@ -993,6 +993,7 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= self._engagement_avoid_cells
         if not candidates:
+            self._release_claim_goal("loot-no-candidates", self._loot_target)
             self._loot_target = None
             return None
         target = self._loot_target
@@ -1005,6 +1006,8 @@ class IdentificationMixin:
             if step is not None:
                 return step
 
+        if target is not None and self._loot_target == target:
+            self._release_claim_goal("loot-retarget", target)
         self._loot_target = None
         start = snapshot.player.position
         seen = {start}
@@ -1082,6 +1085,9 @@ class IdentificationMixin:
                 self._deferred_loot.update(guarded_loot)
                 self._loot_defer_blocker = "paralyzer-ring"
             if blocker in LOOT_DEFER_BLOCKERS and self._loot_target is not None:
+                self._release_claim_goal(
+                    f"loot-deferred:{blocker}", self._loot_target
+                )
                 self._deferred_loot.add(self._loot_target)
                 self._loot_target = None
             return None
@@ -1091,6 +1097,10 @@ class IdentificationMixin:
             trigger_reason="trigger-autodestroy",
         )
         if current_loot is not None:
+            # The loot the walk was committed to lies underfoot: arrived.
+            self._complete_claim_goal(
+                "loot-underfoot", snapshot.player.position
+            )
             return current_loot
         step = self._loot_step(
             snapshot, max_path_distance=max_path_distance
@@ -1098,6 +1108,7 @@ class IdentificationMixin:
         if step is None:
             return None
         self.last_reason = seek_reason
+        self._declare_reach(self._loot_target)
         return self._step_toward(snapshot, step)
 
     def _loot_block_reason(

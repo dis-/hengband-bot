@@ -555,6 +555,9 @@ class FundraisingMixin:
             if route is None:
                 for target in targets:
                     self._drop_mining_vein(target)
+                self._release_claim_goal(
+                    "treasure-unreachable", self._treasure_target
+                )
                 self._treasure_target = None
                 self._mining_stall_turns = 0
                 return self._finish_mining_floor(snapshot)
@@ -595,6 +598,7 @@ class FundraisingMixin:
             self._mining_target_collected = self._mining_veins_collected
             if self._mining_stall_turns >= MINING_STALL_LIMIT:
                 self._drop_mining_vein(target)
+                self._release_claim_goal("treasure-stalled", target)
                 self._treasure_target = None
                 self._mining_target_distance = None
                 self._mining_stall_turns = 0
@@ -606,12 +610,15 @@ class FundraisingMixin:
                 self.last_reason = "fundraise:dig-to-treasure"
                 key = self._mining_tunnel_key(snapshot, step, vein=target)
                 if key is not None:
+                    self._declare_reach(target)
                     return key
+                self._release_claim_goal("treasure-untunnelable", target)
                 self._treasure_target = None
                 self._mining_target_distance = None
                 targets.discard(target)
                 continue
             self.last_reason = "fundraise:seek-treasure"
+            self._declare_reach(target)
             return self._step_toward(snapshot, step)
 
         return self._finish_mining_floor(snapshot)
@@ -858,6 +865,7 @@ class FundraisingMixin:
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
             self.last_reason = "fundraise:seek-loot"
+            self._declare_reach(self._loot_target)
             return self._step_toward(snapshot, visible_loot_step)
 
         if self._fundraising_mode == "scavenge":
@@ -1084,6 +1092,9 @@ class FundraisingMixin:
         if osc and self._treasure_target is not None:
             self._mining_oscillation_retargets += 1
             self._drop_mining_vein(self._treasure_target)
+            self._release_claim_goal(
+                "treasure-oscillation", self._treasure_target
+            )
             self._treasure_target = None
             self._mining_route_visits.clear()
             if (
@@ -1107,15 +1118,20 @@ class FundraisingMixin:
                     failed_target = self._treasure_target
                     if failed_target is not None:
                         self._drop_mining_vein(failed_target)
+                    self._release_claim_goal(
+                        "treasure-route-revisited", failed_target
+                    )
                     self._treasure_target = None
                     self._mining_route_visits.clear()
                     step = self._treasure_step(snapshot)
                     if step is not None:
                         self.last_reason = "fundraise:seek-treasure"
+                        self._declare_reach(self._treasure_target)
                         return self._step_toward(snapshot, step)
                     return self._mining_tapped_out_key(snapshot)
                 self._mining_stall_turns += 1
                 self.last_reason = "fundraise:seek-treasure"
+                self._declare_reach(self._treasure_target)
                 return self._step_toward(snapshot, step)
         # No distance-1 vein is walkable-reachable. Never tunnel through blank
         # rock toward a far vein — the user's design trades those few for

@@ -1398,6 +1398,7 @@ class TownMixin:
             or prior_reason == "equipment-transaction:abandon-blocked"
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
+            self._declare_reach(step)
         return key
 
     def _release_stale_town_block(self, snapshot: Snapshot) -> None:
@@ -3814,6 +3815,7 @@ class TownMixin:
         if state is not None and state.goal == goal:
             if state.record(distance, snapshot.turn) == "fallback":
                 self._town_travel_fallback = goal
+                self._release_claim_goal("town-travel:stalled", goal)
                 self._town_travel_state = None
                 return None
         else:
@@ -3821,6 +3823,7 @@ class TownMixin:
                 goal, distance, 0, 0, snapshot.turn
             )
         self.last_reason = reason
+        self._declare_reach(goal)
         return macro
 
     def _town_clear_traveler_key(
@@ -3860,6 +3863,7 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
+                self._declare_reach(target.position)
                 return self._step_toward(snapshot, step)
         if self._town_hunt_target is not None:
             if player.position.distance_to(self._town_hunt_target) <= 1:
@@ -3873,6 +3877,7 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
+                self._declare_reach(self._town_hunt_target)
                 return self._step_toward(snapshot, step)
             self._town_hunt_target = None
         return None
@@ -4127,6 +4132,7 @@ class TownMixin:
         self._clear_pending_disposal()
         self._close_store_visit("abandoned-with-restore")
         self._shopping_stuck = True
+        self._release_town_travel_claim("town-travel:abandoned-with-restore")
         self._town_travel_state = None
         self._town_travel_fallback = None
         # A cycle can begin only after the ordinary departure route has already
@@ -4731,6 +4737,7 @@ class TownMixin:
                     )
                     if neighbors:
                         self.last_reason = "town:wait-recall-step-off"
+                        self._declare_reach(neighbors[0])
                         return self._step_toward(snapshot, neighbors[0])
                 self.last_reason = "town:wait-recall"
                 return WAIT_KEY
@@ -5260,6 +5267,7 @@ class TownMixin:
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "return:explore"
+                self._declare_explore_goal()
                 return self._step_toward(snapshot, step)
 
         # Returning without a recall scroll requires an up-stair, which may be

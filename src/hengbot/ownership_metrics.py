@@ -79,6 +79,7 @@ from pathlib import Path
 import sys
 import time
 
+from hengbot.claim_goal_typing import is_survival
 from hengbot.stop_shape import SHAPES, classify_stop, producer_identity
 
 
@@ -201,6 +202,9 @@ class OwnershipMetricsLedger:
             "reason": reason,
             "key": row.get("key"),
             "producer": producer_identity(reason),
+            # S2a.1: the decision row's own position, so metric (d) can see a
+            # Terminal claim that kept its id while the player moved.
+            "position": row.get("position"),
             **{
                 name: claim.get(name)
                 for name in (
@@ -209,10 +213,13 @@ class OwnershipMetricsLedger:
                     "goal",
                     "state",
                     "closed",
+                    "closed_reason",
                     "budget",
                     "non_discardable",
                     "distance",
                     "closed_claim",
+                    "goal_missing",
+                    "survival",
                 )
             },
         }
@@ -310,26 +317,48 @@ def handoff_pair(previous_owner: object, owner: object) -> str:
     return f"{previous_owner}>{owner}"
 
 
+CLOSURE_TERMINAL_POSTED = "terminal-posted"
+CLOSURE_SUSPENDED = "suspended"
+GOAL_KINDS_THAT_SPAN = ("Reach", "Observe")
+
+
+def _goal_kind(row: Mapping) -> str | None:
+    goal = row.get("goal")
+    return goal.get("kind") if isinstance(goal, Mapping) else None
+
+
 def _closure_of(previous: Mapping, current: Mapping | None) -> str | None:
-    """The ``release``/``complete``/``retired`` that ended ``previous``.
+    """What ended ``previous``: a closing event, a suspension, or its post.
 
     A claim can close on its own row (it ran out of budget and was recorded
-    ``retired``) or on the row that observes its goal reached -- that row
-    carries the closed claim in ``closed_claim``, because arrival is only
-    visible on the board after the step.  Both count as explicit.
+    ``retired``) or on the row after it -- that row carries the closed claim
+    in ``closed_claim``, because arrival, a confirmed effect, a producer's
+    release and the survival preemption are all only seen while the *next*
+    decision is being made.  S2a.1 (design rev 9.1 item 3) adds two readings:
+
+    * a ``Terminal`` claim completes when its key is posted, so a previous
+      row whose goal is Terminal is closed (``terminal-posted``); and
+    * a claim the survival preemption suspended is ended explicitly
+      (``suspended``) -- design 3.2 keeps its goal, and it is not a drop.
+
+    ``is_implicit_handoff``, ``implicit_handoffs`` and the four gate numbers
+    all read this one function, so the live writer and the report agree.
     """
     closed = previous.get("closed")
     if closed:
         return str(closed)
-    if current is None:
-        return None
-    finished = current.get("closed_claim")
-    if (
-        isinstance(finished, Mapping)
-        and finished.get("claim_id") == previous.get("claim_id")
-        and finished.get("closed")
-    ):
-        return str(finished["closed"])
+    if current is not None:
+        finished = current.get("closed_claim")
+        if (
+            isinstance(finished, Mapping)
+            and finished.get("claim_id") == previous.get("claim_id")
+        ):
+            if finished.get("closed"):
+                return str(finished["closed"])
+            if finished.get("state") == CLOSURE_SUSPENDED:
+                return CLOSURE_SUSPENDED
+    if _goal_kind(previous) == "Terminal":
+        return CLOSURE_TERMINAL_POSTED
     return None
 
 
@@ -372,6 +401,183 @@ def implicit_handoffs(rows: Sequence[Mapping], *, by: str = "owner") -> dict:
         ),
         "implicit_handoffs": total,
         "pairs": dict(pairs.most_common()),
+    }
+
+
+# -- the S2b gate: four numbers (design rev 9.1 item 4) --------------------
+
+ENDING_COMPLETE = "complete"
+ENDING_RELEASE = "release"
+ENDING_RETIRED = "retired"
+ENDING_SUSPENDED = CLOSURE_SUSPENDED
+ENDING_ABANDONED = "abandoned"
+# A claim still open on the last row of its session: it did not end at all
+# inside the ledger, so it is neither closed nor abandoned.
+ENDING_OPEN = "open-at-end"
+ENDINGS = (
+    ENDING_COMPLETE,
+    ENDING_RELEASE,
+    ENDING_RETIRED,
+    ENDING_SUSPENDED,
+    ENDING_ABANDONED,
+    ENDING_OPEN,
+)
+
+
+def row_is_survival(row: Mapping) -> bool:
+    """Whether a claim row is survival, by the one survival constant.
+
+    A row written from S2a.1 on carries the policy's own answer (it knows the
+    return trigger); an older row is judged by its reason alone, which is the
+    same constant without the ``return:`` danger-trigger clause.
+    """
+    flag = row.get("survival")
+    if isinstance(flag, bool):
+        return flag
+    return is_survival(row.get("reason"))
+
+
+def _claim_rows_by_session(rows: Iterable[Mapping]) -> list[list[Mapping]]:
+    sessions: list[list[Mapping]] = []
+    current: list[Mapping] = []
+    session = object()
+    for row in rows:
+        if row.get("kind") not in (None, RECORD_CLAIM):
+            continue
+        if row.get("session") != session:
+            if current:
+                sessions.append(current)
+            current = []
+            session = row.get("session")
+        current.append(row)
+    if current:
+        sessions.append(current)
+    return sessions
+
+
+def _claim_runs(session_rows: Sequence[Mapping]):
+    """Consecutive rows sharing one claim id, with the row that follows."""
+    start = 0
+    while start < len(session_rows):
+        claim_id = session_rows[start].get("claim_id")
+        end = start
+        while (
+            end + 1 < len(session_rows)
+            and session_rows[end + 1].get("claim_id") == claim_id
+        ):
+            end += 1
+        following = (
+            session_rows[end + 1] if end + 1 < len(session_rows) else None
+        )
+        yield session_rows[start:end + 1], following
+        start = end + 1
+
+
+def _ending(run: Sequence[Mapping], following: Mapping | None) -> str:
+    closure = _closure_of(run[-1], following)
+    if closure in (ENDING_COMPLETE, ENDING_RELEASE, ENDING_RETIRED):
+        return closure
+    if closure == CLOSURE_SUSPENDED:
+        return ENDING_SUSPENDED
+    return ENDING_OPEN if following is None else ENDING_ABANDONED
+
+
+def _position_of(row: Mapping):
+    position = row.get("position")
+    if isinstance(position, Mapping):
+        return (position.get("y"), position.get("x"))
+    return None
+
+
+def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
+    """The four numbers S2b's gate reads (design rev 9.1 item 4).
+
+    (a) ``dropped_by_other_owner``: rows whose owner differs from the previous
+        row's while the previous claim was a Reach/Observe claim that nothing
+        closed (``_closure_of``), both rows outside survival.
+    (b) ``retargets``: the same owner opening a new claim while its previous
+        Reach/Observe claim was not closed (the choke retreat that forgot its
+        cell), both rows outside survival -- invisible to (a).
+    (c) ``endings``: per ``owner/kind``, how each Reach/Observe claim ended --
+        complete / release / retired / suspended / abandoned, plus
+        ``open-at-end`` for a claim the session's last row still held -- and
+        ``goal_missing`` rows per owner.
+    (d) ``mistyped_terminal``: per owner, Terminal claims that kept one id
+        over several rows while the player's position changed (the
+        ``fundraise:dig-to-treasure`` shape).  ``declare`` keeps the id while
+        owner and goal are unchanged, so no new field is needed beyond the
+        row's own position; a multi-row Terminal claim whose rows carry no
+        position is counted in ``position_unknown`` instead.
+
+    ``owner_of`` re-derives a row's owner (for example the S2a census over a
+    ledger written before it); by default the recorded ``owner`` is used.
+    """
+    owner_of = owner_of or (lambda row: row.get("owner"))
+    dropped = 0
+    dropped_pairs: Counter[str] = Counter()
+    retargets = 0
+    retarget_owners: Counter[str] = Counter()
+    endings: dict[str, Counter[str]] = {}
+    goal_missing: Counter[str] = Counter()
+    mistyped = 0
+    mistyped_owners: Counter[str] = Counter()
+    position_unknown = 0
+    total = 0
+    for session_rows in _claim_rows_by_session(rows):
+        total += len(session_rows)
+        for row in session_rows:
+            if row.get("goal_missing"):
+                goal_missing[str(owner_of(row))] += 1
+        for previous, current in zip(session_rows, session_rows[1:]):
+            if previous.get("claim_id") == current.get("claim_id"):
+                continue
+            if _goal_kind(previous) not in GOAL_KINDS_THAT_SPAN:
+                continue
+            if _closure_of(previous, current) is not None:
+                continue
+            if row_is_survival(previous) or row_is_survival(current):
+                continue
+            before, after = owner_of(previous), owner_of(current)
+            if before != after:
+                dropped += 1
+                dropped_pairs[handoff_pair(before, after)] += 1
+            else:
+                retargets += 1
+                retarget_owners[str(before)] += 1
+        for run, following in _claim_runs(session_rows):
+            first = run[0]
+            kind = _goal_kind(first)
+            owner = str(owner_of(first))
+            if kind in GOAL_KINDS_THAT_SPAN:
+                bucket = endings.setdefault(f"{owner}/{kind}", Counter())
+                bucket[_ending(run, following)] += 1
+            elif kind == "Terminal" and len(run) > 1:
+                positions = [_position_of(row) for row in run]
+                if any(position is None for position in positions):
+                    position_unknown += 1
+                elif len(set(positions)) > 1:
+                    mistyped += 1
+                    mistyped_owners[owner] += 1
+    return {
+        "rows": total,
+        "dropped_by_other_owner": {
+            "count": dropped,
+            "pairs": dict(dropped_pairs.most_common()),
+        },
+        "retargets": {
+            "count": retargets,
+            "by_owner": dict(retarget_owners.most_common()),
+        },
+        "endings": {
+            name: {ending: bucket.get(ending, 0) for ending in ENDINGS}
+            for name, bucket in sorted(endings.items())
+        },
+        "goal_missing": dict(goal_missing.most_common()),
+        "mistyped_terminal": {
+            "count": mistyped,
+            "by_owner": dict(mistyped_owners.most_common()),
+            "position_unknown": position_unknown,
+        },
     }
 
 

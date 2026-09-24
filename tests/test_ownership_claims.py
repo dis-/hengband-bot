@@ -91,10 +91,13 @@ LEGACY_CHECKPOINT = FIXTURES / "home-deferral-absorbing-state.json.gz"
 #   3- 5  detected:prepare-choke  -> positioning    (change 1)
 #   6     melee                   -> combat         (change 2)
 #   7-24  detected:prepare-choke  -> positioning    (change 3)
-# Three owner changes either way; no row before any of them carries a
-# ``closed`` and no row after one closes the previous claim, so all three are
-# implicit.  The count is unchanged because these three *are* three different
-# producers: what S2a removed is the catch-all, not the handoff.
+# Three owner changes either way.  Under S1/S2a no row before any of them
+# carried a ``closed`` and no row after one closed the previous claim, so all
+# three were implicit; the count did not change with S2a because these three
+# *are* three different producers.  S2a.1 (design rev 9.1 item 3) closes all
+# three -- explore completes, the positioning retreat is released, melee is a
+# Terminal claim closed on posting -- so the implicit count is now 0 while the
+# three owner changes stay pinned (``_owner_changes``).
 HAND_CHECKED_OWNERS = (
     ["explore"] * 2 + ["positioning"] * 3 + ["combat"] + ["positioning"] * 18
 )
@@ -139,6 +142,16 @@ def _volatile_free(record: dict) -> dict:
         return value
 
     return strip({name: value for name, value in record.items() if name != "time"})
+
+
+def _owner_changes(records, by: str = "owner") -> dict:
+    """Every change of ``by`` between consecutive rows, closed or not."""
+    changes: dict[str, int] = {}
+    for previous, current in zip(records, records[1:]):
+        if previous[by] != current[by]:
+            pair = f"{previous[by]}>{current[by]}"
+            changes[pair] = changes.get(pair, 0) + 1
+    return changes
 
 
 def _rows(path: Path) -> list[dict]:
@@ -478,35 +491,63 @@ class ClaimLedgerTest(unittest.TestCase):
                 self.assertGreaterEqual(record["distance"], 0)
 
     def test_the_metric_matches_the_hand_checked_window(self):
+        """S2a.1 re-pinned: the same three owner changes, now all closed.
+
+        Before S2a.1 no row carried a ``closed`` or a ``closed_claim`` and all
+        three changes were implicit.  S2a.1 (design rev 9.1 item 3) gives the
+        claims their closings: the explore goal completes twice (its planner
+        sees the goal met, then the exit sees the cell reached), the
+        positioning retreat is released when the hostile becomes visible, and
+        ``melee`` is a Terminal claim, closed when it is posted.  The owner
+        changes themselves are unchanged and still hand-checked.
+        """
         self.assertEqual(
             [record["owner"] for record in self.claims], HAND_CHECKED_OWNERS
         )
         self.assertFalse([record for record in self.claims if record["closed"]])
-        self.assertFalse(
-            [record for record in self.claims if record["closed_claim"]]
+        self.assertEqual(
+            [
+                (
+                    index,
+                    record["closed_claim"]["owner"],
+                    record["closed_claim"]["closed"],
+                    record["closed_claim"]["closed_reason"],
+                )
+                for index, record in enumerate(self.claims)
+                if record["closed_claim"]
+            ],
+            [
+                (1, "explore", "complete", "explore-goal-complete"),
+                (2, "explore", "complete", "reached"),
+                (5, "positioning", "release", "choke-hostile-visible"),
+            ],
         )
+        self.assertEqual(_owner_changes(self.claims), HAND_CHECKED_PAIRS)
         measured = implicit_handoffs(self.claims)
         self.assertEqual(measured["rows"], len(self.boards))
-        self.assertEqual(measured["implicit_handoffs"], 3)
-        self.assertEqual(measured["pairs"], HAND_CHECKED_PAIRS)
+        self.assertEqual(measured["implicit_handoffs"], 0)
+        self.assertEqual(measured["pairs"], {})
 
     def test_the_producer_breakdown_separates_the_catch_all_family(self):
         """The family breakdown cannot see seek-loot from melee; this can.
 
         After S2a the two answers coincide on this capture, because the
         family now *is* the producer: ``producer_identity`` only refines a
-        reason that landed in a catch-all, and none of these do.
+        reason that landed in a catch-all, and none of these do.  S2a.1
+        closes all three changes (see the hand-checked window above), so the
+        implicit count by producer is 0 while the changes stay pinned.
         """
-        measured = implicit_handoffs(self.claims, by="producer")
-        self.assertEqual(measured["implicit_handoffs"], 3)
         self.assertEqual(
-            measured["pairs"],
+            _owner_changes(self.claims, by="producer"),
             {
                 "explore>positioning": 1,
                 "positioning>combat": 1,
                 "combat>positioning": 1,
             },
         )
+        measured = implicit_handoffs(self.claims, by="producer")
+        self.assertEqual(measured["implicit_handoffs"], 0)
+        self.assertEqual(measured["pairs"], {})
 
     def test_a_closed_claim_is_not_an_implicit_handoff(self):
         """The negative control for the metric, on constructed rows."""
@@ -546,8 +587,16 @@ class ClaimLedgerTest(unittest.TestCase):
         text = output.read_text(encoding="utf-8")
         self.assertIn("implicit handoffs by owner", text)
         self.assertIn("implicit handoffs by producer", text)
-        self.assertIn("explore>positioning", text)
         self.assertIn("claim rows     24", text)
+        # S2a.1: every change of this window is closed, so the handoff lists
+        # are empty; the four gate numbers print instead (design rev 9.1
+        # item 4), with the endings that closed them.
+        self.assertIn(
+            "implicit handoffs by owner         0   per runtime hour", text
+        )
+        self.assertIn("(a) owner changes with the previous Reach/Observe", text)
+        self.assertIn("explore/Reach", text)
+        self.assertIn("positioning/Reach", text)
         self.assertEqual(
             sorted(path.name for path in self.root.iterdir()),
             sorted([*before, "report.txt"]),

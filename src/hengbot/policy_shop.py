@@ -3146,6 +3146,9 @@ class ShopMixin:
             self._batch_sell_pending = None
             self._last_sell_sig = None
             self._store_sell_stuck_count = 0
+            if confirmed:
+                # Design rev 9 item 3: the posted sale is confirmed.
+                self._complete_observed_effect("sale-observed")
             if confirmed and self._store_visit is not None:
                 self._store_visit.operation_posted = False
                 self._store_visit.operation_effect_observed = True
@@ -4197,6 +4200,10 @@ class ShopMixin:
             if not self._ensure_home_visit_request(snapshot):
                 self._set_town_store_attempted(STORE_HOME, snapshot.turn, "home-request-unavailable")
                 self._shopping_approach_store_type = None
+                self._release_claim_goal(
+                    "shop-approach:home-request-unavailable",
+                    self._shopping_approach_goal,
+                )
                 self._shopping_approach_goal = None
                 return None
         equipment_owner = (
@@ -4346,6 +4353,8 @@ class ShopMixin:
         return step
 
     def _stage_shopping_approach_key(self, snapshot: Snapshot, key: str) -> str:
+        # Record-only (S2a.1): the entrance this approach step heads for.
+        self._declare_reach(self._shopping_approach_goal)
         provenance = object()
         self._staged_shop_approach = (
             provenance,
@@ -4507,6 +4516,7 @@ class ShopMixin:
         if travel is not None:
             if not self._owner_may_select(snapshot, travel_reason):
                 self._town_travel_fallback = goal
+                self._release_claim_goal("town-travel:owner-yielded", goal)
                 self._town_travel_state = None
                 self.last_reason = "shop:approach"
                 return self._stage_shopping_approach_key(

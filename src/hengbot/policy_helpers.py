@@ -436,6 +436,7 @@ class PolicyHelpersMixin:
         self._warning_refused_cells.add(target)
         self._engagement_avoid_cells.add(target)
         if self._loot_target == target:
+            self._release_claim_goal("loot-warning-refused", target)
             self._loot_target = None
         if target in self._explore_path:
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)

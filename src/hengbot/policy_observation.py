@@ -152,6 +152,7 @@ class ObservationMixin:
             # Surface-travel bookkeeping is per-visit: positions repeat across
             # town visits (static map), so a stale no-progress latch from the
             # previous visit would suppress native travel forever.
+            self._release_town_travel_claim("town-travel:floor-changed")
             self._town_travel_state = None
             self._town_travel_fallback = None
             self._town_hunt_target = None
@@ -174,6 +175,7 @@ class ObservationMixin:
             # new town visit with different stores and routes.  Carrying the
             # previous town's cycle debt made the first ordinary shopping pass
             # in the destination look like a second repetition offense.
+            self._release_town_travel_claim("town-travel:town-changed")
             self._town_travel_state = None
             self._town_travel_fallback = None
             self._town_hunt_target = None
@@ -715,6 +717,9 @@ class ObservationMixin:
             self._stair_rejection_strikes.clear()
             self._unverified_stairs.clear()
             self._known_treasure.clear()
+            self._release_claim_goal(
+                "treasure-floor-changed", self._treasure_target
+            )
             self._treasure_target = None
             self._mining_mark_bumps.clear()
             self._mining_unmarkable_grids.clear()
@@ -746,6 +751,7 @@ class ObservationMixin:
             self._chest_preopen_objects = None
             self._processed_chest_positions.clear()
             self._known_loot.clear()
+            self._release_claim_goal("loot-floor-changed", self._loot_target)
             self._loot_target = None
             self._deferred_loot.clear()
             self._nav_ledger_deferred_loot.clear()
@@ -864,6 +870,9 @@ class ObservationMixin:
                 if pickup_grid is not None and pickup_grid.object_count >= pickup_count:
                     self._deferred_loot.add(pickup_position)
                     if self._loot_target == pickup_position:
+                        self._release_claim_goal(
+                            "loot-pickup-failed", pickup_position
+                        )
                         self._loot_target = None
             self._pending_loot_pickup = None
 
@@ -880,6 +889,8 @@ class ObservationMixin:
                 self._mining_dropped_veins.discard(grid.position)
                 self._mining_veins_collected += 1
                 if self._treasure_target == grid.position:
+                    # The committed vein is gone beside the player: mined.
+                    self._complete_claim_goal("treasure-mined", grid.position)
                     self._treasure_target = None
             # CAVE_UNSAFE means trap detection has not covered this grid.  The
             # bot already traverses such grids during ordinary exploration, so
@@ -904,6 +915,9 @@ class ObservationMixin:
                 ):
                     self._loot_defer_blocker = None
                 if self._loot_target == grid.position:
+                    # The committed loot cell is empty beside the player:
+                    # collected.
+                    self._complete_claim_goal("loot-collected", grid.position)
                     self._loot_target = None
         if self._known_treasure - treasure_before_observation:
             self._mining_stall_turns = 0

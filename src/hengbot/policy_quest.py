@@ -1524,6 +1524,7 @@ class QuestMixin:
         step = self._loot_step(snapshot)
         if step is not None:
             self.last_reason = "conquest:seek-loot"
+            self._declare_reach(self._loot_target)
             return self._step_toward(snapshot, step)
         # Floor swept — release the latch so the normal return can proceed.
         # A conquered guardian floor has no progression goal left. Start the

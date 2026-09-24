@@ -43,6 +43,15 @@ it was in.  So a claim carries both: ``state`` stays one of the design's five,
 and ``closed`` names the event that ended the claim legitimately -- ``None``,
 ``"release"``, ``"complete"`` or ``"retired"``.  The metric reads ``closed``.
 
+Stage S2a.1 (design rev 9.1 items 2-3) gives the closing calls their callers:
+``complete(label)`` from the exit (a Reach cell reached, a floor changed, a
+posted expectation satisfied) and from a producer's own arrival or
+confirmation branch, ``release(label)`` where a producer already drops its
+goal, and ``suspend(label)`` from the survival preemption only.  A ``Terminal``
+claim needs no call: it is closed on the reading side
+(``ownership_metrics._closure_of``).  Still no decision, key or reason reads
+anything back out of the register.
+
 Continuity
 ----------
 ``declare`` continues the current claim while the owner, the goal and
@@ -142,23 +151,35 @@ def owner_budget(owner: ClaimOwner) -> int | None:
 
 @dataclass(frozen=True)
 class Goal:
-    """One of the three declared goal kinds, as plain data."""
+    """One of the three declared goal kinds, as plain data.
+
+    ``source`` (S2a.1) names where an ``Observe`` goal came from: the owner
+    expectation a producer posted on this decision (its registry name), or
+    the content label of the goal-typing row that declared it
+    (``claim_goal_typing``).  The floor-change and expectation completions
+    read it.  A goal pickled before S2a.1 has no ``source`` in its state and
+    reads the class default ``None``.
+    """
 
     kind: str
     cell: tuple[int, int] | None = None
     expectation: tuple[str, ...] = ()
     within: int | None = None
     effect: str | None = None
+    source: str | None = None
 
     def as_dict(self) -> dict:
         if self.kind == GOAL_REACH:
             return {"kind": GOAL_REACH, "cell": list(self.cell or ())}
         if self.kind == GOAL_OBSERVE:
-            return {
+            row = {
                 "kind": GOAL_OBSERVE,
                 "expectation": list(self.expectation),
                 "within": self.within,
             }
+            if self.source is not None:
+                row["source"] = self.source
+            return row
         return {"kind": GOAL_TERMINAL, "effect": self.effect}
 
 
@@ -167,12 +188,15 @@ def reach(cell: tuple[int, int]) -> Goal:
     return Goal(GOAL_REACH, cell=(int(cell[0]), int(cell[1])))
 
 
-def observe(expectation, within: int | None) -> Goal:
+def observe(
+    expectation, within: int | None, source: str | None = None
+) -> Goal:
     """See one of the named observable changes within a bound."""
     return Goal(
         GOAL_OBSERVE,
         expectation=tuple(sorted(str(name) for name in expectation)),
         within=None if within is None else int(within),
+        source=None if source is None else str(source),
     )
 
 
@@ -183,7 +207,23 @@ def terminal(effect: str) -> Goal:
 
 @dataclass(frozen=True)
 class Claim:
-    """One declared claim.  Frozen: a transition replaces it."""
+    """One declared claim.  Frozen: a transition replaces it.
+
+    S2a.1 adds three recorded facts, all defaulted so that a claim pickled
+    before them (a restored checkpoint's register) unpickles with the class
+    defaults -- a frozen dataclass restores its ``__dict__`` and reads a
+    missing field from the class:
+
+    ``floor``          ``snapshot.floor_key`` when the claim was opened; the
+                       floor-change ``Observe`` goal completes when the board's
+                       floor differs from it, and a ``Reach`` cell is only
+                       compared on this floor.
+    ``closed_reason``  the label the closing call gave (``release(label)``,
+                       ``complete(label)``, ``suspend(label)``).
+    ``survival``       the claim was declared by a survival decision
+                       (``claim_goal_typing.is_survival``); survival never
+                       suspends a survival claim.
+    """
 
     claim_id: int
     owner: ClaimOwner
@@ -193,6 +233,9 @@ class Claim:
     non_discardable: bool = False
     closed: str | None = None
     opened_sequence: int | None = None
+    floor: tuple[int, ...] | None = None
+    closed_reason: str | None = None
+    survival: bool = False
 
     def as_dict(self, *, distance: int | None = None) -> dict:
         """The row form: plain JSON types only."""
@@ -202,18 +245,49 @@ class Claim:
             "goal": self.goal.as_dict(),
             "state": self.state.value,
             "closed": self.closed,
+            "closed_reason": self.closed_reason,
             "budget": self.budget,
             "non_discardable": self.non_discardable,
             "distance": distance,
         }
 
+    def closing_dict(self) -> dict:
+        """What the row after a closing records about the claim it closed."""
+        return {
+            "claim_id": self.claim_id,
+            "owner": self.owner.value,
+            "goal_kind": self.goal.kind,
+            "state": self.state.value,
+            "closed": self.closed,
+            "closed_reason": self.closed_reason,
+        }
+
+    @property
+    def is_open(self) -> bool:
+        """Not ended by an event and not suspended: it still owns its goal."""
+        return self.closed is None and self.state not in (
+            ClaimState.SUSPENDED,
+            ClaimState.COMPLETE,
+            ClaimState.RETIRED,
+        )
+
 
 class ClaimRegister:
-    """The policy's own claim register: one current claim and one counter."""
+    """The policy's own claim register: one current claim and one counter.
+
+    S2a.1: a closing call (``complete``, ``release``, ``suspend``) made while
+    a decision is being produced -- a producer's arrival branch, a goal it
+    drops, a confirmed store effect -- is kept in ``_closing`` until the
+    declaration point takes it (``take_closing``) and writes it into the row
+    as ``closed_claim``: the claim that closed belongs to the *previous* row,
+    which is already written.  A register pickled before S2a.1 has no
+    ``_closing`` attribute; every reader goes through ``getattr``.
+    """
 
     def __init__(self) -> None:
         self._next_id = 1
         self._claim: Claim | None = None
+        self._closing: Claim | None = None
 
     # -- allocation ------------------------------------------------------
 
@@ -236,6 +310,8 @@ class ClaimRegister:
         *,
         non_discardable: bool = False,
         opened_sequence: int | None = None,
+        floor: tuple[int, ...] | None = None,
+        survival: bool = False,
     ) -> Claim:
         """Declare (or continue) the claim that owns the decision being made."""
         declared_owner = owner_of(owner)
@@ -261,6 +337,8 @@ class ClaimRegister:
             state=ClaimState.ACTIVE,
             non_discardable=non_discardable,
             opened_sequence=opened_sequence,
+            floor=None if floor is None else tuple(floor),
+            survival=bool(survival),
         )
         return self._claim
 
@@ -280,25 +358,46 @@ class ClaimRegister:
     def keep_active(self) -> Claim | None:
         return self._transition(ClaimState.ACTIVE, self._closed())
 
-    def suspend(self) -> Claim | None:
-        """Preempted with its goal intact (design 3.2).  Unused until S2."""
-        return self._transition(ClaimState.SUSPENDED, self._closed())
+    def _close(
+        self, state: ClaimState, closed: str | None, label: str | None
+    ) -> Claim | None:
+        claim = self._claim
+        if claim is None:
+            return None
+        self._claim = replace(
+            claim, state=state, closed=closed, closed_reason=label
+        )
+        self._closing = self._claim
+        return self._claim
 
-    def complete(self) -> Claim | None:
+    def suspend(self, label: str | None = None) -> Claim | None:
+        """Preempted with its goal intact (design 3.2).
+
+        S2a.1 calls it from the survival preemption only (design rev 9
+        item 3).  ``closed`` stays ``None``: a suspension is not an end.
+        """
+        return self._close(ClaimState.SUSPENDED, self._closed(), label)
+
+    def complete(self, label: str | None = None) -> Claim | None:
         """The declared goal was observed reached."""
-        return self._transition(ClaimState.COMPLETE, CLOSED_BY_COMPLETE)
+        return self._close(ClaimState.COMPLETE, CLOSED_BY_COMPLETE, label)
 
     def retire(self) -> Claim | None:
         """Out of budget: the claim emits nothing further (design 3.3)."""
         return self._transition(ClaimState.RETIRED, CLOSED_BY_RETIRED)
 
-    def release(self) -> Claim | None:
+    def release(self, label: str | None = None) -> Claim | None:
         """The holder handed the decision back of its own accord."""
         claim = self._claim
         if claim is None:
             return None
-        self._claim = replace(claim, closed=CLOSED_BY_RELEASE)
-        return self._claim
+        return self._close(claim.state, CLOSED_BY_RELEASE, label)
+
+    def take_closing(self) -> Claim | None:
+        """The claim a closing call ended since the last declaration, once."""
+        closing = getattr(self, "_closing", None)
+        self._closing = None
+        return closing
 
     def _closed(self) -> str | None:
         claim = self._claim

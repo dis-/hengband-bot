@@ -1379,6 +1379,12 @@ _OBSERVER_COPIED_CONTAINERS = (dict, list, set, deque)
 # and an optimizer search run for telemetry both fills them and replaces the
 # evaluator when its context differs.
 _OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
+# S2a.1: the claim register rebinds its current claim (a frozen value) on
+# every transition, so one shallow copy isolates it.  A producer's closing
+# line (release / complete, record-only) that an evaluator reaches during the
+# capture must not close the claim the next decision reads; no decision reads
+# the register, so copying it cannot change one.
+_OBSERVER_SHALLOW_COPIED_OBJECTS = ("_claim_register",)
 _OBSERVER_MEMO_OBJECT_DEPTH = 2
 
 
@@ -1438,6 +1444,8 @@ class _PolicyObserverScope:
                 state[name] = _observer_container_copy(value)
             elif name in _OBSERVER_COPIED_MEMO_OBJECTS and value is not None:
                 state[name] = _observer_memo_object_copy(value)
+            elif name in _OBSERVER_SHALLOW_COPIED_OBJECTS and value is not None:
+                state[name] = copy.copy(value)
         return self._policy
 
     def __exit__(self, *_exc):

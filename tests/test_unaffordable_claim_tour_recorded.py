@@ -102,6 +102,23 @@ AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
 AFTER_PURCHASES = 4267  # decision 4263: recorded travel back to the Alchemist
 OWNER_RETIRED = 4271   # decision 4267: recorded town:blocked:owner-retired
+# S2a.1 closure pins (list indices 0-4266): the Observe completions by the
+# confirmation site that recorded them, and how selected owners' Reach /
+# Observe claims ended (ownership_metrics.gate_numbers, item (c)).
+S2A1_OBSERVE_COMPLETE_LABELS = {
+    "purchase-observed": 18,
+    "home-deposit-observed": 8,
+    "sale-observed": 3,
+    "home-withdraw-observed": 3,
+    # stairs and recall: Observe(floor change), completed on the floor key
+    "floor-changed": 10,
+}
+S2A1_ENDINGS = {
+    "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
+    "home-visit/Observe": {"complete": 8, "release": 1, "abandoned": 7},
+    "floor-loot/Reach": {"complete": 67, "abandoned": 3},
+    "positioning/Reach": {"complete": 10, "release": 1},
+}
 
 
 def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
@@ -154,6 +171,20 @@ def _recorded_process_capture(policy: HengbotPolicy, snapshot) -> None:
     _capture_decision_facts_unchecked(policy.with_known_skill_exp(snapshot), policy)
 
 
+def _claim_row(policy: HengbotPolicy, snapshot, key, index: int) -> dict:
+    """The claim ledger row of one replayed decision (S2a.1 closure pins)."""
+    claim = dict(policy.decision_claim or {})
+    claim.update(
+        kind="claim",
+        session="tour",
+        reason=policy.last_reason,
+        key=None if key is None else str(key),
+        position={"y": snapshot.player.position.y, "x": snapshot.player.position.x},
+        index=index,
+    )
+    return claim
+
+
 def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
     """Deep copy whose cached NeedSpec closures are rebuilt on the copy.
 
@@ -167,6 +198,7 @@ def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
 
 class UnaffordableClaimTourRecordedTest(unittest.TestCase):
     replay = None
+    claim_rows = None
 
     @classmethod
     def setUpClass(cls):
@@ -192,6 +224,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             directory = Path(raw_directory)
             policy, monrace = _live_like_policy(directory)
             decisions = {}
+            claim_rows = []
+            cls.claim_rows = claim_rows
             cursor = 0
             snapshot = None
             for index in range(AFTER_PURCHASES + 1):
@@ -214,7 +248,15 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
                 decisions[index] = (str(key), policy.last_reason)
+                claim_rows.append(_claim_row(policy, snapshot, key, index))
+                # S2a.1: the claim register is kept out of the unscoped
+                # capture, as the live driver's observer scope now does; no
+                # decision reads the register, so the recorded decisions
+                # cannot move (test_s0 below still pins them).
+                register = policy._claim_register
+                policy._claim_register = copy.copy(register)
                 _recorded_process_capture(policy, snapshot)
+                policy._claim_register = register
                 policy.confirm_key_posted(key)
 
             # Value-level view of the two optional claims on the recorded
@@ -370,6 +412,45 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         self.assertIn("teleport_ready", poor["departure_block_failed"])
         self.assertNotEqual(poor["decision"][1], "town:character-dump")
         self.assertFalse(poor["decision"][1].startswith("town:recall-to-"))
+
+    def test_s2a1_observe_goals_complete_on_their_confirmed_effect(self):
+        """S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime.
+
+        It is the one recorded lifetime in the fixtures with confirmed store
+        effects of every kind: purchases, sales, Home deposits and Home
+        withdrawals, besides the dungeon's loot and choke walks.  Each
+        confirmed effect completes the store owner's ``Observe`` claim at its
+        own confirmation site; the loot and choke ``Reach`` claims complete on
+        arrival or are released where their producer drops them.  The pins
+        of the same design item on the two captures it names are in
+        tests/test_ownership_s2a1_closure.py.
+        """
+        from hengbot.ownership_metrics import gate_numbers
+
+        self._replay()
+        rows = self.claim_rows
+        self.assertEqual(len(rows), AFTER_PURCHASES)
+        labels: dict[str, int] = {}
+        for row in rows:
+            closed = row.get("closed_claim") or {}
+            if (
+                closed.get("goal_kind") == "Observe"
+                and closed.get("closed") == "complete"
+            ):
+                label = closed["closed_reason"]
+                labels[label] = labels.get(label, 0) + 1
+        self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS)
+        endings = gate_numbers(rows)["endings"]
+        self.assertEqual(
+            {
+                name: {
+                    ending: endings.get(name, {}).get(ending, 0)
+                    for ending in counts
+                }
+                for name, counts in S2A1_ENDINGS.items()
+            },
+            S2A1_ENDINGS,
+        )
 
 
 if __name__ == "__main__":
