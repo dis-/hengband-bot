@@ -282,7 +282,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
                 abilities=frozenset({"resist_fire", "resist_pois"}),
                 conquered=(),
             ),
-            dungeon_recall_depths={3: 23, 4: 18, 7: 21, 14: 25},
+            # Labyrinth lands at 16, below its unbeatable guardian's floor
+            # (max depth 18): a landing ON that floor is never a fallback
+            # (guardian-recall-pingpong, 2026-09-25).
+            dungeon_recall_depths={3: 23, 4: 16, 7: 21, 14: 25},
         )
 
         self.assertEqual(
@@ -678,3 +681,137 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
 
         self.assertIsNone(pol._town_special_key(snap))
         self.assertNotEqual(pol.last_reason, "town:recall-to-alt-dungeon")
+
+
+class GuardianBounceRoundTripBoundTest(unittest.TestCase):
+    """DEFECT CLASS: a town<->guardian recall round trip must not repeat unboundedly.
+
+    Absorbing-state / alternating-owner shape (live 2026-09-25, Orc cave, seven
+    round trips; earlier Labyrinth, recall 9 -> 0): the return owner recalls
+    out of a guardian floor the kit cannot pass (``guardian-kit-insufficient``)
+    and the town owner recalls straight back to the same landing.  Neither
+    owner makes floor progress, so only the over-extension valve can end it:
+    every such bounce must be counted whatever role the bounced dungeon plays
+    (switched alternate or latched conquest target, Angband recall unlocked or
+    not), and the switch must not land on another guardian floor the kit
+    cannot pass.
+
+    The world here always offers one qualifying alternate (Forest).  When no
+    entered dungeon qualifies, the existing valve keeps the current target;
+    that branch is not covered here (see the 2026-09-25
+    guardian-recall-pingpong report).
+    """
+
+    ORC_CAVE = 3  # landing 23 == max depth 23: its guardian floor
+    DECOY = 5  # landing 18 == max depth 18: a SHALLOWER blocked guardian floor
+    FOREST = 7  # landing 20, max depth 32: productive
+    ENTERED = (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, ORC_CAVE, DECOY, FOREST)
+    LANDINGS = {DUNGEON_ANGBAND: 50, DUNGEON_YEEK_CAVE: 13, ORC_CAVE: 23,
+                DECOY: 18, FOREST: 20}
+    ABILITIES = frozenset(
+        {"free_action", "resist_conf", "resist_fire", "resist_pois",
+         "resist_cold", "resist_elec", "resist_acid"}
+    )
+    # A drive ceiling well past the valve's own bound; reaching it is the failure.
+    ROUND_TRIP_CEILING = 4 * EMPTY_DIVE_LIMIT + 1
+
+    def _policy(self):
+        # No monrace knowledge: every guardian below is unbeatable for the kit.
+        policy = HengbotPolicy(dungeon_knowledge={
+            DUNGEON_ANGBAND: DungeonInfo(DUNGEON_ANGBAND, "Angband", 1, 127, 30),
+            DUNGEON_YEEK_CAVE: DungeonInfo(
+                DUNGEON_YEEK_CAVE, "Yeek cave", 1, 13, 1, guardian_id=237
+            ),
+            self.ORC_CAVE: DungeonInfo(
+                self.ORC_CAVE, "Orc cave", 10, 23, 5, guardian_id=373
+            ),
+            self.DECOY: DungeonInfo(
+                self.DECOY, "Decoy", 10, 18, 5, guardian_id=900
+            ),
+            self.FOREST: DungeonInfo(
+                self.FOREST, "Forest", 15, 32, 5, guardian_id=481
+            ),
+        })
+        set_completed_equipment_optimization(policy)
+        return policy
+
+    def _board(self, floor_key, recall_dungeon, *, angband_unlocked):
+        return Snapshot(
+            player(10, 10, hp=592, max_hp=592, level=33,
+                   class_id=PLAYER_CLASS_WARRIOR, abilities=self.ABILITIES),
+            {Position(10, 10): grid(10, 10)},
+            [],
+            floor_key=floor_key,
+            town_flag=floor_key[0] == 0,
+            recall_dungeon_id=recall_dungeon,
+            recall_depth=self.LANDINGS[recall_dungeon],
+            dungeon_recall_depths=dict(self.LANDINGS),
+            entered_dungeon_ids=self.ENTERED,
+            conquered_dungeon_ids=(),
+            angband_recall_unlocked=angband_unlocked,
+        )
+
+    def _drive(self, policy, *, angband_unlocked):
+        """Recall to the target's landing until a dive is not bounced."""
+        policy._observe(
+            self._board((0, 0, 0), self.ORC_CAVE, angband_unlocked=angband_unlocked)
+        )
+        trips = []
+        for _trip in range(self.ROUND_TRIP_CEILING):
+            target = policy._target_dungeon_id
+            landing = self.LANDINGS[target]
+            dungeon = self._board(
+                (target, landing, 0), target, angband_unlocked=angband_unlocked
+            )
+            policy.last_reason = "town:recall-to-alt-dungeon"
+            policy._observe(dungeon)  # the recall landed: a dive begins
+            bounced = (
+                policy._should_start_town_return(dungeon)
+                and policy._last_return_trigger == "guardian-kit-insufficient"
+            )
+            trips.append((target, bounced))
+            if not bounced:
+                return trips
+            policy.last_reason = "return:recall"
+            policy._observe(
+                self._board((0, 0, 0), target, angband_unlocked=angband_unlocked)
+            )
+        return trips
+
+    def test_bounce_bound_holds_for_every_role_of_the_bounced_dungeon(self):
+        roles = {
+            "alternate": "_alternate_dungeon",
+            "conquest": "_conquest_committed",
+        }
+        for role, attribute in roles.items():
+            for angband_unlocked in (True, False):
+                with self.subTest(role=role, angband_unlocked=angband_unlocked):
+                    policy = self._policy()
+                    setattr(policy, attribute, self.ORC_CAVE)
+                    trips = self._drive(
+                        policy, angband_unlocked=angband_unlocked
+                    )
+                    self.assertEqual(trips[0], (self.ORC_CAVE, True), trips)
+                    self.assertFalse(
+                        trips[-1][1],
+                        f"still bouncing after {len(trips)} round trips: {trips}",
+                    )
+                    bounced = [target for target, was in trips if was]
+                    self.assertLessEqual(len(bounced), EMPTY_DIVE_LIMIT, trips)
+                    self.assertEqual(set(bounced), {self.ORC_CAVE}, trips)
+                    self.assertEqual(trips[-1][0], self.FOREST, trips)
+
+    def test_picker_skips_a_landing_on_a_blocked_guardian_floor(self):
+        policy = self._policy()
+        policy._last_overextended_depth = 23
+        board = self._board((0, 0, 0), self.ORC_CAVE, angband_unlocked=True)
+        # The decoy is the shallowest landing below 23 but it is the decoy's
+        # guardian floor; so is the Orc cave inside the unsafe-recall bound.
+        self.assertTrue(policy._guardian_floor_blocked(board, self.DECOY, 18))
+        self.assertTrue(policy._guardian_floor_blocked(board, self.ORC_CAVE, 23))
+        self.assertFalse(policy._guardian_floor_blocked(board, self.FOREST, 20))
+        self.assertEqual(policy._pick_alternate_dungeon(board), self.FOREST)
+        self.assertEqual(
+            policy._pick_alternate_dungeon(board, max_entry_depth=49),
+            self.FOREST,
+        )

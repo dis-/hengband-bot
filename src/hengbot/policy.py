@@ -11958,12 +11958,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _guardian_descent_blocked(self, snapshot: Snapshot) -> bool:
-        info = self._dungeon_knowledge.get(snapshot.floor_key[0])
+        return self._guardian_floor_blocked(
+            snapshot, snapshot.floor_key[0], snapshot.dungeon_level
+        )
+
+    def _guardian_floor_blocked(
+        self, snapshot: Snapshot, dungeon_id: int, depth: int
+    ) -> bool:
+        """Whether ``depth`` of ``dungeon_id`` is a guardian floor the kit cannot pass.
+
+        The standing floor's form is ``_guardian_descent_blocked`` (the
+        ``guardian-kit-insufficient`` return); ``_pick_alternate_dungeon`` asks
+        the same question of a candidate's recall landing before switching to it.
+        """
+        info = self._dungeon_knowledge.get(dungeon_id)
         return bool(
             info is not None
             and info.guardian_id > 0
-            and snapshot.floor_key[0] not in snapshot.conquered_dungeon_ids
-            and snapshot.dungeon_level >= info.max_depth - 1
+            and dungeon_id not in snapshot.conquered_dungeon_ids
+            and depth >= info.max_depth - 1
             and not self._guardian_fight_viable(snapshot, info)
         )
 

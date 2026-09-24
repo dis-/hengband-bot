@@ -342,6 +342,13 @@ class ObservationMixin:
         if snapshot.dungeon_level > 0:
             self._deepest_level = max(self._deepest_level, snapshot.dungeon_level)
 
+        # The target the bot pursued up to this board, i.e. the recall target of
+        # a dive that ends on it.  Target selection below starts over from
+        # Angband once its recall is unlocked and only then re-applies an active
+        # alternate or conquest target, so reading _target_dungeon_id in the
+        # over-extension judgement would see Angband for every such dive
+        # (live 2026-09-25: seven Orc-cave guardian bounces, streak held at 0).
+        pursued_target = self._target_dungeon_id
         if snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
             self._rumor_unlock_pending = False
@@ -384,7 +391,7 @@ class ObservationMixin:
             # A dive just ended. Judge only normal dives of the recall target —
             # fundraising mining of the Yeek Cave is a separate mode, not a dive.
             if (
-                self._dive_dungeon == self._target_dungeon_id
+                self._dive_dungeon == pursued_target
                 and self._fundraising_mode not in {"prepare", "mine", "scavenge"}
             ):
                 start_depth = self._dive_start_recall_depth or 0

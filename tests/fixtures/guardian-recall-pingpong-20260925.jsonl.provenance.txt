@@ -1,0 +1,6 @@
+Source: jsonlog/incident-20260925-0201-guardian-recall-pingpong.{state,decisions}.jsonl (copies of the live logs taken at the 02:01 stop).
+state.jsonl sha256 4a9a64efe844cbf603456e7e0debad9d08c463f518c39ac7aae75d6e20322183; decisions.jsonl sha256 59719e2ac2306022d673720a8e5b135392da845ab418bb4b89525f55a26f6d37
+Selection: decisions 0..262 by log index (2026-09-25T01:54:33+0900 - 2026-09-25T01:56:59+0900, turn 5321499-5324198); decision 263 is the first one a restarted policy does not reproduce.
+Boundary rule: walking back from the last emitter row that carries the last decision's turn (the log's final row came after the bot's last decision), each decision's input ends drain(previous decision) rows earlier and must carry the decision record's turn; the walk validates for all 635 logged decisions.  Decision 0 reads the state log's first row.
+Emitter rows: 304 of 747; decompressed sha256: 3c068d24e0c653c6e2ecca46e72d1b964faceb9964e7ccd00a499115e12cb47c
+Calibration: jsonlog/character-calibration.json as loaded by the process (last written 2026-09-24 05:24, before the run) sha256 a90e4700854b1b3cf839a278a846078c7f9d768c82c058551c6f52173660016b

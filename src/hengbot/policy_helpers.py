@@ -367,6 +367,13 @@ class PolicyHelpersMixin:
             # (e.g. a sub-20F Forest / Orc cave with no resistance requirement).
             if self._missing_required_abilities(snapshot, landing_depth):
                 continue
+            # A recall that lands on a guardian floor the current kit cannot
+            # pass is answered by an immediate guardian-kit-insufficient return:
+            # switching there repeats the very town<->guardian bounce the switch
+            # exists to end (live 2026-09-25: Orc cave, landing 23 = its guardian
+            # floor, picked as the unsafe-recall fallback, 7 round trips).
+            if self._guardian_floor_blocked(snapshot, did, landing_depth):
+                continue
             if best is None:
                 best = info
                 continue
