@@ -325,15 +325,17 @@ class PolicyHelpersMixin:
         max_entry_depth: int | None = None,
         prefer_deepest: bool = False,
         allow_yeek_cave: bool = False,
-        guardian_bounce: bool = False,
+        guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
         """Choose the shallowest safe dungeon already available to Recall.
 
-        ``guardian_bounce``: the empty-dive valve fired on guardian bounces
-        only.  The depth was never the problem, so the candidate landing is not
-        bounded by the bounced one (user decision 2026-09-25,
-        「倒せない階でなければ深くても可」); the guardian-floor and
-        required-ability checks below still apply.
+        ``guardian_bounced_dungeon``: the empty-dive valve fired on guardian
+        bounces only, off this dungeon.  The depth was never the problem, so
+        the candidate landing is not bounded by the bounced one (user decision
+        2026-09-25, 「倒せない階でなければ深くても可」); the guardian-floor and
+        required-ability checks below still apply, and the bounced dungeon
+        itself is never a candidate (its guardian verdict can depend on
+        consumables and read differently on the arrival board).
         """
         # The deepest already-unlocked dungeon — excluding the over-deep main one
         # and the Yeek Cave reserved for fundraising — whose floor is SHALLOWER
@@ -361,10 +363,12 @@ class PolicyHelpersMixin:
                 continue
             if did == self._alternate_dungeon:
                 continue  # the one we are leaving — never re-pick it, always step down
+            if did == guardian_bounced_dungeon:
+                continue  # the guardian valve leaves the bounced dungeon too
             landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
                 if (
-                    not guardian_bounce
+                    guardian_bounced_dungeon is None
                     and landing_depth >= self._last_overextended_depth
                 ):
                     continue

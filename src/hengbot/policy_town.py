@@ -5052,6 +5052,8 @@ class TownMixin:
             return False
         if self._guardian_descent_blocked(snapshot):
             self._last_return_trigger = "guardian-kit-insufficient"
+            # Read by the dive judgement in _observe: this dive's own return.
+            self._dive_guardian_return = True
             return True
         if len(snapshot.inventory) >= PACK_CAPACITY:
             self._last_return_trigger = "pack-full"

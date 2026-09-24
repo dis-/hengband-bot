@@ -268,6 +268,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         "town:blocked:overflow-no-legal-disposal",
         "town:blocked:recall-readiness-contradiction",
         "town:blocked:walk-in-entrance-unavailable",
+        "town:blocked:guardian-bounce-no-alternate",
         "quest:blocked:q34-recovery-no-progress",
         "quest:blocked:q34-throw-point-unreachable",
         "wilderness:no-safe-route",

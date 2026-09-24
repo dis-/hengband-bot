@@ -1275,6 +1275,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Restored checkpoints predating it read 0 (getattr), i.e. the streak is
         # judged as ordinary over-extension.
         self._guardian_bounce_dives = 0
+        # Whether the current dive's return began on a blocked guardian floor
+        # (restored checkpoints read False through getattr: not counted).
+        self._dive_guardian_return = False
         # Loot is useful, but it is not dungeon progression.  Keep a separate
         # leash for repeated Recall expeditions that never raise that dungeon's
         # saved landing depth; otherwise a few trivial pickups can keep the bot
@@ -1988,6 +1991,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             (
                 "departure-unsatisfiable",
                 "no-safe-recall-destination",
+                "guardian-bounce-no-alternate",
                 "equipment-work-home-route-exhausted",
                 "overweight-home-unreachable",
                 "restock-wait-exhausted",

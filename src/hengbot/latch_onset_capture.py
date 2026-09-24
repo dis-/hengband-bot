@@ -160,17 +160,18 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         )
     latches = restored.__dict__.get("_cross_decision_latches", {})
     town_block = latches.get("_town_blocked_reason")
-    if (
-        town_block is not None
-        and "restock-wait-exhausted" not in town_block.permanent_values
-    ):
-        latches["_town_blocked_reason"] = replace(
-            town_block,
-            permanent_values=(
-                *town_block.permanent_values,
-                "restock-wait-exhausted",
-            ),
-        )
+    # Permanent values added after a checkpoint was pickled (the second is
+    # the guardian-bounce terminal, guardian-recall-pingpong-r3).
+    for permanent in ("restock-wait-exhausted", "guardian-bounce-no-alternate"):
+        if (
+            town_block is not None
+            and permanent not in town_block.permanent_values
+        ):
+            town_block = replace(
+                town_block,
+                permanent_values=(*town_block.permanent_values, permanent),
+            )
+            latches["_town_blocked_reason"] = town_block
     # Checkpoints pickled before the S1 claim register carry neither the
     # register nor the recorded claim.  A fresh register is the honest value:
     # the restored policy has declared nothing yet, and its first decision

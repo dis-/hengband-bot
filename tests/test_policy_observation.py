@@ -14,6 +14,7 @@ from policy_fixtures import (
 )
 
 from hengbot.dungeon_knowledge import DungeonInfo
+from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -178,7 +179,14 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol.last_reason = "descend"
         pol._observe(dung)  # dive begins
         pol._target_dungeon_id = 4
-        pol._last_return_trigger = trigger
+        if trigger == "guardian-kit-insufficient":
+            # The real return start on the guardian floor: a trigger merely
+            # left over from an earlier return is not this dive's bounce
+            # (guardian-recall-pingpong-r3).
+            self.assertTrue(pol._should_start_town_return(dung))
+        else:
+            pol._last_return_trigger = trigger
+        self.assertEqual(pol._last_return_trigger, trigger)
         pol.last_reason = "town:return"
         pol._observe(self._town(conquered=(3, 7, 14), angband_unlocked=False))
 
@@ -693,23 +701,27 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     owner makes floor progress, so only the over-extension valve can end it:
     every such bounce must be counted whatever role the bounced dungeon plays
     (switched alternate or latched conquest target, Angband recall unlocked or
-    not), and the switch must not land on another guardian floor the kit
-    cannot pass.
+    not), the switch must not land on another guardian floor the kit cannot
+    pass, and when no entered dungeon qualifies the run must end visibly.
 
-    Two worlds.  SHALLOWER offers a productive landing below the bounced one
-    and a shallower decoy guardian floor.  DEEPER_ONLY (the capture's shape)
-    offers nothing below the bounced landing, a deeper decoy guardian floor
-    and productive landings only deeper still: user decision 2026-09-25
+    Worlds.  SHALLOWER offers a productive landing below the bounced one and a
+    shallower decoy guardian floor.  DEEPER_ONLY (the capture's shape) offers
+    nothing below the bounced landing, a deeper decoy guardian floor and
+    productive landings only deeper still: user decision 2026-09-25
     (guardian-recall-pingpong-r2, 「倒せない階でなければ深くても可」) lets a
-    valve fired by guardian bounces land deeper, as long as the landing is not
-    a guardian floor the kit cannot pass.  Valves fired by anything else keep
-    the shallower-landing bound.
+    valve fired by guardian bounces only land deeper, as long as the landing
+    is not a guardian floor the kit cannot pass.  ALL_BLOCKED lands every
+    candidate on its own blocked guardian floor: user decision 2026-09-25
+    (guardian-recall-pingpong-r3, 「見える形で停止する」) ends the run with the
+    policy-declared final stop ``town:blocked:guardian-bounce-no-alternate``.
+    Valves fired by anything else (over-extension, a mixed streak) keep the
+    shallower-landing bound and the existing no-candidate behaviour.
     """
 
     ORC_CAVE = 3  # landing 23 == max depth 23: its guardian floor
     DECOY = 5  # a landing that is its own blocked guardian floor
-    FOREST = 7  # productive
-    MOUNTAIN = 14  # productive, deeper than Forest
+    FOREST = 7  # productive unless its landing reaches 31 (max depth 32)
+    MOUNTAIN = 14  # productive unless its landing reaches 49 (max depth 50)
     ENTERED = (
         DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, ORC_CAVE, DECOY, FOREST, MOUNTAIN
     )
@@ -721,10 +733,18 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         DUNGEON_ANGBAND: 50, DUNGEON_YEEK_CAVE: 13, ORC_CAVE: 23,
         DECOY: 24, FOREST: 26, MOUNTAIN: 27,
     }
+    ALL_BLOCKED = {
+        DUNGEON_ANGBAND: 50, DUNGEON_YEEK_CAVE: 13, ORC_CAVE: 23,
+        DECOY: 24, FOREST: 31, MOUNTAIN: 49,
+    }
+    # Covers every band up to 49F, so each landing below is refused only for
+    # its guardian, never for a missing ability.
     ABILITIES = frozenset(
         {"free_action", "resist_conf", "resist_fire", "resist_pois",
-         "resist_cold", "resist_elec", "resist_acid"}
+         "resist_cold", "resist_elec", "resist_acid", "resist_chaos",
+         "resist_neth"}
     )
+    TERMINAL = "guardian-bounce-no-alternate"
     # A drive ceiling well past the valve's own bound; reaching it is the failure.
     ROUND_TRIP_CEILING = 4 * EMPTY_DIVE_LIMIT + 1
 
@@ -768,34 +788,47 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             angband_recall_unlocked=angband_unlocked,
         )
 
-    def _drive(self, policy, landings, *, angband_unlocked, start):
-        """Recall to the target's landing until a dive is not bounced."""
-        policy._observe(
-            self._board((0, 0, 0), start, landings, angband_unlocked=angband_unlocked)
+    def _town(self, policy, recall_dungeon, landings, *, angband_unlocked):
+        board = self._board(
+            (0, 0, 0), recall_dungeon, landings, angband_unlocked=angband_unlocked
         )
+        policy._observe(board)
+        return board
+
+    def _trip(self, policy, landings, *, angband_unlocked, pickups=0,
+              emergencies=0):
+        """One recall round trip to the target's landing; True if bounced."""
+        target = policy._target_dungeon_id
+        dungeon = self._board(
+            (target, landings[target], 0), target, landings,
+            angband_unlocked=angband_unlocked,
+        )
+        policy.last_reason = "town:recall-to-alt-dungeon"
+        policy._observe(dungeon)  # the recall landed: a dive begins
+        for _ in range(pickups):
+            policy.last_reason = "pickup"
+            policy._observe(dungeon)
+        for _ in range(emergencies):
+            policy.last_reason = "emergency:teleport"
+            policy._observe(dungeon)
+        bounced = (
+            policy._should_start_town_return(dungeon)
+            and policy._last_return_trigger == "guardian-kit-insufficient"
+        )
+        policy.last_reason = "return:recall"
+        self._town(policy, target, landings, angband_unlocked=angband_unlocked)
+        return target, bounced
+
+    def _drive(self, policy, landings, *, angband_unlocked, start):
+        """Round trips until a dive is not bounced or the run stops visibly."""
+        self._town(policy, start, landings, angband_unlocked=angband_unlocked)
         trips = []
         for _trip in range(self.ROUND_TRIP_CEILING):
-            target = policy._target_dungeon_id
-            dungeon = self._board(
-                (target, landings[target], 0), target, landings,
-                angband_unlocked=angband_unlocked,
+            trips.append(
+                self._trip(policy, landings, angband_unlocked=angband_unlocked)
             )
-            policy.last_reason = "town:recall-to-alt-dungeon"
-            policy._observe(dungeon)  # the recall landed: a dive begins
-            bounced = (
-                policy._should_start_town_return(dungeon)
-                and policy._last_return_trigger == "guardian-kit-insufficient"
-            )
-            trips.append((target, bounced))
-            if not bounced:
+            if not trips[-1][1] or policy._town_blocked_reason is not None:
                 return trips
-            policy.last_reason = "return:recall"
-            policy._observe(
-                self._board(
-                    (0, 0, 0), target, landings,
-                    angband_unlocked=angband_unlocked,
-                )
-            )
         return trips
 
     def _assert_bounded(self, trips, *, bounced_on, productive):
@@ -808,18 +841,24 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         self.assertEqual(set(bounced), {bounced_on}, trips)
         self.assertEqual(trips[-1][0], productive, trips)
 
+    ROLES = {"alternate": "_alternate_dungeon", "conquest": "_conquest_committed"}
+
+    @staticmethod
+    def _streak(policy):
+        """(streak, guardian share); getattr so pre-fix code fails by assertion."""
+        return (
+            policy._target_empty_dives,
+            getattr(policy, "_guardian_bounce_dives", None),
+        )
+
     def test_bounce_bound_holds_for_every_role_of_the_bounced_dungeon(self):
         worlds = {
             # (landings, the productive dungeon the valve must reach)
             "shallower": (self.SHALLOWER, self.FOREST),
             "deeper-only": (self.DEEPER_ONLY, self.FOREST),
         }
-        roles = {
-            "alternate": "_alternate_dungeon",
-            "conquest": "_conquest_committed",
-        }
         for world, (landings, productive) in worlds.items():
-            for role, attribute in roles.items():
+            for role, attribute in self.ROLES.items():
                 for angband_unlocked in (True, False):
                     with self.subTest(
                         world=world, role=role, angband_unlocked=angband_unlocked
@@ -836,6 +875,62 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                             trips, bounced_on=self.ORC_CAVE, productive=productive
                         )
                         self.assertIsNone(policy._conquest_committed)
+                        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_no_qualifying_alternate_ends_the_run_visibly(self):
+        # Round 2 bounced 13 times on the Orc cave here (the drive ceiling).
+        landings = self.ALL_BLOCKED
+        for role, attribute in self.ROLES.items():
+            for angband_unlocked in (True, False):
+                with self.subTest(role=role, angband_unlocked=angband_unlocked):
+                    policy = self._policy(landings)
+                    setattr(policy, attribute, self.ORC_CAVE)
+                    trips = self._drive(
+                        policy, landings,
+                        angband_unlocked=angband_unlocked, start=self.ORC_CAVE,
+                    )
+                    self.assertEqual(
+                        trips, [(self.ORC_CAVE, True)] * EMPTY_DIVE_LIMIT
+                    )
+                    self.assertEqual(policy._town_blocked_reason, self.TERMINAL)
+                    town = self._board(
+                        (0, 0, 0), self.ORC_CAVE, landings,
+                        angband_unlocked=angband_unlocked,
+                    )
+                    # The town router's blocked branch names the final stop the
+                    # driver ends the run on.
+                    policy._town_special_key(town)
+                    self.assertEqual(
+                        policy.last_reason, f"town:blocked:{self.TERMINAL}"
+                    )
+                    self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_restored_checkpoint_latch_keeps_the_terminal(self):
+        # A checkpoint pickled before the terminal existed carries a town-block
+        # latch without it; restoring adds it, so the per-decision release
+        # evaluator keeps the terminal instead of clearing it before routing.
+        from dataclasses import replace as replace_latch
+
+        from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+
+        # A bare policy: the optimizer fixture's closures do not pickle.
+        policy = HengbotPolicy()
+        latch = policy._cross_decision_latches["_town_blocked_reason"]
+        self.assertIn(self.TERMINAL, latch.permanent_values)
+        policy._cross_decision_latches["_town_blocked_reason"] = replace_latch(
+            latch,
+            permanent_values=tuple(
+                value for value in latch.permanent_values
+                if value != self.TERMINAL
+            ),
+        )
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        restored._town_blocked_reason = self.TERMINAL
+        town = self._board(
+            (0, 0, 0), self.ORC_CAVE, self.ALL_BLOCKED, angband_unlocked=True
+        )
+        restored._evaluate_cross_decision_latches(town)
+        self.assertEqual(restored._town_blocked_reason, self.TERMINAL)
 
     def test_latched_alternate_whose_landing_became_a_guardian_floor(self):
         # Forest was a productive alternate; its saved recall depth has since
@@ -858,47 +953,194 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                 )
 
     def test_restored_checkpoint_without_the_bounce_count_still_switches(self):
-        # A checkpoint pickled before _guardian_bounce_dives existed has no
-        # such attribute; its bounces are counted from zero and the drive ends
-        # the same way.
+        # A checkpoint pickled before _guardian_bounce_dives existed, taken
+        # with no streak running: its bounces are counted from zero.
         policy = self._policy(self.DEEPER_ONLY)
-        del policy._guardian_bounce_dives
+        policy.__dict__.pop("_guardian_bounce_dives", None)
+        policy.__dict__.pop("_dive_guardian_return", None)
         policy._alternate_dungeon = self.ORC_CAVE
         trips = self._drive(
             policy, self.DEEPER_ONLY, angband_unlocked=True, start=self.ORC_CAVE
         )
         self._assert_bounded(trips, bounced_on=self.ORC_CAVE, productive=self.FOREST)
 
+    def test_restored_checkpoint_with_a_running_streak_is_judged_mixed_once(self):
+        # A checkpoint pickled mid-streak (two counted dives, no guardian
+        # share recorded) cannot prove those dives were guardian bounces.  Its
+        # streak is judged as ordinary over-extension once -- shallower bound,
+        # nothing below 23 qualifies, no terminal, the alternate is kept --
+        # and the next streak, now all guardian bounces, switches to Forest.
+        policy = self._policy(self.DEEPER_ONLY)
+        policy.__dict__.pop("_guardian_bounce_dives", None)
+        policy._alternate_dungeon = self.ORC_CAVE
+        policy._target_empty_dives = 2
+        self._town(policy, self.ORC_CAVE, self.DEEPER_ONLY, angband_unlocked=True)
+        first = self._trip(policy, self.DEEPER_ONLY, angband_unlocked=True)
+        self.assertEqual(first, (self.ORC_CAVE, True))
+        self.assertEqual(policy._last_overextended_depth, 23)
+        self.assertEqual(policy._alternate_dungeon, self.ORC_CAVE)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(
+            self._streak(policy), (0, 0)
+        )
+        trips = [first]
+        for _trip in range(self.ROUND_TRIP_CEILING):
+            trips.append(
+                self._trip(policy, self.DEEPER_ONLY, angband_unlocked=True)
+            )
+            if not trips[-1][1]:
+                break
+        self.assertEqual(
+            trips,
+            [(self.ORC_CAVE, True)] * (1 + EMPTY_DIVE_LIMIT)
+            + [(self.FOREST, False)],
+        )
+
+    def test_mixed_streak_keeps_the_shallower_landing_bound(self):
+        # One over-extended Forest dive (two emergency escapes at landing 26),
+        # then Forest's landing reaches 31, its blocked guardian floor, and two
+        # bounces complete the streak.  The streak is not all guardian
+        # bounces, so the shallower bound applies: below 31 only the blocked
+        # Orc cave (23) and decoy (24) remain, the valve finds nothing, keeps
+        # Forest and does not stop the run.  A guardian-only streak would have
+        # moved on to Mountain (33).
+        landings = {**self.DEEPER_ONLY, self.MOUNTAIN: 33}
+        policy = self._policy(landings)
+        policy._alternate_dungeon = self.FOREST
+        self._town(policy, self.FOREST, landings, angband_unlocked=False)
+        self.assertEqual(
+            self._trip(policy, landings, angband_unlocked=False, emergencies=2),
+            (self.FOREST, False),
+        )
+        self.assertEqual(
+            self._streak(policy), (1, 0)
+        )
+        landings = {**landings, self.FOREST: 31}
+        for _bounce in range(EMPTY_DIVE_LIMIT - 1):
+            self.assertEqual(
+                self._trip(policy, landings, angband_unlocked=False),
+                (self.FOREST, True),
+            )
+        self.assertEqual(policy._last_overextended_depth, 31)
+        self.assertEqual(policy._alternate_dungeon, self.FOREST)
+        self.assertIsNone(policy._town_blocked_reason)
+        town = self._board((0, 0, 0), self.FOREST, landings, angband_unlocked=False)
+        self.assertEqual(
+            policy._pick_alternate_dungeon(
+                town, guardian_bounced_dungeon=self.FOREST
+            ),
+            self.MOUNTAIN,
+        )
+
     def test_over_extension_valve_keeps_the_shallower_landing_bound(self):
         # Three over-extended Forest dives (two emergency escapes each, no
         # guardian involved).  Only shallower landings qualify, and in this
         # world both (Orc cave 23, decoy 24) are blocked guardian floors, so
         # the valve does not jump to the deeper Mountain; the existing
-        # no-candidate behaviour keeps Forest.
+        # no-candidate behaviour keeps Forest and does not stop the run.
         landings = self.DEEPER_ONLY
         policy = self._policy(landings)
         policy._alternate_dungeon = self.FOREST
-        town = self._board((0, 0, 0), self.FOREST, landings, angband_unlocked=False)
-        dungeon = self._board(
-            (self.FOREST, landings[self.FOREST], 0), self.FOREST, landings,
-            angband_unlocked=False,
-        )
-        policy._observe(town)
+        town = self._town(policy, self.FOREST, landings, angband_unlocked=False)
         for _dive in range(EMPTY_DIVE_LIMIT):
-            policy.last_reason = "town:recall-to-alt-dungeon"
-            policy._observe(dungeon)
-            for _escape in range(2):
-                policy.last_reason = "emergency:teleport"
-                policy._observe(dungeon)
-            policy.last_reason = "return:recall"
-            policy._observe(town)
+            self.assertEqual(
+                self._trip(policy, landings, angband_unlocked=False, emergencies=2),
+                (self.FOREST, False),
+            )
         self.assertEqual(policy._last_overextended_depth, landings[self.FOREST])
         self.assertEqual(policy._target_empty_dives, 0)
         self.assertEqual(policy._alternate_dungeon, self.FOREST)
+        self.assertIsNone(policy._town_blocked_reason)
         self.assertEqual(
-            policy._pick_alternate_dungeon(town, guardian_bounce=True),
+            policy._pick_alternate_dungeon(
+                town, guardian_bounced_dungeon=self.FOREST
+            ),
             self.MOUNTAIN,
         )
+
+    def test_a_stale_guardian_trigger_does_not_count_another_return(self):
+        # The previous return was a guardian bounce, so _last_return_trigger
+        # still reads guardian-kit-insufficient.  This Forest dive (landing 26,
+        # no guardian near) returns through a path that never writes the
+        # trigger (a stuck/livelock recall escape, full-pack triage, a
+        # disengage recall ...): it is not a bounce and must not be counted.
+        for angband_unlocked in (True, False):
+            with self.subTest(angband_unlocked=angband_unlocked):
+                policy = self._policy(self.DEEPER_ONLY)
+                policy._alternate_dungeon = self.FOREST
+                self._town(
+                    policy, self.FOREST, self.DEEPER_ONLY,
+                    angband_unlocked=angband_unlocked,
+                )
+                policy._last_return_trigger = "guardian-kit-insufficient"
+                dungeon = self._board(
+                    (self.FOREST, 26, 0), self.FOREST, self.DEEPER_ONLY,
+                    angband_unlocked=angband_unlocked,
+                )
+                policy.last_reason = "town:recall-to-alt-dungeon"
+                policy._observe(dungeon)
+                self.assertFalse(policy._guardian_descent_blocked(dungeon))
+                policy.last_reason = "stuck:recall-escape"
+                self._town(
+                    policy, self.FOREST, self.DEEPER_ONLY,
+                    angband_unlocked=angband_unlocked,
+                )
+                self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
+                self.assertEqual(
+                    self._streak(policy),
+                    (0, 0),
+                )
+
+    def test_a_profitable_pursued_dive_clears_the_guardian_bounces(self):
+        # Two guardian bounces are on the streak; then a dive of the same
+        # pursued alternate with Angband's recall unlocked hauls more than
+        # OVEREXTEND_LOOT_MAX items.  Like the loot reset of the judged
+        # dives, the haul clears the streak and its guardian share.
+        policy = self._policy(self.DEEPER_ONLY)
+        policy._alternate_dungeon = self.FOREST
+        self._town(policy, self.FOREST, self.DEEPER_ONLY, angband_unlocked=True)
+        policy._target_empty_dives = 2
+        policy._guardian_bounce_dives = 2
+        self.assertEqual(
+            self._trip(
+                policy, self.DEEPER_ONLY, angband_unlocked=True,
+                pickups=OVEREXTEND_LOOT_MAX + 1,
+            ),
+            (self.FOREST, False),
+        )
+        self.assertEqual(
+            self._streak(policy), (0, 0)
+        )
+
+    def test_guardian_valve_never_re_picks_the_bounced_dungeon(self):
+        # The conquest target is not the alternate, so only the explicit
+        # exclusion keeps it out: if its guardian verdict flips on the
+        # arrival board (a consumable now makes the fight project as
+        # viable), the Orc cave (23) would be the shallowest landing.
+        policy = self._policy(self.DEEPER_ONLY)
+        policy._conquest_committed = self.ORC_CAVE
+        town = self._town(
+            policy, self.ORC_CAVE, self.DEEPER_ONLY, angband_unlocked=True
+        )
+        self.assertIsNone(policy._alternate_dungeon)
+        real = policy._guardian_fight_viable
+
+        def flipped(snapshot, info):
+            return info.id == self.ORC_CAVE or real(snapshot, info)
+
+        # Declared wall: the consumable-dependent fight projection is the
+        # precondition the review finding names; the picker's exclusion is the
+        # subject.
+        with patch.object(policy, "_guardian_fight_viable", side_effect=flipped):
+            self.assertFalse(
+                policy._guardian_floor_blocked(town, self.ORC_CAVE, 23)
+            )
+            self.assertEqual(
+                policy._pick_alternate_dungeon(
+                    town, guardian_bounced_dungeon=self.ORC_CAVE
+                ),
+                self.FOREST,
+            )
 
     def test_depth_progress_count_still_judges_only_the_dives_it_judged(self):
         # sol review P2: four stalled Angband dives, then ONE stalled dive of a
@@ -909,34 +1151,20 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         landings = {**self.SHALLOWER, self.ORC_CAVE: 15, self.FOREST: 12}
         policy = self._policy(landings)
         self.assertEqual(NO_DEPTH_PROGRESS_DIVE_LIMIT, 5)
-
-        def dive(dungeon_id):
-            town = self._board((0, 0, 0), dungeon_id, landings, angband_unlocked=True)
-            board = self._board(
-                (dungeon_id, landings[dungeon_id], 0), dungeon_id, landings,
-                angband_unlocked=True,
-            )
-            policy.last_reason = "town:recall-to-alt-dungeon"
-            policy._observe(board)
-            self.assertFalse(policy._guardian_descent_blocked(board))
-            policy.last_reason = "return:recall"
-            policy._observe(town)
-
-        policy._observe(
-            self._board((0, 0, 0), DUNGEON_ANGBAND, landings, angband_unlocked=True)
-        )
+        self._town(policy, DUNGEON_ANGBAND, landings, angband_unlocked=True)
         for _dive in range(NO_DEPTH_PROGRESS_DIVE_LIMIT - 1):
             self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-            dive(DUNGEON_ANGBAND)
+            self._trip(policy, landings, angband_unlocked=True)
         self.assertEqual(
             policy._no_depth_progress_dives, NO_DEPTH_PROGRESS_DIVE_LIMIT - 1
         )
         policy._conquest_committed = self.ORC_CAVE
-        policy._observe(
-            self._board((0, 0, 0), DUNGEON_ANGBAND, landings, angband_unlocked=True)
-        )
+        self._town(policy, DUNGEON_ANGBAND, landings, angband_unlocked=True)
         self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
-        dive(self.ORC_CAVE)
+        self.assertEqual(
+            self._trip(policy, landings, angband_unlocked=True),
+            (self.ORC_CAVE, False),
+        )
         self.assertEqual(
             policy._no_depth_progress_dives, NO_DEPTH_PROGRESS_DIVE_LIMIT - 1
         )

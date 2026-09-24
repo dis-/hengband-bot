@@ -372,6 +372,8 @@ class ObservationMixin:
         # character's ability, so switch to a shallower already-unlocked dungeon
         # whose landing depth satisfies the required abilities. ---
         prev_dungeon = previous_floor[0] if previous_floor else 0
+        judged_dungeon = None  # the dungeon of a dive that ends on this board
+        guardian_terminal = False  # the guardian valve found no alternate
         if not snapshot.in_town:
             if prev_dungeon == 0:  # descended from town: a fresh dive begins
                 self._dive_dungeon = snapshot.floor_key[0]
@@ -383,6 +385,9 @@ class ObservationMixin:
                 )
                 self._dive_loot = 0
                 self._dive_emergencies = 0
+                # Set by _should_start_town_return when THIS dive's return
+                # starts on a guardian floor the kit cannot pass.
+                self._dive_guardian_return = False
             if self.last_reason in PICKUP_REASONS:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
@@ -393,9 +398,15 @@ class ObservationMixin:
             normal_dive = self._fundraising_mode not in {
                 "prepare", "mine", "scavenge"
             }
+            # Only a return THIS dive started on the guardian floor counts:
+            # _last_return_trigger outlives its return, and several returns
+            # (stuck/livelock recall escapes, full-pack triage, disengage and
+            # breeder-breakthrough recalls) never write it.
             guardian_bounce = (
                 self._last_return_trigger == "guardian-kit-insufficient"
+                and getattr(self, "_dive_guardian_return", False)
             )
+            judged_dungeon = self._dive_dungeon
             if self._dive_dungeon == self._target_dungeon_id and normal_dive:
                 start_depth = self._dive_start_recall_depth or 0
                 end_depth = snapshot.dungeon_recall_depths.get(
@@ -439,22 +450,23 @@ class ObservationMixin:
                 # but a lone quiet dive between genuinely bad ones must not RESET it
                 # to zero either, or the switch could never accumulate. Only a
                 # profitable dive clears the suspicion.
-            elif (
-                self._dive_dungeon == pursued_target
-                and normal_dive
-                and guardian_bounce
-            ):
-                # The same guardian bounce of an alternate or conquest target
-                # while Angband's recall is unlocked: the judgement above reads
-                # the Angband target this observation already reset, so it
-                # never saw these dives (live 2026-09-25: seven Orc-cave
-                # bounces, streak held at 0).  Only the bounce is counted here;
-                # the depth-progress and over-extension judgements keep judging
-                # exactly the dives they judged before.
-                self._target_empty_dives += 1
-                self._guardian_bounce_dives = (
-                    getattr(self, "_guardian_bounce_dives", 0) + 1
-                )
+            elif self._dive_dungeon == pursued_target and normal_dive:
+                # A dive of an alternate or conquest target while Angband's
+                # recall is unlocked: the judgement above reads the Angband
+                # target this observation already reset, so it never sees
+                # these dives (live 2026-09-25: seven Orc-cave bounces, streak
+                # held at 0).  Only the guardian bounce is counted here, and a
+                # profitable dive clears the bounces the way the loot reset
+                # above does; the depth-progress and emergency judgements keep
+                # judging exactly the dives they judged before.
+                if self._dive_loot > OVEREXTEND_LOOT_MAX:
+                    self._target_empty_dives = 0
+                    self._guardian_bounce_dives = 0
+                elif guardian_bounce:
+                    self._target_empty_dives += 1
+                    self._guardian_bounce_dives = (
+                        getattr(self, "_guardian_bounce_dives", 0) + 1
+                    )
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
@@ -480,9 +492,15 @@ class ObservationMixin:
                 getattr(self, "_guardian_bounce_dives", 0)
                 >= self._target_empty_dives
             )
+            bounced_dungeon = (
+                judged_dungeon if judged_dungeon is not None else pursued_target
+            )
             self._last_overextended_depth = snapshot.recall_depth
             alt = self._pick_alternate_dungeon(
-                snapshot, guardian_bounce=guardian_bounces_only
+                snapshot,
+                guardian_bounced_dungeon=(
+                    bounced_dungeon if guardian_bounces_only else None
+                ),
             )
             if alt is not None:
                 self._alternate_dungeon = alt
@@ -490,6 +508,15 @@ class ObservationMixin:
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
                 self._conquest_committed = None
+            elif guardian_bounces_only:
+                # User decision 2026-09-25 (guardian-recall-pingpong-r3,
+                # 「見える形で停止する」): every other entered dungeon lands on
+                # a guardian floor the kit cannot pass (or is never a
+                # fallback), so another round trip can only bounce again.
+                # Stop visibly, the way the unsafe-recall fallback does with
+                # no-safe-recall-destination.  Latched below, after the
+                # floor-change reset that releases blocked-town reasons.
+                guardian_terminal = True
             self._target_empty_dives = 0
             self._guardian_bounce_dives = 0
         if (
@@ -842,6 +869,8 @@ class ObservationMixin:
             self._choke_outcome_floor = snapshot.floor_key
             self._choke_outcome_budgets.clear()
             self._breeder_choke_attempt_ended_floor = None
+        if guardian_terminal:
+            self._town_blocked_reason = "guardian-bounce-no-alternate"
 
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1

@@ -33,6 +33,13 @@ landing 23 and kept the Orc cave.  A valve fired by guardian bounces only is
 now bounded by "the landing is not a guardian floor the kit cannot pass"
 instead of "shallower than the bounced landing", so it picks Forest (24).
 
+Round 3, user decision 2026-09-25 (「見える形で停止する」): when that guardian
+valve finds no alternate at all, the run ends with the policy-declared final
+stop ``town:blocked:guardian-bounce-no-alternate`` (pinned on the recorded
+valve board with one named change: every other landing moved onto its own
+blocked guardian floor).  A bounce now counts only when THIS dive's return
+started on the guardian floor, not when a stale trigger is left over.
+
 Substrate: tests/fixtures/guardian-recall-pingpong-20260925.jsonl.gz, frozen by
 tests/extract_guardian_recall_pingpong_fixture.py at the recorded decision
 boundaries (see its .provenance.txt): decisions 0..262 by log index, from the
@@ -57,17 +64,19 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+import copy
 import gzip
 import hashlib
 import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from dataclasses import replace
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy_constants import EMPTY_DIVE_LIMIT
+from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -93,10 +102,16 @@ FIRST_RECALL = 13  # first town:recall-to-alt-dungeon ('rfc')
 BOUNCES = (37, 138, 211)  # return:recall 'rf' on (3, 23), guardian-kit-insufficient
 ARRIVALS = (84, 177, 257)  # the first town decision after each bounce
 LAST = 262
+VALVE = 258  # the decision whose observation lands the third bounce in town
+# Named change for the r3 terminal pin: every other candidate's recall
+# landing moved onto its own guardian floor (Forest max 32, Mountain max 50,
+# Castle max 65), none of whose guardians the recorded kit can beat.
+ALL_BLOCKED_LANDINGS = {FOREST: 31, 14: 49, 12: 64}
 
 
 class GuardianRecallPingPongRecordedTest(unittest.TestCase):
     live = None
+    live_base = None
 
     @classmethod
     def setUpClass(cls):
@@ -153,6 +168,9 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             valve_calls = []
             for index in range(LAST + 1):
                 snapshot = cls._consume(policy, index, directory)
+                if index == VALVE:
+                    # Deep copy of the live state as the valve's board arrives.
+                    cls.live_base = (copy.deepcopy(policy), snapshot)
                 observed_floor = policy._floor_key
                 recorded_alternate = cls.recorded[index]["alternate_dungeon_id"]
                 real_pick = policy._pick_alternate_dungeon
@@ -182,7 +200,9 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                             index,
                             policy._target_empty_dives,
                             policy._last_overextended_depth,
-                            policy._guardian_bounce_dives,
+                            # getattr: pre-fix code has no share and must
+                            # fail these pins by assertion, not AttributeError.
+                            getattr(policy, "_guardian_bounce_dives", None),
                             policy._alternate_dungeon,
                             policy._target_dungeon_id,
                         )
@@ -265,7 +285,13 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         )
         self.assertEqual(
             [(index, kwargs, depth) for index, kwargs, depth, _r in valve_calls],
-            [(observed[2], {"guardian_bounce": True}, ORC_CAVE_LANDING)],
+            [
+                (
+                    observed[2],
+                    {"guardian_bounced_dungeon": ORC_CAVE},
+                    ORC_CAVE_LANDING,
+                )
+            ],
         )
 
     # ------------------------------------------------------------ G1 (r2)
@@ -293,6 +319,40 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                 for i in range(index, LAST + 1)
             ],
         )
+
+    # ------------------------------------------------------------ r3
+    def test_r3_no_qualifying_alternate_stops_the_run_visibly(self):
+        """User decision 2026-09-25 「見える形で停止する」.
+
+        The recorded valve board with one named change: every candidate but
+        the Orc cave lands on its own guardian floor the kit cannot pass.  The
+        guardian valve finds no alternate, and the same decision already
+        answers with the policy-declared final stop, on which the driver
+        writes the row and ends the run instead of recalling back.
+        """
+        self._live()
+        base, board = self.live_base
+        policy = copy.deepcopy(base)
+        board = replace(
+            board,
+            dungeon_recall_depths={
+                **board.dungeon_recall_depths, **ALL_BLOCKED_LANDINGS
+            },
+        )
+        for dungeon, depth in ALL_BLOCKED_LANDINGS.items():
+            self.assertTrue(policy._guardian_floor_blocked(board, dungeon, depth))
+        key = policy.choose_key(board)
+        self.assertEqual(
+            policy.last_reason, "town:blocked:guardian-bounce-no-alternate"
+        )
+        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+        self.assertEqual(key, "5")
+        self.assertEqual(policy._alternate_dungeon, ORC_CAVE)
+        # Unchanged, the same board switches to Forest instead (G1-r2).
+        policy = copy.deepcopy(base)
+        policy.choose_key(self.live_base[1])
+        self.assertEqual(policy._alternate_dungeon, FOREST)
+        self.assertEqual(policy.last_reason, self.recorded[VALVE]["reason"])
 
     # ------------------------------------------------------------ G1
     def test_g1_fallback_does_not_choose_a_blocked_guardian_landing(self):
