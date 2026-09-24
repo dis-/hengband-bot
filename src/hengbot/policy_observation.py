@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
@@ -587,6 +592,7 @@ class ObservationMixin:
 
         if snapshot.in_town:
             self._returning_to_town = False
+            self._note_return_end()
             if snapshot.floor_key != self._floor_key:
                 # A fresh town visit retries the store: an earlier give-up (e.g.
                 # an unaffordable lantern) must not block buying the rations this
@@ -718,7 +724,7 @@ class ObservationMixin:
             self._unverified_stairs.clear()
             self._known_treasure.clear()
             self._release_claim_goal(
-                "treasure-floor-changed", self._treasure_target
+                "treasure-floor-changed", self._treasure_target, owners=("fundraising",)
             )
             self._treasure_target = None
             self._mining_mark_bumps.clear()
@@ -751,7 +757,7 @@ class ObservationMixin:
             self._chest_preopen_objects = None
             self._processed_chest_positions.clear()
             self._known_loot.clear()
-            self._release_claim_goal("loot-floor-changed", self._loot_target)
+            self._release_claim_goal("loot-floor-changed", self._loot_target, owners=CLAIM_LOOT_OWNERS)
             self._loot_target = None
             self._deferred_loot.clear()
             self._nav_ledger_deferred_loot.clear()
@@ -871,7 +877,7 @@ class ObservationMixin:
                     self._deferred_loot.add(pickup_position)
                     if self._loot_target == pickup_position:
                         self._release_claim_goal(
-                            "loot-pickup-failed", pickup_position
+                            "loot-pickup-failed", pickup_position, owners=CLAIM_LOOT_OWNERS
                         )
                         self._loot_target = None
             self._pending_loot_pickup = None
@@ -890,7 +896,7 @@ class ObservationMixin:
                 self._mining_veins_collected += 1
                 if self._treasure_target == grid.position:
                     # The committed vein is gone beside the player: mined.
-                    self._complete_claim_goal("treasure-mined", grid.position)
+                    self._complete_claim_goal("treasure-mined", grid.position, owners=("fundraising",))
                     self._treasure_target = None
             # CAVE_UNSAFE means trap detection has not covered this grid.  The
             # bot already traverses such grids during ordinary exploration, so
@@ -917,7 +923,7 @@ class ObservationMixin:
                 if self._loot_target == grid.position:
                     # The committed loot cell is empty beside the player:
                     # collected.
-                    self._complete_claim_goal("loot-collected", grid.position)
+                    self._complete_claim_goal("loot-collected", grid.position, owners=CLAIM_LOOT_OWNERS)
                     self._loot_target = None
         if self._known_treasure - treasure_before_observation:
             self._mining_stall_turns = 0

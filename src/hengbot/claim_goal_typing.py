@@ -21,9 +21,12 @@ the family.  ``GOAL_TYPING`` is a checked-in constant keyed by
 
 What each kind means for the claim (``policy._claim_goal``):
 
-``Reach``     the producer must have written its target into the decision's
-              goal slot on this board; a Reach row whose producer wrote no
-              slot declares ``Terminal`` and records ``goal_missing``.
+``Reach``     the producer must have written its target -- a cell, a monster
+              ``(index, race_id)`` or a named place (rev 9.2) -- into the
+              decision's goal slot on this board, and the slot carries the
+              writing producer's family; a Reach row with no slot, or with a
+              slot of another family, declares ``Terminal`` and records
+              ``goal_missing`` (``no-slot`` / ``owner-mismatch``).
 ``Observe``   the goal is the expectation the producer posted on this board
               (``_post_owner_expectation``), or else the same owner's still
               open ``Observe`` claim (a transaction's later keys), or else the
@@ -148,9 +151,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("shop:buy", O, STORE_OPERATION),
         ("shop:await-", O, STORE_OPERATION),
         ("shop:observe", T, EFFECT),
-        # Design rev 9 item 1 lists ``shop:observe-and-leave`` with the
-        # store-router travel rows: Reach, the entrance cell.
-        ("shop:observe-and-leave", R, ENTRANCE),
+        # Rev 9.2 (T2): ``shop:observe-and-leave`` emits the leave key inside
+        # the store and never walks; rev 9 had listed it with the travel rows.
+        ("shop:observe-and-leave", T, EFFECT),
         ("shop:home-first-before-purchase", T, EFFECT),
         ("shop:store-context-exit", O, STORE_OPERATION),
         ("town:wait-restock", T, EFFECT),
@@ -167,8 +170,13 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("store:entry-interrupted-replan", R, ENTRANCE),
         ("town:travel", R, ENTRANCE),
         ("town-travel:", R, ENTRANCE),
-        ("town:teleport", T, EFFECT),
-        ("town:teleport-step-off", R, WALK_TARGET),
+        # The walk to the teleport building (its route's goal cell).
+        ("town:teleport", R, ENTRANCE),
+        ("town:teleport-refused-fare", T, EFFECT),
+        # One step off the teleport building; the step is computed inside the
+        # route helper, which no producer can name without recomputing it.
+        ("town:teleport-step-off", T, EFFECT),
+        ("store:entry-interrupted-replan:await-entry", O, STORE_OPERATION),
         ("wilderness:enter-town", T, EFFECT),
         ("wilderness:global-travel", R, WALK_TARGET),
         ("wilderness:enter-global", T, EFFECT),
@@ -185,6 +193,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("equipment-transaction:", O, TRANSACTION),
         ("equipment-transaction:approach-home", R, ENTRANCE),
         ("equipment-transaction:travel-home", R, ENTRANCE),
+        ("equipment-transaction:travel-home:await-entry", O, STORE_OPERATION),
+        # Rev 9.2 (T2): it walks to the Home through the store router.
+        ("equipment-transaction:acquire-home-catalog", R, ENTRANCE),
         ("equipment-transaction:home-route-unavailable", T, EFFECT),
         ("equipment-transaction:abandon", T, EFFECT),
         ("equipment-transaction:confirmation-stall-bound", T, EFFECT),
@@ -206,6 +217,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("calibration:", O, TRANSACTION),
         ("calibration:restore-home-unavailable", T, EFFECT),
         ("calibration:restore-home-unreachable", T, EFFECT),
+        # Rev 9.2 (T2): calibration's walks to the Home are native travel.
+        ("calibration:restore-travel", R, ENTRANCE),
+        ("calibration:restore-travel:await-entry", O, STORE_OPERATION),
     ),
     *_rows(
         "identification",
@@ -252,6 +266,15 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("survival:mana-sale-approach", R, ENTRANCE),
         ("survival:mana-shop-approach", R, ENTRANCE),
         ("survival:shop-approach", R, ENTRANCE),
+        # Rev 9.2 (T2): the survival errands' native-travel legs.
+        ("survival:shop-travel", R, ENTRANCE),
+        ("survival:mana-home-travel", R, ENTRANCE),
+        ("survival:mana-sale-travel", R, ENTRANCE),
+        ("survival:mana-shop-travel", R, ENTRANCE),
+        ("survival:shop-travel:await-entry", O, STORE_OPERATION),
+        ("survival:mana-home-travel:await-entry", O, STORE_OPERATION),
+        ("survival:mana-sale-travel:await-entry", O, STORE_OPERATION),
+        ("survival:mana-shop-travel:await-entry", O, STORE_OPERATION),
         ("survival:seek-exit", R, WALK_TARGET),
         ("weak-fainting", T, EFFECT),
         ("status-threat:", T, EFFECT),
@@ -286,7 +309,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("return:await-recall-confirmation", O, FLOOR_CHANGE),
         ("return:ascend", O, FLOOR_CHANGE),
         ("return:seek-upstairs", R, WALK_TARGET),
-        ("return:search-upstairs", R, WALK_TARGET),
+        # every producer of it emits the search key in place
+        ("return:search-upstairs", T, EFFECT),
         ("return:seek-secret-wall", R, WALK_TARGET),
         ("return:explore", R, WALK_TARGET),
         ("return:seek-loot", R, WALK_TARGET),
@@ -366,7 +390,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("livelock:recall-escape", O, FLOOR_CHANGE),
         ("livelock:seek-", R, WALK_TARGET),
         ("town-progress-invariant:", T, EFFECT),
-        ("town-progress-invariant:boxed-breakout-travel", R, WALK_TARGET),
+        ("town-progress-invariant:boxed-breakout-travel", R, ENTRANCE),
+        ("town-progress-invariant:boxed-breakout-travel:await-entry", O, STORE_OPERATION),
         ("town-liveness-invariant:", T, EFFECT),
         ("town:cycle-break", T, EFFECT),
         ("posting-contract:", T, EFFECT),
@@ -377,7 +402,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("novel:", T, EFFECT),
         ("breakout", T, EFFECT),
         ("breakout:seek-frontier", R, WALK_TARGET),
-        ("breakout:dig-to-stairs", R, WALK_TARGET),
+        # a tunnel command toward a stair the reason site cannot name
+        ("breakout:dig-to-stairs", T, EFFECT),
         ("no-wait:", T, EFFECT),
         ("nav:", T, EFFECT),
         ("warning:", T, EFFECT),
@@ -395,6 +421,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("threat:reposition", R, WALK_TARGET),
         ("threat:avoid-engagement", R, WALK_TARGET),
         ("threat:paralyzer-avoid", R, WALK_TARGET),
+        ("threat:paralyzer-avoid:blocked-step", T, EFFECT),
         ("paralyzer-guard:", R, WALK_TARGET),
     ),
     *_rows(
@@ -463,6 +490,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest-strategy:", T, EFFECT),
         ("quest-strategy:approach-", R, WALK_TARGET),
         ("quest-strategy:placement-sweep", R, WALK_TARGET),
+        ("quest-strategy:placement-sweep-repeat", T, EFFECT),
         ("quest-strategy:q2-approach-", R, WALK_TARGET),
         ("quest-strategy:q2-blue-confirm-approach", R, WALK_TARGET),
         ("quest-strategy:q2-breach-approach", R, WALK_TARGET),
@@ -496,6 +524,54 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("wait", T, EFFECT),
     ),
 )
+
+def owners_with(kind: str, content: str) -> frozenset[str]:
+    """The families that have a row of this kind and content (rev 9.2 U)."""
+    return frozenset(
+        row.family for row in GOAL_TYPING
+        if row.kind == kind and row.content == content and row.family != "misc"
+    )
+
+
+# The owners a shared store goal can belong to, derived from the table so the
+# closing sites of rev 9.2 item U name owners without a hand-kept list.
+ENTRANCE_OWNERS = owners_with(GOAL_REACH, ENTRANCE)
+STORE_OPERATION_OWNERS = owners_with(GOAL_OBSERVE, STORE_OPERATION)
+TRANSACTION_OWNERS = owners_with(GOAL_OBSERVE, TRANSACTION)
+
+# The owners whose walks share one committed target, named by the closing
+# sites that drop or reach that target (rev 9.2 U).  Each is the set of
+# families whose producers write that target into the slot.
+LOOT_OWNERS = frozenset(
+    {"floor-loot", "fundraising", "departure"}  # seek-loot, fundraise:, return:
+)
+EXPLORE_GOAL_OWNERS = frozenset(
+    # explore; return:explore; breakout:seek-frontier; the fundraising and
+    # quest-sweep exploration legs
+    {"explore", "departure", "detectors", "fundraising", "quest-sweep"}
+)
+MONSTER_CHASE_OWNERS = frozenset(
+    {"hunt", "departure", "survival"}  # hunt, clear-descent, town:kill-mob-approach
+)
+# A confirmed Home withdrawal or deposit completes the Home operation of any
+# owner that posts one, under the sources those owners declare it with: the
+# store-operation and transaction table contents, and the expectation names
+# they post.
+HOME_EFFECT_OWNERS = frozenset(
+    {"home-visit", "home-errand", "home-scan", "calibration", "equipment-txn"}
+)
+HOME_EFFECT_SOURCES = (
+    STORE_OPERATION,
+    TRANSACTION,
+    "equipment-transaction",
+    "home-errand:",
+    "home-withdrawal:",
+    "home:",
+)
+
+# Why a Reach row declared Terminal (rev 9.2 C and D).
+GOAL_NOTE_NO_SLOT = "no-slot"
+GOAL_NOTE_OWNER_MISMATCH = "owner-mismatch"
 
 _BY_FAMILY: dict[str, tuple[GoalTypingRow, ...]] = {}
 for _row in GOAL_TYPING:

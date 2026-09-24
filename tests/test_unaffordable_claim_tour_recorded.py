@@ -112,12 +112,18 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     "home-withdraw-observed": 3,
     # stairs and recall: Observe(floor change), completed on the floor key
     "floor-changed": 10,
+    # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit
+    "expectation-satisfied": 15,
 }
+# Re-pinned by rev 9.2 (owner-stamped slots, the read-only satisfaction test,
+# every Reach reason site writing its slot); round 1 read 18 / 8,1,7 / 67,3 /
+# 10,1 and no equipment-txn completion.
 S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    "home-visit/Observe": {"complete": 8, "release": 1, "abandoned": 7},
-    "floor-loot/Reach": {"complete": 67, "abandoned": 3},
-    "positioning/Reach": {"complete": 10, "release": 1},
+    "home-visit/Observe": {"complete": 12, "release": 1, "abandoned": 4},
+    "equipment-txn/Observe": {"complete": 11, "abandoned": 1},
+    "floor-loot/Reach": {"complete": 70, "abandoned": 3},
+    "positioning/Reach": {"complete": 15, "release": 1},
 }
 
 

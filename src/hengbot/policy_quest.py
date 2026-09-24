@@ -1350,6 +1350,7 @@ class QuestMixin:
             key = self._town_teleport_key(snapshot, destination)
             if key is not None:
                 self.last_reason = f"town:morivant-full-identify:travel-{destination}"
+                self._adopt_decision_goal()
                 return key
             # A missing Inn route is terminal for this attempt, not a departure
             # claim.  Preserve today's deferral behavior and never spin here.
@@ -1382,6 +1383,7 @@ class QuestMixin:
                     == MORIVANT_LIBRARY_BUILDING_TYPE
                 )
                 self.last_reason = "town:morivant-full-identify:library"
+                self._declare_reach(library_pos if library_pos is not None else step)
                 if enters:
                     selectors = "".join(
                         "a"
@@ -1405,6 +1407,7 @@ class QuestMixin:
             key = self._town_teleport_key(snapshot, expedition.origin_town_id)
             if key is not None:
                 self.last_reason = "town:morivant-full-identify:return"
+                self._adopt_decision_goal()
                 return key
         self._finish_morivant_full_identify()
         return None
@@ -1510,6 +1513,7 @@ class QuestMixin:
             triage = self._full_pack_loot_triage_key(snapshot)
             if triage is not None:
                 return triage
+            self._note_return_start(None)
             self._returning_to_town = True
             return self._return_to_town_key(
                 snapshot, self._strategic_hostiles(snapshot)
@@ -1530,6 +1534,7 @@ class QuestMixin:
         # A conquered guardian floor has no progression goal left. Start the
         # return now instead of falling through to ordinary exploration.
         self._victory_loot_dungeon = None
+        self._note_return_start("conquest-complete")
         self._returning_to_town = True
         self._last_return_trigger = "conquest-complete"
         key = self._return_to_town_key(
@@ -1799,6 +1804,7 @@ class QuestMixin:
                 self.last_reason = "quest:blocked:q2-breach-route"
                 return WAIT_KEY
             self.last_reason = "quest-strategy:q2-breach-approach"
+            self._declare_reach(standing)
             return self._step_toward(snapshot, step)
 
         if self._q2_breach_attempts >= Q2_BREACH_ATTEMPT_LIMIT:
@@ -2093,6 +2099,7 @@ class QuestMixin:
             )
             if step is not None:
                 self.last_reason = "quest-strategy:q2-approach-residual-multiplier"
+                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
             self.last_reason = "quest:blocked:q2-residual-multiplier-vantage"
             return WAIT_KEY
@@ -2444,6 +2451,7 @@ class QuestMixin:
                         self.last_reason = "quest:blocked:q2-blue-confirm-route"
                         return WAIT_KEY
                     self.last_reason = "quest-strategy:q2-blue-confirm-approach"
+                    self._declare_reach(Q2_BLUE_CONFIRM_POSITION)
                     return self._step_toward(snapshot, step)
                 self._q2_cleared_races.add(252)
                 navigator.allow_deep_water = False
@@ -2566,6 +2574,7 @@ class QuestMixin:
                 )
                 if step is not None:
                     self.last_reason = "quest-strategy:q2-final-patrol"
+                    self._declare_reach(target)
                     return self._step_toward(snapshot, step)
                 self._q2_final_patrol_target = None
 
@@ -2579,6 +2588,7 @@ class QuestMixin:
         if len(path) > 1:
             self._q2_final_patrol_target = path[-1]
             self.last_reason = "quest-strategy:q2-final-patrol"
+            self._declare_reach(path[-1])
             return self._step_toward(snapshot, path[1])
 
         self._q2_final_patrol_visited.clear()
@@ -2841,6 +2851,7 @@ class QuestMixin:
                 )
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-opening-lantern"
+                    self._declare_reach(light_position)
                     return self._step_toward(snapshot, step)
                 self.last_reason = "quest:blocked:opening-lantern-unreachable"
                 return WAIT_KEY
@@ -2882,6 +2893,7 @@ class QuestMixin:
                         self.last_reason = "quest-strategy:opening-door-unreachable"
                         return WAIT_KEY
                     self.last_reason = "quest-strategy:approach-opening-door"
+                    self._declare_reach(route_goal)
                     return self._step_toward(snapshot, step)
                 if door_grid is None or not door_grid.known:
                     self.last_reason = "quest-strategy:search-opening-door"
@@ -3374,6 +3386,7 @@ class QuestMixin:
                         )
                         return WAIT_KEY
                     self.last_reason = "quest-strategy:approach-throw-point"
+                    self._declare_reach(stand)
                     return self._step_toward(snapshot, step)
                 if torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
@@ -3582,6 +3595,7 @@ class QuestMixin:
                     step = self._explore_step(snapshot)
                     if step is not None:
                         self.last_reason = "quest-strategy:placement-sweep-explore"
+                        self._declare_explore_goal()
                         return self._step_toward(snapshot, step)
                     self.last_reason = "quest:blocked:placement-sweep-exhausted"
                     return WAIT_KEY
@@ -3601,6 +3615,7 @@ class QuestMixin:
                     ),
                 )
                 self.last_reason = "quest-strategy:placement-sweep"
+                self._declare_reach(route[-1])
                 return self._step_toward(snapshot, route[1])
             self.last_reason = "quest:blocked:placement-sweep-route"
             return WAIT_KEY
@@ -3664,6 +3679,7 @@ class QuestMixin:
                         )
                         if step is not None:
                             self.last_reason = "quest-strategy:approach-final-door"
+                            self._declare_reach(final_approach)
                             return self._step_toward(snapshot, step)
                 step = self._quest_strategy_route_step(
                     snapshot, profile, target_position
@@ -3677,6 +3693,7 @@ class QuestMixin:
                     )
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-final-target"
+                    self._declare_reach(step)
                     return self._step_toward(snapshot, step)
 
         # Thrown quest supplies can land between the player and the fixed hold.
@@ -3993,6 +4010,7 @@ class QuestMixin:
                 return self._fixed_quest_reward_key(snapshot, quest_id)
             if quest.status == QUEST_STATUS_COMPLETED:
                 if not snapshot.in_town:
+                    self._note_return_start(None)
                     self._returning_to_town = True
                     key = self._return_to_town_key(snapshot, hostiles)
                     if key is not None and self.last_reason != "return:wait-recall":
@@ -4138,6 +4156,7 @@ class QuestMixin:
             key = self._town_teleport_key(snapshot, 0)
             if key is not None:
                 self.last_reason = "fixedquest:prepare-return"
+                self._adopt_decision_goal()
             return key
         result = self._town_teleport_route(snapshot, 0)
         reason = "fixedquest:prepare-return"
@@ -4932,6 +4951,7 @@ class QuestMixin:
         step = self._nearest_goal_step(snapshot, lambda grid: grid.has_quest_exit)
         if step is not None:
             self.last_reason = "fixedquest:seek-exit"
+            self._declare_reach(step)
             return self._step_toward(snapshot, step)
         return None
 
@@ -5022,6 +5042,7 @@ class QuestMixin:
                     self._fixed_quest_reward_pending = None
                 return None
             self.last_reason = "fixedquest:reward-approach"
+            self._declare_reach(step)
             return self._step_toward(snapshot, step)
         route = min(
             (

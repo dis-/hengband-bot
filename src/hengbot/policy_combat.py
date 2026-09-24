@@ -934,6 +934,7 @@ class CombatMixin:
                 "unreachable", snapshot, strategic_hostiles
             )
         self.last_reason = "esp-threat:hunt-strong"
+        self._declare_reach(step)
         return self._step_toward(snapshot, step)
 
     def _esp_threat_end_hunt(
@@ -957,6 +958,7 @@ class CombatMixin:
             return None
         # Up-stairs underfoot first, Word of Recall deeper than the walk-out
         # depth, else walk to the nearest known up-stairs.
+        self._note_return_start("esp-threat")
         self._returning_to_town = True
         self._last_return_trigger = "esp-threat"
         key = self._return_to_town_key(snapshot, strategic_hostiles)
@@ -1026,6 +1028,7 @@ class CombatMixin:
                 assessment["action"] = "hunt-unreachable"
                 return True, None
             self.last_reason = f"esp-threat:hunt-{tier}"
+            self._declare_reach(step)
             return True, self._step_toward(snapshot, step)
         if action == "leave":
             key = self._esp_threat_leave_key(snapshot, strategic_hostiles)
@@ -1538,6 +1541,7 @@ class CombatMixin:
             self._fruitless_disengage_decisions = self._escape_state.budgets[
                 "fruitless-disengage"
             ]
+            self._note_return_start(None)
             self._returning_to_town = True
             self.last_reason = "combat:disengage-armed"
     def _fruitless_fight_is_winnable(
@@ -1668,6 +1672,7 @@ class CombatMixin:
         ):
             self._emergency_return_active = True
             self._unseen_recall_damage_streak += 1
+            self._note_return_start("unseen-attacker")
             self._returning_to_town = True
             self._last_return_trigger = "unseen-attacker"
             here = snapshot.grid_at(player.position)
@@ -1838,6 +1843,13 @@ class CombatMixin:
                 not guardian_reposition
                 and self._dive_emergencies + 1 >= EMERGENCY_RETURN_COUNT
             ):
+                self._note_return_start((
+                    "emergency-summoner"
+                    if summoner_open
+                    else "emergency-ranged-status-lock"
+                    if ranged_scroll_lock
+                    else "emergency-lethal-swarm"
+                ))
                 self._returning_to_town = True
             self._last_return_trigger = (
                 "guardian-reposition"
@@ -1877,6 +1889,7 @@ class CombatMixin:
                             self.last_reason = "guardian:teleport-to-cover"
                         else:
                             if self._fundraising_mode in {"mine", "scavenge"}:
+                                self._note_return_start(self._last_return_trigger)
                                 self._returning_to_town = True
                             self.last_reason = (
                                 "emergency:teleport"
@@ -1930,12 +1943,14 @@ class CombatMixin:
                         return blocker
                 if route_step is not None:
                     self.last_reason = "emergency:seek-upstairs"
+                    self._declare_reach(route_step)
                     return self._step_toward(snapshot, route_step)
                 flee_step = self._flee_step(snapshot, hostiles)
                 if flee_step is not None and not (
                     self._is_oscillating() and flee_step in set(self._recent)
                 ):
                     self.last_reason = "emergency:seek-upstairs"
+                    self._declare_reach(flee_step)
                     return self._step_toward(snapshot, flee_step)
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
@@ -1957,10 +1972,12 @@ class CombatMixin:
             self._emergency_escape_pending = False
             return_trigger = self._post_emergency_return_trigger(snapshot, hostiles)
             if return_trigger is not None:
+                self._note_return_start(return_trigger)
                 self._returning_to_town = True
                 self._last_return_trigger = return_trigger
             elif not guardian_reposition:
                 self._returning_to_town = False
+                self._note_return_end()
                 self._last_return_trigger = None
 
         # Cure Critical Wounds is status treatment, never an HP-response potion.
@@ -2122,6 +2139,7 @@ class CombatMixin:
             return None
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
+        self._declare_reach(step)
         return self._step_toward(
             snapshot, step, allow_paralyzer_ring_escape=True
         )
@@ -2722,6 +2740,7 @@ class CombatMixin:
                     self._breeder_choke_attempt_ended_floor == snapshot.floor_key
                     and self._engagement_breeder_population(snapshot)
                 ):
+                    self._note_return_start("breeder-choke-attempt-ended")
                     self._returning_to_town = True
                     self._last_return_trigger = "breeder-choke-attempt-ended"
                     exit_key = self._return_to_town_key(
@@ -2768,6 +2787,7 @@ class CombatMixin:
                     self._breeder_choke_attempt_ended_floor == snapshot.floor_key
                     and self._engagement_breeder_population(snapshot)
                 ):
+                    self._note_return_start("breeder-choke-attempt-ended")
                     self._returning_to_town = True
                     self._last_return_trigger = "breeder-choke-attempt-ended"
                     exit_key = self._return_to_town_key(
@@ -2954,6 +2974,7 @@ class CombatMixin:
                 return None
             plan.last_movement = (snapshot.player.position, step)
             self.last_reason = "melee:choke-reposition"
+            self._declare_reach(plan.destination)
             return self._step_toward(snapshot, step)
         plan.phase = "validate"
         here = snapshot.grid_at(plan.destination)
@@ -3026,6 +3047,7 @@ class CombatMixin:
                 return WAIT_KEY
             recall = self._find_recall_scroll(snapshot)
             if recall is not None and self._can_read_scrolls(snapshot):
+                self._note_return_start(None)
                 self._returning_to_town = True
                 self.last_reason = "breeder-breakthrough:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
@@ -3065,6 +3087,7 @@ class CombatMixin:
         if here is not None and self._is_upstairs_target(here):
             if self._active_quest_id(snapshot) is None:
                 self._breeder_fled_floor = snapshot.floor_key
+                self._note_return_start(None)
                 self._returning_to_town = True
             self._defer_descent(snapshot)
             self.last_reason = "breeder-breakthrough:ascend"
@@ -3403,5 +3426,5 @@ class CombatMixin:
             return None
         # Record-only (S2a.1): the hostile this step closes on; the caller
         # that turns the step into its key names it as the decision's goal.
-        self._hunt_step_target = target.position
+        self._hunt_step_target = (target.index, target.race_id)
         return step

@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    STORE_OPERATION as CLAIM_STORE_OPERATION,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, DETECTION_SCROLL_BUFFER, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
@@ -1455,6 +1461,7 @@ class ShopMixin:
             key = self._town_teleport_key(snapshot, next_town)
             if key is not None:
                 self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
+                self._adopt_decision_goal()
                 return key
             # A refused or unroutable trip is terminal for this visit.  Do not
             # approach another Inn destination on the following decision.
@@ -3148,7 +3155,11 @@ class ShopMixin:
             self._store_sell_stuck_count = 0
             if confirmed:
                 # Design rev 9 item 3: the posted sale is confirmed.
-                self._complete_observed_effect("sale-observed")
+                self._complete_observed_effect(
+                    "sale-observed",
+                    owners=(ClaimOwner.SHOP_SELL,),
+                    sources=(CLAIM_STORE_OPERATION,),
+                )
             if confirmed and self._store_visit is not None:
                 self._store_visit.operation_posted = False
                 self._store_visit.operation_effect_observed = True
@@ -4203,6 +4214,7 @@ class ShopMixin:
                 self._release_claim_goal(
                     "shop-approach:home-request-unavailable",
                     self._shopping_approach_goal,
+                    owners=CLAIM_ENTRANCE_OWNERS,
                 )
                 self._shopping_approach_goal = None
                 return None
@@ -4352,9 +4364,12 @@ class ShopMixin:
         # step until then, never a least-visited edge tile).
         return step
 
-    def _stage_shopping_approach_key(self, snapshot: Snapshot, key: str) -> str:
-        # Record-only (S2a.1): the entrance this approach step heads for.
-        self._declare_reach(self._shopping_approach_goal)
+    def _stage_shopping_approach_key(
+        self, snapshot: Snapshot, key: str, *, claim_family: str | None = None
+    ) -> str:
+        # Record-only (S2a.1): the entrance this approach step heads for,
+        # stamped with the family whose errand the router runs (rev 9.2 C).
+        self._declare_reach(self._shopping_approach_goal, family=claim_family)
         provenance = object()
         self._staged_shop_approach = (
             provenance,
@@ -4437,6 +4452,9 @@ class ShopMixin:
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
+        # Record-only (rev 9.2 C): the walk below runs the errand that
+        # ``travel_reason`` names, whatever reason the decision still carries.
+        writer_family = self._claim_family_of(travel_reason)
         if (
             self._equipment_transaction_owns_town_relocation(snapshot)
             and self._shopping_approach_store_type != STORE_HOME
@@ -4492,7 +4510,8 @@ class ShopMixin:
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._stage_shopping_approach_key(
-                snapshot, self._step_toward(snapshot, step)
+                snapshot, self._step_toward(snapshot, step),
+                claim_family=writer_family,
             )
         goal = self._shopping_approach_goal
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
@@ -4501,7 +4520,8 @@ class ShopMixin:
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             return self._stage_shopping_approach_key(
-                snapshot, self._step_toward(snapshot, step)
+                snapshot, self._step_toward(snapshot, step),
+                claim_family=writer_family,
             )
         # A leading Escape dismisses a lingering -more- or prompt before the
         # backtick opens native travel; at the command loop it is a harmless
@@ -4516,7 +4536,7 @@ class ShopMixin:
         if travel is not None:
             if not self._owner_may_select(snapshot, travel_reason):
                 self._town_travel_fallback = goal
-                self._release_claim_goal("town-travel:owner-yielded", goal)
+                self._release_claim_goal("town-travel:owner-yielded", goal, owners=CLAIM_ENTRANCE_OWNERS)
                 self._town_travel_state = None
                 self.last_reason = "shop:approach"
                 return self._stage_shopping_approach_key(
@@ -4535,7 +4555,8 @@ class ShopMixin:
             self._store_entry_wait_turn = snapshot.turn
             return travel
         return self._stage_shopping_approach_key(
-            snapshot, self._step_toward(snapshot, step)
+            snapshot, self._step_toward(snapshot, step),
+            claim_family=writer_family,
         )
 
     def _can_compose_shop_observation(self, snapshot: Snapshot) -> bool:

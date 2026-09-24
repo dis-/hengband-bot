@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import Loadout
@@ -436,7 +441,7 @@ class PolicyHelpersMixin:
         self._warning_refused_cells.add(target)
         self._engagement_avoid_cells.add(target)
         if self._loot_target == target:
-            self._release_claim_goal("loot-warning-refused", target)
+            self._release_claim_goal("loot-warning-refused", target, owners=CLAIM_LOOT_OWNERS)
             self._loot_target = None
         if target in self._explore_path:
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)

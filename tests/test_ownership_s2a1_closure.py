@@ -39,6 +39,22 @@ B5  survival: the constant is exactly the user's list, none of the ordinary
 
 Restored checkpoints: every attribute S2a.1 adds or newly reads is covered
 (``RestoredCheckpointTest``).
+
+Round 2 (design rev 9.2, the two reviews of 1ae6c198)
+-----------------------------------------------------
+T1/T2  every Reach reason site writes its slot, or its row is retyped
+       (``GoalTypingTableTest.test_every_reach_reason_site_writes_its_slot``).
+C      both slots carry the writer's family; another owner's slot is not used
+       (``owner-mismatch``) -- ``DeclaredGoalSlotTest``; the B1 revert-proof
+       now restores the shared-state scan *inside* the real ``_claim_goal``.
+M      a chase is a claim on a monster identity (``MovingTargetTest``).
+O, E   the read-only satisfaction test, the three pop paths, expiry, and the
+       floor change outside the tour (``ObserveClosingTest``).
+U      closings name their owners and sources (``ClosingOwnershipTest``).
+S      survival reads the trigger this return began with
+       (``SurvivalTriggerTest``).
+P      a suspended claim does not continue (``SuspendedClaimTest``).
+D      (d) excludes goal_missing rows, printed apart (``GoalMissingMetricTest``).
 """
 
 from __future__ import annotations
@@ -47,12 +63,14 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare runs
 
 import ast
 import base64
+import re
 import copy
 import gzip
 import json
 import pickle
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from hengbot.claim_goal_typing import (
@@ -67,7 +85,9 @@ from hengbot.claim_goal_typing import (
 from hengbot.claim_register import (
     ClaimOwner,
     ClaimRegister,
+    observe,
     reach,
+    reach_monster,
     terminal,
 )
 from hengbot.latch_onset_capture import restore_checkpoint
@@ -279,6 +299,50 @@ class GoalTypingTableTest(unittest.TestCase):
                     goal_typing(reason_owner_family(reason), reason)
                 )
 
+    # A reason site writes its Reach slot through one of these (or through
+    # the store router / travel / teleport helpers, which declare inside).
+    SLOT_WRITERS = (
+        "_declare_", "_adopt_decision_goal", "_shopping_approach_key(",
+        "_stage_shopping_approach_key(", "_town_travel_key(",
+        "_commit_boxed_town_breakout_key(",
+    )
+
+    def test_every_reach_reason_site_writes_its_slot(self):
+        """Rev 9.2 (T1/T2): no Reach row is left without a slot writer."""
+        assign = re.compile(r'self\.last_reason\s*=\s*(f?)"([^"]*)"')
+        unwritten = []
+        for path in sorted(PACKAGE.glob("policy*.py")):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for index, line in enumerate(lines):
+                match = assign.search(line)
+                if not match:
+                    continue
+                literal = match.group(2)
+                if match.group(1):
+                    literal = literal.split("{")[0]
+                row = goal_typing(reason_owner_family(literal), literal)
+                if row is None or row.kind != "Reach":
+                    continue
+                window = "\n".join(lines[max(0, index - 3):index + 5])
+                if not any(writer in window for writer in self.SLOT_WRITERS):
+                    unwritten.append(f"{path.name}:{index + 1} {literal}")
+        self.assertEqual(unwritten, [])
+
+    def test_the_rev92_rows_have_the_design_kind(self):
+        for reason, kind in (
+            ("calibration:restore-travel", "Reach"),
+            ("survival:shop-travel", "Reach"),
+            ("survival:mana-home-travel", "Reach"),
+            ("equipment-transaction:acquire-home-catalog", "Reach"),
+            ("shop:observe-and-leave", "Terminal"),
+            ("wilderness:global-travel", "Reach"),
+            ("quest-strategy:approach-throw-point", "Reach"),
+        ):
+            with self.subTest(reason=reason):
+                self.assertEqual(
+                    goal_typing(reason_owner_family(reason), reason).kind, kind
+                )
+
     def test_the_design_rows_have_the_design_kind(self):
         for reason, kind in (
             ("explore", "Reach"),
@@ -315,7 +379,7 @@ class GoalTypingTableTest(unittest.TestCase):
 
 
 class DeclaredGoalSlotTest(unittest.TestCase):
-    """B1: a decision's goal comes only from what its producer wrote."""
+    """B1: a decision's goal comes only from what its own owner wrote."""
 
     STALE = Position(20, 30)
 
@@ -332,6 +396,22 @@ class DeclaredGoalSlotTest(unittest.TestCase):
         policy._record_decision_claim(board, key)
         return policy.decision_claim
 
+    def _assert_no_row_carries_a_borrowed_cell(self):
+        """The pin: stale shared goals reach no row, of either kind."""
+        board = _town_board()
+        for reason, kind in (("town:wait-recall", "Observe"),
+                             ("shop:travel", "Terminal")):
+            policy = _fresh_policy(board)
+            self._stale_shared_state(policy)
+            policy._decision_goal = None
+            policy._decision_expectation = None
+            claim = self._declare(policy, board, reason)
+            self.assertEqual(claim["goal"]["kind"], kind, reason)
+            self.assertNotIn("cell", claim["goal"], reason)
+
+    def test_no_row_carries_a_cell_its_producer_did_not_write(self):
+        self._assert_no_row_carries_a_borrowed_cell()
+
     def test_a_stale_store_goal_cannot_type_a_recall_wait(self):
         board = _town_board()
         policy = _fresh_policy(board)
@@ -341,8 +421,8 @@ class DeclaredGoalSlotTest(unittest.TestCase):
         claim = self._declare(policy, board, "town:wait-recall")
         self.assertEqual(claim["goal"]["kind"], "Observe")
         self.assertEqual(claim["goal"]["source"], FLOOR_CHANGE)
-        self.assertNotIn("cell", claim["goal"])
         self.assertFalse(claim["goal_missing"])
+        self.assertIsNone(claim["goal_note"])
 
     def test_a_reach_row_without_its_own_slot_is_terminal_and_missing(self):
         board = _town_board()
@@ -354,16 +434,75 @@ class DeclaredGoalSlotTest(unittest.TestCase):
             claim["goal"], {"kind": "Terminal", "effect": "shop:travel"}
         )
         self.assertTrue(claim["goal_missing"])
+        self.assertEqual(claim["goal_note"], "no-slot")
 
-    def test_a_slot_stamped_by_another_reason_is_not_inherited(self):
+    def test_a_slot_of_another_owner_is_not_used(self):
+        """Rev 9.2 (C): the slot's family must be the row's owner."""
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy.last_reason = "shop:approach"            # store-router writes
+        policy._declare_reach(Position(41, 131))
+        # a later rewrite hands the decision to another owner's Reach row
+        claim = self._declare(policy, board, "town:seek-shelter")
+        self.assertEqual(claim["owner"], "survival")
+        self.assertEqual(claim["goal"]["kind"], "Terminal")
+        self.assertTrue(claim["goal_missing"])
+        self.assertEqual(claim["goal_note"], "owner-mismatch")
+
+    def test_a_same_owner_rewrite_keeps_the_producers_slot(self):
         board = _town_board()
         policy = _fresh_policy(board)
         policy.last_reason = "shop:approach"
         policy._declare_reach(Position(41, 131))
-        # a later rewrite relabels the decision without writing a slot
         claim = self._declare(policy, board, "shop:travel")
-        self.assertEqual(claim["goal"]["kind"], "Terminal")
-        self.assertTrue(claim["goal_missing"])
+        self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [41, 131]})
+        self.assertIsNone(claim["goal_note"])
+
+    def test_a_shared_helper_stamps_the_errand_it_runs(self):
+        """The router stamps ``travel_reason``'s family, not a stale reason.
+
+        policy_calibration's restore walk calls the router without setting
+        a reason; the slot names calibration, so a row still carrying the
+        previous decision's reason of another owner cannot use it.
+        """
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy.last_reason = "periodic:game-save"        # stale, bookkeeping
+        policy._declare_reach(
+            Position(41, 131), family=policy._claim_family_of("calibration:restore-travel")
+        )
+        claim = self._declare(policy, board, "calibration:restore-travel")
+        self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [41, 131]})
+        policy = _fresh_policy(board)
+        policy._declare_reach(
+            Position(41, 131), family=policy._claim_family_of("calibration:restore-travel")
+        )
+        claim = self._declare(policy, board, "shop:approach")
+        self.assertEqual(claim["goal_note"], "owner-mismatch")
+
+    def test_an_expectation_of_another_owner_is_not_used(self):
+        """Rev 9.2 (C): a town-plan expectation does not type an equipment row."""
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy.last_reason = "town:blocked:equipment-transaction:withdraw"
+        policy._post_owner_expectation(
+            board, "town:blocked:equipment-transaction:withdraw",
+            "inventory", "equipment",
+        )
+        claim = self._declare(policy, board, "equipment-transaction:takeoff")
+        self.assertEqual(claim["owner"], "equipment-txn")
+        self.assertEqual(claim["goal"]["kind"], "Observe")
+        self.assertEqual(claim["goal"]["source"], "transaction")
+        self.assertEqual(claim["goal_note"], "owner-mismatch")
+        # and the owner's own posted expectation is used
+        policy = _fresh_policy(board)
+        policy.last_reason = "equipment-transaction:takeoff"
+        policy._post_owner_expectation(
+            board, "equipment-transaction", "inventory", "equipment"
+        )
+        claim = self._declare(policy, board, "equipment-transaction:takeoff")
+        self.assertEqual(claim["goal"]["source"], "equipment-transaction")
+        self.assertIsNone(claim["goal_note"])
 
     def test_the_producers_own_slot_is_the_goal(self):
         board = _town_board()
@@ -378,32 +517,37 @@ class DeclaredGoalSlotTest(unittest.TestCase):
     def test_the_shared_state_scan_is_gone(self):
         self.assertFalse(hasattr(HengbotPolicy, "_claim_goal_cell"))
 
-    def test_revert_proof_the_s1_scan_borrows_the_stale_cell(self):
-        """Put the S1 scan back and the stale entrance reaches the row."""
+    def test_revert_proof_the_scan_inside_the_real_claim_goal_is_caught(self):
+        """Restore the S1 scan inside the production path; the pin fails.
 
-        def s1_claim_goal(self, snapshot, key, owner, reason, standing):
-            visit = getattr(self, "_store_visit", None)
+        The real ``_claim_goal`` runs; the revert only puts the deleted
+        shared-state scan back as its slot source (stamped with the row's
+        owner, as the scan never asked whose cell it was).
+        """
+
+        def s1_scan(policy):
+            visit = getattr(policy, "_store_visit", None)
             if visit is not None and isinstance(visit.goal, Position):
-                return reach((visit.goal.y, visit.goal.x)), False
-            dark = getattr(self, "_dark_route_goal", None)
-            if isinstance(dark, Position):
-                return reach((dark.y, dark.x)), False
-            return terminal(reason or "policy:none"), False
+                return visit.goal
+            dark = getattr(policy, "_dark_route_goal", None)
+            return dark if isinstance(dark, Position) else None
 
-        board = _town_board()
         original = HengbotPolicy._claim_goal
-        HengbotPolicy._claim_goal = s1_claim_goal
+
+        def reverted(self, snapshot, key, owner, reason, standing):
+            cell = s1_scan(self)
+            if cell is not None:
+                self._decision_goal = (owner.value, reach((cell.y, cell.x)))
+            return original(self, snapshot, key, owner, reason, standing)
+
+        HengbotPolicy._claim_goal = reverted
         try:
-            policy = _fresh_policy(board)
-            self._stale_shared_state(policy)
-            claim = self._declare(policy, board, "town:wait-recall")
+            with self.assertRaises(AssertionError):
+                self._assert_no_row_carries_a_borrowed_cell()
         finally:
             HengbotPolicy._claim_goal = original
-        self.assertEqual(
-            claim["goal"],
-            {"kind": "Reach", "cell": [self.STALE.y, self.STALE.x]},
-        )
         self.assertIs(HengbotPolicy._claim_goal, original)
+        self._assert_no_row_carries_a_borrowed_cell()
 
 
 # -- B2 ----------------------------------------------------------------------
@@ -446,6 +590,11 @@ class ClosingPathsTest(unittest.TestCase):
         finally:
             HengbotPolicy._claim_close = original
         self.assertEqual(_closings(rows), [])
+        # the closings are record-only: the decisions did not move
+        self.assertEqual(
+            [(row["key"], row["reason"]) for row in rows],
+            [(row["key"], row["reason"]) for row in self.dungeon_rows()],
+        )
         gate = gate_numbers(rows)
         self.assertNotEqual(
             _endings_subset(gate, DUNGEON_ENDINGS), DUNGEON_ENDINGS
@@ -582,7 +731,9 @@ class ClosingPathsTest(unittest.TestCase):
         ]
         self.assertEqual(completed, list(TOUR_EARLY_SALES))
         original = HengbotPolicy._complete_observed_effect
-        HengbotPolicy._complete_observed_effect = lambda self, label: None
+        HengbotPolicy._complete_observed_effect = (
+            lambda self, label, **scope: None
+        )
         try:
             reverted = self.tour_rows(limit=limit)
         finally:
@@ -760,6 +911,397 @@ class GateNumbersTest(unittest.TestCase):
         self.assertIs(record["survival"], False)
 
 
+# -- rev 9.2 -----------------------------------------------------------------
+
+
+def _dungeon_board(index):
+    _skill, boards = _Replay.dungeon_boards()
+    return parse_snapshot(boards[index], _Replay.knowledge())
+
+
+def _standing(policy, owner, goal, board, **fields):
+    """Put one declared claim in the register, as the previous row left it."""
+    register = policy._claim_register
+    register.declare(
+        owner, goal, floor=board.floor_key,
+        opened_sequence=fields.get("opened_sequence", policy._decision_sequence),
+        opened_turn=fields.get("opened_turn", board.turn),
+    )
+    register.take_closing()
+    return register.current
+
+
+def _exit(policy, board, reason, key="5"):
+    policy.last_reason = reason
+    policy._record_decision_claim(board, key)
+    return policy.decision_claim
+
+
+class MovingTargetTest(unittest.TestCase):
+    """Rev 9.2 (M): a chase is a claim on a monster, not on its cell."""
+
+    ADJACENT = (74, 111)   # visible and adjacent on dungeon board 5
+
+    def test_the_goal_is_the_identity_and_continues_while_it_is_unchanged(self):
+        board = _dungeon_board(5)
+        far = next(
+            (monster.index, monster.race_id)
+            for monster in board.detected_monsters
+            if board.player.position.distance_to(monster.position) > 1
+        )
+        policy = _fresh_policy(board)
+        claims = []
+        for _ in range(2):
+            policy.last_reason = "hunt"
+            policy._declare_monster(far)
+            claims.append(_exit(policy, board, "hunt", "1"))
+        self.assertEqual(claims[0]["goal"], {"kind": "Reach", "monster": list(far)})
+        self.assertEqual(claims[0]["claim_id"], claims[1]["claim_id"])
+        self.assertIsNone(claims[1]["closed_claim"])
+        self.assertGreater(claims[0]["distance"], 1)
+        # off the board it was perceived on, the chase is released
+        policy._decision_goal = None
+        claim = _exit(policy, _dungeon_board(0), "explore", "4")
+        if far not in {
+            (monster.index, monster.race_id)
+            for monster in (*_dungeon_board(0).visible_monsters,
+                            *_dungeon_board(0).detected_monsters)
+        }:
+            self.assertEqual(claim["closed_claim"]["closed_reason"], "target-lost")
+
+    def test_arrival_completes_for_whichever_chaser_holds_it(self):
+        for owner in (ClaimOwner.HUNT, ClaimOwner.DEPARTURE, ClaimOwner.SURVIVAL):
+            with self.subTest(owner=owner.value):
+                board = _dungeon_board(5)
+                policy = _fresh_policy(board)
+                _standing(policy, owner, reach_monster(*self.ADJACENT), board)
+                claim = _exit(policy, board, "melee", "1")
+                self.assertEqual(claim["closed_claim"]["closed"], "complete")
+                self.assertEqual(
+                    claim["closed_claim"]["closed_reason"], "target-adjacent"
+                )
+
+    def test_the_melee_switch_closes_the_chase_in_its_own_branch(self):
+        """The producer's arrival branch: melee begins on the chased monster."""
+        skill, boards = _Replay.dungeon_boards()
+        policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
+        policy.consume_skill_knowledge(skill)
+        for raw in boards[:5]:
+            board = parse_snapshot(raw, _Replay.knowledge())
+            policy.confirm_key_posted(
+                policy.validate_read_key(board, policy.choose_key(board))
+            )
+        board = parse_snapshot(boards[5], _Replay.knowledge())
+        _standing(policy, ClaimOwner.DEPARTURE, reach_monster(*self.ADJACENT), board)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("1", "melee"))
+        self.assertEqual(
+            policy.decision_claim["closed_claim"]["closed_reason"],
+            "closed-to-melee",
+        )
+
+    def test_a_monster_that_left_perception_releases(self):
+        board = _dungeon_board(5)
+        policy = _fresh_policy(board)
+        _standing(policy, ClaimOwner.HUNT, reach_monster(9999, 1), board)
+        claim = _exit(policy, board, "explore")
+        self.assertEqual(claim["closed_claim"]["closed"], "release")
+        self.assertEqual(claim["closed_claim"]["closed_reason"], "target-lost")
+
+
+class ObserveClosingTest(unittest.TestCase):
+    """Rev 9.2 (O, E) and the registry's pop paths, outside the tour."""
+
+    def _posted(self, policy, board_posted, owner="expect-x", changes=("position",), core=None):
+        core = core or policy._owner_progress_core(board_posted)
+        policy._owner_expectations.post(owner, core, *changes)
+        return observe(changes, 10, source=owner)
+
+    def test_a_satisfied_expectation_completes_without_a_pop(self):
+        before, after = _dungeon_board(0), _dungeon_board(1)
+        policy = _fresh_policy(after)
+        goal = self._posted(policy, before)
+        _standing(policy, ClaimOwner.EQUIPMENT_TXN, goal, after)
+        claim = _exit(policy, after, "melee", "1")
+        self.assertEqual(claim["closed_claim"]["closed_reason"], "expectation-satisfied")
+        # read-only: the registry still holds it, nobody popped it
+        self.assertIsNotNone(policy._owner_expectations.pending("expect-x"))
+        self.assertEqual(policy._owner_expectations.drain_pops(), [])
+
+    def test_revert_proof_without_the_read_only_test_nothing_completes(self):
+        before, after = _dungeon_board(0), _dungeon_board(1)
+        original = OwnerExpectationRegistry.verdict
+        OwnerExpectationRegistry.verdict = lambda self, owner, core: None
+        try:
+            policy = _fresh_policy(after)
+            goal = self._posted(policy, before)
+            _standing(policy, ClaimOwner.EQUIPMENT_TXN, goal, after)
+            claim = _exit(policy, after, "melee", "1")
+        finally:
+            OwnerExpectationRegistry.verdict = original
+        self.assertIsNone(claim["closed_claim"])
+
+    def test_the_satisfied_pop_completes_and_the_other_pops_do_not(self):
+        before, after = _dungeon_board(0), _dungeon_board(1)
+        for why, expected in (("satisfied", "expectation-satisfied"),
+                              ("expired", None), ("floor", None)):
+            with self.subTest(pop=why):
+                policy = _fresh_policy(after)
+                core = policy._owner_progress_core(before)
+                if why == "expired":
+                    core = replace(core, decision_sequence=core.decision_sequence - 10)
+                if why == "floor":
+                    core = replace(core, floor=(9, 9, 9))
+                changes = ("position",) if why == "satisfied" else ("hp",)
+                goal = self._posted(policy, before, changes=changes, core=core)
+                _standing(policy, ClaimOwner.EQUIPMENT_TXN, goal, after)
+                policy._owner_may_select(after, "expect-x")
+                claim = _exit(policy, after, "melee", "1")
+                closed = claim["closed_claim"]
+                self.assertEqual(
+                    None if closed is None else closed["closed_reason"], expected
+                )
+
+    def test_an_observe_older_than_within_expires(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._decision_sequence = 30
+        _standing(policy, ClaimOwner.SHOP_BUY,
+                  observe(("store-operation",), 8, source="store-operation"),
+                  board, opened_sequence=22)
+        claim = _exit(policy, board, "explore")
+        self.assertEqual(claim["closed_claim"]["closed"], "expired")
+        policy = _fresh_policy(board)
+        policy._decision_sequence = 30
+        _standing(policy, ClaimOwner.SHOP_BUY,
+                  observe(("store-operation",), 8, source="store-operation"),
+                  board, opened_sequence=23)
+        self.assertIsNone(_exit(policy, board, "explore")["closed_claim"])
+
+    def test_a_floor_change_completes_and_a_long_wait_expires(self):
+        board = _dungeon_board(1)
+        floor_goal = observe(("floor",), 350, source=FLOOR_CHANGE)
+        policy = _fresh_policy(board)
+        policy._claim_register.declare(
+            ClaimOwner.DEPARTURE, floor_goal, floor=(0, 0, 0),
+            opened_turn=board.turn,
+        )
+        claim = _exit(policy, board, "explore")
+        self.assertEqual(claim["closed_claim"]["closed_reason"], "floor-changed")
+        for age, closed in ((351, "expired"), (350, None)):
+            with self.subTest(age=age):
+                policy = _fresh_policy(board)
+                _standing(policy, ClaimOwner.DEPARTURE, floor_goal, board,
+                          opened_turn=board.turn - age)
+                finished = _exit(policy, board, "explore")["closed_claim"]
+                self.assertEqual(
+                    None if finished is None else finished["closed"], closed
+                )
+
+    def test_expired_is_its_own_ending(self):
+        rows = [
+            _claim_row(1, "shop-buy", "Observe"),
+            _claim_row(2, "explore", "Terminal", closed_claim={
+                "claim_id": 1, "goal_kind": "Observe", "state": "active",
+                "closed": "expired", "closed_reason": "within-exceeded"}),
+        ]
+        gate = gate_numbers(rows)
+        self.assertEqual(gate["endings"]["shop-buy/Observe"]["expired"], 1)
+        self.assertEqual(gate["endings"]["shop-buy/Observe"]["abandoned"], 0)
+        self.assertEqual(gate["dropped_by_other_owner"]["count"], 0)
+
+
+class ClosingOwnershipTest(unittest.TestCase):
+    """Rev 9.2 (U): a closing names the owner (and source) it closes."""
+
+    def test_a_confirmation_cannot_complete_another_owners_claim(self):
+        board = _town_board()
+        for owner, closed in ((ClaimOwner.DEPARTURE, None),
+                              (ClaimOwner.SHOP_BUY, "complete")):
+            with self.subTest(owner=owner.value):
+                policy = _fresh_policy(board)
+                _standing(policy, owner,
+                          observe(("store-operation",), 8, source="store-operation"),
+                          board)
+                policy._complete_observed_effect(
+                    "purchase-observed",
+                    owners=(ClaimOwner.SHOP_BUY,),
+                    sources=("store-operation",),
+                )
+                self.assertEqual(policy._claim_register.current.closed, closed)
+
+    def test_a_source_mismatch_closes_nothing(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+        _standing(policy, ClaimOwner.SHOP_BUY,
+                  observe(("floor",), 350, source=FLOOR_CHANGE), board)
+        policy._complete_observed_effect(
+            "purchase-observed", owners=(ClaimOwner.SHOP_BUY,),
+            sources=("store-operation",),
+        )
+        self.assertIsNone(policy._claim_register.current.closed)
+
+    def test_a_release_names_its_owners(self):
+        board = _town_board()
+        cell = Position(3, 4)
+        for owner, closed in ((ClaimOwner.POSITIONING, None),
+                              (ClaimOwner.FLOOR_LOOT, "release")):
+            with self.subTest(owner=owner.value):
+                policy = _fresh_policy(board)
+                _standing(policy, owner, reach((3, 4)), board)
+                policy._release_claim_goal(
+                    "loot-deferred", cell,
+                    owners=("floor-loot", "fundraising", "departure"),
+                )
+                self.assertEqual(policy._claim_register.current.closed, closed)
+
+    def test_every_closing_call_names_its_owners(self):
+        missing = []
+        for path in sorted(PACKAGE.glob("policy*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {
+                        "_release_claim_goal", "_complete_claim_goal",
+                        "_complete_observed_effect", "_claim_close",
+                    }
+                    and not any(k.arg == "owners" for k in node.keywords)
+                ):
+                    missing.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(missing, [])
+
+
+class SurvivalTriggerTest(unittest.TestCase):
+    """Rev 9.2 (S): survival reads the trigger *this* return began with."""
+
+    def test_a_stale_last_trigger_does_not_make_a_return_survival(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._last_return_trigger = "esp-threat"     # a return long ago
+        policy._note_return_start(None)                # this return: no trigger
+        policy._returning_to_town = True
+        self.assertFalse(_exit(policy, board, "return:seek-upstairs", "4")["survival"])
+
+    def test_the_trigger_of_this_return_is_kept_and_cleared_at_its_end(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._note_return_start("emergency-low-hp")
+        policy._returning_to_town = True
+        self.assertTrue(_exit(policy, board, "return:seek-upstairs", "4")["survival"])
+        policy._note_return_start(None)                # re-asserted latch
+        self.assertEqual(policy._survival_return_trigger, "emergency-low-hp")
+        policy._returning_to_town = False
+        policy._note_return_end()
+        self.assertFalse(_exit(policy, board, "return:seek-upstairs", "4")["survival"])
+
+    def test_every_return_start_and_end_is_recorded(self):
+        """Structural: each latch write is paired with its record-only note,
+        and the returns that start without a trigger record ``None``."""
+        unpaired, triggers = [], {}
+        for path in sorted(PACKAGE.glob("policy*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for function in ast.walk(tree):
+                if not isinstance(function, ast.FunctionDef):
+                    continue
+                for parent in ast.walk(function):
+                    body = getattr(parent, "body", None)
+                    if not isinstance(body, list):
+                        continue
+                    for index, stmt in enumerate(body):
+                        if not (
+                            isinstance(stmt, ast.Assign)
+                            and len(stmt.targets) == 1
+                            and isinstance(stmt.targets[0], ast.Attribute)
+                            and stmt.targets[0].attr == "_returning_to_town"
+                            and isinstance(stmt.value, ast.Constant)
+                        ):
+                            continue
+                        if function.name == "__init__":
+                            continue
+                        where = f"{path.name}:{function.name}:{stmt.lineno}"
+                        if stmt.value.value is True:
+                            before = body[index - 1] if index else None
+                            call = getattr(before, "value", None)
+                            if not (
+                                isinstance(call, ast.Call)
+                                and getattr(call.func, "attr", "") == "_note_return_start"
+                            ):
+                                unpaired.append(where)
+                            else:
+                                triggers[where] = ast.unparse(call.args[0])
+                        else:
+                            after = body[index + 1] if index + 1 < len(body) else None
+                            call = getattr(after, "value", None)
+                            if not (
+                                isinstance(call, ast.Call)
+                                and getattr(call.func, "attr", "") == "_note_return_end"
+                            ):
+                                unpaired.append(where)
+        self.assertEqual(unpaired, [])
+        self.assertEqual(len(triggers), 30)
+        for where, trigger in triggers.items():
+            if (
+                where.startswith("policy_fundraising.py:")
+                or ":_victory_loot_key:" in where
+            ):
+                with self.subTest(site=where):
+                    self.assertEqual(trigger, "None")
+        breeder_walkout = [
+            where for where in triggers
+            if where.startswith("policy.py:_decide:")
+            and triggers[where] == "None"
+        ]
+        self.assertTrue(breeder_walkout)
+
+
+class SuspendedClaimTest(unittest.TestCase):
+    """Rev 9.2 (P): a declaration after a suspension opens a new claim."""
+
+    def test_a_suspended_claim_does_not_continue(self):
+        register = ClaimRegister()
+        first = register.declare(ClaimOwner.FLOOR_LOOT, reach((1, 2)))
+        register.suspend("survival-preemption")
+        again = register.declare(ClaimOwner.FLOOR_LOOT, reach((1, 2)))
+        self.assertNotEqual(again.claim_id, first.claim_id)
+        self.assertEqual(again.state.value, "active")
+
+
+class GoalMissingMetricTest(unittest.TestCase):
+    """Rev 9.2 (D): (d) excludes goal_missing rows; they print on their own."""
+
+    ROWS = [
+        _claim_row(1, "store-router", "Terminal", position=(5, 5),
+                   reason="shop:travel", goal_missing=True),
+        _claim_row(1, "store-router", "Terminal", position=(5, 6),
+                   reason="shop:travel", goal_missing=True),
+        _claim_row(1, "store-router", "Terminal", position=(5, 7),
+                   reason="shop:travel", goal_missing=True),
+    ]
+
+    def test_d_excludes_goal_missing_rows_and_counts_them_apart(self):
+        rows = [dict(row, goal_note="owner-mismatch") for row in self.ROWS]
+        gate = gate_numbers(rows)
+        self.assertEqual(gate["mistyped_terminal"]["count"], 0)
+        self.assertEqual(gate["goal_missing"], {"store-router": 3})
+        self.assertEqual(gate["goal_missing_by_reason"], {"owner-mismatch": 3})
+        self.assertEqual(gate["owner_mismatch"], {"store-router": 3})
+
+    def test_revert_proof_without_the_exclusion_d_counts_it(self):
+        rows = [dict(row, goal_missing=False) for row in self.ROWS]
+        self.assertEqual(gate_numbers(rows)["mistyped_terminal"]["count"], 1)
+
+    def test_the_report_prints_goal_missing_and_owner_mismatch_lines(self):
+        import ownership_metrics_report
+
+        rows = [dict(row, goal_note="owner-mismatch") for row in self.ROWS]
+        text = "\n".join(ownership_metrics_report.gate_report(rows, 1.0))
+        self.assertIn("goal_missing rows (Reach declared Terminal)", text)
+        self.assertIn("owner-mismatch=3", text)
+        self.assertIn("owner-mismatch rows (a slot of another owner, not used)", text)
+
+
 # -- B4 ----------------------------------------------------------------------
 
 
@@ -777,21 +1319,45 @@ class NeutralityTest(unittest.TestCase):
             [(str(key), reason) for key, reason in with_],
         )
 
-    def test_the_slot_and_the_closings_are_record_only(self):
-        """No producer reads the slot: blanking it changes no decision."""
-        original = HengbotPolicy._declare_reach
-        HengbotPolicy._declare_reach = lambda self, cell: None
+    RECORD_ONLY_HOOKS = (
+        "_declare_goal", "_adopt_decision_goal", "_declare_expectation",
+        "_claim_close", "_note_return_start", "_note_return_end",
+    )
+
+    def _blanked(self, run):
+        """Run with every S2a.1 record-only hook replaced by a no-op."""
+        originals = {name: getattr(HengbotPolicy, name) for name in self.RECORD_ONLY_HOOKS}
+        for name in self.RECORD_ONLY_HOOKS:
+            setattr(HengbotPolicy, name, lambda self, *args, **kwargs: None)
         try:
-            skill, boards = _Replay.dungeon_boards()
-            with tempfile.TemporaryDirectory(prefix="s2a1-noslot-") as raw:
-                blank, _ = _Replay.run(Path(raw), skill, boards, register=True)
+            return run()
         finally:
-            HengbotPolicy._declare_reach = original
+            for name, method in originals.items():
+                setattr(HengbotPolicy, name, method)
+
+    def test_the_slots_and_the_closings_are_record_only(self):
+        """No producer reads a slot or a closing: blanking them all changes
+        no decision, on the dungeon replay and on the tour's town prefix
+        (sales, a floor change, Home work)."""
         rows = ClosingPathsTest.dungeon_rows()
+        blank = self._blanked(_dungeon_rows)
         self.assertEqual(
-            [(str(key), reason) for key, reason in blank],
+            [(row["key"], row["reason"]) for row in blank],
             [(row["key"], row["reason"]) for row in rows],
         )
+        self.assertFalse([row for row in blank if row.get("closed_claim")])
+        limit = 41
+        town = ClosingPathsTest.tour_rows(limit=limit)
+        blank_town = self._blanked(lambda: ClosingPathsTest.tour_rows(limit=limit))
+        self.assertEqual(
+            [(row["key"], row["reason"]) for row in blank_town],
+            [(row["key"], row["reason"]) for row in town],
+        )
+        self.assertTrue([row for row in town if row.get("closed_claim")])
+        for name in self.RECORD_ONLY_HOOKS:
+            self.assertNotEqual(
+                getattr(HengbotPolicy, name).__name__, "<lambda>", name
+            )
 
 
 # -- B5 ----------------------------------------------------------------------
@@ -872,15 +1438,17 @@ class RestoredCheckpointTest(unittest.TestCase):
 
     NEW_POLICY_ATTRIBUTES = (
         "_decision_goal", "_decision_expectation", "_hunt_step_target",
+        "_survival_return_trigger",
     )
 
     def test_a_pre_s2a1_claim_goal_register_and_registry_unpickle(self):
         register = ClaimRegister()
         claim = register.declare(ClaimOwner.EXPLORE, reach((3, 4)))
         # Reproduce the pre-S2a.1 state: none of the new fields was pickled.
-        for name in ("floor", "closed_reason", "survival"):
+        for name in ("floor", "closed_reason", "survival", "opened_turn"):
             object.__delattr__(claim, name)
-        object.__delattr__(claim.goal, "source")
+        for name in ("source", "monster", "place"):
+            object.__delattr__(claim.goal, name)
         del register.__dict__["_closing"]
         registry = OwnerExpectationRegistry()
         del registry.__dict__["_pops"]
@@ -892,6 +1460,9 @@ class RestoredCheckpointTest(unittest.TestCase):
         self.assertIsNone(restored.closed_reason)
         self.assertFalse(restored.survival)
         self.assertIsNone(restored.goal.source)
+        self.assertIsNone(restored.goal.monster)
+        self.assertIsNone(restored.goal.place)
+        self.assertIsNone(restored.opened_turn)
         self.assertTrue(restored.is_open)
         self.assertIsNone(restored_register.take_closing())
         restored_register.complete("reached")
@@ -925,6 +1496,7 @@ class RestoredCheckpointTest(unittest.TestCase):
             (producer["expected_key"], producer["expected_reason"]),
         )
         self.assertIn("goal_missing", restored.decision_claim)
+        self.assertIn("goal_note", restored.decision_claim)
         self.assertIn("survival", restored.decision_claim)
 
     def test_an_s1_register_inside_a_checkpoint_declares_and_closes(self):
@@ -941,7 +1513,7 @@ class RestoredCheckpointTest(unittest.TestCase):
             ClaimOwner.STORE_ROUTER,
             reach((snapshot.player.position.y, snapshot.player.position.x)),
         )
-        for name in ("floor", "closed_reason", "survival"):
+        for name in ("floor", "closed_reason", "survival", "opened_turn"):
             object.__delattr__(claim, name)
         del register.__dict__["_closing"]
         state["_claim_register"] = register

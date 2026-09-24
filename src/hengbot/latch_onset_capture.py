@@ -188,6 +188,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_decision_goal", None)
     restored.__dict__.setdefault("_decision_expectation", None)
     restored.__dict__.setdefault("_hunt_step_target", None)
+    # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
+    # which trigger its running return began with; unknown is not survival.
+    restored.__dict__.setdefault("_survival_return_trigger", None)
     register = restored.__dict__.get("_claim_register")
     if register is not None:
         register.__dict__.setdefault("_closing", None)

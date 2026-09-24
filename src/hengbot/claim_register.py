@@ -123,8 +123,11 @@ ClaimState.__doc__ = "The five claim states of design section 3.1."
 CLOSED_BY_RELEASE = "release"
 CLOSED_BY_COMPLETE = "complete"
 CLOSED_BY_RETIRED = "retired"
+# Rev 9.2: an Observe claim older than its ``within`` closes as ``expired`` --
+# neither a completion nor an abandonment.
+CLOSED_BY_EXPIRED = "expired"
 CLOSING_EVENTS = frozenset(
-    {CLOSED_BY_RELEASE, CLOSED_BY_COMPLETE, CLOSED_BY_RETIRED}
+    {CLOSED_BY_RELEASE, CLOSED_BY_COMPLETE, CLOSED_BY_RETIRED, CLOSED_BY_EXPIRED}
 )
 
 GOAL_REACH = "Reach"
@@ -159,6 +162,17 @@ class Goal:
     (``claim_goal_typing``).  The floor-change and expectation completions
     read it.  A goal pickled before S2a.1 has no ``source`` in its state and
     reads the class default ``None``.
+
+    Rev 9.2 adds two Reach forms beside the cell:
+
+    ``monster``  a moving target -- hunt, ``clear-descent``,
+                 ``town:kill-mob-approach`` -- named by ``(index, race_id)``,
+                 never by the cell it stood on; the claim continues while the
+                 identity is unchanged.
+    ``place``    a named place with no local-map cell (the wilderness walk to a
+                 town), completed by its producer's own arrival test only.
+
+    Both default to ``None``, so an older pickle reads them from the class.
     """
 
     kind: str
@@ -167,9 +181,15 @@ class Goal:
     within: int | None = None
     effect: str | None = None
     source: str | None = None
+    monster: tuple[int, int] | None = None
+    place: str | None = None
 
     def as_dict(self) -> dict:
         if self.kind == GOAL_REACH:
+            if self.monster is not None:
+                return {"kind": GOAL_REACH, "monster": list(self.monster)}
+            if self.place is not None:
+                return {"kind": GOAL_REACH, "place": self.place}
             return {"kind": GOAL_REACH, "cell": list(self.cell or ())}
         if self.kind == GOAL_OBSERVE:
             row = {
@@ -186,6 +206,16 @@ class Goal:
 def reach(cell: tuple[int, int]) -> Goal:
     """Arrive at one cell, named as ``(y, x)`` rather than as a ``Position``."""
     return Goal(GOAL_REACH, cell=(int(cell[0]), int(cell[1])))
+
+
+def reach_monster(index: int, race_id: int) -> Goal:
+    """Close with one monster, named by identity (rev 9.2, moving targets)."""
+    return Goal(GOAL_REACH, monster=(int(index), int(race_id)))
+
+
+def reach_place(place: str) -> Goal:
+    """Arrive at a named place that has no local-map cell (rev 9.2)."""
+    return Goal(GOAL_REACH, place=str(place))
 
 
 def observe(
@@ -223,6 +253,8 @@ class Claim:
     ``survival``       the claim was declared by a survival decision
                        (``claim_goal_typing.is_survival``); survival never
                        suspends a survival claim.
+    ``opened_turn``    (rev 9.2) the game turn the claim was opened on; the
+                       floor-change ``Observe`` expires on it.
     """
 
     claim_id: int
@@ -236,6 +268,7 @@ class Claim:
     floor: tuple[int, ...] | None = None
     closed_reason: str | None = None
     survival: bool = False
+    opened_turn: int | None = None
 
     def as_dict(self, *, distance: int | None = None) -> dict:
         """The row form: plain JSON types only."""
@@ -312,13 +345,19 @@ class ClaimRegister:
         opened_sequence: int | None = None,
         floor: tuple[int, ...] | None = None,
         survival: bool = False,
+        opened_turn: int | None = None,
     ) -> Claim:
-        """Declare (or continue) the claim that owns the decision being made."""
+        """Declare (or continue) the claim that owns the decision being made.
+
+        Rev 9.2: a suspended claim does not continue -- the declaration after
+        a suspension opens a new claim, even for the same owner and goal.
+        """
         declared_owner = owner_of(owner)
         claim = self._claim
         if (
             claim is not None
             and claim.closed is None
+            and claim.state != ClaimState.SUSPENDED
             and claim.owner == declared_owner
             and claim.goal == goal
             and claim.non_discardable == non_discardable
@@ -339,6 +378,7 @@ class ClaimRegister:
             opened_sequence=opened_sequence,
             floor=None if floor is None else tuple(floor),
             survival=bool(survival),
+            opened_turn=None if opened_turn is None else int(opened_turn),
         )
         return self._claim
 
@@ -392,6 +432,13 @@ class ClaimRegister:
         if claim is None:
             return None
         return self._close(claim.state, CLOSED_BY_RELEASE, label)
+
+    def expire(self, label: str | None = None) -> Claim | None:
+        """An Observe claim outlived its ``within`` (rev 9.2)."""
+        claim = self._claim
+        if claim is None:
+            return None
+        return self._close(claim.state, CLOSED_BY_EXPIRED, label)
 
     def take_closing(self) -> Claim | None:
         """The claim a closing call ended since the last declaration, once."""

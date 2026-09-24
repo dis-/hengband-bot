@@ -3,6 +3,11 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy_constants import (
@@ -308,7 +313,7 @@ class NavigationMixin:
                     if self._dark_route_goal is not None:
                         goal = self._dark_route_goal
                         self._dark_goal_counts[(goal.y, goal.x)] += 1
-                        self._complete_claim_goal("dark-route-arrived", goal)
+                        self._complete_claim_goal("dark-route-arrived", goal, owners=("detectors",))
                     self._clear_dark_route()
     
         if not self._dark_route:
@@ -599,7 +604,7 @@ class NavigationMixin:
         ):
             return key
     
-        self._release_claim_goal("loot-refused-with-evidence", self._loot_target)
+        self._release_claim_goal("loot-refused-with-evidence", self._loot_target, owners=CLAIM_LOOT_OWNERS)
         self._loot_target = None
         self._close_store_visit("refused-with-evidence")
         self._descent_target_goal = None
@@ -664,6 +669,7 @@ class NavigationMixin:
                 self._nav_exhausted = False
                 self._nav_escape_steps = 0
                 self.last_reason = "livelock:seek-window-edge"
+                self._declare_reach(edge_path[-1])
                 return self._step_toward(snapshot, edge_path[0])
         player = snapshot.player
         if player.recalling:
@@ -684,6 +690,7 @@ class NavigationMixin:
             ):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
+                    self._note_return_start(None)
                     self._returning_to_town = True
                     self.last_reason = "livelock:recall-escape"
                     return self._read_dungeon_recall_scroll_key(snapshot, recall)
@@ -695,6 +702,7 @@ class NavigationMixin:
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None:
                 self.last_reason = "livelock:seek-upstairs"
+                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
             if (
                 self._returning_to_town
@@ -828,6 +836,7 @@ class NavigationMixin:
         ):
             recall = self._find_recall_scroll(snapshot)
             if recall is not None:
+                self._note_return_start(None)
                 self._returning_to_town = True
                 self.last_reason = "combat:disengage-recall"
                 return self._read_key(snapshot, recall)
@@ -848,6 +857,7 @@ class NavigationMixin:
         to_stairs = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if to_stairs is not None:
             self.last_reason = "combat:disengage-seek-upstairs"
+            self._declare_reach(to_stairs)
             return self._step_toward(snapshot, to_stairs)
         # A known exit behind a survivable single-file blocker chain remains
         # available when neither a retreat nor a route step exists.
@@ -1085,7 +1095,7 @@ class NavigationMixin:
         targets.discard(origin)
         if self._nav_ledger.descent_target == origin:
             # Standing on the committed stair: the walk arrived.
-            self._complete_claim_goal("descent-arrived", origin)
+            self._complete_claim_goal("descent-arrived", origin, owners=("departure",))
             self._nav_ledger.clear_descent_route()
         if not targets:
             # Night in a static town: the '>' entrance is unlit and absent from
@@ -1123,7 +1133,7 @@ class NavigationMixin:
         ) is None:
             avoided_store_cells.clear()
         if origin == target:
-            self._complete_claim_goal("descent-arrived", target)
+            self._complete_claim_goal("descent-arrived", target, owners=("departure",))
             self._nav_ledger.clear_descent_route()
             self._descent_refusal_reason = "standing-on-target"
             return None
@@ -1141,7 +1151,7 @@ class NavigationMixin:
                 # use remaining length, while fresh BFS uses distance from origin.
                 self._nav_ledger.observe("descend", target, len(route))
                 if self._nav_ledger.is_expired("descend", target):
-                    self._release_claim_goal("descent-expired", target)
+                    self._release_claim_goal("descent-expired", target, owners=("departure",))
                     self._descent_target_goal = None
                     self._descent_refusal_reason = "expired-target"
                     return None
@@ -1170,7 +1180,7 @@ class NavigationMixin:
                 # the game keeps rejecting accumulates stall here.
                 self._nav_ledger.observe("descend", pos, path_distance)
                 if self._nav_ledger.is_expired("descend", pos):
-                    self._release_claim_goal("descent-expired", pos)
+                    self._release_claim_goal("descent-expired", pos, owners=("departure",))
                     self._descent_target_goal = None
                     self._descent_refusal_reason = "expired-target"
                     return None
@@ -1221,7 +1231,7 @@ class NavigationMixin:
             # yield this stair — expire it.
             self._nav_ledger.observe("descend", target, best_score[2])
             if self._nav_ledger.is_expired("descend", target):
-                self._release_claim_goal("descent-expired", target)
+                self._release_claim_goal("descent-expired", target, owners=("departure",))
                 self._descent_target_goal = None
                 return None
             path = []
@@ -1237,7 +1247,7 @@ class NavigationMixin:
             # No path and no frontier can make progress toward this commitment.
             # Expire it now so deterministic selection cannot choose it again.
             self._nav_ledger.expire("descend", target)
-            self._release_claim_goal("descent-no-route", target)
+            self._release_claim_goal("descent-no-route", target, owners=("departure",))
             self._descent_target_goal = None
         return best_first
 
@@ -1260,7 +1270,7 @@ class NavigationMixin:
                 identity = None
             elif self._explore_goal_is_complete(snapshot, identity):
                 self._complete_claim_goal(
-                    "explore-goal-complete", identity.position
+                    "explore-goal-complete", identity.position, owners=CLAIM_EXPLORE_GOAL_OWNERS
                 )
                 self._explore_path_outcome = ExplorationPathOutcome.SUCCESS
                 self._explore_goal_identity = None

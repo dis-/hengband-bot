@@ -310,30 +310,46 @@ class OwnerExpectationRegistry:
             progress_core, frozenset(expected_changes)
         )
 
-    def may_select(self, owner: str, progress_core: OwnerProgressCore) -> bool:
-        pending = self._pending.get(owner)
-        if pending is None:
-            return True
+    @staticmethod
+    def _verdict_of(
+        pending: OwnerExpectation, progress_core: OwnerProgressCore
+    ) -> str | None:
+        """The satisfaction test: why this expectation is over, or ``None``."""
         if pending.progress_core.floor != progress_core.floor:
-            self._pending.pop(owner, None)
-            self._record_pop(owner, EXPECTATION_POP_FLOOR)
-            return True
+            return EXPECTATION_POP_FLOOR
         if (
             progress_core.decision_sequence - pending.progress_core.decision_sequence
             >= OWNER_EXPECTATION_MAX_TURNS
         ):
-            self._pending.pop(owner, None)
-            self._record_pop(owner, EXPECTATION_POP_EXPIRED)
-            return True
+            return EXPECTATION_POP_EXPIRED
         if any(
             getattr(pending.progress_core, component)
             != getattr(progress_core, component)
             for component in pending.expected_changes
         ):
-            self._pending.pop(owner, None)
-            self._record_pop(owner, EXPECTATION_POP_SATISFIED)
+            return EXPECTATION_POP_SATISFIED
+        return None
+
+    def may_select(self, owner: str, progress_core: OwnerProgressCore) -> bool:
+        pending = self._pending.get(owner)
+        if pending is None:
             return True
-        return False
+        verdict = self._verdict_of(pending, progress_core)
+        if verdict is None:
+            return False
+        self._pending.pop(owner, None)
+        self._record_pop(owner, verdict)
+        return True
+
+    def verdict(self, owner: str, progress_core: OwnerProgressCore) -> str | None:
+        """Rev 9.2 (O): the same test, read-only -- nothing is popped.
+
+        The claim register's declaration point asks it for an ``Observe``
+        claim's own expectation, which may be posted under a name no producer
+        queries again (so ``may_select`` never pops it).
+        """
+        pending = self._pending.get(owner)
+        return None if pending is None else self._verdict_of(pending, progress_core)
 
     def yield_owner(self, owner: str) -> None:
         """Keep an already-posted owner yielded after sender refusal."""

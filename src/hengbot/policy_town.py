@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
@@ -1184,6 +1189,7 @@ class TownMixin:
                     returning = self._town_teleport_key(snapshot, OUTPOST_TOWN_ID)
                     if returning is not None:
                         self.last_reason = "town:cross-town-walk-in-return"
+                        self._adopt_decision_goal()
                         self._record_shop_selector_diagnostics(snapshot, returning)
                         return returning
                 # The return is itself impossible (no fare, no reachable Inn,
@@ -3815,7 +3821,7 @@ class TownMixin:
         if state is not None and state.goal == goal:
             if state.record(distance, snapshot.turn) == "fallback":
                 self._town_travel_fallback = goal
-                self._release_claim_goal("town-travel:stalled", goal)
+                self._release_claim_goal("town-travel:stalled", goal, owners=CLAIM_ENTRANCE_OWNERS)
                 self._town_travel_state = None
                 return None
         else:
@@ -3863,7 +3869,7 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
-                self._declare_reach(target.position)
+                self._declare_monster((target.index, target.race_id))
                 return self._step_toward(snapshot, step)
         if self._town_hunt_target is not None:
             if player.position.distance_to(self._town_hunt_target) <= 1:
@@ -4607,6 +4613,7 @@ class TownMixin:
                     step = self._town_map_goal_step(snapshot, inn_pos)
             if step is not None:
                 self.last_reason = "town:rumor"
+                self._declare_reach(step)
                 # _nearest_goal_step returns only the FIRST step of the path. The
                 # rumor keys must ride along ONLY when that step lands on the inn
                 # (walking onto it opens the building menu, which then consumes
@@ -4890,6 +4897,8 @@ class TownMixin:
                 "town:teleport" if result.route is not None
                 else "town:teleport-step-off"
             )
+            if result.route is not None:
+                self._declare_reach(result.route.target)
             return result.key
         return None
 
@@ -5127,9 +5136,11 @@ class TownMixin:
             # supply returns must never fail a one-shot quest. Survival escapes
             # run earlier and remain intentionally permitted.
             self._returning_to_town = False
+            self._note_return_end()
             self._last_return_trigger = None
             return None
         if self._should_start_town_return(snapshot) or player.recalling:
+            self._note_return_start(None)
             self._returning_to_town = True
         if not self._returning_to_town:
             return None
@@ -5212,6 +5223,7 @@ class TownMixin:
                     self.last_reason = "return:seek-upstairs"
                     if self._escape_state.owner != "disengage":
                         self._escape_state.enter("return", self.last_reason)
+                    self._declare_reach(upstairs_step)
                     return self._step_toward(snapshot, upstairs_step)
 
             # A temporary occupant can split a one-tile corridor in the
@@ -5230,6 +5242,7 @@ class TownMixin:
                 step = self._secret_wall_search_step(snapshot)
                 if step is not None:
                     self.last_reason = "return:seek-secret-wall"
+                    self._declare_reach(step)
                     return self._step_toward(snapshot, step)
 
             # No wall-search budget remains reachable. Release ownership so the
@@ -5241,6 +5254,7 @@ class TownMixin:
             self.last_reason = "return:seek-upstairs"
             if self._escape_state.owner != "disengage":
                 self._escape_state.enter("return", self.last_reason)
+            self._declare_reach(upstairs_step)
             return self._step_toward(snapshot, upstairs_step)
 
         if self._is_oscillating():
@@ -5287,6 +5301,7 @@ class TownMixin:
             step = self._secret_wall_search_step(snapshot)
             if step is not None:
                 self.last_reason = "return:seek-secret-wall"
+                self._declare_reach(step)
                 if self._escape_state.owner != "disengage":
                     self._escape_state.enter("return", self.last_reason)
                 return self._step_toward(snapshot, step)

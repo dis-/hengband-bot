@@ -219,6 +219,7 @@ class OwnershipMetricsLedger:
                     "distance",
                     "closed_claim",
                     "goal_missing",
+                    "goal_note",
                     "survival",
                 )
             },
@@ -409,6 +410,8 @@ def implicit_handoffs(rows: Sequence[Mapping], *, by: str = "owner") -> dict:
 ENDING_COMPLETE = "complete"
 ENDING_RELEASE = "release"
 ENDING_RETIRED = "retired"
+# Rev 9.2: an Observe claim older than its ``within`` -- its own ending.
+ENDING_EXPIRED = "expired"
 ENDING_SUSPENDED = CLOSURE_SUSPENDED
 ENDING_ABANDONED = "abandoned"
 # A claim still open on the last row of its session: it did not end at all
@@ -418,6 +421,7 @@ ENDINGS = (
     ENDING_COMPLETE,
     ENDING_RELEASE,
     ENDING_RETIRED,
+    ENDING_EXPIRED,
     ENDING_SUSPENDED,
     ENDING_ABANDONED,
     ENDING_OPEN,
@@ -475,7 +479,7 @@ def _claim_runs(session_rows: Sequence[Mapping]):
 
 def _ending(run: Sequence[Mapping], following: Mapping | None) -> str:
     closure = _closure_of(run[-1], following)
-    if closure in (ENDING_COMPLETE, ENDING_RELEASE, ENDING_RETIRED):
+    if closure in (ENDING_COMPLETE, ENDING_RELEASE, ENDING_RETIRED, ENDING_EXPIRED):
         return closure
     if closure == CLOSURE_SUSPENDED:
         return ENDING_SUSPENDED
@@ -499,15 +503,19 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
         Reach/Observe claim was not closed (the choke retreat that forgot its
         cell), both rows outside survival -- invisible to (a).
     (c) ``endings``: per ``owner/kind``, how each Reach/Observe claim ended --
-        complete / release / retired / suspended / abandoned, plus
+        complete / release / retired / expired / suspended / abandoned, plus
         ``open-at-end`` for a claim the session's last row still held -- and
-        ``goal_missing`` rows per owner.
+        ``goal_missing`` rows per owner, per reason (``no-slot`` /
+        ``owner-mismatch``), and ``owner_mismatch`` rows per owner (every row
+        whose producer's slot belonged to another owner, Observe included).
     (d) ``mistyped_terminal``: per owner, Terminal claims that kept one id
         over several rows while the player's position changed (the
         ``fundraise:dig-to-treasure`` shape).  ``declare`` keeps the id while
         owner and goal are unchanged, so no new field is needed beyond the
         row's own position; a multi-row Terminal claim whose rows carry no
-        position is counted in ``position_unknown`` instead.
+        position is counted in ``position_unknown`` instead.  Rev 9.2: rows
+        with ``goal_missing`` are excluded -- a Reach row that declared
+        Terminal for want of a slot is counted in (c), not here.
 
     ``owner_of`` re-derives a row's owner (for example the S2a census over a
     ledger written before it); by default the recorded ``owner`` is used.
@@ -519,6 +527,8 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
     retarget_owners: Counter[str] = Counter()
     endings: dict[str, Counter[str]] = {}
     goal_missing: Counter[str] = Counter()
+    goal_missing_reasons: Counter[str] = Counter()
+    owner_mismatch: Counter[str] = Counter()
     mistyped = 0
     mistyped_owners: Counter[str] = Counter()
     position_unknown = 0
@@ -528,6 +538,9 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
         for row in session_rows:
             if row.get("goal_missing"):
                 goal_missing[str(owner_of(row))] += 1
+                goal_missing_reasons[str(row.get("goal_note") or "no-slot")] += 1
+            if row.get("goal_note") == "owner-mismatch":
+                owner_mismatch[str(owner_of(row))] += 1
         for previous, current in zip(session_rows, session_rows[1:]):
             if previous.get("claim_id") == current.get("claim_id"):
                 continue
@@ -551,8 +564,11 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
             if kind in GOAL_KINDS_THAT_SPAN:
                 bucket = endings.setdefault(f"{owner}/{kind}", Counter())
                 bucket[_ending(run, following)] += 1
-            elif kind == "Terminal" and len(run) > 1:
-                positions = [_position_of(row) for row in run]
+            elif kind == "Terminal":
+                kept = [row for row in run if not row.get("goal_missing")]
+                if len(kept) < 2:
+                    continue
+                positions = [_position_of(row) for row in kept]
                 if any(position is None for position in positions):
                     position_unknown += 1
                 elif len(set(positions)) > 1:
@@ -573,6 +589,8 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
             for name, bucket in sorted(endings.items())
         },
         "goal_missing": dict(goal_missing.most_common()),
+        "goal_missing_by_reason": dict(goal_missing_reasons.most_common()),
+        "owner_mismatch": dict(owner_mismatch.most_common()),
         "mistyped_terminal": {
             "count": mistyped,
             "by_owner": dict(mistyped_owners.most_common()),

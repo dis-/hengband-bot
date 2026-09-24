@@ -106,17 +106,34 @@ def gate_report(rows, hours: float | None = None, *, owner_of=None) -> list[str]
         )
     if not gate["endings"]:
         lines.append("    (no Reach/Observe claim)")
-    lines.append("    goal_missing rows per owner:")
-    for owner, times in gate["goal_missing"].items():
-        lines.append(f"      {owner:<46} {times}")
-    if not gate["goal_missing"]:
-        lines.append("      (none)")
     lines.append(
         f"(d) multi-row Terminal claims whose position changed           "
         f"{mistyped['count']:>5}   (position unknown: "
         f"{mistyped['position_unknown']})"
     )
     for owner, times in list(mistyped["by_owner"].items())[:20]:
+        lines.append(f"    {owner:<48} {times}")
+    # Rev 9.2 (D): goal_missing rows are out of (d) and on their own lines.
+    missing_total = sum(gate["goal_missing"].values())
+    lines.append(
+        f"goal_missing rows (Reach declared Terminal)                    "
+        f"{missing_total:>5}   by reason: "
+        + (
+            ", ".join(
+                f"{reason}={times}"
+                for reason, times in gate["goal_missing_by_reason"].items()
+            )
+            or "none"
+        )
+    )
+    for owner, times in gate["goal_missing"].items():
+        lines.append(f"    {owner:<48} {times}")
+    mismatch_total = sum(gate["owner_mismatch"].values())
+    lines.append(
+        f"owner-mismatch rows (a slot of another owner, not used)        "
+        f"{mismatch_total:>5}"
+    )
+    for owner, times in gate["owner_mismatch"].items():
         lines.append(f"    {owner:<48} {times}")
     return lines
 

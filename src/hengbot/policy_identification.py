@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from collections import deque
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
@@ -226,6 +231,7 @@ class IdentificationMixin:
                     self._chest_preopen_objects = None
                     return None
                 self.last_reason = "chest:step-off"
+                self._declare_reach(neighbors[0])
                 return self._step_toward(snapshot, neighbors[0])
             if distance > 1:
                 step = self._nearest_goal_step(
@@ -239,6 +245,7 @@ class IdentificationMixin:
                     self._chest_preopen_objects = None
                     return None
                 self.last_reason = "chest:approach"
+                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
             if counts.get("search", 0) < CHEST_SEARCH_BUDGET:
                 counts["search"] = counts.get("search", 0) + 1
@@ -323,6 +330,7 @@ class IdentificationMixin:
                 self.last_reason = "chest:drop-unreachable-reserved"
                 return CHEST_DROP_KEY + chest.slot
             self.last_reason = "chest:return-reserved-position"
+            self._declare_reach(step)
             return self._step_toward(snapshot, step)
         self._chest_drop_origin = player.position
         self._chest_phase_counts = {}
@@ -517,6 +525,7 @@ class IdentificationMixin:
                         )
                         if step is not None:
                             self.last_reason = "loot:seek-unidentified-floor-item"
+                            self._declare_reach(position)
                             return self._step_toward(snapshot, step)
 
         carried = self._cheapest_exchange_item(snapshot)
@@ -993,7 +1002,7 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= self._engagement_avoid_cells
         if not candidates:
-            self._release_claim_goal("loot-no-candidates", self._loot_target)
+            self._release_claim_goal("loot-no-candidates", self._loot_target, owners=CLAIM_LOOT_OWNERS)
             self._loot_target = None
             return None
         target = self._loot_target
@@ -1007,7 +1016,7 @@ class IdentificationMixin:
                 return step
 
         if target is not None and self._loot_target == target:
-            self._release_claim_goal("loot-retarget", target)
+            self._release_claim_goal("loot-retarget", target, owners=CLAIM_LOOT_OWNERS)
         self._loot_target = None
         start = snapshot.player.position
         seen = {start}
@@ -1075,6 +1084,7 @@ class IdentificationMixin:
                 )
                 if step is not None:
                     self.last_reason = "paralyzer-guard:approach-range"
+                    self._declare_reach(step)
                     return self._step_toward(snapshot, step)
         blocker = self._loot_block_reason(snapshot, hostiles)
         if blocker is not None:
@@ -1086,7 +1096,7 @@ class IdentificationMixin:
                 self._loot_defer_blocker = "paralyzer-ring"
             if blocker in LOOT_DEFER_BLOCKERS and self._loot_target is not None:
                 self._release_claim_goal(
-                    f"loot-deferred:{blocker}", self._loot_target
+                    f"loot-deferred:{blocker}", self._loot_target, owners=CLAIM_LOOT_OWNERS
                 )
                 self._deferred_loot.add(self._loot_target)
                 self._loot_target = None
@@ -1099,7 +1109,7 @@ class IdentificationMixin:
         if current_loot is not None:
             # The loot the walk was committed to lies underfoot: arrived.
             self._complete_claim_goal(
-                "loot-underfoot", snapshot.player.position
+                "loot-underfoot", snapshot.player.position, owners=CLAIM_LOOT_OWNERS
             )
             return current_loot
         step = self._loot_step(

@@ -937,13 +937,19 @@ class TownArbiterMixin:
         )
         # S2a.1 (design rev 9 item 2): posting an expectation is the
         # producer naming the observation this decision waits for.  Record
-        # it in the per-decision slot; nothing selects on it.  The register
-        # imports this module's families, so its import is local.
+        # it in the per-decision slot, with the family it belongs to (rev 9.2
+        # C); nothing selects on it.  The register imports this module's
+        # families, so its import is local.
         from hengbot.claim_register import observe as claim_observe
 
-        self._decision_expectation = claim_observe(
-            expected_changes, OWNER_EXPECTATION_MAX_TURNS, source=owner
-        )
+        declare = getattr(self, "_declare_expectation", None)
+        if declare is not None:
+            declare(
+                claim_observe(
+                    expected_changes, OWNER_EXPECTATION_MAX_TURNS, source=owner
+                ),
+                owner,
+            )
 
     def _owner_may_select(self, snapshot: Snapshot, owner: str) -> bool:
         return self._owner_expectations.may_select(

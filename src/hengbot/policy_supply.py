@@ -881,6 +881,7 @@ class SupplyMixin:
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"
+        self._declare_reach(step)
         return self._step_toward(snapshot, step)
 
     def _find_edible(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -996,6 +997,7 @@ class SupplyMixin:
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "survival:seek-exit"
+            self._declare_reach(step)
             return self._step_toward(snapshot, step)
         return None
 
@@ -1130,6 +1132,7 @@ class SupplyMixin:
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"
+        self._declare_reach(step)
         return self._step_toward(snapshot, step)
 
     def _wilderness_survival_key(
@@ -1149,10 +1152,15 @@ class SupplyMixin:
         if self._on_global_wilderness_map(snapshot):
             key = global_map.next_key_to_town(player.position.y, player.position.x)
             if key == DOWN_STAIRS_KEY:
+                # The global-map walk's own arrival test: a town is underfoot.
+                self._complete_claim_goal(
+                    "wilderness-town-reached", owners=(ClaimOwner.STORE_ROUTER,)
+                )
                 self.last_reason = "wilderness:enter-town"
                 return key
             if key is not None:
                 self.last_reason = "wilderness:global-travel"
+                self._declare_place("wilderness:nearest-town")
                 return key
             self.last_reason = "wilderness:no-safe-route"
             return WAIT_KEY

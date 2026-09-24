@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from collections import deque
 
+from hengbot.claim_goal_typing import (
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
@@ -302,10 +307,12 @@ class FundraisingMixin:
             step = self._least_visited_neighbor(snapshot)
             if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
+                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
+            self._declare_reach(step)
             return self._step_toward(snapshot, step)
         blocker = self._blocking_escape_melee_key(
             snapshot, self._physical_hostiles(snapshot), self._is_upstairs_target
@@ -323,6 +330,7 @@ class FundraisingMixin:
                 and self._can_read_scrolls(snapshot)
             ):
                 self._stuck_escape_streak = 0
+                self._note_return_start(None)
                 self._returning_to_town = True
                 self.last_reason = "fundraise:recall-stuck"
                 return self._read_key(snapshot, recall)
@@ -330,6 +338,7 @@ class FundraisingMixin:
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "fundraise:seek-upstairs-explore"
+                self._declare_explore_goal()
                 return self._step_toward(snapshot, step)
             if self._is_oscillating():
                 step = self._probe_unknown_step(snapshot)
@@ -346,6 +355,7 @@ class FundraisingMixin:
                 not oscillation_cells or step not in oscillation_cells
             ):
                 self.last_reason = "fundraise:seek-upstairs-wander"
+                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
         # Terminal: no reachable up-stairs, nothing to explore, and no walkable
         # neighbour that escapes a confined cycle (a mining tunnel can wall us into a
@@ -556,7 +566,7 @@ class FundraisingMixin:
                 for target in targets:
                     self._drop_mining_vein(target)
                 self._release_claim_goal(
-                    "treasure-unreachable", self._treasure_target
+                    "treasure-unreachable", self._treasure_target, owners=("fundraising",)
                 )
                 self._treasure_target = None
                 self._mining_stall_turns = 0
@@ -598,7 +608,7 @@ class FundraisingMixin:
             self._mining_target_collected = self._mining_veins_collected
             if self._mining_stall_turns >= MINING_STALL_LIMIT:
                 self._drop_mining_vein(target)
-                self._release_claim_goal("treasure-stalled", target)
+                self._release_claim_goal("treasure-stalled", target, owners=("fundraising",))
                 self._treasure_target = None
                 self._mining_target_distance = None
                 self._mining_stall_turns = 0
@@ -612,7 +622,7 @@ class FundraisingMixin:
                 if key is not None:
                     self._declare_reach(target)
                     return key
-                self._release_claim_goal("treasure-untunnelable", target)
+                self._release_claim_goal("treasure-untunnelable", target, owners=("fundraising",))
                 self._treasure_target = None
                 self._mining_target_distance = None
                 targets.discard(target)
@@ -722,6 +732,7 @@ class FundraisingMixin:
                 assert sweep is not None
             self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
+            self._declare_reach(sweep)
             return self._step_toward(snapshot, sweep)
         self._mining_stall_turns = MINING_STALL_LIMIT
         return self._finish_mining_floor(snapshot)
@@ -741,6 +752,7 @@ class FundraisingMixin:
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
             and snapshot.dungeon_level != 1
         ):
+            self._note_return_start(None)
             self._returning_to_town = True
             return self._return_to_town_key(snapshot, hostiles)
         if (
@@ -767,6 +779,7 @@ class FundraisingMixin:
             # back into the same swarm after every teleport.  Drop the stale
             # combat destination and let the fundraising floor-exit procedure
             # carry out the return.
+            self._note_return_start(None)
             self._returning_to_town = True
             return self._leave_fundraising_floor(snapshot)
         if (
@@ -776,6 +789,7 @@ class FundraisingMixin:
                 or not self._known_treasure
             )
         ):
+            self._note_return_start(None)
             self._returning_to_town = True
             return self._leave_fundraising_floor(snapshot)
 
@@ -879,6 +893,7 @@ class FundraisingMixin:
                 # This is a recoverable mining run with its tool left in town,
                 # not a loot-only poverty run. Return and let the town plan
                 # withdraw/buy the tool instead of walking past known veins.
+                self._note_return_start(None)
                 self._returning_to_town = True
                 return self._leave_fundraising_floor(snapshot)
             if self._is_oscillating():
@@ -889,6 +904,7 @@ class FundraisingMixin:
                 # Treat the floor as spent and hand the still-populated recent
                 # cycle to the exit router, which prefers a known staircase or
                 # a least-visited step outside the cycle.
+                self._note_return_start(None)
                 self._returning_to_town = True
                 self._clear_explore_path(ExplorationPathOutcome.ABANDON)
                 return self._leave_fundraising_floor(snapshot)
@@ -1070,6 +1086,7 @@ class FundraisingMixin:
             if sweep is not None:
                 self._record_mining_sweep_step(snapshot)
                 self.last_reason = "fundraise:sweep-explore"
+                self._declare_reach(sweep)
                 return self._step_toward(snapshot, sweep)
             self._mining_sweep_done = True
             self._mining_grids_at_sweep_done = self._mining_sweep_revealed_grids
@@ -1093,7 +1110,7 @@ class FundraisingMixin:
             self._mining_oscillation_retargets += 1
             self._drop_mining_vein(self._treasure_target)
             self._release_claim_goal(
-                "treasure-oscillation", self._treasure_target
+                "treasure-oscillation", self._treasure_target, owners=("fundraising",)
             )
             self._treasure_target = None
             self._mining_route_visits.clear()
@@ -1119,7 +1136,7 @@ class FundraisingMixin:
                     if failed_target is not None:
                         self._drop_mining_vein(failed_target)
                     self._release_claim_goal(
-                        "treasure-route-revisited", failed_target
+                        "treasure-route-revisited", failed_target, owners=("fundraising",)
                     )
                     self._treasure_target = None
                     self._mining_route_visits.clear()
