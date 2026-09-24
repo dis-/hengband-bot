@@ -9,8 +9,11 @@
 
       * the SAME front has been stalled for at least -SustainedMinutes
         (repeated at most every -RepeatMinutes while it stays stalled), or
-      * the in-session verdict file is older than -SessionVerdictMaxAgeMinutes,
-        which means the session itself is gone.
+      * the in-session verdict file is missing or older than
+        -SessionVerdictMaxAgeMinutes, which means the session itself is gone
+        (the file is also looked for where Windows redirects a packaged app's
+        %LOCALAPPDATA% writes), or
+      * the age of that file cannot be computed ('session-age' fault front).
 
     No notification tooling is installed on this host, so the toast goes
     through the WinRT ToastNotificationManager; when that fails the alert is
@@ -216,30 +219,91 @@ if ($verdict -and $verdictFresh) {
 }
 
 # 3. A missing or stale in-session verdict means the session itself is gone.
-$sessionVerdict = Join-Path $StateDir 'verdict-session.json'
-$sessionAge = $null
-if (Test-Path -LiteralPath $sessionVerdict) {
-    $sessionAge = ($Now - [DateTimeOffset]((Get-Item -LiteralPath $sessionVerdict).LastWriteTime)).TotalMinutes
+#
+#    The session runs inside the packaged (MSIX) Claude app, and Windows
+#    redirects a packaged process's writes under %LOCALAPPDATA% to
+#    %LOCALAPPDATA%\Packages\<family>\LocalCache\Local\...  This task runs
+#    outside the package, so the session's verdict-session.json is invisible
+#    at $StateDir itself: from 2026-09-23 18:37 every run read "never written"
+#    while the file sat in ...\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\
+#    hengbot-supervisor.  Look in both places and take the newest copy.
+function Get-SessionVerdictCandidates {
+    $name = 'verdict-session.json'
+    $candidates = @(Join-Path $StateDir $name)
+    $local = $env:LOCALAPPDATA
+    if ($local) {
+        $local = $local.TrimEnd('\')
+        if ($StateDir.StartsWith($local + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            $relative = $StateDir.Substring($local.Length + 1)
+            $packages = Join-Path $local 'Packages'
+            if (Test-Path -LiteralPath $packages) {
+                foreach ($package in @(Get-ChildItem -LiteralPath $packages -Directory -ErrorAction SilentlyContinue)) {
+                    $candidates += (Join-Path (Join-Path (Join-Path $package.FullName 'LocalCache\Local') $relative) $name)
+                }
+            }
+        }
+    }
+    return $candidates
 }
+
+$sessionCandidates = @(Get-SessionVerdictCandidates)
+$sessionAge = $null
+$sessionPath = $null
+$sessionFaults = @()
+foreach ($candidate in $sessionCandidates) {
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+    try {
+        $written = (Get-Item -LiteralPath $candidate).LastWriteTime
+        if ($null -eq $written) { throw 'the file system reported no last-write time' }
+        $age = ($Now - [DateTimeOffset]$written).TotalMinutes
+        # A future stamp would read as "fresh" forever and hide a dead session.
+        if ($age -lt -$SessionVerdictMaxAgeMinutes) {
+            throw ("last-write time {0} is {1:N0} min in the future" -f $written.ToString('o'), -$age)
+        }
+    } catch {
+        $sessionFaults += ("cannot compute the age of {0}: {1}" -f $candidate, $_.Exception.Message)
+        continue
+    }
+    if ($null -eq $sessionAge -or $age -lt $sessionAge) {
+        $sessionAge = $age
+        $sessionPath = $candidate
+    }
+}
+
+# An age that cannot be computed is its own fault, never "missing" or "fresh".
+$sessionFault = if ($sessionFaults.Count) { $sessionFaults -join ' | ' } else { $null }
+Update-Front 'session-age' (-not $sessionFault) ([string]$sessionFault)
+if ($sessionFault) {
+    Write-Output ("SESSION-AGE-FAULT {0}" -f $sessionFault)
+}
+
 $sessionState = @{ last_toast = $null }
 if ($state -and $state.session -and $state.session.last_toast) {
     $sessionState.last_toast = $state.session.last_toast
 }
-if ($null -eq $sessionAge -or $sessionAge -ge $SessionVerdictMaxAgeMinutes) {
+if ($null -eq $sessionAge -and $sessionFault) {
+    # Nothing readable, but something exists: the fault front above speaks.
+    Write-Output 'SESSION unknown: see SESSION-AGE-FAULT'
+} elseif ($null -eq $sessionAge -or $sessionAge -ge $SessionVerdictMaxAgeMinutes) {
     $due = $true
     if ($sessionState.last_toast) {
         $due = (($Now - [DateTimeOffset]::Parse($sessionState.last_toast)).TotalMinutes -ge $RepeatMinutes)
     }
-    $evidence = if ($null -eq $sessionAge) { 'no in-session verdict file has ever been written' }
-                else { "in-session verdict is {0:N0} min old" -f $sessionAge }
+    $evidence = if ($null -eq $sessionAge) {
+        "in-session verdict file is missing (looked in {0} and {1} packaged-app redirect(s))" -f
+            $sessionCandidates[0], ($sessionCandidates.Count - 1)
+    } else {
+        "in-session verdict is stale, {0:N0} min old ({1})" -f $sessionAge, $sessionPath
+    }
     if ($due) {
         Send-Alert 'session' $evidence
         $sessionState.last_toast = $Now.ToString('o')
-        $alerts += 1
+        $script:alerts += 1
     } else {
         Write-Output "HOLD session $evidence"
     }
 } else {
+    Write-Output ("SESSION fresh, {0:N0} min old ({1})" -f $sessionAge, $sessionPath)
     $sessionState.last_toast = $null
 }
 

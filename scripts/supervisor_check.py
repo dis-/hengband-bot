@@ -4,7 +4,10 @@
 Reads only artifacts the bot and git already produce - no front may depend on
 an agent self-reporting, because self-reporting makes the operator the
 detector.  Writes nothing under the bot's runtime directory; its own verdict
-files live in ``%LOCALAPPDATA%\\hengbot-supervisor``.
+files live in ``%LOCALAPPDATA%\\hengbot-supervisor``.  Run from inside the
+packaged Claude app, Windows redirects that write to
+``%LOCALAPPDATA%\\Packages\\<family>\\LocalCache\\Local\\hengbot-supervisor``;
+supervisor_notify.ps1 looks there too.
 
 Exit code 1 when any front is stalled, so a scheduled task can act on it.
 """

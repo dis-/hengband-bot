@@ -446,6 +446,133 @@ class SupervisionScriptTest(unittest.TestCase):
         self.assertIn("checker", json.loads(raw.decode("utf-8"))["fronts"])
 
 
+@unittest.skipUnless(POWERSHELL and os.name == "nt",
+                     "the supervision scripts are Windows PowerShell")
+class SessionVerdictAgeTest(unittest.TestCase):
+    """The session front of supervisor_notify.ps1: missing, fresh, stale, fault.
+
+    Measured 2026-09-23 18:37 .. 09-24 16:02: the task toasted "no in-session
+    verdict file has ever been written" every hour while the session kept
+    writing it - into the packaged app's redirected LocalCache copy, which the
+    task (outside the package) could not see at the state directory itself.
+    LOCALAPPDATA is pointed at a temporary directory so the redirect layout is
+    synthetic and nothing real is read.
+    """
+
+    PACKAGE = "Claude_testfamily"
+
+    def setUp(self):
+        self.directory = Path(tempfile.mkdtemp(prefix="hengbot-supervisor-age-"))
+        self.local = self.directory / "Local"
+        self.state = self.local / "hengbot-supervisor"
+        self.state.mkdir(parents=True, exist_ok=True)
+        self.redirected = (self.local / "Packages" / self.PACKAGE / "LocalCache" / "Local"
+                           / "hengbot-supervisor")
+        verdict = {"time": NOW.isoformat(), "root": str(self.directory),
+                   "fronts": {name: {"ok": True, "evidence": "fine"}
+                              for name in ("bot", "measurement", "review")},
+                   "stalled": []}
+        prepared = self.directory / "verdict-source.json"
+        prepared.write_text(json.dumps(verdict), encoding="utf-8")
+        self.fake = self.directory / "quiet-python.cmd"
+        self.fake.write_text(
+            "@echo off\r\n"
+            f'copy /y "{prepared}" "{self.state / "verdict-task.json"}" >nul\r\n'
+            "exit /b 0\r\n", encoding="ascii")
+
+    def tearDown(self):
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+    def session_verdict(self, directory: Path, written_at: float) -> Path:
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "verdict-session.json"
+        path.write_text(json.dumps({"time": NOW.isoformat()}), encoding="utf-8")
+        os.utime(path, (written_at, written_at))
+        return path
+
+    def notify(self) -> subprocess.CompletedProcess:
+        environment = dict(os.environ, LOCALAPPDATA=str(self.local))
+        run = subprocess.run(
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(ROOT / "scripts" / "supervisor_notify.ps1"),
+             "-Root", str(self.directory), "-StateDir", str(self.state),
+             "-Python", str(self.fake), "-Now", NOW.isoformat(),
+             "-SustainedMinutes", "0", "-NoToast"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=str(self.directory), env=environment, timeout=180)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        return run
+
+    def alerts_log(self) -> str:
+        path = self.state / "alerts.log"
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
+    def test_v1_a_fresh_verdict_in_the_state_directory_raises_no_session_alert(self):
+        self.session_verdict(self.state, NOW.timestamp() - 120)
+        run = self.notify()
+        self.assertIn("SESSION fresh", run.stdout)
+        self.assertIn("alerts=0", run.stdout)
+        self.assertNotIn("session", self.alerts_log())
+
+    def test_v1_a_fresh_verdict_in_the_packaged_app_redirect_raises_no_session_alert(self):
+        """The measured case: the file exists only where Windows redirected it."""
+        path = self.session_verdict(self.redirected, NOW.timestamp() - 120)
+        self.assertFalse((self.state / "verdict-session.json").exists())
+        run = self.notify()
+        self.assertIn("SESSION fresh", run.stdout)
+        self.assertIn(str(path), run.stdout)
+        self.assertIn("alerts=0", run.stdout)
+        self.assertNotIn("never written", run.stdout + self.alerts_log())
+        self.assertNotIn("session", self.alerts_log())
+        state = json.loads((self.state / "notify-state.json").read_text(encoding="utf-8"))
+        self.assertIsNone(state["session"]["last_toast"])
+
+    def test_v1_the_newest_copy_wins_over_a_stale_one(self):
+        self.session_verdict(self.state, NOW.timestamp() - 3 * 3600)
+        self.session_verdict(self.redirected, NOW.timestamp() - 60)
+        run = self.notify()
+        self.assertIn("SESSION fresh", run.stdout)
+        self.assertNotIn("session", self.alerts_log())
+
+    def test_v2_a_stale_verdict_alerts_with_its_age(self):
+        path = self.session_verdict(self.state, NOW.timestamp() - 180 * 60)
+        run = self.notify()
+        self.assertIn("ALERT-FILE", run.stdout)
+        log = self.alerts_log()
+        self.assertIn("session: in-session verdict is stale, 180 min old", log)
+        self.assertIn(str(path), log)
+        self.assertNotIn("missing", log)
+
+    def test_v3_a_missing_verdict_alerts_saying_it_is_missing(self):
+        run = self.notify()
+        self.assertIn("ALERT-FILE", run.stdout)
+        log = self.alerts_log()
+        self.assertIn("session: in-session verdict file is missing", log)
+        self.assertIn(str(self.state), log)
+        self.assertNotIn("stale", log)
+
+    def test_v4_an_uncomputable_age_is_a_fault_with_the_error_text(self):
+        # A FILETIME past DateTime.MaxValue: .NET reports no LastWriteTime, and
+        # the old cast threw "Cannot convert null" and killed the whole run.
+        self.session_verdict(self.state, 253402300800 * 2)
+        run = self.notify()
+        self.assertIn("SESSION-AGE-FAULT", run.stdout)
+        log = self.alerts_log()
+        self.assertIn("session-age: stalled for 0 min: cannot compute the age of", log)
+        self.assertIn("no last-write time", log)
+        self.assertNotIn("missing", log)
+        self.assertNotIn("session: ", log)
+        state = json.loads((self.state / "notify-state.json").read_text(encoding="utf-8"))
+        self.assertIn("session-age", state["fronts"])
+
+    def test_v4_a_future_stamp_is_a_fault_not_a_fresh_session(self):
+        self.session_verdict(self.state, NOW.timestamp() + 3 * 3600)
+        run = self.notify()
+        self.assertIn("SESSION-AGE-FAULT", run.stdout)
+        self.assertIn("in the future", self.alerts_log())
+        self.assertNotIn("SESSION fresh", run.stdout)
+
+
 class TailRowsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
