@@ -243,11 +243,37 @@ class TownMixin:
             return durable + (
                 ("locomotion", owner, snapshot.floor_key, snapshot.player.position),
             )
-        distance = (
-            abs(snapshot.player.position.y - goal.y)
-            + abs(snapshot.player.position.x - goal.x)
+        return durable + (
+            self._locomotion_part(snapshot, owner, goal),
         )
-        return durable + (("locomotion", owner, snapshot.floor_key, distance),)
+
+    @staticmethod
+    def _locomotion_part(
+        snapshot: Snapshot, owner: str, goal: Position
+    ) -> tuple[object, ...]:
+        """The distance part of a walking owner's progress vector.
+
+        It carries the walk's distance to its goal as the policy measures it,
+        ``Position.distance_to`` -- the eight-way step count the claim ledger
+        records for the walk's Reach goal -- beside the Manhattan sum the
+        arbiter read alone before.  The sum stays flat on every diagonal step
+        that closes one axis while opening the other, so a walk whose claimed
+        distance fell on every decision read as no progress and its owner
+        retired mid-walk (2026-09-25 06:23, store 7: claim distance 33 -> 20,
+        arbiter progress on 3 of 14 steps).  A strictly falling step
+        distance changes this part on every step and never repeats a value,
+        so it is progress and never a recurrence.  The sum stays in the part
+        so that every step that changed the old part still changes this one:
+        the recorded bounty approach (tests/test_town_arbiter.py) opens its
+        step distance 52 -> 53 -> 52 around an obstacle, which the step
+        distance alone would read as a recurrence and retire.
+        """
+        position = snapshot.player.position
+        return (
+            "locomotion", owner, snapshot.floor_key,
+            position.distance_to(goal),
+            abs(position.y - goal.y) + abs(position.x - goal.x),
+        )
 
     def _valid_q22_travel_declaration(
         self, snapshot: Snapshot, candidate: DecisionCandidate | None,
@@ -456,8 +482,7 @@ class TownMixin:
                 goal = self._town_map_descent_entrance(snapshot)
         if goal is None:
             return None
-        distance = abs(snapshot.player.position.y - goal.y) + abs(snapshot.player.position.x - goal.x)
-        return ("locomotion", "departure", snapshot.floor_key, distance)
+        return self._locomotion_part(snapshot, "departure", goal)
 
     def _town_retirement_clearance_key(
         self, snapshot: Snapshot, owner: str, reason: str | None = None,

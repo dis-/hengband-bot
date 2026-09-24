@@ -1,0 +1,6 @@
+Source: jsonlog/incident-20260925-0624-town-owner-retired.{state,decisions}.jsonl (copies of the live logs taken at the 06:23 stop).
+state.jsonl sha256 d87af2f133f1188ce8565a1e2183bf3de3d519aac7bdffa4f3f64af964ca1e94; decisions.jsonl sha256 db2d1c2f90b3c16a4ea498d22c2c91935b1709e69f0946ee9ddf6fd3de529ee4
+Selection: the whole 06:15:50 process, decisions 0..2051 by log index (2026-09-25T06:15:56+0900 - 2026-09-25T06:23:14+0900, turn 5328134-5396540).
+Boundary rule: walking back from the last emitter row that carries the last decision's turn, each decision's input ends drain(previous decision) rows earlier and must carry the decision record's turn; the walk validates for all 2052 logged decisions.  Decision 0 reads the attach row alone (state log row 746, the last row the 02:01 process left).
+Emitter rows: 2202 of 2948 (rows 746..2947); decompressed sha256: a785c464b66deca10f74f533adddc4a0999fc6af58aab1692ec74fe3ab7dd145
+Calibration: jsonlog/character-calibration.json as loaded by the process (last written 2026-09-24 05:24), byte-identical to tests/fixtures/guardian-recall-pingpong-20260925.character-calibration.json, sha256 a90e4700854b1b3cf839a278a846078c7f9d768c82c058551c6f52173660016b

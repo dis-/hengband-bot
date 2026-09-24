@@ -526,16 +526,17 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         policy = HengbotPolicy()
         observations = []
         distances = []
+        step_distances = []
         for snapshot in snapshots:
             vector = policy._town_arbiter_progress_vector(
                 snapshot, "bounty:approach"
             )
-            distances.append(
-                vector[-1][-1]
-                if isinstance(vector[-1], tuple)
+            locomotion = (
+                isinstance(vector[-1], tuple)
                 and vector[-1][:2] == ("locomotion", "store-router")
-                else None
             )
+            distances.append(vector[-1][-1] if locomotion else None)
+            step_distances.append(vector[-1][-2] if locomotion else None)
             observations.append(policy._town_turn_arbiter.observe(
                 in_town=True,
                 reason="bounty:approach",
@@ -543,13 +544,20 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             ))
 
         self.assertEqual(distances, [72, 72, 70, 68, 66, 65, 64, 63, 62])
+        # town-approach-progress (2026-09-25): the locomotion part also
+        # carries the policy's step distance (Position.distance_to).  The
+        # detour step (45,123) -> (44,124) leaves the sum at 72 but opens the
+        # step distance 52 -> 53, so it changes the part: that observation
+        # was (False, 7) and is now (True, 8).  The part never repeats, so
+        # the walk is still never retired.
+        self.assertEqual(step_distances, [52, 53, 52, 51, 50, 49, 48, 47, 46])
         self.assertFalse(
             any(row["retired"] for row in observations), observations
         )
         self.assertEqual(
             [(row["progress"], row["budget_remaining_estimate"])
              for row in observations],
-            [(True, 8), (False, 7)] + [(True, 8)] * 7,
+            [(True, 8)] * 9,
         )
 
     def test_equipment_home_equidistant_oscillation_retires_at_stall_budget(self):
@@ -603,6 +611,141 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                 in_town=True, reason="descend:approach", progress_vector=vector
             )
             self.assertFalse(row["retired"])
+
+    @staticmethod
+    def _falling_walk(goal, start, style):
+        """An eight-way walk from ``start`` to ``goal`` whose step distance
+        (``Position.distance_to``) falls by one on every step.
+
+        ``open-minor`` is the 2026-09-25 06:23 shape: each step closes the
+        dominant axis and opens the other one while the step distance still
+        falls, so the Manhattan sum stays flat on those steps.
+        """
+        def sign(value):
+            return (value > 0) - (value < 0)
+
+        y, x = start
+        cells = [(y, x)]
+        while (y, x) != (goal.y, goal.x):
+            dy, dx = goal.y - y, goal.x - x
+            closing = (sign(dy), sign(dx))
+            if style == "straight" and abs(dy) != abs(dx):
+                step = (sign(dy), 0) if abs(dy) > abs(dx) else (0, sign(dx))
+            elif style == "open-minor":
+                if abs(dy) >= abs(dx):
+                    step = (sign(dy), -sign(dx) or 1)
+                else:
+                    step = (-sign(dy) or 1, sign(dx))
+                after = max(abs(dy - step[0]), abs(dx - step[1]))
+                if after >= max(abs(dy), abs(dx)):
+                    step = closing
+            else:
+                step = closing
+            y, x = y + step[0], x + step[1]
+            cells.append((y, x))
+        return cells
+
+    def test_a2_every_town_approach_with_falling_claimed_distance_keeps_progress(self):
+        """Class pin (town-approach-progress, 2026-09-25).
+
+        User decision 2026-09-23 (ownership contract): progress is distance
+        plus the expected observation; a strictly falling distance to the
+        claimed goal is progress.  For every walking town owner whose
+        progress vector registers a goal distance, any eight-way walk whose
+        claimed Reach distance (the claim ledger's measure) falls on every
+        step -- including the diagonal steps that close one axis while
+        opening the other, on which the old Manhattan part stayed flat -- is
+        progress on every step and never retires, however long it is.
+        """
+        from hengbot.claim_register import reach
+        from hengbot.model import STORE_HOME
+
+        snapshot = self._postlevel_snapshot()
+        goal = replace(snapshot.player.position, y=30, x=100)
+
+        def store_visit(owner, store_type):
+            def arm(policy):
+                policy._store_visit = StoreVisit(
+                    owner=owner, purpose="walk-pin", store_type=store_type,
+                    goal=goal,
+                )
+            return arm
+
+        def hunt(policy):
+            policy._town_hunt_target = goal
+
+        def downstairs(policy):
+            policy._remembered_downstairs = {goal}
+
+        cases = (
+            ("store-router", "shop:approach", store_visit("store-router", 7)),
+            (
+                "store-router", "store:entry-interrupted-replan",
+                store_visit("store-router", 7),
+            ),
+            (
+                "equipment-txn", "equipment-transaction:approach-home",
+                store_visit("equipment-transaction", STORE_HOME),
+            ),
+            ("survival", "town:kill-mob-approach", hunt),
+            ("departure", "descend:approach", downstairs),
+        )
+        offsets = (
+            (20, 0), (0, 20), (-20, 0), (0, -20), (20, 7), (-6, 20),
+            (-20, -13), (11, -20), (20, 20), (-20, 19),
+        )
+        manhattan_flat_steps = 0
+        for owner, reason, arm in cases:
+            for offset in offsets:
+                for style in ("open-minor", "closing", "straight"):
+                    start = (goal.y + offset[0], goal.x + offset[1])
+                    cells = self._falling_walk(goal, start, style)
+                    with self.subTest(reason=reason, start=start, style=style):
+                        policy = HengbotPolicy()
+                        arm(policy)
+                        budget = policy._town_turn_arbiter.registry[owner].budget
+                        claimed = []
+                        rows = []
+                        for index, (y, x) in enumerate(cells):
+                            moved = replace(
+                                snapshot,
+                                turn=snapshot.turn + 10 * index,
+                                player=replace(
+                                    snapshot.player,
+                                    position=replace(goal, y=y, x=x),
+                                ),
+                            )
+                            claimed.append(policy._claim_goal_distance(
+                                moved, reach((goal.y, goal.x))
+                            ))
+                            rows.append(policy._town_turn_arbiter.observe(
+                                in_town=True, reason=reason,
+                                progress_vector=policy._town_arbiter_progress_vector(
+                                    moved, reason
+                                ),
+                            ))
+                        # Precondition: the claimed distance strictly falls.
+                        self.assertEqual(
+                            claimed, list(range(len(cells) - 1, -1, -1))
+                        )
+                        self.assertGreater(len(cells), budget + 1)
+                        self.assertEqual(
+                            {
+                                (row["producer_owner"], row["progress"],
+                                 row["budget_remaining_estimate"],
+                                 row["retired"])
+                                for row in rows
+                            },
+                            {(owner, True, budget, False)},
+                        )
+                        manhattan_flat_steps += sum(
+                            abs(a[0] - goal.y) + abs(a[1] - goal.x)
+                            == abs(b[0] - goal.y) + abs(b[1] - goal.x)
+                            for a, b in zip(cells, cells[1:])
+                        )
+        # The class includes the incident's shape: steps that leave the old
+        # Manhattan part flat while the claimed distance falls.
+        self.assertGreater(manhattan_flat_steps, 0)
 
     def test_nonconverging_store_walk_retires_within_recurrence_budget(self):
         policy = HengbotPolicy()
