@@ -271,6 +271,7 @@ class FundraisingMixin:
             self._mining_combat_contact_streak = 0
             self._mining_threat_free_streak = 0
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _leave_fundraising_floor(
         self, snapshot: Snapshot, *, allow_recall: bool = True
     ) -> str:

@@ -51,11 +51,15 @@ a megabyte.
     ``choose_key`` wrote: its id, owner, goal, state, ``closed``, budget and
     measured distance to the goal, plus the row's own reason, key, turn and
     sequence, and ``producer`` -- ``stop_shape.producer_identity`` of the same
-    reason.  The producer exists because two of the arbiter's twenty families
-    (``misc`` and ``unregistered``) are catch-alls holding every dungeon
-    producer, so a family-only breakdown cannot see a ``seek-loot`` /
-    ``melee`` handoff.  It is the identity the S0 classifier already uses; the
-    claim's own ``owner`` stays one of the families that exist today.
+    reason.  The producer existed because two of the arbiter's twenty families
+    (``misc`` and ``unregistered``) were catch-alls holding every dungeon
+    producer, so a family-only breakdown could not see a ``seek-loot`` /
+    ``melee`` handoff.  Stage S2a registered those producers, so the two
+    answers now coincide on every reason the package can emit; the field stays
+    because a reason no registration claims must still be told apart from
+    every other such reason.  It is the identity the S0 classifier already
+    uses; the claim's own ``owner`` stays one of the families that exist
+    today.
 
 Concurrency.  The live bot may be writing its own files while a reader runs,
 and a rotation may rename this file between two appends (the precedent is the

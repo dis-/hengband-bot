@@ -11,14 +11,19 @@ What a claim is
 ``owner``            one of the owner families that exist today.  The enum is
                      built from ``town_arbiter.owner_families()`` plus
                      ``town_arbiter.UNREGISTERED_FAMILY``, the other answer
-                     ``owner_for_reason`` can give, so no family is invented
-                     here and none can silently drift away from the arbiter's
-                     registrations.
+                     the census can give, so no family is invented here and
+                     none can silently drift away from the arbiter's
+                     registrations.  From stage S2a that list includes the
+                     census-only families -- the producers behind the two
+                     catch-alls -- which the arbiter registers but does not
+                     arbitrate.
 ``goal``             ``Reach(cell)`` | ``Observe(expectation, within)`` |
                      ``Terminal(effect)``.
 ``budget``           the registered family's own budget (each one already
                      derived from a policy constant); ``None`` for the
-                     unregistered family, which has no registration.
+                     unregistered family, which has no registration, and for
+                     the census-only families of stage S2a, which nothing
+                     arbitrates until S2b brings the ladder.
 ``state``            ``active | awaiting | suspended | complete | retired``.
 ``non_discardable``  design 3.1: stripped equipment and a pending Home atomic
                      withdraw may not be dropped.  Nothing sets it in S1.

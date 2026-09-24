@@ -361,6 +361,7 @@ class CalibrationMixin:
                 else None
             )
 
+    @claims(ClaimOwner.CALIBRATION)
     def _calibration_restore_exhausted(self, snapshot: Snapshot) -> None:
         """Exhausted-budget regime: hand recovery to redress-mode.
 
@@ -723,6 +724,7 @@ class CalibrationMixin:
         self._calibration_phase = "restore-equip"
         return True
 
+    @claims(ClaimOwner.CALIBRATION)
     def _capture_character_calibration(
         self, snapshot: Snapshot, *, install_restore: bool = True
     ) -> bool:
@@ -796,6 +798,7 @@ class CalibrationMixin:
         self._calibration_deferral_cause = None
         self._calibration_deferral_reason = None
 
+    @claims(ClaimOwner.TOWN_PLAN)
     def _calibration_observe(self, snapshot: Snapshot) -> None:
         """Advance the calibration state machine from each new snapshot."""
         self._release_cured_calibration_deferral(snapshot)

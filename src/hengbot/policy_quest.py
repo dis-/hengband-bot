@@ -998,6 +998,7 @@ class QuestMixin:
         self.last_reason = "quest:sweep:defer-full-pack-loot"
         return WAIT_KEY
 
+    @claims(ClaimOwner.TOWN_PLAN)
     def _quest_equipment_entry_allowed(
         self, snapshot: Snapshot, quest_id: int
     ) -> bool:
@@ -1495,7 +1496,7 @@ class QuestMixin:
         }
         return next((digit for digit in "0123456789" if digit not in used), None)
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _conquest_loot_key(self, snapshot: Snapshot) -> str | None:
         # After killing a dungeon's final guardian, sweep its floor for the drop
         # BEFORE any return trigger (even the emergency latch) recalls us out — the
@@ -1600,7 +1601,7 @@ class QuestMixin:
             return None
         return self._first_item(snapshot, lambda item: item.tval == ammo_tval)
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.QUEST_SWEEP)
     def _q2_ranged_core_key(
         self,
         snapshot: Snapshot,
@@ -1719,7 +1720,7 @@ class QuestMixin:
             + self._direction_key(snapshot.player.position, target.position)
         )
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.QUEST_SWEEP)
     def _q2_encounter_key(
         self,
         snapshot: Snapshot,
@@ -3787,6 +3788,7 @@ class QuestMixin:
         quest = min(candidates, key=self._fixed_quest_order)
         return self.approved_quest_strategy(quest.id)
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _fixed_quest_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -4122,6 +4124,7 @@ class QuestMixin:
         """Return-3's independently revertable route-failure retention."""
         return True
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _prepare_return_candidate(
         self, snapshot: Snapshot, quest: object, producer_branch: str,
         qualifying_quest_ids: tuple[int, ...], *, retain_unavailable: bool,
@@ -4947,6 +4950,7 @@ class QuestMixin:
         # cannot become an accidental quest-1 target.
         return self._town_map.reward_positions & expected
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _fixed_quest_reward_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
         town_reward = FIXED_QUEST_REWARD_POSITIONS.get(quest_id)
         if town_reward is None:
@@ -5276,6 +5280,7 @@ class QuestMixin:
                 }
         return None
 
+    @claims(ClaimOwner.COMBAT)
     def _unique_combat_consumable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

@@ -1804,6 +1804,7 @@ class HomeMixin:
         self.last_reason = reason
         return key
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _observe_calibration_restore_batch(
         self, snapshot: Snapshot, pending: tuple
     ) -> None:

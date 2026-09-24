@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
@@ -1539,6 +1540,7 @@ class TownMixin:
             and self._find_home_deposit(snapshot) is not None
         )
 
+    @claims(ClaimOwner.STORE_ROUTER)
     def _town_space_deposit_key(self, snapshot: Snapshot) -> str | None:
         """Route shortage relief before any transaction that may need a slot."""
         if not self._town_space_deposit_actionable(snapshot):
@@ -1572,6 +1574,7 @@ class TownMixin:
             and any(item.is_bounty for item in snapshot.inventory)
         )
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _town_order_step4_key(self, snapshot: Snapshot) -> str | None:
         """Select normal-order step 4 through the permanent town owner."""
         if not self._town_order_step4_pending(snapshot):
@@ -1634,6 +1637,7 @@ class TownMixin:
             for item in snapshot.inventory
         )
 
+    @claims(ClaimOwner.TOWN_PLAN)
     def _town_overflow_destroy_key(self, snapshot: Snapshot) -> str | None:
         """Free town pack space without creating floor-item pickup loops."""
         key = self._verified_destroy_key(
@@ -1652,6 +1656,7 @@ class TownMixin:
             return WAIT_KEY
         return None
 
+    @claims(ClaimOwner.IDENTIFICATION)
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
             return None
@@ -3824,6 +3829,7 @@ class TownMixin:
         """Compatibility hook for travel callers; town combat is global now."""
         return self._town_kill_mob_key(snapshot)
 
+    @claims(ClaimOwner.SURVIVAL)
     def _town_kill_mob_key(self, snapshot: Snapshot) -> str | None:
         """Approach and kill every visible town monster except the player's pets.
 
@@ -3934,6 +3940,7 @@ class TownMixin:
             )
         return self._read_key(snapshot, recall)
 
+    @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_remove_curse_key(self, snapshot: Snapshot) -> str | None:
         """Read a Remove Curse scroll during town prep when a cursed item is worn,
         so it can be swapped/upgraded and its penalties lifted before diving."""
@@ -3983,6 +3990,7 @@ class TownMixin:
         self.last_reason = "town:remove-curse"
         return self._read_key(snapshot, scroll)
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_random_teleport_suppression_key(
         self, snapshot: Snapshot
     ) -> str | None:
@@ -4850,6 +4858,7 @@ class TownMixin:
             "town_ledger": town_ledger,
         }
 
+    @claims(ClaimOwner.STORE_ROUTER)
     def _town_teleport_key(
         self, snapshot: Snapshot, destination_town_id: int
     ) -> str | None:
@@ -4951,6 +4960,7 @@ class TownMixin:
         )
         return self._read_key(snapshot, recall)
 
+    @claims(ClaimOwner.DEPARTURE)
     def _dungeon_recall_confirmation_key(
         self, snapshot: Snapshot
     ) -> str | None:
@@ -5089,6 +5099,7 @@ class TownMixin:
         # there abandoned deep dives far too eagerly.
         return False
 
+    @claims(ClaimOwner.DEPARTURE)
     def _return_to_town_key(
         self,
         snapshot: Snapshot,

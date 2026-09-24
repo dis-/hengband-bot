@@ -132,8 +132,14 @@ class RecordedStopShapeTest(unittest.TestCase):
         self.assertEqual(verdict["rule"], "alternating-producer-suffix")
         evidence = verdict["evidence"]
         self.assertEqual(
+            # S2a re-pinned these two names.  They are the same producers as
+            # before -- the reasons are ``seek-loot`` and
+            # ``detected:prepare-choke`` -- but the arbiter now registers the
+            # families behind its two catch-alls, so the classifier names the
+            # owner directly instead of refining ``misc``/``unregistered`` by
+            # the reason's leading segment.
             evidence["alternating_producers"],
-            ["misc:seek-loot", "unregistered:detected"],
+            ["floor-loot", "positioning"],
         )
         self.assertEqual(evidence["cycles"], 9)
         self.assertEqual(evidence["alternating_decisions"], 18)

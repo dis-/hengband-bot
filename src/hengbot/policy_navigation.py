@@ -193,6 +193,7 @@ from hengbot.policy_constants import (
 
 class NavigationMixin:
 
+    @claims(ClaimOwner.DEPARTURE)
     def _suppress_pending_stair_command(self, snapshot: Snapshot, key: str) -> str:
         """Post at most one floor-changing command per observation."""
         if (
@@ -487,6 +488,7 @@ class NavigationMixin:
             depth = dungeon.min_depth
         return max(1, depth)
 
+    @claims(ClaimOwner.DETECTORS)
     def _break_positional_oscillation(
         self, snapshot: Snapshot, key: str
     ) -> str:
@@ -792,6 +794,7 @@ class NavigationMixin:
         path.reverse()
         return path
 
+    @claims(ClaimOwner.ESCAPE)
     def _disengage_move_or_escalate(
         self,
         snapshot: Snapshot,
@@ -1032,6 +1035,7 @@ class NavigationMixin:
         self._rubble_t = rubble
         self._marked_t = marked
 
+    @claims(ClaimOwner.DEPARTURE)
     def _descent_step(self, snapshot: Snapshot) -> Position | None:
         """Follow the ledger-owned route to one committed descent target.
     

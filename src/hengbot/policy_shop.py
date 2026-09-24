@@ -2902,6 +2902,7 @@ class ShopMixin:
             return False
         return item.tval in STORE_ACCEPTED_TVALS.get(store_type, frozenset())
 
+    @claims(ClaimOwner.SHOP_SELL)
     def _store_sell_key(
         self,
         snapshot: Snapshot,
@@ -3256,6 +3257,7 @@ class ShopMixin:
         name = re.sub(r"\s+\{[^{}]*\}\s*$", "", item.name)
         return (name, item.tval, item.sval)
 
+    @claims(ClaimOwner.SHOP_SELL)
     def _batch_sale_entry(
         self, snapshot: Snapshot, item: InventoryItem, tag: str
     ) -> dict[str, object] | None:
@@ -4412,6 +4414,7 @@ class ShopMixin:
         self._set_town_store_attempted(store_type, snapshot.turn, "shopping-stuck")
         self._town_visit_ledger.approach_fails[store_type] += 1
 
+    @claims(ClaimOwner.STORE_ROUTER)
     def _shopping_approach_key(
         self, snapshot: Snapshot, step: Position, travel_reason: str
     ) -> str:

@@ -2956,8 +2956,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # ``choose_key`` builds the arbiter before any of its exits, but a
         # restored checkpoint can still carry ``None`` here; the module-level
         # reader answers from the same registrations in that case.
+        #
+        # S2a: the claim records the **census** family -- who owns the
+        # producer -- not the arbitration bucket its reason spends in town.
+        # The two differed for every dungeon producer, which is what put 138
+        # handoffs an hour between a real family and a catch-all.  The
+        # arbitration answer stays where it belongs, in the arbiter's own
+        # telemetry and in ``decision_attribution``.
         owner = claim_owner_of(
-            arbiter.owner_for_reason(reason)
+            arbiter.ownership_family(reason)
             if arbiter is not None
             else reason_owner_family(reason)
         )
@@ -4930,7 +4937,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _look_probe_key(self, snapshot: Snapshot) -> str:
         self._look_floor_key = snapshot.floor_key
         self._look_floor_items.clear()
@@ -4990,7 +4997,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
         )
 
-    @claims(ClaimOwner.MISC)
+    @claims(ClaimOwner.BOOKKEEPING)
     def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
         """Request ~f while a protocol-3 board lacks the skill list values."""
         if getattr(snapshot, "protocol_version", 2) < 3:
@@ -5059,7 +5066,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._periodic_save_requested = True
 
 
-    @claims(ClaimOwner.MISC)
+    @claims(ClaimOwner.BOOKKEEPING)
     def _periodic_game_save_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler with Ctrl-S; saving consumes no game energy."""
         if (
@@ -5072,7 +5079,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = "periodic:game-save"
         return "\x13"
 
-    @claims(ClaimOwner.MISC)
+    @claims(ClaimOwner.BOOKKEEPING)
     def _periodic_character_dump_key(self, snapshot: Snapshot, key: str) -> str:
         """Replace a safe filler action without delaying combat or prompts."""
         if (
@@ -5207,6 +5214,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._should_flee(snapshot, hostiles, adjacent):
             self._defer_descent(snapshot)
 
+    @claims(ClaimOwner.DETECTORS)
     def _break_livelock(self, snapshot: Snapshot, key: str) -> str:
         """Guard against re-issuing a move the game keeps rejecting.
 
@@ -7048,7 +7056,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         )
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.COMBAT)
     def _summoner_ranged_kill_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -7431,7 +7439,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return self._item_matches_purchase_rung(snapshot, item)
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _floor_item_identify_key(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> str | None:
@@ -8648,6 +8656,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return
 
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _release_stalled_equipment_transaction(
         self, snapshot: Snapshot | None = None
     ) -> bool:
@@ -8681,6 +8690,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _invalidate_stale_equipment_transaction(
         self,
         snapshot: Snapshot,
@@ -10762,7 +10772,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return PICKUP_KEY + ("a" * here.object_count)
         return PICKUP_KEY
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _victory_loot_key(self, snapshot: Snapshot) -> str | None:
         if not self._yeek_victory_loot or snapshot.floor_key[0] != DUNGEON_YEEK_CAVE:
             return None
@@ -11525,6 +11535,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.DETECTORS)
     def _bound_escape_wait(self, snapshot: Snapshot, key: str) -> str:
         """Let registered escape WAITs spend their policy budget, then stop.
 
@@ -11640,6 +11651,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
 
+    @claims(ClaimOwner.ESCAPE)
     def _fruitless_disengage_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -11938,6 +11950,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.QUEST_SWEEP)
     def _q22_opening_consumable_before_escape(
         self,
         snapshot: Snapshot,
@@ -12299,7 +12312,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         plan.no_progress_decisions = spent
         self._choke_outcome_budgets[key] = (spent, high)
 
-    @claims(ClaimOwner.MISC)
+    @claims(ClaimOwner.EXPLORE)
     def _immobile_breeder_giveup_key(self, snapshot: Snapshot) -> str | None:
         plan = self._choke_engagement_plan
         if (
@@ -12377,7 +12390,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return destination, step
 
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.POSITIONING)
     def _detected_threat_preparation_key(
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
     ) -> str | None:
@@ -12678,6 +12691,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.QUEST_REQUEST)
     def _start_kill_quest_regeneration(self, snapshot: Snapshot) -> str | None:
         """Start UP-then-DOWN regeneration at the existing exhausted-floor seam."""
         active = self._taken_dungeon_kill_level_quest(snapshot)

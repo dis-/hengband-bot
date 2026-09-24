@@ -932,6 +932,7 @@ class SupplyMixin:
             snapshot, lambda it: it.is_food and it.aware and it.sval >= FOOD_MIN_SVAL
         )
 
+    @claims(ClaimOwner.SURVIVAL)
     def _survival_gate_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
@@ -1217,7 +1218,7 @@ class SupplyMixin:
         self._unseen_retreat_target = None
         return first_steps[0] if first_steps else None
 
-    @claims(ClaimOwner.MISC)
+    @claims(ClaimOwner.POSITIONING)
     def _unseen_retreat_intercept_key(
         self,
         snapshot: Snapshot,
@@ -1240,7 +1241,7 @@ class SupplyMixin:
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.ESCAPE)
     def _unseen_retreat_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

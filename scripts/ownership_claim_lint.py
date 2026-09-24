@@ -42,6 +42,16 @@ lint cannot invent a family:
 ``mixed`` and ``unknown`` are lint categories, never claim owners: a site
 that lands in one still has to be migrated, and the migration decides its
 owner.  A *covered* site is counted under the owner its marker declares.
+
+Excused sites (S2a, design pin A2)
+----------------------------------
+An uncovered site inside a function named in
+``scripts/ownership_claim_exceptions.txt`` is **excused**: still uncovered,
+still counted, but accounted for by a checked-in one-line reason.  The number
+the S2b gate reads is ``unexcused`` -- uncovered and unexplained -- and it is
+zero.  A line for a function that no longer exists, or that no longer has an
+uncovered site, is reported as ``stale``, so the file cannot quietly become a
+blanket waiver.
 """
 
 from __future__ import annotations
@@ -63,6 +73,28 @@ CLAIM_CONTEXT_MANAGER = "claim"
 FAMILY_MIXED = "mixed"
 FAMILY_UNKNOWN = "unknown"
 DEFAULT_PACKAGE = Path(__file__).resolve().parents[1] / "src" / "hengbot"
+DEFAULT_EXCEPTIONS = Path(__file__).resolve().parent / "ownership_claim_exceptions.txt"
+
+
+def read_exceptions(path: Path) -> dict[str, str]:
+    """``{"module.py:function": reason}`` from the checked-in file.
+
+    Blank lines and ``#`` comments are ignored; a missing file is an empty
+    set of exceptions rather than an error, so the lint still runs on a
+    checkout that predates it.
+    """
+    excused: dict[str, str] = {}
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return excused
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        entry, _, reason = line.partition("#")
+        excused[entry.strip()] = reason.strip()
+    return excused
 
 
 def _decorator_owner(node: ast.AST) -> str | None:
@@ -147,17 +179,20 @@ class _SiteCollector(ast.NodeVisitor):
         self.path = path
         self.sites: list[dict] = []
         self._cover: list[str] = []
+        self._hosts: list[str] = []
 
     # -- lexical enclosure ------------------------------------------------
 
     def visit_FunctionDef(self, node):
         owner = _decorator_owner(node)
+        self._hosts.append(node.name)
         if owner is not None:
             self._cover.append(owner)
             self.generic_visit(node)
             self._cover.pop()
         else:
             self.generic_visit(node)
+        self._hosts.pop()
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -183,6 +218,9 @@ class _SiteCollector(ast.NodeVisitor):
                 "covered": covered,
                 # The innermost marker wins: it is the one that would declare.
                 "family": self._cover[-1] if covered else _assigned_family(value),
+                # The outermost enclosing function: the one an exception line
+                # names, because that is where a marker would go.
+                "host": self._hosts[0] if self._hosts else "<module>",
             }
         )
 
@@ -212,17 +250,38 @@ def scan(paths) -> list[dict]:
     return sites
 
 
-def summarise(sites) -> dict:
-    """The design 5.1 figure: uncovered sites, per family."""
+def summarise(sites, excused: dict[str, str] | None = None) -> dict:
+    """The design 5.1 figure: uncovered sites, per family.
+
+    With ``excused`` (design pin A2) it also reports how many uncovered sites
+    a checked-in exception accounts for, how many it does not, and which
+    exception lines no longer match an uncovered site.
+    """
+    excused = {} if excused is None else excused
     uncovered: dict[str, int] = {}
     covered: dict[str, int] = {}
+    excused_sites = 0
+    unexcused: list[dict] = []
+    used: set[str] = set()
     for site in sites:
-        bucket = covered if site["covered"] else uncovered
-        bucket[site["family"]] = bucket.get(site["family"], 0) + 1
+        if site["covered"]:
+            covered[site["family"]] = covered.get(site["family"], 0) + 1
+            continue
+        uncovered[site["family"]] = uncovered.get(site["family"], 0) + 1
+        entry = f"{site['file']}:{site.get('host', '<module>')}"
+        if entry in excused:
+            excused_sites += 1
+            used.add(entry)
+        else:
+            unexcused.append(site)
     return {
         "sites": len(sites),
         "covered": sum(covered.values()),
         "uncovered": sum(uncovered.values()),
+        "excused": excused_sites,
+        "unexcused": len(unexcused),
+        "unexcused_sites": unexcused,
+        "stale_exceptions": sorted(set(excused) - used),
         "uncovered_by_family": dict(sorted(uncovered.items())),
         "covered_by_family": dict(sorted(covered.items())),
     }
@@ -234,6 +293,8 @@ def render(summary: dict, *, scanned: int) -> str:
         f"  self.last_reason sites     {summary['sites']}",
         f"  inside a declared claim    {summary['covered']}",
         f"  NOT inside one (design 5.1){summary['uncovered']:>6}",
+        f"    excused (A2 file)        {summary.get('excused', 0)}",
+        f"    UNEXCUSED                {summary.get('unexcused', 0)}",
         "",
         "uncovered, per owner family:",
     ]
@@ -244,6 +305,11 @@ def render(summary: dict, *, scanned: int) -> str:
         lines.append("covered, per declared owner:")
         for family, count in summary["covered_by_family"].items():
             lines.append(f"  {family:<18} {count:>5}")
+    if summary.get("stale_exceptions"):
+        lines.append("")
+        lines.append("stale exception lines (no uncovered site left):")
+        for entry in summary["stale_exceptions"]:
+            lines.append(f"  {entry}")
     lines.append("")
     lines.append(
         "This number must reach zero at S4.  The lint reports it; it does not "
@@ -268,14 +334,26 @@ def main(argv: list[str] | None = None) -> int:
         "--path", action="append", default=[],
         help="a module or directory to scan instead of src/hengbot",
     )
+    parser.add_argument(
+        "--exceptions", type=Path, default=None,
+        help="the A2 exceptions file (default: beside this script, and only "
+             "when the whole package is scanned)",
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--sites", action="store_true", help="list every site")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
 
     paths = _paths(args.path)
+    # A partial scan cannot tell a stale exception from one whose module was
+    # simply not read, so the file is only applied to a whole-package scan
+    # unless it is named explicitly.
+    exceptions = args.exceptions
+    if exceptions is None and not args.path:
+        exceptions = DEFAULT_EXCEPTIONS
+    excused = read_exceptions(exceptions) if exceptions is not None else {}
     sites = scan(paths)
-    summary = summarise(sites)
+    summary = summarise(sites, excused)
     if args.json:
         payload = {"modules": [path.name for path in paths], **summary}
         if args.sites:

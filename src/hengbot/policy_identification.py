@@ -64,7 +64,7 @@ from hengbot.quest_navigator import PICKUP_KEY
 
 
 class IdentificationMixin:
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _chest_processing_key(
         self,
         snapshot: Snapshot,
@@ -462,7 +462,7 @@ class IdentificationMixin:
             "inventory:destroy-disposable-item",
         )
 
-    @claims(ClaimOwner.UNREGISTERED)
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _full_pack_loot_triage_key(self, snapshot: Snapshot) -> str | None:
         """Identify and exchange valuable guardian loot before permitting return."""
         destroy = self._full_pack_destroy_key(snapshot)

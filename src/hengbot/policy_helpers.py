@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from hengbot.claim_register import ClaimOwner, claims
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import Loadout
 from hengbot.model import (
@@ -93,6 +94,7 @@ class PolicyHelpersMixin:
             ),
         )
         return self._home_visit_retention(projected)[1]
+    @claims(ClaimOwner.DETECTORS)
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
         """Refuse a repeated transition after an equivalent-state cycle.
 

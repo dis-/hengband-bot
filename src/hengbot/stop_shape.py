@@ -41,14 +41,19 @@ act on; classifying it by the repetition alone would hide the cause.  A
 repetition with no operation in flight, a policy-declared final stop and a
 retired owner still holding the decision are all ``no-exit``.
 
-Producer identity.  The owner families are the town arbiter's own 20
+Producer identity.  The owner families are the town arbiter's own
 registrations (``town_arbiter.reason_owner_family``), which keeps one source
 of truth for the mapping.  Two of them, ``misc`` and ``unregistered``, are
-catch-alls that hold every dungeon producer (the arbiter only runs in town --
-``town_arbiter.py`` clears everything when ``not in_town``), so a reason that
-lands in either is identified further by its own leading segment.  Without
-that refinement ``seek-loot`` and ``melee`` would be the same producer and the
-06:00 alternation would be invisible.
+catch-alls that used to hold every dungeon producer (the arbiter only runs in
+town -- ``town_arbiter.py`` clears everything when ``not in_town``), so a
+reason that lands in either is identified further by its own leading segment.
+Without that refinement ``seek-loot`` and ``melee`` would have been the same
+producer and the 06:00 alternation would have been invisible.
+
+Stage S2a registered the families behind those two catch-alls, so
+``reason_owner_family`` now names the producer directly and the refinement is
+a fallback rather than the normal case.  It stays, because a reason nobody has
+registered yet must still be distinguishable from every other such reason.
 
 The stopping row's ``arbiter.owner`` and ``arbiter.producer_owner`` are
 recorded with every verdict.  They are evidence rather than a trigger: they

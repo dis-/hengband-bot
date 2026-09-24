@@ -465,6 +465,7 @@ class EquipmentMixin:
             count += 1
         return count
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
         """Bind Home stock needed by the standing two-digger carry target."""
         store = snapshot.store
@@ -1547,6 +1548,7 @@ class EquipmentMixin:
             for owned_identity, _ in self._equipment_transaction_owned_items
         )
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_town_owner_key(
         self, snapshot: Snapshot
     ) -> str | None:
@@ -2501,6 +2503,7 @@ class EquipmentMixin:
         self.last_reason = "home:seek-combat-weapon-page"
         return " "
 
+    @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or self._calibration_active():
             return None

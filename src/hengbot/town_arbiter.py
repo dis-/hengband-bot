@@ -54,13 +54,39 @@ RECALL_WAIT_REASONS = frozenset({
 
 @dataclass(frozen=True)
 class TownOwnerRegistration:
-    """Advisory registration for one family of town turn producers."""
+    """One owner family: how it is arbitrated, and what it owns.
+
+    ``SOL-DESIGN-ownership-contract.md`` section 6 stage **S2a** separates two
+    questions this record used to answer with one tuple of prefixes:
+
+    ``reason_prefixes``
+        the **arbitration** prefixes.  ``owner_for_reason`` reads only these,
+        so they decide which budget bucket a town decision is charged to,
+        which owner can retire, and what ``town:blocked:owner-retired`` sees.
+        S2a changes none of them, and a family that the arbiter does not
+        arbitrate carries an empty tuple here and can therefore never be an
+        answer of ``owner_for_reason``.
+    ``census_prefixes``
+        the **ownership census** prefixes: who owns the producer.  These are
+        what ``ownership_family`` -- and through it the claim ledger, the S0
+        stop-shape classifier and the lint -- read.  A family's census always
+        contains its arbitration prefixes, and may name more.
+
+    Before S2a the two were the same tuple, which is why every dungeon
+    producer had to fall into ``misc`` or ``unregistered``: the arbiter never
+    runs outside town, so no one ever registered them.  Splitting the two
+    lets the census name them without moving a single town decision into a
+    different budget bucket.  ``budget`` is ``None`` for a census-only family,
+    exactly as ``unregistered`` has no budget: nothing arbitrates it yet, and
+    S2b registers one together with the priority ladder.
+    """
 
     name: str
     reason_prefixes: tuple[str, ...]
     progress_metric: str
     budget_references: tuple[str, ...]
-    budget: int
+    budget: int | None
+    census_prefixes: tuple[str, ...] = ()
 
 
 class TownTurnArbiter:
@@ -71,11 +97,28 @@ class TownTurnArbiter:
             name: str,
             prefixes: tuple[str, ...],
             metric: str,
+            census: tuple[str, ...] = (),
         ) -> TownOwnerRegistration:
             references, budget = budgets[name]
             return TownOwnerRegistration(
-                name, prefixes, metric, references, max(1, budget)
+                name, prefixes, metric, references, max(1, budget),
+                prefixes + census,
             )
+
+        def classification(
+            name: str,
+            census: tuple[str, ...],
+            metric: str,
+        ) -> TownOwnerRegistration:
+            """A family the census names and the arbiter does not arbitrate.
+
+            Its ``reason_prefixes`` are empty, so ``owner_for_reason`` cannot
+            return it and no town decision changes budget bucket; its reasons
+            keep arbitrating under the catch-all they already did.  S2a is
+            classification only (design 6/S2a): the ladder, the bar table and
+            a budget of its own arrive with S2b.
+            """
+            return TownOwnerRegistration(name, (), metric, (), None, census)
 
         # Ordered from narrow families to explicitly registered compatibility
         # families. Unknown reasons remain falsifiable as ``unregistered``.
@@ -87,18 +130,46 @@ class TownTurnArbiter:
             registration("shop-buy", ("shop:one-shot-buy", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta"),
             registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global", "bounty:approach"), "distance to store goal"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
-            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta"),
+            registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta",
+                # S2a census: the replacement half of the same producer
+                # (policy_equipment.py ``_town_restore_weapon_key``) was never
+                # registered, so it alone fell through to ``unregistered``.
+                ("town:replace-no-teleport-weapon",)),
             registration("calibration", ("calibration:",), "calibration phase advance"),
             registration("identification", ("identify:", "identification:", "item-processing:", "inventory:"), "known item or failure-set delta"),
             registration("fundraising", ("fundraise:", "fundraising:", "mining:", "town:recall-stockout-mining", "town:identify-staff-stockout-mining"), "gold or vein delta"),
             registration("curse-enchant", ("town:remove-curse", "town:enchant-launcher-", "curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
             registration("cross-town", ("town:cross-town", "town:morivant"), "expedition state advance"),
             registration("survival", ("survival:", "weak-fainting", "status-threat:", "town:kill-mob", "town:eat-before-travel", "town:recover", "town:seek-shelter", "confused:", "item:", "mana-food:", "stat-gain:", "experience:", "wilderness:escape-scroll", "wilderness:flee", "refill-light", "restore-lantern", "eat", "rest"), "survival supply or status delta"),
-            registration("departure", ("depart", "descend", "recall", "return:", "stair:", "postlevel:", "repetition-depart", "town:repetition-depart", "town:entrance", "town:wait-recall", "town:await-recall-confirmation", "town:recall-to-", "town:cancel-", "town:unsafe-recall-fallback", "wilderness:no-safe-route", "esp-threat:leave-"), "stairs, recall, or floor delta"),
+            registration("departure", ("depart", "descend", "recall", "return:", "stair:", "postlevel:", "repetition-depart", "town:repetition-depart", "town:entrance", "town:wait-recall", "town:await-recall-confirmation", "town:recall-to-", "town:cancel-", "town:unsafe-recall-fallback", "wilderness:no-safe-route", "esp-threat:leave-"), "stairs, recall, or floor delta",
+                # S2a census: the dungeon's own way down is the same owner as
+                # ``descend`` and ``stair:``.  It only ever runs outside town,
+                # which is why it was never registered.
+                ("seek-downstairs", "approach-descent", "clear-descent")),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
             registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off", "bounty:leave"), "quest request or phase advance"),
             registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:"), "block release or visible stop"),
+            # -- S2a: the families behind the two catch-alls -----------------
+            #
+            # Design 6/S2a.  These are census-only (see ``classification``):
+            # they name a producer's owner, they are never an answer of
+            # ``owner_for_reason``, and they sit here -- after every
+            # arbitrating family and before ``misc`` -- so they can only claim
+            # reasons that fall through to ``misc`` or ``unregistered`` today.
+            # Each is named after what it owns, not after where it runs.
+            classification("positioning", ("detected:", "melee:choke", "summoner:hold-choke", "threat:reposition", "threat:avoid-engagement", "threat:paralyzer-avoid", "paralyzer-guard:"), "distance to the chosen stand-off cell"),
+            classification("esp-threat", ("esp-threat:hunt-", "melee:esp-threat-hunt"), "telepathic contact resolved"),
+            classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "threat:scroll", "threat:wait"), "EscapeState rung released"),
+            classification("combat", ("melee", "ranged:", "summoner:ranged-kill", "unique:quaff-"), "hostile hit points or count delta"),
+            classification("hunt", ("hunt",), "distance to the chosen hostile"),
+            classification("explore", ("explore", "search", "seek-secret-wall", "probe"), "newly seen floor cells"),
+            classification("floor-loot", ("seek-loot", "loot:", "chest:", "victory:", "conquest:"), "carried inventory delta"),
+            classification("quest-sweep", ("quest-strategy:",), "quest objective or phase advance"),
+            classification("bookkeeping", ("periodic:", "town:character-dump"), "save file, dump or skill knowledge written"),
+            # Design 4's generic fallback: the board on which no producer
+            # wanted the turn is still owned, so no board is unattributed.
+            classification("idle", ("policy:", "wait"), "the board advancing"),
             registration("misc", ("policy:", "town:misc:", "town:character-dump", "periodic:", "explore", "melee", "hunt", "esp-threat:hunt-", "seek-loot", "wait"), "town progress vector delta"),
         )
         self.registry = {entry.name: entry for entry in registrations}
@@ -180,9 +251,33 @@ class TownTurnArbiter:
         return visit
 
     def owner_for_reason(self, reason: str) -> str:
+        """The **arbitration** family: whose budget bucket this reason spends.
+
+        Reads ``reason_prefixes`` only, so a census-only family (empty
+        arbitration prefixes, design 6/S2a) can never be returned here and
+        the answer is the one this method has always given.
+        """
         normalized = reason or "policy:none"
         for entry in self._ordered:
             if entry.reason_prefixes and normalized.startswith(entry.reason_prefixes):
+                return entry.name
+        return UNREGISTERED_FAMILY
+
+    def ownership_family(self, reason: str) -> str:
+        """The **census** family: which producer family owns this reason.
+
+        The answer the claim ledger, the S0 stop-shape classifier and the
+        ownership lint read (design 6/S2a).  It refines
+        ``owner_for_reason`` rather than contradicting it: an arbitrating
+        family's own prefixes are always part of its census, and the
+        census-only families registered after them can only claim reasons
+        that would otherwise fall through to ``misc`` or ``unregistered``.
+        """
+        normalized = reason or "policy:none"
+        for entry in self._ordered:
+            if entry.census_prefixes and normalized.startswith(
+                entry.census_prefixes
+            ):
                 return entry.name
         return UNREGISTERED_FAMILY
 
@@ -496,11 +591,27 @@ def _new_town_turn_arbiter() -> TownTurnArbiter:
 
 
 def reason_owner_family(reason: str) -> str:
-    """The registered owner family of a reason label, for offline readers.
+    """The owner family of a reason label, for offline readers.
 
     One source of truth for the mapping: it asks a throwaway arbiter built
     from the same registrations the policy uses, so a reader outside the
     policy can neither see nor disturb the live arbiter's state.
+
+    This is the **census** answer (``ownership_family``) -- who owns the
+    producer -- because that is what every reader of this function wants: the
+    claim ledger, ``stop_shape.producer_identity`` and the ownership lint.
+    The arbitration answer, which decides budgets and retirement inside town,
+    is ``reason_arbitration_family`` below and is unchanged by S2a.
+    """
+    return _new_town_turn_arbiter().ownership_family(reason or "")
+
+
+def reason_arbitration_family(reason: str) -> str:
+    """The family whose town budget bucket a reason spends (unchanged).
+
+    Kept beside ``reason_owner_family`` so the difference between the two is
+    readable rather than implied: the census may name a finer family than the
+    bucket that arbitrates it until S2b registers the ladder.
     """
     return _new_town_turn_arbiter().owner_for_reason(reason or "")
 
@@ -508,23 +619,28 @@ def reason_owner_family(reason: str) -> str:
 def owner_families() -> tuple[str, ...]:
     """The registered owner family names, in registration order.
 
-    The same throwaway arbiter ``reason_owner_family`` uses, so a reader that
-    needs the whole set (the claim register's owner enum) derives it from the
-    registrations rather than repeating them.
+    The single source of the family list (design 6/S2a item 3): the claim
+    register's owner enum, the S0 classifier and the report all derive their
+    families from this one table, so none of them can invent or lose one.
+    Census-only families are included -- they are owners, they simply have no
+    budget bucket of their own yet.
     """
     return tuple(_new_town_turn_arbiter().registry)
 
 
 def owner_family_budgets() -> dict[str, int]:
-    """Each registered family's own budget, by name.
+    """Each **arbitrating** family's own budget, by name.
 
     These are the budgets the registrations already carry (each one derived
     from an existing policy constant); nothing new is introduced here.
-    ``UNREGISTERED_FAMILY`` has no registration and therefore no budget.
+    ``UNREGISTERED_FAMILY`` has no registration and therefore no budget, and
+    neither does a census-only family: nothing arbitrates it before S2b, so
+    claiming a budget for it would be an invented number.
     """
     return {
         name: entry.budget
         for name, entry in _new_town_turn_arbiter().registry.items()
+        if entry.budget is not None
     }
 
 

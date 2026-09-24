@@ -79,19 +79,29 @@ LINT_SAMPLE = FIXTURES / "ownership_claim_lint_sample.py"
 LEGACY_CHECKPOINT = FIXTURES / "home-deferral-absorbing-state.json.gz"
 
 # S1-3, hand-checked.  The 24 replayed boards of the 06:00 capture, in order,
-# with the owner family the reason's registration gives each one:
+# with the owner family the reason's registration gives each one.  **S2a
+# re-pinned these**: the families are the same producers as before, named.
+# Before S2a (kept so the change is readable):
 #   1- 2  explore                 -> misc
 #   3- 5  detected:prepare-choke  -> unregistered   (change 1)
 #   6     melee                   -> misc           (change 2)
 #   7-24  detected:prepare-choke  -> unregistered   (change 3)
-# Three owner changes; no row before any of them carries a ``closed`` and no
-# row after one closes the previous claim, so all three are implicit.
+# After S2a:
+#   1- 2  explore                 -> explore
+#   3- 5  detected:prepare-choke  -> positioning    (change 1)
+#   6     melee                   -> combat         (change 2)
+#   7-24  detected:prepare-choke  -> positioning    (change 3)
+# Three owner changes either way; no row before any of them carries a
+# ``closed`` and no row after one closes the previous claim, so all three are
+# implicit.  The count is unchanged because these three *are* three different
+# producers: what S2a removed is the catch-all, not the handoff.
 HAND_CHECKED_OWNERS = (
-    ["misc"] * 2 + ["unregistered"] * 3 + ["misc"] + ["unregistered"] * 18
+    ["explore"] * 2 + ["positioning"] * 3 + ["combat"] + ["positioning"] * 18
 )
 HAND_CHECKED_PAIRS = {
-    "misc>unregistered": 2,
-    "unregistered>misc": 1,
+    "explore>positioning": 1,
+    "positioning>combat": 1,
+    "combat>positioning": 1,
 }
 
 # S1-4, read off tests/fixtures/ownership_claim_lint_sample.py's own comments.
@@ -209,7 +219,9 @@ class ClaimOwnerDerivationTest(unittest.TestCase):
             [owner.value for owner in ClaimOwner],
             [*owner_families(), UNREGISTERED_FAMILY],
         )
-        self.assertEqual(len(ClaimOwner), 21)  # 20 registrations + unregistered
+        # S2a: 20 arbitrating registrations + 10 census-only families of
+        # design 6/S2a + ``unregistered``.
+        self.assertEqual(len(ClaimOwner), 31)
 
     def test_an_unknown_family_lands_on_unregistered_rather_than_raising(self):
         self.assertEqual(owner_of("no-such-family"), ClaimOwner.UNREGISTERED)
@@ -479,15 +491,20 @@ class ClaimLedgerTest(unittest.TestCase):
         self.assertEqual(measured["pairs"], HAND_CHECKED_PAIRS)
 
     def test_the_producer_breakdown_separates_the_catch_all_family(self):
-        """The family breakdown cannot see seek-loot from melee; this can."""
+        """The family breakdown cannot see seek-loot from melee; this can.
+
+        After S2a the two answers coincide on this capture, because the
+        family now *is* the producer: ``producer_identity`` only refines a
+        reason that landed in a catch-all, and none of these do.
+        """
         measured = implicit_handoffs(self.claims, by="producer")
         self.assertEqual(measured["implicit_handoffs"], 3)
         self.assertEqual(
             measured["pairs"],
             {
-                "misc:explore>unregistered:detected": 1,
-                "unregistered:detected>misc:melee": 1,
-                "misc:melee>unregistered:detected": 1,
+                "explore>positioning": 1,
+                "positioning>combat": 1,
+                "combat>positioning": 1,
             },
         )
 
@@ -529,7 +546,7 @@ class ClaimLedgerTest(unittest.TestCase):
         text = output.read_text(encoding="utf-8")
         self.assertIn("implicit handoffs by owner", text)
         self.assertIn("implicit handoffs by producer", text)
-        self.assertIn("misc>unregistered", text)
+        self.assertIn("explore>positioning", text)
         self.assertIn("claim rows     24", text)
         self.assertEqual(
             sorted(path.name for path in self.root.iterdir()),
