@@ -4,6 +4,7 @@ from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    GOAL_NOTE_LAST_KNOWN as CLAIM_GOAL_NOTE_LAST_KNOWN,
 )
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
@@ -3872,7 +3873,15 @@ class TownMixin:
                 self._declare_monster((target.index, target.race_id))
                 return self._step_toward(snapshot, step)
         if self._town_hunt_target is not None:
+            # Rev 9.3 (R5): the chased monster left perception.  Its identity
+            # claim is released at the exit (``target-lost``); this walk to
+            # where it was last seen is a separate Reach claim, noted
+            # ``last-known``, closed here when it arrives or is given up.
             if player.position.distance_to(self._town_hunt_target) <= 1:
+                self._complete_claim_goal(
+                    "last-known-reached", self._town_hunt_target,
+                    owners=(ClaimOwner.SURVIVAL,),
+                )
                 self._town_hunt_target = None
                 return None
             step = self._nearest_goal_step(
@@ -3883,8 +3892,14 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
-                self._declare_reach(self._town_hunt_target)
+                self._declare_reach(
+                    self._town_hunt_target, note=CLAIM_GOAL_NOTE_LAST_KNOWN
+                )
                 return self._step_toward(snapshot, step)
+            self._release_claim_goal(
+                "last-known-unreachable", self._town_hunt_target,
+                owners=(ClaimOwner.SURVIVAL,),
+            )
             self._town_hunt_target = None
         return None
 
@@ -4600,9 +4615,11 @@ class TownMixin:
                 self._town_store_attempted.clear()
                 self.last_reason = "town:rumor-needs-funds"
                 return WAIT_KEY
+            self._claim_target_capture = []
             step = self._nearest_goal_step(
                 snapshot, lambda grid: grid.building_type == INN_BUILDING_TYPE
             )
+            step_target = self._take_claim_target()
             if step is None and self._town_map_active(snapshot):
                 # At night / far off, the inn is unlit and absent from the emitted
                 # grids; route to its remembered position from the static town map
@@ -4611,9 +4628,10 @@ class TownMixin:
                 inn_pos = self._town_map.building_position(INN_BUILDING_TYPE)
                 if inn_pos is not None and player.position != inn_pos:
                     step = self._town_map_goal_step(snapshot, inn_pos)
+                    step_target = inn_pos
             if step is not None:
                 self.last_reason = "town:rumor"
-                self._declare_reach(step)
+                self._declare_reach(step_target)
                 # _nearest_goal_step returns only the FIRST step of the path. The
                 # rumor keys must ride along ONLY when that step lands on the inn
                 # (walking onto it opens the building menu, which then consumes
@@ -4898,7 +4916,8 @@ class TownMixin:
                 else "town:teleport-step-off"
             )
             if result.route is not None:
-                self._declare_reach(result.route.target)
+                # marked, so only this walk can be adopted by the caller
+                self._declare_reach(result.route.target, note="teleport-walk")
             return result.key
         return None
 
@@ -5203,11 +5222,13 @@ class TownMixin:
             self.last_reason = "return:recall"
             return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
+        self._claim_target_capture = []
         upstairs_step = self._escape_state.read_once(
             snapshot,
             "return:upstairs-step",
             lambda: self._nearest_goal_step(snapshot, self._is_upstairs_target),
         )
+        upstairs_step_target = self._take_claim_target()
         assert upstairs_step is None or isinstance(upstairs_step, Position)
         wall_owner = (
             self._escape_state.owner == "return"
@@ -5223,7 +5244,7 @@ class TownMixin:
                     self.last_reason = "return:seek-upstairs"
                     if self._escape_state.owner != "disengage":
                         self._escape_state.enter("return", self.last_reason)
-                    self._declare_reach(upstairs_step)
+                    self._declare_reach(upstairs_step_target)
                     return self._step_toward(snapshot, upstairs_step)
 
             # A temporary occupant can split a one-tile corridor in the
@@ -5239,10 +5260,12 @@ class TownMixin:
                     self._record_wall_search(player.position)
                     self.last_reason = "return:search-upstairs"
                     return SEARCH_KEY
+                self._claim_target_capture = []
                 step = self._secret_wall_search_step(snapshot)
+                step_target = self._take_claim_target()
                 if step is not None:
                     self.last_reason = "return:seek-secret-wall"
-                    self._declare_reach(step)
+                    self._declare_reach(step_target)
                     return self._step_toward(snapshot, step)
 
             # No wall-search budget remains reachable. Release ownership so the
@@ -5254,7 +5277,7 @@ class TownMixin:
             self.last_reason = "return:seek-upstairs"
             if self._escape_state.owner != "disengage":
                 self._escape_state.enter("return", self.last_reason)
-            self._declare_reach(upstairs_step)
+            self._declare_reach(upstairs_step_target)
             return self._step_toward(snapshot, upstairs_step)
 
         if self._is_oscillating():
@@ -5298,10 +5321,12 @@ class TownMixin:
                 self._record_wall_search(player.position)
                 self.last_reason = "return:search-upstairs"
                 return SEARCH_KEY
+            self._claim_target_capture = []
             step = self._secret_wall_search_step(snapshot)
+            step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "return:seek-secret-wall"
-                self._declare_reach(step)
+                self._declare_reach(step_target)
                 if self._escape_state.owner != "disengage":
                     self._escape_state.enter("return", self.last_reason)
                 return self._step_toward(snapshot, step)

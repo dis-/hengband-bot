@@ -103,6 +103,7 @@ from hengbot.claim_goal_typing import (
     STORE_OPERATION_OWNERS as CLAIM_STORE_OPERATION_OWNERS,
     GOAL_NOTE_NO_SLOT as CLAIM_GOAL_NOTE_NO_SLOT,
     GOAL_NOTE_OWNER_MISMATCH as CLAIM_GOAL_NOTE_OWNER_MISMATCH,
+    TELEPORT_WALK_NOTE as CLAIM_TELEPORT_WALK_NOTE,
     HOME_EFFECT_OWNERS as CLAIM_HOME_EFFECT_OWNERS,
     HOME_EFFECT_SOURCES as CLAIM_HOME_EFFECT_SOURCES,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
@@ -2891,7 +2892,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return arbiter.ownership_family(reason or "")
         return reason_owner_family(reason or "")
 
-    def _declare_goal(self, goal: Goal, family: str | None = None) -> None:
+    def _declare_goal(
+        self, goal: Goal, family: str | None = None, note: str | None = None
+    ) -> None:
         """Write the Reach slot, carrying the writing producer's family.
 
         Rev 9.2 (C): the family is the writer's -- given explicitly by a shared
@@ -2903,12 +2906,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_goal = (
             family if family is not None else self._claim_family_of(self.last_reason),
             goal,
+            note,
         )
 
-    def _declare_reach(self, cell, *, family: str | None = None) -> None:
-        """The producer names the cell this decision walks toward."""
+    def _declare_reach(
+        self, cell, *, family: str | None = None, note: str | None = None
+    ) -> None:
+        """The producer names the cell this decision walks toward.
+
+        ``note`` travels to the row's ``goal_note``: ``last-known`` for a walk
+        to where a lost chase target was last seen (rev 9.3), and the
+        internal ``teleport-walk`` marker of ``_town_teleport_key`` that
+        ``_adopt_decision_goal`` requires.
+        """
         if isinstance(cell, Position):
-            self._declare_goal(claim_reach((cell.y, cell.x)), family)
+            self._declare_goal(claim_reach((cell.y, cell.x)), family, note)
 
     def _declare_monster(self, identity, *, family: str | None = None) -> None:
         """The producer closes with one monster, named ``(index, race_id)``."""
@@ -2919,6 +2931,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """The producer walks to a named place with no local-map cell."""
         self._declare_goal(claim_reach_place(place), family)
 
+    def _take_claim_target(self) -> Position | None:
+        """Record-only (rev 9.3 R2): the target an armed path helper chose.
+
+        A claim site arms the capture (``self._claim_target_capture = []``)
+        right before it calls the path helper whose first step it walks, and
+        takes the helper's chosen target here right after.  The capture is
+        removed again, so the policy's state is what it was.  A helper that
+        was replaced (a test double) captures nothing: the site then declares
+        no goal.
+        """
+        capture = self.__dict__.pop("_claim_target_capture", None)
+        target = capture[-1] if capture else None
+        return target if isinstance(target, Position) else None
+
     def _adopt_decision_goal(self) -> None:
         """The caller that relabels a helper's walk takes its goal as its own.
 
@@ -2928,8 +2954,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         the slot with its family.  Record-only.
         """
         slot = getattr(self, "_decision_goal", None)
-        if isinstance(slot, tuple) and len(slot) == 2:
-            self._decision_goal = (self._claim_family_of(self.last_reason), slot[1])
+        # Rev 9.3 (R7): only the slot the teleport helper itself wrote on this
+        # board; on its step-off path it writes none, and an earlier
+        # producer's slot must not be adopted.
+        if (
+            isinstance(slot, tuple)
+            and len(slot) == 3
+            and slot[2] == CLAIM_TELEPORT_WALK_NOTE
+        ):
+            self._decision_goal = (
+                self._claim_family_of(self.last_reason), slot[1], None
+            )
 
     def _declare_expectation(self, goal: Goal, owner_name: str) -> None:
         """``_post_owner_expectation`` names the observation (rev 9.2 C).
@@ -3084,14 +3119,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             slot = getattr(self, "_decision_goal", None)
             if not (
                 isinstance(slot, tuple)
-                and len(slot) == 2
+                and len(slot) in (2, 3)
                 and isinstance(slot[1], Goal)
                 and slot[1].kind == CLAIM_GOAL_REACH
             ):
                 return effect, True, CLAIM_GOAL_NOTE_NO_SLOT
             if slot[0] != owner.value:
                 return effect, True, CLAIM_GOAL_NOTE_OWNER_MISMATCH
-            return slot[1], False, None
+            note = slot[2] if len(slot) == 3 else None
+            return slot[1], False, (
+                note if note != CLAIM_TELEPORT_WALK_NOTE else None
+            )
         within = CLAIM_OBSERVE_WITHIN.get(row.content, OWNER_EXPECTATION_MAX_TURNS)
         if row.content == CLAIM_FLOOR_CHANGE:
             return (
@@ -3220,7 +3258,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and hasattr(registry, "verdict")
             and registry.pending(goal.source) is not None
             and registry.verdict(
-                goal.source, self._owner_progress_core(snapshot)
+                goal.source, self._progress_core_of(snapshot)
             ) == EXPECTATION_POP_SATISFIED
         ):
             self._complete_claim_goal("expectation-satisfied", owners=own)
@@ -3335,14 +3373,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -- rev 9.2 (S): the survival return trigger ----------------------------
 
     def _note_return_start(self, trigger: str | None) -> None:
-        """Record-only: a return starts (or is re-triggered) here.
+        """Record-only: a return starts here.
 
-        Called just before ``_returning_to_town = True``.  A site that names
-        its trigger records it; a site with no trigger records ``None`` only
-        when no return is running yet, so re-asserting the latch during a
-        running return keeps the trigger that return began with.
+        Called just before ``_returning_to_town = True``.  Rev 9.3: the
+        trigger is written only when no return is running yet; re-asserting
+        the latch during a running return -- with or without a trigger of its
+        own -- keeps the trigger that return began with.
         """
-        if trigger is not None or not getattr(self, "_returning_to_town", False):
+        if not getattr(self, "_returning_to_town", False):
             self._survival_return_trigger = trigger
 
     def _note_return_end(self) -> None:
@@ -6516,10 +6554,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # otherwise recover fully before crossing town again.
         if snapshot.in_town and not physical_hostiles:
             if self._took_damage:
+                self._claim_target_capture = []
                 shelter = self._nearest_goal_step(snapshot, lambda grid: grid.is_store)
+                shelter_target = self._take_claim_target()
                 if shelter is not None:
                     self.last_reason = "town:seek-shelter"
-                    self._declare_reach(shelter)
+                    self._declare_reach(shelter_target)
                     return self._step_toward(snapshot, shelter)
             if (
                 player.hp < player.max_hp
@@ -7267,10 +7307,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._record_wall_search(player.position)
                 self.last_reason = "search"
                 return SEARCH_KEY
+            self._claim_target_capture = []
             step = self._secret_wall_search_step(snapshot)
+            step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "seek-secret-wall"
-                self._declare_reach(step)
+                self._declare_reach(step_target)
                 return self._step_toward(snapshot, step)
 
         # 9. Nothing to explore: take any known stairs to reach a fresh floor.
@@ -7279,6 +7321,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return quest_regen
         floor_exit_locked = self._floor_navigation_exit_locked(snapshot)
         allow_descent = not self._descent_is_blocked(snapshot)
+        self._claim_target_capture = []
         step = self._nearest_goal_step(
             snapshot,
             lambda g: not floor_exit_locked
@@ -7287,9 +7330,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or (allow_descent and self._is_descent_target(snapshot, g))
             ),
         )
+        step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "stuck:seek-stairs"
-            self._declare_reach(step)
+            self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         if not floor_exit_locked and here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
@@ -11641,10 +11685,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._step_toward(snapshot, neighbors[0])
             return None
 
+        self._claim_target_capture = []
         step = self._nearest_goal_step(
             snapshot,
             lambda grid: grid.building_type == HUNTER_OFFICE_BUILDING_TYPE,
         )
+        step_target = self._take_claim_target()
         if step is None and office_pos is not None:
             step = self._town_map_goal_step(snapshot, office_pos)
         if step is None:
@@ -11654,7 +11700,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
 
         self.last_reason = "bounty:approach"
-        self._declare_reach(office_pos if office_pos is not None else step)
+        self._declare_reach(office_pos if office_pos is not None else step_target)
         grid = snapshot.grid_at(step)
         enters_office = (
             grid is not None
@@ -11791,9 +11837,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
+        # Record-only (rev 9.3 R2): see ``_nearest_goal_step``.
+        capture = self.__dict__.get("_claim_target_capture")
         while queue:
             position, first_step = queue.popleft()
             if position != start and position in targets:
+                if capture is not None:
+                    capture.append(position)
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, position):
                 # Same lethal-danger weight as every other routing BFS: a

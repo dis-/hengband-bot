@@ -37,6 +37,11 @@ B4  neutrality: the S2a trajectory digests
 B5  survival: the constant is exactly the user's list, none of the ordinary
     owners is in it, and ``suspend`` is called for it alone.
 
+Round 3 (design rev 9.3): R1 ``ReadOnlySatisfactionTest``, R2
+``FarTargetCaptureTest`` and the tour's next-row pin, R3/R4
+``SurvivalTriggerStartOnlyTest``, R5 ``LastKnownCellTest``, R6
+``HomeEffectSourceTest``, R7 ``TeleportAdoptionTest``.
+
 Restored checkpoints: every attribute S2a.1 adds or newly reads is covered
 (``RestoredCheckpointTest``).
 
@@ -75,6 +80,8 @@ from pathlib import Path
 
 from hengbot.claim_goal_typing import (
     FLOOR_CHANGE,
+    HOME_EFFECT_OWNERS,
+    HOME_EFFECT_SOURCES,
     GOAL_TYPING,
     ORDINARY_OWNER_PREFIXES,
     SURVIVAL_REASON_PREFIXES,
@@ -136,7 +143,8 @@ DESIGN_SURVIVAL_PREFIXES = (
     "emergency:", "unseen-recall:", "guardian:teleport-to-cover",
     "combat:disengage", "unseen:", "esp-threat:leave-",
 )
-DESIGN_SURVIVAL_TRIGGERS = {"esp-threat", "unseen-attacker", "guardian-reposition"}
+# Rev 9.3 removed ``guardian-reposition``: it never starts a return.
+DESIGN_SURVIVAL_TRIGGERS = {"esp-threat", "unseen-attacker"}
 DESIGN_ORDINARY_REASONS = (
     "flee", "flee:stairs", "summoner:retreat", "summoner:stairs",
     "threat:scroll", "threat:wait", "breeder-breakthrough:ascend",
@@ -1300,6 +1308,199 @@ class GoalMissingMetricTest(unittest.TestCase):
         self.assertIn("goal_missing rows (Reach declared Terminal)", text)
         self.assertIn("owner-mismatch=3", text)
         self.assertIn("owner-mismatch rows (a slot of another owner, not used)", text)
+
+
+# -- rev 9.3 -----------------------------------------------------------------
+
+
+class ReadOnlySatisfactionTest(unittest.TestCase):
+    """Rev 9.3 (R1): the exit's Observe test leaves the arbiter untouched."""
+
+    def _arbiter_state_after_exit(self):
+        before_board, board = _dungeon_board(0), _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._owner_expectations.post(
+            "expect-x", policy._progress_core_of(before_board), "hp"
+        )
+        _standing(policy, ClaimOwner.EQUIPMENT_TXN,
+                  observe(("hp",), 10, source="expect-x"), board)
+        arbiter = policy._town_turn_arbiter
+        arbiter._snapshot_turn = board.turn - 12345
+        arbiter._snapshot_recalling = True
+        arbiter._recall_wait_started_turn = 7
+        before = pickle.dumps(arbiter.__dict__)
+        policy._claim_exit_completion(board, policy._claim_register.current, [])
+        return before, pickle.dumps(arbiter.__dict__)
+
+    def test_the_arbiter_is_byte_identical_around_the_exit_test(self):
+        before, after = self._arbiter_state_after_exit()
+        self.assertEqual(before, after)
+
+    def test_revert_proof_the_noting_core_would_rewrite_the_arbiter(self):
+        original = HengbotPolicy._progress_core_of
+
+        def noting(self, snapshot):
+            # round 2's core: it told the arbiter about the board first
+            self._town_turn_arbiter.note_snapshot(
+                turn=snapshot.turn, recalling=snapshot.player.recalling
+            )
+            return original(self, snapshot)
+
+        HengbotPolicy._progress_core_of = noting
+        try:
+            before, after = self._arbiter_state_after_exit()
+        finally:
+            HengbotPolicy._progress_core_of = original
+        self.assertNotEqual(before, after)
+
+
+class FarTargetCaptureTest(unittest.TestCase):
+    """Rev 9.3 (R2): an armed path helper hands over the target it chose."""
+
+    def test_an_armed_capture_receives_the_target_and_is_removed(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+
+        def far(grid):
+            return board.player.position.distance_to(grid.position) >= 3
+
+        route = policy._nearest_goal_route(board, far)
+        self.assertIsNotNone(route)
+        policy._claim_target_capture = []
+        step = policy._nearest_goal_step(board, far)
+        self.assertEqual(policy._take_claim_target(), route.target)
+        self.assertEqual(step, route.first_step)
+        target = route.target
+        self.assertNotIn("_claim_target_capture", policy.__dict__)
+        self.assertIsNotNone(step)
+        self.assertNotEqual(step, target)
+
+    def test_an_unarmed_helper_writes_nothing(self):
+        board = _dungeon_board(0)
+        policy = _fresh_policy(board)
+        state = dict(policy.__dict__)
+        policy._nearest_goal_step(board, lambda grid: grid.has_up_stairs)
+        policy._nearest_position_step(board, {board.player.position})
+        policy._secret_wall_search_step(board)
+        self.assertEqual(set(policy.__dict__), set(state))
+        self.assertIsNone(policy._take_claim_target())
+
+    def test_a_replaced_helper_declares_no_goal(self):
+        board = _dungeon_board(0)
+        policy = _fresh_policy(board)
+        policy._claim_target_capture = []
+        self.assertIsNone(policy._take_claim_target())
+
+
+class SurvivalTriggerStartOnlyTest(unittest.TestCase):
+    """Rev 9.3 (R3, R4): the trigger is the one the running return began with."""
+
+    def test_an_emergency_during_an_ordinary_return_does_not_make_it_survival(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._note_return_start(None)                 # an ordinary return
+        policy._returning_to_town = True
+        policy._note_return_start("emergency-lethal-swarm")  # emergency during it
+        policy._returning_to_town = True
+        self.assertIsNone(policy._survival_return_trigger)
+        self.assertFalse(_exit(policy, board, "return:seek-upstairs", "4")["survival"])
+        # the emergency's own rows are survival by prefix
+        self.assertTrue(_exit(policy, board, "emergency:teleport", "r")["survival"])
+
+    def test_revert_proof_a_running_return_rewritten_by_a_named_trigger(self):
+        board = _dungeon_board(1)
+        policy = _fresh_policy(board)
+        policy._note_return_start(None)
+        policy._returning_to_town = True
+        # what round 2 did: a named trigger overwrote the running return's
+        policy._survival_return_trigger = "emergency-lethal-swarm"
+        self.assertTrue(_exit(policy, board, "return:seek-upstairs", "4")["survival"])
+
+    def test_guardian_reposition_is_not_a_survival_trigger(self):
+        self.assertFalse(is_survival("return:seek-upstairs", "guardian-reposition"))
+        self.assertNotIn("guardian-reposition", SURVIVAL_RETURN_TRIGGERS)
+
+
+class LastKnownCellTest(unittest.TestCase):
+    """Rev 9.3 (R5): a lost town monster's identity claim ends; the walk to
+    its last-known cell is a separate Reach claim noted ``last-known``."""
+
+    def test_the_last_known_walk_is_its_own_claim(self):
+        board = _town_board()
+        self.assertFalse([m for m in board.visible_monsters if not m.pet])
+        policy = _fresh_policy(board)
+        target = next(
+            grid.position for grid in sorted(
+                board.grids.values(),
+                key=lambda grid: (
+                    board.player.position.distance_to(grid.position),
+                    grid.position.y, grid.position.x,
+                ),
+            )
+            if grid.passable and not grid.is_store
+            and board.player.position.distance_to(grid.position) >= 4
+        )
+        _standing(policy, ClaimOwner.SURVIVAL, reach_monster(99, 1), board)
+        policy._town_hunt_target = target
+        key = policy._town_kill_mob_key(board)
+        self.assertIsNotNone(key)
+        self.assertEqual(policy.last_reason, "town:kill-mob-approach")
+        claim = _exit(policy, board, "town:kill-mob-approach", key)
+        self.assertEqual(claim["closed_claim"]["closed_reason"], "target-lost")
+        self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [target.y, target.x]})
+        self.assertEqual(claim["goal_note"], "last-known")
+        self.assertFalse(claim["goal_missing"])
+
+
+class HomeEffectSourceTest(unittest.TestCase):
+    """Rev 9.3 (R6): a withdraw/deposit confirmation completes only a
+    withdraw/deposit claim, never a Home leave's."""
+
+    def test_a_home_leave_is_not_completed_by_a_withdraw_confirmation(self):
+        board = _town_board()
+        for source, closed in (
+            ("home:store-context-exit", None),
+            ("home:route-claim-unfulfilled", None),
+            ("store-operation", "complete"),
+            ("home-errand:identify", "complete"),
+        ):
+            with self.subTest(source=source):
+                policy = _fresh_policy(board)
+                _standing(policy, ClaimOwner.HOME_VISIT,
+                          observe(("store_type",), 10, source=source), board)
+                policy._complete_observed_effect(
+                    "home-withdraw-observed",
+                    owners=HOME_EFFECT_OWNERS, sources=HOME_EFFECT_SOURCES,
+                )
+                self.assertEqual(policy._claim_register.current.closed, closed)
+
+
+class TeleportAdoptionTest(unittest.TestCase):
+    """Rev 9.3 (R7): a caller adopts only the teleport helper's own walk."""
+
+    def test_the_step_off_path_adopts_no_earlier_slot(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy.last_reason = "shop:approach"            # an earlier producer
+        policy._declare_reach(Position(41, 131))
+        # the teleport helper took its step-off path and wrote no slot
+        policy.last_reason = "town:cross-town-walk-in-return"
+        policy._adopt_decision_goal()
+        claim = _exit(policy, board, "town:cross-town-walk-in-return")
+        self.assertEqual(claim["owner"], "cross-town")
+        self.assertTrue(claim["goal_missing"])
+        self.assertEqual(claim["goal_note"], "owner-mismatch")
+
+    def test_the_teleport_walk_itself_is_adopted(self):
+        board = _town_board()
+        policy = _fresh_policy(board)
+        policy.last_reason = "town:teleport"
+        policy._declare_reach(Position(41, 131), note="teleport-walk")
+        policy.last_reason = "town:cross-town-walk-in-return"
+        policy._adopt_decision_goal()
+        claim = _exit(policy, board, "town:cross-town-walk-in-return")
+        self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [41, 131]})
+        self.assertIsNone(claim["goal_note"])
 
 
 # -- B4 ----------------------------------------------------------------------

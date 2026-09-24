@@ -115,6 +115,21 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit
     "expectation-satisfied": 15,
 }
+# Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
+# round; the shelter walk now declares the store, not its first step), and
+# the reasons whose walks rev 9.3 moved to their far target.
+S2A1_NEXT_ROW_COMPLETE = 1354
+S2A1_FAR_TARGET_REASONS = frozenset({
+    "return:seek-upstairs", "livelock:seek-upstairs",
+    "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
+    "mana-food:seek-device", "survival:seek-exit", "town:seek-shelter",
+    "stuck:seek-stairs", "fixedquest:seek-exit", "fixedquest:reward-approach",
+    "quest-strategy:approach-final-target", "town:rumor",
+    "esp-threat:hunt-strong", "emergency:seek-upstairs", "chest:approach",
+    "paralyzer-guard:approach-range", "seek-secret-wall",
+    "return:seek-secret-wall", "bounty:approach",
+    "town:morivant-full-identify:library", "fundraise:sweep-explore",
+})
 # Re-pinned by rev 9.2 (owner-stamped slots, the read-only satisfaction test,
 # every Reach reason site writing its slot); round 1 read 18 / 8,1,7 / 67,3 /
 # 10,1 and no equipment-txn completion.
@@ -446,6 +461,39 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 label = closed["closed_reason"]
                 labels[label] = labels.get(label, 0) + 1
         self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS)
+        # Rev 9.3 (R2): Reach claims that completed on the very next row.
+        # Explore's own goal test, loot one cell away and native travel
+        # (many cells per key) genuinely arrive next row; the walks rev 9.3
+        # names now declare their far target, so of them only a chest one
+        # step away completes next row, and the shelter walk no longer does.
+        next_row: dict[str, int] = {}
+        index = 0
+        while index < len(rows):
+            end = index
+            while (
+                end + 1 < len(rows)
+                and rows[end + 1]["claim_id"] == rows[index]["claim_id"]
+            ):
+                end += 1
+            following = rows[end + 1] if end + 1 < len(rows) else {}
+            closed = following.get("closed_claim") or {}
+            if (
+                rows[index]["goal"]["kind"] == "Reach"
+                and end == index
+                and closed.get("claim_id") == rows[index]["claim_id"]
+                and closed.get("closed") == "complete"
+            ):
+                reason = rows[index]["reason"]
+                next_row[reason] = next_row.get(reason, 0) + 1
+            index = end + 1
+        self.assertEqual(sum(next_row.values()), S2A1_NEXT_ROW_COMPLETE)
+        self.assertEqual(
+            {
+                reason: count for reason, count in next_row.items()
+                if reason in S2A1_FAR_TARGET_REASONS
+            },
+            {"chest:approach": 1},
+        )
         endings = gate_numbers(rows)["endings"]
         self.assertEqual(
             {

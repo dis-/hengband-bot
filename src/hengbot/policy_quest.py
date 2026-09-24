@@ -1369,11 +1369,13 @@ class QuestMixin:
                 if self._town_map_active(snapshot)
                 else None
             )
+            self._claim_target_capture = []
             step = self._nearest_goal_step(
                 snapshot,
                 lambda grid: grid.building_type
                 == MORIVANT_LIBRARY_BUILDING_TYPE,
             )
+            step_target = self._take_claim_target()
             if step is None and library_pos is not None:
                 step = self._town_map_goal_step(snapshot, library_pos)
             if step is not None:
@@ -1383,7 +1385,7 @@ class QuestMixin:
                     == MORIVANT_LIBRARY_BUILDING_TYPE
                 )
                 self.last_reason = "town:morivant-full-identify:library"
-                self._declare_reach(library_pos if library_pos is not None else step)
+                self._declare_reach(library_pos if library_pos is not None else step_target)
                 if enters:
                     selectors = "".join(
                         "a"
@@ -2099,7 +2101,6 @@ class QuestMixin:
             )
             if step is not None:
                 self.last_reason = "quest-strategy:q2-approach-residual-multiplier"
-                self._declare_reach(step)
                 return self._step_toward(snapshot, step)
             self.last_reason = "quest:blocked:q2-residual-multiplier-vantage"
             return WAIT_KEY
@@ -3684,16 +3685,19 @@ class QuestMixin:
                 step = self._quest_strategy_route_step(
                     snapshot, profile, target_position
                 )
+                final_target_goal = target_position
                 if step is None:
+                    self._claim_target_capture = []
                     step = self._nearest_goal_step(
                         snapshot,
                         lambda candidate: (
                             candidate.position.distance_to(target_position) <= 1
                         ),
                     )
+                    final_target_goal = self._take_claim_target()
                 if step is not None:
                     self.last_reason = "quest-strategy:approach-final-target"
-                    self._declare_reach(step)
+                    self._declare_reach(final_target_goal)
                     return self._step_toward(snapshot, step)
 
         # Thrown quest supplies can land between the player and the fixed hold.
@@ -4948,10 +4952,12 @@ class QuestMixin:
         if here is not None and here.has_quest_exit:
             self.last_reason = "fixedquest:exit"
             return UP_STAIRS_KEY
+        self._claim_target_capture = []
         step = self._nearest_goal_step(snapshot, lambda grid: grid.has_quest_exit)
+        step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "fixedquest:seek-exit"
-            self._declare_reach(step)
+            self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         return None
 
@@ -5029,20 +5035,28 @@ class QuestMixin:
         target_positions = visible_reward or list(positions)
         context = getattr(self, "_decision_context", None)
         if context is None:
-            step = min(
-                (candidate for candidate in (
-                    self._town_map_goal_step(snapshot, pos)
-                    for pos in target_positions
-                ) if candidate is not None),
-                key=lambda pos: snapshot.player.position.distance_to(pos),
+            # The same steps in the same order, each kept with the position it
+            # routes to (record-only, rev 9.3 R2), so the claim names that
+            # position; ``min`` picks the same first minimal step.
+            paired = min(
+                (
+                    (candidate, pos)
+                    for candidate, pos in (
+                        (self._town_map_goal_step(snapshot, pos), pos)
+                        for pos in target_positions
+                    )
+                    if candidate is not None
+                ),
+                key=lambda pair: snapshot.player.position.distance_to(pair[0]),
                 default=None,
             )
+            step = paired[0] if paired is not None else None
             if step is None:
                 if not positions:
                     self._fixed_quest_reward_pending = None
                 return None
             self.last_reason = "fixedquest:reward-approach"
-            self._declare_reach(step)
+            self._declare_reach(paired[1])
             return self._step_toward(snapshot, step)
         route = min(
             (

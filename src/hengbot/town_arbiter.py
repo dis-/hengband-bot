@@ -907,6 +907,15 @@ class TownArbiterMixin:
             arbiter.note_snapshot(
                 turn=snapshot.turn, recalling=snapshot.player.recalling
             )
+        return self._progress_core_of(snapshot)
+
+    def _progress_core_of(self, snapshot: Snapshot) -> OwnerProgressCore:
+        """The progress core of a board, and nothing else (rev 9.3 R1).
+
+        ``_owner_progress_core`` also tells the arbiter about the board
+        (``note_snapshot``); the claim register's read-only satisfaction test
+        needs the core without that side effect.
+        """
         return OwnerProgressCore(
             floor=getattr(snapshot, "floor_key", None),
             position=snapshot.player.position,

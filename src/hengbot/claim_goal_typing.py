@@ -491,7 +491,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest-strategy:approach-", R, WALK_TARGET),
         ("quest-strategy:placement-sweep", R, WALK_TARGET),
         ("quest-strategy:placement-sweep-repeat", T, EFFECT),
-        ("quest-strategy:q2-approach-", R, WALK_TARGET),
+        # a route to the nearest of a set of vantages the navigator does not
+        # name (rev 9.3: the target is not obtainable without a second route)
+        ("quest-strategy:q2-approach-", T, EFFECT),
         ("quest-strategy:q2-blue-confirm-approach", R, WALK_TARGET),
         ("quest-strategy:q2-breach-approach", R, WALK_TARGET),
         ("quest-strategy:q2-final-patrol", R, WALK_TARGET),
@@ -560,18 +562,24 @@ MONSTER_CHASE_OWNERS = frozenset(
 HOME_EFFECT_OWNERS = frozenset(
     {"home-visit", "home-errand", "home-scan", "calibration", "equipment-txn"}
 )
+# Rev 9.3 (R6): the withdraw and deposit names only -- not ``home:``, which
+# also names ``home:store-context-exit`` / ``home:route-claim-unfulfilled``,
+# whose leave a late withdraw/deposit confirmation must not complete.
 HOME_EFFECT_SOURCES = (
     STORE_OPERATION,
     TRANSACTION,
     "equipment-transaction",
     "home-errand:",
     "home-withdrawal:",
-    "home:",
 )
 
 # Why a Reach row declared Terminal (rev 9.2 C and D).
 GOAL_NOTE_NO_SLOT = "no-slot"
 GOAL_NOTE_OWNER_MISMATCH = "owner-mismatch"
+# Rev 9.3: a walk to where a lost chase target was last seen.
+GOAL_NOTE_LAST_KNOWN = "last-known"
+# Internal: the slot ``_town_teleport_key`` wrote, which its caller may adopt.
+TELEPORT_WALK_NOTE = "teleport-walk"
 
 _BY_FAMILY: dict[str, tuple[GoalTypingRow, ...]] = {}
 for _row in GOAL_TYPING:
@@ -612,9 +620,10 @@ SURVIVAL_REASON_PREFIXES = (
 # A ``return:`` decision is survival only while the trigger that started the
 # return is a danger trigger (policy_combat.py ``_last_return_trigger``).
 SURVIVAL_RETURN_PREFIX = "return:"
-SURVIVAL_RETURN_TRIGGERS = frozenset(
-    {"esp-threat", "unseen-attacker", "guardian-reposition"}
-)
+# Rev 9.3: ``guardian-reposition`` is not in it -- a guardian reposition never
+# starts a return (policy_combat.py sets ``_returning_to_town`` only when not
+# repositioning), so it can never be the trigger a return began with.
+SURVIVAL_RETURN_TRIGGERS = frozenset({"esp-threat", "unseen-attacker"})
 SURVIVAL_RETURN_TRIGGER_PREFIX = "emergency-"
 # The ordinary owners the user's list leaves out on purpose (design rev 9
 # item 3, "This overrides section 3.2").  Nothing reads this in the policy;

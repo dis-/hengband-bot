@@ -922,6 +922,7 @@ class CombatMixin:
         )
         if ranged is not None:
             return ranged
+        self._claim_target_capture = []
         step = self._nearest_goal_step(
             snapshot,
             lambda grid: any(
@@ -929,12 +930,13 @@ class CombatMixin:
                 for monster in committed
             ),
         )
+        step_target = self._take_claim_target()
         if step is None or step in self._engagement_avoid_cells:
             return self._esp_threat_end_hunt(
                 "unreachable", snapshot, strategic_hostiles
             )
         self.last_reason = "esp-threat:hunt-strong"
-        self._declare_reach(step)
+        self._declare_reach(step_target)
         return self._step_toward(snapshot, step)
 
     def _esp_threat_end_hunt(
@@ -1017,6 +1019,7 @@ class CombatMixin:
                 )
             return True, key
         if action == "hunt":
+            self._claim_target_capture = []
             step = self._nearest_goal_step(
                 snapshot,
                 lambda grid: any(
@@ -1024,11 +1027,12 @@ class CombatMixin:
                     for target in targets
                 ),
             )
+            step_target = self._take_claim_target()
             if step is None or step in self._engagement_avoid_cells:
                 assessment["action"] = "hunt-unreachable"
                 return True, None
             self.last_reason = f"esp-threat:hunt-{tier}"
-            self._declare_reach(step)
+            self._declare_reach(step_target)
             return True, self._step_toward(snapshot, step)
         if action == "leave":
             key = self._esp_threat_leave_key(snapshot, strategic_hostiles)
@@ -1931,9 +1935,11 @@ class CombatMixin:
                     if potion is not None:
                         self.last_reason = "emergency:heal"
                         return QUAFF_KEY + potion.slot
+                self._claim_target_capture = []
                 route_step = self._nearest_goal_step(
                     snapshot, self._is_upstairs_target
                 )
+                route_step_target = self._take_claim_target()
                 if route_step is None:
                     blocker = self._blocking_escape_melee_key(
                         snapshot, hostiles, self._is_upstairs_target
@@ -1943,7 +1949,7 @@ class CombatMixin:
                         return blocker
                 if route_step is not None:
                     self.last_reason = "emergency:seek-upstairs"
-                    self._declare_reach(route_step)
+                    self._declare_reach(route_step_target)
                     return self._step_toward(snapshot, route_step)
                 flee_step = self._flee_step(snapshot, hostiles)
                 if flee_step is not None and not (

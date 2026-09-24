@@ -699,10 +699,12 @@ class NavigationMixin:
                 self._defer_descent(snapshot)
                 self.last_reason = "livelock:ascend"
                 return UP_STAIRS_KEY
+            self._claim_target_capture = []
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+            step_target = self._take_claim_target()
             if step is not None:
                 self.last_reason = "livelock:seek-upstairs"
-                self._declare_reach(step)
+                self._declare_reach(step_target)
                 return self._step_toward(snapshot, step)
             if (
                 self._returning_to_town
@@ -854,10 +856,12 @@ class NavigationMixin:
         # the floor entirely. The player outruns a speed-100 breeder swarm, so
         # reaching the stairs breaks contact where circling the same room never
         # can — the decisive escape when there is no recall or teleport left.
+        self._claim_target_capture = []
         to_stairs = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        to_stairs_target = self._take_claim_target()
         if to_stairs is not None:
             self.last_reason = "combat:disengage-seek-upstairs"
-            self._declare_reach(to_stairs)
+            self._declare_reach(to_stairs_target)
             return self._step_toward(snapshot, to_stairs)
         # A known exit behind a survivable single-file blocker chain remains
         # available when neither a retreat nor a route step exists.

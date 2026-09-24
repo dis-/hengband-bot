@@ -309,10 +309,12 @@ class FundraisingMixin:
                 self.last_reason = "fundraise:seek-upstairs"
                 self._declare_reach(step)
                 return self._step_toward(snapshot, step)
+        self._claim_target_capture = []
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
-            self._declare_reach(step)
+            self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         blocker = self._blocking_escape_melee_key(
             snapshot, self._physical_hostiles(snapshot), self._is_upstairs_target
@@ -732,7 +734,7 @@ class FundraisingMixin:
                 assert sweep is not None
             self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
-            self._declare_reach(sweep)
+            self._declare_reach(self._mining_sweep_goal)
             return self._step_toward(snapshot, sweep)
         self._mining_stall_turns = MINING_STALL_LIMIT
         return self._finish_mining_floor(snapshot)
@@ -1086,7 +1088,7 @@ class FundraisingMixin:
             if sweep is not None:
                 self._record_mining_sweep_step(snapshot)
                 self.last_reason = "fundraise:sweep-explore"
-                self._declare_reach(sweep)
+                self._declare_reach(self._mining_sweep_goal)
                 return self._step_toward(snapshot, sweep)
             self._mining_sweep_done = True
             self._mining_grids_at_sweep_done = self._mining_sweep_revealed_grids
@@ -1203,4 +1205,11 @@ class FundraisingMixin:
                         distance + 1,
                     )
                 )
+        # Record-only (rev 9.3 R2): the chosen wall cell is in the score
+        # (``pos.y, pos.x``); an armed claim site receives it.
+        capture = self.__dict__.get("_claim_target_capture")
+        if capture is not None:
+            capture.append(
+                Position(best[0][2], best[0][3]) if best is not None else None
+            )
         return best[1] if best is not None else None

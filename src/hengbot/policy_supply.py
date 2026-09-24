@@ -877,11 +877,13 @@ class SupplyMixin:
                 trigger_reason="mana-food:trigger-autodestroy",
             )
 
+        self._claim_target_capture = []
         step = self._nearest_position_step(snapshot, candidates)
+        step_target = self._take_claim_target()
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"
-        self._declare_reach(step)
+        self._declare_reach(step_target)
         return self._step_toward(snapshot, step)
 
     def _find_edible(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -994,10 +996,12 @@ class SupplyMixin:
             self._defer_descent(snapshot)
             self.last_reason = exit_reason
             return UP_STAIRS_KEY
+        self._claim_target_capture = []
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        step_target = self._take_claim_target()
         if step is not None:
             self.last_reason = "survival:seek-exit"
-            self._declare_reach(step)
+            self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         return None
 
@@ -1128,11 +1132,13 @@ class SupplyMixin:
                 pickup_reason="mana-food:pickup-device",
                 trigger_reason="mana-food:trigger-autodestroy",
             )
+        self._claim_target_capture = []
         step = self._nearest_position_step(snapshot, candidates)
+        step_target = self._take_claim_target()
         if step is None:
             return None
         self.last_reason = "mana-food:seek-device"
-        self._declare_reach(step)
+        self._declare_reach(step_target)
         return self._step_toward(snapshot, step)
 
     def _wilderness_survival_key(
@@ -1333,6 +1339,13 @@ class SupplyMixin:
         a normal floor).
         """
         route = self._nearest_goal_route(snapshot, predicate)
+        # Record-only (rev 9.3 R2): a claim site that asked for it receives
+        # the target this route chose, so it declares the far target rather
+        # than the first step.  Only an armed capture is written, so a pure
+        # caller's state is untouched.
+        capture = self.__dict__.get("_claim_target_capture")
+        if capture is not None:
+            capture.append(route.target if route is not None else None)
         return route.first_step if route is not None else None
 
     def _nearest_goal_route(self, snapshot: Snapshot, predicate) -> TownMapRoute | None:
