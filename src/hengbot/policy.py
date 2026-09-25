@@ -121,6 +121,7 @@ from hengbot.claim_goal_typing import (
     is_survival as claim_is_survival,
 )
 from hengbot.claim_ladder import (
+    BAR_GATED_RUNGS as CLAIM_BAR_GATED_RUNGS,
     PREEMPTION as CLAIM_PREEMPTION,
     SURVIVAL_DISPLACED as CLAIM_SURVIVAL_DISPLACED,
     TRIGGER_FAMILIES as CLAIM_TRIGGER_FAMILIES,
@@ -3569,6 +3570,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # owner and goal would meet -- read before this row's own endings are
         # barred, as the ladder would have read the table while deciding.
         would_bar = self._claim_would_bar(register, claim, survival)
+        would_skip = self._claim_would_skip(register, rung, survival)
         bars_set = self._claim_set_bars(
             snapshot, register, dropped=standing if violation is not None else None
         )
@@ -3605,6 +3607,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "last_perceived_turn": claim.last_perceived_turn,
             # S2b.2 (design 3.2 / 3.3), record-only while the switch is off.
             "would_bar": would_bar,
+            "would_skip": would_skip,
             "bars_set": bars_set or None,
             "bars_lifted": bars_lifted or None,
             "bars_active": len(register.bars),
@@ -3886,9 +3889,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     #
     # Record-only while ``_claim_bar_enforced`` is off (the default and the
     # only shipped setting): the helpers below write the register and the
-    # decision row.  With the switch on, ``_claim_bar_gate`` also turns a
-    # barred rung's answer into "this rung does not act" (design 3.3's
-    # plumbing), which is exercised by tests only.
+    # decision row.  With the switch on, ``_claim_bar_skips`` also keeps a
+    # barred rung from running at all (design 3.3's plumbing), which is
+    # exercised by tests only.
 
     @staticmethod
     def _claim_perceived_pairs(snapshot: Snapshot) -> frozenset:
@@ -3898,21 +3901,67 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
         )
 
-    def _claim_arbiter_retired(self) -> dict:
-        """The arbiter's retirement table: owner -> its clearance key."""
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        retired = getattr(arbiter, "_retired", None) if arbiter is not None else None
-        return retired if isinstance(retired, dict) else {}
+    @staticmethod
+    def _claim_durable_clearance(key):
+        """The durable part of a retirement clearance key (round 2).
 
-    def _claim_bar_standing(self, snapshot: Snapshot, bar: ClaimBar) -> bool:
-        """Whether ``bar`` still stands on this board (pure, no write)."""
+        User decision 2026-09-26: a town-errand bar lifts only when the
+        durable part of the clearance key changes -- inventory, gold,
+        equipment and the other durable facts of the progress vector, the
+        quest and departure tuples -- never by the player's own movement.
+        ``_town_retirement_clearance_key`` is the progress vector (its durable
+        facts plus, for a walking owner, a ``("locomotion", ...)`` part that
+        carries the distance to the goal), the departure tuple (whose last
+        element is the same locomotion part), or the quest route-unavailable
+        tuples (durable already).  So: the locomotion parts go, the departure
+        tuple loses its last element, and the progress core -- position,
+        turn and sequence already zeroed by the vector -- also forgets the
+        hit points and the store the player stands in, which walking and
+        waiting change without any errand being done.
+        """
+        if not isinstance(key, tuple):
+            return key
+        if key and key[0] == "departure":
+            return key[:-1]
+        durable = []
+        for part in key:
+            if isinstance(part, tuple) and part and part[0] == "locomotion":
+                continue
+            if isinstance(part, OwnerProgressCore):
+                part = replace(
+                    part,
+                    position=Position(0, 0),
+                    turn=0,
+                    decision_sequence=0,
+                    hp=0,
+                    store_type=None,
+                )
+            durable.append(part)
+        return tuple(durable)
+
+    def _claim_errand_clearance(self, snapshot: Snapshot, owner: str, reason):
+        """The durable clearance key of an errand owner on this board."""
+        return self._claim_durable_clearance(
+            self._town_retirement_clearance_key(snapshot, owner, reason)
+        )
+
+    def _claim_bar_after(
+        self, snapshot: Snapshot, bar: ClaimBar, perceived=None
+    ) -> ClaimBar | None:
+        """``bar`` as this board leaves it, ``None`` when the board lifts it."""
         return claim_bar_after_board(
             bar,
             turn=snapshot.turn,
-            perceived=self._claim_perceived_pairs(snapshot),
+            perceived=(
+                perceived
+                if perceived is not None
+                else self._claim_perceived_pairs(snapshot)
+            ),
             hold=DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
-            retired=self._claim_arbiter_retired(),
-        ) is not None
+            clearance_of=lambda errand: self._claim_errand_clearance(
+                snapshot, errand.owner.value, errand.reason
+            ),
+        )
 
     def _claim_bar_lift(self, snapshot: Snapshot, register) -> list[dict]:
         """Design 3.2 / 3.3: the lift pass of this board.
@@ -3920,25 +3969,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         A threat-triggered bar lifts once ``DETECTED_THREAT_HOLD_MAX_GAME_TURNS``
         game turns (the existing 50-turn clock of the detected-threat choke
         release) have passed with none of its trigger monsters perceived; an
-        errand bar lifts when the arbiter no longer holds its owner retired
-        under the clearance key it held when the bar was set.  Returns the
-        lifted bars as row entries.
+        errand bar lifts when the durable part of its owner's retirement
+        clearance key differs from the one recorded when it was set.  Returns
+        the lifted bars as row entries.
         """
         bars = register.bars
         if not bars:
             return []
         perceived = self._claim_perceived_pairs(snapshot)
-        retired = self._claim_arbiter_retired()
         kept = []
         lifted = []
         for bar in bars:
-            after = claim_bar_after_board(
-                bar,
-                turn=snapshot.turn,
-                perceived=perceived,
-                hold=DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
-                retired=retired,
-            )
+            after = self._claim_bar_after(snapshot, bar, perceived)
             if after is None:
                 lifted.append({
                     **bar.as_dict(),
@@ -3969,8 +4011,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
           endings are not the claim's own failure and bar nothing: survival
           replacing it (``survival-displaced``, design 3.4) and a floor change
           while it was suspended (``suspended-expired``).
-        * Any other owner is barred by retirement only, as an errand owner,
-          lifted by the arbiter's clearance key (design 3.3).
+        * Any other owner is barred by retirement only, as an errand owner;
+          the bar records the durable part of its retirement clearance key
+          (round 2) and lifts when that changes.
         * A Terminal claim never ends abandoned, so combat melee is never
           barred (rev 10.1 item 4, the known gap).
         """
@@ -3991,6 +4034,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         common = {
             "owner": claim.owner,
             "goal": claim.goal,
+            "rung": claim_rung_of_claim(
+                claim.owner, claim.rung, non_discardable=claim.non_discardable
+            ).name,
             "since_turn": snapshot.turn,
             "since_sequence": self._decision_sequence,
             "claim_id": claim.claim_id,
@@ -4012,12 +4058,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         if ending != CLAIM_CLOSED_BY_RETIRED:
             return None
-        retired = self._claim_arbiter_retired()
-        if claim.owner.value not in retired:
-            return None
+        # The retirement is this decision's (``_claim_owner_retired``), so the
+        # reason the key is computed for is the decision's own.
+        reason = (
+            self.last_reason
+            if self._claim_family_of(self.last_reason) == claim.owner.value
+            else None
+        )
         return ClaimBar(
             kind=CLAIM_BAR_ERRAND,
-            clearance=retired[claim.owner.value],
+            clearance=self._claim_errand_clearance(
+                snapshot, claim.owner.value, reason
+            ),
+            reason=reason,
             **common,
         )
 
@@ -4060,68 +4113,60 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "triggers": [list(pair) for pair in bar.triggers],
         }
 
-    def _claim_bar_saved(self):
-        """What a barred rung must leave as it found it, or ``None``.
+    @staticmethod
+    def _claim_would_skip(register, rung, survival):
+        """Round 2: the skip the switch would have made on this decision.
 
-        ``None`` -- the gate then passes every answer through untouched --
-        whenever the switch is off, which is the default and the only shipped
-        setting, or when no bar stands.
+        The switch decides before a rung runs, so it can only know the rung,
+        not the goal the rung would choose: a gated rung
+        (``claim_ladder.BAR_GATED_RUNGS``) is skipped while a bar that a claim
+        of that rung earned stands.  Recorded when the decided rung is one of
+        them, beside ``would_bar``'s exact owner-and-goal match.
+        """
+        if survival or rung.name not in CLAIM_BAR_GATED_RUNGS:
+            return None
+        for bar in register.bars:
+            if bar.rung == rung.name:
+                return {
+                    "rung": rung.name,
+                    "owner": bar.owner.value,
+                    "goal": bar.goal.as_dict(),
+                    "bar_since_turn": bar.since_turn,
+                }
+        return None
+
+    def _claim_bar_skips(self, snapshot: Snapshot, rung_name: str) -> bool:
+        """Design 3.3's plumbing, decided before the rung runs (switch on).
+
+        ``_decide`` asks this right before it calls a gated rung
+        (``claim_ladder.BAR_GATED_RUNGS``), and does not call the rung when
+        the answer is True, so a barred producer spends none of its own state
+        (a choke plan's decision counters, a committed route).  With the
+        switch off -- the default and the only shipped setting -- it answers
+        False at once and the rung runs exactly as before.  With it on, the
+        rung is skipped while a bar that a claim of this rung earned stands
+        on this board.  The gated rungs cannot answer survival, and survival
+        claims earn no bar.
         """
         if not getattr(self, "_claim_bar_enforced", False):
-            return None
+            return False
         register = getattr(self, "_claim_register", None)
-        if register is None or not register.bars:
-            return None
-        return (
-            self.last_reason,
-            getattr(self, "_decision_goal", None),
-            getattr(self, "_decision_expectation", None),
-            getattr(self, "_decision_triggers", None),
-        )
-
-    def _claim_bar_gate(self, snapshot: Snapshot, saved, result):
-        """Design 3.3's plumbing: a barred rung does not act (switch on only).
-
-        Wraps a rung's call inside ``_decide``.  ``saved`` is
-        ``_claim_bar_saved()`` taken just before the rung ran; with the switch
-        off it is ``None`` and ``result`` is returned as it is.  Otherwise, when
-        the rung answered and the owner and goal its answer declares
-        (``_claim_goal``, the exit's own reading) meet a standing bar, the
-        rung's reason and goal slots are put back and the rung answers
-        nothing, so the ladder goes on to the next rung.  Survival is never
-        barred.  A rung returning ``(flag, key)`` keeps its flag.
-        """
-        if saved is None or result is None:
-            return result
-        paired = isinstance(result, tuple)
-        key = result[1] if paired else result
-        if key is None:
-            return result
-        reason = self.last_reason or ""
-        if claim_is_survival(reason, getattr(self, "_survival_return_trigger", None)):
-            return result
-        register = self._claim_register
-        owner = claim_owner_of(self._claim_family_of(reason))
-        goal, _missing, _note = self._claim_goal(
-            snapshot, key, owner, reason, register.current
-        )
-        bar = register.barring(owner, goal)
-        if bar is None or not self._claim_bar_standing(snapshot, bar):
-            return result
-        self._decision_bar_skips = [
-            *(getattr(self, "_decision_bar_skips", None) or ()),
-            {
-                "owner": owner.value,
-                "goal": goal.as_dict(),
-                "reason": reason,
-                "bar_since_turn": bar.since_turn,
-            },
-        ]
-        self.last_reason = saved[0]
-        self._decision_goal = saved[1]
-        self._decision_expectation = saved[2]
-        self._decision_triggers = saved[3]
-        return (result[0], None) if paired else None
+        if register is None:
+            return False
+        for bar in register.bars:
+            if bar.rung != rung_name or self._claim_bar_after(snapshot, bar) is None:
+                continue
+            self._decision_bar_skips = [
+                *(getattr(self, "_decision_bar_skips", None) or ()),
+                {
+                    "rung": rung_name,
+                    "owner": bar.owner.value,
+                    "goal": bar.goal.as_dict(),
+                    "bar_since_turn": bar.since_turn,
+                },
+            ]
+            return True
+        return False
 
     # -- rev 9.2 (S): the survival return trigger ----------------------------
 
@@ -6745,26 +6790,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         # A committed STRONG-tier hunt (esp-threat-rest) owns its fight,
         # including Healing drinks, ahead of the emergency/flee ladder.
-        esp_threat_hunt = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._esp_threat_hunt_key(
-                snapshot, strategic_hostiles
-            ),
+        esp_threat_hunt = self._esp_threat_hunt_key(
+            snapshot, strategic_hostiles
         )
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._summoner_ranged_kill_key(
-                snapshot, emergency_hostiles
-            ),
+        summoner_ranged = self._summoner_ranged_kill_key(
+            snapshot, emergency_hostiles
         )
         if summoner_ranged is not None:
             return summoner_ranged
-        emergency = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._emergency_item(snapshot, emergency_hostiles),
-        )
+        emergency = self._emergency_item(snapshot, emergency_hostiles)
         if emergency is not None:
             if self._choke_plan_active(snapshot):
                 self._release_choke_plan("hp-emergency")
@@ -6785,36 +6821,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if mana_survival is not None:
             return mana_survival
 
-        paralyzer_prevention = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._paralyzer_prevention_key(
-                snapshot, paralyzers, physical_adjacent
-            ),
+        paralyzer_prevention = self._paralyzer_prevention_key(
+            snapshot, paralyzers, physical_adjacent
         )
         if paralyzer_prevention is not None:
             return paralyzer_prevention
 
-        unseen_intercept = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._unseen_retreat_intercept_key(
-                snapshot, physical_hostiles, physical_adjacent
-            ),
+        unseen_intercept = self._unseen_retreat_intercept_key(
+            snapshot, physical_hostiles, physical_adjacent
         )
         unseen_action = unseen_intercept
         if unseen_action is None:
-            unseen_action = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._unseen_retreat_key(
-                    snapshot, physical_hostiles
-                ),
+            unseen_action = self._unseen_retreat_key(
+                snapshot, physical_hostiles
             )
         detected_preparation = None
         if unseen_action is None:
-            detected_preparation = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._detected_threat_preparation_key(
+            detected_preparation = (
+                None
+                if self._claim_bar_skips(snapshot, "_detected_threat_preparation_key")
+                else self._detected_threat_preparation_key(
                     snapshot, physical_hostiles
-                ),
+                )
             )
         contested_action = unseen_action or detected_preparation
         if contested_action is not None:
@@ -6952,11 +6980,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._breeder_breakthrough_floor == snapshot.floor_key
         ):
             self._release_choke_plan("breeder-breakthrough")
-        breakthrough = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._breeder_breakthrough_key(
+        breakthrough = (
+            None
+            if self._claim_bar_skips(snapshot, "_breeder_breakthrough_key")
+            else self._breeder_breakthrough_key(
                 snapshot, strategic_hostiles
-            ),
+            )
         )
         if breakthrough is not None:
             if self._choke_plan_active(snapshot):
@@ -6964,11 +6993,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._declare_triggers(strategic_hostiles)  # record-only
             return breakthrough
 
-        choke_plan = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._choke_engagement_key(
+        choke_plan = (
+            None
+            if self._claim_bar_skips(snapshot, "_choke_engagement_key")
+            else self._choke_engagement_key(
                 snapshot, physical_hostiles, physical_adjacent
-            ),
+            )
         )
         if choke_plan is not None:
             return choke_plan
@@ -6983,11 +7013,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             breeder_adjacent = [
                 monster for monster in strategic_adjacent if monster.can_multiply
             ]
-            ranged = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._ranged_attack_key(
-                    snapshot, breeders, breeder_adjacent
-                ),
+            ranged = self._ranged_attack_key(
+                snapshot, breeders, breeder_adjacent
             )
             if ranged is not None:
                 return ranged
@@ -6996,11 +7023,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # ahead of ordinary combat so the same cluster cannot pull us back in.
         disengage = None
         if not self._productive_choke_hold(snapshot):
-            disengage = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._fruitless_disengage_key(
-                    snapshot, strategic_hostiles
-                ),
+            disengage = self._fruitless_disengage_key(
+                snapshot, strategic_hostiles
             )
         if disengage is not None:
             self._declare_triggers(strategic_hostiles)  # record-only
@@ -7043,9 +7067,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # remembered up-stairs, else to the nearest live frontier.  With
             # neither, fall through to the ordinary navigation ladder like
             # the non-mining exhausted floor.
-            escape = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._breeder_breakthrough_escape_key(snapshot),
+            escape = (
+                None
+                if self._claim_bar_skips(snapshot, "_breeder_breakthrough_escape_key")
+                else self._breeder_breakthrough_escape_key(snapshot)
             )
             if escape is not None:
                 return escape
@@ -7063,11 +7088,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if self._fundraising_mode in {"mine", "scavenge"}
             else strategic_adjacent
         )
-        swarm_combat = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._melee_swarm_combat_key(
-                snapshot, mining_hostiles, mining_adjacent
-            ),
+        swarm_combat = self._melee_swarm_combat_key(
+            snapshot, mining_hostiles, mining_adjacent
         )
         if swarm_combat is not None:
             return swarm_combat
@@ -7281,11 +7303,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
         # so an afraid archer still fights back while it retreats.
-        ranged = self._claim_bar_gate(
-            snapshot, self._claim_bar_saved(),
-            self._ranged_attack_key(
-                snapshot, combat_hostiles, combat_adjacent
-            ),
+        ranged = self._ranged_attack_key(
+            snapshot, combat_hostiles, combat_adjacent
         )
         if ranged is not None:
             return ranged
@@ -7833,11 +7852,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # Awake monsters known only by telepathy/detection interrupt every
             # rest (live Angband 41F loop, 2026-09-21): the user-confirmed
             # tiers hunt, keep exploring, or leave the floor instead.
-            suppress_rest, esp_threat = self._claim_bar_gate(
-                snapshot, self._claim_bar_saved(),
-                self._esp_threat_rest_key(
-                    snapshot, strategic_hostiles
-                ),
+            suppress_rest, esp_threat = self._esp_threat_rest_key(
+                snapshot, strategic_hostiles
             )
             if esp_threat is not None:
                 return esp_threat

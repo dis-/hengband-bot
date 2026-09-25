@@ -127,6 +127,20 @@ TRIGGER_FAMILIES = frozenset({
     "positioning", "hunt", "esp-threat", "combat", "escape",
 })
 
+# S2b.2 round 2 (design 3.3's plumbing): the rungs of ``_decide`` that ask
+# ``policy._claim_bar_skips`` before they run and are not called while a bar a
+# claim of theirs earned stands (switch on only).  A gated rung is one a bar
+# can carry -- ``rung_of`` gives it a threat-triggered Reach/Observe reason --
+# and that cannot answer survival, since whether an answer is survival is
+# known only after the rung has run.  ``tests/test_ownership_s2b2_bar.py``
+# pins this set against the wiring in the source.
+BAR_GATED_RUNGS = frozenset({
+    "_detected_threat_preparation_key",
+    "_breeder_breakthrough_key",
+    "_choke_engagement_key",
+    "_breeder_breakthrough_escape_key",
+})
+
 PREEMPTION = "preemption"
 VIOLATION = "violation"
 # Survival that does not outrank the holder replaces it (not a violation).

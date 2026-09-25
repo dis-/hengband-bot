@@ -69,8 +69,8 @@ point can read the endings of the whole decision, not only the last one
 (``take_closing``).  The lift rules are pure functions of the board
 (``bar_after_board``): a threat-triggered bar lifts after ``hold`` game turns
 with none of its ``(index, race_id)`` trigger monsters perceived; an errand
-bar lifts when the arbiter no longer holds its owner retired under the
-retirement clearance key it held when the bar was set.  Nothing reads the
+bar lifts when the durable part of its owner's retirement clearance key
+changes (round 2, user decision 2026-09-26).  Nothing reads the
 table to decide unless the policy's switch ``_claim_bar_enforced`` is on, and
 nothing ships with it on.
 
@@ -361,8 +361,9 @@ class Claim:
 # A preemptor barred by the 50-turn safety rule (design 3.2): the owner is one
 # of the threat-triggered families (``claim_ladder.TRIGGER_FAMILIES``).
 BAR_THREAT = "threat"
-# An errand owner barred by retirement (design 3.3): it lifts when the
-# existing retirement clearance key changes.
+# An errand owner barred by retirement (design 3.3): it lifts when the durable
+# part of the existing retirement clearance key changes (user decision
+# 2026-09-26), never by the player's own movement and never by a clock.
 BAR_ERRAND = "errand"
 
 
@@ -374,9 +375,12 @@ class Bar:
     never an index alone: Hengband reuses a dead monster's index for a new
     one.  ``last_perceived_turn`` is the game turn of the latest board on
     which one of them was perceived (the bar's own start when none was).
-    ``clearance`` is, for an errand bar, the retirement clearance key the
-    arbiter held for the owner when the bar was set -- the arbiter's own
-    value, compared, never rebuilt.
+
+    ``rung`` (round 2) is the ladder rung of the claim that earned the bar
+    (``claim_ladder.rung_of_claim``); the switch skips that rung before it
+    runs.  ``clearance`` and ``reason`` are, for an errand bar, the durable
+    part of the retirement clearance key when the bar was set and the reason
+    it was computed for (``policy._claim_errand_clearance``).
     """
 
     owner: ClaimOwner
@@ -389,6 +393,8 @@ class Bar:
     claim_id: int | None = None
     ending: str | None = None
     clearance: object = None
+    rung: str | None = None
+    reason: str | None = None
 
     def as_dict(self) -> dict:
         """The row form: plain JSON types only (``clearance`` stays out)."""
@@ -396,6 +402,7 @@ class Bar:
             "owner": self.owner.value,
             "goal": self.goal.as_dict(),
             "kind": self.kind,
+            "rung": self.rung,
             "since_turn": self.since_turn,
             "since_sequence": self.since_sequence,
             "triggers": [list(pair) for pair in self.triggers],
@@ -405,34 +412,38 @@ class Bar:
         }
 
 
+_UNREAD = object()
+
+
 def bar_after_board(
     bar: Bar,
     *,
     turn: int | None,
     perceived: frozenset,
     hold: int,
-    retired: dict | None,
+    clearance_of=None,
 ) -> Bar | None:
     """The bar as this board leaves it, or ``None`` when the board lifts it.
 
-    A pure function of the bar, the board and the arbiter's retirement table
-    (design 5.4.1: the bar match is a pure function of the current snapshot
-    and the key):
+    A pure function of the bar and the board (design 5.4.1: the bar match is
+    a pure function of the current snapshot and the key):
 
     * ``threat``: a trigger ``(index, race_id)`` in ``perceived`` moves
       ``last_perceived_turn`` to ``turn``; the bar lifts once more than
       ``hold`` game turns have passed since then with none of them perceived
       (the comparison of the detected-threat choke release it shares its
       clock with).
-    * ``errand``: the bar stands while the arbiter still holds its owner
-      retired under the same clearance key, and lifts when it does not.
+    * ``errand``: ``clearance_of(bar)`` is the durable part of the owner's
+      retirement clearance key on this board; the bar stands while it equals
+      the one recorded when the bar was set and lifts when it changes.  No
+      clock: an errand bar never lifts by waiting or by walking.
 
     Nothing else lifts a bar: not the player's movement, not a changed target,
     not the trigger set growing or shrinking, not the floor.
     """
     if bar.kind == BAR_ERRAND:
-        table = retired or {}
-        if bar.owner.value in table and table[bar.owner.value] == bar.clearance:
+        now = clearance_of(bar) if clearance_of is not None else _UNREAD
+        if now is _UNREAD or now == bar.clearance:
             return bar
         return None
     if turn is None:

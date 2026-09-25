@@ -247,6 +247,7 @@ class OwnershipMetricsLedger:
                     "last_perceived_turn",
                     # S2b.2 (design 3.2 / 3.3): the bar table's record.
                     "would_bar",
+                    "would_skip",
                     "bars_set",
                     "bars_lifted",
                     "bars_active",
@@ -974,6 +975,9 @@ def bar_numbers(rows: Sequence[Mapping]) -> dict:
       max);
     * ``still_barred`` per owner: bars standing on a session's last row,
       with the largest age in game turns there;
+    * ``would_skip`` per rung (round 2): decisions of a gated rung made
+      while a bar that rung earned stood -- what the switch, which decides
+      before the rung runs, would have skipped;
     * ``skipped`` per owner: rungs the bar skipped (only with the switch on).
 
     A bar set again while it stands (``ClaimRegister.set_bar`` merges it) is
@@ -986,6 +990,7 @@ def bar_numbers(rows: Sequence[Mapping]) -> dict:
     decisions: dict[str, list] = {}
     still: dict[str, list] = {}
     skipped: Counter[str] = Counter()
+    would_skip: Counter[str] = Counter()
     for session_rows in _claim_rows_by_session(rows):
         standing: dict[tuple[str, str], Mapping] = {}
         for row in session_rows:
@@ -1013,6 +1018,8 @@ def bar_numbers(rows: Sequence[Mapping]) -> dict:
                 owner = str(would_bar.get("owner"))
                 events[owner] += 1
                 claims.setdefault(owner, set()).add(row.get("claim_id"))
+            if isinstance(row.get("would_skip"), Mapping):
+                would_skip[str(row["would_skip"].get("rung"))] += 1
             for entry in row.get("bars_set") or ():
                 if not isinstance(entry, Mapping):
                     continue
@@ -1059,6 +1066,10 @@ def bar_numbers(rows: Sequence[Mapping]) -> dict:
                 ),
             }
             for owner, ages in sorted(still.items())
+        },
+        "would_skip": {
+            "count": sum(would_skip.values()),
+            "by_rung": dict(would_skip.most_common()),
         },
         "skipped": {
             "count": sum(skipped.values()),
