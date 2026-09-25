@@ -61,8 +61,6 @@ policy_combat.py:_paralyzer_prevention_key  # positioning stand-off and the surv
 policy.py:_darkness_recovery_key  # equipment-txn light swap or the survival fallback
 policy.py:_bounty_cashout_key  # quest-request cash-out that travels as store-router
 policy_observation.py:_resolve_observed_uncomposable_stop  # names the shop-buy operation inside a town-plan stop
-policy_identification.py:_normal_loot_key  # floor-loot collection with a positioning branch for guarded paralyzers
-policy_fundraising.py:_fundraising_key  # fundraising ladder that relays an equipment-mutation report
 policy.py:_recall_restock_key  # fundraising wait that relays the shop-buy restock reason
 
 # -- 2. relays ---------------------------------------------------------------

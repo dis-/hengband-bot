@@ -80,7 +80,18 @@ import sys
 import time
 
 from hengbot.claim_goal_typing import is_survival
+from hengbot.claim_ladder import (
+    PREEMPTION,
+    SURVIVAL_DISPLACED,
+    SCOPE_IN,
+    SCOPE_S3,
+    VIOLATION,
+    owner_change,
+    pair_scope,
+    rung_of,
+)
 from hengbot.stop_shape import SHAPES, classify_stop, producer_identity
+from hengbot.town_arbiter import reason_owner_family
 
 
 OWNERSHIP_METRICS_NAME = "ownership-metrics.jsonl"
@@ -221,6 +232,15 @@ class OwnershipMetricsLedger:
                     "goal_missing",
                     "goal_note",
                     "survival",
+                    # S2b.1 (design rev 10.1): the ladder's record.
+                    "rank",
+                    "rung",
+                    "violation",
+                    "resumed",
+                    "suspended_closed",
+                    "suspended_depth",
+                    "trigger_monsters",
+                    "last_perceived_turn",
                 )
             },
         }
@@ -507,7 +527,9 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
         complete / release / retired / expired / suspended / abandoned, plus
         ``open-at-end`` for a claim the session's last row still held (a
         Reach goal noted ``one-step`` or ``last-known`` is counted under
-        ``owner/Reach:<note>``) -- and
+        ``owner/Reach:<note>``); S2b.1 (rev 10.1 item 7): one final ending
+        per claim id, so a claim suspended and resumed under its id counts
+        once, and one that closed while suspended counts that closing -- and
         ``goal_missing`` rows per owner, per reason (``no-slot`` /
         ``owner-mismatch``), and ``owner_mismatch`` rows per owner (every row
         whose producer's slot belonged to another owner, Observe included).
@@ -560,6 +582,11 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
             else:
                 retargets += 1
                 retarget_owners[str(before)] += 1
+        # S2b.1 (design rev 10.1 item 7): one final ending per claim id.  A
+        # resumed claim spans several runs under one id; its earlier runs end
+        # ``suspended`` and only its last one counts, unless it closed while
+        # suspended (``suspended_closed`` on a later row), which then counts.
+        final: dict[object, tuple[str, str]] = {}
         for run, following in _claim_runs(session_rows):
             first = run[0]
             kind = _goal_kind(first)
@@ -575,8 +602,11 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
                     if kind == "Reach" and note in REACH_NOTE_BUCKETS
                     else f"{owner}/{kind}"
                 )
-                bucket = endings.setdefault(name, Counter())
-                bucket[_ending(run, following)] += 1
+                identity = first.get("claim_id")
+                if identity is None:
+                    identity = ("run", id(first))
+                final.pop(identity, None)
+                final[identity] = (name, _ending(run, following))
             elif kind == "Terminal":
                 kept = [row for row in run if not row.get("goal_missing")]
                 if len(kept) < 2:
@@ -587,6 +617,15 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
                 elif len(set(positions)) > 1:
                     mistyped += 1
                     mistyped_owners[owner] += 1
+        for row in session_rows:
+            for entry in row.get("suspended_closed") or ():
+                if not isinstance(entry, Mapping):
+                    continue
+                identity = entry.get("claim_id")
+                if identity in final and entry.get("closed") in ENDINGS:
+                    final[identity] = (final[identity][0], str(entry["closed"]))
+        for name, ending in final.values():
+            endings.setdefault(name, Counter())[ending] += 1
     return {
         "rows": total,
         "dropped_by_other_owner": {
@@ -609,6 +648,195 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
             "by_owner": dict(mistyped_owners.most_common()),
             "position_unknown": position_unknown,
         },
+    }
+
+
+# -- the S2b.1 ladder metric (design rev 10 item 5, rev 10.1 items 7-8, 11) --
+
+PREEMPTION_LABELS = ("preempted-by:", "survival-preemption")
+
+
+def _family_of_row(row: Mapping) -> str:
+    """The census family the live writer would declare for this row now.
+
+    A row written before the ladder carries the family its census gave at
+    the time (``misc`` / ``unregistered`` before S2a, ``pickup`` before round
+    2); the writer declares ``reason_owner_family(reason)``, so the reader
+    re-derives it the same way (rev 10.1 item 11).
+    """
+    return reason_owner_family(row.get("reason") or "")
+
+
+def _rung_of_row(row: Mapping):
+    return rung_of(
+        _family_of_row(row),
+        row.get("reason"),
+        non_discardable=bool(row.get("non_discardable")),
+    )
+
+
+def classify_handoff(previous: Mapping, current: Mapping) -> dict:
+    """Rev 10.1 item 11: the ladder's verdict on one (a)/(b) event of a row
+    written before the ladder existed.
+
+    ``previous`` held an open Reach/Observe claim that ``current`` left
+    unclosed (``_closure_of`` is ``None``).  The verdict comes from the same
+    functions the live writer uses (``claim_ladder.rung_of`` and
+    ``owner_change``): the same owner is a retarget violation; another owner
+    is a preemption when it ranks strictly higher (and the held claim is not a
+    store-operation or transaction ``Observe``), else a violation.
+    """
+    held = _rung_of_row(previous)
+    new = _rung_of_row(current)
+    goal = previous.get("goal") if isinstance(previous.get("goal"), Mapping) else {}
+    before, after = _family_of_row(previous), _family_of_row(current)
+    if before == after:
+        verdict, kind = VIOLATION, "retarget"
+    else:
+        verdict = owner_change(
+            held_rank=held.rank,
+            held_goal_kind=goal.get("kind"),
+            held_goal_source=goal.get("source"),
+            held_survival=row_is_survival(previous),
+            new_rank=new.rank,
+            new_survival=row_is_survival(current),
+        )
+        kind = "owner-change"
+    return {
+        "verdict": verdict,
+        "kind": kind,
+        "from": before,
+        "to": after,
+        "claim_id": previous.get("claim_id"),
+        "from_rank": held.rank,
+        "to_rank": new.rank,
+        "scope": pair_scope(held, new),
+        "survival": row_is_survival(previous) or row_is_survival(current),
+    }
+
+
+def _scoped() -> dict[str, Counter]:
+    return {SCOPE_IN: Counter(), SCOPE_S3: Counter(), "survival": Counter()}
+
+
+def ladder_numbers(rows: Sequence[Mapping]) -> dict:
+    """The numbers S2b.1 replaces (a) and (b) with (design rev 10 item 5).
+
+    * ``violations`` by pair, **scoped** (rev 10.1 item 8): ``in-scope``, the
+      ``S3`` families (a pair with an S3 rung on either side), and
+      ``survival`` (a survival claim on either side -- outside the gate, as
+      (a) was);
+    * ``retargets`` (retarget violations) by owner, scoped the same way;
+    * ``preemptions`` by pair (informational);
+    * ``displacements`` by pair -- suspended claims a lower owner displaced,
+      also counted in ``violations``;
+    * ``survival_displaced`` by pair (round 2) -- claims a survival decision
+      that did not outrank them replaced; survival is exempt, so these are
+      not violations;
+    * ``suspended``: how suspended claims left the stack -- ``resumed`` and
+      each closing label (``resume-goal-changed``, ``resume-displaced``,
+      ``suspended-expired``, completions).
+
+    Rows the S2b.1 writer wrote (they carry ``rank``) are read as recorded.
+    Older rows are reclassified (rev 10.1 item 11), under the census family
+    the writer would declare for their reason now: their (a)/(b) events --
+    exactly the ones ``gate_numbers`` counts, survival excluded -- go through
+    ``classify_handoff``; a suspension they recorded (S2a.1's survival
+    preemption) is a preemption.  ``legacy_events`` counts the reclassified
+    events.
+    """
+    violations = _scoped()
+    retargets = _scoped()
+    preemptions: Counter[str] = Counter()
+    displacements: Counter[str] = Counter()
+    survival_displaced: Counter[str] = Counter()
+    suspended: Counter[str] = Counter()
+    legacy = 0
+
+    def count_violation(entry: Mapping) -> None:
+        scope = (
+            "survival"
+            if entry.get("survival")
+            else entry.get("scope") if entry.get("scope") in (SCOPE_IN, SCOPE_S3)
+            else SCOPE_IN
+        )
+        if entry.get("kind") == "retarget":
+            retargets[scope][str(entry.get("from"))] += 1
+        else:
+            violations[scope][handoff_pair(entry.get("from"), entry.get("to"))] += 1
+
+    for session_rows in _claim_rows_by_session(rows):
+        for previous, current in zip([None, *session_rows], session_rows):
+            closed = current.get("closed_claim")
+            if (
+                isinstance(closed, Mapping)
+                and closed.get("state") == CLOSURE_SUSPENDED
+                and str(closed.get("closed_reason") or "").startswith(
+                    PREEMPTION_LABELS
+                )
+            ):
+                preemptions[handoff_pair(closed.get("owner"), current.get("owner"))] += 1
+            if (
+                isinstance(closed, Mapping)
+                and closed.get("closed_reason") == SURVIVAL_DISPLACED
+            ):
+                survival_displaced[
+                    handoff_pair(closed.get("owner"), current.get("owner"))
+                ] += 1
+            if current.get("rank") is not None:
+                violation = current.get("violation")
+                if isinstance(violation, Mapping):
+                    count_violation(violation)
+                if isinstance(current.get("resumed"), Mapping):
+                    suspended["resumed"] += 1
+                for entry in current.get("suspended_closed") or ():
+                    if not isinstance(entry, Mapping):
+                        continue
+                    suspended[str(entry.get("closed_reason") or entry.get("closed"))] += 1
+                    if entry.get("closed_reason") == SURVIVAL_DISPLACED:
+                        survival_displaced[
+                            handoff_pair(entry.get("owner"), current.get("owner"))
+                        ] += 1
+                    displaced = entry.get("violation")
+                    if isinstance(displaced, Mapping):
+                        displacements[
+                            handoff_pair(displaced.get("from"), displaced.get("to"))
+                        ] += 1
+                        count_violation(displaced)
+                continue
+            if previous is None:
+                continue
+            if previous.get("claim_id") == current.get("claim_id"):
+                continue
+            if _goal_kind(previous) not in GOAL_KINDS_THAT_SPAN:
+                continue
+            if _closure_of(previous, current) is not None:
+                continue
+            if row_is_survival(previous) or row_is_survival(current):
+                continue
+            legacy += 1
+            verdict = classify_handoff(previous, current)
+            if verdict["verdict"] == PREEMPTION:
+                preemptions[handoff_pair(verdict["from"], verdict["to"])] += 1
+            elif verdict["verdict"] == SURVIVAL_DISPLACED:
+                survival_displaced[handoff_pair(verdict["from"], verdict["to"])] += 1
+            else:
+                count_violation(verdict)
+
+    def block(counter: Counter) -> dict:
+        return {"count": sum(counter.values()), "pairs": dict(counter.most_common())}
+
+    return {
+        "violations": {scope: block(counter) for scope, counter in violations.items()},
+        "retargets": {
+            scope: {"count": sum(counter.values()), "by_owner": dict(counter.most_common())}
+            for scope, counter in retargets.items()
+        },
+        "preemptions": block(preemptions),
+        "displacements": block(displacements),
+        "survival_displaced": block(survival_displaced),
+        "suspended": dict(suspended.most_common()),
+        "legacy_events": legacy,
     }
 
 

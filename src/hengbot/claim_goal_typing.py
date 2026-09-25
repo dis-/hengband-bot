@@ -484,6 +484,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("chest:step-off", R, WALK_TARGET),
         ("victory:", R, WALK_TARGET),
         ("conquest:", R, WALK_TARGET),
+        # S2b.1 round 2 (F5): picking up underfoot and the auto-destroy
+        # trigger each own exactly the decision that emits them.
+        ("pickup", T, EFFECT),
+        ("trigger-autodestroy", T, EFFECT),
     ),
     *_rows(
         "quest-sweep",

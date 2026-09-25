@@ -140,7 +140,10 @@ S2A1_ENDINGS = {
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
     # (floor-loot 70 complete, positioning 15 complete).
-    "floor-loot/Reach": {"complete": 68, "abandoned": 3},
+    # S2b.1 (design rev 10.1 items 5 and 7): the three walks combat took
+    # over are now suspended, resumed under their own ids and completed, and
+    # (c) counts one final ending per id -- 68 complete, none abandoned.
+    "floor-loot/Reach": {"complete": 68, "abandoned": 0},
     "floor-loot/Reach:one-step": {"complete": 2},
     "positioning/Reach": {"complete": 10, "release": 1},
     "positioning/Reach:one-step": {"complete": 5},

@@ -191,6 +191,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # recorded yet", which is exactly what a fresh process holds.
     restored.__dict__.setdefault("_decision_goal", None)
     restored.__dict__.setdefault("_decision_expectation", None)
+    # S2b.1 round 2 (rev 10.1 item 9): the per-decision trigger slot, reset
+    # at every ``choose_key`` entry like the two above.
+    restored.__dict__.setdefault("_decision_triggers", None)
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.
@@ -200,6 +203,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     register = restored.__dict__.get("_claim_register")
     if register is not None:
         register.__dict__.setdefault("_closing", None)
+        # S2b.1 (design rev 10.1 item 5): a checkpoint pickled before the
+        # suspended stack held no suspended claim; an empty stack is exact.
+        register.__dict__.setdefault("_suspended", [])
+        register.__dict__.setdefault("_suspended_closings", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")

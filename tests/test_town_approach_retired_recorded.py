@@ -188,6 +188,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             "claim_id": claim.get("claim_id"),
             "claim_state": claim.get("state"),
             "claim_distance": claim.get("distance"),
+            # S2b.1: a preempted claim resumed under its own id on this row
+            "claim_resumed": bool(claim.get("resumed")),
         }
         policy.confirm_key_posted(key)
         return decided
@@ -297,10 +299,16 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         )
         # ... under ONE claim, never retired, whose distance falls on every
         # decision.  Live retired the walk's first claim (924) on its first
-        # board by recurrence and opened 925 for the rest.
+        # board by recurrence and opened 925 for the rest.  S2b.1 (design rev
+        # 10.1 item 5): this walk to the same entrance was opened seven
+        # decisions earlier as claim 903, suspended when melee took the
+        # decision (the town kill and a loot pickup nested above it), and it
+        # resumes here under its own id -- where live, before the ladder,
+        # opened 924.
+        self.assertTrue(walk[0]["claim_resumed"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
-            {(924, "active")},
+            {(903, "active")},
         )
         self.assertEqual(
             [row["claim_distance"] for row in walk], list(range(34, 18, -1))

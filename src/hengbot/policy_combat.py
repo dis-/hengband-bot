@@ -940,6 +940,7 @@ class CombatMixin:
             )
         self.last_reason = "esp-threat:hunt-strong"
         self._declare_reach(step_target)
+        self._declare_triggers(committed)
         return self._step_toward(snapshot, step)
 
     def _esp_threat_end_hunt(
@@ -1038,6 +1039,7 @@ class CombatMixin:
                 return True, None
             self.last_reason = f"esp-threat:hunt-{tier}"
             self._declare_reach(step_target)
+            self._declare_triggers(targets)
             return True, self._step_toward(snapshot, step)
         if action == "leave":
             key = self._esp_threat_leave_key(snapshot, strategic_hostiles)
@@ -2153,6 +2155,7 @@ class CombatMixin:
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
         self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+        self._declare_triggers(adjacent)
         return self._step_toward(
             snapshot, step, allow_paralyzer_ring_escape=True
         )
@@ -2988,6 +2991,14 @@ class CombatMixin:
             plan.last_movement = (snapshot.player.position, step)
             self.last_reason = "melee:choke-reposition"
             self._declare_reach(plan.destination)
+            # the plan's own trigger set, by index; its race from the board
+            self._declare_triggers(
+                monster
+                for monster in (
+                    *snapshot.visible_monsters, *snapshot.detected_monsters
+                )
+                if monster.index in plan.trigger_last_seen
+            )
             return self._step_toward(snapshot, step)
         plan.phase = "validate"
         here = snapshot.grid_at(plan.destination)
@@ -3278,6 +3289,7 @@ class CombatMixin:
             if grid is None or not grid.allows_los:
                 return False
         return True
+    @claims(ClaimOwner.ESCAPE)
     def _flee_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         # Material-engagement retreat records each abandoned square so later
         # navigation cannot walk straight back into the same threat.  Retreat
@@ -3332,6 +3344,7 @@ class CombatMixin:
             )
 
         return max(candidates, key=score)
+    @claims(ClaimOwner.HUNT)
     def _hunt_step(
         self,
         snapshot: Snapshot,

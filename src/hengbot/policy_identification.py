@@ -1048,6 +1048,7 @@ class IdentificationMixin:
                 )
         return None
 
+    @claims(ClaimOwner.FLOOR_LOOT)
     def _normal_loot_key(
         self,
         snapshot: Snapshot,

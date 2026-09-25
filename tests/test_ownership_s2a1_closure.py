@@ -600,7 +600,14 @@ class ClosingPathsTest(unittest.TestCase):
             rows = _dungeon_rows()
         finally:
             HengbotPolicy._claim_close = original
-        self.assertEqual(_closings(rows), [])
+        # S2b.1 (design rev 10.1): with no closing call left, the explore
+        # walk is still open when positioning takes the decision, and
+        # positioning ranks above explore -- a ladder preemption, which does
+        # not go through ``_claim_close``.  It is the only closing left.
+        self.assertEqual(
+            _closings(rows),
+            [(2, "explore", "Reach", "suspended", "preempted-by:positioning")],
+        )
         # the closings are record-only: the decisions did not move
         self.assertEqual(
             [(row["key"], row["reason"]) for row in rows],
@@ -610,12 +617,14 @@ class ClosingPathsTest(unittest.TestCase):
         self.assertNotEqual(
             _endings_subset(gate, DUNGEON_ENDINGS), DUNGEON_ENDINGS
         )
-        # the unclosed Reach claims are what (a) counts
+        # the unclosed Reach claims are what (a) counts; S2b.1: the explore
+        # walk positioning took over is suspended (a preemption, above), so
+        # only positioning>combat is left unclosed
         self.assertEqual(
             gate["dropped_by_other_owner"]["pairs"],
-            {"explore>positioning": 1, "positioning>combat": 1},
+            {"positioning>combat": 1},
         )
-        self.assertEqual(implicit_handoffs(rows)["implicit_handoffs"], 2)
+        self.assertEqual(implicit_handoffs(rows)["implicit_handoffs"], 1)
 
     def test_posted_effect_captures_close_what_they_can(self):
         """The captures are effects that never arrived; their closings.
@@ -1728,7 +1737,12 @@ class NeutralityTest(unittest.TestCase):
 
 
 class SurvivalConstantTest(unittest.TestCase):
-    """B5: survival is exactly the user's list, and only it suspends."""
+    """B5: survival is exactly the user's list, and it always suspends.
+
+    S2b.1 (design rev 10 item 2): a strictly higher rung of the ladder
+    suspends too (``test_ownership_s2b1_ladder``); ``suspend`` still has one
+    caller.
+    """
 
     def test_the_constant_is_the_design_list(self):
         self.assertEqual(SURVIVAL_REASON_PREFIXES, DESIGN_SURVIVAL_PREFIXES)
@@ -1771,12 +1785,20 @@ class SurvivalConstantTest(unittest.TestCase):
         return register.current
 
     def test_survival_suspends_the_standing_goal_and_ordinary_does_not(self):
+        """Survival suspends as ``survival-preemption``; ordinary owners do not.
+
+        S2b.1 (design rev 10 item 2) changed the second half: an ordinary
+        owner ranked strictly above the holder now preempts too, recorded as
+        ``preempted-by:<family>`` and not as survival, and an ordinary owner
+        ranked below it suspends nothing (a violation, recorded on the row).
+        """
         board = _town_board()
-        for reason, suspended in (
-            ("emergency:teleport", True),
-            ("combat:disengage-step", True),
-            ("flee", False),
-            ("threat:scroll", False),
+        for reason, closed_reason in (
+            ("emergency:teleport", "survival-preemption"),
+            ("combat:disengage-step", "survival-preemption"),
+            ("flee", "preempted-by:escape"),
+            ("threat:scroll", "preempted-by:escape"),
+            ("explore", None),
         ):
             with self.subTest(reason=reason):
                 policy = _fresh_policy(board)
@@ -1784,14 +1806,19 @@ class SurvivalConstantTest(unittest.TestCase):
                 policy.last_reason = reason
                 policy._record_decision_claim(board, "r")
                 closed = policy.decision_claim["closed_claim"]
-                if suspended:
+                survival = closed_reason == "survival-preemption"
+                self.assertEqual(policy.decision_claim["survival"], survival)
+                if closed_reason is not None:
                     self.assertEqual(closed["claim_id"], standing.claim_id)
                     self.assertEqual(closed["state"], "suspended")
-                    self.assertEqual(closed["closed_reason"], "survival-preemption")
-                    self.assertTrue(policy.decision_claim["survival"])
+                    self.assertEqual(closed["closed_reason"], closed_reason)
+                    self.assertIsNone(policy.decision_claim["violation"])
                 else:
                     self.assertIsNone(closed)
-                    self.assertFalse(policy.decision_claim["survival"])
+                    self.assertEqual(
+                        policy.decision_claim["violation"]["claim_id"],
+                        standing.claim_id,
+                    )
 
 
 # -- restored checkpoints ----------------------------------------------------

@@ -29,6 +29,14 @@ per owner and kind, with ``goal_missing`` per owner; and (d) Terminal claims
 that spanned several rows while the player moved.  Since a Terminal claim now
 closes when it is posted, the implicit-handoff counts above fall mechanically;
 (c) and (d) are printed beside them so a fall caused by wrong typing shows.
+
+Then the S2b.1 ladder numbers that replace (a) and (b) (design rev 10 item 5,
+rev 10.1 items 7-8, ``ownership_metrics.ladder_numbers``): violations per
+runtime hour by pair and retarget violations by owner, each split into the
+in-scope families (the S2b.2 gate), the S3 families and survival;
+preemptions by pair; displacements; and how suspended claims left the stack.
+Rows written before the ladder are reclassified by rank through the writer's
+own functions (rev 10.1 item 11).  (c) counts one final ending per claim id.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from hengbot.ownership_metrics import (  # noqa: E402
     aggregate,
     gate_numbers,
     implicit_handoffs,
+    ladder_numbers,
     read_records,
     summarise_sessions,
 )
@@ -138,6 +147,76 @@ def gate_report(rows, hours: float | None = None, *, owner_of=None) -> list[str]
     return lines
 
 
+LADDER_SCOPES = (
+    ("in-scope", "in-scope families (the S2b.2 gate)"),
+    ("S3", "S3 families (store, Home, equipment, calibration, departure in town)"),
+    ("survival", "a survival claim on either side (outside the gate)"),
+)
+
+
+def ladder_report(rows, hours: float | None = None) -> list[str]:
+    """Design rev 10 item 5 / rev 10.1 items 7-8: the S2b.1 ladder numbers.
+
+    Rows written before the ladder are reclassified through the writer's own
+    functions (``ownership_metrics.ladder_numbers``, rev 10.1 item 11).
+    """
+    ladder = ladder_numbers(rows)
+
+    def rate(count: int) -> str:
+        return f"{count / hours:.3f}" if hours else "n/a"
+
+    lines = [
+        "S2b.1 ladder (design rev 10.1), "
+        f"{ladder['legacy_events']} older (a)/(b) event(s) reclassified by rank:",
+    ]
+    for scope, title in LADDER_SCOPES:
+        block = ladder["violations"][scope]
+        lines.append(
+            f"violations, {title:<70} {block['count']:>5}   "
+            f"per runtime hour {rate(block['count'])}"
+        )
+        for pair, times in list(block["pairs"].items())[:20]:
+            lines.append(f"    {pair:<48} {times}")
+    for scope, title in LADDER_SCOPES:
+        block = ladder["retargets"][scope]
+        lines.append(
+            f"retarget violations, {title:<61} {block['count']:>5}   "
+            f"per runtime hour {rate(block['count'])}"
+        )
+        for owner, times in list(block["by_owner"].items())[:20]:
+            lines.append(f"    {owner:<48} {times}")
+    preemptions = ladder["preemptions"]
+    lines.append(
+        f"preemptions (suspended, informational)                         "
+        f"{preemptions['count']:>5}   per runtime hour {rate(preemptions['count'])}"
+    )
+    for pair, times in list(preemptions["pairs"].items())[:20]:
+        lines.append(f"    {pair:<48} {times}")
+    displacements = ladder["displacements"]
+    lines.append(
+        f"displacements (a suspended claim released resume-displaced)    "
+        f"{displacements['count']:>5}"
+    )
+    for pair, times in list(displacements["pairs"].items())[:20]:
+        lines.append(f"    {pair:<48} {times}")
+    replaced = ladder["survival_displaced"]
+    lines.append(
+        f"survival displacements (exempt, not violations)               "
+        f"{replaced['count']:>5}"
+    )
+    for pair, times in list(replaced["pairs"].items())[:20]:
+        lines.append(f"    {pair:<48} {times}")
+    suspended = ladder["suspended"]
+    lines.append(
+        "suspended claims: "
+        + (
+            ", ".join(f"{label}={times}" for label, times in suspended.items())
+            or "none"
+        )
+    )
+    return lines
+
+
 def claim_report(rows, hours: float | None) -> list[str]:
     """Design 5.2, from the claim ledger: implicit owner changes per hour."""
     lines = [f"claim rows     {len(rows)}"]
@@ -155,6 +234,7 @@ def claim_report(rows, hours: float | None) -> list[str]:
         if not measured["pairs"]:
             lines.append("    (none)")
     lines.extend(gate_report(rows, hours))
+    lines.extend(ladder_report(rows, hours))
     return lines
 
 
@@ -311,6 +391,7 @@ def main(argv: list[str] | None = None) -> int:
                         for by in CLAIM_BREAKDOWNS
                     ],
                     "gate": gate_numbers(claim_rows),
+                    "ladder": ladder_numbers(claim_rows),
                 },
                 "blind_spot": BLIND_SPOT,
             },
