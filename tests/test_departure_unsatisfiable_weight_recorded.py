@@ -332,10 +332,11 @@ class ObservedMutationReleasesTownOwnersTest(unittest.TestCase):
             blockers=(), result=None
         )
         self.assertTrue(self.policy._inventory_overweight(self.after))
+        # Take the ring off its slot (EQUIPMENT_SLOT_KEY: main_ring 'd').
         key = self.policy._equipment_takeoff(
-            self.before, "transaction-apply", "c"
+            self.before, "transaction-apply", "d"
         )
-        self.assertEqual(key, "tc")
+        self.assertEqual(key, "td")
         self.policy.confirm_key_posted(key)
         self.assertEqual(
             self.policy._equipment_mutation.state, EquipmentMutationState.POSTED

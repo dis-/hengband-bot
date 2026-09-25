@@ -15,7 +15,10 @@ from hengbot.model import (
     TVAL_SHIELD,
     TVAL_SWORD,
 )
-from hengbot.policy_constants import EQUIPMENT_MUTATION_RELEASE_LIMIT
+from hengbot.policy_constants import (
+    EQUIPMENT_MUTATION_RELEASE_LIMIT,
+    EQUIPMENT_SLOT_KEY,
+)
 
 
 WIELD_KEY = "w"
@@ -44,6 +47,58 @@ def equipment_signature(snapshot) -> tuple:
         )
         for item in snapshot.equipment
     ), key=repr))
+
+
+_SLOT_BY_KEY = {key: slot for slot, key in EQUIPMENT_SLOT_KEY.items()}
+_EFFECT = "requested-effect"
+
+
+def worn_identity(item) -> tuple | None:
+    """What a wield/takeoff changes, without the display name's volatile parts.
+
+    The name carries a light's remaining fuel, an activation's recharge, the
+    inscription, learned flags and shots-per-turn figures, all of which change
+    without any equipment command.  None of them is a mutation's effect.
+    """
+    if item is None:
+        return None
+    return tuple(getattr(item, name, None) for name in (
+        "tval", "sval", "count", "is_artifact", "is_ego", "to_h", "to_d",
+        "to_a", "ac", "pval", "damage_dice_num", "damage_dice_sides", "weight",
+    ))
+
+
+def _worn(snapshot, slot: str | None):
+    return next(
+        (item for item in snapshot.equipment if getattr(item, "slot", None) == slot),
+        None,
+    )
+
+
+def _worn_count(snapshot, identity: tuple | None) -> int:
+    return sum(1 for item in snapshot.equipment if worn_identity(item) == identity)
+
+
+def _requested_effect(snapshot, kind: str, slot: str | None, item) -> tuple:
+    """The observation that completes this one command (see ``observe``)."""
+    identity = worn_identity(item)
+    return (
+        _EFFECT, kind, slot, worn_identity(_worn(snapshot, slot)), identity,
+        _worn_count(snapshot, identity),
+    )
+
+
+def _effect_observed(snapshot, expected: tuple | None) -> bool:
+    if not (isinstance(expected, tuple) and expected[:1] == (_EFFECT,)):
+        # A pre-rule expectation (a restored checkpoint): the old comparison.
+        return equipment_signature(snapshot) != expected
+    _marker, kind, slot, slot_before, identity, worn_before = expected
+    # The requested slot's occupant changed: the takeoff emptied (or the game
+    # replaced) it, or the wield put something else there.
+    if slot is not None and worn_identity(_worn(snapshot, slot)) != slot_before:
+        return True
+    # A wield the game placed in another slot still wears one more of the item.
+    return kind == "wield" and _worn_count(snapshot, identity) > worn_before
 
 
 def _item_identity(item) -> tuple:
@@ -85,9 +140,16 @@ class EquipmentMutationExecutor:
     _OPPOSING = frozenset({"mining-loadout", "combat-loadout"})
 
     def observe(self, snapshot) -> None:
+        """Complete a posted command only on its own effect.
+
+        A takeoff is complete when the requested slot no longer holds what it
+        held; a wield when the requested slot's occupant changed or one more
+        of the wielded item is worn.  A cosmetic change of worn items (fuel,
+        recharge, inscription, learned flags in the name) completes nothing.
+        """
         if (
             self.state == EquipmentMutationState.POSTED
-            and equipment_signature(snapshot) != self.expected_signature
+            and _effect_observed(snapshot, self.expected_signature)
         ):
             self.observed_changes += 1
             self.state = EquipmentMutationState.IDLE
@@ -122,20 +184,28 @@ class EquipmentMutationExecutor:
             return EquipmentMutationResult(None, self.last_report)
         return None
 
-    def _prepare(self, snapshot, goal: str, key: str) -> EquipmentMutationResult:
+    def _prepare(
+        self, snapshot, goal: str, key: str, effect: tuple | None = None
+    ) -> EquipmentMutationResult:
         refusal = self._begin(snapshot, goal)
         if refusal is not None:
             return refusal
         self.state = EquipmentMutationState.PREPARED
         self.goal = goal
         self.prepared_key = key
-        self.expected_signature = equipment_signature(snapshot)
+        self.expected_signature = (
+            effect if effect is not None else equipment_signature(snapshot)
+        )
         self.prepared_core = progress_core(snapshot)
         self.last_report = None
         return EquipmentMutationResult(key)
 
     def request_takeoff(self, snapshot, goal: str, slot_key: str) -> EquipmentMutationResult:
-        return self._prepare(snapshot, goal, TAKEOFF_KEY + slot_key)
+        slot = _SLOT_BY_KEY.get(slot_key)
+        return self._prepare(
+            snapshot, goal, TAKEOFF_KEY + slot_key,
+            _requested_effect(snapshot, "takeoff", slot, _worn(snapshot, slot)),
+        )
 
     def request_wield(
         self, snapshot, goal: str, item, target_slot: str, slot_keys: dict[str, str]
@@ -175,7 +245,10 @@ class EquipmentMutationExecutor:
                 suffix = slot_keys[target_slot]
         elif tval == TVAL_RING:
             suffix = "(" if target_slot == "main_ring" else ")"
-        return self._prepare(snapshot, goal, WIELD_KEY + item.slot + suffix)
+        return self._prepare(
+            snapshot, goal, WIELD_KEY + item.slot + suffix,
+            _requested_effect(snapshot, "wield", target_slot, item),
+        )
 
     def confirm_posted(self, key: str) -> bool:
         if self.state != EquipmentMutationState.PREPARED or key != self.prepared_key:
