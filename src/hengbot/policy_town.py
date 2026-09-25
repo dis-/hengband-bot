@@ -3199,6 +3199,34 @@ class TownMixin:
             snapshot.player.gold,
         )
 
+    def _observe_home_operation_effect(self) -> None:
+        """A posted Home deposit or withdrawal's effect was observed.
+
+        User decision 2026-09-16: a Home operation that succeeded resets the
+        unsuccessful-pass count, and a block that count installed is released
+        with it; the 300/3 limits stay.  Success is the observed effect,
+        wherever it is confirmed: the outside board of an atomic deposit or
+        withdrawal and the Home board that confirms an equipment-transaction
+        deposit or withdrawal have no stop pass of their own, so without this
+        seam the passes spent around them stayed charged.  A Home whose
+        operation just took effect was reached, so its failed approaches are
+        released too.  Only passes and approaches after the last observed
+        effect can exhaust the bound for later Home work.
+        """
+        ledger = self._town_visit_ledger
+        ledger.unsatisfied_passes[STORE_HOME] = 0
+        ledger.approach_fails.pop(STORE_HOME, None)
+        # ``blocked_store_limits`` names a block the pass count installed; a
+        # block with another origin (the equipment route-repeat terminal)
+        # keeps its own authority.
+        if (
+            STORE_HOME in ledger.blocked_stores
+            and STORE_HOME in ledger.blocked_store_limits
+        ):
+            self._rearm_town_store_for_new_work(
+                STORE_HOME, release_visit_bound=True
+            )
+
     def _report_town_stop_pass(
         self,
         snapshot: Snapshot,

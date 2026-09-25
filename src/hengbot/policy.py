@@ -4051,6 +4051,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     owners=CLAIM_HOME_EFFECT_OWNERS,
                     sources=CLAIM_HOME_EFFECT_SOURCES,
                 )
+                self._observe_home_operation_effect()
                 if (
                     self._store_visit is not None
                     and self._store_visit.store_type == STORE_HOME
@@ -4353,6 +4354,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, operation_outcome=operation_outcome,
             ))
             self._equipment_transaction_operation_outcome = None
+            if (
+                advanced
+                and pending is not None
+                and pending.kind in {"deposit", "withdraw"}
+            ):
+                # The confirmed transaction moved an item into or out of Home.
+                self._observe_home_operation_effect()
             if advanced and pending is not None:
                 if (
                     pending.kind == "takeoff"
@@ -4491,6 +4499,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         owners=CLAIM_HOME_EFFECT_OWNERS,
                         sources=CLAIM_HOME_EFFECT_SOURCES,
                     )
+                    self._observe_home_operation_effect()
                     if (
                         self._store_visit is not None
                         and self._store_visit.store_type == STORE_HOME

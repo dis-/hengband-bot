@@ -1843,6 +1843,7 @@ class HomeMixin:
         self._home_procurement_batch_active = bool(self._home_pending_batch)
         self._invalidate_home_observation()
         if succeeded:
+            self._observe_home_operation_effect()
             self._refresh_carried_equipment_catalog(snapshot)
         if self._calibration_restore_signatures:
             self._rearm_town_store_for_new_work(
