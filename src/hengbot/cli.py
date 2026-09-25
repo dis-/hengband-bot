@@ -48,6 +48,7 @@ from hengbot.policy import (
     TOWN_TRAVEL_TURN_STALL_LIMIT,
     WAIT_KEY,
     required_depth_gates,
+    staged_prompt_chain_matches,
 )
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
@@ -2354,10 +2355,7 @@ def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuati
 
 
 def _chain_matches(chain: dict, key: str) -> bool:
-    chain_key = str(chain.get("key", ""))
-    return bool(key and chain_key) and key[0] == chain_key[0] and len(key) == len(
-        chain_key
-    )
+    return staged_prompt_chain_matches(chain, key)
 
 
 def _release_prompt_gated_tail(
@@ -4160,6 +4158,28 @@ def _run_follow(
                             ownership_ledger=ownership_ledger,
                         )
                     if not sent:
+                        if (
+                            chain is not None
+                            and chain_result is not None
+                            and chain_result.get("drop_reason") == "key-replaced"
+                        ):
+                            # The policy releases a chain whose command its
+                            # exit rewrote, so a staged chain that does not
+                            # match the key reaching the sender was replaced
+                            # after the decision.  Nothing was posted and an
+                            # idle game emits no new board: waiting here only
+                            # ends later as a misattributed stuck-prompt.
+                            print(
+                                "<staged-chain-key-replaced> the staged "
+                                f"{chain.get('owner')} chain "
+                                f"{str(chain.get('key', ''))!r} does not gate "
+                                f"the emitted key {key!r} "
+                                f"({policy.last_reason}); nothing was posted",
+                                file=sys.stderr, flush=True,
+                            )
+                            return incident_stop(
+                                "staged-chain-key-replaced", snapshot
+                            )
                         if sent is SendResult.DESIGNED_WAIT:
                             continue
                         return incident_stop(

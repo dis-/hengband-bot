@@ -619,6 +619,20 @@ def home_page_message_body(message: str) -> str:
     return match.group("body") if match else message
 
 
+def staged_prompt_chain_matches(chain: dict, key) -> bool:
+    """Whether ``key`` is the command a staged prompt chain gates.
+
+    The sender releases a chain's tail at the gate offsets it staged, so the
+    emitted key must keep the staged command byte and length; only a read
+    rebind (``validate_read_key``) may change the selected letters.
+    """
+    chain_key = str(chain.get("key", ""))
+    key = str(key) if key is not None else ""
+    return bool(key and chain_key) and key[0] == chain_key[0] and len(key) == len(
+        chain_key
+    )
+
+
 # A TR_WARNING item's forecast (object/warning.cpp:504-516, damage over half of
 # current HP) and its trap forecast (:528-538) both end in the same
 # input_check(「本当にこのまま進むか？」/"Really want to go ahead? ").
@@ -2866,6 +2880,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         f"town:entrance-wait-refused:{wait_reason or 'wait'}"
                     )
         self._release_rewritten_store_posting(decided_visit, decided_key, key)
+        self._release_rewritten_prompt_chain(key)
         self._record_decision_claim(snapshot, key)
         return key
 
@@ -3398,6 +3413,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _note_return_end(self) -> None:
         """Record-only: the return ended (``_returning_to_town = False``)."""
         self._survival_return_trigger = None
+
+    def _release_rewritten_prompt_chain(self, key) -> None:
+        """Drop a staged prompt chain whose command is not the emitted key.
+
+        A producer stages its prompt-gated chain together with the key it
+        returns (identification, launcher enchantment).  The public seam then
+        lets detectors and safety rewrites replace that key -- live
+        2026-09-25 12:56, sequence 7288: ``town:enchant-launcher-tohit``
+        staged 'rlc' and the town progress invariant emitted its approach
+        travel instead.  The chain belongs to the replaced command, which is
+        never posted, so it cannot gate the replacement: left staged, the
+        sender refused the replacement as ``key-replaced`` and the idle game
+        produced no further board.  Only the emitted key's own chain may
+        survive this seam.
+        """
+        chain = self._staged_prompt_chain
+        if chain is not None and not staged_prompt_chain_matches(chain, key):
+            self._staged_prompt_chain = None
 
     def _release_rewritten_store_posting(
         self, decided_visit, decided_key, key,
