@@ -50,22 +50,47 @@ def equipment_signature(snapshot) -> tuple:
 
 
 _SLOT_BY_KEY = {key: slot for slot, key in EQUIPMENT_SLOT_KEY.items()}
-_EFFECT = "requested-effect"
+_EFFECT = "requested-item"
 
 
-def worn_identity(item) -> tuple | None:
-    """What a wield/takeoff changes, without the display name's volatile parts.
+def stable_identity(item) -> tuple | None:
+    """What identifies this very item across boards, and nothing mutable.
 
-    The name carries a light's remaining fuel, an activation's recharge, the
-    inscription, learned flags and shots-per-turn figures, all of which change
-    without any equipment command.  None of them is a mutation's effect.
+    Base kind (tval, and sval once the flavor is aware), weight, and the
+    ego/artifact class once the item is known.  Bonuses (disenchantment),
+    charges, fuel, inscription, learned flags and the display name all change
+    without any equipment command and are never part of it.  Knowledge-gated
+    fields are None while unknown, so wearing an item that identifies it on
+    the spot still matches (``same_item``).
     """
     if item is None:
         return None
-    return tuple(getattr(item, name, None) for name in (
-        "tval", "sval", "count", "is_artifact", "is_ego", "to_h", "to_d",
-        "to_a", "ac", "pval", "damage_dice_num", "damage_dice_sides", "weight",
-    ))
+    aware = getattr(item, "aware", True)
+    known = getattr(item, "known", True)
+    return (
+        getattr(item, "tval", None),
+        getattr(item, "weight", None),
+        getattr(item, "sval", None) if aware else None,
+        (
+            bool(getattr(item, "is_ego", False)),
+            bool(getattr(item, "is_artifact", False)),
+        ) if known else None,
+    )
+
+
+def same_item(identity: tuple | None, item) -> bool:
+    """Whether ``item`` can be the item ``identity`` was taken from."""
+    other = stable_identity(item)
+    if identity is None or other is None:
+        return identity is None and other is None
+    tval, weight, sval, grade = identity
+    o_tval, o_weight, o_sval, o_grade = other
+    return (
+        tval == o_tval
+        and weight == o_weight
+        and (sval is None or o_sval is None or sval == o_sval)
+        and (grade is None or o_grade is None or grade == o_grade)
+    )
 
 
 def _worn(snapshot, slot: str | None):
@@ -76,29 +101,70 @@ def _worn(snapshot, slot: str | None):
 
 
 def _worn_count(snapshot, identity: tuple | None) -> int:
-    return sum(1 for item in snapshot.equipment if worn_identity(item) == identity)
+    return sum(1 for item in snapshot.equipment if same_item(identity, item))
+
+
+def _pack_count(snapshot, identity: tuple | None) -> int:
+    return sum(
+        int(getattr(item, "count", 1) or 1)
+        for item in snapshot.inventory
+        if same_item(identity, item)
+    )
 
 
 def _requested_effect(snapshot, kind: str, slot: str | None, item) -> tuple:
     """The observation that completes this one command (see ``observe``)."""
-    identity = worn_identity(item)
+    identity = stable_identity(item)
     return (
-        _EFFECT, kind, slot, worn_identity(_worn(snapshot, slot)), identity,
+        _EFFECT, kind, slot, identity,
+        same_item(identity, _worn(snapshot, slot)),
         _worn_count(snapshot, identity),
+        _pack_count(snapshot, identity),
     )
 
 
+def _slot_kinds(entries) -> dict:
+    """Slot -> base kind of a worn-state record (old signature or board)."""
+    kinds = {}
+    for entry in entries:
+        if isinstance(entry, tuple) and len(entry) >= 3:
+            kinds[entry[0]] = (entry[1], entry[2])
+    return kinds
+
+
 def _effect_observed(snapshot, expected: tuple | None) -> bool:
-    if not (isinstance(expected, tuple) and expected[:1] == (_EFFECT,)):
-        # A pre-rule expectation (a restored checkpoint): the old comparison.
-        return equipment_signature(snapshot) != expected
-    _marker, kind, slot, slot_before, identity, worn_before = expected
-    # The requested slot's occupant changed: the takeoff emptied (or the game
-    # replaced) it, or the wield put something else there.
-    if slot is not None and worn_identity(_worn(snapshot, slot)) != slot_before:
-        return True
-    # A wield the game placed in another slot still wears one more of the item.
-    return kind == "wield" and _worn_count(snapshot, identity) > worn_before
+    if not (
+        isinstance(expected, tuple)
+        and len(expected) == 7
+        and expected[0] == _EFFECT
+    ):
+        # A pre-rule expectation restored from a checkpoint: the whole worn
+        # signature at post time, without the requested slot or item.  Only a
+        # change of some slot's base kind (an item left or entered it) is the
+        # command's effect; a name-only change (fuel, recharge, inscription)
+        # keeps it in flight.
+        current = _slot_kinds(
+            (
+                getattr(item, "slot", None), getattr(item, "tval", None),
+                getattr(item, "sval", None),
+            )
+            for item in snapshot.equipment
+        )
+        return current != _slot_kinds(expected or ())
+    _marker, kind, slot, identity, held_before, worn_before, pack_before = expected
+    if kind == "wield":
+        # The requested item now occupies the requested slot and either left
+        # the pack or was not there before; or one more of it is worn where
+        # the game put it.
+        in_slot = same_item(identity, _worn(snapshot, slot))
+        worn_more = _worn_count(snapshot, identity) > worn_before
+        left_pack = _pack_count(snapshot, identity) < pack_before
+        return (in_slot and (not held_before or left_pack)) or worn_more
+    # Takeoff: the slot no longer holds that item, and the item is in the pack.
+    return (
+        not same_item(identity, _worn(snapshot, slot))
+        and _pack_count(snapshot, identity) > pack_before
+    )
 
 
 def _item_identity(item) -> tuple:
@@ -142,10 +208,11 @@ class EquipmentMutationExecutor:
     def observe(self, snapshot) -> None:
         """Complete a posted command only on its own effect.
 
-        A takeoff is complete when the requested slot no longer holds what it
-        held; a wield when the requested slot's occupant changed or one more
-        of the wielded item is worn.  A cosmetic change of worn items (fuel,
-        recharge, inscription, learned flags in the name) completes nothing.
+        A wield is complete when the requested item occupies the requested
+        slot; a takeoff when the slot no longer holds the item that was there
+        and that item is in the pack.  Items are matched by their stable
+        identity: a bonus change (disenchantment), fuel, recharge, inscription
+        or learned flags complete nothing.
         """
         if (
             self.state == EquipmentMutationState.POSTED

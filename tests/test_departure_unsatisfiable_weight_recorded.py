@@ -319,13 +319,15 @@ class ObservedMutationReleasesTownOwnersTest(unittest.TestCase):
     """
 
     def setUp(self):
-        self.after = test_policy_home.WeightOverloadTownTest()._snapshot()
+        board = test_policy_home.WeightOverloadTownTest()._snapshot()
         ring = replace(
             test_policy_home.item("main_ring", 45, 8, is_equipment=True),
             weight=2,
         )
-        self.before = replace(
-            self.after, equipment=[*self.after.equipment, ring]
+        self.before = replace(board, equipment=[*board.equipment, ring])
+        # The takeoff's effect: the ring left its slot and is in the pack.
+        self.after = replace(
+            board, inventory=[*board.inventory, replace(ring, slot="s")]
         )
         self.policy = HengbotPolicy()
         self.policy._equipment_optimization_preparation = SimpleNamespace(
