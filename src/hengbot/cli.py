@@ -2884,6 +2884,23 @@ def _make_jsonl_barrier_drain(path: Path):
         offset = 0
     pending = ""
     handed_records: list[Mapping[str, object]] = []
+    # The newest board already written when this reader attached.  It is
+    # never drained or handed to the follow loop (which primes from the same
+    # row itself); the executor may bind only its store payload at its first
+    # boundary, because a store screen that is already open emits no new row.
+    store_record_at_attach: Mapping[str, object] | None = None
+    try:
+        attach_lines = list(_read_last_snapshot_line(path, end=offset)) if offset else []
+    except OSError:
+        attach_lines = []
+    if attach_lines:
+        try:
+            attach_board = json.loads(attach_lines[0])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            attach_board = None
+        if isinstance(attach_board, Mapping) and isinstance(
+                attach_board.get("store"), Mapping):
+            store_record_at_attach = attach_board
 
     def drain():
         nonlocal offset, pending
@@ -2918,6 +2935,7 @@ def _make_jsonl_barrier_drain(path: Path):
 
     drain.take_handed_records = take_handed_records
     drain.consumed_offset = lambda: offset
+    drain.store_record_at_attach = lambda: store_record_at_attach
     drain.last_timing = {"bytes": 0, "decode_ms": 0.0, "total_ms": 0.0}
 
     return drain
@@ -4874,13 +4892,16 @@ def _read_last_line(path: Path) -> Iterable[str]:
     return [lines[-1].decode("utf-8", errors="replace")]
 
 
-def _read_last_snapshot_line(path: Path) -> Iterable[str]:
-    """Find the newest complete player board, skipping trailing response rows."""
+def _read_last_snapshot_line(path: Path, *, end: int | None = None) -> Iterable[str]:
+    """Find the newest complete player board, skipping trailing response rows.
+
+    ``end`` bounds the search to the bytes written before that offset.
+    """
     if not path.exists():
         return []
     with path.open("rb") as file:
         file.seek(0, 2)
-        position = file.tell()
+        position = file.tell() if end is None else min(end, file.tell())
         suffix = b""
         while position > 0:
             size = min(64 * 1024, position)

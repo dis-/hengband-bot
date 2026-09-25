@@ -1,0 +1,6 @@
+Source: jsonlog/bot-state-fixed.jsonl as left by the live game (PID 16268) at 2026-09-25 14:53, the state log the 16:33 `hengband-bot-play.ps1 -Action resume` process attached to (bot-stderr.log: `<stuck-prompt> owner=bootstrap phase=store-state ... reason=missing or mismatching current store page`).
+Selection: the last two rows of that file (44,645,680 bytes), byte-for-byte, both turn 5550750:
+  row at byte 44577714, 28313 bytes, type player_turn (the Home entrance surface board, with grid_map), sha256 e46a6dae3ae9175326f5d3e0ff9460c21c3b530ea5bdf28e02ac420f377f659b
+  row at byte 44606028, 39651 bytes, type store (store_type 7 = Home, capacity 240, stock_num 131, page_top 0, page_size 52, 52 items; the file's final row), sha256 05e9958ff5c8bda7beeeaed28745c5758b065dd603a4b088d0bdf1abe09179c6
+No later row exists: the game was still on this Home page when the resume process attached, so its reader started at EOF behind the only store record.
+Derived in the test (not recorded): the TCP `state` reply (the store row without `store`, with the surface row's grid_map; the control server's state op never carries a store payload), and the TCP `screen` reply (tests/fixtures/live-screens/28-after-menu-esc-20260915.json, a recorded 211x67 Home page of 52 slots, with its item rows rewritten from the recorded store row's letters and names).

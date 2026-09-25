@@ -663,12 +663,21 @@ def compose_barrier_board(
         state: Mapping[str, object], screen: Mapping[str, object], kind: ScreenKind,
         records: Iterable[Mapping[str, object]],
         timing: dict[str, object] | None = None,
+        *, attach_store_record: Mapping[str, object] | None = None,
 ) -> tuple[dict[str, object] | None, list[Mapping[str, object]]]:
     """Build the sole policy board and preserve the physical observation order.
 
     TCP ``state`` is the base.  JSONL contributes only unread message diffs and,
     at a store command stop, the last fully bound current-page store payload.
     State HISTORY is deliberately not copied into the policy message delta.
+
+    ``attach_store_record`` is the newest JSONL board written before the
+    reader attached.  The TCP state carries no store payload and the game
+    writes a store record only when the store screen is drawn or a key is
+    processed, so a process started on an already-open store screen has no
+    unread store record.  That older record may supply only the store payload
+    (never messages) and only when no unread record carries one; it must pass
+    the same state and screen binding as an unread record.
     """
     compose_started = time.perf_counter()
     ordered = [record for record in records if isinstance(record, Mapping)]
@@ -693,6 +702,9 @@ def compose_barrier_board(
         record for record in ordered
         if isinstance(record.get("store"), Mapping)
     ]
+    if not candidates and isinstance(attach_store_record, Mapping) and isinstance(
+            attach_store_record.get("store"), Mapping):
+        candidates = [attach_store_record]
     if not candidates:
         return None, ordered
     candidate = candidates[-1]
@@ -781,7 +793,7 @@ class OperationExecutor:
             RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
         )
 
-    def _finish_board(self, state, screen_value, match):
+    def _finish_board(self, state, screen_value, match, *, bootstrap: bool = False):
         started = time.perf_counter()
         records = self.drain()
         drained_at = time.perf_counter()
@@ -794,8 +806,16 @@ class OperationExecutor:
             drain_timing = getattr(self.drain, "last_timing", {})
             timing["jsonl_drain_bytes"] += int(drain_timing.get("bytes", 0))
             timing["jsonl_decode_ms"] += float(drain_timing.get("decode_ms", 0.0))
+        # Only the first boundary of a process may bind the store record the
+        # game wrote before this reader attached (a start/resume on an open
+        # store screen); every later barrier follows its own posted keys.
+        attach_store_record = None
+        if bootstrap:
+            attach = getattr(self.drain, "store_record_at_attach", None)
+            attach_store_record = attach() if callable(attach) else None
         board, _ordered = compose_barrier_board(
-            state, screen_value, match.kind, records, timing)
+            state, screen_value, match.kind, records, timing,
+            attach_store_record=attach_store_record)
         if board is None:
             return None
         if timing is not None:
@@ -884,7 +904,9 @@ class OperationExecutor:
             return self._answer_observed_level_up(operation, match, deadline)
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
             return self._terminal(operation, "classification", match.feature, match)
-        board = self._finish_board(state, screen_value, match)
+        board = self._finish_board(
+            state, screen_value, match,
+            bootstrap=operation is None and self.barrier_sequence == 0)
         if board is None:
             return self._terminal(
                 operation, "store-state",
