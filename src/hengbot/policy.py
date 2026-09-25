@@ -113,6 +113,16 @@ from hengbot.claim_goal_typing import (
     goal_typing as claim_goal_typing,
     is_survival as claim_is_survival,
 )
+from hengbot.claim_ladder import (
+    PREEMPTION as CLAIM_PREEMPTION,
+    TRIGGER_FAMILIES as CLAIM_TRIGGER_FAMILIES,
+    VIOLATION as CLAIM_VIOLATION,
+    nests_over as claim_nests_over,
+    owner_change as claim_owner_change,
+    pair_scope as claim_pair_scope,
+    rung_of as claim_rung_of,
+    rung_of_claim as claim_rung_of_claim,
+)
 from hengbot.policy_types import (
     EXPECTATION_POP_SATISFIED,
     OWNER_EXPECTATION_MAX_TURNS,
@@ -3253,7 +3263,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif (
                 goal.within is not None
                 and standing.opened_turn is not None
-                and snapshot.turn - standing.opened_turn > goal.within
+                # S2b.1 (rev 10.1 item 6): the turns spent suspended do not
+                # count against a resumed claim's ``within``.
+                and snapshot.turn - standing.opened_turn
+                - (standing.suspended_turns or 0) > goal.within
             ):
                 self._claim_close("expire", "within-exceeded", owners=own)
             return
@@ -3278,7 +3291,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (
             goal.within is not None
             and standing.opened_sequence is not None
-            and self._decision_sequence - standing.opened_sequence >= goal.within
+            # S2b.1 (rev 10.1 item 6): nor do the decisions spent suspended.
+            and self._decision_sequence - standing.opened_sequence
+            - (standing.suspended_decisions or 0) >= goal.within
         ):
             self._claim_close("expire", "within-exceeded", owners=own)
 
@@ -3314,6 +3329,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         test, or the survival preemption (``suspend``, survival only).  The
         row carries the closed claim as ``closed_claim``, because the row that
         owned it is already written.
+
+        S2b.1 (design rev 10.1): the decision's rung and rank come from
+        ``claim_ladder.rung_of``; a strictly higher rung preempts (suspends)
+        the held Reach/Observe claim as survival does, anything else that
+        drops it is a violation recorded on the row; the suspended stack is
+        resolved (resume under the same id, nest, displace, release) and the
+        trigger monsters of item 9 are recorded.  Still record-only.
         """
         registry = getattr(self, "_owner_expectations", None)
         pops = (
@@ -3328,38 +3350,84 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         reason = self.last_reason or ""
         standing = register.current
         self._claim_exit_completion(snapshot, standing, pops)
+        # S2b.1 (rev 10.1 item 6, rules i-ii): the suspended claims this board
+        # ends -- a floor change, or a goal the board shows met.
+        self._claim_suspended_exit(snapshot, register)
         # Rev 9.2 (S): the danger trigger of *this* return, recorded where the
         # return began -- never ``_last_return_trigger``, which outlives it.
         survival = claim_is_survival(
             reason, getattr(self, "_survival_return_trigger", None)
         )
-        standing = register.current
-        if (
-            survival
-            and standing is not None
-            and standing.is_open
-            and not standing.survival
-            and standing.goal.kind in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
-        ):
-            # Design rev 9 item 3: survival preempts and suspends; it is the
-            # only caller of ``suspend``.
-            register.suspend("survival-preemption")
-        finished = register.take_closing()
-        closed = finished.closing_dict() if finished is not None else None
         # S2a: the claim records the **census** family -- who owns the
         # producer -- not the arbitration bucket its reason spends in town.
         owner = claim_owner_of(self._claim_family_of(reason))
+        # S2b.1 (rev 10.1 items 1-2): the rung and rank of this decision.
+        # Nothing sets ``non_discardable`` yet (design 3.1; S1 left it unset),
+        # so the transaction owner's rung of item 2 is reached only once a
+        # producer declares it.  Setting it here from the stripped-items list
+        # was measured and rejected: the flag flips in the middle of an open
+        # transaction ``Observe`` claim, and the continuity rule then abandons
+        # that claim (two spurious equipment-txn retargets on the recorded
+        # tour, test_unaffordable_claim_tour_recorded).
+        non_discardable = False
+        rung = claim_rung_of(owner, reason, non_discardable=non_discardable)
+        standing = register.current
         goal, goal_missing, goal_note = self._claim_goal(
-            snapshot, key, owner, reason, register.current
+            snapshot, key, owner, reason, standing
         )
-        register.declare(
-            owner,
-            goal,
-            opened_sequence=self._decision_sequence,
-            floor=snapshot.floor_key,
-            survival=survival,
-            opened_turn=snapshot.turn,
+        preemption, violation = self._claim_owner_transition(
+            register, standing, owner, goal, rung, survival, non_discardable
         )
+        if preemption is not None:
+            # Design 3.2 / rev 10 item 2: a strictly higher rung, or survival,
+            # suspends the holder with its goal intact.  The one caller of
+            # ``suspend``.
+            register.suspend(
+                preemption, sequence=self._decision_sequence, turn=snapshot.turn
+            )
+            # S2a.1's order: the goal is read after the suspension, exactly as
+            # it was when survival was the only preemptor.
+            goal, goal_missing, goal_note = self._claim_goal(
+                snapshot, key, owner, reason, register.current
+            )
+        resumed = self._claim_resolve_suspended(
+            register, owner, goal, rung, survival, non_discardable
+        )
+        finished = register.take_closing()
+        closed = finished.closing_dict() if finished is not None else None
+        suspended_closed = register.take_suspended_closings()
+        if resumed is not None:
+            claim = register.resume(
+                resumed.claim_id,
+                sequence=self._decision_sequence,
+                turn=snapshot.turn,
+                rank=rung.rank,
+                rung=rung.name,
+                perceived_turn=self._claim_trigger_perceived(
+                    snapshot, resumed.trigger_monsters
+                ),
+            )
+        else:
+            current = register.current
+            continuing = register.continues(owner, goal, non_discardable)
+            triggers = (
+                current.trigger_monsters
+                if continuing and current is not None
+                else self._claim_trigger_monsters(snapshot, owner, goal)
+            )
+            register.declare(
+                owner,
+                goal,
+                non_discardable=non_discardable,
+                opened_sequence=self._decision_sequence,
+                floor=snapshot.floor_key,
+                survival=survival,
+                opened_turn=snapshot.turn,
+                rank=rung.rank,
+                rung=rung.name,
+                trigger_monsters=triggers,
+                perceived_turn=self._claim_trigger_perceived(snapshot, triggers),
+            )
         if self._claim_owner_retired(owner):
             claim = register.retire()
         elif key is None or key == "":
@@ -3374,6 +3442,29 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "goal_missing": goal_missing,
             "goal_note": goal_note,
             "survival": survival,
+            # S2b.1 (design rev 10.1), record-only.
+            "rank": rung.rank,
+            "rung": rung.name,
+            "violation": violation,
+            "resumed": (
+                None
+                if resumed is None
+                else {
+                    "claim_id": claim.claim_id,
+                    "owner": claim.owner.value,
+                    "goal_kind": claim.goal.kind,
+                    "suspended_decisions": claim.suspended_decisions,
+                    "suspended_turns": claim.suspended_turns,
+                }
+            ),
+            "suspended_closed": suspended_closed or None,
+            "suspended_depth": len(register.suspended),
+            "trigger_monsters": (
+                [list(pair) for pair in claim.trigger_monsters]
+                if claim.trigger_monsters
+                else None
+            ),
+            "last_perceived_turn": claim.last_perceived_turn,
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
@@ -3381,6 +3472,211 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # second str subclass.  Nothing reads it before S2's port-side
             # check, so writing it cannot change this decision.
             key.claim_id = claim.claim_id
+
+    # -- S2b.1: the ladder, preemption and violations (design rev 10.1) -------
+    #
+    # Record-only, like everything above: these helpers read the snapshot and
+    # the claim register, and write only the register and the decision row.
+
+    def _claim_suspended_exit(self, snapshot: Snapshot, register) -> None:
+        """Rules (i) and (ii) of rev 10.1 item 6, on the suspended stack.
+
+        (i) After a floor change (a town departure is one) a suspended
+        floor-change ``Observe`` completes and every other suspended claim is
+        released ``suspended-expired``.  (ii) On the same floor, a suspended
+        ``Reach`` completes when the board shows it met, by the tests an
+        active claim uses: the player on its cell, or next to its monster.  No
+        store-operation or transaction ``Observe`` is ever on the stack
+        (``claim_ladder.never_suspended``).
+        """
+        position = snapshot.player.position
+        for claim in register.suspended:
+            goal = claim.goal
+            if claim.floor is not None and tuple(claim.floor) != tuple(
+                snapshot.floor_key
+            ):
+                if (
+                    goal.kind == CLAIM_GOAL_OBSERVE
+                    and goal.source == CLAIM_FLOOR_CHANGE
+                ):
+                    register.close_suspended(
+                        claim.claim_id, "complete", "floor-changed"
+                    )
+                else:
+                    register.close_suspended(
+                        claim.claim_id, "release", "suspended-expired"
+                    )
+                continue
+            if goal.kind != CLAIM_GOAL_REACH:
+                continue
+            if goal.monster is not None:
+                monster = self._claim_perceived_monster(snapshot, goal.monster)
+                if (
+                    monster is not None
+                    and position.distance_to(monster.position) <= 1
+                ):
+                    register.close_suspended(
+                        claim.claim_id, "complete", "target-adjacent"
+                    )
+            elif (
+                goal.cell is not None
+                and not snapshot.on_open_wilderness
+                and goal.cell == (position.y, position.x)
+            ):
+                register.close_suspended(claim.claim_id, "complete", "reached")
+
+    def _claim_owner_transition(
+        self, register, standing, owner, goal, rung, survival, non_discardable
+    ):
+        """How this decision treats the claim the previous one declared.
+
+        Returns ``(preemption label or None, violation or None)``.  Only a held
+        claim that is still open with a Reach or Observe goal matters:
+
+        * survival over a non-survival claim (S2a.1, design rev 9 item 3), or
+          an owner change to a strictly higher rung (rev 10 item 2), is a
+          preemption -- the caller suspends the holder;
+        * any other owner change is a violation, and so is a preemption of a
+          store-operation or transaction ``Observe`` claim (rev 10.1 item 6);
+        * the same owner replacing its own open goal is a retarget violation
+          (rev 10 item 4).
+
+        Nothing stops: the row records it.
+        """
+        if (
+            standing is None
+            or not standing.is_open
+            or standing.goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
+        ):
+            return None, None
+        if register.continues(owner, goal, non_discardable):
+            # The same owner pursuing the same goal keeps its claim, survival
+            # or not: S2a.1 suspended it for a survival decision and reopened
+            # the same goal under a new id, which the stack would only resume
+            # on the same board.
+            return None, None
+        survival_preempts = survival and not standing.survival
+        held = claim_rung_of_claim(
+            standing.owner, standing.rung,
+            non_discardable=standing.non_discardable,
+        )
+        if standing.owner == owner and not survival_preempts:
+            verdict, kind = CLAIM_VIOLATION, "retarget"
+        else:
+            verdict = claim_owner_change(
+                held_rank=held.rank,
+                held_goal_kind=standing.goal.kind,
+                held_goal_source=standing.goal.source,
+                held_survival=standing.survival,
+                new_rank=rung.rank,
+                new_survival=survival,
+            )
+            kind = "owner-change"
+        if verdict == CLAIM_PREEMPTION:
+            return (
+                "survival-preemption"
+                if survival_preempts
+                else f"preempted-by:{owner.value}"
+            ), None
+        return None, {
+            "kind": kind,
+            "from": standing.owner.value,
+            "to": owner.value,
+            "claim_id": standing.claim_id,
+            "goal": standing.goal.as_dict(),
+            "from_rank": held.rank,
+            "to_rank": rung.rank,
+            "scope": claim_pair_scope(held, rung),
+            "survival": bool(standing.survival or survival),
+        }
+
+    def _claim_resolve_suspended(
+        self, register, owner, goal, rung, survival, non_discardable
+    ):
+        """Rule (iii) of rev 10.1 item 6: resume, nest or displace.
+
+        Unless this decision continues the current claim, the suspended stack
+        is read from the top: the same owner and goal resumes it (returned,
+        for the caller to ``resume`` under its id); the same owner with another
+        goal releases it ``resume-goal-changed`` (rev 10 item 3) and a new
+        claim opens; a strictly higher rung, or survival, nests over it; any
+        other owner displaces it -- a violation, recorded with the release
+        ``resume-displaced`` -- and the next claim down is read the same way.
+        """
+        if register.continues(owner, goal, non_discardable):
+            return None
+        while register.suspended:
+            top = register.suspended[-1]
+            if top.owner == owner:
+                if top.goal == goal and top.non_discardable == non_discardable:
+                    return top
+                register.close_suspended(
+                    top.claim_id, "release", "resume-goal-changed"
+                )
+                return None
+            held = claim_rung_of_claim(
+                top.owner, top.rung, non_discardable=top.non_discardable
+            )
+            if claim_nests_over(
+                top_rank=held.rank,
+                new_rank=rung.rank,
+                new_survival=survival,
+                top_survival=top.survival,
+            ):
+                return None
+            register.close_suspended(
+                top.claim_id,
+                "release",
+                "resume-displaced",
+                violation={
+                    "kind": "displaced",
+                    "from": top.owner.value,
+                    "to": owner.value,
+                    "claim_id": top.claim_id,
+                    "goal": top.goal.as_dict(),
+                    "from_rank": held.rank,
+                    "to_rank": rung.rank,
+                    "scope": claim_pair_scope(held, rung),
+                    "survival": bool(top.survival or survival),
+                },
+            )
+        return None
+
+    @staticmethod
+    def _claim_trigger_monsters(snapshot: Snapshot, owner, goal):
+        """Rev 10.1 item 9 / design 5.4.1: the monsters behind a new claim.
+
+        For a Reach or Observe claim of positioning, hunt, esp-threat, combat
+        or escape: every hostile the board perceives (seen or detected), as
+        ``(index, race_id)`` -- never the index alone -- plus the chased
+        monster of a monster goal.  From the snapshot only; record-only.
+        """
+        if (
+            owner.value not in CLAIM_TRIGGER_FAMILIES
+            or goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
+        ):
+            return ()
+        found = {
+            (int(monster.index), int(monster.race_id))
+            for monster in (
+                *snapshot.visible_monsters, *snapshot.detected_monsters
+            )
+            if monster.hostile
+        }
+        if goal.monster is not None:
+            found.add((int(goal.monster[0]), int(goal.monster[1])))
+        return tuple(sorted(found))
+
+    @staticmethod
+    def _claim_trigger_perceived(snapshot: Snapshot, triggers):
+        """The game turn, when one of ``triggers`` is perceived on this board."""
+        if not triggers:
+            return None
+        wanted = {tuple(pair) for pair in triggers}
+        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
+            if (monster.index, monster.race_id) in wanted:
+                return snapshot.turn
+        return None
 
     # -- rev 9.2 (S): the survival return trigger ----------------------------
 
@@ -13443,6 +13739,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
+    @claims(ClaimOwner.ESCAPE)
     def _blocking_escape_melee_key(
         self,
         snapshot: Snapshot,
@@ -14107,6 +14404,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return None
 
 
+    @claims(ClaimOwner.COMBAT)
     def _direction_key(self, origin: Position, target: Position) -> str:
         dy = max(-1, min(1, target.y - origin.y))
         dx = max(-1, min(1, target.x - origin.x))

@@ -197,6 +197,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     register = restored.__dict__.get("_claim_register")
     if register is not None:
         register.__dict__.setdefault("_closing", None)
+        # S2b.1 (design rev 10.1 item 5): a checkpoint pickled before the
+        # suspended stack held no suspended claim; an empty stack is exact.
+        register.__dict__.setdefault("_suspended", [])
+        register.__dict__.setdefault("_suspended_closings", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")

@@ -742,6 +742,7 @@ class FundraisingMixin:
         self._mining_stall_turns = MINING_STALL_LIMIT
         return self._finish_mining_floor(snapshot)
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _fundraising_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

@@ -1259,6 +1259,7 @@ class NavigationMixin:
             self._descent_target_goal = None
         return best_first
 
+    @claims(ClaimOwner.EXPLORE)
     def _explore_step(self, snapshot: Snapshot) -> Position | None:
         # A fully-known static town needs no exploration sweep: every walkable
         # tile is preloaded from the town map, so both the "visit each passable

@@ -52,6 +52,14 @@ claim needs no call: it is closed on the reading side
 (``ownership_metrics._closure_of``).  Still no decision, key or reason reads
 anything back out of the register.
 
+Stage S2b.1 (design rev 10.1 items 5-6) makes suspension a stack: ``suspend``
+-- now called for a preemption by a strictly higher rung of
+``claim_ladder.CLAIM_LADDER`` as well as for survival -- pushes the holder onto
+``_suspended``; ``resume`` brings a suspended claim back under its own id when
+its owner returns to the same goal, and ``close_suspended`` ends one that the
+floor changed under, whose goal was met, or that another owner displaced.
+Record-only, like the rest.
+
 Continuity
 ----------
 ``declare`` continues the current claim while the owner, the goal and
@@ -255,6 +263,23 @@ class Claim:
                        suspends a survival claim.
     ``opened_turn``    (rev 9.2) the game turn the claim was opened on; the
                        floor-change ``Observe`` expires on it.
+
+    S2b.1 (design rev 10.1) adds, with the same defaults-from-the-class cover:
+
+    ``rank`` / ``rung``        the ladder rank and rung of the latest decision
+                               the claim owned (``claim_ladder.rung_of``);
+                               ``None`` on a claim pickled before the ladder.
+    ``suspended_sequence`` /   the decision sequence and game turn at which the
+    ``suspended_turn``         claim was suspended; ``None`` while it is not.
+    ``suspended_decisions`` /  (item 6) the decisions and game turns it spent
+    ``suspended_turns``        suspended, summed over its suspensions; a resumed
+                               ``Observe`` claim's ``within`` does not count
+                               them.
+    ``trigger_monsters``       (item 9) the ``(index, race_id)`` pairs of the
+                               hostiles perceived when the claim opened, for a
+                               Reach/Observe claim of a trigger family.
+    ``last_perceived_turn``    (item 9) the game turn of the latest decision the
+                               claim owned on which one of them was perceived.
     """
 
     claim_id: int
@@ -269,6 +294,14 @@ class Claim:
     closed_reason: str | None = None
     survival: bool = False
     opened_turn: int | None = None
+    rank: int | None = None
+    rung: str | None = None
+    suspended_sequence: int | None = None
+    suspended_turn: int | None = None
+    suspended_decisions: int = 0
+    suspended_turns: int = 0
+    trigger_monsters: tuple[tuple[int, int], ...] = ()
+    last_perceived_turn: int | None = None
 
     def as_dict(self, *, distance: int | None = None) -> dict:
         """The row form: plain JSON types only."""
@@ -321,6 +354,12 @@ class ClaimRegister:
         self._next_id = 1
         self._claim: Claim | None = None
         self._closing: Claim | None = None
+        # S2b.1 (design rev 10.1 item 5): the claims a preemption suspended,
+        # the most recent last, and the suspended claims that closed since the
+        # last declaration.  A register pickled before S2b.1 has neither; every
+        # reader goes through ``getattr``.
+        self._suspended: list[Claim] = []
+        self._suspended_closings: list[dict] = []
 
     # -- allocation ------------------------------------------------------
 
@@ -336,6 +375,20 @@ class ClaimRegister:
 
     # -- declaration -----------------------------------------------------
 
+    def continues(
+        self, owner: str | ClaimOwner, goal: Goal, non_discardable: bool = False
+    ) -> bool:
+        """Whether ``declare`` would keep the current claim's id."""
+        claim = self._claim
+        return (
+            claim is not None
+            and claim.closed is None
+            and claim.state != ClaimState.SUSPENDED
+            and claim.owner == owner_of(owner)
+            and claim.goal == goal
+            and claim.non_discardable == non_discardable
+        )
+
     def declare(
         self,
         owner: str | ClaimOwner,
@@ -346,26 +399,39 @@ class ClaimRegister:
         floor: tuple[int, ...] | None = None,
         survival: bool = False,
         opened_turn: int | None = None,
+        rank: int | None = None,
+        rung: str | None = None,
+        trigger_monsters: tuple[tuple[int, int], ...] = (),
+        perceived_turn: int | None = None,
     ) -> Claim:
         """Declare (or continue) the claim that owns the decision being made.
 
-        Rev 9.2: a suspended claim does not continue -- the declaration after
-        a suspension opens a new claim, even for the same owner and goal.
+        Rev 9.2's "a suspended claim does not continue" stands for the current
+        claim: a declaration after its suspension does not continue it.  From
+        S2b.1 a suspended claim comes back only through ``resume`` (design rev
+        10.1 item 5), under its own id.
+
+        S2b.1 record-only facts: ``rank`` / ``rung`` of this decision;
+        ``trigger_monsters`` for a newly opened claim; ``perceived_turn`` -- the
+        game turn, when one of the claim's trigger monsters is perceived on this
+        board -- moves ``last_perceived_turn`` forward.
         """
         declared_owner = owner_of(owner)
         claim = self._claim
-        if (
-            claim is not None
-            and claim.closed is None
-            and claim.state != ClaimState.SUSPENDED
-            and claim.owner == declared_owner
-            and claim.goal == goal
-            and claim.non_discardable == non_discardable
-        ):
+        if self.continues(declared_owner, goal, non_discardable):
             # The same owner pursuing the same goal keeps its id, so a reader
             # can see one claim spanning the boards it took to reach the goal.
+            changes: dict = {}
             if claim.state != ClaimState.ACTIVE:
-                claim = replace(claim, state=ClaimState.ACTIVE)
+                changes["state"] = ClaimState.ACTIVE
+            if rank is not None and claim.rank != rank:
+                changes["rank"] = rank
+            if rung is not None and claim.rung != rung:
+                changes["rung"] = rung
+            if perceived_turn is not None:
+                changes["last_perceived_turn"] = int(perceived_turn)
+            if changes:
+                claim = replace(claim, **changes)
                 self._claim = claim
             return claim
         self._claim = Claim(
@@ -379,8 +445,100 @@ class ClaimRegister:
             floor=None if floor is None else tuple(floor),
             survival=bool(survival),
             opened_turn=None if opened_turn is None else int(opened_turn),
+            rank=rank,
+            rung=rung,
+            trigger_monsters=tuple(
+                (int(index), int(race)) for index, race in trigger_monsters
+            ),
+            last_perceived_turn=(
+                None if perceived_turn is None else int(perceived_turn)
+            ),
         )
         return self._claim
+
+    # -- the suspended stack (design rev 10.1 items 5-6) -----------------
+
+    @property
+    def suspended(self) -> tuple[Claim, ...]:
+        """The suspended claims, the most recently suspended last."""
+        return tuple(getattr(self, "_suspended", None) or ())
+
+    def resume(
+        self,
+        claim_id: int,
+        *,
+        sequence: int | None = None,
+        turn: int | None = None,
+        rank: int | None = None,
+        rung: str | None = None,
+        perceived_turn: int | None = None,
+    ) -> Claim | None:
+        """The owner came back to a suspended claim: it continues, same id.
+
+        The decisions and game turns it spent suspended are added to its
+        ``suspended_decisions`` / ``suspended_turns``, so that its ``within``
+        does not count them (item 6).
+        """
+        stack = list(self.suspended)
+        for position in range(len(stack) - 1, -1, -1):
+            claim = stack[position]
+            if claim.claim_id != claim_id:
+                continue
+            del stack[position]
+            self._suspended = stack
+            decisions = claim.suspended_decisions or 0
+            turns = claim.suspended_turns or 0
+            if sequence is not None and claim.suspended_sequence is not None:
+                decisions += max(0, int(sequence) - int(claim.suspended_sequence))
+            if turn is not None and claim.suspended_turn is not None:
+                turns += max(0, int(turn) - int(claim.suspended_turn))
+            changes: dict = {
+                "state": ClaimState.ACTIVE,
+                "closed": None,
+                "closed_reason": None,
+                "suspended_sequence": None,
+                "suspended_turn": None,
+                "suspended_decisions": decisions,
+                "suspended_turns": turns,
+            }
+            if rank is not None:
+                changes["rank"] = rank
+            if rung is not None:
+                changes["rung"] = rung
+            if perceived_turn is not None:
+                changes["last_perceived_turn"] = int(perceived_turn)
+            self._claim = replace(claim, **changes)
+            return self._claim
+        return None
+
+    def close_suspended(
+        self, claim_id: int, closed: str, label: str | None = None, **recorded
+    ) -> dict | None:
+        """A suspended claim ends while suspended (item 6, rules i-iii).
+
+        ``closed`` is ``complete`` or ``release``.  The closing is kept for the
+        declaration point (``take_suspended_closings``), together with anything
+        the caller recorded about it (a displacement's violation).
+        """
+        stack = list(self.suspended)
+        for position, claim in enumerate(stack):
+            if claim.claim_id != claim_id:
+                continue
+            del stack[position]
+            self._suspended = stack
+            ended = replace(claim, closed=closed, closed_reason=label)
+            record = {**ended.closing_dict(), **recorded}
+            closings = list(getattr(self, "_suspended_closings", None) or ())
+            closings.append(record)
+            self._suspended_closings = closings
+            return record
+        return None
+
+    def take_suspended_closings(self) -> list[dict]:
+        """The suspended claims that closed since the last declaration, once."""
+        closings = list(getattr(self, "_suspended_closings", None) or ())
+        self._suspended_closings = []
+        return closings
 
     # -- transitions -----------------------------------------------------
 
@@ -410,13 +568,33 @@ class ClaimRegister:
         self._closing = self._claim
         return self._claim
 
-    def suspend(self, label: str | None = None) -> Claim | None:
+    def suspend(
+        self,
+        label: str | None = None,
+        *,
+        sequence: int | None = None,
+        turn: int | None = None,
+    ) -> Claim | None:
         """Preempted with its goal intact (design 3.2).
 
-        S2a.1 calls it from the survival preemption only (design rev 9
-        item 3).  ``closed`` stays ``None``: a suspension is not an end.
+        ``closed`` stays ``None``: a suspension is not an end.  From S2b.1
+        (design rev 10.1 item 5) the suspended claim is also pushed onto the
+        suspended stack with the decision sequence and game turn it was
+        suspended at, so that ``resume`` can bring it back under its id.
         """
-        return self._close(ClaimState.SUSPENDED, self._closed(), label)
+        claim = self._claim
+        if claim is None:
+            return None
+        self._claim = replace(
+            claim,
+            suspended_sequence=None if sequence is None else int(sequence),
+            suspended_turn=None if turn is None else int(turn),
+        )
+        suspended = self._close(ClaimState.SUSPENDED, self._closed(), label)
+        stack = list(self.suspended)
+        stack.append(suspended)
+        self._suspended = stack
+        return suspended
 
     def complete(self, label: str | None = None) -> Claim | None:
         """The declared goal was observed reached."""

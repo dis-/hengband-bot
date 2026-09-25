@@ -3278,6 +3278,7 @@ class CombatMixin:
             if grid is None or not grid.allows_los:
                 return False
         return True
+    @claims(ClaimOwner.ESCAPE)
     def _flee_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         # Material-engagement retreat records each abandoned square so later
         # navigation cannot walk straight back into the same threat.  Retreat
@@ -3332,6 +3333,7 @@ class CombatMixin:
             )
 
         return max(candidates, key=score)
+    @claims(ClaimOwner.HUNT)
     def _hunt_step(
         self,
         snapshot: Snapshot,
