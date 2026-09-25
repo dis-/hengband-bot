@@ -88,7 +88,7 @@ BOUNDARIES_SHA256 = (
     "7605c030c3882b395e9c7f28b2861ba019e2343e7c26badb9c12dd1a30bb26d3"
 )
 CALIBRATION_SHA256 = (
-    "570b4d994decb0bc7d9fa5d0acca6602a1a530bf1c27904809cc8dd1ae0ea82b"
+    "05348a09b560e690e641a12441217b86867dbb783605cbec9453e2bcdbe83f94"
 )
 # Decisions are addressed by log index; the first town decision reuses the
 # countdown's last sequence (46 twice), so index = sequence + 1 from there.

@@ -155,7 +155,12 @@ def _recorded(row: dict) -> list:
 
 
 def main() -> None:
-    CALIBRATION.write_bytes(CALIBRATION_SOURCE.read_bytes())
+    # The live file is written with CRLF; the fixture is stored with LF like
+    # every other calibration fixture (JSON content unchanged, checked).
+    source = CALIBRATION_SOURCE.read_bytes()
+    CALIBRATION.write_bytes(source.replace(b"\r\n", b"\n"))
+    if json.loads(CALIBRATION.read_bytes()) != json.loads(source):
+        raise RuntimeError("the frozen calibration differs from the loaded one")
     decisions = _decision_rows()
     with gzip.open(STATE, "rb") as stream:
         lines = stream.read().splitlines(keepends=True)
@@ -215,7 +220,8 @@ def main() -> None:
         f"{ends[-1]}); decompressed sha256: "
         f"{hashlib.sha256(payload).hexdigest()}\n"
         "Calibration: jsonlog/character-calibration.json as loaded by the "
-        "process (last written 2026-09-25 20:39), sha256 "
+        "process (last written 2026-09-25 20:39; CRLF normalized to LF, "
+        "JSON-equal), sha256 "
         f"{hashlib.sha256(CALIBRATION.read_bytes()).hexdigest()}\n",
         encoding="utf-8",
         newline="\n",

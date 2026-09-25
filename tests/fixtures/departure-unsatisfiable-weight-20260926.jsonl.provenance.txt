@@ -3,4 +3,4 @@ state.jsonl.gz sha256 85f642d3ece9e7b568c4ac5c31ba3f5a671be155e37150ccd45d99a03c
 Selection: the whole 02:51:39 process, decisions 0..116 by log index (2026-09-26T02:51:39+0900 - 2026-09-26T02:52:27+0900, turn 5782222-5786032).
 Boundary rule: walking back from the last emitter row that carries the last decision's turn, each decision's input ends drain(previous decision) rows earlier and must carry the decision record's turn; the walk validates for all 117 logged decisions.  Decision 0 reads the attach row alone (state log row 346).
 Emitter rows: 215 of 561 (rows 346..560); decompressed sha256: 4a3762bb9be0a6e883e50066b7014cd04bebc463b25938e34361d6da37c73dd9
-Calibration: jsonlog/character-calibration.json as loaded by the process (last written 2026-09-25 20:39), sha256 570b4d994decb0bc7d9fa5d0acca6602a1a530bf1c27904809cc8dd1ae0ea82b
+Calibration: jsonlog/character-calibration.json as loaded by the process (last written 2026-09-25 20:39; CRLF normalized to LF, JSON-equal), sha256 05348a09b560e690e641a12441217b86867dbb783605cbec9453e2bcdbe83f94
