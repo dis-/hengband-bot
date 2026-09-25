@@ -135,6 +135,17 @@ def _state_player_matches_cursor(
     return None
 
 
+# inventory/player-inventory.cpp:124-151 (py_pickup_multiple_items) asks once
+# per pickable pile item through choose_item(..., USE_FLOOR, ...), and
+# floor-item-getter.cpp:428-461 renders that floor-only chooser on row zero as
+# "(床上:<labels> ESC) どれを拾いますか？" / "(Floor: <labels> ESC) Get which item?".
+# The "(床上:"/"(Floor:" head keeps the Home's "Get which item?" (a store
+# prompt with its own "(Items"/"(アイテム:" head) out of this template.
+FLOOR_PICKUP_PROMPT_PATTERN = (
+    r"\((?:床上|Floor):.* ESC\) (?:どれを拾いますか？|Get which item\?)"
+)
+
+
 def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | None = None) -> ScreenMatch:
     """Pure, conservative classifier for source-derived main-term templates."""
     raw = screen.get("lines")
@@ -222,6 +233,8 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     source_prompts = ("Read which scroll?", "Use which staff?", "Zap which rod?",
                       "どの巻物を読みますか?", "どの杖を使いますか?", "どのロッドを振りますか?")
     if any(row0.endswith(prompt) for prompt in source_prompts):
+        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    if re.fullmatch(FLOOR_PICKUP_PROMPT_PATTERN, row0):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
     if row0.endswith(("Enchant which item?", "どのアイテムを強化しますか?")):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)

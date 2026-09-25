@@ -79,6 +79,7 @@ from hengbot.ownership_metrics import (
 )
 from hengbot.save_archive import SaveArchiveCoordinator
 from hengbot.input_executor import (
+    FLOOR_PICKUP_PROMPT_PATTERN,
     Continuation,
     Operation,
     OperationBarrierRegistry,
@@ -2195,6 +2196,7 @@ def _send_new_decision_key(
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
     home_modal = _home_modal_continuation(snapshot, key, owner)
     store_buy = _store_buy_continuations(key, owner)
+    pile_pickup = _floor_pile_pickup_continuations(snapshot, key)
     if (posting_contract is not None and snapshot is not None
             and hasattr(posting_contract, "prepare")):
         posting_contract.prepare(snapshot, key, owner, sequence)
@@ -2205,6 +2207,11 @@ def _send_new_decision_key(
         )
     elif store_buy is not None and isinstance(send, _ExecutorInputPort):
         prefix, continuations = store_buy
+        sent = send.submit_operation(
+            prefix, decision=decision, continuations=continuations
+        )
+    elif pile_pickup is not None and isinstance(send, _ExecutorInputPort):
+        prefix, continuations = pile_pickup
         sent = send.submit_operation(
             prefix, decision=decision, continuations=continuations
         )
@@ -2352,6 +2359,43 @@ def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuati
         continuations.append(Continuation(frozenset({ScreenKind.CONFIRM}), tail))
     continuations.append(Continuation(frozenset({ScreenKind.STORE}), "\x1b"))
     return prefix, continuations
+
+
+def _floor_pile_pickup_continuations(
+    snapshot, key: str
+) -> tuple[str, list[Continuation]] | None:
+    """Split a composed pile pickup ``g`` + ``a``*n into observed answers.
+
+    Every pile-pickup producer composes one ``a`` per item it saw on the
+    board (policy ``_current_floor_item_key`` and its quest/identification
+    siblings).  The game asks for each selection itself: py_pickup_multiple_
+    items (inventory/player-inventory.cpp:124-151) counts the pickable items
+    when ``g`` runs and re-opens the floor chooser once per pick, but stops
+    early when choose_item finds nothing that still fits the pack ("もうザッ
+    クには床にあるどのアイテムも入らない。") and never opens it for a lone
+    item (py_pickup_single_item).  A posted-ahead ``a`` then reaches the
+    command loop as "aim a wand" (io/input-key-processor.cpp:516).  So only
+    ``g`` is the transaction; each ``a`` answers an observed floor chooser,
+    an ``a`` whose chooser never comes is dropped, and a chooser beyond the
+    items seen is closed with ESC, leaving the rest to the next decision.
+    """
+    if snapshot is None or snapshot.store is not None:
+        # In the Home ``g`` is the store's "get an item" command.
+        return None
+    if re.fullmatch(r"ga{2,}", key) is None:
+        return None
+    chooser = dict(
+        kinds=frozenset({ScreenKind.ITEM_SOURCE}),
+        feature=FLOOR_PICKUP_PROMPT_PATTERN,
+        exact_feature=True,
+        optional=True,
+        feature_pattern=True,
+    )
+    continuations = [
+        Continuation(keys="a", **chooser) for _item in key[1:]
+    ]
+    continuations.append(Continuation(keys="\x1b", **chooser))
+    return key[0], continuations
 
 
 def _chain_matches(chain: dict, key: str) -> bool:

@@ -1,0 +1,4 @@
+Source: jsonlog/incident-20260926-0157-pickup-prompt-unrecognized.state.jsonl.gz (last three rows, turns 5782212, 5782217, 5782222), jsonlog/incident-20260926-0157-pickup-prompt-unrecognized.decisions.jsonl.gz (last two rows, sequences 280 and 281, equal to the last two rows of incident-captures/20260926-015751-stuck-prompt/decision-tail.jsonl), jsonlog/incident-20260926-0157-pickup-prompt-unrecognized.stderr.log.
+state.jsonl.gz sha256 d4bc509568fae5c34aca891301844c431a8012163f8ca3b24d62426076dfb061; decisions.jsonl.gz sha256 829ce6c48fb1505078d827c463d7037793887efb0058687d355289df5f32a52e; decision-tail.jsonl sha256 7e14230e812f12a61d10839c9080526f2dad1f87678e2b4a1c3179554a3b637e; stderr.log sha256 456be9007e96b652469a49f80b154564d2276dfe9c670c1df5d899490ab5d76e
+Skill list: the state log's last skill_exp knowledge row (turn 5780207).
+Frozen records: 7; decompressed sha256: c9ae525d841ec18ffa8d32fb1793e9b4325f9b9f91c24718fcbf24fcf9e7c362
