@@ -297,26 +297,38 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
             policy.confirm_key_posted(key)
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
-        budgets = []
-        for raw in self._incident_boards():
-            derived = copy.deepcopy(raw)
-            # Public obligation variant from the incident: q22 remains TAKEN
-            # while the approved q2 request is newly UNTAKEN.
-            next(q for q in derived["progress"]["quests"]
-                 if q["id"] == 2)["status"] = 0
-            for cell in derived["grid_map"]["cells"]:
-                if cell.get("b") == 4:
-                    cell.pop("b")
-                    cell.pop("p", None)
+        # The walk steps from the first incident board by the policy's own
+        # keys.  The recorded boards after it are the live walk, which routed
+        # through the Outpost terrain the bot had carried into Angwil (town
+        # 0 -> 3 by Inn teleport, fixture line 42).  That terrain is now
+        # forgotten on arrival (2026-09-25 morivant-return-walks-away), and
+        # with no static town map (maps=False) the entry route runs over
+        # Angwil's own known cells: the recorded step (31,97) -> (32,96) is
+        # off that route, so it closes no distance.
+        budgets, ranks = [], []
+        derived = copy.deepcopy(self._incident_boards()[0])
+        # Public obligation variant from the incident: q22 remains TAKEN
+        # while the approved q2 request is newly UNTAKEN.
+        next(q for q in derived["progress"]["quests"]
+             if q["id"] == 2)["status"] = 0
+        for cell in derived["grid_map"]["cells"]:
+            if cell.get("b") == 4:
+                cell.pop("b")
+                cell.pop("p", None)
+        for turn in TURNS:
+            derived["turn"] = turn
             snapshot = parse_snapshot(derived, self.monrace)
             key = policy.choose_key(snapshot)
             policy.confirm_key_posted(key)
             self.assertIsInstance(key, DecisionCandidate)
             self.assertEqual(key.reason, "quest:enter:approach")
+            ranks.append(key.route_declaration.bfs_rank)
             budgets.append(policy._town_turn_arbiter.telemetry[
                 "budget_remaining_estimate"
             ])
+            derived = self._advance(derived, key, turn)
         self.assertEqual(budgets, [3] * len(TURNS))
+        self.assertTrue(all(after < before for before, after in zip(ranks, ranks[1:])))
         self.assertNotIn("quest-request", policy._town_turn_arbiter._retired)
 
 
