@@ -307,6 +307,16 @@ def claim_report(rows, hours: float | None) -> list[str]:
     lines.extend(gate_report(rows, hours))
     lines.extend(ladder_report(rows, hours))
     lines.extend(bar_report(rows, hours))
+    from hengbot.ownership_metrics import s3_numbers
+    s3 = s3_numbers(rows)
+    lines.append("S3 record-only diagnostics:")
+    for name in ("claim_verdict_conflict", "plan_rebuild_deferred", "visit_owner_mismatch", "plan_handoff"):
+        lines.append(f"    {name:<32} {s3.get(name, 0)}")
+    s3_violations = ladder_numbers(rows)["violations"]["S3"]["count"]
+    lines.append(
+        "    S3 violations excluding plan handoffs "
+        f"{s3_violations - s3.get('plan_handoff', 0)}"
+    )
     return lines
 
 

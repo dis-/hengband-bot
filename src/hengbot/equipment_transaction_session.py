@@ -75,6 +75,10 @@ class EquipmentTransactionObservation:
 class EquipmentTransactionSession:
     """Advance only after the last requested operation is visible in a snapshot."""
 
+    # Older checkpoints supply the class default until the first claim records
+    # this session. The plan is immutable for that claim's lifetime.
+    opened_sequence: int | None = None
+
     def __init__(
         self,
         plan: EquipmentTransactionPlan,

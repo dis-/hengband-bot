@@ -113,12 +113,20 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     # stairs and recall: Observe(floor change), completed on the floor key
     "floor-changed": 10,
     # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit
-    "expectation-satisfied": 15,
+    # S3.0: Home scans complete when catalogue knowledge becomes current;
+    # entrance waits complete on the first target-store page.  Their former
+    # generic registry completions move to those producer-specific labels.
+    "expectation-satisfied": 3,
+    "home-knowledge-current": 9,
+    "entered-store": 5,
+    "equipment-transaction-complete": 5,
 }
 # Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
 # round; the shelter walk now declares the store, not its first step), and
 # the reasons whose walks rev 9.3 moved to their far target.
-S2A1_NEXT_ROW_COMPLETE = 1354
+# S3.0: equipment-transaction Home approaches continue the session's
+# Observe claim, and entry/recall continuations close on their own evidence.
+S2A1_NEXT_ROW_COMPLETE = 1348
 S2A1_FAR_TARGET_REASONS = frozenset({
     "return:seek-upstairs", "livelock:seek-upstairs",
     "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
@@ -132,11 +140,13 @@ S2A1_FAR_TARGET_REASONS = frozenset({
 })
 # Re-pinned by rev 9.2 (owner-stamped slots, the read-only satisfaction test,
 # every Reach reason site writing its slot); round 1 read 18 / 8,1,7 / 67,3 /
-# 10,1 and no equipment-txn completion.
+# 10,1 and no equipment-txn completion. S3.0 records one Home or equipment
+# operation across its step keys, completes five finished equipment sessions,
+# and keeps recall step-offs under the floor-change claim.
 S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    "home-visit/Observe": {"complete": 12, "release": 1, "abandoned": 4},
-    "equipment-txn/Observe": {"complete": 11, "abandoned": 1},
+    "home-visit/Observe": {"complete": 11, "release": 1, "abandoned": 1},
+    "equipment-txn/Observe": {"complete": 5, "abandoned": 6},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
     # (floor-loot 70 complete, positioning 15 complete).
@@ -148,7 +158,7 @@ S2A1_ENDINGS = {
     "positioning/Reach": {"complete": 10, "release": 1},
     "positioning/Reach:one-step": {"complete": 5},
     "departure/Reach": {"complete": 2},
-    "departure/Reach:one-step": {"complete": 6},
+    "departure/Reach:one-step": {"complete": 2},
 }
 
 
@@ -471,6 +481,15 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 label = closed["closed_reason"]
                 labels[label] = labels.get(label, 0) + 1
         self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS)
+        # S3.0/S3.1: adding a newly stripped item changes the per-key post,
+        # but the session's plan and claim identity remain fixed.
+        self.assertEqual(
+            [row["violation"] for row in rows
+             if isinstance(row.get("violation"), dict)
+             and row["violation"].get("kind") == "retarget"
+             and row["violation"].get("from") == "equipment-txn"],
+            [],
+        )
         # Rev 9.3 (R2): Reach claims that completed on the very next row.
         # Explore's own goal test, loot one cell away and native travel
         # (many cells per key) genuinely arrive next row; the walks rev 9.3

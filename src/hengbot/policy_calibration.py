@@ -332,6 +332,10 @@ class CalibrationMixin:
 
     def _abort_character_calibration(self, snapshot: Snapshot, reason: str) -> None:
         """Suspend observation, preserving its progress, and redress."""
+        self._release_claim_goal(
+            f"calibration:abort:{reason}", owners=("calibration",),
+            kinds=("Observe",), sources=("calibration",),
+        )
         self._calibration_aborts_this_visit += 1
         self._calibration_last_abort = f"calibration:abort:{reason}"
         if reason == "precondition" and self._calibration_suspended_phase is None:

@@ -12,6 +12,7 @@ from hengbot.claim_goal_typing import (
 # the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 from hengbot.claim_register import ClaimOwner, claims
+from hengbot.claim_ladder import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
@@ -1876,6 +1877,10 @@ class TownMixin:
             self._home_atomic_withdraw_pending is not None
             and self._home_atomic_withdraw_pending[0] == self._home_pending_item
         ):
+            self._release_claim_goal(
+                "target-unobserved", owners=("home-visit", "home-errand"),
+                kinds=("Observe",), sources=("store-operation",),
+            )
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_move_identity = None
 
@@ -3216,6 +3221,23 @@ class TownMixin:
             if stops
             else None
         )
+        if previous is not None:
+            held = getattr(getattr(self, "_claim_register", None), "current", None)
+            visit = getattr(self, "_store_visit", None)
+            current_stop = (
+                previous.stops[previous.index]
+                if previous.index < len(previous.stops)
+                else getattr(visit, "store_type", None)
+            )
+            if (
+                held is not None and held.is_open
+                and held.owner.value in CLAIM_TOWN_ERRAND_FAMILIES
+                and current_stop is not None
+                and (plan is None or plan.stops[0] != current_stop)
+            ):
+                self._decision_plan_rebuild_deferred = (
+                    getattr(self, "_decision_plan_rebuild_deferred", 0) + 1
+                )
         if plan is not None and previous is not None:
             # The route is a replaceable ordering projection, but completion
             # and blocking are visit facts.  Preserve them when changing the
@@ -4116,6 +4138,10 @@ class TownMixin:
             # Class bound: the town read point will not read again this
             # visit (see _town_special_key), so read/cancel cannot alternate.
             self._town_visit_unready_recall_cancelled = True
+        self._release_claim_goal(
+            "cancelled", owners=("departure",), kinds=("Observe",),
+            sources=("floor-change",),
+        )
         return self._read_key(snapshot, recall)
 
     @claims(ClaimOwner.CURSE_ENCHANT)

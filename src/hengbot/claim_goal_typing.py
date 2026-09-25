@@ -61,7 +61,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot.claim_register import GOAL_OBSERVE, GOAL_REACH, GOAL_TERMINAL
-from hengbot.policy_constants import STORE_STUCK_LIMIT
+from hengbot.policy_constants import STORE_STUCK_LIMIT, EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT
 from hengbot.policy_types import OWNER_EXPECTATION_MAX_TURNS
 from hengbot.town_arbiter import RECALL_ACTIVATION_MAX_GAME_TURNS
 
@@ -72,16 +72,69 @@ WALK_TARGET = "walk-target"        # Reach: the cell the producer walks to
 ENTRANCE = "entrance"              # Reach: the entrance cell of a building
 TRANSACTION = "transaction"        # Observe: a transaction's expected change
 STORE_OPERATION = "store-operation"  # Observe: a posted store/Home effect
+STORE_ENTRY = "store-entry"          # Observe: an entrance command awaiting a page
 FLOOR_CHANGE = "floor-change"      # Observe: the floor key changes
 EFFECT = "effect"                  # Terminal: the effect label
 
 OBSERVE_WITHIN = {
     TRANSACTION: OWNER_EXPECTATION_MAX_TURNS,
     STORE_OPERATION: STORE_STUCK_LIMIT,
+    STORE_ENTRY: STORE_STUCK_LIMIT,
     FLOOR_CHANGE: RECALL_ACTIVATION_MAX_GAME_TURNS,
 }
 # The observable a floor-change goal names (an ``OwnerProgressCore`` field).
 FLOOR_EXPECTATION = ("floor",)
+
+
+@dataclass(frozen=True)
+class OperationClaimRow:
+    operation: str
+    producer: str
+    source: str
+    within: int | None
+    identity: str
+    expectation: tuple[str, ...]
+    complete_at: str
+    release_at: str
+
+
+# S3.0: identities are supplied by the named producer's live operation,
+# independently of the registry key posted for each individual step.
+OPERATION_CLAIMS = (
+    OperationClaimRow("store-entry", "*:await-entry", STORE_ENTRY,
+                      STORE_STUCK_LIMIT, "target store type",
+                      ("store page",), "entered-store", "entry abandoned / expiry"),
+    OperationClaimRow("shop", "_atomic_shop_transaction_key", STORE_OPERATION,
+                      STORE_STUCK_LIMIT, "store/type,key,posted-sequence",
+                      ("gold", "inventory"), "sale/buy confirmation",
+                      "store visit close / expiry"),
+    OperationClaimRow("home-atomic", "_atomic_home_withdraw_key/_atomic_home_deposit_key",
+                      STORE_OPERATION, STORE_STUCK_LIMIT,
+                      "Home,pending tuple,posted-turn", ("inventory",),
+                      "observe_outside(effect_observed)", "clear without effect / expiry"),
+    OperationClaimRow("home-scan", "_home_knowledge_scan_requested",
+                      STORE_OPERATION, STORE_STUCK_LIMIT,
+                      "Home,knowledge,scan-epoch", ("home knowledge",),
+                      "_adopt_home_catalogue", "request cleared / expiry"),
+    OperationClaimRow("home-errand", "_file_home_errand", STORE_OPERATION,
+                      STORE_STUCK_LIMIT, "Home,errand,request.signature",
+                      ("inventory",), "errand post/observe", "errand stopped / expiry"),
+    OperationClaimRow("equipment", "_equipment_transaction_town_owner_key",
+                      TRANSACTION, EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+                      "session.opened_sequence,plan.actions", ("equipment",),
+                      "_equipment_ownership_release_due/session.complete",
+                      "abandoned session / expiry"),
+    OperationClaimRow("calibration", "_calibration_session_owned", "calibration",
+                      EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
+                      "session.opened_sequence,plan.actions", ("equipment",),
+                      "_observe_calibration_restore_batch", "calibration abort / expiry"),
+    OperationClaimRow("staged-prompt", "_staged_prompt_chain", STORE_OPERATION,
+                      None, "chain.owner,stage-count", ("tail posted",),
+                      "commit_staged_prompt_chain", "tail dropped / expiry"),
+    OperationClaimRow("recall", "_post_owner_expectation", FLOOR_CHANGE,
+                      RECALL_ACTIVATION_MAX_GAME_TURNS, "floor key",
+                      ("floor change",), "floor changed", "town cancel / expiry"),
+)
 
 
 @dataclass(frozen=True)
@@ -161,11 +214,11 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "store-router",
         ("shop:approach", R, ENTRANCE),
-        ("shop:approach:await-entry", O, STORE_OPERATION),
+        ("shop:approach:await-entry", O, STORE_ENTRY),
         ("shop:travel", R, ENTRANCE),
-        ("shop:travel:await-entry", O, STORE_OPERATION),
+        ("shop:travel:await-entry", O, STORE_ENTRY),
         ("store:", T, EFFECT),
-        ("store:entry-await-observation", O, STORE_OPERATION),
+        ("store:entry-await-observation", O, STORE_ENTRY),
         ("store:entry-failed-step-off", R, ENTRANCE),
         ("store:entry-interrupted-replan", R, ENTRANCE),
         ("town:travel", R, ENTRANCE),
@@ -176,7 +229,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         # One step off the teleport building; the step is computed inside the
         # route helper, which no producer can name without recomputing it.
         ("town:teleport-step-off", T, EFFECT),
-        ("store:entry-interrupted-replan:await-entry", O, STORE_OPERATION),
+        ("store:entry-interrupted-replan:await-entry", O, STORE_ENTRY),
         ("wilderness:enter-town", T, EFFECT),
         ("wilderness:global-travel", R, WALK_TARGET),
         ("wilderness:enter-global", T, EFFECT),
@@ -193,7 +246,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("equipment-transaction:", O, TRANSACTION),
         ("equipment-transaction:approach-home", R, ENTRANCE),
         ("equipment-transaction:travel-home", R, ENTRANCE),
-        ("equipment-transaction:travel-home:await-entry", O, STORE_OPERATION),
+        ("equipment-transaction:travel-home:await-entry", O, STORE_ENTRY),
         # Rev 9.2 (T2): it walks to the Home through the store router.
         ("equipment-transaction:acquire-home-catalog", R, ENTRANCE),
         ("equipment-transaction:home-route-unavailable", T, EFFECT),
@@ -219,7 +272,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("calibration:restore-home-unreachable", T, EFFECT),
         # Rev 9.2 (T2): calibration's walks to the Home are native travel.
         ("calibration:restore-travel", R, ENTRANCE),
-        ("calibration:restore-travel:await-entry", O, STORE_OPERATION),
+        ("calibration:restore-travel:await-entry", O, STORE_ENTRY),
     ),
     *_rows(
         "identification",
@@ -271,10 +324,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("survival:mana-home-travel", R, ENTRANCE),
         ("survival:mana-sale-travel", R, ENTRANCE),
         ("survival:mana-shop-travel", R, ENTRANCE),
-        ("survival:shop-travel:await-entry", O, STORE_OPERATION),
-        ("survival:mana-home-travel:await-entry", O, STORE_OPERATION),
-        ("survival:mana-sale-travel:await-entry", O, STORE_OPERATION),
-        ("survival:mana-shop-travel:await-entry", O, STORE_OPERATION),
+        ("survival:shop-travel:await-entry", O, STORE_ENTRY),
+        ("survival:mana-home-travel:await-entry", O, STORE_ENTRY),
+        ("survival:mana-sale-travel:await-entry", O, STORE_ENTRY),
+        ("survival:mana-shop-travel:await-entry", O, STORE_ENTRY),
         ("survival:seek-exit", R, WALK_TARGET),
         ("weak-fainting", T, EFFECT),
         ("status-threat:", T, EFFECT),
@@ -398,7 +451,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("livelock:seek-window-edge", T, EFFECT),
         ("town-progress-invariant:", T, EFFECT),
         ("town-progress-invariant:boxed-breakout-travel", R, ENTRANCE),
-        ("town-progress-invariant:boxed-breakout-travel:await-entry", O, STORE_OPERATION),
+        ("town-progress-invariant:boxed-breakout-travel:await-entry", O, STORE_ENTRY),
         ("town-liveness-invariant:", T, EFFECT),
         ("town:cycle-break", T, EFFECT),
         ("posting-contract:", T, EFFECT),

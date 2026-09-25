@@ -269,6 +269,10 @@ class HomeMixin:
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
+        self._complete_observed_effect(
+            "home-knowledge-current", owners=("home-scan",),
+            sources=("store-operation",),
+        )
         self._home_knowledge_invalidated = False
         self._equipment_catalog.complete_home_scan(items)
         self._home_star_remove_curse_count = sum(
@@ -287,6 +291,11 @@ class HomeMixin:
 
     def settle_home_knowledge_request(self) -> None:
         """Settle the sole outstanding ``~9`` request, if any."""
+        if not self._home_knowledge_current:
+            self._release_claim_goal(
+                "home-knowledge-request-cleared", owners=("home-scan",),
+                kinds=("Observe",), sources=("store-operation",),
+            )
         self._home_knowledge_scan_epoch = None
         self._home_knowledge_scan_inflight = False
 
@@ -1780,6 +1789,7 @@ class HomeMixin:
             item,
             take_count,
         )
+        self._declare_non_discardable("home-visit")
         self._home_atomic_withdraw_move_identity = move_identity
         procurement_probe = getattr(self, "_home_procurement_probe", None)
         self._home_atomic_withdraw_procurement_class = (
@@ -1810,6 +1820,10 @@ class HomeMixin:
         ):
             self._home_errand.post(
                 self._inventory_signature_count(snapshot, signature)
+            )
+            self._complete_observed_effect(
+                "home-errand-posted", owners=("home-errand",),
+                sources=("store-operation",),
             )
         if (
             restore_owner_signature is not None
@@ -1858,6 +1872,16 @@ class HomeMixin:
             self._home_visit.observe_outside(
                 effect_observed=bool(succeeded) and not failed
             )
+        if succeeded and not failed:
+            self._complete_observed_effect(
+                "home-withdraw-observed", owners=("home-visit", "home-errand"),
+                sources=("store-operation",),
+            )
+        else:
+            self._release_claim_goal(
+                "target-unobserved", owners=("home-visit", "home-errand"),
+                kinds=("Observe",), sources=("store-operation",),
+            )
         self._home_atomic_withdraw_pending = None
         self._home_atomic_withdraw_procurement_class = None
         self._home_atomic_withdraw_move_identity = None
@@ -1880,6 +1904,11 @@ class HomeMixin:
         self._home_procurement_batch_active = bool(self._home_pending_batch)
         self._invalidate_home_observation()
         if succeeded:
+            if not failed:
+                self._complete_observed_effect(
+                    "calibration-restore-observed", owners=("calibration",),
+                    sources=("calibration",),
+                )
             self._observe_home_operation_effect()
             self._refresh_carried_equipment_catalog(snapshot)
         if self._calibration_restore_signatures:
@@ -2092,6 +2121,11 @@ class HomeMixin:
         self._home_observed_addresses.clear()
         self._home_withdraw_page_probe = None
         self._home_star_remove_curse_count = None
+        if self._home_knowledge_scan_requested and not self._home_knowledge_current:
+            self._release_claim_goal(
+                "home-knowledge-request-cleared", owners=("home-scan",),
+                kinds=("Observe",), sources=("store-operation",),
+            )
         self._home_knowledge_scan_requested = False
         self._home_knowledge_scan_inflight = False
         self._home_scan_source = None

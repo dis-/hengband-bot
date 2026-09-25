@@ -609,6 +609,10 @@ class ObservationMixin:
             self._home_procurement_batch_active = False
             self._home_batch_review_items.clear()
             self._home_active_from_batch = False
+            self._release_claim_goal(
+                "target-unobserved", owners=("home-visit", "home-errand"),
+                kinds=("Observe",), sources=("store-operation",),
+            )
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_move_identity = None
             self._home_identify_staff_sale_pending = False

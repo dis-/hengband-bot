@@ -209,6 +209,8 @@ class StoreVisit:
     operation_effect_observed: bool = False
     outcome: str | None = None
     visit_origin: str | None = None
+    claim_id: int | None = field(default=None, compare=False, repr=False)
+    claim_owner: str | None = field(default=None, compare=False, repr=False)
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
         if self.phase == StoreVisitPhase.CLOSED:

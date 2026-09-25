@@ -1293,6 +1293,10 @@ class ShopMixin:
             self._home_candidate_waiting = False
             self._home_pending_item = None
             self._home_pending_batch.clear()
+            self._release_claim_goal(
+                "target-unobserved", owners=("home-visit", "home-errand"),
+                kinds=("Observe",), sources=("store-operation",),
+            )
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_move_identity = None
             self._home_random_teleport_withdrawal = None

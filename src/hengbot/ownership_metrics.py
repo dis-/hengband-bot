@@ -79,7 +79,7 @@ from pathlib import Path
 import sys
 import time
 
-from hengbot.claim_goal_typing import goal_typing, is_survival
+from hengbot.claim_goal_typing import STORE_ENTRY, goal_typing, is_survival
 from hengbot.claim_ladder import (
     PREEMPTION,
     SURVIVAL_DISPLACED,
@@ -89,6 +89,7 @@ from hengbot.claim_ladder import (
     owner_change,
     pair_scope,
     rung_of,
+    TOWN_ERRAND_FAMILIES,
 )
 from hengbot.stop_shape import SHAPES, classify_stop, producer_identity
 from hengbot.town_arbiter import reason_owner_family
@@ -493,6 +494,27 @@ def _claim_rows_by_session(rows: Iterable[Mapping]) -> list[list[Mapping]]:
     return sessions
 
 
+def s3_numbers(rows: Iterable[Mapping]) -> dict:
+    """Record-only S3 diagnostics, including genuine plan handoffs."""
+    counts = Counter()
+    for session in _claim_rows_by_session(rows):
+        for row in session:
+            for name in ("claim_verdict_conflict", "visit_owner_mismatch"):
+                if row.get(name):
+                    counts[name] += 1
+            counts["plan_rebuild_deferred"] += int(
+                row.get("plan_rebuild_deferred") or 0
+            )
+            for violation in (
+                row.get("violation"),
+                *(entry.get("violation") for entry in row.get("suspended_closed") or ()
+                  if isinstance(entry, Mapping)),
+            ):
+                if isinstance(violation, Mapping) and violation.get("kind") == "plan-handoff":
+                    counts["plan_handoff"] += 1
+    return dict(counts)
+
+
 def _claim_runs(session_rows: Sequence[Mapping]):
     """Consecutive rows sharing one claim id, with the row that follows."""
     start = 0
@@ -856,6 +878,10 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
 VERDICT_TERMINAL_NOW = "terminal-now"
 VERDICT_NESTS = "nests"
 VERDICT_HOLDER_UNKNOWN = "holder-unknown"
+VERDICT_PLAN_HANDOFF = "plan-handoff"
+VERDICT_COMPLETED = "completed"
+VERDICT_CONTINUES = "continues"
+VERDICT_RELEASED = "released"
 
 
 def rejudge_recorded_violations(rows: Sequence[Mapping]) -> dict:
@@ -1073,6 +1099,29 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
     if typing is not None and typing.kind == "Terminal":
         return VERDICT_TERMINAL_NOW
     if entry.get("kind") == "retarget":
+        held_goal = entry.get("goal") if isinstance(entry.get("goal"), Mapping) else {}
+        reason = str(row.get("reason") or "")
+        if held_goal.get("source") == "floor-change" and reason.startswith(
+            "town:wait-recall"
+        ):
+            return VERDICT_CONTINUES
+        if (
+            typing is not None and typing.content == STORE_ENTRY
+            and isinstance(row.get("goal"), Mapping)
+            and row["goal"].get("kind") == "Terminal"
+        ):
+            return VERDICT_RELEASED
+        if (
+            held_family in {"equipment-txn", "calibration"}
+            and held_goal.get("kind") == "Observe"
+            and reason.startswith((
+                "equipment-transaction:approach-home",
+                "equipment-transaction:travel-home",
+                "calibration:restore-travel",
+            ))
+            and not reason.endswith(":await-entry")
+        ):
+            return VERDICT_CONTINUES
         return VIOLATION
     held = rung_of(
         held_family,
@@ -1083,10 +1132,38 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
     if entry.get("kind") == "displaced":
         return VERDICT_NESTS if new.rank < held.rank else VIOLATION
     goal = entry.get("goal") if isinstance(entry.get("goal"), Mapping) else {}
+    if (
+        typing is not None and typing.content == STORE_ENTRY
+        and str(row.get("reason") or "").startswith(
+            ("shop:observe", "shop:one-shot", "home:atomic")
+        )
+    ):
+        return VERDICT_COMPLETED
+    position = row.get("position") or {}
+    if (
+        goal.get("kind") == "Reach"
+        and isinstance(position, Mapping)
+        and goal.get("cell") == [position.get("y"), position.get("x")]
+    ):
+        return VERDICT_COMPLETED
+    if (
+        held_family in TOWN_ERRAND_FAMILIES
+        and _family_of_row(row) in TOWN_ERRAND_FAMILIES
+        and held_family != _family_of_row(row)
+        and held.rank == new.rank
+        and (
+            goal.get("kind") == "Reach"
+            or (typing is not None and typing.content == STORE_ENTRY)
+        )
+    ):
+        return VERDICT_PLAN_HANDOFF
     return owner_change(
         held_rank=held.rank,
-        held_goal_kind=goal.get("kind"),
-        held_goal_source=goal.get("source"),
+        held_goal_kind=typing.kind if typing is not None else goal.get("kind"),
+        held_goal_source=(
+            STORE_ENTRY if typing is not None and typing.content == STORE_ENTRY
+            else goal.get("source")
+        ),
         held_survival=row_is_survival(held_row),
         new_rank=new.rank,
         new_survival=row_is_survival(row),

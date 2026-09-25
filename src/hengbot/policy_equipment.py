@@ -428,6 +428,7 @@ class EquipmentMixin:
 
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
         """Release transaction ownership freshly satisfied by worn observations."""
+        had_owned_items = bool(self._equipment_transaction_owned_items)
         equipped = {
             (identity, item.slot)
             for item in snapshot.equipment
@@ -441,6 +442,11 @@ class EquipmentMixin:
             for owned in self._equipment_transaction_owned_items
             if owned not in equipped
         ]
+        if had_owned_items and not self._equipment_transaction_owned_items:
+            self._complete_observed_effect(
+                "equipment-transaction-restored",
+                owners=("equipment-txn",), sources=("transaction",),
+            )
 
     @staticmethod
     def _launcher_average_damage(item: InventoryItem | StoreItem | None) -> float:
@@ -1556,6 +1562,7 @@ class EquipmentMixin:
         """Give a stripped transaction exclusive ownership of town decisions."""
         if not self._equipment_transaction_owned_items:
             return None
+        self._declare_non_discardable("equipment-txn")
         if self._equipment_transaction_session is None:
             self._abandon_blocked_equipment_transaction(snapshot)
         if self._equipment_transaction_restore_terminal is not None:

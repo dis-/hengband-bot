@@ -42,9 +42,8 @@ rank, ``TOWN_RANK``, below every dungeon rung: none of them may take a walk or
 an operation from another without closing it.  The exception is
 ``equipment-txn`` while it owns a transaction (after the strip, the claim's
 ``non_discardable``): it keeps the rank of its own ``_decide`` rungs (5765 /
-5799), above the other errands.  Nothing sets ``non_discardable`` yet (design
-3.1 left it for the producers that migrate in S3), so until then every
-``equipment-txn`` decision ranks as a town errand.
+5799), above the other errands. S3.1 records the producer's
+``non_discardable`` declaration and promotes a continuing claim in place.
 
 From a decision to its rung
 ---------------------------
@@ -71,8 +70,8 @@ higher (so every push is by a strictly higher rank and the stack is bounded by
 the number of ranks); survival that does not outrank it *replaces* it
 (``survival-displaced``, exempt, not a violation); anything else is a
 *violation*.  A store-operation or transaction ``Observe`` claim is never
-suspended: giving it way is always a violation (its families are migrated in
-S3).
+suspended: giving it way is always a violation. An entrance wait has source
+``store-entry`` and can suspend under a higher rung until the store page appears.
 """
 
 from __future__ import annotations
@@ -494,7 +493,7 @@ def pair_scope(held: Rung, new: Rung) -> str:
 
 def never_suspended(goal_kind: str | None, goal_source: str | None) -> bool:
     """Rev 10.1 item 6: a store-operation or transaction Observe claim."""
-    return goal_kind == GOAL_OBSERVE and goal_source != FLOOR_CHANGE
+    return goal_kind == GOAL_OBSERVE and goal_source not in (FLOOR_CHANGE, "store-entry")
 
 
 def owner_change(
@@ -550,7 +549,6 @@ def resumable_index(stack, owner, goal, non_discardable: bool = False):
         if (
             claim.owner == owner
             and claim.goal == goal
-            and claim.non_discardable == non_discardable
         ):
             return index
     return None

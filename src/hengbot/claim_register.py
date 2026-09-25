@@ -26,7 +26,7 @@ What a claim is
                      arbitrates until S2b brings the ladder.
 ``state``            ``active | awaiting | suspended | complete | retired``.
 ``non_discardable``  design 3.1: stripped equipment and a pending Home atomic
-                     withdraw may not be dropped.  Nothing sets it in S1.
+                     withdraw may not be dropped. S3.1 promotes it in place.
 
 Plain data only (design 5.4).  A goal holds a ``(y, x)`` tuple, never a
 ``Position``; a claim holds no ``DecisionCandidate`` and no snapshot.  The
@@ -76,9 +76,9 @@ nothing ships with it on.
 
 Continuity
 ----------
-``declare`` continues the current claim while the owner, the goal and
-``non_discardable`` are unchanged and the claim has not been closed; the claim
-id is then the same on consecutive rows.  Anything else opens a new claim with
+``declare`` continues the current claim while the owner and goal are unchanged
+and the claim has not been closed. ``non_discardable`` can be promoted but never
+cleared on an open claim. Anything else opens a new claim with
 a new id.  Ids come from one monotonic counter per register (design 4 names one
 monotonic source read by both the policy and the driver), so two runs over the
 same recorded boards allocate the same ids.
@@ -504,7 +504,6 @@ class ClaimRegister:
             and claim.state != ClaimState.SUSPENDED
             and claim.owner == owner_of(owner)
             and claim.goal == goal
-            and claim.non_discardable == non_discardable
         )
 
     def declare(
@@ -549,6 +548,17 @@ class ClaimRegister:
             # higher rank than the claim it suspends, which bounds the stack.
             if claim.survival != bool(survival):
                 changes["survival"] = bool(survival)
+            if non_discardable and not claim.non_discardable:
+                if rank is None or rung is None:
+                    from hengbot.claim_ladder import rung_of
+                    promoted_rung = rung_of(
+                        declared_owner, None, non_discardable=True
+                    )
+                    rank = promoted_rung.rank if rank is None else rank
+                    rung = promoted_rung.name if rung is None else rung
+                changes["non_discardable"] = True
+                changes["rank"] = rank
+                changes["rung"] = rung
             if perceived_turn is not None:
                 changes["last_perceived_turn"] = int(perceived_turn)
             if changes:

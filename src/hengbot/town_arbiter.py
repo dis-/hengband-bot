@@ -839,6 +839,7 @@ class TownArbiterMixin:
         visit = self._store_visit
         if visit is None:
             return
+        claim_operation_posted = visit.operation_posted or visit.operation_key is not None
         if visit.operation_posted:
             if (
                 self._store_buy_inflight is not None
@@ -856,7 +857,7 @@ class TownArbiterMixin:
         # with the outcome as its label.  Nothing reads it back.
         closed_hook = getattr(self, "_claim_store_visit_closed", None)
         if closed_hook is not None:
-            closed_hook(visit, outcome)
+            closed_hook(visit, outcome, operation_posted=claim_operation_posted)
         self._store_visit_last_closed = visit
         self._store_visit = None
 
