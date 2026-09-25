@@ -4412,7 +4412,31 @@ class TownMixin:
                             self._town_recall_destination(snapshot)
                         )
                         if recall_dest is None:
-                            return WAIT_KEY
+                            gated_dest, gated_dungeon = (
+                                self._town_recall_destination(
+                                    snapshot, guardian_gate=False
+                                )
+                            )
+                            if gated_dest is None:
+                                return WAIT_KEY
+                            # The forced departure would land on a guardian
+                            # floor the kit cannot pass.  This rung reads its
+                            # recall now, so it switches here exactly like
+                            # the ordinary departure's read point below does,
+                            # and stops visibly when nothing qualifies,
+                            # instead of waiting under the repetition block.
+                            if not self._guardian_blocked_recall_switch(
+                                snapshot, gated_dungeon
+                            ):
+                                self._town_blocked_reason = (
+                                    "guardian-bounce-no-alternate"
+                                )
+                                return self._town_blocked_key(snapshot)
+                            recall_dest, recall_dungeon_id = (
+                                self._town_recall_destination(snapshot)
+                            )
+                            if recall_dest is None:
+                                return WAIT_KEY
                         if not self._dungeon_entry_allowed(
                             snapshot,
                             via_recall=True,
@@ -4441,10 +4465,10 @@ class TownMixin:
         departure gate below uses it to tell that refusal apart.
         """
         def safe(dungeon_id: int) -> bool:
-            if guardian_gate:
-                return self._recall_destination_safe(snapshot, dungeon_id)
-            return self._recall_destination_safe(
-                snapshot, dungeon_id, guardian_gate=False
+            if self._recall_destination_safe(snapshot, dungeon_id):
+                return True
+            return not guardian_gate and self._recall_refused_only_for_guardian(
+                snapshot, dungeon_id
             )
 
         recall_dest = None
@@ -4470,6 +4494,22 @@ class TownMixin:
         ):
             recall_dest = "yeek-cave"
         return recall_dest, recall_dungeon_id
+
+    def _guardian_blocked_recall_switch(
+        self, snapshot: Snapshot, dungeon_id: int
+    ) -> bool:
+        """Leave a recall target whose landing is a blocked guardian floor.
+
+        The one switch both recall-reading rungs use: the guardian valve's
+        choice (user decision 2026-09-25, 「倒せない階でなければ深くても可」),
+        never the refused dungeon.  False when no landing qualifies; the
+        caller then stops visibly on guardian-bounce-no-alternate.
+        """
+        return self._activate_safe_recall_fallback(
+            snapshot,
+            self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True),
+            guardian_bounced_dungeon=dungeon_id,
+        ) is not None
 
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         full_identify_trip = self._morivant_full_identify_key(snapshot)
@@ -4710,6 +4750,20 @@ class TownMixin:
         # faster than re-walking from the entrance). Fundraising deliberately mines
         # level 1, so it keeps walking to the entrance instead.
         recall_dest, recall_dungeon_id = self._town_recall_destination(snapshot)
+        # A destination refused only because its landing is a guardian floor
+        # the current kit cannot pass still runs the whole departure flow:
+        # its supplies, scrolls and readiness gates are those of a recall that
+        # will be read (to the switched landing), and the refusal is recorded
+        # as a failed departure leaf.  The switch itself happens only where
+        # the recall key would otherwise be read.
+        guardian_blocked = False
+        if recall_dest is None:
+            gated_dest, gated_dungeon = self._town_recall_destination(
+                snapshot, guardian_gate=False
+            )
+            if gated_dest is not None:
+                guardian_blocked = True
+                recall_dest, recall_dungeon_id = gated_dest, gated_dungeon
         # A completed scan with no pending Home or identification owner cannot
         # legitimately defer departure.  This also repairs old visit state
         # created before disposal completion released the latch at its source.
@@ -4742,9 +4796,12 @@ class TownMixin:
         # Combat readiness remains an independent hard gate as well.
         departure_conjuncts = self._recall_town_departure_conjuncts(snapshot)
         departure_ok = all(departure_conjuncts.values())
-        if recall_dest is not None and not departure_ok:
+        if recall_dest is not None and (not departure_ok or guardian_blocked):
+            block_conjuncts = dict(departure_conjuncts)
+            if guardian_blocked:
+                block_conjuncts["recall_landing_not_guardian_blocked"] = False
             self._departure_block = self._departure_block_state(
-                snapshot, departure_conjuncts
+                snapshot, block_conjuncts
             )
         else:
             self._departure_block = {}
@@ -4822,6 +4879,37 @@ class TownMixin:
                 return CHARACTER_DUMP_MACRO
             if not snapshot.player.blind and not snapshot.player.confused:
                 recall = self._find_recall_scroll(snapshot)
+                if recall is not None and guardian_blocked:
+                    # The recall would be read now and would land on a
+                    # guardian floor the current kit cannot pass: whatever
+                    # made it the target (a conquest latch committed on an
+                    # earlier kit, a latched alternate whose landing has since
+                    # reached its guardian floor), the dive would come
+                    # straight back (guardian-kit-insufficient).  Only here,
+                    # with every departure leaf ready -- a departure-blocking
+                    # withdrawal or purchase still pending (a consumable that
+                    # can make the guardian beatable again) keeps the target
+                    # and the latch -- switch the way the guardian valve
+                    # does, and with no landing left stop visibly (user
+                    # decisions 2026-09-25, guardian-recall-pingpong r2/r3).
+                    # Optional town claims do not hold the switch back, just
+                    # as they do not hold back the recall read below (live
+                    # 06:22:31: identification-withdrawal and equipment-work
+                    # claims were live when the recall was read).
+                    if self._guardian_blocked_recall_switch(
+                        snapshot, recall_dungeon_id
+                    ):
+                        self.last_reason = "town:unsafe-recall-fallback"
+                        return WAIT_KEY
+                    if self._equipment_work_home_route_available():
+                        return None
+                    if self._outstanding_equipment_work():
+                        self._town_blocked_reason = (
+                            "equipment-work-home-route-exhausted"
+                        )
+                        return self._town_blocked_key(snapshot)
+                    self._town_blocked_reason = "guardian-bounce-no-alternate"
+                    return self._town_blocked_key(snapshot)
                 if recall is not None:
                     destination_depth = self._dungeon_entry_depth(
                         snapshot, recall_dungeon_id, via_recall=True
@@ -4871,40 +4959,12 @@ class TownMixin:
         # supply plan before its next shop stop.  With no town claim left, make
         # the genuine no-destination state a visible terminal instead of an
         # unlatched WAIT that is reconsidered forever.
-        if recall_dest is None:
-            gated_destination, gated_dungeon = self._town_recall_destination(
-                snapshot, guardian_gate=False
-            )
-            if gated_destination is not None:
-                # The recall would land on a guardian floor the current kit
-                # cannot pass: whatever made it the target (a conquest latch
-                # committed on an earlier kit, a latched alternate whose
-                # landing has since reached its guardian floor), the dive
-                # would come straight back (guardian-kit-insufficient).
-                # Switch the way the guardian valve does and, with no
-                # landing left, stop visibly (user decisions 2026-09-25,
-                # guardian-recall-pingpong r2/r3).
-                destination_depth = self._dungeon_entry_depth(
-                    snapshot, gated_dungeon, via_recall=True
-                )
-                if self._activate_safe_recall_fallback(
-                    snapshot, destination_depth,
-                    guardian_bounced_dungeon=gated_dungeon,
-                ) is not None:
-                    self.last_reason = "town:unsafe-recall-fallback"
-                    return WAIT_KEY
-                if self._town_claims_active(snapshot):
-                    return None
-                if self._equipment_work_home_route_available():
-                    return None
-                if self._outstanding_equipment_work():
-                    self._town_blocked_reason = "equipment-work-home-route-exhausted"
-                    return self._town_blocked_key(snapshot)
-                self._town_blocked_reason = "guardian-bounce-no-alternate"
-                return self._town_blocked_key(snapshot)
         if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
+            # Ability refusal only; a guardian-landing refusal is the switch
+            # at the read point above.
+            and not guardian_blocked
             and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
         ):
             destination_depth = self._dungeon_entry_depth(

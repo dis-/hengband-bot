@@ -8388,23 +8388,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _recall_destination_safe(
-        self, snapshot: Snapshot, dungeon_id: int, *, guardian_gate: bool = True
+        self, snapshot: Snapshot, dungeon_id: int
     ) -> bool:
         """Reject recall when its landing floor violates mandatory depth gates.
 
-        ``guardian_gate``: also reject a landing that is a guardian floor the
-        current kit cannot pass.  Such a recall is answered at once by the
+        It also rejects a landing that is a guardian floor the current kit
+        cannot pass.  Such a recall is answered at once by the
         guardian-kit-insufficient return (live 2026-09-25 06:22:31: the
         conquest latch held the Orc cave after the kit that made its guardian
         beatable was changed, and the recall landed on 23, its guardian
-        floor).  ``False`` asks whether the landing is refused for that
-        reason alone.
+        floor).  ``_recall_refused_only_for_guardian`` tells that refusal
+        apart.
         """
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         if self._missing_required_abilities(snapshot, depth):
             return False
-        return not (
-            guardian_gate
+        return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
+
+    def _recall_refused_only_for_guardian(
+        self, snapshot: Snapshot, dungeon_id: int
+    ) -> bool:
+        """Whether the landing passes the depth gates but is a blocked guardian floor."""
+        depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
+        return (
+            not self._missing_required_abilities(snapshot, depth)
             and self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
         )
 

@@ -23,6 +23,7 @@ from hengbot.model import (
     Position,
     SV_FLASK_OIL,
     SV_LITE_LANTERN,
+    SV_POTION_SPEED,
     SV_SCROLL_WORD_OF_RECALL,
     SV_STAFF_IDENTIFY,
     Snapshot,
@@ -1279,6 +1280,162 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                             key,
                             "rr" + policy._recall_selection_key(board, productive),
                         )
+
+    def test_repetition_block_switches_off_a_blocked_guardian_landing(self):
+        """Round 2 (R1): the repetition-block departure rung reads its recall
+        itself.  With a guardian-blocked target and no walk-in entrance on the
+        board it used to wait forever under ``town:blocked:repetition``; it
+        now switches like the ordinary read point and recalls to the
+        productive landing, or stops visibly when nothing qualifies.
+        """
+        worlds = {
+            "deeper-only": (self.DEEPER_ONLY, self.FOREST),
+            "all-blocked": (self.ALL_BLOCKED, None),
+        }
+        for world, (landings, productive) in worlds.items():
+            for role, attribute in self.ROLES.items():
+                with self.subTest(world=world, role=role):
+                    policy = self._policy(landings)
+                    setattr(policy, attribute, self.ORC_CAVE)
+                    policy._deepest_level = landings[self.ORC_CAVE]
+                    policy._char_dump_done_this_visit = True
+                    board = self._recall_ready_town(
+                        landings, angband_unlocked=True
+                    )
+                    policy._observe(board)
+                    self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
+                    policy._town_blocked_reason = "repetition"
+                    # Precondition: no walk-in entrance to take instead.
+                    self.assertIsNone(policy._descent_step(board))
+                    key = policy._town_special_key(board)
+                    if productive is None:
+                        self.assertEqual(
+                            policy.last_reason, f"town:blocked:{self.TERMINAL}"
+                        )
+                        self.assertEqual(
+                            policy._town_blocked_reason, self.TERMINAL
+                        )
+                        self.assertIn(
+                            policy.last_reason, POLICY_FINAL_STOP_REASONS
+                        )
+                        continue
+                    self.assertEqual(
+                        policy.last_reason, "town:repetition-depart:recall"
+                    )
+                    self.assertEqual(
+                        key,
+                        "rr" + policy._recall_selection_key(board, productive),
+                    )
+                    self.assertEqual(
+                        (policy._alternate_dungeon, policy._target_dungeon_id),
+                        (productive, productive),
+                    )
+
+    def test_no_switch_while_a_speed_potion_withdrawal_is_pending(self):
+        """Round 2 (R2): the switch happens only where the recall is read.
+
+        The latched conquest (Orc cave) is beatable only with a Speed potion,
+        and that potion is still in Home with its withdrawal pending, so
+        departure is not ready.  The router must not switch away and clear
+        the conquest latch then; once the potion is carried, the landing is
+        no longer blocked and the recall goes to the conquest.
+        DECLARED WALL: the guardian fight projection is answered by whether a
+        Speed potion is carried, as ``_guardian_fight_viable``'s own
+        speed-potion rung does; this world has no monster knowledge.
+        """
+        landings = self.DEEPER_ONLY
+        policy = self._policy(landings)
+        policy._conquest_committed = self.ORC_CAVE
+        policy._deepest_level = landings[self.ORC_CAVE]
+        policy._char_dump_done_this_visit = True
+        real = policy._guardian_fight_viable
+
+        def speed_viable(snapshot, info):
+            if info.id == self.ORC_CAVE:
+                return policy._find_exact_potion(
+                    snapshot, SV_POTION_SPEED
+                ) is not None
+            return real(snapshot, info)
+
+        speed = item("p", TVAL_POTION, SV_POTION_SPEED, count=1)
+        board = self._recall_ready_town(landings, angband_unlocked=True)
+        with patch.object(
+            policy, "_guardian_fight_viable", side_effect=speed_viable
+        ):
+            policy._observe(board)
+            self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
+            self.assertTrue(policy._guardian_floor_blocked(
+                board, self.ORC_CAVE, landings[self.ORC_CAVE]
+            ))
+            signature = policy._item_signature(speed)
+            policy._home_pending_item = signature
+            policy._home_atomic_withdraw_pending = (signature, 0, 0, 1)
+            self.assertFalse(
+                policy._recall_town_departure_conjuncts(board)[
+                    "departure_home_atomic_withdraw_clear"
+                ]
+            )
+            policy._town_special_key(board)
+            self.assertNotEqual(policy.last_reason, "town:unsafe-recall-fallback")
+            self.assertEqual(
+                (policy._alternate_dungeon, policy._conquest_committed),
+                (None, self.ORC_CAVE),
+            )
+            self.assertIn(
+                "departure_home_atomic_withdraw_clear",
+                policy._departure_block["failed"],
+            )
+            # The potion arrives: the withdrawal is observed and released.
+            policy._home_pending_item = None
+            policy._home_atomic_withdraw_pending = None
+            carried = replace(board, inventory=[*board.inventory, speed])
+            policy._observe(carried)
+            self.assertFalse(policy._guardian_floor_blocked(
+                carried, self.ORC_CAVE, landings[self.ORC_CAVE]
+            ))
+            key = policy._town_special_key(carried)
+        self.assertEqual(policy.last_reason, "town:recall-to-alt-dungeon")
+        self.assertEqual(
+            key, "rr" + policy._recall_selection_key(carried, self.ORC_CAVE)
+        )
+        self.assertEqual(
+            (policy._alternate_dungeon, policy._conquest_committed),
+            (None, self.ORC_CAVE),
+        )
+
+    def test_blocked_landing_keeps_the_departure_scroll_and_names_the_leaf(self):
+        """Round 2 (R3): a recall is read either way (to the switched landing),
+        so the departure scroll stays in the recall stock target, and the
+        refused landing is the failed leaf of the departure block -- also on
+        the visible guardian-bounce-no-alternate stop.
+        """
+        for world, landings in (
+            ("deeper-only", self.DEEPER_ONLY),
+            ("all-blocked", self.ALL_BLOCKED),
+        ):
+            with self.subTest(world=world):
+                policy = self._policy(landings)
+                policy._conquest_committed = self.ORC_CAVE
+                policy._deepest_level = landings[self.ORC_CAVE]
+                policy._char_dump_done_this_visit = True
+                board = self._recall_ready_town(landings, angband_unlocked=True)
+                policy._observe(board)
+                self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
+                status = policy._supply_ledger(
+                    board, policy._planned_depth()
+                )["recall"]
+                self.assertEqual(
+                    status.required_departure, status.required_return + 1
+                )
+                policy._town_special_key(board)
+                self.assertEqual(
+                    policy._departure_block["failed"],
+                    ["recall_landing_not_guardian_blocked"],
+                )
+                if world == "all-blocked":
+                    self.assertEqual(
+                        policy.last_reason, f"town:blocked:{self.TERMINAL}"
+                    )
 
     def test_picker_skips_a_landing_on_a_blocked_guardian_floor(self):
         policy = self._policy(self.SHALLOWER)

@@ -186,7 +186,11 @@ class SupplyMixin:
                     and snapshot.in_town
                     and not snapshot.player.recalling
                     and self._fundraising_mode is None
-                    and self._town_recall_destination(snapshot)[0] is not None
+                    # A destination refused only for its blocked guardian
+                    # landing still reads a recall, to the switched landing.
+                    and self._town_recall_destination(
+                        snapshot, guardian_gate=False
+                    )[0] is not None
                 ):
                     # The departure action consumes one scroll before dungeon
                     # entry observes the standing expedition stock.  This is
