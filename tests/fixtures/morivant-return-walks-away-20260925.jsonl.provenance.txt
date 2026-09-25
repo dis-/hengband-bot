@@ -1,0 +1,5 @@
+Source: jsonlog/incident-20260925-2041-morivant-return-walks-away.state.jsonl.gz and .decisions.jsonl.gz (copies of the live logs taken after the 20:41 stop); the automatic capture incident-captures/20260925-204146-town-blocked-owner-retired/decision-tail.jsonl ends with the same row.
+state.jsonl.gz sha256 1415a5f5d4c08245d506773690f49ad0d002e2d893b4baf7c6785f934fe0f6a7; decisions.jsonl.gz sha256 8b258ce18a8063833ce49efb35ffa91ec2865f2a4dfacabb14dfd972988f1781; decision-tail.jsonl sha256 e9ccedb07f7394c7b064f6d74da636c688bfbf64dd266bc2ea0f3a9db36b8af2
+Window: decision indices 6441..6659 (sequence 16522..16740, turn 5774934-5780207), from the first surface row after the Word of Recall landing to the stop; the boundary walk validates for all 219 decisions.
+Frozen rows: state rows 9903..10305 (403 emitter rows); decompressed sha256 0a808c1ccf78d768fe9dd5ddb8dc121e9270bed1561db2206cce5163840e40f7.
+Recorded facts: all 219 decisions of the window.

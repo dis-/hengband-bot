@@ -977,6 +977,35 @@ class NavigationMixin:
                 count += 1
         return count
 
+    def _forget_left_town_terrain(self) -> None:
+        """Drop the routing terrain of a town the player has left.
+
+        Every town shares floor_key (0, 0, 0) with the other surface maps, so
+        the per-floor reset never runs between them.  The terrain the router
+        remembers is map coordinates: kept
+        across an Inn teleport from the Outpost to Morivant, the Outpost's
+        walls stayed walls in Morivant's graph (the static Morivant layout
+        fills only cells not already known), and the return walk to
+        Morivant's Inn routed around them, away from the Inn (2026-09-25
+        20:41).  The terrain seen on the new map is learned again from its
+        boards; a fixed town's static layout fills the rest.
+        """
+        self._remembered_floor_t.clear()
+        self._remembered_door_t.clear()
+        self._remembered_rubble_t.clear()
+        self._remembered_wall_t.clear()
+        self._remembered_known_t.clear()
+        self._remembered_marked_t.clear()
+        self._remembered_downstairs.clear()
+        self._remembered_upstairs.clear()
+        self._remembered_entrances.clear()
+        self._door_attempts.clear()
+        self._blocked_doors.clear()
+        self._dig_attempts.clear()
+        self._blocked_rubble.clear()
+        self._town_visit_entrances.clear()
+        self._town_entrance_cache = None
+
     def _build_grid_index(self, snapshot: Snapshot) -> None:
         remembered_floor = self._remembered_floor_t
         remembered_door = self._remembered_door_t

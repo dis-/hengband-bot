@@ -14,7 +14,7 @@ CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
-from hengbot.policy_constants import OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_constants import MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
 from hengbot.policy_types import (
     DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
     TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
@@ -208,8 +208,18 @@ class TownMixin:
             goal = self._loot_target
         elif owner == "cross-town" and (
             (
-                (reason or self.last_reason or "").startswith(
-                    "town:morivant-full-identify:travel-"
+                (
+                    (reason or self.last_reason or "").startswith(
+                        "town:morivant-full-identify:travel-"
+                    )
+                    # The return from Morivant is the same walk in the other
+                    # direction: to Morivant's teleport building along the
+                    # route _town_teleport_route steps on.  Without this part
+                    # the walk registered no distance, every step after the
+                    # first scored no progress and the arbiter retired the
+                    # family nine cells into the walk (2026-09-25 20:41).
+                    or (reason or self.last_reason)
+                    == "town:morivant-full-identify:return"
                 )
                 and getattr(self, "_morivant_full_identify", None) is not None
             )
@@ -231,6 +241,25 @@ class TownMixin:
                 self._town_teleport_building_route(snapshot, positions)
                 if positions else None
             )
+            if route is None:
+                return durable
+            return durable + ((
+                "locomotion", owner, snapshot.floor_key, route.target,
+                route.remaining_edges,
+            ),)
+        elif (
+            owner == "cross-town"
+            and (reason or self.last_reason) == "town:morivant-full-identify:library"
+            and getattr(self, "_morivant_full_identify", None) is not None
+        ):
+            # The expedition's third walk, from Morivant's Inn to its Library,
+            # measured the same way: the remaining edges of the town-map route
+            # to the Library entrance the producer declares.
+            library = (
+                self._town_map.building_position(MORIVANT_LIBRARY_BUILDING_TYPE)
+                if self._town_map_active(snapshot) else None
+            )
+            route = self._town_map_goal_route(snapshot, library)
             if route is None:
                 return durable
             return durable + ((
