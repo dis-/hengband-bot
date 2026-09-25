@@ -39,9 +39,29 @@ Attributes S2b.1 adds or newly reads (C5 covers each):
     ``ClaimRegister._suspended``, ``ClaimRegister._suspended_closings``;
     ``Claim.rank``, ``.rung``, ``.suspended_sequence``, ``.suspended_turn``,
     ``.suspended_decisions``, ``.suspended_turns``, ``.trigger_monsters``,
-    ``.last_perceived_turn`` (class defaults).  No new policy attribute is
-    added or newly read (``non_discardable`` stays unset: see
-    ``policy._record_decision_claim``).
+    ``.last_perceived_turn`` (class defaults); round 2 adds the policy's
+    per-decision slot ``_decision_triggers`` (reset at every ``choose_key``
+    entry, ``getattr`` in the writer, ``restore_checkpoint`` default).
+    ``non_discardable`` stays unset: see ``policy._record_decision_claim``.
+
+Round 2 (the two reviews of a5c744e5)
+-------------------------------------
+F1  ``BoundedStackTest``: a push is by a strictly higher rank only; survival
+    that does not outrank the holder replaces it (``survival-displaced``,
+    exempt); a same-owner same-goal claim resumes from anywhere in the stack.
+    The reviewers' alternation stays at depth <= 1 and resumes its escape
+    claim; a seeded 600-decision sequence keeps the stack strictly ordered.
+    **Revert-proof**: the round-1 rules grow the alternation past depth 6;
+    a top-only resume leaves the buried claim buried.
+F2  ``SameOwnerGoalChangeTest``: a same-owner goal change is a retarget
+    violation, or on a survival decision the survival exemption; a continuing
+    claim takes its decision's survival flag.
+F3  ``TriggerSetTest``: the look-ahead set of design 5.4.1 from the producer's
+    own selection, on the recorded 06:00 boards whose other perceived
+    hostiles are left out.
+F4  the order test compares (producer, family) per call site; swapping the
+    families of two call sites of one producer fails.
+F5  ``PickupCensusTest``: ``pickup`` / ``trigger-autodestroy`` are floor-loot.
 """
 
 from __future__ import annotations
@@ -94,7 +114,13 @@ from hengbot.ownership_metrics import (
     row_is_survival,
 )
 from hengbot.policy import HengbotPolicy
-from hengbot.town_arbiter import _new_town_turn_arbiter, owner_families
+from hengbot.model import parse_snapshot
+from hengbot.policy_constants import SWARM_LOOKAHEAD
+from hengbot.town_arbiter import (
+    _new_town_turn_arbiter,
+    owner_families,
+    reason_owner_family,
+)
 
 from test_ownership_claims import LEGACY_CHECKPOINT, _Replay
 from test_ownership_s2a1_closure import _fresh_policy, _town_board
@@ -127,11 +153,90 @@ def _call_name(node: ast.Call) -> str | None:
     return None
 
 
-def _decide_calls(ladder=CLAIM_LADDER) -> list[str]:
-    """The rung calls inside ``_decide``, in source order.
+def _literal_family(node) -> str | None:
+    """The census family of a reason literal (or an f-string's head)."""
+    text = None
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        text = node.value
+    elif (
+        isinstance(node, ast.JoinedStr)
+        and node.values
+        and isinstance(node.values[0], ast.Constant)
+    ):
+        text = node.values[0].value
+    if text is None:
+        return None
+    family = reason_owner_family(text)
+    return None if family == "unregistered" else family
+
+
+def _reason_families(statement):
+    for node in ast.walk(statement):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Attribute) and target.attr == "last_reason"
+            for target in node.targets
+        ):
+            family = _literal_family(node.value)
+            if family is not None:
+                yield family
+
+
+def _call_site_family(call, parents, marker):
+    """The family a ``_decide`` call site produces, read from the source.
+
+    In order: a reason literal passed to the call (``seek_reason=...``, a
+    travel reason); for ``x = self.f(...)``, the first reason literal set in
+    the body of the ``if`` statements right after it that test ``x``; for
+    ``return self.f(...)``, a reason literal set by the statement just before
+    it; otherwise the producer's ``@claims`` marker.
+    """
+    for argument in [*call.args, *(keyword.value for keyword in call.keywords)]:
+        family = _literal_family(argument)
+        if family is not None:
+            return family
+    child = call
+    statement = block = index = None
+    while child in parents:
+        parent = parents[child]
+        found = False
+        for field in ("body", "orelse", "finalbody"):
+            candidate = getattr(parent, field, None)
+            if isinstance(candidate, list) and child in candidate:
+                statement, block, index = child, candidate, candidate.index(child)
+                found = True
+                break
+        if found:
+            break
+        child = parent
+    if (
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+    ):
+        bound = statement.targets[0].id
+        for sibling in block[index + 1:]:
+            if not isinstance(sibling, ast.If) or bound not in {
+                node.id for node in ast.walk(sibling.test)
+                if isinstance(node, ast.Name)
+            }:
+                break
+            for inner in sibling.body:
+                for family in _reason_families(inner):
+                    return family
+    if isinstance(statement, ast.Return) and index:
+        for family in _reason_families(block[index - 1]):
+            return family
+    return marker
+
+
+def _decide_calls(ladder=CLAIM_LADDER) -> list[tuple[str, str | None]]:
+    """The rung calls inside ``_decide``, in source order, with the family
+    each call site produces.
 
     A call is a rung call when it is a ``self`` method carrying the
-    ``@claims`` marker, or when the ladder names it as an unmarked rung.
+    ``@claims`` marker, or when the ladder names it as an unmarked rung (an
+    unmarked dispatcher has no marker; its family is ``None`` unless the
+    source shows one).
     """
     unmarked = {
         rung.producer for rung in decide_rungs(ladder) if not rung.marked
@@ -141,6 +246,11 @@ def _decide_calls(ladder=CLAIM_LADDER) -> list[str]:
         node for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef) and node.name == "_decide"
     )
+    parents = {
+        child: node
+        for node in ast.walk(decide)
+        for child in ast.iter_child_nodes(node)
+    }
     calls = []
     for node in ast.walk(decide):
         if not isinstance(node, ast.Call):
@@ -149,24 +259,31 @@ def _decide_calls(ladder=CLAIM_LADDER) -> list[str]:
         if name is None:
             continue
         method = getattr(HengbotPolicy, name, None) if "." not in name else None
-        if (
-            getattr(method, CLAIM_OWNER_ATTRIBUTE, None) is not None
-            or name in unmarked
-        ):
-            calls.append((node.lineno, node.col_offset, name))
-    return [name for _line, _col, name in sorted(calls)]
+        owner = getattr(method, CLAIM_OWNER_ATTRIBUTE, None)
+        if owner is not None or name in unmarked:
+            family = _call_site_family(
+                node, parents, owner.value if owner is not None else None
+            )
+            calls.append((node.lineno, node.col_offset, name, family))
+    return [(name, family) for _line, _col, name, family in sorted(calls)]
 
 
 def _order_mismatch(ladder) -> list:
-    expected = [rung.producer for rung in decide_rungs(ladder)]
+    """(producer, family) per call site against the ladder's decide rungs.
+
+    An unmarked rung whose call site shows no family compares by producer.
+    """
+    expected = [(rung.producer, rung.family) for rung in decide_rungs(ladder)]
     found = _decide_calls(ladder)
-    return [
-        (index, want, got)
-        for index, (want, got) in enumerate(
-            zip(expected + [None] * len(found), found + [None] * len(expected))
-        )
-        if want != got
-    ]
+    mismatch = []
+    for index in range(max(len(expected), len(found))):
+        want = expected[index] if index < len(expected) else None
+        got = found[index] if index < len(found) else None
+        if want is None or got is None:
+            mismatch.append((index, want, got))
+        elif want[0] != got[0] or (got[1] is not None and want[1] != got[1]):
+            mismatch.append((index, want, got))
+    return mismatch
 
 
 # -- C1 ----------------------------------------------------------------------
@@ -195,6 +312,37 @@ class LadderOrderTest(unittest.TestCase):
         self.assertEqual(rungs[second].producer, "_ranged_attack_key")
         rungs[first], rungs[second] = rungs[second], rungs[first]
         self.assertNotEqual(_order_mismatch(tuple(rungs)), [])
+
+    def test_revert_proof_swapping_families_between_call_sites(self):
+        """Round 2 (F4): the same producer's call sites are told apart by
+        the family each produces (``_flee_step`` x4, ``_hunt_step`` x3,
+        ``_explore_step`` x2, ``_direction_key`` x2)."""
+        for producer in (
+            "_flee_step", "_hunt_step", "_explore_step", "_direction_key",
+        ):
+            with self.subTest(producer=producer):
+                rungs = list(CLAIM_LADDER)
+                sites = [
+                    index for index, rung in enumerate(rungs)
+                    if rung.producer == producer
+                    and rung.section == SECTION_DECIDE
+                ]
+                first = sites[0]
+                second = next(
+                    index for index in sites[1:]
+                    if rungs[index].family != rungs[first].family
+                )
+                a, b = rungs[first], rungs[second]
+                rungs[first] = replace(a, family=b.family)
+                rungs[second] = replace(b, family=a.family)
+                self.assertNotEqual(_order_mismatch(tuple(rungs)), [])
+
+    def test_every_marked_call_site_family_is_read_from_the_source(self):
+        """No marked rung passes the order test on its producer alone."""
+        for (name, family), rung in zip(_decide_calls(), decide_rungs()):
+            with self.subTest(rung=rung.name):
+                if rung.marked:
+                    self.assertIsNotNone(family)
 
     def test_the_six_rungs_carry_their_marker_and_it_is_annotation_only(self):
         for name, owner in NEWLY_MARKED:
@@ -321,6 +469,7 @@ class _Decisions:
         policy._decision_sequence += 1
         policy._decision_goal = None
         policy._decision_expectation = None
+        policy._decision_triggers = None
         policy.last_reason = reason
         if cell is not None:
             policy._decision_goal = (
@@ -515,25 +664,6 @@ class StackSemanticsTest(unittest.TestCase):
              "claim_id": first["claim_id"]},
         )
 
-    def test_trigger_monsters_are_pairs_from_the_board(self):
-        run = _Decisions()
-        hostile = [
-            monster for monster in (
-                *run.board.visible_monsters, *run.board.detected_monsters
-            ) if monster.hostile
-        ]
-        row = run.decide("detected:prepare-choke", cell=run.cell(3))
-        expected = sorted(
-            [monster.index, monster.race_id] for monster in hostile
-        )
-        self.assertEqual(row["trigger_monsters"] or [], expected)
-        self.assertEqual(
-            row["last_perceived_turn"], run.board.turn if expected else None
-        )
-        # a family outside rev 10.1 item 9 records none
-        self.assertIsNone(run.decide("seek-loot", cell=run.cell(4))[
-            "trigger_monsters"])
-
     def test_the_rank_and_rung_are_on_every_row(self):
         run = _Decisions()
         row = run.decide("melee")
@@ -562,6 +692,347 @@ class TriggerMonsterRegisterTest(unittest.TestCase):
         )
         self.assertEqual(later.claim_id, first.claim_id)
         self.assertEqual(later.last_perceived_turn, 150)
+
+
+# -- round 2 -----------------------------------------------------------------
+
+
+def _old_owner_change(*, held_rank, held_goal_kind, held_goal_source,
+                      held_survival, new_rank, new_survival):
+    """The round-1 verdict: survival preempted regardless of rank."""
+    from hengbot.claim_ladder import (
+        PREEMPTION, VIOLATION, never_suspended,
+    )
+
+    if never_suspended(held_goal_kind, held_goal_source):
+        return VIOLATION
+    if new_survival and not held_survival:
+        return PREEMPTION
+    if new_rank < held_rank:
+        return PREEMPTION
+    return VIOLATION
+
+
+def _top_only_resumable(stack, owner, goal, non_discardable=False):
+    """The round-1 resolve: only the top of the stack could resume."""
+    if (
+        stack
+        and stack[-1].owner == owner
+        and stack[-1].goal == goal
+        and stack[-1].non_discardable == non_discardable
+    ):
+        return len(stack) - 1
+    return None
+
+
+def _stack_ranks(register) -> list[int]:
+    return [claim.rank for claim in register.suspended]
+
+
+def _assert_bounded(case, register, current_rank=None):
+    """Every push was by a strictly higher rank: bottom to top, the ranks
+    strictly fall, so the depth can never exceed the number of ranks."""
+    ranks = _stack_ranks(register)
+    case.assertEqual(ranks, sorted(set(ranks), reverse=True))
+    case.assertLessEqual(len(ranks), len({rung.rank for rung in CLAIM_LADDER}))
+
+
+class BoundedStackTest(unittest.TestCase):
+    """Round 2, F1: a push is by a strictly higher rank; survival that is
+    not strictly higher replaces; a buried claim of the same owner and goal
+    resumes."""
+
+    ALTERNATION = (
+        ("combat:disengage-seek-upstairs", 3),  # escape, survival, Reach
+        ("detected:prepare-choke", 4),          # positioning, ranks higher
+    )
+
+    def _alternate(self, run, rounds=6):
+        rows = []
+        for _round in range(rounds):
+            for reason, offset in self.ALTERNATION:
+                rows.append(run.decide(reason, cell=run.cell(offset)))
+        return rows
+
+    def test_the_reviewers_alternation_stays_bounded_and_resumes(self):
+        run = _Decisions()
+        rows = self._alternate(run)
+        depths = [row["suspended_depth"] for row in rows]
+        self.assertLessEqual(max(depths), 1)
+        _assert_bounded(self, run.register)
+        escape = [row for row in rows if row["owner"] == "escape"]
+        # one escape claim, suspended by positioning and resumed each round
+        self.assertEqual({row["claim_id"] for row in escape},
+                         {escape[0]["claim_id"]})
+        self.assertEqual(sum(1 for row in escape if row["resumed"]), 5)
+        positioning = [row for row in rows if row["owner"] == "positioning"]
+        for row in positioning:
+            self.assertEqual(row["closed_claim"]["closed_reason"],
+                             "preempted-by:positioning")
+        for row in escape[1:]:
+            # survival does not outrank positioning: it replaces it
+            self.assertEqual(
+                (row["closed_claim"]["owner"], row["closed_claim"]["closed"],
+                 row["closed_claim"]["closed_reason"]),
+                ("positioning", "release", "survival-displaced"),
+            )
+            self.assertIsNone(row["violation"])
+
+    def test_revert_proof_round_one_survival_rule_grows_the_stack(self):
+        from unittest.mock import patch
+
+        run = _Decisions()
+        with patch("hengbot.policy.claim_owner_change", _old_owner_change), \
+                patch("hengbot.policy.claim_resumable_index",
+                      _top_only_resumable), \
+                patch("hengbot.policy.claim_nests_over",
+                      lambda *, top_rank, new_rank: True):
+            rows = self._alternate(run)
+        self.assertGreater(max(row["suspended_depth"] for row in rows), 6)
+
+    def test_a_buried_claim_of_the_same_owner_and_goal_resumes(self):
+        run = _Decisions()
+        walk = run.decide("threat:avoid-engagement", cell=run.cell(3))
+        exit_walk = run.decide("survival:seek-exit", cell=run.cell(4))
+        self.assertEqual(exit_walk["closed_claim"]["claim_id"], walk["claim_id"])
+        run.decide("melee")
+        self.assertEqual(
+            [claim.claim_id for claim in run.register.suspended],
+            [walk["claim_id"], exit_walk["claim_id"]],
+        )
+        # positioning comes back to the same cell from a rung that outranks
+        # the exit walk above it: the buried claim resumes, the exit walk
+        # stays suspended above it
+        back = run.decide("threat:reposition", cell=run.cell(3))
+        self.assertEqual(back["claim_id"], walk["claim_id"])
+        self.assertEqual(back["resumed"]["claim_id"], walk["claim_id"])
+        self.assertIsNone(back["suspended_closed"])
+        self.assertEqual(
+            [claim.claim_id for claim in run.register.suspended],
+            [exit_walk["claim_id"]],
+        )
+        _assert_bounded(self, run.register)
+        self.assertLess(run.register.current.rank, _stack_ranks(run.register)[-1])
+
+    def test_revert_proof_top_only_resume_leaves_it_buried(self):
+        from unittest.mock import patch
+
+        run = _Decisions()
+        walk = run.decide("threat:avoid-engagement", cell=run.cell(3))
+        run.decide("survival:seek-exit", cell=run.cell(4))
+        run.decide("melee")
+        with patch("hengbot.policy.claim_resumable_index", _top_only_resumable):
+            back = run.decide("threat:reposition", cell=run.cell(3))
+        self.assertNotEqual(back["claim_id"], walk["claim_id"])
+        self.assertIsNone(back["resumed"])
+
+    def test_the_stack_stays_bounded_on_any_sequence(self):
+        import random
+
+        reasons = (
+            ("seek-loot", 3), ("melee", None), ("detected:prepare-choke", 4),
+            ("combat:disengage-seek-upstairs", 5), ("emergency:seek-upstairs", 6),
+            ("explore", 7), ("return:recall", None), ("threat:reposition", 3),
+            ("survival:seek-exit", 4), ("fundraise:seek-treasure", 5),
+            ("ranged:fire-target", None), ("esp-threat:hunt-strong", 6),
+            ("threat:avoid-engagement", 7), ("breakout:seek-frontier", 3),
+        )
+        chooser = random.Random(20260925)
+        run = _Decisions()
+        for _step in range(600):
+            reason, offset = chooser.choice(reasons)
+            run.decide(
+                reason, cell=None if offset is None else run.cell(offset)
+            )
+            _assert_bounded(self, run.register)
+            current = run.register.current
+            if run.register.suspended and current is not None and (
+                current.is_open
+            ):
+                self.assertLess(current.rank, _stack_ranks(run.register)[-1])
+
+
+class SameOwnerGoalChangeTest(unittest.TestCase):
+    """Round 2, F2: a same-owner goal change is a retarget violation, or on
+    a survival decision the survival exemption -- never a preemption
+    followed by ``resume-goal-changed`` on the same row."""
+
+    def _assert_survival_displaced(self, row, held):
+        self.assertEqual(
+            (row["closed_claim"]["claim_id"], row["closed_claim"]["closed"],
+             row["closed_claim"]["closed_reason"]),
+            (held["claim_id"], "release", "survival-displaced"),
+        )
+        self.assertIsNone(row["violation"])
+        self.assertIsNone(row["suspended_closed"])
+        self.assertEqual(row["suspended_depth"], 0)
+        self.assertTrue(row["survival"])
+
+    def test_an_escape_walk_turning_to_an_emergency_goal(self):
+        for first in ("breeder-breakthrough:seek-upstairs", "emergency:seek-upstairs"):
+            with self.subTest(held=first):
+                run = _Decisions()
+                held = run.decide(first, cell=run.cell(3))
+                self.assertEqual(held["owner"], "escape")
+                row = run.decide("emergency:seek-upstairs", cell=run.cell(5))
+                self._assert_survival_displaced(row, held)
+                self.assertNotEqual(row["claim_id"], held["claim_id"])
+
+    def test_a_return_walk_turning_to_an_esp_threat_leave(self):
+        run = _Decisions()
+        run.policy._survival_return_trigger = None
+        held = run.decide("return:seek-upstairs", cell=run.cell(3))
+        self.assertFalse(held["survival"])
+        row = run.decide("esp-threat:leave-stairs")
+        self.assertEqual((row["owner"], row["goal"]["kind"]),
+                         ("departure", "Observe"))
+        self._assert_survival_displaced(row, held)
+
+    def test_without_survival_it_is_a_retarget_violation(self):
+        run = _Decisions()
+        held = run.decide("breeder-breakthrough:seek-upstairs", cell=run.cell(3))
+        row = run.decide("breeder-breakthrough:seek-upstairs", cell=run.cell(5))
+        self.assertEqual(row["violation"]["kind"], "retarget")
+        self.assertIsNone(row["closed_claim"])
+        self.assertEqual(row["violation"]["claim_id"], held["claim_id"])
+
+    def test_a_continuing_claim_takes_the_survival_flag_of_its_decision(self):
+        run = _Decisions()
+        run.policy._survival_return_trigger = None
+        held = run.decide("return:seek-upstairs", cell=run.cell(3))
+        run.policy._survival_return_trigger = "esp-threat"
+        row = run.decide("return:seek-upstairs", cell=run.cell(3))
+        self.assertEqual(row["claim_id"], held["claim_id"])
+        self.assertTrue(row["survival"])
+        self.assertTrue(run.register.current.survival)
+        self.assertIsNone(row["closed_claim"])
+
+
+class TriggerSetTest(unittest.TestCase):
+    """Round 2, F3/F4: the design 5.4.1 trigger set, from the producer's own
+    selection, on a recorded board with hostiles inside and outside it."""
+
+    rows = None
+
+    @classmethod
+    def setUpClass(cls):
+        skill, raws = _Replay.dungeon_boards()
+        policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
+        policy.consume_skill_knowledge(skill)
+        cls.rows = []
+        for raw in raws:
+            board = parse_snapshot(raw, _Replay.knowledge())
+            key = policy.choose_key(board)
+            key = policy.validate_read_key(board, key)
+            cls.rows.append((board, policy.last_reason, dict(policy.decision_claim)))
+            policy.confirm_key_posted(key)
+
+    def test_the_look_ahead_set_and_nothing_else(self):
+        opened = [
+            (board, claim) for board, reason, claim in self.rows
+            if reason == "detected:prepare-choke"
+        ]
+        self.assertTrue(opened)
+        first_ids = {}
+        for board, claim in opened:
+            first_ids.setdefault(claim["claim_id"], (board, claim))
+        self.assertEqual(len(first_ids), 2)
+        for board, claim in first_ids.values():
+            hostile = [
+                monster for monster in (
+                    *board.visible_monsters, *board.detected_monsters
+                ) if monster.hostile
+            ]
+            look_ahead = sorted(
+                [monster.index, monster.race_id] for monster in hostile
+                if monster.perception == "detected"
+                and not monster.asleep
+                and monster.distance <= SWARM_LOOKAHEAD
+                and monster.max_ranged_damage <= 0
+            )
+            outside = sorted(
+                [monster.index, monster.race_id] for monster in hostile
+            )
+            self.assertEqual(claim["trigger_monsters"], look_ahead)
+            # the board has perceived hostiles outside the set
+            self.assertLess(len(look_ahead), len(outside))
+            self.assertEqual(claim["last_perceived_turn"], board.turn)
+
+    def test_a_continuing_claim_keeps_its_set_and_tracks_perception(self):
+        by_id = {}
+        for board, reason, claim in self.rows:
+            if reason != "detected:prepare-choke":
+                continue
+            by_id.setdefault(claim["claim_id"], []).append((board, claim))
+        for rows in by_id.values():
+            sets = {tuple(map(tuple, claim["trigger_monsters"])) for _b, claim in rows}
+            self.assertEqual(len(sets), 1)
+            for board, claim in rows:
+                wanted = {tuple(pair) for pair in claim["trigger_monsters"]}
+                perceived = any(
+                    (monster.index, monster.race_id) in wanted
+                    for monster in (*board.visible_monsters, *board.detected_monsters)
+                )
+                if perceived:
+                    self.assertEqual(claim["last_perceived_turn"], board.turn)
+
+    def test_a_hunt_records_its_own_target_only(self):
+        from hengbot.claim_register import reach_monster
+
+        run = _Decisions()
+        policy = run.policy
+        policy._decision_sequence += 1
+        policy._decision_goal = ("hunt", reach_monster(9, 99), None)
+        policy._decision_expectation = None
+        policy._decision_triggers = None
+        policy.last_reason = "hunt"
+        policy._record_decision_claim(run.board, "k")
+        self.assertEqual(policy.decision_claim["trigger_monsters"], [[9, 99]])
+
+    def test_an_undeclared_producer_records_none(self):
+        run = _Decisions()
+        # positioning without a declared selection: no invented set
+        self.assertIsNone(
+            run.decide("detected:prepare-choke", cell=run.cell(3))[
+                "trigger_monsters"]
+        )
+        # and a family outside rev 10.1 item 9 records none, declared or not
+        run.policy._decision_triggers = ("floor-loot", ((1, 2),))
+        self.assertEqual(
+            run.policy._claim_trigger_monsters(
+                ClaimOwner.FLOOR_LOOT, reach(run.cell(4))
+            ),
+            (),
+        )
+        # a slot of another family is not used
+        run.policy._decision_triggers = ("escape", ((1, 2),))
+        self.assertEqual(
+            run.policy._claim_trigger_monsters(
+                ClaimOwner.POSITIONING, reach(run.cell(4))
+            ),
+            (),
+        )
+
+
+class PickupCensusTest(unittest.TestCase):
+    """Round 2, F5: the loot producer's own pickup reasons are floor-loot."""
+
+    def test_pickup_and_auto_destroy_are_floor_loot(self):
+        from hengbot.claim_goal_typing import goal_typing
+
+        for reason in ("pickup", "trigger-autodestroy"):
+            with self.subTest(reason=reason):
+                self.assertEqual(reason_owner_family(reason), "floor-loot")
+                self.assertEqual(goal_typing("floor-loot", reason).kind,
+                                 "Terminal")
+                self.assertEqual(rung_of("floor-loot", reason).name,
+                                 "_normal_loot_key#2")
+        # the prefixed variants keep their own producers' families
+        self.assertEqual(reason_owner_family("fundraise:pickup"), "fundraising")
+        self.assertEqual(reason_owner_family("victory:pickup"), "floor-loot")
+        self.assertEqual(
+            reason_owner_family("mana-food:trigger-autodestroy"), "survival"
+        )
 
 
 # -- C3 ----------------------------------------------------------------------
@@ -845,7 +1316,9 @@ class RestoredCheckpointTest(unittest.TestCase):
         del register.__dict__["_suspended_closings"]
         state["_claim_register"] = register
         encoded = base64.b64encode(pickle.dumps(state)).decode("ascii")
+        self.assertNotIn("_decision_triggers", state)
         restored = restore_checkpoint(HengbotPolicy, encoded)
+        self.assertIsNone(restored.__dict__["_decision_triggers"])
         self.assertEqual(restored._claim_register.__dict__["_suspended"], [])
         self.assertEqual(
             restored._claim_register.__dict__["_suspended_closings"], []

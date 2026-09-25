@@ -258,17 +258,18 @@ class Claim:
                        compared on this floor.
     ``closed_reason``  the label the closing call gave (``release(label)``,
                        ``complete(label)``, ``suspend(label)``).
-    ``survival``       the claim was declared by a survival decision
-                       (``claim_goal_typing.is_survival``); survival never
-                       suspends a survival claim.
+    ``survival``       the latest decision that owned the claim was survival
+                       (``claim_goal_typing.is_survival``); S2b.1 round 2
+                       updates it on a continuing declaration.
     ``opened_turn``    (rev 9.2) the game turn the claim was opened on; the
                        floor-change ``Observe`` expires on it.
 
     S2b.1 (design rev 10.1) adds, with the same defaults-from-the-class cover:
 
-    ``rank`` / ``rung``        the ladder rank and rung of the latest decision
-                               the claim owned (``claim_ladder.rung_of``);
-                               ``None`` on a claim pickled before the ladder.
+    ``rank`` / ``rung``        the ladder rank and rung of the decision that
+                               opened (or resumed) the claim
+                               (``claim_ladder.rung_of``); ``None`` on a claim
+                               pickled before the ladder.
     ``suspended_sequence`` /   the decision sequence and game turn at which the
     ``suspended_turn``         claim was suspended; ``None`` while it is not.
     ``suspended_decisions`` /  (item 6) the decisions and game turns it spent
@@ -411,10 +412,11 @@ class ClaimRegister:
         S2b.1 a suspended claim comes back only through ``resume`` (design rev
         10.1 item 5), under its own id.
 
-        S2b.1 record-only facts: ``rank`` / ``rung`` of this decision;
-        ``trigger_monsters`` for a newly opened claim; ``perceived_turn`` -- the
-        game turn, when one of the claim's trigger monsters is perceived on this
-        board -- moves ``last_perceived_turn`` forward.
+        S2b.1 record-only facts: ``rank`` / ``rung`` and ``trigger_monsters``
+        of a newly opened claim; ``survival`` follows the latest decision;
+        ``perceived_turn`` -- the game turn, when one of the claim's trigger
+        monsters is perceived on this board -- moves ``last_perceived_turn``
+        forward.
         """
         declared_owner = owner_of(owner)
         claim = self._claim
@@ -424,10 +426,12 @@ class ClaimRegister:
             changes: dict = {}
             if claim.state != ClaimState.ACTIVE:
                 changes["state"] = ClaimState.ACTIVE
-            if rank is not None and claim.rank != rank:
-                changes["rank"] = rank
-            if rung is not None and claim.rung != rung:
-                changes["rung"] = rung
+            # Round 2 (F2): a continuing claim records whether the decision
+            # that continues it is survival.  Its rank and rung stay the ones
+            # it was opened or resumed at: every push is then by a strictly
+            # higher rank than the claim it suspends, which bounds the stack.
+            if claim.survival != bool(survival):
+                changes["survival"] = bool(survival)
             if perceived_turn is not None:
                 changes["last_perceived_turn"] = int(perceived_turn)
             if changes:

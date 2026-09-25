@@ -115,11 +115,13 @@ from hengbot.claim_goal_typing import (
 )
 from hengbot.claim_ladder import (
     PREEMPTION as CLAIM_PREEMPTION,
+    SURVIVAL_DISPLACED as CLAIM_SURVIVAL_DISPLACED,
     TRIGGER_FAMILIES as CLAIM_TRIGGER_FAMILIES,
     VIOLATION as CLAIM_VIOLATION,
     nests_over as claim_nests_over,
     owner_change as claim_owner_change,
     pair_scope as claim_pair_scope,
+    resumable_index as claim_resumable_index,
     rung_of as claim_rung_of,
     rung_of_claim as claim_rung_of_claim,
 )
@@ -2395,6 +2397,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # declaration at the exit reads nothing else.  Record-only.
         self._decision_goal = None
         self._decision_expectation = None
+        # S2b.1 (rev 10.1 item 9): the trigger monsters a producer declares.
+        self._decision_triggers = None
         # Round 4 (F3): an armed path-target capture never outlives the
         # decision that armed it (each arm/take pair is also try/finally).
         self.__dict__.pop("_claim_target_capture", None)
@@ -3375,18 +3379,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         goal, goal_missing, goal_note = self._claim_goal(
             snapshot, key, owner, reason, standing
         )
-        preemption, violation = self._claim_owner_transition(
+        action, label, violation = self._claim_owner_transition(
             register, standing, owner, goal, rung, survival, non_discardable
         )
-        if preemption is not None:
-            # Design 3.2 / rev 10 item 2: a strictly higher rung, or survival,
-            # suspends the holder with its goal intact.  The one caller of
-            # ``suspend``.
+        if action == CLAIM_PREEMPTION:
+            # Design 3.2 / rev 10 item 2: a strictly higher rung suspends the
+            # holder with its goal intact.  The one caller of ``suspend``.
             register.suspend(
-                preemption, sequence=self._decision_sequence, turn=snapshot.turn
+                label, sequence=self._decision_sequence, turn=snapshot.turn
             )
-            # S2a.1's order: the goal is read after the suspension, exactly as
-            # it was when survival was the only preemptor.
+        elif action == CLAIM_SURVIVAL_DISPLACED:
+            # Survival that does not outrank the holder replaces it: released,
+            # exempt, not a violation (round 2, F1/F2).
+            register.release(label)
+        if action is not None:
+            # S2a.1's order: the goal is read after the holder closed, exactly
+            # as it was when survival was the only preemptor.
             goal, goal_missing, goal_note = self._claim_goal(
                 snapshot, key, owner, reason, register.current
             )
@@ -3397,12 +3405,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         closed = finished.closing_dict() if finished is not None else None
         suspended_closed = register.take_suspended_closings()
         if resumed is not None:
+            # The resumed claim keeps its own rank unless this decision's rung
+            # is strictly higher, so it still outranks nothing it sat under.
+            outranks = resumed.rank is None or rung.rank < resumed.rank
             claim = register.resume(
                 resumed.claim_id,
                 sequence=self._decision_sequence,
                 turn=snapshot.turn,
-                rank=rung.rank,
-                rung=rung.name,
+                rank=rung.rank if outranks else resumed.rank,
+                rung=rung.name if outranks else resumed.rung,
                 perceived_turn=self._claim_trigger_perceived(
                     snapshot, resumed.trigger_monsters
                 ),
@@ -3413,7 +3424,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             triggers = (
                 current.trigger_monsters
                 if continuing and current is not None
-                else self._claim_trigger_monsters(snapshot, owner, goal)
+                else self._claim_trigger_monsters(owner, goal)
             )
             register.declare(
                 owner,
@@ -3530,16 +3541,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ):
         """How this decision treats the claim the previous one declared.
 
-        Returns ``(preemption label or None, violation or None)``.  Only a held
-        claim that is still open with a Reach or Observe goal matters:
+        Returns ``(action, label, violation)``.  Only a held claim that is
+        still open with a Reach or Observe goal matters:
 
-        * survival over a non-survival claim (S2a.1, design rev 9 item 3), or
-          an owner change to a strictly higher rung (rev 10 item 2), is a
-          preemption -- the caller suspends the holder;
-        * any other owner change is a violation, and so is a preemption of a
-          store-operation or transaction ``Observe`` claim (rev 10.1 item 6);
-        * the same owner replacing its own open goal is a retarget violation
-          (rev 10 item 4).
+        * an owner change to a strictly higher rung (rev 10 item 2) is a
+          preemption -- the caller suspends the holder (``survival-preemption``
+          when the new decision is survival, as S2a.1 labelled it);
+        * survival that does not outrank the holder, or the same owner turning
+          to another goal on a survival decision, replaces it -- the caller
+          releases it ``survival-displaced``; survival is exempt, so this is
+          not a violation (round 2 F1/F2);
+        * the same owner replacing its own open goal otherwise is a retarget
+          violation (rev 10 item 4) -- never a preemption followed by
+          ``resume-goal-changed`` on the same row;
+        * any other owner change is a violation, and so is any change away
+          from a store-operation or transaction ``Observe`` claim (rev 10.1
+          item 6).
 
         Nothing stops: the row records it.
         """
@@ -3548,20 +3565,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or not standing.is_open
             or standing.goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
         ):
-            return None, None
+            return None, None, None
         if register.continues(owner, goal, non_discardable):
             # The same owner pursuing the same goal keeps its claim, survival
-            # or not: S2a.1 suspended it for a survival decision and reopened
-            # the same goal under a new id, which the stack would only resume
-            # on the same board.
-            return None, None
-        survival_preempts = survival and not standing.survival
+            # or not (``declare`` updates its survival flag).
+            return None, None, None
         held = claim_rung_of_claim(
             standing.owner, standing.rung,
             non_discardable=standing.non_discardable,
         )
-        if standing.owner == owner and not survival_preempts:
-            verdict, kind = CLAIM_VIOLATION, "retarget"
+        if standing.owner == owner:
+            verdict = CLAIM_SURVIVAL_DISPLACED if survival else CLAIM_VIOLATION
+            kind = "retarget"
         else:
             verdict = claim_owner_change(
                 held_rank=held.rank,
@@ -3573,12 +3588,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             kind = "owner-change"
         if verdict == CLAIM_PREEMPTION:
-            return (
+            return CLAIM_PREEMPTION, (
                 "survival-preemption"
-                if survival_preempts
+                if survival
                 else f"preempted-by:{owner.value}"
             ), None
-        return None, {
+        if verdict == CLAIM_SURVIVAL_DISPLACED:
+            return CLAIM_SURVIVAL_DISPLACED, CLAIM_SURVIVAL_DISPLACED, None
+        return None, None, {
             "kind": kind,
             "from": standing.owner.value,
             "to": owner.value,
@@ -3595,35 +3612,49 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ):
         """Rule (iii) of rev 10.1 item 6: resume, nest or displace.
 
-        Unless this decision continues the current claim, the suspended stack
-        is read from the top: the same owner and goal resumes it (returned,
-        for the caller to ``resume`` under its id); the same owner with another
-        goal releases it ``resume-goal-changed`` (rev 10 item 3) and a new
-        claim opens; a strictly higher rung, or survival, nests over it; any
-        other owner displaces it -- a violation, recorded with the release
-        ``resume-displaced`` -- and the next claim down is read the same way.
+        Unless this decision continues the current claim:
+
+        * a claim of the same owner and goal suspended **anywhere** in the
+          stack resumes (returned, for the caller to ``resume`` under its id);
+          the claims above it that this decision outranks stay suspended, the
+          others are displaced as below;
+        * otherwise the stack is read from the top: the same owner with
+          another goal releases it ``resume-goal-changed`` (rev 10 item 3), a
+          new claim opens and the claims below are read on; a strictly
+          higher rung nests over it (only a
+          strictly higher rung: that is the bound on the depth); survival
+          displaces it ``survival-displaced`` (exempt, no violation); any other
+          owner displaces it -- a violation, recorded with the release
+          ``resume-displaced`` -- and the next claim down is read the same
+          way.
         """
         if register.continues(owner, goal, non_discardable):
             return None
-        while register.suspended:
-            top = register.suspended[-1]
-            if top.owner == owner:
-                if top.goal == goal and top.non_discardable == non_discardable:
-                    return top
-                register.close_suspended(
-                    top.claim_id, "release", "resume-goal-changed"
-                )
-                return None
+        stack = register.suspended
+        match = claim_resumable_index(stack, owner, goal, non_discardable)
+        for index in range(len(stack) - 1, -1, -1):
+            top = stack[index]
+            if index == match:
+                return top
             held = claim_rung_of_claim(
                 top.owner, top.rung, non_discardable=top.non_discardable
             )
-            if claim_nests_over(
-                top_rank=held.rank,
-                new_rank=rung.rank,
-                new_survival=survival,
-                top_survival=top.survival,
-            ):
-                return None
+            if match is None and top.owner == owner:
+                register.close_suspended(
+                    top.claim_id, "release", "resume-goal-changed"
+                )
+                # the new claim opens here; the claims below are read the
+                # same way, so it never sits above one it does not outrank
+                continue
+            if claim_nests_over(top_rank=held.rank, new_rank=rung.rank):
+                if match is None:
+                    return None
+                continue
+            if survival:
+                register.close_suspended(
+                    top.claim_id, "release", CLAIM_SURVIVAL_DISPLACED
+                )
+                continue
             register.close_suspended(
                 top.claim_id,
                 "release",
@@ -3642,27 +3673,47 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         return None
 
-    @staticmethod
-    def _claim_trigger_monsters(snapshot: Snapshot, owner, goal):
+    def _declare_triggers(self, monsters, family: str | None = None) -> None:
+        """Record-only (rev 10.1 item 9): the monsters this producer acted on.
+
+        A producer of positioning, esp-threat or escape calls it with the
+        selection it already made on this board -- the look-ahead pack it
+        retreats from, the committed hunt targets, the hostiles it flees --
+        right after setting its reason, as ``_declare_reach`` does.  The slot
+        carries the writer's census family; the declaration uses it only when
+        that family is the row's owner.  Nothing is recomputed here.
+        """
+        self._decision_triggers = (
+            family if family is not None
+            else self._claim_family_of(self.last_reason),
+            tuple(sorted({
+                (int(monster.index), int(monster.race_id))
+                for monster in monsters
+            })),
+        )
+
+    def _claim_trigger_monsters(self, owner, goal):
         """Rev 10.1 item 9 / design 5.4.1: the monsters behind a new claim.
 
         For a Reach or Observe claim of positioning, hunt, esp-threat, combat
-        or escape: every hostile the board perceives (seen or detected), as
-        ``(index, race_id)`` -- never the index alone -- plus the chased
-        monster of a monster goal.  From the snapshot only; record-only.
+        or escape: the ``(index, race_id)`` pairs its producer declared on
+        this board (``_declare_triggers``), plus the chased monster of a
+        monster goal (hunt, whose target is its goal).  A producer that
+        declared none records none -- never every perceived hostile.
         """
         if (
             owner.value not in CLAIM_TRIGGER_FAMILIES
             or goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
         ):
             return ()
-        found = {
-            (int(monster.index), int(monster.race_id))
-            for monster in (
-                *snapshot.visible_monsters, *snapshot.detected_monsters
-            )
-            if monster.hostile
-        }
+        found: set[tuple[int, int]] = set()
+        slot = getattr(self, "_decision_triggers", None)
+        if (
+            isinstance(slot, tuple)
+            and len(slot) == 2
+            and slot[0] == owner.value
+        ):
+            found.update(tuple(pair) for pair in slot[1])
         if goal.monster is not None:
             found.add((int(goal.monster[0]), int(goal.monster[1])))
         return tuple(sorted(found))
@@ -6298,6 +6349,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # Survival may always pre-empt a lower-priority owner.
                 self._escape_state.enter("emergency", self.last_reason)
+            # Record-only: the hostiles the emergency ladder weighed.
+            self._declare_triggers(emergency_hostiles)
             return emergency
         if self._escape_state.owner == "emergency":
             # The emergency ladder is exempt from sibling hysteresis: the
@@ -6469,6 +6522,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if breakthrough is not None:
             if self._choke_plan_active(snapshot):
                 self._release_choke_plan("breeder-breakthrough")
+            self._declare_triggers(strategic_hostiles)  # record-only
             return breakthrough
 
         choke_plan = self._choke_engagement_key(
@@ -6501,6 +6555,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, strategic_hostiles
             )
         if disengage is not None:
+            self._declare_triggers(strategic_hostiles)  # record-only
             return disengage
         if self._escape_state.owner == "disengage":
             self._escape_state.stable_decisions += 1
@@ -6629,6 +6684,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._should_flee(
             snapshot, strategic_hostiles, strategic_adjacent
         ):
+            # Record-only: every exit of this rung is escape, fleeing these.
+            self._declare_triggers(strategic_hostiles, family="escape")
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
                 self.last_reason = (
@@ -6724,6 +6781,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if self._quest_exit_would_fail(snapshot)
                     else "summoner:stairs"
                 )
+                self._declare_triggers(corridor_threats)  # record-only
                 return UP_STAIRS_KEY
             step = self._summoner_retreat_step(
                 snapshot, corridor_threats, strategic_hostiles
@@ -6797,6 +6855,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_triggers(strategic_hostiles)  # record-only
                 return self._step_toward(snapshot, step)
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
@@ -7415,6 +7474,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_triggers(strategic_hostiles)  # record-only
                 return self._step_toward(snapshot, step)
 
         # 6. Head for a known downstairs / dungeon entrance: path straight there
@@ -13353,6 +13413,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if step is not None:
                     self.last_reason = "detected:prepare-choke"
                     self._declare_reach(route[1])
+                    # the committed pack this retreat is from, still perceived
+                    self._declare_triggers(committed)
                     return self._step_toward(snapshot, step)
             # Arrived at the chosen cell without it being a choke any more, or
             # it is no longer reachable: the commitment is spent either way.
@@ -13389,6 +13451,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = "detected:prepare-choke"
         if self._detected_threat_route is not None:
             self._declare_reach(self._detected_threat_route[1])
+        # Design 5.4.1: the look-ahead set -- the detected hostiles within
+        # SWARM_LOOKAHEAD with no ranged damage (or the converging breeders),
+        # the same selection the route above retreats from.
+        self._declare_triggers(threats)
         return self._step_toward(snapshot, step)
 
 

@@ -82,6 +82,7 @@ import time
 from hengbot.claim_goal_typing import is_survival
 from hengbot.claim_ladder import (
     PREEMPTION,
+    SURVIVAL_DISPLACED,
     SCOPE_IN,
     SCOPE_S3,
     VIOLATION,
@@ -90,6 +91,7 @@ from hengbot.claim_ladder import (
     rung_of,
 )
 from hengbot.stop_shape import SHAPES, classify_stop, producer_identity
+from hengbot.town_arbiter import reason_owner_family
 
 
 OWNERSHIP_METRICS_NAME = "ownership-metrics.jsonl"
@@ -654,9 +656,20 @@ def gate_numbers(rows: Sequence[Mapping], *, owner_of=None) -> dict:
 PREEMPTION_LABELS = ("preempted-by:", "survival-preemption")
 
 
+def _family_of_row(row: Mapping) -> str:
+    """The census family the live writer would declare for this row now.
+
+    A row written before the ladder carries the family its census gave at
+    the time (``misc`` / ``unregistered`` before S2a, ``pickup`` before round
+    2); the writer declares ``reason_owner_family(reason)``, so the reader
+    re-derives it the same way (rev 10.1 item 11).
+    """
+    return reason_owner_family(row.get("reason") or "")
+
+
 def _rung_of_row(row: Mapping):
     return rung_of(
-        row.get("owner"),
+        _family_of_row(row),
         row.get("reason"),
         non_discardable=bool(row.get("non_discardable")),
     )
@@ -676,7 +689,8 @@ def classify_handoff(previous: Mapping, current: Mapping) -> dict:
     held = _rung_of_row(previous)
     new = _rung_of_row(current)
     goal = previous.get("goal") if isinstance(previous.get("goal"), Mapping) else {}
-    if previous.get("owner") == current.get("owner"):
+    before, after = _family_of_row(previous), _family_of_row(current)
+    if before == after:
         verdict, kind = VIOLATION, "retarget"
     else:
         verdict = owner_change(
@@ -691,8 +705,8 @@ def classify_handoff(previous: Mapping, current: Mapping) -> dict:
     return {
         "verdict": verdict,
         "kind": kind,
-        "from": previous.get("owner"),
-        "to": current.get("owner"),
+        "from": before,
+        "to": after,
         "claim_id": previous.get("claim_id"),
         "from_rank": held.rank,
         "to_rank": new.rank,
@@ -716,12 +730,16 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
     * ``preemptions`` by pair (informational);
     * ``displacements`` by pair -- suspended claims a lower owner displaced,
       also counted in ``violations``;
+    * ``survival_displaced`` by pair (round 2) -- claims a survival decision
+      that did not outrank them replaced; survival is exempt, so these are
+      not violations;
     * ``suspended``: how suspended claims left the stack -- ``resumed`` and
       each closing label (``resume-goal-changed``, ``resume-displaced``,
       ``suspended-expired``, completions).
 
     Rows the S2b.1 writer wrote (they carry ``rank``) are read as recorded.
-    Older rows are reclassified (rev 10.1 item 11): their (a)/(b) events --
+    Older rows are reclassified (rev 10.1 item 11), under the census family
+    the writer would declare for their reason now: their (a)/(b) events --
     exactly the ones ``gate_numbers`` counts, survival excluded -- go through
     ``classify_handoff``; a suspension they recorded (S2a.1's survival
     preemption) is a preemption.  ``legacy_events`` counts the reclassified
@@ -731,6 +749,7 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
     retargets = _scoped()
     preemptions: Counter[str] = Counter()
     displacements: Counter[str] = Counter()
+    survival_displaced: Counter[str] = Counter()
     suspended: Counter[str] = Counter()
     legacy = 0
 
@@ -757,6 +776,13 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
                 )
             ):
                 preemptions[handoff_pair(closed.get("owner"), current.get("owner"))] += 1
+            if (
+                isinstance(closed, Mapping)
+                and closed.get("closed_reason") == SURVIVAL_DISPLACED
+            ):
+                survival_displaced[
+                    handoff_pair(closed.get("owner"), current.get("owner"))
+                ] += 1
             if current.get("rank") is not None:
                 violation = current.get("violation")
                 if isinstance(violation, Mapping):
@@ -767,6 +793,10 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
                     if not isinstance(entry, Mapping):
                         continue
                     suspended[str(entry.get("closed_reason") or entry.get("closed"))] += 1
+                    if entry.get("closed_reason") == SURVIVAL_DISPLACED:
+                        survival_displaced[
+                            handoff_pair(entry.get("owner"), current.get("owner"))
+                        ] += 1
                     displaced = entry.get("violation")
                     if isinstance(displaced, Mapping):
                         displacements[
@@ -788,6 +818,8 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
             verdict = classify_handoff(previous, current)
             if verdict["verdict"] == PREEMPTION:
                 preemptions[handoff_pair(verdict["from"], verdict["to"])] += 1
+            elif verdict["verdict"] == SURVIVAL_DISPLACED:
+                survival_displaced[handoff_pair(verdict["from"], verdict["to"])] += 1
             else:
                 count_violation(verdict)
 
@@ -802,6 +834,7 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
         },
         "preemptions": block(preemptions),
         "displacements": block(displacements),
+        "survival_displaced": block(survival_displaced),
         "suspended": dict(suspended.most_common()),
         "legacy_events": legacy,
     }

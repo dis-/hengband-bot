@@ -66,11 +66,13 @@ them alone, and the live writer and the offline reader use the same function
 Preemption and violation (rev 10 items 2 and 4, rev 10.1 item 6)
 ----------------------------------------------------------------
 ``owner_change`` is the one comparison: a held Reach/Observe claim given way
-to another owner is a *preemption* when the new decision ranks strictly higher
-or is survival (design 3.2, rev 10 item 2: the survival list names preemptors,
-not the only ones), and a *violation* otherwise.  A store-operation or
-transaction ``Observe`` claim is never suspended: giving it way is always a
-violation (its families are migrated in S3).
+to another owner is a *preemption* only when the new decision ranks strictly
+higher (so every push is by a strictly higher rank and the stack is bounded by
+the number of ranks); survival that does not outrank it *replaces* it
+(``survival-displaced``, exempt, not a violation); anything else is a
+*violation*.  A store-operation or transaction ``Observe`` claim is never
+suspended: giving it way is always a violation (its families are migrated in
+S3).
 """
 
 from __future__ import annotations
@@ -127,6 +129,8 @@ TRIGGER_FAMILIES = frozenset({
 
 PREEMPTION = "preemption"
 VIOLATION = "violation"
+# Survival that does not outrank the holder replaces it (not a violation).
+SURVIVAL_DISPLACED = "survival-displaced"
 SCOPE_IN = "in-scope"
 SCOPE_S3 = "S3"
 
@@ -304,8 +308,10 @@ _RUNGS: tuple[Rung, ...] = (
             ordinary=True),                                            # 6855
     _decide("_shopping_approach_key", "store-router",
             ordinary=True),                                            # 6923
-    _decide("_town_overflow_destroy_key", "shop-sell",
-            ordinary=True),                                            # 6940
+    # Its own site writes ``town:blocked:overflow-no-legal-disposal``; the
+    # shop-sell ``town:destroy-overflow`` it passes to ``_verified_destroy_key``
+    # ranks at shop-sell's town rung below.
+    _decide("_town_overflow_destroy_key", "town-plan"),                # 6940
     _decide("_fundraising_key", "fundraising", "town:",
             town=True),                                                # 6980
     _decide("_released_restock_store_key", "store-router"),            # 6993
@@ -327,6 +333,7 @@ _RUNGS: tuple[Rung, ...] = (
     _town("town-errand:home-errand", "home-errand"),
     _town("town-errand:home-scan", "home-scan"),
     _town("town-errand:shop-buy", "shop-buy"),
+    _town("town-errand:shop-sell", "shop-sell"),
     _town("town-errand:equipment-opt", "equipment-opt"),
     _town("town-errand:cross-town", "cross-town"),
     _town("town-errand:rumor", "rumor"),
@@ -490,26 +497,51 @@ def owner_change(
     new_rank: int,
     new_survival: bool,
 ) -> str:
-    """Preemption or violation, for a held open Reach/Observe claim.
+    """Preemption, survival displacement or violation, for a held open
+    Reach/Observe claim given way to another owner.
 
-    Rev 10 item 2: an owner change to a strictly higher rank suspends the
-    holder; design 3.2 / rev 10 item 2: survival preempts too (its list names
-    preemptors, not the only ones), except another survival claim.  Rev 10.1
-    item 6: a store-operation or transaction Observe claim is never
-    suspended.  Anything else is a violation (rev 10 item 4).
+    * Rev 10 item 2 / rev 10.1 item 5: only a strictly higher rank suspends
+      the holder (``PREEMPTION``), survival or not -- every push is by a
+      strictly higher rank, which is what bounds the stack by the number of
+      ranks.
+    * Survival that does not rank strictly higher cannot suspend the holder;
+      it *replaces* it (``SURVIVAL_DISPLACED``): the holder is released, and
+      because survival is exempt (design 3.2, rev 9 item 3) it is not a
+      violation.
+    * Rev 10.1 item 6: a store-operation or transaction Observe claim is
+      never suspended nor exempted; giving it way is a violation.
+    * Anything else is a violation (rev 10 item 4).
+
+    ``held_survival`` is part of the signature for the reader's records; a
+    held survival claim is suspended or dropped like any other.
     """
+    del held_survival
     if never_suspended(held_goal_kind, held_goal_source):
         return VIOLATION
-    if new_survival and not held_survival:
-        return PREEMPTION
     if new_rank < held_rank:
         return PREEMPTION
+    if new_survival:
+        return SURVIVAL_DISPLACED
     return VIOLATION
 
 
-def nests_over(*, top_rank: int, new_rank: int, new_survival: bool,
-               top_survival: bool) -> bool:
-    """Rule (iii): a new owner ranked strictly above the stack top nests."""
-    if new_survival and not top_survival:
-        return True
+def nests_over(*, top_rank: int, new_rank: int) -> bool:
+    """Rule (iii): only a new owner ranked strictly above the top nests."""
     return new_rank < top_rank
+
+
+def resumable_index(stack, owner, goal, non_discardable: bool = False):
+    """Where in the stack a claim of this owner and goal is suspended.
+
+    The topmost match anywhere in the stack, not only the top (a claim can be
+    buried under ones a later decision outranks), or ``None``.
+    """
+    for index in range(len(stack) - 1, -1, -1):
+        claim = stack[index]
+        if (
+            claim.owner == owner
+            and claim.goal == goal
+            and claim.non_discardable == non_discardable
+        ):
+            return index
+    return None

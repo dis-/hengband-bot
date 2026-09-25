@@ -188,6 +188,9 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # recorded yet", which is exactly what a fresh process holds.
     restored.__dict__.setdefault("_decision_goal", None)
     restored.__dict__.setdefault("_decision_expectation", None)
+    # S2b.1 round 2 (rev 10.1 item 9): the per-decision trigger slot, reset
+    # at every ``choose_key`` entry like the two above.
+    restored.__dict__.setdefault("_decision_triggers", None)
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.

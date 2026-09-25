@@ -199,6 +199,13 @@ def ladder_report(rows, hours: float | None = None) -> list[str]:
     )
     for pair, times in list(displacements["pairs"].items())[:20]:
         lines.append(f"    {pair:<48} {times}")
+    replaced = ladder["survival_displaced"]
+    lines.append(
+        f"survival displacements (exempt, not violations)               "
+        f"{replaced['count']:>5}"
+    )
+    for pair, times in list(replaced["pairs"].items())[:20]:
+        lines.append(f"    {pair:<48} {times}")
     suspended = ladder["suspended"]
     lines.append(
         "suspended claims: "

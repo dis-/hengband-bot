@@ -165,7 +165,9 @@ class TownTurnArbiter:
             classification("combat", ("melee", "ranged:", "summoner:ranged-kill", "unique:quaff-"), "hostile hit points or count delta"),
             classification("hunt", ("hunt",), "distance to the chosen hostile"),
             classification("explore", ("explore", "search", "seek-secret-wall", "probe"), "newly seen floor cells"),
-            classification("floor-loot", ("seek-loot", "loot:", "chest:", "victory:", "conquest:"), "carried inventory delta"),
+            # S2b.1 round 2 (F5): ``_normal_loot_key``'s own pickup and
+            # auto-destroy reasons, which fell through to ``unregistered``.
+            classification("floor-loot", ("seek-loot", "loot:", "chest:", "victory:", "conquest:", "pickup", "trigger-autodestroy"), "carried inventory delta"),
             classification("quest-sweep", ("quest-strategy:",), "quest objective or phase advance"),
             classification("bookkeeping", ("periodic:", "town:character-dump"), "save file, dump or skill knowledge written"),
             # Design 4's generic fallback: the board on which no producer
