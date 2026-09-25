@@ -47,6 +47,20 @@ Walls, each declared:
   board without it.
 No wall touches the approach producer, the progress vector or the arbiter.
 
+DECLARED DIVERGENCE (2026-09-26 stale equipment-mutation gate fix,
+departure-unsatisfiable-weight): the recorded ``town:restore-combat-weapon``
+'wnb' (sequence 1917) posted a combat-loadout wield whose worn change the
+next board showed, but the executor observed only when a later wield or
+takeoff was requested, so it stayed POSTED through the recall.  The Home
+knowledge gate read that stale POSTED and held the combat-weapon knowledge
+request back.  The decision entry now observes the executor, so the request
+runs on the first board that wants it (list index 1944, sequence 1941),
+where live walked one more ``shop:approach`` step; the town work that
+follows shifts (Home withdrawal of the combat weapon before the character
+dump) and the replay follows recorded boards the fixed policy no longer
+produced until the recall board (1966).  From 1967 on every recorded
+decision, the approach walk included, is decided as live.
+
 B (orc-cave-residual-path, same capture): 06:22:31 ``town:recall-to-alt-
 dungeon`` 'rhc' read Word of Recall to the Orc cave (target 3, no alternate,
 streak 0), whose landing 23 is its guardian floor; at 06:22:50 the dive came
@@ -89,6 +103,8 @@ BOUNDARIES_SHA256 = (
 CALIBRATION_SHA256 = (
     "a90e4700854b1b3cf839a278a846078c7f9d768c82c058551c6f52173660016b"
 )
+STALE_GATE_FIRST = 1944  # sequence 1941: the combat-weapon knowledge request
+STALE_GATE_WINDOW = (1944, 1949, 1950, *range(1959, 1967))  # declared above
 BINDING_FROM = 2027  # store:entry-interrupted-replan, the first bound board
 WALK_START = 2036  # sequence 2032: the first shop:approach step after the fight
 WALK_END = 2050  # sequence 2046: the live retirement
@@ -218,7 +234,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                     # of the 06:22:31 recall, deciding twice on that board.
                     fixed = copy.deepcopy(policy)
                     cls.fixed_recall = []
-                    for _decision in range(2):
+                    for _decision in range(3):
                         row = cls._decide(fixed, snapshot, live_gate=False)
                         row.update(
                             alternate=fixed._alternate_dungeon,
@@ -290,7 +306,20 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                 if (replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            [STOP],
+            [*STALE_GATE_WINDOW, STOP],
+        )
+        # The declared divergence starts where the stale gate held the
+        # combat-weapon knowledge request back (live: one more approach step).
+        self.assertEqual(
+            (replay[STALE_GATE_FIRST]["key"], replay[STALE_GATE_FIRST]["reason"]),
+            ("~9\x1b\x1b", "home-errand:request-knowledge:combat-weapon"),
+        )
+        self.assertEqual(
+            (
+                self.recorded[STALE_GATE_FIRST]["key"],
+                self.recorded[STALE_GATE_FIRST]["reason"],
+            ),
+            ("9", "shop:approach"),
         )
 
     def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
@@ -417,14 +446,25 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     def test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave(self):
         """User decisions 2026-09-25 (guardian-recall-pingpong r2/r3).
 
-        On the live state and the recorded board of the 06:22:31 recall the
-        fixed town router refuses the landing on the blocked guardian floor
-        and switches as the guardian valve does: the shallowest landing that
-        is not a blocked guardian floor, deeper allowed -- Forest (24).  The
-        same board then recalls to Forest instead of the Orc cave.
+        On the replayed state and the recorded board of the 06:22:31 recall
+        the fixed town router refuses the landing on the blocked guardian
+        floor and switches as the guardian valve does: the shallowest landing
+        that is not a blocked guardian floor, deeper allowed -- Forest (24).
+        The same board then recalls to Forest instead of the Orc cave.  The
+        replayed state is the live one but for the declared stale-gate
+        window (module docstring): live dumped the character at 1963, the
+        replay's town work there withdrew the combat weapon, so the pending
+        pre-departure dump is decided first on this board.
         """
         self._replay()
-        switch, recall = self.fixed_recall
+        dump, switch, recall = self.fixed_recall
+        self.assertEqual(
+            (dump["key"], dump["reason"]),
+            ("Cf\ry\x1b\x1b", "town:character-dump"),
+        )
+        self.assertEqual(
+            (dump["target"], dump["conquest"]), (ORC_CAVE, ORC_CAVE)
+        )
         # The recorded board stands on the Black Market entrance (the
         # 06:22:30 observe-and-leave), so the switch's WAIT is emitted as the
         # existing entrance step-off wrapper.

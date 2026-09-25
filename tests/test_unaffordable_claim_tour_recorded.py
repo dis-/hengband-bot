@@ -97,6 +97,19 @@ CHOKE_ALTERNATION_FIXED = {
     3324: ("4", "detected:prepare-choke"),
     3325: ("5", "summoner:hold-choke"),
 }
+# The 2026-09-26 stale equipment-mutation gate fix (departure-unsatisfiable-
+# weight).  The recorded run's executor stayed POSTED after the board of list
+# index 2651 showed the re-equip of 2650 ('wq)') worn, because it observed
+# only when the next wield/takeoff was requested.  On that board the
+# space-deposit gate read the stale POSTED, so the decision entry preempted
+# the transaction with a Home knowledge scan; the decision entry now
+# observes the executor first, the space-deposit gate is open and the
+# transaction continues ('te') one decision earlier.  2652 awaits the
+# takeoff's confirmation, and from 2653 the replay decides as live.
+STALE_MUTATION_GATE_FIXED = {
+    2651: ("te", "equipment-transaction:takeoff"),
+    2652: ("5", "equipment-transaction:await-confirmation"),
+}
 # List indices (decision_sequence + 4 after the four shared probe sequences).
 AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
@@ -112,8 +125,12 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     "home-withdraw-observed": 3,
     # stairs and recall: Observe(floor change), completed on the floor key
     "floor-changed": 10,
-    # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit
-    "expectation-satisfied": 15,
+    # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit.
+    # 15 before the stale equipment-mutation gate fix: the recorded 2651
+    # Home knowledge scan closed the transaction's Observe claim of the 2650
+    # re-equip; the transaction now keeps the decision (STALE_MUTATION_GATE_
+    # FIXED) and that claim is not closed by a preempting owner.
+    "expectation-satisfied": 14,
 }
 # Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
 # round; the shelter walk now declares the store, not its first step), and
@@ -136,7 +153,11 @@ S2A1_FAR_TARGET_REASONS = frozenset({
 S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
     "home-visit/Observe": {"complete": 12, "release": 1, "abandoned": 4},
-    "equipment-txn/Observe": {"complete": 11, "abandoned": 1},
+    # 11 complete before the stale equipment-mutation gate fix: the recorded
+    # 2651 Home knowledge scan completed the 2650 re-equip's Observe claim
+    # (2298); the transaction now keeps the decision (STALE_MUTATION_GATE_
+    # FIXED) and that claim is not closed by a preempting owner.
+    "equipment-txn/Observe": {"complete": 10, "abandoned": 1},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
     # (floor-loot 70 complete, positioning 15 complete).
@@ -378,11 +399,26 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             if list(decided) != recorded[index]
         }
         self.assertEqual(
-            divergent, KNOWN_HARNESS_DIVERGENCES | set(CHOKE_ALTERNATION_FIXED)
+            divergent,
+            KNOWN_HARNESS_DIVERGENCES
+            | set(CHOKE_ALTERNATION_FIXED)
+            | set(STALE_MUTATION_GATE_FIXED),
         )
         self.assertEqual(
             {index: decisions[index] for index in CHOKE_ALTERNATION_FIXED},
             CHOKE_ALTERNATION_FIXED,
+        )
+        self.assertEqual(
+            {index: decisions[index] for index in STALE_MUTATION_GATE_FIXED},
+            STALE_MUTATION_GATE_FIXED,
+        )
+        # The recorded decisions the fix replaces.
+        self.assertEqual(
+            [recorded[index] for index in STALE_MUTATION_GATE_FIXED],
+            [
+                ["~9\x1b\x1b", "home:request-knowledge-scan"],
+                ["te", "equipment-transaction:takeoff"],
+            ],
         )
         self.assertEqual(len(decisions), AFTER_PURCHASES)
 

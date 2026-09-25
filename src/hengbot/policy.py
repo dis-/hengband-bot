@@ -4408,6 +4408,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._store_entry_failed_owner = None
         self._decision_sequence += 1
         self._equipment_departure_cache_token = None
+        # The executor's POSTED state is the in-flight gate every reader of
+        # ``state`` (weight shedding, the space deposit, Home knowledge scans,
+        # destroys) consults.  Observe the posted wield/takeoff on each board,
+        # not only when the next mutation is requested: a transaction's last
+        # wield otherwise stays POSTED after its worn change was observed, and
+        # those owners stay silenced for the rest of the town visit.
+        self._equipment_mutation.observe(snapshot)
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if snapshot.store is not None and snapshot.player.recalling:
             # A lagged or externally observed store page cannot revive shopping

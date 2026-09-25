@@ -173,6 +173,79 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         self.assertEqual(ex.state, EquipmentMutationState.IDLE)
         self.assertEqual(ex.refusals, 0)
 
+    def test_cosmetic_worn_changes_do_not_complete_a_posted_wield(self):
+        # Recorded 2026-09-10 destroy-superior-digger boards 2105-2109: a
+        # combat re-wield was posted while only the worn lantern's fuel figure
+        # changed.  Neither that nor an inscription/learned-flag suffix is
+        # the wield's effect.
+        shovel = item("main_hand", "Shovel (1d2)", tval=20, digger=True)
+        lantern = item("light", "Brass Lantern (5146 turns of light)", tval=39)
+        sword = item("n", "Sword", tval=23, melee=True)
+        before = board(equipment=(shovel, lantern), inventory=(sword,))
+        ex = EquipmentMutationExecutor()
+        posted = ex.request_wield(before, "combat-loadout", sword, "main_hand", SLOTS)
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        cosmetic = [
+            board(
+                equipment=(
+                    shovel,
+                    SimpleNamespace(
+                        **{**vars(lantern), "name": "Brass Lantern (5145 turns of light)"}
+                    ),
+                ),
+                inventory=(sword,),
+            ),
+            board(
+                equipment=(
+                    SimpleNamespace(
+                        **{**vars(shovel), "name": "Shovel (1d2) {@w1}",
+                           "inscription": "@w1", "fully_known": False}
+                    ),
+                    lantern,
+                ),
+                inventory=(sword,),
+            ),
+        ]
+        for snap in cosmetic:
+            ex.observe(snap)
+            self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(item("main_hand", "Sword", tval=23, melee=True), lantern),
+            inventory=(item("n", "Shovel (1d2)", tval=20, digger=True),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_ring_swap_completes_on_the_requested_slot(self):
+        # Recorded 2026-09-26 departure-unsatisfiable-weight 59-61: 'te' took
+        # the sub_ring off, 'wm)' wore the other ring there.
+        dex = item("sub_ring", "Ring of Dexterity (+2)", tval=45)
+        ice = item("m", "Ring of Ice [+12]", tval=45)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(dex,), inventory=(ice,))
+        takeoff = ex.request_takeoff(on, "transaction-apply", "e")
+        ex.bind_post_snapshot(on)
+        ex.confirm_posted(takeoff.key)
+        off = board(inventory=(ice, item("n", "Ring of Dexterity (+2)", tval=45)))
+        ex.observe(off)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+        wield = ex.request_wield(
+            off, "transaction-apply", ice, "sub_ring",
+            {"main_ring": "d", "sub_ring": "e"},
+        )
+        self.assertEqual(wield.key, "wm)")
+        ex.bind_post_snapshot(off)
+        ex.confirm_posted(wield.key)
+        ex.observe(off)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(item("sub_ring", "Ring of Ice [+12] {.}", tval=45),),
+            inventory=(item("n", "Ring of Dexterity (+2)", tval=45),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
     def test_stacked_split_is_not_progress_and_gold_is(self):
         stacked = board(inventory=(item("s", "Shovel", count=2, digger=True),))
         split = board(
