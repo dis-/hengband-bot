@@ -2365,10 +2365,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.in_town,
         )
         if self._remembered_grid_region != region:
+            previous_region = self._remembered_grid_region
             self._remembered_grid_region = region
             self._remembered_grids = {}
             self._remembered_grid_signatures = {}
             self._remembered_grid_sources = {}
+            if (
+                previous_region is not None
+                and tuple(previous_region[:3]) == tuple(snapshot.floor_key)
+                and previous_region[6]
+                and snapshot.in_town
+                and previous_region[5] >= 0
+                and snapshot.town_id >= 0
+                and previous_region[5] != snapshot.town_id
+            ):
+                # Another town under the same floor key (an Inn teleport).  A
+                # floor-key change resets the routing terrain in _observe;
+                # this change does not, so the terrain the router learned in
+                # the town left behind would otherwise stay in its graph.
+                # Only two known, different town ids count: shape metadata
+                # that flickers (an unknown id, a zero size) is not a new map.
+                self._forget_left_town_terrain()
 
         remembered = self._remembered_grids
         for position, grid in snapshot.grids.items():
