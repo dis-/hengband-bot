@@ -1,0 +1,6 @@
+Source: jsonlog/incident-20260925-1730-home-withdraw-failed-stock-present.state.jsonl.gz and .decisions.jsonl.gz (copies of the live logs taken after the 17:30 stop); the automatic capture incident-captures/20260925-173037-town-blocked-home-withdraw-failed-stock-present/decision-tail.jsonl ends with the same row.
+state.jsonl.gz sha256 5bac1492cc394034f353e1fbcb21be5d2d8dd01adb8324c4a40b411f5c768987; decisions.jsonl.gz sha256 6664cecb30aee4a7e09d4202874c8f691dd889640c182fe3b025df3373434fa6; decision-tail.jsonl sha256 a208b6953b0509b14908e93949c376fd55deec2a0cd1e6caab2a3f0d0c151bd3
+Process: the 2026-09-25T17:29:20+0900 sequence-0 row to sequence 65 (turn 5550750-5559807); the boundary walk validates for all 66 decisions.
+Frozen input rows: decisions 0..33, state rows 1318..1385 (68 emitter rows; decision 0 reads the attach pair 1318, 1319); decompressed sha256 7d82ab36df0f1689f428a6f289660be9a0d550bcb9669c6de11cbe6439202826.
+Recorded facts: all 66 decisions.
+Calibration: jsonlog/character-calibration.json as the 14:22 process wrote it at 14:23:36 (unwritten since), equal to tests/fixtures/recall-read-cancel-pingpong-20260925.character-calibration.json; source sha256 9ecabaeb2a7ea82c6c032b36f6e06a1e3d0745cd907c7910574f26f17f75e89a

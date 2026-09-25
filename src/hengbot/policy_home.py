@@ -1243,6 +1243,11 @@ class HomeMixin:
         entrance = snapshot.grid_at(snapshot.player.position)
         if entrance is None or entrance.store_number != STORE_HOME:
             return None
+        taken = getattr(self, "_home_pending_take_confirmed", None)
+        if taken is not None and (
+            taken != self._home_pending_item or self._home_withdrawal_queued
+        ):
+            taken = self._home_pending_take_confirmed = None
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
         withdrawal_requested = bool(
@@ -1310,6 +1315,7 @@ class HomeMixin:
         if (
             not transaction_withdraw_pending
             and signature is None
+            and taken is None
             and self._home_pending_item in observed_signatures
         ):
             signature = self._home_pending_item
@@ -1466,7 +1472,7 @@ class HomeMixin:
                 unaddressable_signatures = {
                     candidate
                     for candidate in (
-                        self._home_pending_item,
+                        self._home_pending_item if taken is None else None,
                         *self._calibration_restore_signatures,
                         *self._home_pending_batch,
                         (
@@ -1478,24 +1484,43 @@ class HomeMixin:
                     )
                     if candidate is not None
                 }
-                complete_open_page_match = (
-                    self._home_scan_source == "observed-home-page"
-                    and any(
-                        self._item_signature(item) in unaddressable_signatures
-                        or (
-                            action is not None
-                            and action.kind == "withdraw"
-                            and item.is_equipment
-                            and equipment_identity(item) == action.item_identity
-                        )
-                        for index, item in enumerate(self._home_knowledge_items)
-                        if index >= self._home_knowledge_valid_before
+                # A confirmed take at shelf index i shortens the addressable
+                # prefix to i (``_confirm_home_withdrawal_address``).  Work
+                # catalogued at or beyond i is still in Home -- only its
+                # address moved -- so it earns a fresh complete scan, from
+                # whichever source the catalogue came.  Only work absent from
+                # the complete catalogue is an unobserved withdrawal target.
+                catalogued_beyond_prefix = any(
+                    self._item_signature(item) in unaddressable_signatures
+                    or (
+                        action is not None
+                        and action.kind == "withdraw"
+                        and item.is_equipment
+                        and equipment_identity(item) == action.item_identity
                     )
+                    for index, item in enumerate(self._home_knowledge_items)
+                    if index >= self._home_knowledge_valid_before
                 )
-                if complete_open_page_match:
+                if taken is not None:
+                    # The pending item's own take is confirmed: its withdrawal
+                    # is complete, not unobserved.  Release it without a
+                    # deferral or a failed-withdrawal record.
+                    self._home_pending_take_confirmed = None
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_pending_quantity = None
+                if catalogued_beyond_prefix:
                     self._invalidate_home_observation()
                     self.last_reason = "home:await-fresh-knowledge"
                     return None
+                if taken is not None and not (
+                    self._calibration_restore_signatures
+                    or self._home_pending_batch
+                    or (action is not None and action.kind == "withdraw")
+                ):
+                    return self._town_entrance_step_off_key(
+                        snapshot, "home:atomic-withdraw-complete"
+                    )
                 self.last_reason = "home:atomic-withdraw-target-unobserved"
                 deferred = self._defer_unobserved_home_withdrawal()
                 self._record_digger_home_withdraw_failure(deferred)
@@ -1513,6 +1538,20 @@ class HomeMixin:
                 return self._town_entrance_step_off_key(
                     snapshot, "home:atomic-withdraw-target-unobserved"
                 )
+        if (
+            signature not in observed_signatures
+            and self._home_errand.active
+            and any(
+                self._item_signature(item) == signature
+                for index, item in enumerate(self._home_knowledge_items)
+                if index >= self._home_knowledge_valid_before
+            )
+        ):
+            # Catalogued beyond a confirmed take's shortened prefix: the
+            # errand's item is in Home at a moved address (see above).
+            self._invalidate_home_observation()
+            self.last_reason = self._home_errand.reason("await-fresh-knowledge")
+            return None
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
                 self._town_store_visit_limit(STORE_HOME), "target-unobserved"

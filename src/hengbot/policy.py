@@ -2086,6 +2086,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_atomic_withdraw_move_identity: str | None = None
         self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
+        # The pending item whose own posted take was confirmed.  It stays the
+        # pending item for carried-item processing, but its withdrawal is done:
+        # the atomic composer must neither take it again nor read its shifted
+        # shelf slot as a failed withdrawal.  A re-queue of the same identity
+        # (``_home_withdrawal_queued``) makes it withdrawal work again.
+        # Restored checkpoints read None through getattr.
+        self._home_pending_take_confirmed: tuple[str, int, int] | None = None
         # Outcome-keyed supervisor for a requested Home take.  The count is in
         # unsatisfied Home-stop passes, not raw decisions, so ordinary page and
         # confirmation latency does not consume the bound.
@@ -4475,6 +4482,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._confirm_home_withdrawal_address(
                     signature, self._home_atomic_withdraw_index
                 )
+                if signature == self._home_pending_item:
+                    self._home_pending_take_confirmed = signature
                 if signature in self._calibration_restore_signatures:
                     self._calibration_restore_signatures.remove(signature)
                 self._calibration_restore_move_identities.pop(signature, None)
