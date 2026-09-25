@@ -21,7 +21,8 @@ queued batch, Home errand):
   deferred nor counted as a failure, and after the rescan it is taken;
 - the pending item whose take was confirmed is released as complete: never
   deferred, never taken again, never a failure -- unless a new request queues
-  the same identity again;
+  the same identity again; other work queued beside it (an ammo top-up raises
+  the shared ``_home_withdrawal_queued``) leaves that take complete;
 - a genuinely failing withdrawal still fails: an owner absent from the fresh
   complete catalogue is still ``target-unobserved`` (deferred), and a posted
   take without an inventory gain still reaches the gate's stop
@@ -46,8 +47,11 @@ from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
     STORE_HOME,
+    SV_BOW_LIGHT_XBOW,
     SV_DIGGING_SHOVEL,
     SV_SCROLL_DETECT_TREASURE,
+    TVAL_BOLT,
+    TVAL_BOW,
     TVAL_DIGGING,
     TVAL_POTION,
     TVAL_SCROLL,
@@ -58,14 +62,41 @@ from hengbot.policy import HengbotPolicy
 
 
 PAGE_SIZE = 12
-EARLIER, TAKEN, LATER = 0, 5, 15
+EARLIER, TAKEN, LATER, BOLTS = 0, 5, 15, 18
+BOLT_NAME = "plain bolts (1d5) (+0,+0)"
+LAUNCHER = item(
+    "bow", TVAL_BOW, SV_BOW_LIGHT_XBOW, name="light crossbow", is_equipment=True,
+)
 ENTRANCE = Position(45, 123)
 BESIDE = Position(45, 122)
 STEP_KEYS = set("12346789")
 
 
-def wares(*, taken_count=27, later_present=True):
-    """A 20-slot ``~9`` catalogue: potion at 0, scroll at 5, shovel at 15."""
+def home_bolts(count):
+    return store_item(
+        "b", TVAL_BOLT, 1, count=count, name=BOLT_NAME,
+        damage_dice_num=1, damage_dice_sides=5,
+        exported_fields=frozenset({
+            "aware", "known", "fully_known", "pval", "fuel", "timeout",
+            "is_ego", "is_artifact", "is_cursed", "is_broken",
+            "inscription", "to_h", "to_d", "to_a", "ac",
+            "damage_dice", "known_flags",
+        }),
+    )
+
+
+def carried_bolts(count, slot="q"):
+    return item(
+        slot, TVAL_BOLT, 1, count=count, name=BOLT_NAME,
+        fully_known=True, damage_dice_num=1, damage_dice_sides=5,
+    )
+
+
+def wares(*, taken_count=27, later_present=True, bolts=None):
+    """A 20-slot ``~9`` catalogue: potion at 0, scroll at 5, shovel at 15.
+
+    With ``bolts``, plain bolts that stack with the carried ones sit at 18.
+    """
     shelf = [
         store_item(str(index), TVAL_POTION, 900 + index, name=f"home potion {index}")
         for index in range(20)
@@ -81,6 +112,8 @@ def wares(*, taken_count=27, later_present=True):
         "x", TVAL_DIGGING, SV_DIGGING_SHOVEL, count=2,
         name="later shovel", is_equipment=True,
     )
+    if bolts is not None:
+        shelf[BOLTS] = home_bolts(bolts)
     if not later_present:
         del shelf[LATER]
     return tuple(shelf)
@@ -251,22 +284,80 @@ class HomeWithdrawMovedAddressTest(unittest.TestCase):
         self.assertIsNone(policy._home_pending_item)
         self.assert_nothing_failed()
 
-    def test_requeued_pending_item_is_withdrawal_work_again(self):
+    def test_ammo_top_up_beside_a_confirmed_take_takes_the_ammo(self):
+        """gpt-6-sol P2: queueing ammo raises the shared queued flag.
+
+        The scroll's take is confirmed with 26 left in Home; the ammo top-up
+        then queues the Home bolts behind it (``_queue_home_ammo_top_up``
+        sets ``_home_withdrawal_queued``).  That is not a request for more
+        scrolls: the bolts are taken, the scroll is not taken again.
+        """
         policy = self.policy
+        policy.consume_home_knowledge(wares(bolts=80))
         policy._home_pending_item = self.taken
         policy._home_pending_quantity = 1
+        bolts = policy._item_signature(home_bolts(80))
         # Confirmed off the entrance: the composer has not met it yet.
         self.take(self.shelf[TAKEN], observe_at=BESIDE)
         self.assertEqual(policy._home_pending_item, self.taken)
-        # A new request for more of the same identity queues it again.
-        policy._home_pending_quantity = 2
-        policy._home_withdrawal_queued = True
+        policy.consume_home_knowledge(wares(taken_count=26, bolts=80))
+        armed = replace(
+            board(
+                [carried(self.shelf[TAKEN], 1, slot="a"), carried_bolts(10)],
+                turn=5552455,
+            ),
+            equipment=[LAUNCHER],
+        )
 
-        key, telemetry = self.rescan_and_compose(wares(taken_count=26))
+        self.assertTrue(policy._queue_home_ammo_top_up(armed))
+        self.assertTrue(policy._home_withdrawal_queued)
+        self.assertEqual(policy._home_pending_item, self.taken)
+        self.assertEqual(policy._home_pending_batch, [bolts])
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_entrance_step_off = None
+        key = policy._atomic_home_withdraw_key(armed, ENTRANCE)
 
-        self.assertEqual(key, "5pf2\r\x1b")
-        self.assertEqual(telemetry["selected_signature"], list(self.taken))
-        self.assertEqual(telemetry["selecting_branch"], "home-pending-item")
+        telemetry = policy._home_atomic_withdraw_telemetry
+        self.assertEqual(telemetry["selected_signature"], list(bolts))
+        self.assertEqual(telemetry["selecting_branch"], "home-pending-batch")
+        self.assertEqual(key, "5 pg80\r\x1b")
+        self.assert_nothing_failed()
+
+    def test_same_identity_requeued_is_withdrawal_work_again(self):
+        """A new ammo request for the confirmed pending bolts reopens them."""
+        policy = self.policy
+        policy.consume_home_knowledge(wares(bolts=99))
+        bolts = policy._item_signature(home_bolts(99))
+        armed = replace(
+            board([carried_bolts(10)], turn=5552439), equipment=[LAUNCHER]
+        )
+        self.assertTrue(policy._queue_home_ammo_top_up(armed))
+        self.assertEqual(policy._home_pending_item, bolts)
+        key = policy._atomic_home_withdraw_key(armed, ENTRANCE)
+        self.assertEqual(key, "5 pg89\r\x1b")
+        policy.confirm_key_posted(key)
+        policy.choose_key(replace(
+            board([carried_bolts(99)], turn=5552444, at=BESIDE),
+            equipment=[LAUNCHER],
+        ))
+        self.assertEqual(policy._home_pending_take_confirmed, bolts)
+        # Shots spent; the same Home stack (10 left) is requested again.
+        policy.consume_home_knowledge(wares(bolts=10))
+        spent = replace(
+            board([carried_bolts(50)], turn=5552460), equipment=[LAUNCHER]
+        )
+        self.assertTrue(policy._queue_home_ammo_top_up(spent))
+        self.assertIsNone(policy._home_pending_take_confirmed)
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_entrance_step_off = None
+
+        key = policy._atomic_home_withdraw_key(spent, ENTRANCE)
+
+        self.assertEqual(key, "5 pg10\r\x1b")
+        self.assertEqual(
+            policy._home_atomic_withdraw_telemetry["selected_signature"],
+            list(bolts),
+        )
 
     def test_unrequeued_pending_item_is_not_taken_again_after_a_rescan(self):
         policy = self.policy

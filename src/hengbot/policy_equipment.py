@@ -490,6 +490,7 @@ class EquipmentMixin:
             return None
         self._home_digger_seen_pages.clear()
         self._home_pending_item = self._item_signature(digger)
+        self._requeue_home_withdrawal(self._home_pending_item)
         self._home_digger_withdraw_pending = True
         self._home_withdrawal_queued = True
         self.last_reason = "home:queue-digging-tool-withdraw"

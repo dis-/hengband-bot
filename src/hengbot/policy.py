@@ -2089,8 +2089,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # The pending item whose own posted take was confirmed.  It stays the
         # pending item for carried-item processing, but its withdrawal is done:
         # the atomic composer must neither take it again nor read its shifted
-        # shelf slot as a failed withdrawal.  A re-queue of the same identity
-        # (``_home_withdrawal_queued``) makes it withdrawal work again.
+        # shelf slot as a failed withdrawal.  Only a new request for the same
+        # identity (``_requeue_home_withdrawal``) makes it withdrawal work
+        # again; other work queued beside it does not.
         # Restored checkpoints read None through getattr.
         self._home_pending_take_confirmed: tuple[str, int, int] | None = None
         # Outcome-keyed supervisor for a requested Home take.  The count is in
@@ -5302,6 +5303,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 _catalogue_index, identify_staff = identify_staff
                 signature = self._item_signature(identify_staff)
                 self._home_pending_item = signature
+                self._requeue_home_withdrawal(signature)
                 self._home_pending_quantity = 1
                 self._home_pending_quantities[signature] = 1
                 self._home_withdrawal_queued = True

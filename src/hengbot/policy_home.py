@@ -1244,9 +1244,7 @@ class HomeMixin:
         if entrance is None or entrance.store_number != STORE_HOME:
             return None
         taken = getattr(self, "_home_pending_take_confirmed", None)
-        if taken is not None and (
-            taken != self._home_pending_item or self._home_withdrawal_queued
-        ):
+        if taken is not None and taken != self._home_pending_item:
             taken = self._home_pending_take_confirmed = None
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
@@ -2031,6 +2029,16 @@ class HomeMixin:
                 ),
                 knowledge_current=self._home_knowledge_current,
             )
+
+    def _requeue_home_withdrawal(self, signature: tuple[str, int, int]) -> None:
+        """A new request queues ``signature`` for withdrawal again.
+
+        Only a request for the same identity reopens a pending item whose
+        take was confirmed; queueing other work (ammo top-up, a batch) beside
+        it leaves that take complete.
+        """
+        if getattr(self, "_home_pending_take_confirmed", None) == signature:
+            self._home_pending_take_confirmed = None
 
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
@@ -3165,6 +3173,8 @@ class HomeMixin:
         if self._home_pending_item is None:
             self._home_pending_item = signature
             self._home_pending_quantity = quantity
+        elif signature == self._home_pending_item:
+            self._requeue_home_withdrawal(signature)
         elif (
             signature != self._home_pending_item
             and signature not in self._home_pending_batch
@@ -3360,6 +3370,7 @@ class HomeMixin:
         primary, quantity = queued[0]
         primary_signature = self._item_signature(primary)
         self._home_pending_item = primary_signature
+        self._requeue_home_withdrawal(primary_signature)
         self._home_pending_quantity = quantity
         self._home_pending_quantities[primary_signature] = quantity
         for candidate, candidate_quantity in queued[1:]:

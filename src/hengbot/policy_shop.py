@@ -1569,6 +1569,7 @@ class ShopMixin:
             signature = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = signature
+            self._requeue_home_withdrawal(signature)
             self._home_pending_quantity = quantity
             self._home_pending_quantities[signature] = quantity
             self._home_withdrawal_queued = True
@@ -1651,6 +1652,7 @@ class ShopMixin:
             identity = self._item_signature(candidate)
             self._home_procurement_probe = item_class
             self._home_pending_item = identity
+            self._requeue_home_withdrawal(identity)
             self._home_pending_quantity = min(
                 candidate.count,
                 max(1, missing),
@@ -3569,6 +3571,7 @@ class ShopMixin:
                     reason = "home:withdraw-surplus-identify-staff"
                 signature = self._item_signature(candidate)
                 self._home_pending_item = signature
+                self._requeue_home_withdrawal(signature)
                 self._home_withdrawal_queued = True
                 self.last_reason = reason.replace("withdraw", "queue-withdraw")
                 return LEAVE_STORE_KEY

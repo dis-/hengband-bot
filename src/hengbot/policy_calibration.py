@@ -307,6 +307,7 @@ class CalibrationMixin:
             return
         signature = self._item_signature(candidate)
         self._home_pending_item = signature
+        self._requeue_home_withdrawal(signature)
         self._home_pending_quantity = 1
         self._home_pending_quantities[signature] = 1
         self._home_withdrawal_queued = True
