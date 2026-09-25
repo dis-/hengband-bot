@@ -37,6 +37,12 @@ in-scope families (the S2b.2 gate), the S3 families and survival;
 preemptions by pair; displacements; and how suspended claims left the stack.
 Rows written before the ladder are reclassified by rank through the writer's
 own functions (rev 10.1 item 11).  (c) counts one final ending per claim id.
+
+Last, the S2b.2 bar table (design 3.2 / 3.3, ``ownership_metrics.bar_numbers``):
+would-bar events per owner (decisions whose owner and goal met a standing bar;
+with the switch off they are only recorded), bars set per owner and kind, the
+lifetimes of the bars lifted, the bars still standing when a session ended,
+and the rungs a bar skipped (switch on only).
 """
 
 from __future__ import annotations
@@ -54,6 +60,7 @@ from hengbot.ownership_metrics import (  # noqa: E402
     RUNTIME_SOURCE_LAST_DECISION,
     RUNTIME_SOURCE_NONE,
     aggregate,
+    bar_numbers,
     gate_numbers,
     implicit_handoffs,
     ladder_numbers,
@@ -217,6 +224,70 @@ def ladder_report(rows, hours: float | None = None) -> list[str]:
     return lines
 
 
+def bar_report(rows, hours: float | None = None) -> list[str]:
+    """S2b.2 (design 3.2 / 3.3): would-bar events per owner, bar lifetimes.
+
+    Read through ``ownership_metrics.bar_numbers``.  With the switch off (the
+    shipped setting) a would-bar event is only recorded: it names a decision
+    the bar would have skipped.
+    """
+    bars = bar_numbers(rows)
+
+    def rate(count: int) -> str:
+        return f"{count / hours:.3f}" if hours else "n/a"
+
+    def spread(block) -> str:
+        if not block["count"]:
+            return "none"
+        return (
+            f"n={block['count']} min={block['min']} "
+            f"median={block['median']} max={block['max']}"
+        )
+
+    would = bars["would_bar"]
+    lines = [
+        "S2b.2 bar table (design 3.2 / 3.3):",
+        f"would-bar events (decisions whose owner and goal met a bar)    "
+        f"{would['count']:>5}   per runtime hour {rate(would['count'])}",
+    ]
+    for owner, counts in would["by_owner"].items():
+        lines.append(
+            f"    {owner:<48} {counts['events']} "
+            f"({counts['claims']} claim(s))"
+        )
+    placed = bars["bars_set"]
+    lines.append(
+        f"bars set                                                       "
+        f"{placed['count']:>5}"
+    )
+    for name, times in placed["by_owner_kind"].items():
+        lines.append(f"    {name:<48} {times}")
+    lines.append("bar lifetimes (bars lifted), game turns / decisions:")
+    for owner, block in bars["lifetimes"].items():
+        lines.append(
+            f"    {owner:<32} turns {spread(block['turns'])}; "
+            f"decisions {spread(block['decisions'])}"
+        )
+    if not bars["lifetimes"]:
+        lines.append("    (no bar lifted)")
+    lines.append("bars still standing at the end of their session:")
+    for owner, block in bars["still_barred"].items():
+        lines.append(
+            f"    {owner:<32} {block['count']} "
+            f"(oldest {block['max_age_turns']} game turns)"
+        )
+    if not bars["still_barred"]:
+        lines.append("    (none)")
+    skipped = bars["skipped"]
+    lines.append(
+        f"rungs skipped by a bar (switch on only)                        "
+        f"{skipped['count']:>5}"
+    )
+    for owner, times in skipped["by_owner"].items():
+        lines.append(f"    {owner:<48} {times}")
+    return lines
+
+
 def claim_report(rows, hours: float | None) -> list[str]:
     """Design 5.2, from the claim ledger: implicit owner changes per hour."""
     lines = [f"claim rows     {len(rows)}"]
@@ -235,6 +306,7 @@ def claim_report(rows, hours: float | None) -> list[str]:
             lines.append("    (none)")
     lines.extend(gate_report(rows, hours))
     lines.extend(ladder_report(rows, hours))
+    lines.extend(bar_report(rows, hours))
     return lines
 
 
@@ -392,6 +464,7 @@ def main(argv: list[str] | None = None) -> int:
                     ],
                     "gate": gate_numbers(claim_rows),
                     "ladder": ladder_numbers(claim_rows),
+                    "bars": bar_numbers(claim_rows),
                 },
                 "blind_spot": BLIND_SPOT,
             },

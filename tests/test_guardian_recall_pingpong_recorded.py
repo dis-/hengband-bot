@@ -109,6 +109,15 @@ BOUNCES = (37, 138, 211)  # return:recall 'rf' on (3, 23), guardian-kit-insuffic
 ARRIVALS = (84, 177, 257)  # the first town decision after each bounce
 LAST = 262
 VALVE = 258  # the decision whose observation lands the third bounce in town
+
+
+def _bar_record(policy):
+    """S2b.2: the bar table's record on the decision row (record-only)."""
+    claim = policy.decision_claim or {}
+    return {
+        name: claim.get(name)
+        for name in ("would_bar", "bars_set", "bars_lifted", "bar_skipped")
+    }
 # Named change for the r3 terminal pin: every other candidate's recall
 # landing moved onto its own guardian floor (Forest max 32, Mountain max 50,
 # Castle max 65), none of whose guardians the recorded kit can beat.
@@ -118,6 +127,8 @@ ALL_BLOCKED_LANDINGS = {FOREST: 31, 14: 49, 12: 64}
 class GuardianRecallPingPongRecordedTest(unittest.TestCase):
     live = None
     live_base = None
+    # S2b.2: the bar table's record of every live-replay decision.
+    live_bars = None
 
     @classmethod
     def setUpClass(cls):
@@ -172,6 +183,7 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             decided = []
             arrivals = []
             valve_calls = []
+            bars = []
             for index in range(LAST + 1):
                 snapshot = cls._consume(policy, index, directory)
                 if index == VALVE:
@@ -201,6 +213,7 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                 ):
                     key = policy.choose_key(snapshot)
                 decided.append((str(key), policy.last_reason))
+                bars.append(_bar_record(policy))
                 if (
                     observed_floor is not None
                     and observed_floor[0] != 0
@@ -223,6 +236,7 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                     )
                 policy.confirm_key_posted(key)
             cls.live = (decided, arrivals, valve_calls)
+            cls.live_bars = bars
         return cls.live
 
     def _fixed_until_first_recall(self):
@@ -277,6 +291,21 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                 index
                 for index, pair in enumerate(decided)
                 if pair != (self.recorded[index]["key"], self.recorded[index]["reason"])
+            ],
+            [],
+        )
+
+    def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
+        # S2b.2 (record-only): the switch is off, every recorded decision is
+        # reproduced (above), and no claim of this window ends barred -- the
+        # ping-pong is a departure/recall latch, which no bar catches.
+        decided, _arrivals, _valve = self._live()
+        bars = type(self).live_bars
+        self.assertEqual(len(bars), len(decided))
+        self.assertEqual(
+            [
+                index for index, row in enumerate(bars)
+                if any(value is not None for value in row.values())
             ],
             [],
         )

@@ -194,6 +194,11 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # S2b.1 round 2 (rev 10.1 item 9): the per-decision trigger slot, reset
     # at every ``choose_key`` entry like the two above.
     restored.__dict__.setdefault("_decision_triggers", None)
+    # S2b.2: the per-decision record of the rungs a bar skipped (reset at
+    # every ``choose_key`` entry), and the switch that lets a bar skip one --
+    # off, as it is in every checkpoint this change can meet.
+    restored.__dict__.setdefault("_decision_bar_skips", None)
+    restored.__dict__.setdefault("_claim_bar_enforced", False)
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.
@@ -207,6 +212,10 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         # suspended stack held no suspended claim; an empty stack is exact.
         register.__dict__.setdefault("_suspended", [])
         register.__dict__.setdefault("_suspended_closings", [])
+        # S2b.2: a checkpoint pickled before the bar table held no bar and
+        # no pending ending; empty is exact.
+        register.__dict__.setdefault("_bars", [])
+        register.__dict__.setdefault("_ended", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")

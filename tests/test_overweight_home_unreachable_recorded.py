@@ -193,6 +193,14 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     "overweight": (
                         snapshot.in_town and policy._inventory_overweight(snapshot)
                     ),
+                    # S2b.2: the bar table's record (record-only, switch off)
+                    **{
+                        name: (policy.decision_claim or {}).get(name)
+                        for name in (
+                            "would_bar", "bars_set", "bars_lifted",
+                            "bar_skipped",
+                        )
+                    },
                 })
                 policy.confirm_key_posted(key)
         cls.replay = replay
@@ -266,6 +274,38 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             [*DIVERGENT, STOP],
+        )
+
+    def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
+        # S2b.2 (record-only, switch off; the decisions are pinned above).
+        # Seven hunts lost their monster (``target-lost``) and were barred
+        # until it is unseen for the 50-turn clock; four of those bars lifted
+        # inside the window, and three later hunts of a still-barred monster
+        # are recorded as would-bars.  Nothing was skipped.
+        replay = self._replay()
+        bars_set = [
+            (entry["owner"], entry["kind"], entry["ending"])
+            for row in replay for entry in (row["bars_set"] or ())
+        ]
+        self.assertEqual(
+            bars_set, [("hunt", "threat", "release:target-lost")] * 7
+        )
+        self.assertEqual(
+            [entry["owner"] for row in replay
+             for entry in (row["bars_lifted"] or ())],
+            ["hunt"] * 4,
+        )
+        would = [row for row in replay if row["would_bar"] is not None]
+        self.assertEqual(len(would), 3)
+        for row in would:
+            self.assertEqual(row["would_bar"]["owner"], "hunt")
+            self.assertTrue(row["reason"].startswith("hunt"), row["reason"])
+            self.assertEqual(
+                row["would_bar"]["goal"]["monster"],
+                row["would_bar"]["triggers"][0],
+            )
+        self.assertEqual(
+            [row for row in replay if row["bar_skipped"] is not None], []
         )
 
     def test_h1_stop_board_proceeds_to_the_home_deposit(self):

@@ -152,6 +152,8 @@ class OwnershipMetricsLedger:
         self._implicit_handoffs = 0
         self._handoff_pairs: Counter[str] = Counter()
         self._claimless_reasons: Counter[str] = Counter()
+        # S2b.2: decisions whose owner and goal met a standing bar, per owner.
+        self._would_bars: Counter[str] = Counter()
 
     # -- writing ---------------------------------------------------------
 
@@ -177,6 +179,8 @@ class OwnershipMetricsLedger:
             "implicit_handoffs": self._implicit_handoffs,
             "implicit_handoff_pairs": dict(self._handoff_pairs),
             "claimless_reasons": dict(self._claimless_reasons),
+            "would_bars": sum(self._would_bars.values()),
+            "would_bar_owners": dict(self._would_bars),
             "decision_sequence": self._last_decision_sequence,
             "decision_time": self._last_decision_time,
         }
@@ -241,9 +245,18 @@ class OwnershipMetricsLedger:
                     "suspended_depth",
                     "trigger_monsters",
                     "last_perceived_turn",
+                    # S2b.2 (design 3.2 / 3.3): the bar table's record.
+                    "would_bar",
+                    "bars_set",
+                    "bars_lifted",
+                    "bars_active",
+                    "bar_skipped",
                 )
             },
         }
+        would_bar = record.get("would_bar")
+        if isinstance(would_bar, Mapping):
+            self._would_bars[str(would_bar.get("owner"))] += 1
         if is_implicit_handoff(self._last_claim, record):
             self._implicit_handoffs += 1
             self._handoff_pairs[
@@ -918,6 +931,138 @@ def rejudge_recorded_violations(rows: Sequence[Mapping]) -> dict:
         "after": {scope: block(counter) for scope, counter in after.items()},
         "verdicts": {
             verdict: block(counter) for verdict, counter in sorted(verdicts.items())
+        },
+    }
+
+
+def _spread(values: Sequence[int]) -> dict:
+    """Count, min, median and max of a list of non-negative integers."""
+    ordered = sorted(values)
+    if not ordered:
+        return {"count": 0, "min": None, "median": None, "max": None}
+    middle = len(ordered) // 2
+    median = (
+        ordered[middle]
+        if len(ordered) % 2
+        else (ordered[middle - 1] + ordered[middle]) / 2
+    )
+    return {
+        "count": len(ordered),
+        "min": ordered[0],
+        "median": median,
+        "max": ordered[-1],
+    }
+
+
+def _bar_identity(entry: Mapping) -> tuple[str, str]:
+    """A bar is known by its owner and goal (``ClaimRegister.barring``)."""
+    return (
+        str(entry.get("owner")),
+        json.dumps(entry.get("goal"), sort_keys=True, ensure_ascii=False),
+    )
+
+
+def bar_numbers(rows: Sequence[Mapping]) -> dict:
+    """S2b.2 (design 3.2 / 3.3): what the bar table did, and would have done.
+
+    * ``would_bar`` per owner: ``events`` -- decisions whose owner and goal
+      met a standing bar (the rows that carry ``would_bar``) -- and
+      ``claims``, the distinct claim ids among them;
+    * ``bars_set`` per ``owner/kind`` (``threat`` or ``errand``);
+    * ``lifetimes`` per owner, of the bars lifted inside the ledger: game
+      turns and decisions from ``since`` to the lift (count / min / median /
+      max);
+    * ``still_barred`` per owner: bars standing on a session's last row,
+      with the largest age in game turns there;
+    * ``skipped`` per owner: rungs the bar skipped (only with the switch on).
+
+    A bar set again while it stands (``ClaimRegister.set_bar`` merges it) is
+    counted as set once more, and its lifetime runs from its first start.
+    """
+    events: Counter[str] = Counter()
+    claims: dict[str, set] = {}
+    bars_set: Counter[str] = Counter()
+    turns: dict[str, list] = {}
+    decisions: dict[str, list] = {}
+    still: dict[str, list] = {}
+    skipped: Counter[str] = Counter()
+    for session_rows in _claim_rows_by_session(rows):
+        standing: dict[tuple[str, str], Mapping] = {}
+        for row in session_rows:
+            for entry in row.get("bars_lifted") or ():
+                if not isinstance(entry, Mapping):
+                    continue
+                owner = str(entry.get("owner"))
+                since = standing.pop(_bar_identity(entry), entry)
+                start_turn = since.get("since_turn")
+                start_sequence = since.get("since_sequence")
+                if isinstance(start_turn, int) and isinstance(
+                    entry.get("lifted_turn"), int
+                ):
+                    turns.setdefault(owner, []).append(
+                        entry["lifted_turn"] - start_turn
+                    )
+                if isinstance(start_sequence, int) and isinstance(
+                    entry.get("lifted_sequence"), int
+                ):
+                    decisions.setdefault(owner, []).append(
+                        entry["lifted_sequence"] - start_sequence
+                    )
+            would_bar = row.get("would_bar")
+            if isinstance(would_bar, Mapping):
+                owner = str(would_bar.get("owner"))
+                events[owner] += 1
+                claims.setdefault(owner, set()).add(row.get("claim_id"))
+            for entry in row.get("bars_set") or ():
+                if not isinstance(entry, Mapping):
+                    continue
+                bars_set[f"{entry.get('owner')}/{entry.get('kind')}"] += 1
+                standing.setdefault(_bar_identity(entry), entry)
+            for entry in row.get("bar_skipped") or ():
+                if isinstance(entry, Mapping):
+                    skipped[str(entry.get("owner"))] += 1
+        last_turn = session_rows[-1].get("turn") if session_rows else None
+        for entry in standing.values():
+            start = entry.get("since_turn")
+            age = (
+                last_turn - start
+                if isinstance(last_turn, int) and isinstance(start, int)
+                else None
+            )
+            still.setdefault(str(entry.get("owner")), []).append(age)
+    owners = sorted({*events, *turns, *decisions})
+    return {
+        "would_bar": {
+            "count": sum(events.values()),
+            "by_owner": {
+                owner: {"events": events[owner], "claims": len(claims[owner])}
+                for owner, _count in events.most_common()
+            },
+        },
+        "bars_set": {
+            "count": sum(bars_set.values()),
+            "by_owner_kind": dict(bars_set.most_common()),
+        },
+        "lifetimes": {
+            owner: {
+                "turns": _spread(turns.get(owner, [])),
+                "decisions": _spread(decisions.get(owner, [])),
+            }
+            for owner in owners
+            if turns.get(owner) or decisions.get(owner)
+        },
+        "still_barred": {
+            owner: {
+                "count": len(ages),
+                "max_age_turns": max(
+                    (age for age in ages if age is not None), default=None
+                ),
+            }
+            for owner, ages in sorted(still.items())
+        },
+        "skipped": {
+            "count": sum(skipped.values()),
+            "by_owner": dict(skipped.most_common()),
         },
     }
 

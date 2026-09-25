@@ -190,6 +190,13 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             "claim_distance": claim.get("distance"),
             # S2b.1: a preempted claim resumed under its own id on this row
             "claim_resumed": bool(claim.get("resumed")),
+            # S2b.2: the bar table's record (record-only, switch off)
+            **{
+                name: claim.get(name)
+                for name in (
+                    "would_bar", "bars_set", "bars_lifted", "bar_skipped",
+                )
+            },
         }
         policy.confirm_key_posted(key)
         return decided
@@ -284,6 +291,24 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             [STOP],
+        )
+
+    def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
+        # S2b.2 (record-only): with the switch off every decision above is
+        # reproduced, and the fixed walk is never retired (A1), so no errand
+        # bar is set; nothing else in the process ends barred either.
+        replay = self._replay()
+        self.assertEqual(
+            [
+                index for index, row in enumerate(replay)
+                if any(
+                    row[name] is not None
+                    for name in (
+                        "would_bar", "bars_set", "bars_lifted", "bar_skipped",
+                    )
+                )
+            ],
+            [],
         )
 
     def test_a1_walk_whose_claimed_distance_falls_is_not_retired(self):

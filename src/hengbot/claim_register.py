@@ -60,6 +60,20 @@ its owner returns to the same goal, and ``close_suspended`` ends one that the
 floor changed under, whose goal was met, or that another owner displaced.
 Record-only, like the rest.
 
+Stage S2b.2 (design 3.2, 3.3, 5.4.1; rev 10 "S2b.2") adds the **bar table**,
+plain data on the register (``_bars``): a ``Bar`` names ``(owner, goal,
+trigger monsters)`` for a claim that ended without reaching its goal
+(``_claim_bar_for`` in the policy decides which endings qualify).  Every
+closing call records the claim it ended in ``_ended`` so that the declaration
+point can read the endings of the whole decision, not only the last one
+(``take_closing``).  The lift rules are pure functions of the board
+(``bar_after_board``): a threat-triggered bar lifts after ``hold`` game turns
+with none of its ``(index, race_id)`` trigger monsters perceived; an errand
+bar lifts when the arbiter no longer holds its owner retired under the
+retirement clearance key it held when the bar was set.  Nothing reads the
+table to decide unless the policy's switch ``_claim_bar_enforced`` is on, and
+nothing ships with it on.
+
 Continuity
 ----------
 ``declare`` continues the current claim while the owner, the goal and
@@ -137,6 +151,9 @@ CLOSED_BY_EXPIRED = "expired"
 CLOSING_EVENTS = frozenset(
     {CLOSED_BY_RELEASE, CLOSED_BY_COMPLETE, CLOSED_BY_RETIRED, CLOSED_BY_EXPIRED}
 )
+# The release label of a suspended claim a floor change ended (design rev 10.1
+# item 6, rule i); written by ``policy._claim_suspended_exit``.
+SUSPENDED_EXPIRED = "suspended-expired"
 
 GOAL_REACH = "Reach"
 GOAL_OBSERVE = "Observe"
@@ -339,6 +356,99 @@ class Claim:
         )
 
 
+# -- S2b.2: the bar table (design 3.2, 3.3, 5.4.1) ---------------------------
+
+# A preemptor barred by the 50-turn safety rule (design 3.2): the owner is one
+# of the threat-triggered families (``claim_ladder.TRIGGER_FAMILIES``).
+BAR_THREAT = "threat"
+# An errand owner barred by retirement (design 3.3): it lifts when the
+# existing retirement clearance key changes.
+BAR_ERRAND = "errand"
+
+
+@dataclass(frozen=True)
+class Bar:
+    """One bar: ``(owner, goal, trigger monsters)`` and when it was set.
+
+    Plain data, like a claim.  ``triggers`` are ``(index, race_id)`` pairs,
+    never an index alone: Hengband reuses a dead monster's index for a new
+    one.  ``last_perceived_turn`` is the game turn of the latest board on
+    which one of them was perceived (the bar's own start when none was).
+    ``clearance`` is, for an errand bar, the retirement clearance key the
+    arbiter held for the owner when the bar was set -- the arbiter's own
+    value, compared, never rebuilt.
+    """
+
+    owner: ClaimOwner
+    goal: Goal
+    kind: str
+    triggers: tuple[tuple[int, int], ...] = ()
+    since_turn: int | None = None
+    since_sequence: int | None = None
+    last_perceived_turn: int | None = None
+    claim_id: int | None = None
+    ending: str | None = None
+    clearance: object = None
+
+    def as_dict(self) -> dict:
+        """The row form: plain JSON types only (``clearance`` stays out)."""
+        return {
+            "owner": self.owner.value,
+            "goal": self.goal.as_dict(),
+            "kind": self.kind,
+            "since_turn": self.since_turn,
+            "since_sequence": self.since_sequence,
+            "triggers": [list(pair) for pair in self.triggers],
+            "last_perceived_turn": self.last_perceived_turn,
+            "claim_id": self.claim_id,
+            "ending": self.ending,
+        }
+
+
+def bar_after_board(
+    bar: Bar,
+    *,
+    turn: int | None,
+    perceived: frozenset,
+    hold: int,
+    retired: dict | None,
+) -> Bar | None:
+    """The bar as this board leaves it, or ``None`` when the board lifts it.
+
+    A pure function of the bar, the board and the arbiter's retirement table
+    (design 5.4.1: the bar match is a pure function of the current snapshot
+    and the key):
+
+    * ``threat``: a trigger ``(index, race_id)`` in ``perceived`` moves
+      ``last_perceived_turn`` to ``turn``; the bar lifts once more than
+      ``hold`` game turns have passed since then with none of them perceived
+      (the comparison of the detected-threat choke release it shares its
+      clock with).
+    * ``errand``: the bar stands while the arbiter still holds its owner
+      retired under the same clearance key, and lifts when it does not.
+
+    Nothing else lifts a bar: not the player's movement, not a changed target,
+    not the trigger set growing or shrinking, not the floor.
+    """
+    if bar.kind == BAR_ERRAND:
+        table = retired or {}
+        if bar.owner.value in table and table[bar.owner.value] == bar.clearance:
+            return bar
+        return None
+    if turn is None:
+        return bar
+    if any(tuple(pair) in perceived for pair in bar.triggers):
+        if bar.last_perceived_turn == turn:
+            return bar
+        return replace(bar, last_perceived_turn=int(turn))
+    last = bar.last_perceived_turn
+    if last is None:
+        last = bar.since_turn
+    if last is not None and turn - last > hold:
+        return None
+    return bar
+
+
 class ClaimRegister:
     """The policy's own claim register: one current claim and one counter.
 
@@ -361,6 +471,13 @@ class ClaimRegister:
         # reader goes through ``getattr``.
         self._suspended: list[Claim] = []
         self._suspended_closings: list[dict] = []
+        # S2b.2: the bar table, and the claims that ended since the last
+        # declaration (every one of them, where ``_closing`` keeps the last).
+        # A register pickled before S2b.2 has neither; readers use
+        # ``getattr``.  Both lists are rebound, never mutated in place, so the
+        # telemetry observer's shallow copy of the register stays isolated.
+        self._bars: list[Bar] = []
+        self._ended: list[Claim] = []
 
     # -- allocation ------------------------------------------------------
 
@@ -531,6 +648,7 @@ class ClaimRegister:
             del stack[position]
             self._suspended = stack
             ended = replace(claim, closed=closed, closed_reason=label)
+            self._note_ended(ended)
             record = {**ended.closing_dict(), **recorded}
             closings = list(getattr(self, "_suspended_closings", None) or ())
             closings.append(record)
@@ -618,25 +736,93 @@ class ClaimRegister:
 
     def complete(self, label: str | None = None) -> Claim | None:
         """The declared goal was observed reached."""
-        return self._close(ClaimState.COMPLETE, CLOSED_BY_COMPLETE, label)
+        return self._note_ended(
+            self._close(ClaimState.COMPLETE, CLOSED_BY_COMPLETE, label)
+        )
 
     def retire(self) -> Claim | None:
         """Out of budget: the claim emits nothing further (design 3.3)."""
-        return self._transition(ClaimState.RETIRED, CLOSED_BY_RETIRED)
+        return self._note_ended(
+            self._transition(ClaimState.RETIRED, CLOSED_BY_RETIRED)
+        )
 
     def release(self, label: str | None = None) -> Claim | None:
         """The holder handed the decision back of its own accord."""
         claim = self._claim
         if claim is None:
             return None
-        return self._close(claim.state, CLOSED_BY_RELEASE, label)
+        return self._note_ended(
+            self._close(claim.state, CLOSED_BY_RELEASE, label)
+        )
 
     def expire(self, label: str | None = None) -> Claim | None:
         """An Observe claim outlived its ``within`` (rev 9.2)."""
         claim = self._claim
         if claim is None:
             return None
-        return self._close(claim.state, CLOSED_BY_EXPIRED, label)
+        return self._note_ended(
+            self._close(claim.state, CLOSED_BY_EXPIRED, label)
+        )
+
+    # -- S2b.2: endings and the bar table ----------------------------------
+
+    def _note_ended(self, claim: Claim | None) -> Claim | None:
+        """Keep a claim a closing call ended for ``take_ended``; pass it on."""
+        if claim is not None and claim.closed in CLOSING_EVENTS:
+            self._ended = [*(getattr(self, "_ended", None) or ()), claim]
+        return claim
+
+    def take_ended(self) -> list[Claim]:
+        """Every claim a closing call ended since the last call, once."""
+        ended = list(getattr(self, "_ended", None) or ())
+        self._ended = []
+        return ended
+
+    @property
+    def bars(self) -> tuple[Bar, ...]:
+        """The bar table (design 3.2 / 3.3), oldest first."""
+        return tuple(getattr(self, "_bars", None) or ())
+
+    def barring(self, owner: str | ClaimOwner, goal: Goal) -> Bar | None:
+        """The bar standing on this owner and goal, if any.
+
+        The match is the owner and the goal; the trigger set only decides
+        when the bar lifts (design 3.2: "not the trigger set growing or
+        shrinking").
+        """
+        declared = owner_of(owner)
+        for bar in self.bars:
+            if bar.owner == declared and bar.goal == goal:
+                return bar
+        return None
+
+    def set_bar(self, bar: Bar) -> Bar:
+        """Record a bar; a bar already standing on its owner and goal keeps
+        its start and takes the union of the two trigger sets and the later
+        perception."""
+        bars = list(self.bars)
+        for position, standing in enumerate(bars):
+            if standing.owner == bar.owner and standing.goal == bar.goal:
+                perceived = [
+                    turn
+                    for turn in (standing.last_perceived_turn, bar.last_perceived_turn)
+                    if turn is not None
+                ]
+                merged = replace(
+                    standing,
+                    triggers=tuple(sorted({*standing.triggers, *bar.triggers})),
+                    last_perceived_turn=max(perceived) if perceived else None,
+                )
+                bars[position] = merged
+                self._bars = bars
+                return merged
+        bars.append(bar)
+        self._bars = bars
+        return bar
+
+    def replace_bars(self, bars) -> None:
+        """The table after a board's lift pass (rebound, never mutated)."""
+        self._bars = list(bars)
 
     def take_closing(self) -> Claim | None:
         """The claim a closing call ended since the last declaration, once."""

@@ -69,6 +69,7 @@ policy.py:_destination_depth_allowed  # relays the depth-block reason its caller
 policy.py:_unprofitable_unique_disengage_key  # relays the escape rung the disengage ladder chose
 policy.py:_issue_emergency_consumable  # relays the emergency reason its caller passed
 policy.py:_current_floor_item_key  # relays the floor-item reason of the loot producer it calls
+policy.py:_claim_bar_gate  # relays back the reason a barred rung found (S2b.2 switch, off by default)
 policy_calibration.py:_abort_character_calibration  # relays the abort reason its caller composed
 policy_combat.py:_esp_threat_leave_key  # relays the departure reason the leave producer built
 policy_equipment.py:_equipment_wield  # relays the equipment-mutation report of the wield it issued
