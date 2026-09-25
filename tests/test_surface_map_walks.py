@@ -120,6 +120,71 @@ class SurfaceMapTerrainScopeTest(unittest.TestCase):
             MORIVANT_INN,
         )
 
+    def _assert_outpost_forgotten(self, policy, morivant):
+        self.assertNotIn((OUTPOST_WALL.y, OUTPOST_WALL.x), policy._remembered_wall_t)
+        self.assertIn((OUTPOST_WALL.y, OUTPOST_WALL.x), policy._floor_t)
+        self.assertNotIn(OUTPOST_ENTRANCE, policy._remembered_downstairs)
+        self.assertNotIn(OUTPOST_ENTRANCE, policy._town_entrance_cells(morivant))
+        fresh = _policy()
+        fresh.prime(morivant)
+        self.assertEqual(
+            policy._town_teleport_route(morivant, OUTPOST_TOWN_ID),
+            fresh._town_teleport_route(morivant, OUTPOST_TOWN_ID),
+        )
+
+    def _assert_outpost_kept(self, policy):
+        self.assertIn((OUTPOST_WALL.y, OUTPOST_WALL.x), policy._remembered_wall_t)
+        self.assertIn(OUTPOST_ENTRANCE, policy._remembered_downstairs)
+
+    def test_arriving_over_the_wilderness_forgets_the_town_left(self):
+        """Outpost -> wilderness -> Morivant (gpt-6-sol P1 on 3a9d2ad4)."""
+        policy = _policy()
+        policy.prime(_outpost_board())
+        policy.prime(replace(
+            _board(OUTPOST_TOWN_ID, (36, 118), in_town=False, turn=1010),
+            town_id=-1,
+        ))
+        morivant = _board(MORIVANT_TOWN_ID, (33, 115), turn=1020)
+        policy.prime(morivant)
+        self._assert_outpost_forgotten(policy, morivant)
+
+    def test_arriving_past_an_unknown_town_id_forgets_the_town_left(self):
+        """Outpost -> a board with town id -1 -> Morivant (P1 on 3a9d2ad4)."""
+        policy = _policy()
+        policy.prime(_outpost_board())
+        policy.prime(replace(
+            _board(OUTPOST_TOWN_ID, (36, 118), turn=1010), town_id=-1,
+        ))
+        morivant = _board(MORIVANT_TOWN_ID, (33, 115), turn=1020)
+        policy.prime(morivant)
+        self._assert_outpost_forgotten(policy, morivant)
+
+    def test_re_entering_the_same_town_keeps_its_terrain(self):
+        for between in (
+            replace(_board(OUTPOST_TOWN_ID, (36, 118), in_town=False, turn=1010),
+                    town_id=-1),
+            replace(_board(OUTPOST_TOWN_ID, (36, 118), turn=1010), town_id=-1),
+        ):
+            with self.subTest(in_town=between.in_town):
+                policy = _policy()
+                policy.prime(_outpost_board())
+                policy.prime(between)
+                self._assert_outpost_kept(policy)
+                policy.prime(_board(OUTPOST_TOWN_ID, (36, 117), turn=1020))
+                self._assert_outpost_kept(policy)
+
+    def test_restored_checkpoint_without_the_town_key(self):
+        """A checkpoint from before the key learns it on its next town board."""
+        policy = _policy()
+        policy.prime(_outpost_board())
+        del policy.__dict__["_terrain_town_id"]
+        policy.prime(_board(OUTPOST_TOWN_ID, (36, 117), turn=1010))
+        self._assert_outpost_kept(policy)
+        self.assertEqual(policy._terrain_town_id, OUTPOST_TOWN_ID)
+        morivant = _board(MORIVANT_TOWN_ID, (33, 115), turn=1020)
+        policy.prime(morivant)
+        self._assert_outpost_forgotten(policy, morivant)
+
     def test_boards_of_the_same_town_keep_its_terrain(self):
         policy = _policy()
         policy.prime(_outpost_board())

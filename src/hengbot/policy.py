@@ -1443,6 +1443,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._remembered_grids: dict[Position, GridState] = {}
         self._remembered_grid_signatures: dict[Position, tuple] = {}
         self._remembered_grid_sources: dict[Position, GridState] = {}
+        # The last known town id the routing terrain was learned in (see
+        # _with_grid_memory); None until a board of a known town arrives.
+        self._terrain_town_id: int | None = None
         # Region-local town facts are updated from emitted cells. Missing cells
         # retain their last known value, which is essential for unlit towns.
         self._town_fact_region: tuple[int, int, int, int, int, int, bool] | None = None
@@ -2365,27 +2368,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.in_town,
         )
         if self._remembered_grid_region != region:
-            previous_region = self._remembered_grid_region
             self._remembered_grid_region = region
             self._remembered_grids = {}
             self._remembered_grid_signatures = {}
             self._remembered_grid_sources = {}
-            if (
-                previous_region is not None
-                and tuple(previous_region[:3]) == tuple(snapshot.floor_key)
-                and previous_region[6]
-                and snapshot.in_town
-                and previous_region[5] >= 0
-                and snapshot.town_id >= 0
-                and previous_region[5] != snapshot.town_id
-            ):
-                # Another town under the same floor key (an Inn teleport).  A
-                # floor-key change resets the routing terrain in _observe;
-                # this change does not, so the terrain the router learned in
-                # the town left behind would otherwise stay in its graph.
-                # Only two known, different town ids count: shape metadata
-                # that flickers (an unknown id, a zero size) is not a new map.
-                self._forget_left_town_terrain()
+        self._scope_terrain_to_town(snapshot)
 
         remembered = self._remembered_grids
         for position, grid in snapshot.grids.items():

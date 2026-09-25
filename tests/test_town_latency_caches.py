@@ -377,6 +377,8 @@ class LegacyPolicy(HengbotPolicy):
         if self._remembered_grid_region != region:
             self._remembered_grid_region = region
             self._remembered_grids = {}
+        # Not a cache: the town scope of the routing terrain (2026-09-25).
+        self._scope_terrain_to_town(snapshot)
         remembered = {
             position: replace(grid, **TRANSIENT_DEFAULTS)
             for position, grid in self._remembered_grids.items()
