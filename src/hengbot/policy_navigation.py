@@ -977,6 +977,24 @@ class NavigationMixin:
                 count += 1
         return count
 
+    def _scope_terrain_to_town(self, snapshot: Snapshot) -> None:
+        """Key the routing terrain on the last known town it was learned in.
+
+        Arriving in a different known town -- by an Inn teleport, over the
+        wilderness, or past boards whose town id is unknown -- forgets the
+        terrain of the town left behind: a floor-key change resets it in
+        _observe, a change of town under the same floor key does not.  Boards
+        with no known town (the wilderness, flickering metadata) neither
+        clear nor re-key it, so re-entering the same town keeps its memory.
+        Restored checkpoints predate the attribute (``getattr``).
+        """
+        if not snapshot.in_town or snapshot.town_id < 0:
+            return
+        learned_in = getattr(self, "_terrain_town_id", None)
+        if learned_in is not None and learned_in != snapshot.town_id:
+            self._forget_left_town_terrain()
+        self._terrain_town_id = snapshot.town_id
+
     def _forget_left_town_terrain(self) -> None:
         """Drop the routing terrain of a town the player has left.
 
