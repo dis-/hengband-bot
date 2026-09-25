@@ -96,7 +96,7 @@ class ResumeInsideStorePins(unittest.TestCase):
         self.store_row = json.loads(self.store_raw)
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.path = Path(directory.name) / "bot-state-fixed.jsonl"
+        self.path = Path(directory.name) / "attach-state.jsonl"
 
     def tcp_state(self, **overrides):
         # handle_state_request -> make_bot_json_snapshot: the same snapshot
