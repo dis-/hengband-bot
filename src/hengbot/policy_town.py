@@ -3952,6 +3952,14 @@ class TownMixin:
         for target in targets:
             self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
+                # S2b.1b round 2, record-only: acting on a monster in sight
+                # again -- the friendly-fire attack here, or the ordinary
+                # adjacent melee this ``None`` hands to -- ends the walk to
+                # where one was last seen, as the approach below does.
+                self._release_claim_goal(
+                    "last-known-reacquired", last_known,
+                    owners=(ClaimOwner.SURVIVAL,),
+                )
                 if target.friendly:
                     self.last_reason = "town:kill-mob-friendly"
                     return "+" + self._direction_key(player.position, target.position) + "y"

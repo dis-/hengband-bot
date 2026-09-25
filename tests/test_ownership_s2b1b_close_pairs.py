@@ -624,6 +624,65 @@ class TownKillMobChaseTest(unittest.TestCase):
             ("retarget", "survival"),
         )
 
+    # Round 2 (gpt-6-sol P2): the monster reappears ADJACENT, at the
+    # last-known cell itself; the attack branch acts on it before any route.
+
+    def _reacquired_adjacent(self, *, friendly, release=True):
+        base = _town_board()
+        here = base.player.position
+        cell = next(
+            grid.position for grid in sorted(
+                base.grids.values(),
+                key=lambda grid: (grid.position.y, grid.position.x),
+            )
+            if grid.passable and not grid.is_store
+            and here.distance_to(grid.position) == 1
+        )
+        seen = MonsterState(
+            index=9, position=cell, hp=5, max_hp=5, distance=1,
+            friendly=friendly, pet=False, race_id=35,
+        )
+        board = self._board(visible_monsters=[seen])
+        policy = _fresh_policy(board)
+        _standing(
+            policy, "survival", "town:kill-mob-approach", reach((cell.y, cell.x)),
+            board,
+        )
+        policy._town_hunt_target = cell
+        if release:
+            key = policy._town_kill_mob_key(board)
+        else:
+            with patch.object(policy, "_release_claim_goal", _no_release):
+                key = policy._town_kill_mob_key(board)
+        if friendly:
+            self.assertEqual(policy.last_reason, "town:kill-mob-friendly")
+            return _exit(policy, board, "town:kill-mob-friendly", key)
+        self.assertIsNone(key)  # the ordinary adjacent melee acts
+        return _exit(policy, board, "melee", "1")
+
+    def test_an_adjacent_reacquired_monster_ends_the_last_known_walk(self):
+        for friendly in (True, False):
+            with self.subTest(friendly=friendly):
+                row = self._reacquired_adjacent(friendly=friendly)
+                self.assertIsNone(row["violation"])
+                self.assertEqual(
+                    (row["closed_claim"]["closed"],
+                     row["closed_claim"]["closed_reason"]),
+                    ("release", "last-known-reacquired"),
+                )
+
+    def test_revert_proof_reacquired_adjacent(self):
+        friendly = self._reacquired_adjacent(friendly=True, release=False)
+        self.assertEqual(
+            (friendly["violation"]["kind"], friendly["violation"]["from"]),
+            ("retarget", "survival"),
+        )
+        hostile_row = self._reacquired_adjacent(friendly=False, release=False)
+        self.assertEqual(
+            (hostile_row["violation"]["from"], hostile_row["violation"]["to"]),
+            ("survival", "combat"),
+        )
+
 
 # -- (a) retarget: fundraising ---------------------------------------------------
 
