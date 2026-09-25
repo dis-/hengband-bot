@@ -3205,6 +3205,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return monster
         return None
 
+    def _claim_entered_store_at(self, snapshot: Snapshot, cell) -> bool:
+        """The board is inside the store whose entrance is ``cell``."""
+        visit = getattr(self, "_store_visit", None)
+        entrance = getattr(visit, "goal", None)
+        return (
+            snapshot.store is not None
+            and isinstance(entrance, Position)
+            and tuple(cell) == (entrance.y, entrance.x)
+        )
+
     def _claim_exit_completion(self, snapshot: Snapshot, standing, pops) -> None:
         """Close the standing claim on what this board shows.
 
@@ -3250,13 +3260,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if goal.cell == (position.y, position.x):
                 self._complete_claim_goal("reached", owners=own)
                 return
-            visit = getattr(self, "_store_visit", None)
-            entrance = getattr(visit, "goal", None)
-            if (
-                snapshot.store is not None
-                and isinstance(entrance, Position)
-                and goal.cell == (entrance.y, entrance.x)
-            ):
+            if self._claim_entered_store_at(snapshot, goal.cell):
                 self._complete_claim_goal("entered-store", owners=own)
             return
         if goal.kind != CLAIM_GOAL_OBSERVE:
@@ -3388,6 +3392,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             register.suspend(
                 label, sequence=self._decision_sequence, turn=snapshot.turn
             )
+            # Round 3: a holder restored with no floor takes this board's.
+            register.stamp_suspended_floor(standing.claim_id, snapshot.floor_key)
         elif action == CLAIM_SURVIVAL_DISPLACED:
             # Survival that does not outrank the holder replaces it: released,
             # exempt, not a violation (round 2, F1/F2).
@@ -3503,7 +3509,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         position = snapshot.player.position
         for claim in register.suspended:
             goal = claim.goal
-            if claim.floor is not None and tuple(claim.floor) != tuple(
+            if claim.floor is None:
+                # Round 3: a claim restored from before ``floor`` existed.
+                # The first board that sees it suspended is its floor, so it
+                # expires on the first floor change from here.
+                register.stamp_suspended_floor(claim.claim_id, snapshot.floor_key)
+                continue
+            if tuple(claim.floor) != tuple(
                 snapshot.floor_key
             ):
                 if (
@@ -3529,12 +3541,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     register.close_suspended(
                         claim.claim_id, "complete", "target-adjacent"
                     )
-            elif (
-                goal.cell is not None
-                and not snapshot.on_open_wilderness
-                and goal.cell == (position.y, position.x)
-            ):
-                register.close_suspended(claim.claim_id, "complete", "reached")
+            elif goal.cell is not None and not snapshot.on_open_wilderness:
+                # Round 3: the same tests as an active Reach claim
+                # (``_claim_exit_completion``): on the cell, or inside the
+                # store whose entrance is the cell.
+                if goal.cell == (position.y, position.x):
+                    register.close_suspended(
+                        claim.claim_id, "complete", "reached"
+                    )
+                elif self._claim_entered_store_at(snapshot, goal.cell):
+                    register.close_suspended(
+                        claim.claim_id, "complete", "entered-store"
+                    )
 
     def _claim_owner_transition(
         self, register, standing, owner, goal, rung, survival, non_discardable

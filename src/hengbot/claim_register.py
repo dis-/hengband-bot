@@ -538,6 +538,22 @@ class ClaimRegister:
             return record
         return None
 
+    def stamp_suspended_floor(
+        self, claim_id: int, floor: tuple[int, ...]
+    ) -> None:
+        """Give a suspended claim with no recorded floor the board's floor.
+
+        Round 3: a claim restored from a checkpoint pickled before ``floor``
+        existed reads ``None``; stamped with the first board that sees it
+        suspended, it expires on the first floor change after that.
+        """
+        stack = list(self.suspended)
+        for position, claim in enumerate(stack):
+            if claim.claim_id == claim_id and claim.floor is None:
+                stack[position] = replace(claim, floor=tuple(floor))
+                self._suspended = stack
+                return
+
     def take_suspended_closings(self) -> list[dict]:
         """The suspended claims that closed since the last declaration, once."""
         closings = list(getattr(self, "_suspended_closings", None) or ())

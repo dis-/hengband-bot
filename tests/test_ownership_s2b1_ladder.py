@@ -1035,6 +1035,105 @@ class PickupCensusTest(unittest.TestCase):
         )
 
 
+class RoundThreeTest(unittest.TestCase):
+    """Round 3 (the re-review of d0aa2f86)."""
+
+    def test_the_overflow_block_ranks_at_its_own_rung(self):
+        rung = rung_of("town-plan", "town:blocked:overflow-no-legal-disposal")
+        self.assertEqual(rung.producer, "_town_overflow_destroy_key")
+        self.assertGreater(rung.rank, 2)
+        self.assertLess(rung.rank, TOWN_RANK)
+        # every other town:blocked stays at town-plan's rewrite rung
+        self.assertEqual(rung_of("town-plan", "town:blocked:owner-retired").rank, 1)
+
+    def _suspended_store_walk(self):
+        from hengbot.model import Position
+        from hengbot.policy_types import StoreVisit
+
+        run = _Decisions()
+        entrance = run.cell(3)
+        run.policy._store_visit = StoreVisit(
+            owner="store-router", purpose="test", store_type=1,
+            goal=Position(*entrance),
+        )
+        walk = run.decide("shop:approach", cell=entrance)
+        self.assertEqual(walk["owner"], "store-router")
+        swing = run.decide("melee")
+        self.assertEqual(swing["closed_claim"]["claim_id"], walk["claim_id"])
+        self.assertEqual(swing["suspended_depth"], 1)
+        inside = replace(run.board, store=object())
+        return run, walk, inside
+
+    def test_a_suspended_walk_completes_on_entering_its_store(self):
+        run, walk, inside = self._suspended_store_walk()
+        # combat still holds the decision (it nests over the walk), so only
+        # the completion test can end the walk
+        row = run.decide("melee", board=inside)
+        closings = {
+            entry["claim_id"]: (entry["closed"], entry["closed_reason"])
+            for entry in row["suspended_closed"]
+        }
+        self.assertEqual(closings, {walk["claim_id"]: ("complete", "entered-store")})
+        self.assertEqual(row["suspended_depth"], 0)
+
+    def test_revert_proof_cell_equality_alone_leaves_it_suspended(self):
+        from unittest.mock import patch
+
+        run, walk, inside = self._suspended_store_walk()
+        with patch.object(
+            HengbotPolicy, "_claim_entered_store_at",
+            lambda self, snapshot, cell: False,
+        ):
+            row = run.decide("melee", board=inside)
+        self.assertIsNone(row["suspended_closed"])
+        self.assertEqual(row["suspended_depth"], 1)
+
+    def _floorless_register(self, run, cell):
+        register = ClaimRegister()
+        claim = register.declare(ClaimOwner.FLOOR_LOOT, reach(cell))
+        object.__delattr__(claim, "floor")
+        return register, claim
+
+    def test_a_floorless_claim_suspended_now_expires_on_the_next_floor(self):
+        run = _Decisions()
+        register, claim = self._floorless_register(run, run.cell(3))
+        run.policy._claim_register = pickle.loads(pickle.dumps(register))
+        self.assertIsNone(run.register.current.floor)
+        swing = run.decide("melee")
+        self.assertEqual(swing["closed_claim"]["claim_id"], claim.claim_id)
+        (stacked,) = run.register.suspended
+        self.assertEqual(stacked.floor, tuple(run.board.floor_key))
+        self._assert_expires_on_the_next_floor(run, claim)
+
+    def test_a_floorless_claim_restored_on_the_stack_expires(self):
+        run = _Decisions()
+        register, claim = self._floorless_register(run, run.cell(3))
+        register.suspend("preempted-by:combat")  # the round-2 writer's stack
+        (stacked,) = register.suspended
+        self.assertIsNone(stacked.floor)
+        state = {"_claim_register": register}
+        restored = pickle.loads(pickle.dumps(state))["_claim_register"]
+        run.policy._claim_register = restored
+        # the first board that sees it suspended stamps its floor ...
+        run.decide("melee")
+        (stamped,) = run.register.suspended
+        self.assertEqual(stamped.floor, tuple(run.board.floor_key))
+        self._assert_expires_on_the_next_floor(run, claim)
+
+    def _assert_expires_on_the_next_floor(self, run, claim):
+        floor = run.board.floor_key
+        elsewhere = replace(run.board, floor_key=(floor[0], floor[1] + 1, floor[2]))
+        row = run.decide("explore", cell=run.cell(5), board=elsewhere)
+        closings = {
+            entry["claim_id"]: (entry["closed"], entry["closed_reason"])
+            for entry in row["suspended_closed"]
+        }
+        self.assertEqual(
+            closings, {claim.claim_id: ("release", "suspended-expired")}
+        )
+        self.assertEqual(row["suspended_depth"], 0)
+
+
 # -- C3 ----------------------------------------------------------------------
 #
 # On the frozen excerpt (the first 7,525 claim rows of the 2026-09-25
