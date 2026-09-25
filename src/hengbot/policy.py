@@ -3058,39 +3058,98 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
           those ``(index, race_id)`` identities;
         * an ``Observe`` goal closes only when ``sources`` is ``None`` or one
           of them is a prefix of its source.
+
+        S2b.1b: a ``complete`` or ``release`` that names exactly the goal it
+        ends (a ``cell`` or ``monsters``) also closes that goal while a
+        preemption holds it on the suspended stack (design rev 10.1 item 5).
+        The producer drops its goal where it always did; before, the closing
+        found another owner's claim standing and closed nothing, so the
+        suspended claim was later displaced and counted as a violation.
         """
         register = getattr(self, "_claim_register", None)
-        standing = register.current if register is not None else None
-        if standing is None or not standing.is_open:
+        if register is None:
             return
         names = {getattr(owner, "value", owner) for owner in owners}
-        if standing.owner.value not in names:
-            return
         cell_named = cell is not self._CLAIM_ANY_CELL
+        named_monsters = None if monsters is None else set(monsters)
         if kinds is None:
             kinds = (
                 (CLAIM_GOAL_REACH,)
-                if cell_named or monsters is not None
+                if cell_named or named_monsters is not None
                 else (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
             )
-        goal = standing.goal
-        if goal.kind not in kinds:
+
+        def matches(claim) -> bool:
+            if claim.owner.value not in names:
+                return False
+            goal = claim.goal
+            if goal.kind not in kinds:
+                return False
+            if goal.kind == CLAIM_GOAL_REACH and cell_named:
+                if not isinstance(cell, Position) or goal.cell != (cell.y, cell.x):
+                    return False
+            if goal.kind == CLAIM_GOAL_REACH and named_monsters is not None:
+                if goal.monster is None or goal.monster not in named_monsters:
+                    return False
+            if goal.kind == CLAIM_GOAL_OBSERVE and sources is not None:
+                if goal.source is None or not str(goal.source).startswith(
+                    tuple(sources)
+                ):
+                    return False
+            return True
+
+        standing = register.current
+        if standing is not None and standing.is_open and matches(standing):
+            if event == "complete":
+                register.complete(label)
+            elif event == "expire":
+                register.expire(label)
+            else:
+                register.release(label)
             return
-        if goal.kind == CLAIM_GOAL_REACH and cell_named:
-            if not isinstance(cell, Position) or goal.cell != (cell.y, cell.x):
+        if event == "expire" or not (cell_named or named_monsters is not None):
+            return
+        for claim in reversed(register.suspended):
+            if matches(claim):
+                register.close_suspended(
+                    claim.claim_id,
+                    "complete" if event == "complete" else "release",
+                    label,
+                )
                 return
-        if goal.kind == CLAIM_GOAL_REACH and monsters is not None:
-            if goal.monster is None or goal.monster not in set(monsters):
-                return
-        if goal.kind == CLAIM_GOAL_OBSERVE and sources is not None:
-            if goal.source is None or not str(goal.source).startswith(tuple(sources)):
-                return
-        if event == "complete":
-            register.complete(label)
-        elif event == "expire":
-            register.expire(label)
-        else:
+
+    def _release_esp_threat_rest_hunt(self, label: str) -> None:
+        """Record-only (S2b.1b): the rest slot's WEAK / MEDIUM hunt ends.
+
+        ``_esp_threat_rest_key`` recomputes that hunt on every board and keeps
+        no plan, and it is asked only where the ordinary rest rule would rest
+        (``_decide`` step 4).  So the walk ends -- standing, or suspended under
+        the swing that took it over -- on the board where that slot is passed
+        without a hunt: the rest gate closed (HP back at the rest target), or
+        the slot chose rest, exploration or nothing.  Only a Reach claim
+        opened at that rung is closed; the committed STRONG hunt ends through
+        its own rung.
+        """
+        register = getattr(self, "_claim_register", None)
+        if register is None:
+            return
+        rung = claim_rung_of(ClaimOwner.ESP_THREAT, "esp-threat:hunt-weak").name
+
+        def matches(claim) -> bool:
+            return (
+                claim.owner == ClaimOwner.ESP_THREAT
+                and claim.goal.kind == CLAIM_GOAL_REACH
+                and claim.rung == rung
+            )
+
+        standing = register.current
+        if standing is not None and standing.is_open and matches(standing):
             register.release(label)
+            return
+        for claim in reversed(register.suspended):
+            if matches(claim):
+                register.close_suspended(claim.claim_id, "release", label)
+                return
 
     def _release_claim_goal(
         self, label: str, cell=_CLAIM_ANY_CELL, *, owners, **scope
@@ -3529,8 +3588,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         floor-change ``Observe`` completes and every other suspended claim is
         released ``suspended-expired``.  (ii) On the same floor, a suspended
         ``Reach`` completes when the board shows it met, by the tests an
-        active claim uses: the player on its cell, or next to its monster.  No
-        store-operation or transaction ``Observe`` is ever on the stack
+        active claim uses: the player on its cell, or next to its monster; and
+        (S2b.1b) a suspended chase whose monster is no longer perceived is
+        released ``target-lost``, as an active one is.  No store-operation or
+        transaction ``Observe`` is ever on the stack
         (``claim_ladder.never_suspended``).
         """
         position = snapshot.player.position
@@ -3561,10 +3622,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 continue
             if goal.monster is not None:
                 monster = self._claim_perceived_monster(snapshot, goal.monster)
-                if (
-                    monster is not None
-                    and position.distance_to(monster.position) <= 1
-                ):
+                if monster is None:
+                    # S2b.1b: the active claim's own rule (rev 9.2 M,
+                    # ``_claim_exit_completion``): a chased monster that is
+                    # no longer perceived -- killed by the preemptor's shot,
+                    # or gone -- releases the chase, suspended or not.
+                    register.close_suspended(
+                        claim.claim_id, "release", "target-lost"
+                    )
+                elif position.distance_to(monster.position) <= 1:
                     register.close_suspended(
                         claim.claim_id, "complete", "target-adjacent"
                     )
@@ -7276,6 +7342,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             loot = self._normal_loot_key(snapshot, strategic_hostiles)
             if loot is not None:
                 return loot
+        elif self._emergency_return_active:
+            # S2b.1b, record-only: the emergency return shuts ordinary loot
+            # out for the rest of the floor, so the committed loot walk (often
+            # suspended by the emergency that set the flag) ends here.
+            self._release_claim_goal(
+                "loot-suppressed:emergency-return",
+                self._loot_target,
+                owners=CLAIM_LOOT_OWNERS,
+            )
 
         # Keep a light lit before any town errand can approach a store or the
         # dungeon entrance: native town travel is rejected at night unless a
@@ -7438,6 +7513,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if esp_threat is not None:
                 return esp_threat
+            # S2b.1b, record-only: the slot passed without a hunt.
+            assessment = self._esp_threat_assessment
+            self._release_esp_threat_rest_hunt(
+                "esp-threat:rest-"
+                + str(
+                    assessment.get("action")
+                    if isinstance(assessment, dict)
+                    else "no-assessment"
+                )
+            )
             if not suppress_rest:
                 # Note: resting burns many turns (= food). Skip it when hungry
                 # so we don't starve — bot-test died of starvation partly from
@@ -7445,6 +7530,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._rest_count += 1
                 self.last_reason = "rest"
                 return REST_MACRO
+        else:
+            # S2b.1b, record-only: the rest gate is closed, so the rest slot's
+            # hunt is not asked for this board.
+            self._release_esp_threat_rest_hunt("esp-threat:rest-gate-closed")
 
         # 5. Descend when standing on a downstairs or dungeon entrance — only
         #    while healthy, so we never dive deeper than we can handle.
@@ -7645,6 +7734,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._is_oscillating():
             step = self._probe_unknown_step(snapshot)
             if step is not None:
+                self._release_explore_walk("explore-oscillating:probe")
                 self.last_reason = "probe"
                 return self._step_toward(snapshot, step)
             # A dead-end may be a SECRET door/passage the map can't show until we
@@ -7661,6 +7751,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._search_counts[here_key] < SEARCH_LIMIT
             ):
                 self._search_counts[here_key] += 1
+                self._release_explore_walk("explore-oscillating:search")
                 self.last_reason = "search"
                 return SEARCH_KEY
             # Once local probes and searches are exhausted, resume the committed
@@ -13264,6 +13355,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return
         if plan.start_breeder_count > 0:
             self._breeder_choke_attempt_ended_floor = plan.floor
+        # S2b.1b, record-only: the plan's reposition walk (``melee:choke-
+        # reposition``, a Reach on ``plan.destination``) ends with the plan.
+        self._release_claim_goal(
+            f"choke-plan-released:{cause}",
+            plan.destination,
+            owners=(ClaimOwner.POSITIONING,),
+        )
         plan.phase = "breakthrough" if cause == "breeder-breakthrough" else "release"
         plan.release_cause = cause
 
@@ -14161,6 +14259,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         identity = self._explore_goal_identity
         if identity is not None:
             self._declare_reach(identity.position)
+
+    def _release_explore_walk(self, label: str) -> None:
+        """Record-only (S2b.1b): the walk to the explore goal stops here.
+
+        The oscillation branch of ``_decide`` stops walking because the walk
+        circles, and probes or searches in place instead; the walk toward the
+        committed goal ends on that board (the planner may pick the same goal
+        again later: a new claim).  The goal itself is kept by the planner.
+        """
+        identity = getattr(self, "_explore_goal_identity", None)
+        self._release_claim_goal(
+            label,
+            identity.position if identity is not None else None,
+            owners=CLAIM_EXPLORE_GOAL_OWNERS,
+        )
 
     def _route_to_explore_goal(
         self,

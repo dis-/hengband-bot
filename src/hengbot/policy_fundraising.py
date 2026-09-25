@@ -842,6 +842,16 @@ class FundraisingMixin:
                 lambda grid: grid.position.distance_to(target.position) <= 1,
             )
             if step is not None:
+                # S2b.1b, record-only: fundraising's own order puts the
+                # multiplier first; the loot or treasure walk it held ends.
+                self._release_claim_goal(
+                    "loot-yield:eliminate-multiplier", self._loot_target,
+                    owners=("fundraising",),
+                )
+                self._release_claim_goal(
+                    "treasure-yield:eliminate-multiplier", self._treasure_target,
+                    owners=("fundraising",),
+                )
                 self.last_reason = "fundraise:eliminate-multiplier"
                 return self._step_toward(snapshot, step)
         elif self._multiplier_target is not None and self._multiplier_target_grace:
@@ -884,6 +894,12 @@ class FundraisingMixin:
             self._mining_route_visits.clear()
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
+            # S2b.1b, record-only: realised loot comes before the vein (the
+            # comment above); the treasure walk it held ends here.
+            self._release_claim_goal(
+                "treasure-yield:seek-loot", self._treasure_target,
+                owners=("fundraising",),
+            )
             self.last_reason = "fundraise:seek-loot"
             self._declare_reach(self._loot_target)
             return self._step_toward(snapshot, visible_loot_step)

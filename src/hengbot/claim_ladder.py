@@ -317,7 +317,14 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_fundraising_key", "fundraising", "town:",
             town=True),                                                # 6980
     _decide("_released_restock_store_key", "store-router"),            # 6993
-    _decide("_esp_threat_rest_key", "esp-threat"),                     # 7015
+    # S2b.1b: the uncommitted WEAK / MEDIUM hunt is produced only here (the
+    # rest slot, ``policy_combat._esp_threat_rest_key``), below the combat
+    # rungs; without its prefixes it ranked at the committed STRONG hunt's
+    # rung (5986) and a swing that took the walk over read as a violation.
+    # ``esp-threat:hunt-strong`` is emitted at both sites and keeps the
+    # ordinary rung (see ``rung_of``).
+    _decide("_esp_threat_rest_key", "esp-threat",
+            "esp-threat:hunt-weak", "esp-threat:hunt-medium"),         # 7015
     _decide("_flee_step", "positioning",
             "threat:avoid-engagement"),                                # 7114
     _decide("_descent_step", "departure",

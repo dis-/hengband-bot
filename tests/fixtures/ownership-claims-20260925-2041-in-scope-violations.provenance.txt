@@ -1,0 +1,3 @@
+Source: jsonlog/incident-20260925-2041-morivant-return-walks-away.ownership-claims.jsonl.gz (read only), session "36788-..." (bot process 36788, 2026-09-25 19:39-20:41, 16,750 claim rows, written by the S2b.1 writer).
+Selection: every row that recorded an in-scope, non-survival violation (on the row, or on a displaced suspended claim) -- 33 owner-change/displaced violations and 13 retarget violations, 46 events -- together with every row from the first row of the held claim up to that row. 200 raw lines, file order, unmodified.
+Decompressed sha256: a4bd0fbf3db48672168a61db3b003e9eeff4196d8b82342f241203b400e2422b

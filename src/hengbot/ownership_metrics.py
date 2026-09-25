@@ -79,7 +79,7 @@ from pathlib import Path
 import sys
 import time
 
-from hengbot.claim_goal_typing import is_survival
+from hengbot.claim_goal_typing import goal_typing, is_survival
 from hengbot.claim_ladder import (
     PREEMPTION,
     SURVIVAL_DISPLACED,
@@ -838,6 +838,114 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
         "suspended": dict(suspended.most_common()),
         "legacy_events": legacy,
     }
+
+
+VERDICT_TERMINAL_NOW = "terminal-now"
+VERDICT_NESTS = "nests"
+VERDICT_HOLDER_UNKNOWN = "holder-unknown"
+
+
+def rejudge_recorded_violations(rows: Sequence[Mapping]) -> dict:
+    """S2b.1b: every violation a ladder-era row recorded, judged again.
+
+    ``ladder_numbers`` reads a row that carries ``rank`` as it was recorded.
+    This reads the same rows through today's goal-typing table and
+    ``CLAIM_LADDER`` -- the two corrections a reader can see -- and says what
+    each recorded violation (on the row, or on a displaced suspended claim)
+    would be now:
+
+    * ``terminal-now``: the held claim's reason is typed ``Terminal`` today,
+      and a Terminal claim completes when its key is posted;
+    * ``preemption``: an owner change whose new rung now ranks strictly above
+      the held claim's rung (``claim_ladder.owner_change``);
+    * ``nests``: a displacement whose displacer now ranks strictly above the
+      suspended claim, so it nests over it instead;
+    * ``violation``: still one -- for a missing ``release`` only the writer
+      can tell (its pins replay the recorded sequence on synthetic boards);
+    * ``holder-unknown``: the held claim's first row is not in ``rows``.
+
+    The held claim is judged by its first row in the session (its reason
+    opened it), the taker by the row that recorded the violation.
+    """
+    before = _scoped()
+    after = _scoped()
+    verdicts: dict[str, Counter[str]] = {}
+
+    def scope_of(entry: Mapping) -> str:
+        if entry.get("survival"):
+            return "survival"
+        scope = entry.get("scope")
+        return scope if scope in (SCOPE_IN, SCOPE_S3) else SCOPE_IN
+
+    def name_of(entry: Mapping) -> str:
+        if entry.get("kind") == "retarget":
+            return f"retarget:{entry.get('from')}"
+        return handoff_pair(entry.get("from"), entry.get("to"))
+
+    for session_rows in _claim_rows_by_session(rows):
+        first_row: dict[object, Mapping] = {}
+        for row in session_rows:
+            first_row.setdefault(row.get("claim_id"), row)
+        for row in session_rows:
+            if row.get("rank") is None:
+                continue
+            entries = []
+            if isinstance(row.get("violation"), Mapping):
+                entries.append(row["violation"])
+            for closing in row.get("suspended_closed") or ():
+                if isinstance(closing, Mapping) and isinstance(
+                    closing.get("violation"), Mapping
+                ):
+                    entries.append(closing["violation"])
+            for entry in entries:
+                scope = scope_of(entry)
+                name = name_of(entry)
+                before[scope][name] += 1
+                held_row = first_row.get(entry.get("claim_id"))
+                if held_row is None:
+                    verdict = VERDICT_HOLDER_UNKNOWN
+                else:
+                    verdict = _rejudge(entry, held_row, row)
+                verdicts.setdefault(verdict, Counter())[f"{scope}:{name}"] += 1
+                if verdict in (VIOLATION, VERDICT_HOLDER_UNKNOWN):
+                    after[scope][name] += 1
+
+    def block(counter: Counter) -> dict:
+        return {"count": sum(counter.values()), "pairs": dict(counter.most_common())}
+
+    return {
+        "before": {scope: block(counter) for scope, counter in before.items()},
+        "after": {scope: block(counter) for scope, counter in after.items()},
+        "verdicts": {
+            verdict: block(counter) for verdict, counter in sorted(verdicts.items())
+        },
+    }
+
+
+def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
+    held_family = _family_of_row(held_row)
+    typing = goal_typing(held_family, held_row.get("reason"))
+    if typing is not None and typing.kind == "Terminal":
+        return VERDICT_TERMINAL_NOW
+    if entry.get("kind") == "retarget":
+        return VIOLATION
+    held = rung_of(
+        held_family,
+        held_row.get("reason"),
+        non_discardable=bool(held_row.get("non_discardable")),
+    )
+    new = _rung_of_row(row)
+    if entry.get("kind") == "displaced":
+        return VERDICT_NESTS if new.rank < held.rank else VIOLATION
+    goal = entry.get("goal") if isinstance(entry.get("goal"), Mapping) else {}
+    return owner_change(
+        held_rank=held.rank,
+        held_goal_kind=goal.get("kind"),
+        held_goal_source=goal.get("source"),
+        held_survival=row_is_survival(held_row),
+        new_rank=new.rank,
+        new_survival=row_is_survival(row),
+    )
 
 
 # -- reading -------------------------------------------------------------

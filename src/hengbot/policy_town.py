@@ -3946,6 +3946,9 @@ class TownMixin:
             (monster for monster in snapshot.visible_monsters if not monster.pet),
             key=lambda monster: monster.distance,
         )
+        # Record-only (S2b.1b): the last-known cell this producer may be
+        # walking to, before the loop below overwrites it.
+        last_known = self._town_hunt_target
         for target in targets:
             self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
@@ -3959,10 +3962,29 @@ class TownMixin:
                 lambda grid, target=target: grid.position.distance_to(target.position) <= 1,
             )
             if step is not None:
+                # S2b.1b, record-only: a monster in sight again ends the walk
+                # to where one was last seen (its separate ``last-known``
+                # Reach claim, rev 9.3 R5).
+                self._release_claim_goal(
+                    "last-known-reacquired", last_known,
+                    owners=(ClaimOwner.SURVIVAL,),
+                )
                 self.last_reason = "town:kill-mob-approach"
                 self._declare_monster((target.index, target.race_id))
                 return self._step_toward(snapshot, step)
         if self._town_hunt_target is not None:
+            # S2b.1b, record-only: this producer chases only what it sees.  A
+            # chased monster still perceived by detection alone is not
+            # ``target-lost`` at the exit, yet the chase of its identity ends
+            # here; the walk below is the separate ``last-known`` claim.
+            self._release_claim_goal(
+                "target-out-of-sight",
+                owners=(ClaimOwner.SURVIVAL,),
+                monsters={
+                    (monster.index, monster.race_id)
+                    for monster in snapshot.detected_monsters
+                },
+            )
             # Rev 9.3 (R5): the chased monster left perception.  Its identity
             # claim is released at the exit (``target-lost``); this walk to
             # where it was last seen is a separate Reach claim, noted

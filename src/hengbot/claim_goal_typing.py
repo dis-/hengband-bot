@@ -389,6 +389,13 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("livelock:ascend", O, FLOOR_CHANGE),
         ("livelock:recall-escape", O, FLOOR_CHANGE),
         ("livelock:seek-", R, WALK_TARGET),
+        # S2b.1b: a one-shot rewrite, not a walk.  It rebuilds the explore
+        # path toward a window edge, records it as the *explore* goal and
+        # clears ``_nav_exhausted``, so the next decision is ordinary
+        # ``explore`` on that goal; typed Reach, its one-row claim was
+        # dropped by explore on every firing (never two rows in a row in
+        # any recorded ledger).
+        ("livelock:seek-window-edge", T, EFFECT),
         ("town-progress-invariant:", T, EFFECT),
         ("town-progress-invariant:boxed-breakout-travel", R, ENTRANCE),
         ("town-progress-invariant:boxed-breakout-travel:await-entry", O, STORE_OPERATION),
@@ -401,7 +408,13 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("stuck:seek-stairs", R, WALK_TARGET),
         ("novel:", T, EFFECT),
         ("breakout", T, EFFECT),
-        ("breakout:seek-frontier", R, WALK_TARGET),
+        # S2b.1b: a one-shot rewrite, not a walk.  The oscillation branch of
+        # ``_decide`` resumes the committed explore planner for one step and
+        # clears ``_recent``, so the next decision is ordinary ``explore`` on
+        # the same goal; typed Reach, its one-row claim was dropped by explore
+        # on every firing (77 rows in the recorded ledgers, never two in a
+        # row).
+        ("breakout:seek-frontier", T, EFFECT),
         # a tunnel command toward a stair the reason site cannot name
         ("breakout:dig-to-stairs", T, EFFECT),
         ("no-wait:", T, EFFECT),
