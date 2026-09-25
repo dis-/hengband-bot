@@ -101,7 +101,13 @@ class DestroySuperiorItemGuardTest(unittest.TestCase):
             key = policy.choose_key(snapshot)
             if key:
                 policy.confirm_key_posted(key)
-            if row["decision"]["decision_sequence"] == 2109:
+            # The combat re-wield is posted on the 2107 board.  (Until the
+            # 2026-09-26 stale equipment-mutation gate fix this stopped at
+            # 2109, whose re-post of 'wna' existed only because the executor
+            # observed the lantern's fuel tick when the wield was requested
+            # again; the decision entry now observes that tick first, and the
+            # Home knowledge scan the stale POSTED held back takes 2109.)
+            if row["decision"]["decision_sequence"] == 2107:
                 self.assertEqual(key, "wna")
                 posted_snapshot = snapshot
                 break

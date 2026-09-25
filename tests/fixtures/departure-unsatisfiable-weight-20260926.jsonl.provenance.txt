@@ -1,0 +1,6 @@
+Source: jsonlog/incident-20260926-0252-departure-unsatisfiable-weight.state.jsonl.gz and .decisions.jsonl.gz (copies of the live logs taken at the 02:52 stop); the stop row equals the last row of incident-captures/20260926-025228-departure-unsatisfiable/decision-tail.jsonl.
+state.jsonl.gz sha256 85f642d3ece9e7b568c4ac5c31ba3f5a671be155e37150ccd45d99a03ccbac6e; decisions.jsonl.gz sha256 bfc16390db146cb42ab5ddb5cc3060c0f214e9d26ed184f3d704727edfbf3b34; decision-tail.jsonl sha256 cb6f0b9f2e34afd43fcf7fb37c458769175285000efcf3f3aa0ea381468de3f4
+Selection: the whole 02:51:39 process, decisions 0..116 by log index (2026-09-26T02:51:39+0900 - 2026-09-26T02:52:27+0900, turn 5782222-5786032).
+Boundary rule: walking back from the last emitter row that carries the last decision's turn, each decision's input ends drain(previous decision) rows earlier and must carry the decision record's turn; the walk validates for all 117 logged decisions.  Decision 0 reads the attach row alone (state log row 346).
+Emitter rows: 215 of 561 (rows 346..560); decompressed sha256: 4a3762bb9be0a6e883e50066b7014cd04bebc463b25938e34361d6da37c73dd9
+Calibration: jsonlog/character-calibration.json as loaded by the process (last written 2026-09-25 20:39), sha256 570b4d994decb0bc7d9fa5d0acca6602a1a530bf1c27904809cc8dd1ae0ea82b
