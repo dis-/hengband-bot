@@ -1305,6 +1305,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # exported; without an issue watch each stale redraw consumes another
         # Word of Recall scroll.
         self._town_recall_issue_watch: tuple[int, int, int] | None = None
+        # Whether this town visit already cancelled a recall as unready.  The
+        # read point never reads again in the same visit (read/cancel class
+        # bound); restored checkpoints read False through getattr.
+        self._town_visit_unready_recall_cancelled = False
         # A repetition fallback recall is the sole sanctioned exception to
         # ordinary town departure readiness.  Keep its ownership explicit so
         # the readiness cancel path cannot fight the cycle breaker's read.
@@ -10742,17 +10746,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         readiness facts may still justify cancellation.
         Optional surplus Home deposits deliberately gate neither departure nor
         an active recall; they wait for the next town visit.
+
+        One source (recall-read-cancel-pingpong, 2026-09-25): every blocker is
+        a leaf of ``_recall_town_departure_conjuncts`` -- the map the read
+        point requires to be all true -- evaluated on
+        ``_recall_departure_board``, the board the armed read was authorised
+        on.  A recall the read point authorised therefore has no blocker until
+        some leaf genuinely changes; the read's own consumption is not one.
         """
+        leaves = self._recall_town_departure_conjuncts(
+            self._recall_departure_board(snapshot)
+        )
         blockers: list[str] = []
-        if not self._town_pack_space_ready(snapshot):
+        if not leaves["free_pack_slots_ready"]:
             blockers.append("pack-too-full")
         if (
             snapshot.player.class_id >= 0
-            and not self._combat_weapon_ready(snapshot)
+            and not leaves["combat_weapon_ready"]
         ):
             blockers.append("weapon-not-ready")
         landing_depth = snapshot.dungeon_recall_depths.get(destination, 0)
-        if landing_depth > 20 and not self._equipment_departure_ready(snapshot):
+        if landing_depth > 20 and not leaves["equipment_departure_ready"]:
             blockers.append("deep-loadout-unconfirmed")
         return blockers
 

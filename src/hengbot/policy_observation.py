@@ -191,6 +191,7 @@ class ObservationMixin:
             self._town_cycle_pending = False
             self._town_cycle_breaks = 0
             self._town_blocked_reason = None
+            self._town_visit_unready_recall_cancelled = False
             self._town_restock_suppressed = False
             self._town_suppression_claim_stores.clear()
             self._town_errand_plan = None
@@ -720,6 +721,7 @@ class ObservationMixin:
             self._equipment_optimization_timed_out_this_visit = False
             self._pending_recall_dungeon_id = None
             self._town_recall_issue_watch = None
+            self._town_visit_unready_recall_cancelled = False
             self._town_visit_purchases.clear()
             self._town_visit_purchase_quantities.clear()
             self._town_visit_sale_signatures.clear()

@@ -1665,6 +1665,38 @@ class TownMixin:
         )
         return values
 
+    def _recall_departure_board(self, snapshot: Snapshot) -> Snapshot:
+        """The board this policy's armed town recall read was authorised on.
+
+        Reading the departure recall consumes one scroll and arms the recall.
+        That is the departure action's own input, not a readiness change: the
+        recall supply leaf already counts the consumed scroll that way.  Every
+        other leaf that reads the pack sees a different pack on the next board,
+        though -- the terminal four-slot certificate signs the exact stack
+        counts, so the read alone voided it and the canceller undid the read
+        (live 2026-09-25 14:52, recall-read-cancel-pingpong: nine read/cancel
+        pairs in two minutes).  While the read this policy issued is armed,
+        undo exactly that effect, so the canceller evaluates the same conjunct
+        map on the same board as the read point that authorised the recall.
+        Any other board is returned unchanged.
+        """
+        watch = self._town_recall_issue_watch
+        if watch is None or not snapshot.in_town or not snapshot.player.recalling:
+            return snapshot
+        _destination, _turn, pre_read_count = watch
+        stacks = [item for item in snapshot.inventory if item.is_recall_scroll]
+        if len(stacks) != 1 or stacks[0].count != pre_read_count - 1:
+            return snapshot
+        consumed = stacks[0]
+        return replace(
+            snapshot,
+            player=replace(snapshot.player, recalling=False),
+            inventory=[
+                replace(item, count=pre_read_count) if item is consumed else item
+                for item in snapshot.inventory
+            ],
+        )
+
     @staticmethod
     def _town_pack_space_signature(
         snapshot: Snapshot,
@@ -4001,7 +4033,9 @@ class TownMixin:
         if not destination_changed and not blocks_teleport and not unready_blockers:
             return None
         if not destination_changed and not blocks_teleport and all(
-            self._recall_town_departure_conjuncts(snapshot).values()
+            self._recall_town_departure_conjuncts(
+                self._recall_departure_board(snapshot)
+            ).values()
         ):
             # A recall still authorised by every departure leaf cannot safely
             # be cancelled for a contradictory duplicate readiness predicate.
@@ -4016,12 +4050,13 @@ class TownMixin:
         if destination_changed:
             self._pending_recall_dungeon_id = None
             self.last_reason = "town:cancel-wrong-recall-destination"
+        elif blocks_teleport:
+            self.last_reason = "town:cancel-unsafe-recall"
         else:
-            self.last_reason = (
-                "town:cancel-unsafe-recall"
-                if blocks_teleport
-                else "town:cancel-unready-recall"
-            )
+            self.last_reason = "town:cancel-unready-recall"
+            # Class bound: the town read point will not read again this
+            # visit (see _town_special_key), so read/cancel cannot alternate.
+            self._town_visit_unready_recall_cancelled = True
         return self._read_key(snapshot, recall)
 
     @claims(ClaimOwner.CURSE_ENCHANT)
@@ -4873,6 +4908,18 @@ class TownMixin:
             # town exploration while carrying an unreachable objective.
             return self._recall_restock_key(snapshot)
         if recall_dest is not None and departure_ok:
+            if not snapshot.player.recalling and getattr(
+                self, "_town_visit_unready_recall_cancelled", False
+            ):
+                # Class bound (recall-read-cancel-pingpong, 2026-09-25): a
+                # recall read this visit was already cancelled as unready.
+                # The canceller judges the read point's own conjunct map on
+                # the read's own board, so that cancel followed a leaf that
+                # changed after the read; reading again would open another
+                # read/cancel round at two scrolls a round.  Stop visibly on
+                # the existing contradiction terminal instead.
+                self._town_blocked_reason = "recall-readiness-contradiction"
+                return self._town_blocked_key(snapshot)
             self._cross_town_shopping = None
             recall_count = sum(
                 item.count for item in snapshot.inventory if item.is_recall_scroll
