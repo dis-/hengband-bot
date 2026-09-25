@@ -5975,8 +5975,17 @@ class RestoreWeaponStaleTakeoffReplayTest(unittest.TestCase):
             (2942150, "tb", "town:restore-combat-weapon"),
         )
         self.assertEqual(turn, 2942150)
-        self.assertEqual(key, "wjb")
-        self.assertEqual(reason, "town:restore-combat-weapon")
+        # The replay posted 'wja' (the Broad Sword into main_hand) on the
+        # 2942136 board; the recorded 2942150 board is the effect of the live
+        # key instead (the Lance in main_hand, the Broad Sword still in the
+        # pack).  Until 2026-09-26 r3 any worn change completed the posted
+        # wield and the replay re-posted 'wjb' over it; the requested-item
+        # rule keeps 'wja' in flight, so no second wield is composed.
+        self.assertEqual(replay[0][1:], ("wja", "town:restore-combat-weapon"))
+        mutation = policy._equipment_mutation
+        self.assertEqual(mutation.state.name, "POSTED")
+        self.assertEqual(mutation.expected_signature[1:3], ("wield", "main_hand"))
+        self.assertFalse(key.startswith(("w", "t")), (key, reason))
 
     def test_recorded_window_never_returns_an_empty_key(self):
         with gzip.open(self.FIXTURE, "rt", encoding="utf-8-sig") as stream:

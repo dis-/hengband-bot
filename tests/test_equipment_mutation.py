@@ -220,14 +220,19 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
     def test_ring_swap_completes_on_the_requested_slot(self):
         # Recorded 2026-09-26 departure-unsatisfiable-weight 59-61: 'te' took
         # the sub_ring off, 'wm)' wore the other ring there.
-        dex = item("sub_ring", "Ring of Dexterity (+2)", tval=45)
-        ice = item("m", "Ring of Ice [+12]", tval=45)
+        def ring(slot, name, sval):
+            return SimpleNamespace(**{**vars(item(slot, name, tval=45)), "sval": sval})
+
+        dex = ring("sub_ring", "Ring of Dexterity (+2)", 43)
+        ice = ring("m", "Ring of Ice [+12]", 19)
         ex = EquipmentMutationExecutor()
         on = board(equipment=(dex,), inventory=(ice,))
         takeoff = ex.request_takeoff(on, "transaction-apply", "e")
         ex.bind_post_snapshot(on)
         ex.confirm_posted(takeoff.key)
-        off = board(inventory=(ice, item("n", "Ring of Dexterity (+2)", tval=45)))
+        ex.observe(on)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        off = board(inventory=(ice, ring("n", "Ring of Dexterity (+2)", 43)))
         ex.observe(off)
         self.assertEqual(ex.state, EquipmentMutationState.IDLE)
         wield = ex.request_wield(
@@ -240,8 +245,69 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         ex.observe(off)
         self.assertEqual(ex.state, EquipmentMutationState.POSTED)
         worn = board(
-            equipment=(item("sub_ring", "Ring of Ice [+12] {.}", tval=45),),
-            inventory=(item("n", "Ring of Dexterity (+2)", tval=45),),
+            equipment=(ring("sub_ring", "Ring of Ice [+12] {.}", 19),),
+            inventory=(ring("n", "Ring of Dexterity (+2)", 43),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_disenchanting_the_slot_occupant_does_not_complete_a_wield(self):
+        # gpt-6-sol r3 P1: the requested sword is still in the pack while the
+        # weapon already in the target slot loses its bonuses.
+        def weapon(slot, name, sval, to_h, to_d):
+            return SimpleNamespace(
+                **{**vars(item(slot, name, tval=23, melee=True)),
+                   "sval": sval, "to_h": to_h, "to_d": to_d, "weight": 150}
+            )
+
+        dagger = weapon("main_hand", "Dagger (1d4) (+5,+5)", 4, 5, 5)
+        sword = weapon("n", "Long Sword (2d5) (+3,+3)", 17, 3, 3)
+        ex = EquipmentMutationExecutor()
+        before = board(equipment=(dagger,), inventory=(sword,))
+        posted = ex.request_wield(before, "combat-loadout", sword, "main_hand", SLOTS)
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        disenchanted = board(
+            equipment=(weapon("main_hand", "Dagger (1d4) (+3,+4)", 4, 3, 4),),
+            inventory=(sword,),
+        )
+        ex.observe(disenchanted)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        wielded = board(
+            equipment=(SimpleNamespace(**{**vars(sword), "slot": "main_hand"}),),
+            inventory=(SimpleNamespace(**{**vars(dagger), "slot": "n"}),),
+        )
+        ex.observe(wielded)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_restored_old_expectation_ignores_a_fuel_tick(self):
+        # gpt-6-sol r3 P2: a checkpoint restored from before the requested-
+        # item rule carries the whole worn signature (names included).
+        from hengbot.equipment_mutation import equipment_signature
+
+        shovel = item("main_hand", "Shovel (1d2)", tval=20, digger=True)
+        lantern = item("light", "Brass Lantern (5146 turns of light)", tval=39)
+        sword = item("n", "Sword", tval=23, melee=True)
+        before = board(equipment=(shovel, lantern), inventory=(sword,))
+        ex = EquipmentMutationExecutor(
+            state=EquipmentMutationState.POSTED,
+            goal="combat-loadout",
+            expected_signature=equipment_signature(before),
+        )
+        ticked = board(
+            equipment=(
+                shovel,
+                SimpleNamespace(
+                    **{**vars(lantern), "name": "Brass Lantern (5145 turns of light)"}
+                ),
+            ),
+            inventory=(sword,),
+        )
+        ex.observe(ticked)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(item("main_hand", "Sword", tval=23, melee=True), lantern),
+            inventory=(item("n", "Shovel (1d2)", tval=20, digger=True),),
         )
         ex.observe(worn)
         self.assertEqual(ex.state, EquipmentMutationState.IDLE)
