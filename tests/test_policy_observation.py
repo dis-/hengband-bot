@@ -1403,6 +1403,75 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             (None, self.ORC_CAVE),
         )
 
+    def test_repetition_block_keeps_the_conquest_while_a_speed_withdrawal_is_pending(self):
+        """Round 3: the repetition-block rung applies the departure gate too.
+
+        Repetition block active, the latched conquest (Orc cave) beatable
+        only with a Speed potion that is still being withdrawn from Home, no
+        walk-in entrance.  The rung must not switch off the conquest nor read
+        a recall before the potion arrives: it waits, as it did for a
+        refused destination before the switch existed.  Once the potion is
+        carried the landing is passable and the rung recalls to the conquest.
+        DECLARED WALL: as in the ordinary-path test, the guardian fight
+        projection is answered by whether a Speed potion is carried.
+        """
+        landings = self.DEEPER_ONLY
+        policy = self._policy(landings)
+        policy._conquest_committed = self.ORC_CAVE
+        policy._deepest_level = landings[self.ORC_CAVE]
+        policy._char_dump_done_this_visit = True
+        real = policy._guardian_fight_viable
+
+        def speed_viable(snapshot, info):
+            if info.id == self.ORC_CAVE:
+                return policy._find_exact_potion(
+                    snapshot, SV_POTION_SPEED
+                ) is not None
+            return real(snapshot, info)
+
+        speed = item("p", TVAL_POTION, SV_POTION_SPEED, count=1)
+        board = self._recall_ready_town(landings, angband_unlocked=True)
+        with patch.object(
+            policy, "_guardian_fight_viable", side_effect=speed_viable
+        ):
+            policy._observe(board)
+            self.assertEqual(policy._target_dungeon_id, self.ORC_CAVE)
+            policy._town_blocked_reason = "repetition"
+            self.assertIsNone(policy._descent_step(board))
+            signature = policy._item_signature(speed)
+            policy._home_pending_item = signature
+            policy._home_atomic_withdraw_pending = (signature, 0, 0, 1)
+            self.assertFalse(
+                policy._recall_town_departure_conjuncts(board)[
+                    "departure_home_atomic_withdraw_clear"
+                ]
+            )
+            key = policy._town_special_key(board)
+            self.assertEqual(key, "5")
+            self.assertNotEqual(
+                policy.last_reason, "town:repetition-depart:recall"
+            )
+            self.assertEqual(
+                (policy._alternate_dungeon, policy._conquest_committed,
+                 policy._target_dungeon_id),
+                (None, self.ORC_CAVE, self.ORC_CAVE),
+            )
+            self.assertEqual(policy._town_blocked_reason, "repetition")
+            # The potion arrives: the withdrawal is observed and released.
+            policy._home_pending_item = None
+            policy._home_atomic_withdraw_pending = None
+            carried = replace(board, inventory=[*board.inventory, speed])
+            policy._observe(carried)
+            key = policy._town_special_key(carried)
+        self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
+        self.assertEqual(
+            key, "rr" + policy._recall_selection_key(carried, self.ORC_CAVE)
+        )
+        self.assertEqual(
+            (policy._alternate_dungeon, policy._conquest_committed),
+            (None, self.ORC_CAVE),
+        )
+
     def test_blocked_landing_keeps_the_departure_scroll_and_names_the_leaf(self):
         """Round 2 (R3): a recall is read either way (to the switched landing),
         so the departure scroll stays in the recall stock target, and the

@@ -4419,6 +4419,19 @@ class TownMixin:
                             )
                             if gated_dest is None:
                                 return WAIT_KEY
+                            if not all(
+                                self._recall_town_departure_conjuncts(
+                                    snapshot
+                                ).values()
+                            ):
+                                # The same departure gate as the ordinary
+                                # read point: a pending withdrawal or purchase
+                                # (e.g. the Speed potion that makes the
+                                # guardian beatable) keeps the target and its
+                                # latch.  The rung keeps what it did for a
+                                # refused destination before the switch
+                                # existed: wait.
+                                return WAIT_KEY
                             # The forced departure would land on a guardian
                             # floor the kit cannot pass.  This rung reads its
                             # recall now, so it switches here exactly like
