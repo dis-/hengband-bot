@@ -659,6 +659,96 @@ def _same_barrier_value(
     return key in state and key in record and state[key] == record[key]
 
 
+# view/display-store.cpp display_entry()/display_store_inventory()/
+# display_store(), in the store's logical 80-column window centred like the
+# command menu (see classify_screen): slot k's label "%c) " is at row k + 6,
+# column 0; the item text starts at column 3 (symbol first when
+# show_item_graph); the page indicator "(%dページ)"/"(Page %d)" is at row 5,
+# column 20/22 and only while the stock spans several pages.  The name is cut
+# where the next field is written: the weight at column 67 in the Home and
+# Museum, at column 60 in the other stores (the Japanese columns, which the
+# English ones do not precede).
+_STORE_ITEM_ROW = 6
+_STORE_ITEM_TEXT_COLUMN = 3
+_STORE_PAGE_ROW = 5
+_STORE_PAGE_COLUMN = 20
+_STORE_NAME_END_COLUMN = {7: 67, 9: 67}  # StoreSaleType HOME, MUSEUM
+_STORE_NAME_END_COLUMN_DEFAULT = 60
+
+
+def _store_slot_label(position: int) -> str:
+    return chr(ord("a") + position) if position < 26 else chr(ord("A") + position - 26)
+
+
+def _cells(row: str, start: int, end: int) -> str:
+    """Return the glyphs that lie wholly within cells [start, end)."""
+    cell, out = 0, []
+    for char in row:
+        width = _cell_width(char)
+        if cell >= start and cell + width <= end:
+            out.append(char)
+        cell += width
+        if cell >= end:
+            break
+    return "".join(out)
+
+
+def _store_name_on_row(text: str, name: str, field_width: int) -> bool:
+    """The whole name ends the item text, or the text was cut at its field."""
+    shown = text.rstrip()
+    if not name:
+        return False
+    if shown.endswith(name):
+        return True
+    if _cell_width(shown) < field_width - 1:  # a wide glyph may not fit the last cell
+        return False
+    return any(shown.endswith(name[:length]) for length in range(len(name) - 1, 0, -1))
+
+
+def _store_page_is_on_screen(screen: Mapping[str, object], store: Mapping[str, object]) -> bool:
+    """Every slot of the store row is drawn on its own row, on the shown page."""
+    lines = screen.get("lines")
+    width = screen.get("width")
+    if not isinstance(lines, Sequence) or not isinstance(width, int) or width < 80:
+        return False
+    page_top, page_size = store.get("page_top"), store.get("page_size")
+    stock_num, items = store.get("stock_num"), store.get("items")
+    if not all(isinstance(value, int) for value in (page_top, page_size, stock_num)):
+        return False
+    if not isinstance(items, Sequence) or page_size <= 0 or page_top < 0 \
+            or page_top % page_size != 0:
+        return False
+    if len(items) != max(0, min(page_size, stock_num - page_top)):
+        return False
+    origin = (width - 80) // 2
+    name_end = _STORE_NAME_END_COLUMN.get(
+        store.get("store_type"), _STORE_NAME_END_COLUMN_DEFAULT)
+
+    def row(y: int) -> str:
+        return str(lines[y]) if 0 <= y < len(lines) else ""
+
+    label = re.compile(r"[a-zA-Z]\) ")
+    for position, item in enumerate(items):
+        letter = _store_slot_label(position)
+        line = row(_STORE_ITEM_ROW + position)
+        if not isinstance(item, Mapping) or item.get("letter") != letter \
+                or _cells(line, origin, origin + _STORE_ITEM_TEXT_COLUMN) != f"{letter}) ":
+            return False
+        text = _cells(line, origin + _STORE_ITEM_TEXT_COLUMN, origin + name_end)
+        if not _store_name_on_row(
+                text, str(item.get("name", "")), name_end - _STORE_ITEM_TEXT_COLUMN):
+            return False
+    after = _cells(row(_STORE_ITEM_ROW + len(items)), origin,
+                   origin + _STORE_ITEM_TEXT_COLUMN)
+    if label.fullmatch(after):
+        return False
+    indicator = _cells(row(_STORE_PAGE_ROW), origin + _STORE_PAGE_COLUMN, origin + 80).strip()
+    if stock_num > page_size:
+        number = page_top // page_size + 1
+        return indicator.startswith((f"({number}ページ)", f"(Page {number})"))
+    return "ページ)" not in indicator and "(Page " not in indicator
+
+
 def compose_barrier_board(
         state: Mapping[str, object], screen: Mapping[str, object], kind: ScreenKind,
         records: Iterable[Mapping[str, object]],
@@ -708,6 +798,7 @@ def compose_barrier_board(
     if not candidates:
         return None, ordered
     candidate = candidates[-1]
+    from_attach = candidate is attach_store_record
     # These whole structures include floor/town/location, inventory/equipment,
     # gold, turn, and any page identity exported by either endpoint.
     required = ("floor", "player", "inventory", "equipment", "turn")
@@ -725,6 +816,11 @@ def compose_barrier_board(
         names = [str(item.get("name", "")) for item in items if isinstance(item, Mapping)]
         if names and not any(name and name in visible for name in names):
             return None, ordered
+    # A row written before the reader attached answers no posted key, so a
+    # same-turn page change cannot be excluded by the state binding: the
+    # screen must show exactly that row's page, slot by slot.
+    if from_attach and not _store_page_is_on_screen(screen, store):
+        return None, ordered
     deepcopy_started = time.perf_counter()
     board["store"] = copy.deepcopy(store)
     deepcopy_ms += (time.perf_counter() - deepcopy_started) * 1000

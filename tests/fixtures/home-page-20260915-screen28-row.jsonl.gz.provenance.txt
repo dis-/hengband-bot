@@ -1,0 +1,5 @@
+Source: jsonlog/bot-state-fixed.pre-storejson-20260916-080053.jsonl.gz (sha256 d514a29109116dffc1ff39517a1f8fd62bbb6ce4ab35e0a89b7ab336160e61be), the state log of the 2026-09-15 session in which tests/fixtures/live-screens/28-after-menu-esc-20260915.json was captured (Home, 62/240 items, gold 4983).
+Selection: two Home store rows of that log, byte-for-byte (0-based line numbers of the decompressed log):
+  line 1108, turn 2866769, page_top 52 (page 2, 10 items), sha256 11793b676c33256bed6ed6ded61c1060b3ce80aec07b886ad39129f7640f97b5
+  line 1167, turn 2867245, page_top 0 (page 1, 52 items; the last row with stock 62 and gold 4983, i.e. the page screen 28 shows), sha256 3481aed94dbec770e58e0c839337f7f788f70684668d99110457ea510c418753
+Use: checks the source-derived store page layout (slot rows, name cut at the weight column, page indicator) against a recorded screen and the row the game wrote for it.
