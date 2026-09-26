@@ -1219,7 +1219,7 @@ class HomeMixin:
                 signature,
                 self._inventory_signature_count(snapshot, signature),
             )
-        quantity = f"{deposit_count}\r" if deposit_count > 1 else ""
+        quantity = f"{deposit_count}\r" if deposit.count > 1 else ""
         return SELL_KEY + deposit.slot + quantity
 
     def _atomic_home_withdraw_key(
