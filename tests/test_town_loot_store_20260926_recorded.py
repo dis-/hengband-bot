@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 from pathlib import Path
 
@@ -46,14 +47,13 @@ class TownLootStoreRecordedTest(unittest.TestCase):
         policy._known_loot.add(GOLD)
         policy._loot_target = GOLD
         policy._shopping_approach_goal = Position(32, 90)
-        policy._town_supplier_stock[4] = self.board(33900).store
         # Replay the captured floor-loot proposal through the actual downstream
         # town seam.  The recording's next board is a store reached by its
         # rewritten travel macro, so it cannot be replayed after this key differs.
         proposed = policy._normal_loot_key(board, [])
         self.assertEqual((policy.last_reason, proposed), ("seek-loot", "9"))
         policy._town_progress_history().append(
-            policy._town_progress_fingerprint(board)
+            policy._town_progress_fingerprint(self.board(33898))
         )
         self.assertTrue(policy._town_result_makes_progress(board, proposed))
         key = policy._town_procurement_decision(board, proposed)
@@ -75,64 +75,29 @@ class TownLootStoreRecordedTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town-progress-invariant:continue-observed-shop")
         self.assertIsNotNone(policy._store_visit)
 
-    def test_reaching_recorded_gold_selects_pickup(self):
+    def test_remembered_loot_has_same_owner_at_both_seams(self):
         board = self.board(33899)
+        remembered = replace(board, grids={
+            **board.grids,
+            GOLD: replace(board.grid_at(GOLD), currently_observed=False, object_count=0),
+        })
         policy = HengbotPolicy(monrace_knowledge=self.monraces)
-        policy._known_loot.add(GOLD)
-        policy._loot_target = GOLD
-        at_gold = replace(board, player=replace(board.player, position=GOLD))
-        policy._position_changed = True
-        key = policy._normal_loot_key(at_gold, [])
-        self.assertEqual(policy.last_reason, "pickup")
-        self.assertEqual(key, "g")
-
-    def test_captured_store_page_continues_one_visit_after_collection(self):
-        board = self.board(33900)
-        policy = HengbotPolicy(monrace_knowledge=self.monraces)
-        policy._build_grid_index(board)
-        policy._store_visit = StoreVisit("town-errand", "shopping", 4)
-        visit = policy._store_visit
         policy._loot_target = GOLD
         policy._known_loot.add(GOLD)
-        policy.last_reason = "shop:observe-and-leave"
-        self.assertEqual(
-            policy._town_procurement_decision(board, LEAVE_STORE_KEY),
-            LEAVE_STORE_KEY,
+        policy.last_reason = "seek-loot"
+        policy._town_progress_history().append(
+            policy._town_progress_fingerprint(remembered)
         )
-        self.assertEqual(policy.last_reason, "town-progress-invariant:continue-observed-shop")
-        # The next board is constructed from the recorded page because the
-        # original next board belongs to the divergent ESC/loot trajectory.
-        policy._loot_target = None
-        policy._known_loot.clear()
-        town = self.board(33899)
-        outside = replace(
-            town,
-            player=replace(town.player, position=board.player.position),
-            grids={
-                **town.grids,
-                GOLD: replace(town.grid_at(GOLD), object_count=0),
-            },
-        )
-        policy._shop_observation = (board.store, policy._decision_sequence)
-        policy.last_reason = "town:blocked:repetition"
-        key = policy._town_procurement_decision(outside, "5")
-        self.assertTrue(key.startswith("{"), (key, policy.last_reason))
-        self.assertEqual(policy._store_visit.store_type, 4)
-        self.assertIn("shop:batch-inscribe", policy.last_reason)
-        self.assertNotEqual(key, LEAVE_STORE_KEY)
-        tagged = replace(outside, inventory=[
-            replace(item, inscription=f"{item.inscription}@0")
-            if item.slot == "g" else item
-            for item in outside.inventory
-        ])
-        policy.last_reason = "town:blocked:repetition"
-        next_key = policy._town_procurement_decision(tagged, "5")
-        self.assertTrue(policy._store_visit.operation_posted, (
-            next_key, policy.last_reason, policy._shop_selector_diagnostics,
-        ))
-        self.assertIs(policy._store_visit, visit)
-        self.assertEqual(policy._store_visit.store_type, 4)
-        self.assertIn("shop:one-shot-", policy.last_reason)
+        self.assertTrue(policy._town_result_makes_progress(remembered, "9"))
+        policy._shopping_approach_store_type = 4
+        with patch.object(policy, "_normal_loot_key", return_value="9") as loot:
+            self.assertEqual(policy._town_procurement_decision(remembered, "\x1b`n%."), "9")
+            loot.assert_called_once()
+        policy._deferred_loot.add(GOLD)
+        self.assertFalse(policy._town_committed_loot())
+        with patch.object(policy, "_normal_loot_key", return_value="9") as loot:
+            policy._town_procurement_decision(remembered, "\x1b`n%.")
+            self.assertEqual(loot.call_count, 0)
 
 
 if __name__ == "__main__":

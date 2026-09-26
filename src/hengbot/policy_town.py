@@ -790,11 +790,7 @@ class TownMixin:
             direction is not None
             and snapshot.store is None
             and self.last_reason == "seek-loot"
-            and self._loot_target is not None
-            and self._loot_target not in self._deferred_loot
-            and (loot_grid := snapshot.grid_at(self._loot_target)) is not None
-            and loot_grid.currently_observed
-            and loot_grid.object_count > 0
+            and self._town_committed_loot()
         ):
             # The loot producer has already found a walkable route.  Its first
             # step may detour around terrain, so distance to a shop (or the
@@ -1093,6 +1089,14 @@ class TownMixin:
             }
         )
 
+    def _town_committed_loot(self) -> bool:
+        """Whether the selected loot owner still has an eligible target."""
+        target = getattr(self, "_loot_target", None)
+        return target is not None and target in (
+            getattr(self, "_known_loot", set())
+            - getattr(self, "_deferred_loot", set())
+        )
+
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str:
@@ -1100,7 +1104,7 @@ class TownMixin:
         proposed_reason = self.last_reason or ""
         if (
             snapshot.store is None
-            and self._loot_target is not None
+            and self._town_committed_loot()
             and not self._emergency_return_active
             and (
                 self._shopping_approach_store_type is not None
