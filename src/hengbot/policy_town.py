@@ -3229,14 +3229,19 @@ class TownMixin:
             new_categories = (
                 tuple(sorted(plan.need_categories.items())) if plan is not None else ()
             )
-            if (old_stop != new_stop or tuple(previous.stops) != tuple(stops)
-                    or old_categories != new_categories):
+            old_next = (previous.stops[previous.index + 1]
+                        if previous.index + 1 < len(previous.stops) else None)
+            new_next = (plan.stops[1]
+                        if plan is not None and len(plan.stops) > 1 else None)
+            if old_stop != new_stop or old_next != new_next:
                 self._decision_plan_change_evidence = {
                     "previous_stops": tuple(previous.stops),
                     "previous_index": previous.index,
                     "new_stops": tuple(stops),
                     "previous_stop": old_stop,
                     "new_stop": new_stop,
+                    "previous_next_stop": old_next,
+                    "new_next_stop": new_next,
                     "previous_categories": old_categories,
                     "new_categories": new_categories,
                 }

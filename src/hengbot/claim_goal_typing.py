@@ -53,7 +53,8 @@ trigger is a danger trigger.  The policy suspends a claim only for it, and
 ``ownership_metrics`` reuses the same function for "outside survival".
 ``flee``, ``summoner:retreat`` / ``summoner:stairs``, ``threat:scroll`` /
 ``threat:wait``, ``breeder-breakthrough:``, ``combat:fruitless``, status
-recovery and ``town:seek-shelter`` are ordinary owners and are *not* in it.
+recovery are ordinary owners. Town damage responses ``town:seek-shelter`` and
+``town:recover`` are survival for ownership (S3 design amendment 5).
 """
 
 from __future__ import annotations
@@ -723,6 +724,8 @@ SURVIVAL_REASON_PREFIXES = (
     "combat:disengage",
     "unseen:",
     "esp-threat:leave-",
+    "town:seek-shelter",
+    "town:recover",
 )
 # A ``return:`` decision is survival only while the trigger that started the
 # return is a danger trigger (policy_combat.py ``_last_return_trigger``).
@@ -745,8 +748,6 @@ ORDINARY_OWNER_PREFIXES = (
     "combat:fruitless",
     "status-threat:",
     "confused:",
-    "town:recover",
-    "town:seek-shelter",
 )
 
 

@@ -141,10 +141,11 @@ REVIEW_FAMILIES = (
     "equipment-opt", "misc",
 )
 
-# B5: design rev 9.1 item 3, verbatim list.
+# B5: design rev 9.1 item 3 plus S3 amendment 5 town damage responses.
 DESIGN_SURVIVAL_PREFIXES = (
     "emergency:", "unseen-recall:", "guardian:teleport-to-cover",
     "combat:disengage", "unseen:", "esp-threat:leave-",
+    "town:seek-shelter", "town:recover",
 )
 # Rev 9.3 removed ``guardian-reposition``: it never starts a return.
 DESIGN_SURVIVAL_TRIGGERS = {"esp-threat", "unseen-attacker"}
@@ -152,7 +153,6 @@ DESIGN_ORDINARY_REASONS = (
     "flee", "flee:stairs", "summoner:retreat", "summoner:stairs",
     "threat:scroll", "threat:wait", "breeder-breakthrough:ascend",
     "combat:fruitless", "status-threat:retreat", "confused:wait",
-    "town:recover", "town:seek-shelter",
 )
 
 # -- B2 pinned numbers -----------------------------------------------------
@@ -1753,6 +1753,8 @@ class SurvivalConstantTest(unittest.TestCase):
         self.assertFalse(is_survival("return:recall", "pack-full"))
         self.assertFalse(is_survival("return:recall", None))
         self.assertTrue(is_survival("esp-threat:leave-stairs"))
+        self.assertTrue(is_survival("town:seek-shelter"))
+        self.assertTrue(is_survival("town:recover"))
 
     def test_no_ordinary_owner_is_survival(self):
         for reason in DESIGN_ORDINARY_REASONS:

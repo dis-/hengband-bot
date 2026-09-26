@@ -218,6 +218,7 @@ class TownTurnArbiter:
         purpose: str,
         opened_sequence: int,
         opened_producer_family: str | None = None,
+        opened_for_family: str | None = None,
         close_visit: Callable[[str], None],
     ) -> StoreVisit | None:
         """Grant one store target without letting an old visit outrank arbitration.
@@ -253,6 +254,7 @@ class TownTurnArbiter:
                 opened_producer_family=(
                     opened_producer_family or (owner if owner != "town-errand" else None)
                 ),
+                opened_for_family=opened_for_family,
             )
             self.store_visit = visit
         return visit
@@ -709,6 +711,23 @@ class TownArbiterMixin:
         visit = self._store_visit
         return visit.store_type if visit is not None else None
 
+    def _router_opened_for_family(self, store_type: int) -> str:
+        """The planned operation family when the router opens this visit."""
+        categories = tuple(getattr(
+            getattr(self, "_town_errand_plan", None), "need_categories", {}
+        ).get(store_type, ()))
+        if "calibration-restore" in categories:
+            return "calibration"
+        if store_type == STORE_HOME:
+            if getattr(self, "_equipment_transaction_session", None) is not None:
+                return "equipment-txn"
+            if "equipment-catalog" in categories:
+                return "home-scan"
+            return "home-visit"
+        if categories and all(category.endswith("-sale") for category in categories):
+            return "shop-sell"
+        return "shop-buy"
+
     @_shopping_approach_store_type.setter
     def _shopping_approach_store_type(self, value: int | None) -> None:
         if value is None:
@@ -720,6 +739,7 @@ class TownArbiterMixin:
                 visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
                 opened_producer_family="store-router",
+                opened_for_family=self._router_opened_for_family(value),
             )
             self._store_visit_pending_goal = None
 
@@ -753,6 +773,7 @@ class TownArbiterMixin:
                 visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
                 opened_producer_family="store-router",
+                opened_for_family=self._router_opened_for_family(value),
             )
             visit = self._store_visit
         if visit.store_type == value:

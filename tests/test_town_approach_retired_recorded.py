@@ -112,6 +112,10 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     fixed_recall = None
 
     def test_s3_new_code_replay_names_remaining_violations(self):
+        # Base 7df0fb0d had 14 non-handoff rows. Transaction Home steps and
+        # entry waits now continue/suspend their own claim, stale identity
+        # releases by name, and unadopted rebuilds provide no handoff evidence.
+        # These three are the recorded S3.3 refusals in amendment 5.
         actual = [
             (claim["decision_sequence"], v["kind"], v["from"], v["to"])
             for row in self._replay()
@@ -121,20 +125,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         ]
         self.assertEqual(actual, [
             (1177, "owner-change", "equipment-txn", "home-errand"),
-            (1179, "owner-change", "equipment-txn", "home-visit"),
-            (1184, "plan-handoff", "home-errand", "store-router"),
-            (1885, "owner-change", "equipment-txn", "home-visit"),
-            (1893, "owner-change", "equipment-txn", "home-visit"),
-            (1899, "owner-change", "equipment-txn", "home-visit"),
-            (1906, "owner-change", "equipment-txn", "departure"),
-            (1916, "owner-change", "home-errand", "equipment-txn"),
-            (1919, "retarget", "equipment-txn", "equipment-txn"),
             (1922, "owner-change", "home-visit", "home-errand"),
-            (1923, "owner-change", "home-errand", "home-visit"),
-            (1947, "owner-change", "home-errand", "home-visit"),
-            (1957, "owner-change", "home-errand", "home-visit"),
             (1958, "owner-change", "home-visit", "home-errand"),
-            (1959, "owner-change", "home-errand", "home-visit"),
         ])
 
     @classmethod
@@ -367,10 +359,9 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertTrue(walk[0]["claim_resumed"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
-            # R2's operation identities/typing plus the live prompt-tail
-            # commit move this later allocation from base 908 to 902.
-            # The earlier 903 explanation was already stale at 8fa10c0d.
-            {(902, "active")},
+            # R4's transaction Home steps and calibration restore continuations
+            # remove nine earlier claim allocations: 902 on 7df0fb0d -> 893.
+            {(893, "active")},
         )
         self.assertEqual(
             [row["claim_distance"] for row in walk], list(range(34, 18, -1))

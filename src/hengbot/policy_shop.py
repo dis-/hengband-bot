@@ -1244,7 +1244,11 @@ class ShopMixin:
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
         if refreshed_needs:
+            prior_change_evidence = getattr(
+                self, "_decision_plan_change_evidence", None
+            )
             refreshed_plan = self._build_town_errand_plan(snapshot, refreshed_needs)
+            self._decision_plan_change_evidence = prior_change_evidence
             if refreshed_plan is not None:
                 exhausted_stores = (
                     (
@@ -4245,6 +4249,7 @@ class ShopMixin:
             purpose=("equipment-work" if equipment_owner else "shopping"),
             opened_sequence=self._decision_sequence,
             opened_producer_family="store-router",
+            opened_for_family=self._router_opened_for_family(store_type),
             close_visit=self._close_store_visit,
         )
         self._acquire_store_visit_attempt = {

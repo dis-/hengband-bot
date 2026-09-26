@@ -108,7 +108,9 @@ OWNER_RETIRED = 4271   # decision 4267: recorded town:blocked:owner-retired
 # Observe claims ended (ownership_metrics.gate_numbers, item (c)).
 S2A1_OBSERVE_COMPLETE_LABELS = {
     "purchase-observed": 18,
-    "home-deposit-observed": 8,
+    # R4: two deposits belong to their equipment transaction's continuing
+    # claim, so the Home-visit completion label falls from eight to six.
+    "home-deposit-observed": 6,
     "sale-observed": 3,
     "home-withdraw-observed": 3,
     # stairs and recall: Observe(floor change), completed on the floor key
@@ -126,7 +128,10 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
 # the reasons whose walks rev 9.3 moved to their far target.
 # S3.0: equipment-transaction Home approaches continue the session's
 # Observe claim, and entry/recall continuations close on their own evidence.
-S2A1_NEXT_ROW_COMPLETE = 1348
+# R4: row 2648's entrance-step-off:equipment-transaction:home-route-unavailable
+# keeps the standing transaction Observe claim; base counted its one-step Reach
+# as complete on the next row. The other 1,347 rows are identical.
+S2A1_NEXT_ROW_COMPLETE = 1347
 S2A1_FAR_TARGET_REASONS = frozenset({
     "return:seek-upstairs", "livelock:seek-upstairs",
     "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
@@ -148,9 +153,11 @@ S2A1_ENDINGS = {
     # R3: the three Home deposits keep their claim through the leave key;
     # their outside boards never confirm an inventory effect, so visit close
     # expires them as completed-unobserved instead of abandoning them.
-    "home-visit/Observe": {"complete": 8, "release": 0,
+    # R4: transaction-composed Home operations keep equipment ownership;
+    # completed equipment claims also continue across their Home effects.
+    "home-visit/Observe": {"complete": 5, "release": 0,
                            "expired": 3, "abandoned": 0},
-    "equipment-txn/Observe": {"complete": 5, "abandoned": 6},
+    "equipment-txn/Observe": {"complete": 6, "abandoned": 0},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
     # (floor-loot 70 complete, positioning 15 complete).
@@ -162,7 +169,8 @@ S2A1_ENDINGS = {
     "positioning/Reach": {"complete": 10, "release": 1},
     "positioning/Reach:one-step": {"complete": 5},
     "departure/Reach": {"complete": 2},
-    "departure/Reach:one-step": {"complete": 2},
+    # R4 wrapper attribution records these step-offs under the inner owner.
+    "departure/Reach:one-step": {"complete": 0},
 }
 
 
@@ -253,20 +261,12 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             if isinstance(v := row.get("violation"), dict)
             and v.get("scope") == "S3"
         ]
-        # The eight base retargets are gone. These handoffs still need the
-        # S3.3/S3.4 behavior stage or an observed operation ending.
+        # Base 7df0fb0d had 11 owner changes. R4 leaves the two router Reach
+        # handoffs and the second transaction contending with calibration.
         self.assertEqual(actual, [
-            (2646, "owner-change", "equipment-txn", "departure"),
             (2701, "owner-change", "store-router", "home-scan"),
-            (3008, "owner-change", "equipment-txn", "survival"),
-            (3009, "owner-change", "survival", "equipment-txn"),
-            (3020, "owner-change", "calibration", "equipment-txn"),
-            (3030, "owner-change", "equipment-txn", "survival"),
-            (3037, "owner-change", "calibration", "equipment-txn"),
-            (3038, "owner-change", "equipment-txn", "home-visit"),
-            (3040, "owner-change", "equipment-txn", "home-visit"),
+            (3037, "transaction-contention", "calibration", "equipment-txn"),
             (3052, "owner-change", "store-router", "home-scan"),
-            (4250, "owner-change", "equipment-txn", "home-visit"),
         ])
 
     @classmethod

@@ -269,6 +269,7 @@ class HomeMixin:
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
+        self._claim_home_knowledge_observed = True
         self._complete_observed_effect(
             "home-knowledge-current", owners=("home-scan",),
             sources=("store-operation",),
@@ -1851,7 +1852,10 @@ class HomeMixin:
             len(snapshot.inventory),
             self._inventory_signature_count(snapshot, signature),
         )
-        self._compose_home_operation(snapshot, key, operation_key)
+        self._compose_home_operation(
+            snapshot, key, operation_key,
+            producer_family=self._claim_family_of(reason),
+        )
         self.last_reason = reason
         return key
 
@@ -2232,7 +2236,13 @@ class HomeMixin:
                 snapshot.turn,
                 0,
             )
-            self._stage_home_operation(snapshot, operation_key)
+            self._stage_home_operation(
+                snapshot, operation_key,
+                producer_family=(
+                    "calibration" if self._calibration_session_owned()
+                    else "equipment-txn"
+                ),
+            )
             self.last_reason = "equipment-transaction:atomic-deposit"
             return key
         deposit = self._find_home_deposit(snapshot)
@@ -2323,7 +2333,8 @@ class HomeMixin:
             0,
         )
         self._stage_home_operation(
-            snapshot, "".join(operations) + LEAVE_STORE_KEY
+            snapshot, "".join(operations) + LEAVE_STORE_KEY,
+            producer_family="home-visit",
         )
         self.last_reason = (
             "home:weight-overload-deposit"
@@ -2413,6 +2424,9 @@ class HomeMixin:
         )
         visit.operation_posted = True
         visit.operation_key = operation_key
+        visit.claim_operation_identity = (
+            STORE_HOME, visit.opened_sequence, operation_key
+        )
         visit.operation_released = True
         visit.composed_key = operation_key
         visit.posted_sequence = self._decision_sequence
@@ -2424,7 +2438,9 @@ class HomeMixin:
         )
         return operation_key
 
-    def _home_operation_visit(self) -> StoreVisit | None:
+    def _home_operation_visit(
+        self, producer_family: str | None = None
+    ) -> StoreVisit | None:
         """Return the shared Home visit used to stage or compose an operation."""
         if self._store_visit is not None and self._store_visit.store_type != STORE_HOME:
             return None
@@ -2443,22 +2459,23 @@ class HomeMixin:
                 store_type=STORE_HOME,
                 visit_origin="home-operation-staging",
                 opened_sequence=self._decision_sequence,
-                opened_producer_family=(
-                    "equipment-txn" if self._equipment_transaction_session is not None
-                    else "home-visit"
-                ),
+                opened_producer_family=producer_family,
             )
         return self._store_visit
 
     def _compose_home_operation(
-        self, snapshot: Snapshot, composed_key: str, operation_key: str
+        self, snapshot: Snapshot, composed_key: str, operation_key: str,
+        *, producer_family: str | None = None,
     ) -> bool:
         """Bind Home entry and its operation as one indivisible input macro."""
-        visit = self._home_operation_visit()
+        visit = self._home_operation_visit(producer_family)
         if visit is None:
             return False
         visit.operation_posted = True
         visit.operation_key = operation_key
+        visit.claim_operation_identity = (
+            STORE_HOME, visit.opened_sequence, operation_key
+        )
         visit.operation_released = True
         visit.composed_key = composed_key
         visit.posted_sequence = self._decision_sequence
@@ -2474,13 +2491,19 @@ class HomeMixin:
         self._intentional_entrance_activation = True
         return True
 
-    def _stage_home_operation(self, snapshot: Snapshot, operation_key: str) -> bool:
+    def _stage_home_operation(
+        self, snapshot: Snapshot, operation_key: str,
+        *, producer_family: str | None = None,
+    ) -> bool:
         """Post Home entry now and release its bound tail on the fresh page."""
-        visit = self._home_operation_visit()
+        visit = self._home_operation_visit(producer_family)
         if visit is None:
             return False
         visit.operation_posted = True
         visit.operation_key = operation_key
+        visit.claim_operation_identity = (
+            STORE_HOME, visit.opened_sequence, operation_key
+        )
         visit.operation_released = False
         visit.composed_key = WAIT_KEY
         visit.posted_sequence = self._decision_sequence
