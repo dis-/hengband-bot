@@ -2971,10 +2971,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """The census family of a reason, answered by the live arbiter."""
         if reason and reason.startswith("town:entrance-step-off:"):
             return self._claim_family_of(reason.split(":", 2)[2])
+        if reason and reason.startswith((
+            "home:atomic-withdraw-target-unobserved",
+            "home:atomic-withdraw-slot-unobserved",
+            "home:atomic-withdraw-address-invalid",
+        )):
+            previous = getattr(getattr(self, "_claim_register", None), "current", None)
+            if (previous is not None
+                    and previous.owner.value in {"equipment-txn", "calibration"}):
+                return previous.owner.value
         if (reason and reason.startswith("equipment-transaction:")
                 and self._calibration_session_owned()):
             return "calibration"
         visit = getattr(self, "_store_visit", None)
+        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
+                and visit is not None
+                and getattr(visit, "operation_producer_family", None)
+                    in {"equipment-txn", "calibration"}):
+            return visit.operation_producer_family
+        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
+                and visit is not None
+                and visit.owner == "equipment-transaction"):
+            return (
+                "calibration" if self._calibration_session_owned()
+                else "equipment-txn"
+            )
         if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
                 and visit is not None
                 and getattr(visit, "claim_operation_identity", None) is not None
@@ -2986,19 +3007,29 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and current.owner.value in {"equipment-txn", "calibration"}
                 and current.goal.source in {"transaction", "calibration"}):
             return current.owner.value
+        composing_family = getattr(visit, "operation_producer_family", None)
+        if composing_family is None:
+            composing_family = getattr(visit, "opened_producer_family", None)
+        if (reason and reason.startswith("home:atomic-")
+                and composing_family in {"equipment-txn", "calibration"}):
+            return composing_family
+        if composing_family is None:
+            request = getattr(getattr(self, "_home_visit", None), "request", None)
+            if getattr(request, "requester", None) == "equipment-transaction":
+                composing_family = (
+                    "calibration" if self._calibration_session_owned()
+                    else "equipment-txn"
+                )
         if reason and reason.startswith((
             "home:atomic-", "home:deposit", "home:withdraw-",
             "home:weight-overload-deposit", "home:morivant-temporary-deposit",
             "home:morivant-retry-temporary-deposit", "home:leave-",
             "home:store-context-exit",
-        )) and (
+        )) and composing_family in {"equipment-txn", "calibration"} and (
             getattr(self, "_home_atomic_deposit_pending", None) is not None
             or getattr(self, "_home_atomic_withdraw_pending", None) is not None
-        ) and getattr(self, "_equipment_transaction_session", None) is not None:
-            return (
-                "calibration" if self._calibration_session_owned()
-                else "equipment-txn"
-            )
+        ):
+            return composing_family
         arbiter = getattr(self, "_town_turn_arbiter", None)
         if arbiter is not None:
             return arbiter.ownership_family(reason or "")
@@ -3260,6 +3291,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         self._complete_claim_goal(
             label, owners=owners, kinds=(CLAIM_GOAL_OBSERVE,), sources=sources
+        )
+
+    def _complete_equipment_transaction_claim(self) -> None:
+        """End the session under the family used for its recorded claim."""
+        family = (
+            "calibration" if self._calibration_session_owned()
+            else "equipment-txn"
+        )
+        source = "calibration" if family == "calibration" else "transaction"
+        self._complete_observed_effect(
+            "equipment-transaction-complete",
+            owners=(family,), sources=(source,),
         )
 
     def _release_town_travel_claim(self, label: str) -> None:
@@ -3816,7 +3859,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         reason = self.last_reason or ""
         standing = register.current
         self._claim_exit_completion(snapshot, standing, pops)
-        self._claim_home_knowledge_observed = False
         standing = register.current
         if (
             standing is not None and standing.is_open
@@ -3832,6 +3874,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # S2b.1 (rev 10.1 item 6, rules i-ii): the suspended claims this board
         # ends -- a floor change, or a goal the board shows met.
         self._claim_suspended_exit(snapshot, register)
+        self._claim_home_knowledge_observed = False
         # Rev 9.2 (S): the danger trigger of *this* return, recorded where the
         # return began -- never ``_last_return_trigger``, which outlives it.
         survival = claim_is_survival(
@@ -4037,6 +4080,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim = register.await_observation()
         else:
             claim = register.keep_active()
+        transition_violation = violation
+        # The filed Home errand is a purpose holder even while its individual
+        # knowledge and withdrawal operation claims are closed or suspended.
+        # Record a competing restore without changing either producer.
+        filed = getattr(getattr(self, "_home_errand", None), "request", None)
+        if (
+            violation is None
+            and owner.value in {"equipment-txn", "calibration"}
+            and reason == "town:restore-combat-weapon"
+            and (standing is None or not standing.is_open or standing.owner != owner)
+            and getattr(self._home_errand, "active", False)
+            and filed is not None
+            and filed.purpose == "combat-weapon"
+        ):
+            violation = {
+                "kind": "purpose-duplicate", "scope": "S3",
+                "from": "home-errand", "to": owner.value,
+                "purpose": [filed.purpose, "main_hand"],
+                "holders": [
+                    {"family": "home-errand", "key": "filed:" + filed.purpose,
+                     "request_identity": list(filed.signature)},
+                    {"family": owner.value, "key": reason,
+                     "claim_id": claim.claim_id},
+                ],
+            }
         if claim.is_open and claim.owner.value in {
             "home-visit", "home-errand", "calibration", "equipment-txn"
         }:
@@ -4063,7 +4131,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "shop-handler": visit.opened_producer_family,
                 "shop-one-shot": visit.opened_producer_family,
                 "home-one-shot": "home-visit",
-                "equipment-transaction": "equipment-txn",
+                "equipment-transaction": (
+                    visit.opened_for_family
+                    if visit.opened_for_family == "calibration"
+                    else "equipment-txn"
+                ),
             }
             alias = aliases.get(visit.owner, visit.owner)
             if alias == "town-errand":
@@ -4084,7 +4156,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # barred, as the ladder would have read the table while deciding.
         would_bar = self._claim_would_bar(register, claim, survival)
         bars_set = self._claim_set_bars(
-            snapshot, register, dropped=standing if violation is not None else None
+            snapshot, register,
+            dropped=standing if transition_violation is not None else None,
         )
         self.decision_claim = {
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
@@ -4175,6 +4248,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         position = snapshot.player.position
         for claim in register.suspended:
             goal = claim.goal
+            if (
+                claim.owner.value == "home-errand"
+                and goal.kind == CLAIM_GOAL_OBSERVE
+                and goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and any(part.startswith("('knowledge',") for part in goal.expectation)
+                and (getattr(self, "_home_knowledge_current", False)
+                     or getattr(self, "_claim_home_knowledge_observed", False))
+            ):
+                register.close_suspended(
+                    claim.claim_id, "complete", "home-knowledge-current"
+                )
+                continue
             if claim.floor is None:
                 # Round 3: a claim restored from before ``floor`` existed.
                 # The first board that sees it suspended is its floor, so it
@@ -5771,10 +5856,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._abandon_blocked_equipment_transaction(snapshot)
                     self._equipment_optimization_signature = None
                 else:
-                    self._complete_observed_effect(
-                        "equipment-transaction-complete",
-                        owners=("equipment-txn",), sources=("transaction",),
-                    )
+                    self._complete_equipment_transaction_claim()
                     self._equipment_transaction_session = None
                     self._equipment_transaction_restoring = False
                     self._equipment_transaction_restore_terminal = None

@@ -711,22 +711,27 @@ class TownArbiterMixin:
         visit = self._store_visit
         return visit.store_type if visit is not None else None
 
-    def _router_opened_for_family(self, store_type: int) -> str:
-        """The planned operation family when the router opens this visit."""
-        categories = tuple(getattr(
-            getattr(self, "_town_errand_plan", None), "need_categories", {}
-        ).get(store_type, ()))
-        if "calibration-restore" in categories:
-            return "calibration"
+    def _router_opened_for_family(self, store_type: int) -> str | None:
+        """Record the requester present when the router accepts the trip."""
         if store_type == STORE_HOME:
-            if getattr(self, "_equipment_transaction_session", None) is not None:
-                return "equipment-txn"
-            if "equipment-catalog" in categories:
+            request = getattr(getattr(self, "_home_visit", None), "request", None)
+            requester = getattr(request, "requester", None)
+            if requester == "equipment-transaction":
+                return (
+                    "calibration" if self._calibration_session_owned()
+                    else "equipment-txn"
+                )
+            if requester == "home-scan":
                 return "home-scan"
-            return "home-visit"
-        if categories and all(category.endswith("-sale") for category in categories):
-            return "shop-sell"
-        return "shop-buy"
+            if requester and requester.startswith("home-errand:"):
+                return "home-errand"
+            if requester and requester.startswith("calibration-"):
+                return "calibration"
+            if requester in {
+                "home-deposit", "legacy-withdrawal", "home-recovery"
+            }:
+                return "home-visit"
+        return None
 
     @_shopping_approach_store_type.setter
     def _shopping_approach_store_type(self, value: int | None) -> None:

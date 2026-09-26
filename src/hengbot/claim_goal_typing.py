@@ -277,6 +277,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     ),
     *_rows(
         "equipment-txn",
+        ("home:atomic-withdraw", O, STORE_OPERATION),
+        ("home:atomic-deposit", O, STORE_OPERATION),
+        ("home:leave-after-one-operation", O, STORE_OPERATION),
+        ("home:atomic-withdraw-target-unobserved", T, EFFECT),
         ("equipment-transaction:", O, TRANSACTION),
         ("equipment-transaction:approach-home", R, ENTRANCE),
         ("equipment-transaction:travel-home", R, ENTRANCE),
@@ -301,6 +305,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     ),
     *_rows(
         "calibration",
+        ("home:atomic-withdraw", O, STORE_OPERATION),
+        ("home:atomic-deposit", O, STORE_OPERATION),
+        ("home:leave-after-one-operation", O, STORE_OPERATION),
+        ("home:atomic-withdraw-target-unobserved", T, EFFECT),
         ("calibration:", O, TRANSACTION),
         ("calibration:restore-home-unavailable", T, EFFECT),
         ("calibration:restore-home-unreachable", T, EFFECT),

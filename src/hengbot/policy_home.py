@@ -2423,6 +2423,7 @@ class HomeMixin:
             None, snapshot.turn, 0,
         )
         visit.operation_posted = True
+        visit.operation_producer_family = "home-visit"
         visit.operation_key = operation_key
         visit.claim_operation_identity = (
             STORE_HOME, visit.opened_sequence, operation_key
@@ -2472,6 +2473,7 @@ class HomeMixin:
         if visit is None:
             return False
         visit.operation_posted = True
+        visit.operation_producer_family = producer_family
         visit.operation_key = operation_key
         visit.claim_operation_identity = (
             STORE_HOME, visit.opened_sequence, operation_key
@@ -2500,6 +2502,7 @@ class HomeMixin:
         if visit is None:
             return False
         visit.operation_posted = True
+        visit.operation_producer_family = producer_family
         visit.operation_key = operation_key
         visit.claim_operation_identity = (
             STORE_HOME, visit.opened_sequence, operation_key

@@ -295,12 +295,27 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            # R4 requires the router's recorded purpose to match the operating
-            # family. The 12 rows include Home errand/scan, calibration restore,
-            # and the later equipment-opened Home visit; router ownership alone
-            # no longer exempts a different family's operation.
-            12,
+            # R5 removes eight guessed calibration/router mismatches at
+            # 3768-3774 and 3779. Eleven visits without a captured requester
+            # now remain visible (16, 3709, 3735-3741, 3743, 3780); the old
+            # helper guessed home-visit/shop-buy for them: 12+11-8.
+            15,
         )
+
+    def test_calibration_transaction_observes_still_complete(self):
+        endings = {
+            row["claim"]["decision_sequence"]: row["claim"]["closed_claim"]
+            for row in self._replay()
+            if row["claim"]["decision_sequence"] in {3755, 3767}
+        }
+        self.assertEqual(set(endings), {3755, 3767})
+        for sequence in (3755, 3767):
+            self.assertEqual(
+                (endings[sequence]["owner"], endings[sequence]["goal_kind"],
+                 endings[sequence]["closed"], endings[sequence]["closed_reason"]),
+                ("calibration", "Observe", "complete",
+                 "equipment-transaction-complete"),
+            )
 
     def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
         # S2b.2 (record-only, switch off; the decisions are pinned above).

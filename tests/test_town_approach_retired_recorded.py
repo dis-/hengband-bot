@@ -115,7 +115,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # Base 7df0fb0d had 14 non-handoff rows. Transaction Home steps and
         # entry waits now continue/suspend their own claim, stale identity
         # releases by name, and unadopted rebuilds provide no handoff evidence.
-        # These three are the recorded S3.3 refusals in amendment 5.
+        # Amendment 6 counts the filed combat-weapon request duplicated at
+        # 1916; the transaction's own Home deposit at 1179 continues it.
         actual = [
             (claim["decision_sequence"], v["kind"], v["from"], v["to"])
             for row in self._replay()
@@ -125,6 +126,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         ]
         self.assertEqual(actual, [
             (1177, "owner-change", "equipment-txn", "home-errand"),
+            (1916, "purpose-duplicate", "home-errand", "equipment-txn"),
             (1922, "owner-change", "home-visit", "home-errand"),
             (1958, "owner-change", "home-visit", "home-errand"),
         ])
@@ -359,8 +361,9 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertTrue(walk[0]["claim_resumed"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
-            # R4's transaction Home steps and calibration restore continuations
-            # remove nine earlier claim allocations: 902 on 7df0fb0d -> 893.
+            # R4's transaction Home steps (1179, 1885, 1893, 1899), the
+            # step-off wrapper (1906), and the continuation (1907) account
+            # for 902 -> 893. R5 keeps the transaction's own deposit.
             {(893, "active")},
         )
         self.assertEqual(

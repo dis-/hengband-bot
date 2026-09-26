@@ -119,7 +119,9 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     # Home keys Terminal, so they no longer open generic Observe claims.
     "home-knowledge-current": 9,
     "entered-store": 5,
-    "equipment-transaction-complete": 5,
+    # R5: the completion recorder now closes the two sessions attributed to
+    # calibration (tour 3018 and 3032), rather than leaving their claims open.
+    "equipment-transaction-complete": 7,
     # The live sender commits each posted prompt tail; the replay now does so.
     "staged-tail-posted": 19,
 }
