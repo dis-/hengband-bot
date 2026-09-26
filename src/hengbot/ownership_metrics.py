@@ -500,7 +500,7 @@ def s3_numbers(rows: Iterable[Mapping]) -> dict:
     for session in _claim_rows_by_session(rows):
         for row in session:
             for name in ("claim_verdict_conflict", "visit_owner_mismatch",
-                         "scan-during-pending-atomic"):
+                         "requester_missing", "scan-during-pending-atomic"):
                 if row.get(name):
                     counts[name] += 1
             counts["plan_rebuild_deferred"] += int(
@@ -823,6 +823,9 @@ def ladder_numbers(rows: Sequence[Mapping]) -> dict:
                 violation = current.get("violation")
                 if isinstance(violation, Mapping):
                     count_violation(violation)
+                for duplicate in current.get("purpose_duplicates") or ():
+                    if isinstance(duplicate, Mapping) and duplicate != violation:
+                        count_violation(duplicate)
                 if isinstance(current.get("resumed"), Mapping):
                     suspended["resumed"] += 1
                 for entry in current.get("suspended_closed") or ():
@@ -932,6 +935,11 @@ def rejudge_recorded_violations(rows: Sequence[Mapping]) -> dict:
             entries = []
             if isinstance(row.get("violation"), Mapping):
                 entries.append(row["violation"])
+            entries.extend(
+                duplicate for duplicate in row.get("purpose_duplicates") or ()
+                if isinstance(duplicate, Mapping)
+                and duplicate != row.get("violation")
+            )
             for closing in row.get("suspended_closed") or ():
                 if isinstance(closing, Mapping) and isinstance(
                     closing.get("violation"), Mapping
@@ -942,7 +950,9 @@ def rejudge_recorded_violations(rows: Sequence[Mapping]) -> dict:
                 name = name_of(entry)
                 before[scope][name] += 1
                 held_row = first_row.get(entry.get("claim_id"))
-                if held_row is None:
+                if entry.get("kind") == "purpose-duplicate":
+                    verdict = VIOLATION
+                elif held_row is None:
                     verdict = VERDICT_HOLDER_UNKNOWN
                 else:
                     verdict = _rejudge(entry, held_row, row)

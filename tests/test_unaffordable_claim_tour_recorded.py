@@ -157,7 +157,9 @@ S2A1_ENDINGS = {
     # expires them as completed-unobserved instead of abandoning them.
     # R4: transaction-composed Home operations keep equipment ownership;
     # completed equipment claims also continue across their Home effects.
-    "home-visit/Observe": {"complete": 5, "release": 0,
+    # R6: three calibration restore deposits at 2998-3003 now record the
+    # calibration operation family, so they leave Home visit's completions.
+    "home-visit/Observe": {"complete": 2, "release": 0,
                            "expired": 3, "abandoned": 0},
     "equipment-txn/Observe": {"complete": 6, "abandoned": 0},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
@@ -257,6 +259,12 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
 
     def test_s3_new_code_replay_names_remaining_violations(self):
         self._replay()
+        self.assertEqual(
+            [(row["decision_sequence"], row["owner"])
+             for row in self.claim_rows
+             if 2998 <= row["decision_sequence"] <= 3003],
+            [(sequence, "calibration") for sequence in range(2998, 3004)],
+        )
         actual = [
             (row["decision_sequence"], v["kind"], v["from"], v["to"])
             for row in self.claim_rows

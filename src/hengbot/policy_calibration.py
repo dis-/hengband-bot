@@ -1098,7 +1098,9 @@ class CalibrationMixin:
             if not self._ensure_home_visit_request(snapshot):
                 self.last_reason = "calibration:restore-home-unavailable"
                 return WAIT_KEY
-            step = self._shopping_approach_step(snapshot, STORE_HOME)
+            step = self._shopping_approach_step(
+                snapshot, STORE_HOME, requester="calibration"
+            )
             if step is not None:
                 return self._shopping_approach_key(
                     snapshot, step, "calibration:restore-travel"

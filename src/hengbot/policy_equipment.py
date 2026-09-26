@@ -1892,7 +1892,12 @@ class EquipmentMixin:
                     )
                 self._town_errand_plan = replacement
             step = (
-                self._shopping_approach_step(snapshot, STORE_HOME)
+                self._shopping_approach_step(
+                    snapshot, STORE_HOME, requester=(
+                        "calibration" if self._calibration_session_owned()
+                        else "equipment-txn"
+                    )
+                )
                 if self._ensure_home_visit_request(snapshot)
                 else None
             )

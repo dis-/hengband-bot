@@ -2334,7 +2334,10 @@ class HomeMixin:
         )
         self._stage_home_operation(
             snapshot, "".join(operations) + LEAVE_STORE_KEY,
-            producer_family="home-visit",
+            producer_family=(
+                "calibration" if self._calibration_phase == "deposit"
+                else "home-visit"
+            ),
         )
         self.last_reason = (
             "home:weight-overload-deposit"
@@ -2423,7 +2426,10 @@ class HomeMixin:
             None, snapshot.turn, 0,
         )
         visit.operation_posted = True
-        visit.operation_producer_family = "home-visit"
+        visit.operation_producer_family = (
+            "calibration" if self._calibration_phase == "deposit"
+            else "home-visit"
+        )
         visit.operation_key = operation_key
         visit.claim_operation_identity = (
             STORE_HOME, visit.opened_sequence, operation_key

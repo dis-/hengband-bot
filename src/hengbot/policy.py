@@ -2757,7 +2757,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._arbiter_close_store_visit(retired_owner, "arbiter-retired-claim")
             supplier = self._departure_supplier_counterfactual(snapshot)
             step = (
-                self._shopping_approach_step(snapshot, supplier)
+                self._shopping_approach_step(
+                    snapshot, supplier, requester="store-router"
+                )
                 if (
                     supplier is not None
                     and snapshot.store is None
@@ -3226,7 +3228,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 register.release(label)
             return
-        if event == "expire" or not (cell_named or named_monsters is not None):
+        if event == "expire" or (
+            event != "complete" and not (cell_named or named_monsters is not None)
+        ):
             return
         for claim in reversed(register.suspended):
             if matches(claim):
@@ -3295,14 +3299,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _complete_equipment_transaction_claim(self) -> None:
         """End the session under the family used for its recorded claim."""
-        family = (
-            "calibration" if self._calibration_session_owned()
-            else "equipment-txn"
-        )
-        source = "calibration" if family == "calibration" else "transaction"
+        register = getattr(self, "_claim_register", None)
+        session = getattr(self, "_equipment_transaction_session", None)
+        opened_sequence = getattr(session, "opened_sequence", None)
+        claims = (() if register is None else (
+            register.current, *register.suspended
+        ))
+        recorded = next((
+            claim for claim in claims if claim is not None and claim.is_open
+            and claim.owner.value in {"equipment-txn", "calibration"}
+            and claim.goal.source in {"transaction", "calibration"}
+            and (opened_sequence is None or str(opened_sequence)
+                 in claim.goal.expectation)
+        ), None)
+        if recorded is None:
+            return
         self._complete_observed_effect(
             "equipment-transaction-complete",
-            owners=(family,), sources=(source,),
+            owners=(recorded.owner.value,), sources=(recorded.goal.source,),
         )
 
     def _release_town_travel_claim(self, label: str) -> None:
@@ -3479,6 +3493,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if reason.startswith("town:entrance-step-off:"):
             reason = reason.split(":", 2)[2]
+        visit = getattr(self, "_store_visit", None)
+        if (
+            reason in {"shop:leave", "shop:store-context-exit"}
+            or reason.startswith("home:leave-")
+            or reason == "home:store-context-exit"
+        ) and visit is not None and visit.operation_effect_observed:
+            if (
+                standing is not None and standing.is_open
+                and standing.owner == owner
+                and standing.goal.kind == CLAIM_GOAL_OBSERVE
+                and standing.goal.source in {
+                    CLAIM_OBSERVE_STORE_OPERATION, "transaction", "calibration"
+                }
+            ):
+                return standing.goal, False, None
+            return claim_terminal(reason), False, None
         if owner.value in {"equipment-txn", "calibration"} and reason.startswith((
             "home:atomic-", "home:deposit", "home:withdraw-",
             "home:weight-overload-deposit", "home:morivant-temporary-deposit",
@@ -4081,23 +4111,51 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         else:
             claim = register.keep_active()
         transition_violation = violation
-        # The filed Home errand is a purpose holder even while its individual
-        # knowledge and withdrawal operation claims are closed or suspended.
-        # Record a competing restore without changing either producer.
+        # A filed Home request keeps its purpose until the errand ends.  The
+        # purpose record is independent of a claim transition violation.
         filed = getattr(getattr(self, "_home_errand", None), "request", None)
-        if (
-            violation is None
-            and owner.value in {"equipment-txn", "calibration"}
-            and reason == "town:restore-combat-weapon"
-            and (standing is None or not standing.is_open or standing.owner != owner)
-            and getattr(self._home_errand, "active", False)
-            and filed is not None
-            and filed.purpose == "combat-weapon"
+        purpose_duplicates = []
+        purpose_identity = None
+        if reason in {
+            "town:restore-combat-weapon", "town:replace-no-teleport-weapon"
+        }:
+            purpose_identity = ("equipment-slot", "main_hand")
+        elif isinstance(key, str) and len(key) >= 2 and (
+            (filed is not None and filed.purpose in {
+                "identification", "identification-catalog"
+            }
+             and reason.startswith(("identify:", "identification:")))
+            or (filed is not None and filed.purpose == "experience-potion"
+                and reason == "experience:quaff")
         ):
-            violation = {
+            pending_signature = getattr(self, "_home_pending_item", None)
+            item = next((candidate for candidate in snapshot.inventory
+                         if pending_signature is not None
+                         and self._item_signature(candidate) == pending_signature),
+                        None)
+            if item is None:
+                item = next((candidate for candidate in snapshot.inventory
+                             if candidate.slot == key[-1]), None)
+            if item is not None:
+                purpose_identity = ("item", self._item_signature(item))
+        filed_identity = None
+        if filed is not None:
+            filed_identity = (
+                ("equipment-slot", "main_hand")
+                if filed.purpose == "combat-weapon"
+                else ("item", filed.signature)
+            )
+        if (
+            getattr(self._home_errand, "active", False)
+            and filed_identity is not None
+            and purpose_identity == filed_identity
+            and owner.value != "home-errand"
+            and (standing is None or not standing.is_open or standing.owner != owner)
+        ):
+            duplicate = {
                 "kind": "purpose-duplicate", "scope": "S3",
                 "from": "home-errand", "to": owner.value,
-                "purpose": [filed.purpose, "main_hand"],
+                "purpose": [filed.purpose, purpose_identity[1]],
                 "holders": [
                     {"family": "home-errand", "key": "filed:" + filed.purpose,
                      "request_identity": list(filed.signature)},
@@ -4105,6 +4163,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                      "claim_id": claim.claim_id},
                 ],
             }
+            purpose_duplicates.append(duplicate)
+            if violation is None:
+                violation = duplicate
         if claim.is_open and claim.owner.value in {
             "home-visit", "home-errand", "calibration", "equipment-txn"
         }:
@@ -4140,13 +4201,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             alias = aliases.get(visit.owner, visit.owner)
             if alias == "town-errand":
                 alias = visit.opened_producer_family
+            requester_missing = (
+                alias == "store-router"
+                and getattr(visit, "opened_for_family", None) is None
+            )
             router_for_operation = (
                 alias == "store-router"
                 and claim.owner.value == getattr(visit, "opened_for_family", None)
             )
             if router_for_operation:
                 visit_owner_structure = "router-opens-family-operates"
-            if alias != claim.owner.value and not router_for_operation:
+            if requester_missing:
+                visit_owner_structure = "requester-missing"
+            if (
+                alias != claim.owner.value
+                and not router_for_operation
+                and not requester_missing
+            ):
                 visit_owner_mismatch = {
                     "visit_owner": alias, "claim_owner": claim.owner.value,
                     "claim_id": claim.claim_id,
@@ -4171,8 +4242,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "rank": rung.rank,
             "rung": rung.name,
             "violation": violation,
+            "purpose_duplicates": purpose_duplicates,
             "visit_owner_mismatch": visit_owner_mismatch,
             "visit_owner_structure": visit_owner_structure,
+            "requester_missing": visit_owner_structure == "requester-missing",
             "claim_verdict_conflict": claim_verdict_conflict,
             "scan-during-pending-atomic": bool(
                 (owner.value == "home-scan" or (
@@ -5103,7 +5176,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or (here is None and self._current_town_has_home(snapshot))
             ):
                 self._ensure_home_visit_request(snapshot)
-                self._shopping_approach_store_type = STORE_HOME
+                self._request_store_trip(
+                    STORE_HOME, "calibration" if self._calibration_session_owned()
+                    else "equipment-txn"
+                )
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
                 return self._shopping_approach_key(
                     snapshot, snapshot.player.position,
@@ -5251,7 +5327,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._town_travel_state = None
                 step = self._shopping_approach_step(
-                    snapshot, posted_entry_owner
+                    snapshot, posted_entry_owner, requester="store-router"
                 )
                 if step is not None:
                     self.last_reason = "store:entry-interrupted-replan"
@@ -5389,7 +5465,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 StoreVisitPhase.APPROACHING
                             )
                         step = self._shopping_approach_step(
-                            snapshot, posted_entry_owner
+                            snapshot, posted_entry_owner, requester="store-router"
                         )
                         if step is not None:
                             self.last_reason = (
@@ -6307,7 +6383,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # This is the single live catalogue-shortage owner.  Purchase
                 # gates may route here first, but no shop shelf is required.
-                self._shopping_approach_store_type = STORE_HOME
+                self._request_store_trip(STORE_HOME, "home-visit")
                 self.last_reason = "home:queue-catalogue-shortage"
                 key = LEAVE_STORE_KEY
             elif (
@@ -6446,7 +6522,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # Ordinary withdrawals are composed only from the adjacent
                 # outside snapshot.  This hand-off is not a failed stop pass.
-                self._shopping_approach_store_type = STORE_HOME
+                self._request_store_trip(STORE_HOME, "home-visit")
                 self.last_reason = "home:leave-for-pending-withdraw"
                 key = LEAVE_STORE_KEY
             elif (
@@ -8290,7 +8366,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                  or self._home_knowledge_invalidated)
             and self._ensure_home_visit_request(snapshot)
         ):
-            step = self._shopping_approach_step(snapshot, STORE_HOME)
+            step = self._shopping_approach_step(
+                snapshot, STORE_HOME, requester="home-scan"
+            )
             here = snapshot.grid_at(snapshot.player.position)
             if step is None and here is not None and here.store_number == STORE_HOME:
                 # Acquiring an initial visit while already standing on the
@@ -8440,7 +8518,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # handoffs without letting the errand plan own this departure turn.
                 self._town_terminal_transitions(snapshot)
             if claims_active:
-                step = self._shopping_approach_step(snapshot)
+                step = self._shopping_approach_step(
+                    snapshot, requester="store-router"
+                )
                 if step is not None:
                     self.last_reason = "shop:approach"
                     return self._shopping_approach_key(snapshot, step, "shop:travel")

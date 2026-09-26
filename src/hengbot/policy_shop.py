@@ -754,13 +754,17 @@ class ShopMixin:
         # departure shortage, release its supplier before retrying recall.
         if not self._food_ready(snapshot):
             self._town_store_attempted.pop(food_store, None)
-            step = self._shopping_approach_step(snapshot, food_store)
+            step = self._shopping_approach_step(
+                snapshot, food_store, requester="store-router"
+            )
             if step is not None:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
             self._town_blocked_reason = "restock-store-unreachable"
             return self._town_blocked_key(snapshot)
-        step = self._shopping_approach_step(snapshot)
+        step = self._shopping_approach_step(
+            snapshot, requester="store-router"
+        )
         if step is not None and self._shopping_approach_store_type in store_types:
             self.last_reason = "shop:approach"
             return self._shopping_approach_key(snapshot, step, "shop:travel")
@@ -769,7 +773,9 @@ class ShopMixin:
         # check each released supplier itself before declaring all of them
         # unreachable.
         for store_type in self._order_town_stops(snapshot, list(store_types)):
-            step = self._shopping_approach_step(snapshot, store_type)
+            step = self._shopping_approach_step(
+                snapshot, store_type, requester="store-router"
+            )
             if step is not None:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
@@ -1536,7 +1542,9 @@ class ShopMixin:
                 )
                 return self._record_home_gate(snapshot, item, ProcurementHomeGate.HOME_FIRST, "wrapper-yield-current-visit")
             approach = (
-                self._shopping_approach_step(snapshot, STORE_HOME) if filed else None
+                self._shopping_approach_step(
+                    snapshot, STORE_HOME, requester="shop-buy"
+                ) if filed else None
             )
             if not filed or approach is None:
                 self._home_procurement_probe = None
@@ -3374,7 +3382,9 @@ class ShopMixin:
                     elif (
                         not self._home_available(snapshot)
                         or not self._ensure_home_visit_request(snapshot)
-                        or self._shopping_approach_step(snapshot, STORE_HOME) is None
+                        or self._shopping_approach_step(
+                            snapshot, STORE_HOME, requester="shop-buy"
+                        ) is None
                     ):
                         self._home_procurement_probe = None
                         self.last_reason = "survival:mana-home-route-defect"
@@ -4176,7 +4186,8 @@ class ShopMixin:
         return LEAVE_STORE_KEY
 
     def _shopping_approach_step(
-        self, snapshot: Snapshot, store_type: int | None = None
+        self, snapshot: Snapshot, store_type: int | None = None,
+        *, requester: str | None = None,
     ) -> Position | None:
         equipment_home_route = (
             self._equipment_transaction_session is not None
@@ -4249,7 +4260,7 @@ class ShopMixin:
             purpose=("equipment-work" if equipment_owner else "shopping"),
             opened_sequence=self._decision_sequence,
             opened_producer_family="store-router",
-            opened_for_family=self._router_opened_for_family(store_type),
+            opened_for_family=requester,
             close_visit=self._close_store_visit,
         )
         self._acquire_store_visit_attempt = {
@@ -4273,7 +4284,7 @@ class ShopMixin:
         ):
             self._set_town_store_attempted(store_type, snapshot.turn, "approach-fails-limit")
             return None
-        self._shopping_approach_store_type = store_type
+        self._request_store_trip(store_type, requester)
         if self._town_map_active(snapshot):
             self._shopping_approach_goal = self._town_map.store_position(store_type)
         if self._shopping_approach_goal is None:

@@ -362,8 +362,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
             # R4's transaction Home steps (1179, 1885, 1893, 1899), the
-            # step-off wrapper (1906), and the continuation (1907) account
-            # for 902 -> 893. R5 keeps the transaction's own deposit.
+            # step-off wrapper (1906), continuation (1907), and resumed
+            # transaction claims (1887, 1895, 1901) account for 902 -> 893.
             {(893, "active")},
         )
         self.assertEqual(

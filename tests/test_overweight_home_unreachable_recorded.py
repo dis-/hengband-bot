@@ -295,11 +295,10 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            # R5 removes eight guessed calibration/router mismatches at
-            # 3768-3774 and 3779. Eleven visits without a captured requester
-            # now remain visible (16, 3709, 3735-3741, 3743, 3780); the old
-            # helper guessed home-visit/shop-buy for them: 12+11-8.
-            15,
+            # R6 captures the Home scan as the opening requester at sequences
+            # 3-4; the Home visit then deposits on that visit, adding two
+            # genuine mismatches to R5's 15. No requester is missing.
+            17,
         )
 
     def test_calibration_transaction_observes_still_complete(self):

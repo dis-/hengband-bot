@@ -967,7 +967,9 @@ class SupplyMixin:
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
                 return EAT_KEY + food.slot
-            step = self._shopping_approach_step(snapshot)
+            step = self._shopping_approach_step(
+                snapshot, requester="survival"
+            )
             if step is not None:
                 self.last_reason = "survival:shop-approach"
                 return self._shopping_approach_key(
@@ -1054,7 +1056,9 @@ class SupplyMixin:
             )
             filed = self._ensure_home_visit_request(snapshot)
             step = (
-                self._shopping_approach_step(snapshot, STORE_HOME)
+                self._shopping_approach_step(
+                    snapshot, STORE_HOME, requester="survival"
+                )
                 if filed else None
             )
             self._home_procurement_approach_state = {
@@ -1098,7 +1102,9 @@ class SupplyMixin:
             for sale_store in (STORE_ALCHEMIST, STORE_WEAPON):
                 if self._mana_survival_sale_candidate(snapshot, sale_store) is None:
                     continue
-                step = self._shopping_approach_step(snapshot, sale_store)
+                step = self._shopping_approach_step(
+                    snapshot, sale_store, requester="survival"
+                )
                 if step is not None:
                     self.last_reason = "survival:mana-sale-approach"
                     return self._shopping_approach_key(
@@ -1106,7 +1112,9 @@ class SupplyMixin:
                     )
 
         if STORE_MAGIC not in self._town_store_attempted:
-            step = self._shopping_approach_step(snapshot, STORE_MAGIC)
+            step = self._shopping_approach_step(
+                snapshot, STORE_MAGIC, requester="survival"
+            )
             if step is not None:
                 self.last_reason = "survival:mana-shop-approach"
                 return self._shopping_approach_key(

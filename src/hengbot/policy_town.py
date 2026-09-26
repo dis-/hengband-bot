@@ -1005,7 +1005,9 @@ class TownMixin:
                 break
         if supplier is None:
             return None
-        step = self._shopping_approach_step(snapshot, supplier)
+        step = self._shopping_approach_step(
+            snapshot, supplier, requester="store-router"
+        )
         if step is None:
             return None
         reason = "town-progress-invariant:approach"
@@ -1413,7 +1415,9 @@ class TownMixin:
         for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
             if store_type == current_store:
                 continue
-            step = self._shopping_approach_step(snapshot, store_type)
+            step = self._shopping_approach_step(
+                snapshot, store_type, requester="store-router"
+            )
             if step is None:
                 continue
             key = self._shopping_approach_key(
@@ -1628,7 +1632,9 @@ class TownMixin:
             # gating, but do not replace the quest candidate with a Home route.
             return None
         self._town_claims_active(snapshot)
-        step = self._shopping_approach_step(snapshot)
+        step = self._shopping_approach_step(
+            snapshot, requester="home-visit"
+        )
         if step is None or self._shopping_approach_store_type != STORE_HOME:
             return None
         self.last_reason = "shop:approach"
@@ -4537,7 +4543,9 @@ class TownMixin:
                 # eject above.  Release the abandoned owner before asking the
                 # approach router to bind the store that is required now.
                 self._close_store_visit("repetition-block-abandoned")
-            shopping_step = self._shopping_approach_step(snapshot)
+            shopping_step = self._shopping_approach_step(
+                snapshot, requester="store-router"
+            )
             if shopping_step is not None:
                 self.last_reason = "town:repetition-required-shopping"
                 return self._shopping_approach_key(
