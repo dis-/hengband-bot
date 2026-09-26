@@ -251,11 +251,21 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ H1
     def test_replay_decides_as_live_until_the_first_overweight_board(self):
         replay = self._replay()
+        # The selected ring at 63 and weapon at 91 are singletons. The old
+        # deposit macros appended Return although sell-order.cpp only calls
+        # input_quantity for stacks. R4 compares later recorded boards modulo
+        # these two exact answers; their state is from the old key stream.
+        quantity_keys = {63: ("dm\r", "dm"), 91: ("do\r", "do")}
+        for index, (old, new) in quantity_keys.items():
+            self.assertEqual(self.recorded[index]["key"], old)
+            self.assertEqual(replay[index]["key"], new)
+            self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
         self.assertEqual(
             [
                 index
                 for index in range(STOP + 1)
-                if (replay[index]["key"], replay[index]["reason"])
+                if (self.recorded[index]["key"] if index in quantity_keys
+                    else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             list(DIVERGENT),

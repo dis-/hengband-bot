@@ -629,12 +629,15 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
         self.assertGreater(carried, 100)
         self.assertEqual(
             [
-                index + 1 for index, decision in enumerate(decided)
+                index + 1 for index, decision in enumerate(decided[:682])
                 if decision != boundaries["recorded"][index]
             ],
-            # The existing M0 pin's recorded moves; nothing else changed.
+            # M0's earlier combat moves. R4 stops at the quantity prompt at
+            # sequence 683: recorded db ESC, corrected db 1 Return ESC.
             [153, 155, 158, 618, 620],
         )
+        self.assertEqual(boundaries["recorded"][682], ["db\x1b", "home:atomic-deposit"])
+        self.assertEqual(decided[682], ["db1\r\x1b", "home:atomic-deposit"])
         self.assertFalse(any(reason.startswith("experience:") for _key, reason in decided))
 
 
