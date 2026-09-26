@@ -1721,7 +1721,8 @@ class EquipmentMixin:
                 # transaction so the re-arm pass retrieves the same weapon,
                 # rather than blindly wielding the first pack weapon.
                 self._normal_weapon_name = target.name
-            key = SELL_KEY + target.slot + "\r"
+            quantity = f"{target.count}\r" if target.count > 1 else ""
+            key = SELL_KEY + target.slot + quantity
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,

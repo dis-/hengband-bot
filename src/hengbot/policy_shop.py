@@ -3295,10 +3295,9 @@ class ShopMixin:
             return None
         surplus = self._retention_surplus(snapshot, item)
         quantity = item.count if surplus <= 0 else min(item.count, surplus)
-        amount = "99" if quantity == item.count else str(quantity)
         # The store always asks for the offered-price confirmation.  A stack
         # first asks for a quantity; a singleton does not.
-        quantity_answer = "" if item.count == 1 else amount + "\r"
+        quantity_answer = f"{quantity}\r" if item.count > 1 else ""
         return {
             "count": item.count,
             "quantity": quantity,

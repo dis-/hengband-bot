@@ -4421,6 +4421,34 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(single_key, WAIT_KEY)
         self.assertEqual(stack_key, WAIT_KEY)
 
+    def test_partial_deposit_answers_prompt_from_selected_stack(self):
+        policy = HengbotPolicy()
+        stack = item("f", TVAL_ARROW, 1, count=11, name="surplus arrows")
+        snap = self._snapshot(self._real_pack(stack))
+
+        self.assertEqual(
+            policy._home_deposit_key(snap, stack, forced_count=1), "df1\r"
+        )
+        singleton = replace(stack, count=1)
+        self.assertEqual(
+            policy._home_deposit_key(
+                self._snapshot(self._real_pack(singleton)), singleton,
+                forced_count=1,
+            ), "df"
+        )
+
+    def test_composed_partial_deposits_answer_each_quantity_prompt(self):
+        policy = HengbotPolicy()
+        first = item("f", TVAL_ARROW, 1, count=11, name="first arrows")
+        second = item("g", TVAL_ARROW, 2, count=7, name="second arrows")
+        entrance = self._entrance_snapshot(self._real_pack(first, second))
+
+        with patch.object(
+            policy, "_home_deposit_batch", return_value=[(first, 1), (second, 1)]
+        ):
+            self.assertEqual(self._post_atomic(policy, entrance, first), WAIT_KEY)
+        self.assertEqual(policy._store_visit.operation_key, "dg1\rdf1\r\x1b")
+
     def test_atomic_deposit_requires_player_on_home_entrance(self):
         policy = HengbotPolicy()
         target = item("f", TVAL_ARROW, 1, count=1, name="single arrow")

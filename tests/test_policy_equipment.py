@@ -3130,8 +3130,32 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             self._town(inventory=(known,), store=StoreState(STORE_HOME, []))
         )
 
-        self.assertEqual(key, "dk\r")
+        self.assertEqual(key, "dk")
         self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
+
+    def test_transaction_deposit_stack_answers_quantity_prompt(self):
+        stack = item(
+            "k", 23, 3, count=4, name="four complete egos", known=True,
+            fully_known=True, is_equipment=True, is_ego=True,
+        )
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_HOME_PREPARE, "deposit", "pack:stack",
+            item_identity=policy_module.equipment_identity(stack),
+        )
+        policy = HengbotPolicy()
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._prepare_equipment_optimization = lambda _snapshot: None
+
+        self.assertEqual(
+            policy._equipment_transaction_home_key(
+                self._town(inventory=(stack,), store=StoreState(STORE_HOME, []))
+            ),
+            "dk4\r",
+        )
 
     def test_recorded_free_action_withdrawals_survive_live_leave_latch(self):
         for item_id, name in (
