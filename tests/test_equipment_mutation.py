@@ -280,6 +280,103 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         ex.observe(wielded)
         self.assertEqual(ex.state, EquipmentMutationState.IDLE)
 
+    @staticmethod
+    def _gear(slot, name, tval, sval, **fields):
+        return SimpleNamespace(**{
+            **vars(item(slot, name, tval=tval)),
+            "sval": sval, "weight": fields.pop("weight", 50), "aware": True,
+            "is_ego": False, "is_artifact": False, "to_h": 0, "to_d": 0,
+            "to_a": 0, "ac": 0, "pval": 0, "damage_dice_num": 0,
+            "damage_dice_sides": 0, "fuel": 0, **fields,
+        })
+
+    def _post_wield(self, before, requested, slot):
+        ex = EquipmentMutationExecutor()
+        from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+
+        posted = ex.request_wield(
+            before, "light-loadout", requested, slot, EQUIPMENT_SLOT_KEY
+        )
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        return ex
+
+    def test_same_kind_swaps_complete(self):
+        # Opus r4 P1: a wield replacing an item of the same kind.
+        gear = self._gear
+        low = gear("light", "Brass Lantern (120 turns)", 39, 2, fuel=120)
+        full = gear("f", "Brass Lantern (7500 turns)", 39, 2, fuel=7500)
+        unknown = gear("f", "Brass Lantern", 39, 2, known=False)
+        dagger = gear("main_hand", "Dagger (1d4) (+1,+1)", 23, 4,
+                      to_h=1, to_d=1, damage_dice_num=1, damage_dice_sides=4)
+        better = gear("g", "Dagger (1d4) (+9,+9)", 23, 4,
+                      to_h=9, to_d=9, damage_dice_num=1, damage_dice_sides=4)
+        cases = (
+            ("known lantern", low, full, "light",
+             SimpleNamespace(**{**vars(full), "slot": "light", "fuel": 7499})),
+            ("unknown lantern", low, unknown, "light",
+             SimpleNamespace(**{**vars(unknown), "slot": "light",
+                                "known": True, "fuel": 3000})),
+            ("dagger", dagger, better, "main_hand",
+             SimpleNamespace(**{**vars(better), "slot": "main_hand"})),
+        )
+        for name, worn, requested, slot, after in cases:
+            with self.subTest(name):
+                ex = self._post_wield(
+                    board(equipment=(worn,), inventory=(requested,)),
+                    requested, slot,
+                )
+                back = SimpleNamespace(**{**vars(worn), "slot": requested.slot})
+                ex.observe(board(equipment=(after,), inventory=(back,)))
+                self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_fuel_tick_of_the_same_lantern_does_not_complete_a_swap(self):
+        gear = self._gear
+        low = gear("light", "Brass Lantern (120 turns)", 39, 2, fuel=120)
+        full = gear("f", "Brass Lantern (7500 turns)", 39, 2, fuel=7500)
+        ex = self._post_wield(board(equipment=(low,), inventory=(full,)), full, "light")
+        ticked = SimpleNamespace(
+            **{**vars(low), "name": "Brass Lantern (119 turns)", "fuel": 119}
+        )
+        ex.observe(board(equipment=(ticked,), inventory=(full,)), count_fruitless=True)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+
+    def test_full_pack_takeoff_releases_within_the_limit(self):
+        # Opus r4 P2: the taken-off item was dropped (full pack), so the
+        # takeoff's effect never shows; nothing requests another mutation.
+        from hengbot.policy_constants import EQUIPMENT_MUTATION_RELEASE_LIMIT
+
+        shovel = self._gear("sub_hand", "Shovel", 20, 1, weight=60)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(shovel,))
+        posted = ex.request_takeoff(on, "combat-loadout", "b")
+        ex.bind_post_snapshot(on)
+        ex.confirm_posted(posted.key)
+        dropped = board()
+        reports = [
+            ex.observe(dropped, count_fruitless=True)
+            for _ in range(EQUIPMENT_MUTATION_RELEASE_LIMIT)
+        ]
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+        self.assertEqual(
+            reports,
+            [None] * (EQUIPMENT_MUTATION_RELEASE_LIMIT - 1)
+            + ["posting-contract:equipment-mutation-released"],
+        )
+
+    def test_a_request_on_a_counted_board_does_not_count_it_twice(self):
+        shovel = self._gear("sub_hand", "Shovel", 20, 1, weight=60)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(shovel,))
+        ex.confirm_posted(ex.request_takeoff(on, "combat-loadout", "b").key)
+        ex.observe(on, count_fruitless=True)
+        for _request in range(2):
+            refused = ex.request_takeoff(on, "combat-loadout", "b")
+            self.assertEqual(
+                refused.report, "posting-contract:equipment-mutation-unobserved"
+            )
+        self.assertEqual(ex.refusals, 1)
+
     def test_restored_old_expectation_ignores_a_fuel_tick(self):
         # gpt-6-sol r3 P2: a checkpoint restored from before the requested-
         # item rule carries the whole worn signature (names included).

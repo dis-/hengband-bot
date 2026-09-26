@@ -112,14 +112,41 @@ def _pack_count(snapshot, identity: tuple | None) -> int:
     )
 
 
+def worn_instance(item) -> tuple | None:
+    """Which physical item occupies a slot, for telling two of a kind apart.
+
+    Everything that is fixed for one physical item while it stays worn: its
+    kind and knowledge state and its bonuses.  The display name, fuel, the
+    recharge timeout and the inscription change on the same item without any
+    equipment command and are left out (fuel is compared separately, see
+    ``_effect_observed``).  Identification of the worn item itself or a
+    disenchantment changes this record too, so it only ever completes a
+    wield together with the requested item's stable identity.
+    """
+    if item is None:
+        return None
+    return tuple(getattr(item, name, None) for name in (
+        "tval", "sval", "weight", "count", "aware", "known", "is_ego",
+        "is_artifact", "to_h", "to_d", "to_a", "ac", "pval",
+        "damage_dice_num", "damage_dice_sides",
+    ))
+
+
+def _fuel(item) -> int:
+    return int(getattr(item, "fuel", 0) or 0) if item is not None else 0
+
+
 def _requested_effect(snapshot, kind: str, slot: str | None, item) -> tuple:
     """The observation that completes this one command (see ``observe``)."""
     identity = stable_identity(item)
+    occupant = _worn(snapshot, slot)
     return (
         _EFFECT, kind, slot, identity,
-        same_item(identity, _worn(snapshot, slot)),
+        same_item(identity, occupant),
         _worn_count(snapshot, identity),
         _pack_count(snapshot, identity),
+        worn_instance(occupant),
+        _fuel(occupant),
     )
 
 
@@ -133,9 +160,23 @@ def _slot_kinds(entries) -> dict:
 
 
 def _effect_observed(snapshot, expected: tuple | None) -> bool:
+    if (
+        isinstance(expected, tuple)
+        and len(expected) == 6
+        and expected[0] == "requested-effect"
+    ):
+        # A local f8dfa6e2 expectation (never pushed): its requested slot is
+        # known; an item leaving or entering that slot is the effect.
+        slot_before = expected[3]
+        occupant = _worn(snapshot, expected[2])
+        now = (
+            (getattr(occupant, "tval", None), getattr(occupant, "sval", None))
+            if occupant is not None else None
+        )
+        return now != (tuple(slot_before[:2]) if slot_before else None)
     if not (
         isinstance(expected, tuple)
-        and len(expected) == 7
+        and len(expected) in (7, 9)
         and expected[0] == _EFFECT
     ):
         # A pre-rule expectation restored from a checkpoint: the whole worn
@@ -151,15 +192,36 @@ def _effect_observed(snapshot, expected: tuple | None) -> bool:
             for item in snapshot.equipment
         )
         return current != _slot_kinds(expected or ())
-    _marker, kind, slot, identity, held_before, worn_before, pack_before = expected
+    _marker, kind, slot, identity, held_before, worn_before, pack_before = (
+        expected[:7]
+    )
+    # A 7-field expectation (local af2cbf3c) has no occupant record: a
+    # same-kind swap is then left to the bounded release.
+    instance_before, fuel_before = (
+        expected[7:9] if len(expected) == 9 else (None, None)
+    )
     if kind == "wield":
-        # The requested item now occupies the requested slot and either left
-        # the pack or was not there before; or one more of it is worn where
-        # the game put it.
-        in_slot = same_item(identity, _worn(snapshot, slot))
-        worn_more = _worn_count(snapshot, identity) > worn_before
-        left_pack = _pack_count(snapshot, identity) < pack_before
-        return (in_slot and (not held_before or left_pack)) or worn_more
+        occupant = _worn(snapshot, slot)
+        if _worn_count(snapshot, identity) > worn_before:
+            # One more of the requested item is worn where the game put it.
+            return True
+        if not same_item(identity, occupant):
+            return False
+        # The requested item occupies the requested slot.  When the slot
+        # already held one of the same kind, it must be another physical
+        # item: the requested one left the pack, the occupant's instance
+        # record changed, or its fuel rose (a worn light only burns down).
+        return (
+            not held_before
+            or _pack_count(snapshot, identity) < pack_before
+            or (
+                len(expected) == 9
+                and (
+                    worn_instance(occupant) != instance_before
+                    or _fuel(occupant) > fuel_before
+                )
+            )
+        )
     # Takeoff: the slot no longer holds that item, and the item is in the pack.
     return (
         not same_item(identity, _worn(snapshot, slot))
@@ -202,10 +264,13 @@ class EquipmentMutationExecutor:
     last_posted_goal: str | None = None
     last_posted_core: tuple | None = None
     observed_changes: int = 0
+    # True once the per-board observation counted this board as fruitless,
+    # so a request on the same board does not count it a second time.
+    board_counted: bool = False
 
     _OPPOSING = frozenset({"mining-loadout", "combat-loadout"})
 
-    def observe(self, snapshot) -> None:
+    def observe(self, snapshot, *, count_fruitless: bool = False) -> str | None:
         """Complete a posted command only on its own effect.
 
         A wield is complete when the requested item occupies the requested
@@ -214,29 +279,71 @@ class EquipmentMutationExecutor:
         identity: a bonus change (disenchantment), fuel, recharge, inscription
         or learned flags complete nothing.
         """
-        if (
-            self.state == EquipmentMutationState.POSTED
-            and _effect_observed(snapshot, self.expected_signature)
-        ):
+        if self.state != EquipmentMutationState.POSTED:
+            return None
+        if _effect_observed(snapshot, self.expected_signature):
             self.observed_changes += 1
             self.state = EquipmentMutationState.IDLE
             self.goal = None
             self.expected_signature = None
             self.refusals = 0
+            self.board_counted = False
             self.last_report = None
+            return None
+        if not count_fruitless:
+            return None
+        # The per-board observation (the policy's decision entry): one refusal
+        # per fruitless board, and the established loud release at LIMIT, so
+        # a missed effect (a full-pack takeoff dropping the item, a swap the
+        # board cannot tell apart) is bounded without another request.
+        self.refusals += 1
+        self.board_counted = True
+        if self.refusals >= EQUIPMENT_MUTATION_RELEASE_LIMIT:
+            self._release_unobserved()
+            return self.last_report
+        return None
+
+    def discard_unposted(self) -> str | None:
+        """Drop a command prepared on an earlier board and never posted.
+
+        A PREPARED command becomes POSTED only when its exact key is
+        confirmed as posted.  At the next decision entry a command still
+        PREPARED was not posted (its producer blocked after composing it, the
+        key was rewritten or refused), and it gates nothing: release it
+        loudly back to IDLE.
+        """
+        if self.state != EquipmentMutationState.PREPARED:
+            return None
+        self.state = EquipmentMutationState.IDLE
+        self.goal = None
+        self.prepared_key = None
+        self.prepared_core = None
+        self.expected_signature = None
+        self.refusals = 0
+        self.board_counted = False
+        self.last_report = "posting-contract:equipment-mutation-unposted-discarded"
+        return self.last_report
+
+    def _release_unobserved(self) -> None:
+        self.state = EquipmentMutationState.IDLE
+        self.goal = None
+        self.expected_signature = None
+        self.refusals = 0
+        self.board_counted = False
+        self.last_report = "posting-contract:equipment-mutation-released"
 
     def _begin(self, snapshot, goal: str) -> EquipmentMutationResult | None:
         self.observe(snapshot)
         if self.state == EquipmentMutationState.POSTED:
-            self.refusals += 1
             # Match the sender's established terminal recovery allowance: one
             # refusal per fruitless observation, then a loud release at LIMIT.
+            # A board the per-board observation already counted is not
+            # counted again by requests on it (the flag lasts until the next
+            # per-board observation, a post or a release).
+            if not getattr(self, "board_counted", False):
+                self.refusals += 1
             if self.refusals >= EQUIPMENT_MUTATION_RELEASE_LIMIT:
-                self.state = EquipmentMutationState.IDLE
-                self.goal = None
-                self.expected_signature = None
-                self.refusals = 0
-                self.last_report = "posting-contract:equipment-mutation-released"
+                self._release_unobserved()
             else:
                 self.last_report = "posting-contract:equipment-mutation-unobserved"
             return EquipmentMutationResult(None, self.last_report)
@@ -327,6 +434,7 @@ class EquipmentMutationExecutor:
         self.prepared_key = None
         self.prepared_core = None
         self.refusals = 0
+        self.board_counted = False
         return True
 
     def release(self, report: str = "posting-contract:equipment-mutation-released") -> None:

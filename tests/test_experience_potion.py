@@ -39,6 +39,17 @@ Walls, each declared:
   index 4256, so the recorded ``~9`` response row of 4257 is delivered to the
   copy's Home-knowledge consumer (consume_home_knowledge, which the CLI calls
   for an accepted response).
+- W4 (X5, 2026-09-26 unposted-mutation discard): the capture-less town
+  replay diverges from list index 2643, where it composes a takeoff 'te' it
+  never posts.  Before the equipment executor discarded unposted commands,
+  that stale PREPARED held the replay's transaction back until it was
+  abandoned; now the transaction proceeds and the diverged replay still
+  carries an equipment transaction session at 4257.  The recording proves
+  live had none: its list index 4256 is ('~9\x1b\x1b',
+  'home:request-knowledge-scan'), which only the Home-knowledge gate emits
+  and only while ``_equipment_transaction_session is None``.  The X5 copies
+  drop exactly that session (_without_diverged_transaction, which asserts
+  both facts so the wall cannot become vacuous); nothing else is touched.
 Hand-built boards (declared at each use): the recorded Temple page (with or
 without its Restore Life Levels) shown on the index-20 board; the recorded
 index-20 board with the drain filled; the recorded Temple page / outside
@@ -145,6 +156,23 @@ def _unwalled_copy(policy):
 def _drain_unknown(_snapshot):
     """W2: the protocol-2 view of the drain."""
     return False
+
+
+HOME_SCAN_REQUEST = HOME_SCAN - 1  # recorded '~9\x1b\x1b' Home-knowledge gate
+
+
+def _without_diverged_transaction(test, policy):
+    """W4: drop the diverged replay's equipment transaction (see docstring)."""
+    # Evidence that live had no session: the gate that emits exactly this
+    # key/reason requires _equipment_transaction_session is None.
+    test.assertEqual(
+        test.boundaries["recorded"][HOME_SCAN_REQUEST],
+        ["~9\x1b\x1b", "home:request-knowledge-scan"],
+    )
+    # The wall removes something, or it is not needed and must go.
+    test.assertIsNotNone(policy._equipment_transaction_session)
+    policy._equipment_transaction_session = None
+    return policy
 
 
 def _decide(policy, snapshot):
@@ -506,6 +534,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         replay = self._replay()
         experience = replay["experience_item"]
         policy, snapshot = self._board(HOME_SCAN)
+        _without_diverged_transaction(self, policy)
         self.assertIsNone(_potion(snapshot, SV_POTION_EXPERIENCE))
         rows = [json.loads(line) for line in replay["home_scan_segment"]]
         response = next(
@@ -543,6 +572,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
     def test_x5_route_from_the_recorded_board_claims_the_home_withdrawal(self):
         replay = self._replay()
         policy, snapshot = self._board(HOME_SCAN)
+        _without_diverged_transaction(self, policy)
         rows = [json.loads(line) for line in replay["home_scan_segment"]]
         response = next(
             row for row in rows

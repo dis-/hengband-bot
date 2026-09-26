@@ -5943,6 +5943,110 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual(restore_trigger.call_count, 0)
 
 
+class UnpostedEquipmentMutationTest(unittest.TestCase):
+    """r5: a wield/takeoff composed on one board and never posted.
+
+    The executor becomes POSTED only when its exact key is confirmed as
+    posted; every IDLE gate (weight shedding, space deposit, Home scan)
+    treats PREPARED as busy.  A command still PREPARED at the next decision
+    entry was not posted and is discarded, loudly.
+    """
+
+    def _transaction_board(self):
+        policy, snapshot, _ = (
+            EquipmentTransactionOwnershipRegressionTest()._stripped_fixture()
+        )
+        ring = item(
+            "a", TVAL_RING, 101, name="Selected ring", known=True,
+            fully_known=True, is_equipment=True,
+        )
+        identity = policy_module.equipment_identity(ring)
+        action = policy_module.EquipmentTransaction(
+            policy_module.PHASE_EQUIP, "equip", "selected-ring", "main_ring",
+            identity,
+        )
+        policy._equipment_transaction_session = (
+            policy_module.EquipmentTransactionSession(
+                policy_module.EquipmentTransactionPlan((action,), (), 1)
+            )
+        )
+        policy._equipment_transaction_owned_items = [(identity, "main_ring")]
+        return policy, replace(snapshot, inventory=[ring], equipment=[])
+
+    def _next_board(self, board):
+        return replace(board, turn=board.turn + 1)
+
+    def test_blocked_transaction_dispatch_does_not_stay_prepared(self):
+        policy, board = self._transaction_board()
+        with patch.object(
+            policy, "_prepare_equipment_transaction_command", return_value=False
+        ):
+            key = policy.choose_key(board)
+        # The production path composed the wield and then blocked the
+        # transaction: the key it returned is not the composed wield.
+        mutation = policy._equipment_mutation
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
+        self.assertNotEqual(key, mutation.prepared_key)
+        policy.confirm_key_posted(key)
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
+        with patch.object(policy, "_equipment_wield", return_value=None):
+            policy.choose_key(self._next_board(board))
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.IDLE)
+        self.assertEqual(
+            policy.consume_pending_mutation_report(),
+            "posting-contract:equipment-mutation-unposted-discarded",
+        )
+
+    def test_rewritten_key_does_not_leave_the_wield_prepared(self):
+        policy, board = self._transaction_board()
+        key = policy.choose_key(board)
+        mutation = policy._equipment_mutation
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
+        self.assertEqual(key, mutation.prepared_key)
+        self.assertEqual(policy._equipment_transaction_prepared_key, key)
+        # The driver posted a different key (a rewrite after production).
+        self.assertFalse(policy.confirm_key_posted("\x1b"))
+        failed_before = set(policy._equipment_transaction_failed_items)
+        # The next board is decided unpatched: both halves of the unposted
+        # command are discarded at the entry, so the transaction is neither
+        # blocked (equip-dispatch-rejected) nor abandoned; it re-prepares the
+        # same wield.
+        again = policy.choose_key(self._next_board(board))
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(session.blockers, [])
+        self.assertEqual(again, key)
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
+        self.assertEqual(policy._equipment_transaction_prepared_key, key)
+        self.assertEqual(policy._equipment_transaction_failed_items, failed_before)
+        self.assertEqual(
+            policy.consume_pending_mutation_report(),
+            "posting-contract:equipment-mutation-unposted-discarded",
+        )
+
+    def test_a_confirmed_post_is_not_discarded(self):
+        policy, board = self._transaction_board()
+        key = policy.choose_key(board)
+        self.assertTrue(policy.confirm_key_posted(key))
+        with patch.object(policy, "_equipment_wield", return_value=None):
+            policy.choose_key(self._next_board(board))
+        self.assertEqual(
+            policy._equipment_mutation.state, equipment_mutation_module.EquipmentMutationState.POSTED
+        )
+
+    def test_redeciding_the_same_board_counts_it_once(self):
+        # cli.py re-decides the same Snapshot after a refused post.
+        policy, board = self._transaction_board()
+        key = policy.choose_key(board)
+        self.assertTrue(policy.confirm_key_posted(key))
+        later = self._next_board(board)
+        with patch.object(policy, "_equipment_wield", return_value=None):
+            policy.choose_key(later)
+            policy.choose_key(later)
+        self.assertEqual(policy._equipment_mutation.refusals, 1)
+
+
 class RestoreWeaponStaleTakeoffReplayTest(unittest.TestCase):
     FIXTURE = (
         Path(__file__).parent
@@ -5978,14 +6082,15 @@ class RestoreWeaponStaleTakeoffReplayTest(unittest.TestCase):
         # The replay posted 'wja' (the Broad Sword into main_hand) on the
         # 2942136 board; the recorded 2942150 board is the effect of the live
         # key instead (the Lance in main_hand, the Broad Sword still in the
-        # pack).  Until 2026-09-26 r3 any worn change completed the posted
-        # wield and the replay re-posted 'wjb' over it; the requested-item
-        # rule keeps 'wja' in flight, so no second wield is composed.
+        # pack), so the replay stops here (R4).  Until 2026-09-26 r3 any worn
+        # change completed the posted wield and the replay re-posted 'wjb'
+        # over it; the requested-item rule composes no second wield on this
+        # board, and counts it as one fruitless observation of the bounded
+        # release (EQUIPMENT_MUTATION_RELEASE_LIMIT), not as an end state.
         self.assertEqual(replay[0][1:], ("wja", "town:restore-combat-weapon"))
-        mutation = policy._equipment_mutation
-        self.assertEqual(mutation.state.name, "POSTED")
-        self.assertEqual(mutation.expected_signature[1:3], ("wield", "main_hand"))
+        self.assertNotEqual(key, "tb")
         self.assertFalse(key.startswith(("w", "t")), (key, reason))
+        self.assertEqual(policy._equipment_mutation.refusals, 1)
 
     def test_recorded_window_never_returns_an_empty_key(self):
         with gzip.open(self.FIXTURE, "rt", encoding="utf-8-sig") as stream:
