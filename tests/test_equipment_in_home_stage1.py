@@ -349,7 +349,9 @@ class EquipmentInHomeBehaviorPins(unittest.TestCase):
         game = self._recorded_game(inside=True)
         policy, _result, reasons = self._drive(game, 4, policy=policy)
         accepted = self._accepted(game)
-        self.assertEqual(accepted, ["do\r", "\x1b"])
+        # The selected Home deposit is a singleton, so no quantity prompt
+        # consumes Return (sell-order.cpp:97-103).
+        self.assertEqual(accepted, ["do", "\x1b"])
         self.assertEqual(
             reasons,
             ["equipment-transaction:deposit", "home:leave-after-one-operation"],

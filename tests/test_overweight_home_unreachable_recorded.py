@@ -266,11 +266,27 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ H1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
+        # Quantity-only key changes on the same frozen boards: e is an
+        # eleven-item stack at 3 and 3713, so a one-item Home deposit needs
+        # "1 Return". At 3779, o is a singleton ring and needs no Return.
+        # R4 compares the remaining stream modulo these exact answers; the
+        # captured later boards reflect the old keys and cannot prove their
+        # counterfactual effects.
+        quantity_keys = {
+            3: ("de\x1b", "de1\r\x1b"),
+            3713: ("de\x1b", "de1\r\x1b"),
+            RING_DEPOSIT: ("do\r", "do"),
+        }
+        for index, (old, new) in quantity_keys.items():
+            self.assertEqual(self.recorded[index]["key"], old)
+            self.assertEqual(replay[index]["key"], new)
+            self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
         self.assertEqual(
             [
                 index
                 for index in range(STOP + 1)
-                if (replay[index]["key"], replay[index]["reason"])
+                if (self.recorded[index]["key"] if index in quantity_keys
+                    else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             [*DIVERGENT, STOP],

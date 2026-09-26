@@ -299,11 +299,22 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ A1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
+        # R4: the selected deposits at 1178 (m) and 1906 (n) are singleton
+        # items. The old keys had an unused Return; compare the later frozen
+        # boards modulo only those exact quantity answers. The 1944-1966
+        # stale-gate window and 2051 terminal were already declared below;
+        # in particular 1964-1966 are not new quantity divergences.
+        quantity_keys = {1178: ("dm\r", "dm"), 1906: ("dn\r", "dn")}
+        for index, (old, new) in quantity_keys.items():
+            self.assertEqual(self.recorded[index]["key"], old)
+            self.assertEqual(replay[index]["key"], new)
+            self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
         self.assertEqual(
             [
                 index
                 for index in range(STOP + 1)
-                if (replay[index]["key"], replay[index]["reason"])
+                if (self.recorded[index]["key"] if index in quantity_keys
+                    else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             [*STALE_GATE_WINDOW, STOP],
