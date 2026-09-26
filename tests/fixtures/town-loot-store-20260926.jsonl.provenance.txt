@@ -1,0 +1,5 @@
+Source: C:/hengband/bot-client/jsonlog/incident-20260926-1848-town-owner-retired-loot.state.jsonl.gz and .decisions.jsonl.gz
+Rows: decision 33898 -> state row 1454; 33899 -> 1455; 33900 -> 1458; 33901 -> 1459 (zero-based state indices).
+Boundary: each following input follows the preceding decision's timing.jsonl_drain_records emitter rows. State rows 1456 and 1457 are intermediate observations of the travel macro, not decision inputs.
+Selection: complete original state boards and recorded reason/key, without modified grids or coordinates. The test constructs a post-collection outside board separately because the recorded 33900/33901 boards belong to the divergent store-entry trajectory.
+Compressed SHA256: 6cf18440b200d73a1e84265a987fa8302f82332cfeae9f8bfe85f81bc530a4af

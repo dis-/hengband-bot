@@ -786,6 +786,20 @@ class TownMixin:
              if direction_key == key),
             None,
         )
+        if (
+            direction is not None
+            and snapshot.store is None
+            and self.last_reason == "seek-loot"
+            and self._loot_target is not None
+            and self._loot_target not in self._deferred_loot
+            and (loot_grid := snapshot.grid_at(self._loot_target)) is not None
+            and loot_grid.currently_observed
+            and loot_grid.object_count > 0
+        ):
+            # The loot producer has already found a walkable route.  Its first
+            # step may detour around terrain, so distance to a shop (or the
+            # loot itself) is not a valid progress test for this owner.
+            return True
         if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
             return True
         goal = self._shopping_approach_goal
@@ -1085,7 +1099,8 @@ class TownMixin:
         """Enforce composable progress at the one downstream town-result seam."""
         proposed_reason = self.last_reason or ""
         if (
-            self._loot_target is not None
+            snapshot.store is None
+            and self._loot_target is not None
             and not self._emergency_return_active
             and (
                 self._shopping_approach_store_type is not None
