@@ -4095,8 +4095,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # fruitless board counts toward the executor's bounded release, once
         # per board (the driver re-decides the same board after a refused
         # post).  A command prepared on an earlier decision and never posted
-        # is discarded first.
+        # is discarded first, in the executor and in the equipment
+        # transaction that bound the same key (a key rewritten after
+        # ``_choose_key`` returned it leaves both halves prepared).
         discarded = self._equipment_mutation.discard_unposted()
+        if getattr(self, "_equipment_transaction_prepared_key", None) is not None:
+            self._discard_unposted_equipment_transaction_command()
         released = self._equipment_mutation.observe(
             snapshot,
             count_fruitless=(

@@ -6003,11 +6003,23 @@ class UnpostedEquipmentMutationTest(unittest.TestCase):
         mutation = policy._equipment_mutation
         self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
         self.assertEqual(key, mutation.prepared_key)
+        self.assertEqual(policy._equipment_transaction_prepared_key, key)
         # The driver posted a different key (a rewrite after production).
         self.assertFalse(policy.confirm_key_posted("\x1b"))
-        with patch.object(policy, "_equipment_wield", return_value=None):
-            policy.choose_key(self._next_board(board))
-        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.IDLE)
+        failed_before = set(policy._equipment_transaction_failed_items)
+        # The next board is decided unpatched: both halves of the unposted
+        # command are discarded at the entry, so the transaction is neither
+        # blocked (equip-dispatch-rejected) nor abandoned; it re-prepares the
+        # same wield.
+        again = policy.choose_key(self._next_board(board))
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        self.assertEqual(session.blockers, [])
+        self.assertEqual(again, key)
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+        self.assertEqual(mutation.state, equipment_mutation_module.EquipmentMutationState.PREPARED)
+        self.assertEqual(policy._equipment_transaction_prepared_key, key)
+        self.assertEqual(policy._equipment_transaction_failed_items, failed_before)
         self.assertEqual(
             policy.consume_pending_mutation_report(),
             "posting-contract:equipment-mutation-unposted-discarded",
