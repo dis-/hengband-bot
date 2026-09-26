@@ -7529,7 +7529,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy = HengbotPolicy()
         key = _public_shop_inner(self, policy, snap)
 
-        self.assertEqual(key, "d099\ry")
+        # The current two-wand stack supplies the exact quantity. The game's
+        # input_quantity clamps 99 to two, so the former answer sold all too.
+        self.assertEqual(key, "d02\ry")
         self.assertNotEqual(key, evidence["attempts"][0]["key"])
 
     def test_live_shaped_sale_reaches_price_confirm_and_gold_delta(self):

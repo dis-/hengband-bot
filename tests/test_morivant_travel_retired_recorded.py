@@ -120,8 +120,12 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
     def test_m0_replay_matches_recorded_lifetime_before_the_terminal(self):
         decided, _progress, _stall = self._replay()
         recorded = self.boundaries["recorded"]
+        # R4: sequence 683 deposits one item from a stack of eleven. The
+        # recording omitted the quantity answer (db ESC), while the current
+        # key answers the prompt (db 1 Return ESC). Subsequent captured boards
+        # are effects of the old key, so compare only through that boundary.
         divergent = [
-            sequence for sequence in range(1, TERMINAL)
+            sequence for sequence in range(1, 683)
             if decided[sequence] != recorded[sequence - 1]
         ]
         # melee-threat-p95-adjacency (user 2026-09-22) moved exactly these
@@ -134,6 +138,8 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         # 131 / 416).  The recorded boards after each are the live keys'
         # effects; the town walk 699..708 below is unaffected.
         self.assertEqual(divergent, [153, 155, 158, 618, 620])
+        self.assertEqual(recorded[682], ["db\x1b", "home:atomic-deposit"])
+        self.assertEqual(decided[683], ["db1\r\x1b", "home:atomic-deposit"])
         self.assertEqual(recorded[TERMINAL - 1], ["5", "town:blocked:owner-retired"])
 
     def test_m1_recorded_walk_closing_its_distance_is_not_retired(self):

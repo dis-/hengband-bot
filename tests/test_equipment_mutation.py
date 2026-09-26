@@ -173,6 +173,242 @@ class EquipmentMutationExecutorTest(unittest.TestCase):
         self.assertEqual(ex.state, EquipmentMutationState.IDLE)
         self.assertEqual(ex.refusals, 0)
 
+    def test_cosmetic_worn_changes_do_not_complete_a_posted_wield(self):
+        # Recorded 2026-09-10 destroy-superior-digger boards 2105-2109: a
+        # combat re-wield was posted while only the worn lantern's fuel figure
+        # changed.  Neither that nor an inscription/learned-flag suffix is
+        # the wield's effect.
+        shovel = item("main_hand", "Shovel (1d2)", tval=20, digger=True)
+        lantern = item("light", "Brass Lantern (5146 turns of light)", tval=39)
+        sword = item("n", "Sword", tval=23, melee=True)
+        before = board(equipment=(shovel, lantern), inventory=(sword,))
+        ex = EquipmentMutationExecutor()
+        posted = ex.request_wield(before, "combat-loadout", sword, "main_hand", SLOTS)
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        cosmetic = [
+            board(
+                equipment=(
+                    shovel,
+                    SimpleNamespace(
+                        **{**vars(lantern), "name": "Brass Lantern (5145 turns of light)"}
+                    ),
+                ),
+                inventory=(sword,),
+            ),
+            board(
+                equipment=(
+                    SimpleNamespace(
+                        **{**vars(shovel), "name": "Shovel (1d2) {@w1}",
+                           "inscription": "@w1", "fully_known": False}
+                    ),
+                    lantern,
+                ),
+                inventory=(sword,),
+            ),
+        ]
+        for snap in cosmetic:
+            ex.observe(snap)
+            self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(item("main_hand", "Sword", tval=23, melee=True), lantern),
+            inventory=(item("n", "Shovel (1d2)", tval=20, digger=True),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_ring_swap_completes_on_the_requested_slot(self):
+        # Recorded 2026-09-26 departure-unsatisfiable-weight 59-61: 'te' took
+        # the sub_ring off, 'wm)' wore the other ring there.
+        def ring(slot, name, sval):
+            return SimpleNamespace(**{**vars(item(slot, name, tval=45)), "sval": sval})
+
+        dex = ring("sub_ring", "Ring of Dexterity (+2)", 43)
+        ice = ring("m", "Ring of Ice [+12]", 19)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(dex,), inventory=(ice,))
+        takeoff = ex.request_takeoff(on, "transaction-apply", "e")
+        ex.bind_post_snapshot(on)
+        ex.confirm_posted(takeoff.key)
+        ex.observe(on)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        off = board(inventory=(ice, ring("n", "Ring of Dexterity (+2)", 43)))
+        ex.observe(off)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+        wield = ex.request_wield(
+            off, "transaction-apply", ice, "sub_ring",
+            {"main_ring": "d", "sub_ring": "e"},
+        )
+        self.assertEqual(wield.key, "wm)")
+        ex.bind_post_snapshot(off)
+        ex.confirm_posted(wield.key)
+        ex.observe(off)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(ring("sub_ring", "Ring of Ice [+12] {.}", 19),),
+            inventory=(ring("n", "Ring of Dexterity (+2)", 43),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_disenchanting_the_slot_occupant_does_not_complete_a_wield(self):
+        # gpt-6-sol r3 P1: the requested sword is still in the pack while the
+        # weapon already in the target slot loses its bonuses.
+        def weapon(slot, name, sval, to_h, to_d):
+            return SimpleNamespace(
+                **{**vars(item(slot, name, tval=23, melee=True)),
+                   "sval": sval, "to_h": to_h, "to_d": to_d, "weight": 150}
+            )
+
+        dagger = weapon("main_hand", "Dagger (1d4) (+5,+5)", 4, 5, 5)
+        sword = weapon("n", "Long Sword (2d5) (+3,+3)", 17, 3, 3)
+        ex = EquipmentMutationExecutor()
+        before = board(equipment=(dagger,), inventory=(sword,))
+        posted = ex.request_wield(before, "combat-loadout", sword, "main_hand", SLOTS)
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        disenchanted = board(
+            equipment=(weapon("main_hand", "Dagger (1d4) (+3,+4)", 4, 3, 4),),
+            inventory=(sword,),
+        )
+        ex.observe(disenchanted)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        wielded = board(
+            equipment=(SimpleNamespace(**{**vars(sword), "slot": "main_hand"}),),
+            inventory=(SimpleNamespace(**{**vars(dagger), "slot": "n"}),),
+        )
+        ex.observe(wielded)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    @staticmethod
+    def _gear(slot, name, tval, sval, **fields):
+        return SimpleNamespace(**{
+            **vars(item(slot, name, tval=tval)),
+            "sval": sval, "weight": fields.pop("weight", 50), "aware": True,
+            "is_ego": False, "is_artifact": False, "to_h": 0, "to_d": 0,
+            "to_a": 0, "ac": 0, "pval": 0, "damage_dice_num": 0,
+            "damage_dice_sides": 0, "fuel": 0, **fields,
+        })
+
+    def _post_wield(self, before, requested, slot):
+        ex = EquipmentMutationExecutor()
+        from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+
+        posted = ex.request_wield(
+            before, "light-loadout", requested, slot, EQUIPMENT_SLOT_KEY
+        )
+        ex.bind_post_snapshot(before)
+        self.assertTrue(ex.confirm_posted(posted.key))
+        return ex
+
+    def test_same_kind_swaps_complete(self):
+        # Opus r4 P1: a wield replacing an item of the same kind.
+        gear = self._gear
+        low = gear("light", "Brass Lantern (120 turns)", 39, 2, fuel=120)
+        full = gear("f", "Brass Lantern (7500 turns)", 39, 2, fuel=7500)
+        unknown = gear("f", "Brass Lantern", 39, 2, known=False)
+        dagger = gear("main_hand", "Dagger (1d4) (+1,+1)", 23, 4,
+                      to_h=1, to_d=1, damage_dice_num=1, damage_dice_sides=4)
+        better = gear("g", "Dagger (1d4) (+9,+9)", 23, 4,
+                      to_h=9, to_d=9, damage_dice_num=1, damage_dice_sides=4)
+        cases = (
+            ("known lantern", low, full, "light",
+             SimpleNamespace(**{**vars(full), "slot": "light", "fuel": 7499})),
+            ("unknown lantern", low, unknown, "light",
+             SimpleNamespace(**{**vars(unknown), "slot": "light",
+                                "known": True, "fuel": 3000})),
+            ("dagger", dagger, better, "main_hand",
+             SimpleNamespace(**{**vars(better), "slot": "main_hand"})),
+        )
+        for name, worn, requested, slot, after in cases:
+            with self.subTest(name):
+                ex = self._post_wield(
+                    board(equipment=(worn,), inventory=(requested,)),
+                    requested, slot,
+                )
+                back = SimpleNamespace(**{**vars(worn), "slot": requested.slot})
+                ex.observe(board(equipment=(after,), inventory=(back,)))
+                self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
+    def test_fuel_tick_of_the_same_lantern_does_not_complete_a_swap(self):
+        gear = self._gear
+        low = gear("light", "Brass Lantern (120 turns)", 39, 2, fuel=120)
+        full = gear("f", "Brass Lantern (7500 turns)", 39, 2, fuel=7500)
+        ex = self._post_wield(board(equipment=(low,), inventory=(full,)), full, "light")
+        ticked = SimpleNamespace(
+            **{**vars(low), "name": "Brass Lantern (119 turns)", "fuel": 119}
+        )
+        ex.observe(board(equipment=(ticked,), inventory=(full,)), count_fruitless=True)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+
+    def test_full_pack_takeoff_releases_within_the_limit(self):
+        # Opus r4 P2: the taken-off item was dropped (full pack), so the
+        # takeoff's effect never shows; nothing requests another mutation.
+        from hengbot.policy_constants import EQUIPMENT_MUTATION_RELEASE_LIMIT
+
+        shovel = self._gear("sub_hand", "Shovel", 20, 1, weight=60)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(shovel,))
+        posted = ex.request_takeoff(on, "combat-loadout", "b")
+        ex.bind_post_snapshot(on)
+        ex.confirm_posted(posted.key)
+        dropped = board()
+        reports = [
+            ex.observe(dropped, count_fruitless=True)
+            for _ in range(EQUIPMENT_MUTATION_RELEASE_LIMIT)
+        ]
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+        self.assertEqual(
+            reports,
+            [None] * (EQUIPMENT_MUTATION_RELEASE_LIMIT - 1)
+            + ["posting-contract:equipment-mutation-released"],
+        )
+
+    def test_a_request_on_a_counted_board_does_not_count_it_twice(self):
+        shovel = self._gear("sub_hand", "Shovel", 20, 1, weight=60)
+        ex = EquipmentMutationExecutor()
+        on = board(equipment=(shovel,))
+        ex.confirm_posted(ex.request_takeoff(on, "combat-loadout", "b").key)
+        ex.observe(on, count_fruitless=True)
+        for _request in range(2):
+            refused = ex.request_takeoff(on, "combat-loadout", "b")
+            self.assertEqual(
+                refused.report, "posting-contract:equipment-mutation-unobserved"
+            )
+        self.assertEqual(ex.refusals, 1)
+
+    def test_restored_old_expectation_ignores_a_fuel_tick(self):
+        # gpt-6-sol r3 P2: a checkpoint restored from before the requested-
+        # item rule carries the whole worn signature (names included).
+        from hengbot.equipment_mutation import equipment_signature
+
+        shovel = item("main_hand", "Shovel (1d2)", tval=20, digger=True)
+        lantern = item("light", "Brass Lantern (5146 turns of light)", tval=39)
+        sword = item("n", "Sword", tval=23, melee=True)
+        before = board(equipment=(shovel, lantern), inventory=(sword,))
+        ex = EquipmentMutationExecutor(
+            state=EquipmentMutationState.POSTED,
+            goal="combat-loadout",
+            expected_signature=equipment_signature(before),
+        )
+        ticked = board(
+            equipment=(
+                shovel,
+                SimpleNamespace(
+                    **{**vars(lantern), "name": "Brass Lantern (5145 turns of light)"}
+                ),
+            ),
+            inventory=(sword,),
+        )
+        ex.observe(ticked)
+        self.assertEqual(ex.state, EquipmentMutationState.POSTED)
+        worn = board(
+            equipment=(item("main_hand", "Sword", tval=23, melee=True), lantern),
+            inventory=(item("n", "Shovel (1d2)", tval=20, digger=True),),
+        )
+        ex.observe(worn)
+        self.assertEqual(ex.state, EquipmentMutationState.IDLE)
+
     def test_stacked_split_is_not_progress_and_gold_is(self):
         stacked = board(inventory=(item("s", "Shovel", count=2, digger=True),))
         split = board(

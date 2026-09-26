@@ -40,7 +40,9 @@ own functions (rev 10.1 item 11).  (c) counts one final ending per claim id.
 
 Last, the S2b.2 bar table (design 3.2 / 3.3, ``ownership_metrics.bar_numbers``):
 would-bar events per owner (decisions whose owner and goal met a standing bar;
-with the switch off they are only recorded), bars set per owner and kind, the
+with the switch off they are only recorded), the would-skip decisions of the
+gated rungs (what the switch, deciding before a rung runs, would skip), bars
+set per owner and kind, the
 lifetimes of the bars lifted, the bars still standing when a session ended,
 and the rungs a bar skipped (switch on only).
 """
@@ -278,6 +280,13 @@ def bar_report(rows, hours: float | None = None) -> list[str]:
         )
     if not bars["still_barred"]:
         lines.append("    (none)")
+    would_skip = bars["would_skip"]
+    lines.append(
+        f"would-skip decisions (a gated rung while its bar stood)        "
+        f"{would_skip['count']:>5}   per runtime hour {rate(would_skip['count'])}"
+    )
+    for rung, times in would_skip["by_rung"].items():
+        lines.append(f"    {rung:<48} {times}")
     skipped = bars["skipped"]
     lines.append(
         f"rungs skipped by a bar (switch on only)                        "

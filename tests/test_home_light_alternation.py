@@ -130,6 +130,61 @@ def _consume_response(policy: ConservativePolicy, response: dict) -> None:
         policy.consume_home_knowledge(tuple(_parse_items(knowledge.get("items", ()))))
 
 
+TAIL = range(487, 568)
+
+
+def _own_home_or_takeoff(reason: str, key: str) -> bool:
+    """A replay decision that itself moves an item to/from Home or takes off."""
+    return (
+        "deposit" in reason
+        or "withdraw" in reason
+        or (key or "").startswith("t")
+    )
+
+
+def _tail_alternation_violations(records, recorded_keys, snapshots):
+    """Violations of the tail property (see test_pin_s_and_c_incident_trajectory).
+
+    ``records`` maps sequence -> (replay reason, replay key); ``recorded_keys``
+    maps sequence -> the live recorded key; ``snapshots`` maps sequence -> the
+    recorded board.  Returns human-readable violations (empty when clean).
+    """
+    violations = []
+    wields = [
+        sequence for sequence in TAIL if records[sequence][0] == "wield-light"
+    ]
+    # (1) No own alternation: between two replay wield-light rows the replay
+    # itself emits no Home deposit/withdrawal and no takeoff.
+    for first, second in zip(wields, wields[1:]):
+        for sequence in range(first + 1, second):
+            reason, key = records[sequence]
+            if _own_home_or_takeoff(reason, key):
+                violations.append(
+                    f"own {reason!r} {key!r} at {sequence} between wield-light "
+                    f"{first} and {second}"
+                )
+    # (2) Each replay wield-light answers the recording: its board has an
+    # empty light slot and the recorded live key just before it is a takeoff.
+    for sequence in wields:
+        board = snapshots[sequence]
+        if any(item.is_light for item in board.equipment):
+            violations.append(f"wield-light at {sequence} on a worn-light board")
+        if not (recorded_keys.get(sequence - 1) or "").startswith("t"):
+            violations.append(
+                f"wield-light at {sequence} not after a recorded live takeoff"
+            )
+    # (3) Bounded by the recording: no more wields than live takeoffs.
+    live_takeoffs = sum(
+        1 for sequence in TAIL
+        if (recorded_keys.get(sequence) or "").startswith("t")
+    )
+    if len(wields) > live_takeoffs:
+        violations.append(
+            f"{len(wields)} wield-light rows exceed {live_takeoffs} live takeoffs"
+        )
+    return violations
+
+
 class HomeLightAlternationPins(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -199,16 +254,90 @@ class HomeLightAlternationPins(unittest.TestCase):
         # Sequences >= 487 are past the divergence: 「記録リプレイは実機の判断と
         # 食い違った時点で打ち切る」, so do not pin counterfactual trajectory rows.
         self.assertNotEqual(self.records[500][0], "wield-light")
-        tail = [self.records[sequence][0] for sequence in range(487, 568)]
         # The open-page deposit now closes its visit as store-context-exit, so
-        # the one identified-light equip is legitimate.  The protective value
-        # is that it occurs once, never alternates with another Home deposit.
-        self.assertLessEqual(tail.count("wield-light"), 1)
+        # an identified-light equip is legitimate.  The protective value is
+        # that it never alternates with the replay's own Home deposit: R4
+        # (stop pinning at the divergence) forbids pinning a count on this
+        # counterfactual board stream.  2026-09-26 (departure-unsatisfiable-
+        # weight r7): the replay wields at 512 and 518; each board's empty
+        # light slot comes from the recorded LIVE takeoff 'tg' at 511 / 517,
+        # and between them the replay posts no Home operation or takeoff.  The
+        # former bare count (<= 1) held on base 6de8446a only because the
+        # executor still treated the 512 wield as in flight after boards
+        # 513-516 showed it worn (the stale POSTED that incident fixes), so
+        # 518 was refused.  The property itself is asserted instead.
+        self.assertEqual(
+            _tail_alternation_violations(
+                self.records,
+                {sequence: expected[sequence][1] for sequence in expected},
+                self.snapshots,
+            ),
+            [],
+        )
         # The identify-first Home refusal that this window used to witness is no
         # longer reached by the diverged replay; its protection lives in
         # tests.test_policy_equipment
         # .test_withdraw_transaction_cycle_falls_through_without_redeposit,
         # which drives _equipment_transaction_home_key directly.
+
+    def test_tail_property_rejects_an_own_alternation(self):
+        """Revert-proof for the tail property on altered trajectories."""
+        recorded_keys = {
+            row["decision"]["decision_sequence"]: row["decision"]["key"]
+            for row in self.rows
+        }
+        clean = _tail_alternation_violations(
+            self.records, recorded_keys, self.snapshots
+        )
+        self.assertEqual(clean, [])
+        wields = [
+            sequence for sequence in TAIL
+            if self.records[sequence][0] == "wield-light"
+        ]
+        self.assertEqual(wields, [512, 518])
+        # (1) The original alternation: the replay itself deposits at Home
+        # between two wield-light rows.
+        altered = dict(self.records)
+        altered[515] = ("home:atomic-deposit", "dk\r\x1b")
+        self.assertTrue(any(
+            "own 'home:atomic-deposit'" in violation
+            for violation in _tail_alternation_violations(
+                altered, recorded_keys, self.snapshots
+            )
+        ))
+        # ... or takes the light off itself.
+        altered = dict(self.records)
+        altered[517] = ("equipment-transaction:takeoff", "tg")
+        self.assertTrue(any(
+            "own 'equipment-transaction:takeoff'" in violation
+            for violation in _tail_alternation_violations(
+                altered, recorded_keys, self.snapshots
+            )
+        ))
+        # (2) A wield-light not answering a recorded live takeoff.
+        altered = dict(self.records)
+        altered[514] = ("wield-light", "wk")
+        self.assertTrue(any(
+            "at 514" in violation
+            for violation in _tail_alternation_violations(
+                altered, recorded_keys, self.snapshots
+            )
+        ))
+        # (3) More wields than the recording's live takeoffs.
+        live_takeoff_boards = [
+            sequence + 1 for sequence in TAIL
+            if (recorded_keys.get(sequence) or "").startswith("t")
+        ]
+        altered = dict(self.records)
+        for sequence in live_takeoff_boards:
+            altered[sequence] = ("wield-light", "wk")
+        altered[488] = ("wield-light", "wk")
+        self.assertTrue(any(
+            "exceed" in violation
+            for violation in _tail_alternation_violations(
+                altered, recorded_keys, self.snapshots
+            )
+        ))
 
     def test_pin_late_home_response_is_recovered_at_decision_449(self):
         """The fixture wall follows the real replay producer in ``setUpClass``."""

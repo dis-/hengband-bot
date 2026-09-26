@@ -96,16 +96,24 @@ class DestroySuperiorItemGuardTest(unittest.TestCase):
         rows = captured_rows()
         policy = HengbotPolicy()
         posted_snapshot = None
+        wields = []
         for row in rows:
             snapshot = parse_snapshot(row["snapshot"], {})
             key = policy.choose_key(snapshot)
             if key:
                 policy.confirm_key_posted(key)
+            if key and key.startswith("w"):
+                wields.append((row["decision"]["decision_sequence"], key))
             if row["decision"]["decision_sequence"] == 2109:
-                self.assertEqual(key, "wna")
                 posted_snapshot = snapshot
                 break
 
+        # The combat re-wield is posted once (2105) and stays in flight: the
+        # boards up to 2109 change only the worn lantern's fuel figure, which
+        # is not the wield's effect.  (Before 2026-09-26 r2 each fuel tick
+        # released it and 'wna' was re-posted at 2107 and 2109 while the
+        # first wield was still unobserved.)
+        self.assertEqual(wields, [(2105, "woa")])
         self.assertEqual(policy._equipment_mutation.state, EquipmentMutationState.POSTED)
         potion = next(
             item

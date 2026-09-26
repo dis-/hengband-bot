@@ -294,14 +294,34 @@ class GoalTypingTableTest(unittest.TestCase):
 
     def test_a_refinement_never_leaks_into_another_family(self):
         registry = _new_town_turn_arbiter().registry
+        # S3a composes these four Home operation keys into each transaction
+        # owner.  Pin every cross-family exception explicitly; new leaks must
+        # still fail this test.
+        composed_home = {
+            (family, prefix)
+            for family in ("equipment-txn", "calibration")
+            for prefix in (
+                "home:atomic-withdraw",
+                "home:atomic-deposit",
+                "home:leave-after-one-operation",
+                "home:atomic-withdraw-target-unobserved",
+            )
+        }
+        observed_composed = set()
         for row in GOAL_TYPING:
             census = registry[row.family].census_prefixes
             with self.subTest(family=row.family, prefix=row.prefix):
-                self.assertTrue(row.prefix.startswith(census))
-                if row.prefix not in census:
+                if (row.family, row.prefix) in composed_home:
+                    observed_composed.add((row.family, row.prefix))
+                    self.assertEqual(reason_owner_family(row.prefix), "home-visit")
+                else:
+                    self.assertTrue(row.prefix.startswith(census))
+                if (row.prefix not in census
+                        and (row.family, row.prefix) not in composed_home):
                     # a longer row is only reachable through its own family
                     self.assertEqual(reason_owner_family(row.prefix), row.family)
                 self.assertIn(row.kind, ("Reach", "Observe", "Terminal"))
+        self.assertEqual(observed_composed, composed_home)
 
     def test_every_reason_the_package_can_emit_is_typed(self):
         for reason in sorted(_reason_literals()):

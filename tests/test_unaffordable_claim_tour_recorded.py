@@ -98,6 +98,19 @@ CHOKE_ALTERNATION_FIXED = {
     3324: ("4", "detected:prepare-choke"),
     3325: ("5", "summoner:hold-choke"),
 }
+# The 2026-09-26 stale equipment-mutation gate fix (departure-unsatisfiable-
+# weight).  The recorded run's executor stayed POSTED after the board of list
+# index 2651 showed the re-equip of 2650 ('wq)') worn, because it observed
+# only when the next wield/takeoff was requested.  On that board the
+# space-deposit gate read the stale POSTED, so the decision entry preempted
+# the transaction with a Home knowledge scan; the decision entry now
+# observes the executor first, the space-deposit gate is open and the
+# transaction continues ('te') one decision earlier.  2652 awaits the
+# takeoff's confirmation, and from 2653 the replay decides as live.
+STALE_MUTATION_GATE_FIXED = {
+    2651: ("te", "equipment-transaction:takeoff"),
+    2652: ("5", "equipment-transaction:await-confirmation"),
+}
 # List indices (decision_sequence + 4 after the four shared probe sequences).
 AMMO_BUY = 4260        # decision 4256: 'pj21' 21 crossbow bolts, 7934 -> 7871
 HEALING_BUY = 4266     # decision 4262: 'pl' Potion of Healing, 7871 -> 3729
@@ -117,7 +130,10 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     "floor-changed": 10,
     # S3a R2: narrowing the home: catch-all makes the three non-operation
     # Home keys Terminal, so they no longer open generic Observe claims.
-    "home-knowledge-current": 9,
+    # Main's quantity answer on the first Home deposit (index 5) changes the
+    # early Home observation sequence.  The merged replay measures eight
+    # completed scan claims; round 6 measured nine.
+    "home-knowledge-current": 8,
     "entered-store": 5,
     # R5: the completion recorder now closes the two sessions attributed to
     # calibration (tour 3018 and 3032), rather than leaving their claims open.
@@ -294,6 +310,48 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             cls.lines = list(stream)
         assert len(cls.lines) == sum(cls.boundaries["input_rows"])
 
+    def test_s0_replay_stops_at_first_changed_home_deposit(self):
+        """Recorded boards are authoritative only until the first changed key."""
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy, monrace = _live_like_policy(directory)
+            cursor = 0
+            for index, count in enumerate(self.boundaries["input_rows"]):
+                segment = self.lines[cursor:cursor + count]
+                cursor += count
+                _decoded, snapshots = _consume_response_sequence(
+                    segment, policy, lambda _key: True, monrace,
+                    knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                snapshot = snapshots[-1]
+                policy._experience_drain_known = _drain_unknown
+                recorded_reason = self.boundaries["recorded"][index][1]
+                if recorded_reason == "periodic:game-save":
+                    policy.request_game_save()
+                elif recorded_reason == "periodic:character-dump":
+                    policy.request_character_dump()
+                key = policy.choose_key(snapshot)
+                key = policy.validate_read_key(snapshot, key)
+                decided = (str(key), policy.last_reason)
+                recorded = tuple(self.boundaries["recorded"][index])
+                expected_previous_fix = (
+                    CHOKE_ALTERNATION_FIXED.get(index)
+                    or STALE_MUTATION_GATE_FIXED.get(index)
+                )
+                if decided != recorded and decided != expected_previous_fix:
+                    self.assertEqual(index, 5, (recorded, decided))
+                    self.assertEqual(recorded, ("db\x1b", "home:atomic-deposit"))
+                    self.assertEqual(decided, ("db1\r\x1b", "home:atomic-deposit"))
+                    selected = next(item for item in snapshot.inventory if item.slot == "b")
+                    self.assertEqual(selected.count, 11)
+                    return
+                register = policy._claim_register
+                policy._claim_register = copy.copy(register)
+                _recorded_process_capture(policy, snapshot)
+                policy._claim_register = register
+                policy.confirm_key_posted(key)
+        self.fail("recorded Home quantity divergence was not reached")
+
     @classmethod
     def _replay(cls):
         """Drive the recorded lifetime through the Healing purchase, then decide."""
@@ -423,23 +481,6 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 decisions, decided, state, follow_up, claim_view, required,
             )
         return cls.replay
-
-    def test_s0_replay_matches_recorded_lifetime_through_the_healing_purchase(self):
-        decisions, *_rest = self._replay()
-        recorded = self.boundaries["recorded"]
-        divergent = {
-            index
-            for index, decided in decisions.items()
-            if list(decided) != recorded[index]
-        }
-        self.assertEqual(
-            divergent, KNOWN_HARNESS_DIVERGENCES | set(CHOKE_ALTERNATION_FIXED)
-        )
-        self.assertEqual(
-            {index: decisions[index] for index in CHOKE_ALTERNATION_FIXED},
-            CHOKE_ALTERNATION_FIXED,
-        )
-        self.assertEqual(len(decisions), AFTER_PURCHASES)
 
     def test_u2_affordable_optional_purchases_still_happen(self):
         decisions, *_rest = self._replay()

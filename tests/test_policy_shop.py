@@ -3474,6 +3474,26 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         ):
             self.assertEqual(policy._batch_sell_key(snap), "d0y")
 
+    def test_batch_sale_quantity_tracks_selected_stack_and_surplus(self):
+        stack = replace(
+            item("x", TVAL_WAND, 1, count=11, name="eleven wands"),
+            inscription="@0",
+        )
+        snap = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [], inventory=[stack],
+            store=StoreState(store_type=STORE_MAGIC, items=[]), town_flag=True,
+        )
+        policy = HengbotPolicy()
+        with patch.object(policy, "_retention_surplus", return_value=1):
+            self.assertEqual(policy._batch_sale_entry(snap, stack, "0")["sell"], "d01\ry")
+        with patch.object(policy, "_retention_surplus", return_value=0):
+            self.assertEqual(policy._batch_sale_entry(snap, stack, "0")["sell"], "d011\ry")
+        singleton = replace(stack, count=1)
+        one = replace(snap, inventory=[singleton])
+        with patch.object(policy, "_retention_surplus", return_value=1):
+            self.assertEqual(policy._batch_sale_entry(one, singleton, "0")["sell"], "d0y")
+
     def test_collision_evidence_reinscribes_intended_item_before_sale(self):
         evidence = json.loads(
             Path("tests/fixtures/sale_inscription_collision_20260810.json")
@@ -7646,7 +7666,7 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
 
         self.assertEqual(policy._retention_reservation(town, speed), 10)
         self.assertTrue(policy._home_deposit_candidate(speed, town))
-        self.assertEqual(policy._home_deposit_key(town, speed), "ds")
+        self.assertEqual(policy._home_deposit_key(town, speed), "ds1\r")
 
     def test_buys_one_speed_then_one_healing_when_affordable(self):
         wares = [

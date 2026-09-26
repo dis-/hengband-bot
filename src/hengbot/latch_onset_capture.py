@@ -51,6 +51,9 @@ _CAPTURE_STATE_NAMES = frozenset(
         "_map_predicate_snapshot",
         "_decision_input_snapshot",
         "_town_fact_snapshot",
+        # The board identity the equipment executor last counted; a restored
+        # checkpoint decides a new board.
+        "_equipment_mutation_counted_board",
         # An approach emission is confirmable only in the live decision that
         # produced it.  A restored checkpoint has not posted that emission.
         "_staged_shop_approach",
@@ -98,6 +101,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_map_predicate_snapshot", None)
     restored.__dict__.setdefault("_decision_input_snapshot", None)
     restored.__dict__.setdefault("_town_fact_snapshot", None)
+    restored.__dict__.setdefault("_equipment_mutation_counted_board", None)
     # Checkpoints created before recovery pickup observation existed must be
     # upgraded explicitly; trajectory replay is evidence and may not hide a
     # missing attribute behind a broad exception.

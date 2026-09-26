@@ -445,10 +445,14 @@ class PureDecisionTelemetryTest(unittest.TestCase):
         )
         # Substrate fidelity: the window replays the recorded decisions
         # (the town visit opens on the skill-exp-unknown ~f request).
-        self.assertEqual(
-            [list(pair) for pair, _silent in lockstep.decisions],
-            boundaries["recorded"][:TOUR_WINDOW],
-        )
+        decisions = [list(pair) for pair, _silent in lockstep.decisions]
+        # The captured b stack holds eleven potions. A one-item Home deposit
+        # now answers input_quantity at index 5; compare the remaining frozen
+        # stream modulo that exact response (R4).
+        self.assertEqual(boundaries["recorded"][5], ["db\x1b", "home:atomic-deposit"])
+        self.assertEqual(decisions[5], ["db1\r\x1b", "home:atomic-deposit"])
+        decisions[5] = boundaries["recorded"][5]
+        self.assertEqual(decisions, boundaries["recorded"][:TOUR_WINDOW])
         self.assertEqual(lockstep.decisions[0][0][1], "periodic:skill-exp-knowledge")
         self.assertEqual(
             sum(pair[1] == "town:recall-to-angband" for pair, _ in lockstep.decisions), 1
@@ -495,17 +499,24 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             key = silent.validate_read_key(board, silent.choose_key(board))
             replayed.append([str(key), silent.last_reason])
             silent.confirm_key_posted(key)
-        # Substrate fidelity: the capture-free replay is the recording, board
-        # for board, apart from the eight decisions where the choke-alternation
-        # fix answers the recorded defect (each one is pinned, not skipped).
+        # R4: the b stack has eleven potions at both Home deposits. The
+        # corrected one-item quantity answer changes keys 5 and 2054 only;
+        # compare the later frozen stream modulo those exact answers and the
+        # previously declared choke fix.
+        quantity_indices = (5, 2054)
+        for index in quantity_indices:
+            self.assertEqual(recorded[index], ["db\x1b", "home:atomic-deposit"])
+            self.assertEqual(replayed[index], ["db1\r\x1b", "home:atomic-deposit"])
+        # Substrate fidelity: every other capture-free replay decision is the
+        # recording, apart from the pinned choke-alternation decisions.
         self.assertEqual(
             [
                 pair for index, pair in enumerate(replayed)
-                if index not in CHOKE_ALTERNATION_FIXED
+                if index not in CHOKE_ALTERNATION_FIXED and index not in quantity_indices
             ],
             [
                 pair for index, pair in enumerate(recorded[:RECALL_WAIT])
-                if index not in CHOKE_ALTERNATION_FIXED
+                if index not in CHOKE_ALTERNATION_FIXED and index not in quantity_indices
             ],
         )
         self.assertEqual(

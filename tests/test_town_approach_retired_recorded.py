@@ -47,6 +47,20 @@ Walls, each declared:
   board without it.
 No wall touches the approach producer, the progress vector or the arbiter.
 
+DECLARED DIVERGENCE (2026-09-26 stale equipment-mutation gate fix,
+departure-unsatisfiable-weight): the recorded ``town:restore-combat-weapon``
+'wnb' (sequence 1917) posted a combat-loadout wield whose worn change the
+next board showed, but the executor observed only when a later wield or
+takeoff was requested, so it stayed POSTED through the recall.  The Home
+knowledge gate read that stale POSTED and held the combat-weapon knowledge
+request back.  The decision entry now observes the executor, so the request
+runs on the first board that wants it (list index 1944, sequence 1941),
+where live walked one more ``shop:approach`` step; the town work that
+follows shifts (Home withdrawal of the combat weapon before the character
+dump) and the replay follows recorded boards the fixed policy no longer
+produced until the recall board (1966).  From 1967 on every recorded
+decision, the approach walk included, is decided as live.
+
 B (orc-cave-residual-path, same capture): 06:22:31 ``town:recall-to-alt-
 dungeon`` 'rhc' read Word of Recall to the Orc cave (target 3, no alternate,
 streak 0), whose landing 23 is its guardian floor; at 06:22:50 the dive came
@@ -90,6 +104,8 @@ BOUNDARIES_SHA256 = (
 CALIBRATION_SHA256 = (
     "a90e4700854b1b3cf839a278a846078c7f9d768c82c058551c6f52173660016b"
 )
+STALE_GATE_FIRST = 1944  # sequence 1941: the combat-weapon knowledge request
+STALE_GATE_WINDOW = (1944, 1949, 1950, *range(1959, 1967))  # declared above
 BINDING_FROM = 2027  # store:entry-interrupted-replan, the first bound board
 WALK_START = 2036  # sequence 2032: the first shop:approach step after the fight
 WALK_END = 2050  # sequence 2046: the live retirement
@@ -117,9 +133,10 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # releases by name, and unadopted rebuilds provide no handoff evidence.
         # Amendment 6 counts the filed combat-weapon request duplicated at
         # 1916; the transaction's own Home deposit at 1179 continues it.
+        replay = self._replay()
         actual = [
             (claim["decision_sequence"], v["kind"], v["from"], v["to"])
-            for row in self._replay()
+            for row in replay
             if (claim := row["claim"])
             if isinstance(v := claim.get("violation"), dict)
             and v.get("scope") == "S3"
@@ -128,8 +145,25 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             (1177, "owner-change", "equipment-txn", "home-errand"),
             (1916, "purpose-duplicate", "home-errand", "equipment-txn"),
             (1922, "owner-change", "home-visit", "home-errand"),
-            (1958, "owner-change", "home-visit", "home-errand"),
+            # Main's quantity answer keeps this earlier store approach live
+            # when the filed Home knowledge request takes the decision.
+            (1941, "owner-change", "store-router", "home-errand"),
+            (1958, "owner-change", "home-errand", "shop-buy"),
         ])
+        operation = [
+            row["claim"] for row in replay
+            if 1960 <= row["claim"]["decision_sequence"] <= 1962
+        ]
+        self.assertEqual(len({row["claim_id"] for row in operation}), 1)
+        self.assertEqual([row["owner"] for row in operation], ["home-errand"] * 3)
+        observed_shop = next(
+            row["claim"] for row in replay
+            if row["claim"]["decision_sequence"] == 1942
+        )
+        self.assertEqual(
+            observed_shop["closed_claim"]["closed_reason"],
+            "shop-observation-interruption",
+        )
 
     @classmethod
     def setUpClass(cls):
@@ -245,7 +279,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                     # of the 06:22:31 recall, deciding twice on that board.
                     fixed = copy.deepcopy(policy)
                     cls.fixed_recall = []
-                    for _decision in range(2):
+                    for _decision in range(3):
                         row = cls._decide(fixed, snapshot, live_gate=False)
                         row.update(
                             alternate=fixed._alternate_dungeon,
@@ -310,14 +344,38 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ A1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
+        # R4: the selected deposits at 1178 (m) and 1906 (n) are singleton
+        # items. The old keys had an unused Return; compare the later frozen
+        # boards modulo only those exact quantity answers. The 1944-1966
+        # stale-gate window and 2051 terminal were already declared below;
+        # in particular 1964-1966 are not new quantity divergences.
+        quantity_keys = {1178: ("dm\r", "dm"), 1906: ("dn\r", "dn")}
+        for index, (old, new) in quantity_keys.items():
+            self.assertEqual(self.recorded[index]["key"], old)
+            self.assertEqual(replay[index]["key"], new)
+            self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
         self.assertEqual(
             [
                 index
                 for index in range(STOP + 1)
-                if (replay[index]["key"], replay[index]["reason"])
+                if (self.recorded[index]["key"] if index in quantity_keys
+                    else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            [STOP],
+            [*STALE_GATE_WINDOW, STOP],
+        )
+        # The declared divergence starts where the stale gate held the
+        # combat-weapon knowledge request back (live: one more approach step).
+        self.assertEqual(
+            (replay[STALE_GATE_FIRST]["key"], replay[STALE_GATE_FIRST]["reason"]),
+            ("~9\x1b\x1b", "home-errand:request-knowledge:combat-weapon"),
+        )
+        self.assertEqual(
+            (
+                self.recorded[STALE_GATE_FIRST]["key"],
+                self.recorded[STALE_GATE_FIRST]["reason"],
+            ),
+            ("9", "shop:approach"),
         )
 
     def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
@@ -364,6 +422,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             # R4's transaction Home steps (1179, 1885, 1893, 1899), the
             # step-off wrapper (1906), continuation (1907), and resumed
             # transaction claims (1887, 1895, 1901) account for 902 -> 893.
+            # The explicit shop-observation release keeps the subsequent
+            # resumed walk on the same recorded id as round 6.
             {(893, "active")},
         )
         self.assertEqual(
@@ -448,14 +508,25 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     def test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave(self):
         """User decisions 2026-09-25 (guardian-recall-pingpong r2/r3).
 
-        On the live state and the recorded board of the 06:22:31 recall the
-        fixed town router refuses the landing on the blocked guardian floor
-        and switches as the guardian valve does: the shallowest landing that
-        is not a blocked guardian floor, deeper allowed -- Forest (24).  The
-        same board then recalls to Forest instead of the Orc cave.
+        On the replayed state and the recorded board of the 06:22:31 recall
+        the fixed town router refuses the landing on the blocked guardian
+        floor and switches as the guardian valve does: the shallowest landing
+        that is not a blocked guardian floor, deeper allowed -- Forest (24).
+        The same board then recalls to Forest instead of the Orc cave.  The
+        replayed state is the live one but for the declared stale-gate
+        window (module docstring): live dumped the character at 1963, the
+        replay's town work there withdrew the combat weapon, so the pending
+        pre-departure dump is decided first on this board.
         """
         self._replay()
-        switch, recall = self.fixed_recall
+        dump, switch, recall = self.fixed_recall
+        self.assertEqual(
+            (dump["key"], dump["reason"]),
+            ("Cf\ry\x1b\x1b", "town:character-dump"),
+        )
+        self.assertEqual(
+            (dump["target"], dump["conquest"]), (ORC_CAVE, ORC_CAVE)
+        )
         # The recorded board stands on the Black Market entrance (the
         # 06:22:30 observe-and-leave), so the switch's WAIT is emitted as the
         # existing entrance step-off wrapper.

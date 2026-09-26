@@ -24,20 +24,23 @@ What is built
 * The lift pass at the exit (``_claim_bar_lift``, pure ``bar_after_board``):
   threat bars after ``DETECTED_THREAT_HOLD_MAX_GAME_TURNS`` game turns (the
   existing 50-turn clock) with none of the ``(index, race_id)`` triggers
-  perceived; errand bars when the arbiter no longer holds the owner retired
-  under the clearance key it held when the bar was set.
+  perceived; errand bars (round 2, user decision 2026-09-26) when the
+  *durable* part of the retirement clearance key changes -- never by the
+  player's own movement, no clock (``policy._claim_durable_clearance``).
 * ``would_bar`` on the decision row at the ``choose_key`` exit, plus
   ``bars_set`` / ``bars_lifted`` / ``bars_active`` / ``bar_skipped``; the
   ledger counts would-bars; ``ownership_metrics.bar_numbers`` and the report
   print would-bar events per owner and bar lifetimes.
 * The switch ``HengbotPolicy._claim_bar_enforced`` (a policy attribute,
   default False, never set by shipped code) and its plumbing
-  ``_claim_bar_gate``, wired around the trigger-family rungs of ``_decide``
-  whose producer writes its own reason and goal (``WIRED`` below).  The step
-  rungs whose reason ``_decide`` writes after the call (``_flee_step``,
-  ``_hunt_step``, ``_direction_key``) and the errand families (their rungs
-  are S3 work, design 3.3; the arbiter's in-gate retirement already keeps a
-  retired errand from acting) are not wired.
+  ``_claim_bar_skips``, asked by ``_decide`` *before* it calls a gated rung
+  (round 2): the rung is not called while a bar a claim of that rung earned
+  stands, so a barred producer spends none of its own state.  The gated rungs
+  (``claim_ladder.BAR_GATED_RUNGS``) are the threat-triggered rungs a bar can
+  carry that cannot answer survival -- whether an answer is survival is known
+  only after the rung has run.  Because the decision is taken before the
+  rung chooses its goal, the switch skips by rung; ``would_skip`` records
+  exactly that on the row, beside ``would_bar``'s owner-and-goal match.
 
 The pins
 --------
@@ -45,15 +48,19 @@ P1  class tests on the register and the policy's exit: a threat bar set on a
     positioning release, kept by a perceived trigger, lifted exactly after
     the 50-turn clock -- and a monster that reuses a trigger's index under
     another race does not keep it (revert-proof: index-only identity would);
-    an errand bar set on retirement stands while the arbiter's clearance key
-    is unchanged and lifts when the arbiter clears it; survival is never
-    barred (neither by a bar set, a would-bar, nor the gate); the endings
-    that bar nothing.
+    a walking errand bar survives the player's own steps (while the full
+    clearance key and the arbiter's retirement both change -- revert-proof)
+    and lifts on a gold or inventory change; survival is never barred
+    (neither by a bar set nor a would-bar, and no gated rung can answer
+    survival); the endings that bar nothing.
 P2  the recorded 2026-09-23 06:00 loot <-> prepare-choke capture:
     switch OFF -- keys and reasons byte-identical to the pre-S2b.2 replay and
     to the register-off replay, and the positioning owner's would-bar is
     recorded on every decision after its release; switch ON -- seek-loot
     owns every decision after the bar and the positioning rung is skipped.
+    Round 2: ON with a barred choke rung does not call the rung, so the choke
+    plan's counters are untouched (revert-proof: OFF, the same board spends
+    them).
 P3  metrics: the ledger's would-bar count and ``bar_numbers`` / the report
     over the same replay.
 P4  restored checkpoints: a register without ``_bars`` / ``_ended`` and a
@@ -69,7 +76,8 @@ P5  the three 2026-09-25 captures that still replay are pinned in their own
     seven ``target-lost`` hunt bars with three would-bars).
 
 Attributes S2b.2 adds (P4 covers each): ``ClaimRegister._bars``,
-``ClaimRegister._ended``; ``HengbotPolicy._claim_bar_enforced`` (``__init__``,
+``ClaimRegister._ended``; ``Bar.rung`` / ``Bar.reason`` (round 2, class
+defaults); ``HengbotPolicy._claim_bar_enforced`` (``__init__``,
 ``restore_checkpoint`` default False) and the per-decision slot
 ``_decision_bar_skips`` (reset at every ``choose_key`` entry, ``getattr`` in
 the writer, ``restore_checkpoint`` default).
@@ -84,6 +92,8 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare runs
 
 import ast
 import base64
+import inspect
+import textwrap
 import gzip
 import json
 import pickle
@@ -92,7 +102,16 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot.claim_ladder import CLAIM_LADDER, TRIGGER_FAMILIES, decide_rungs
+from hengbot.claim_goal_typing import (
+    SURVIVAL_REASON_PREFIXES,
+    SURVIVAL_RETURN_PREFIX,
+)
+from hengbot.claim_ladder import (
+    BAR_GATED_RUNGS,
+    CLAIM_LADDER,
+    TRIGGER_FAMILIES,
+    rung_named,
+)
 from hengbot.claim_register import (
     BAR_ERRAND,
     BAR_THREAT,
@@ -114,9 +133,11 @@ from hengbot.ownership_metrics import (
     read_records,
 )
 from hengbot.policy import DETECTED_THREAT_HOLD_MAX_GAME_TURNS, HengbotPolicy
+from hengbot.policy_types import ChokeEngagementPlan
 
 from test_ownership_claims import LEGACY_CHECKPOINT, _Replay
 from test_ownership_s2a1_closure import _fresh_policy, _town_board
+from test_ownership_s2b1b_close_pairs import _quiet_dungeon_board
 
 import ownership_metrics_report
 
@@ -125,25 +146,20 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY_SOURCE = ROOT / "src" / "hengbot" / "policy.py"
 HOLD = DETECTED_THREAT_HOLD_MAX_GAME_TURNS
 
-# The rungs of ``_decide`` wrapped by ``_claim_bar_gate`` (design 3.3's
-# plumbing): the trigger-family producers that write their own reason and goal.
-WIRED = (
-    "_esp_threat_hunt_key",
-    "_summoner_ranged_kill_key",
-    "_emergency_item",
-    "_paralyzer_prevention_key",
-    "_unseen_retreat_intercept_key",
-    "_unseen_retreat_key",
+# Round 2: the rungs ``_decide`` asks ``_claim_bar_skips`` about before it
+# calls them, in source order.
+GATED = (
     "_detected_threat_preparation_key",
     "_breeder_breakthrough_key",
     "_choke_engagement_key",
-    "_ranged_attack_key",
-    "_fruitless_disengage_key",
     "_breeder_breakthrough_escape_key",
-    "_melee_swarm_combat_key",
-    "_ranged_attack_key",
-    "_esp_threat_rest_key",
 )
+SKIPPED_PREPARATION = {
+    "rung": "_detected_threat_preparation_key",
+    "owner": "positioning",
+    "goal": {"kind": "Reach", "cell": [2, 102]},
+    "bar_since_turn": 4828338,
+}
 
 # P2: the 24 replayed boards of the 06:00 capture, as the pre-S2b.2 policy
 # (6de8446a) decided them -- keys and reasons, in order.
@@ -245,9 +261,10 @@ class ThreatBarTest(unittest.TestCase):
         self.assertEqual(
             {name: entry[name] for name in (
                 "owner", "goal", "kind", "since_turn", "triggers", "claim_id",
-                "ending", "last_perceived_turn",
+                "ending", "last_perceived_turn", "rung",
             )},
             {
+                "rung": "_detected_threat_preparation_key",
                 "owner": "positioning",
                 "goal": {"kind": "Reach", "cell": CHOKE_CELL},
                 "kind": BAR_THREAT,
@@ -328,10 +345,10 @@ class ThreatBarTest(unittest.TestCase):
         indices = frozenset({(47, 1105)})  # what an index-only reading sees
         turn = 100 + HOLD + 1
         self.assertIsNone(bar_after_board(
-            bar, turn=turn, perceived=pairs, hold=HOLD, retired={}
+            bar, turn=turn, perceived=pairs, hold=HOLD
         ))
         self.assertIsNotNone(bar_after_board(
-            bar, turn=turn, perceived=indices, hold=HOLD, retired={}
+            bar, turn=turn, perceived=indices, hold=HOLD
         ))
 
     def test_nothing_but_the_clock_lifts_it(self):
@@ -351,47 +368,128 @@ class ThreatBarTest(unittest.TestCase):
 
 
 class ErrandBarTest(unittest.TestCase):
-    """P1: a retired errand is barred until the clearance key changes."""
+    """P1, round 2: a walking errand bar lifts on its durable key only.
 
-    def test_an_errand_bar_lifts_on_a_clearance_key_change(self):
+    User decision 2026-09-26: a town-errand bar lifts only when the durable
+    part of the retirement clearance key changes (inventory, gold, equipment,
+    the quest and departure tuples), never by the player's own movement, and
+    no clock.  A store-router walk's clearance key is its progress vector,
+    whose locomotion part is the distance to the entrance: one step changes
+    the full key.
+    """
+
+    def _retired_walk(self):
         board = _town_board()
         run = _Run(board)
         policy = run.policy
         family = policy._claim_family_of("shop:approach")
+        self.assertEqual(family, "store-router")
         self.assertNotIn(family, TRIGGER_FAMILIES)
         arbiter = policy._town_turn_arbiter
-        cell = (board.player.position.y + 3, board.player.position.x)
-        first_key = ("clearance", 1)
-        arbiter._retired = {family: first_key}
+        arbiter.acquire_store_visit(
+            owner="store-router", purpose="s2b2-walk", store_type=1,
+            opened_sequence=policy._decision_sequence,
+            close_visit=policy._close_store_visit,
+        )
+        here = board.player.position
+        entrance = Position(here.y + 6, here.x + 2)
+        policy._shopping_approach_goal = entrance
+        cell = (entrance.y, entrance.x)
+        full = policy._town_retirement_clearance_key(
+            board, family, "shop:approach"
+        )
+        arbiter._retired = {family: full}
         arbiter.telemetry = {"retired": True, "producer_owner": family}
         retired = run.decide("shop:approach", cell=cell)
+        arbiter.telemetry = {"retired": False, "producer_owner": family}
         self.assertEqual(retired["state"], "retired")
         (entry,) = retired["bars_set"]
         self.assertEqual(
             (entry["owner"], entry["kind"], entry["ending"], entry["triggers"]),
             (family, BAR_ERRAND, "retired", []),
         )
-        self.assertEqual(run.register.bars[0].clearance, first_key)
-        # the arbiter re-evaluates the key on the next town board: unchanged
-        arbiter.telemetry = {"retired": False, "producer_owner": family}
-        arbiter.observe(
-            in_town=True, reason="shop:approach", progress_vector=("v", 1),
-            retirement_key_for=lambda owner: first_key,
+        self.assertEqual(run.register.bars[0].reason, "shop:approach")
+        self.assertEqual(
+            run.register.bars[0].clearance,
+            policy._claim_durable_clearance(full),
         )
-        kept = run.decide("shop:approach", cell=cell)
-        self.assertIsNone(kept["bars_lifted"])
-        self.assertEqual(kept["would_bar"]["owner"], family)
-        # the clearance key changes: the arbiter clears the retirement, and
-        # the bar lifts with it
-        arbiter.observe(
-            in_town=True, reason="shop:approach", progress_vector=("v", 2),
-            retirement_key_for=lambda owner: ("clearance", 2),
+        return run, board, family, cell
+
+    @staticmethod
+    def _stepped(board, steps=1):
+        here = board.player.position
+        return replace(
+            board,
+            turn=board.turn + 10 * steps,
+            player=replace(board.player, position=Position(here.y + steps, here.x)),
         )
-        self.assertNotIn(family, arbiter._retired)
-        lifted = run.decide("shop:approach", cell=cell)
-        (gone,) = lifted["bars_lifted"]
-        self.assertEqual((gone["owner"], gone["kind"]), (family, BAR_ERRAND))
-        self.assertIsNone(lifted["would_bar"])
+
+    def test_a_walking_errand_bar_survives_the_players_own_steps(self):
+        run, board, family, cell = self._retired_walk()
+        policy = run.policy
+        for steps in (1, 2, 3):
+            walked = self._stepped(board, steps)
+            with self.subTest(steps=steps):
+                # revert-proof: the full clearance key changed with the step,
+                # and the arbiter no longer holds the owner retired (both are
+                # what round 1 lifted on)
+                self.assertNotEqual(
+                    policy._town_retirement_clearance_key(
+                        walked, family, "shop:approach"
+                    ),
+                    policy._town_retirement_clearance_key(
+                        board, family, "shop:approach"
+                    ),
+                )
+                policy._town_turn_arbiter._retired = {}
+                row = run.decide("shop:approach", cell=cell, board=walked)
+                self.assertIsNone(row["bars_lifted"])
+                self.assertEqual(row["bars_active"], 1)
+                self.assertEqual(row["would_bar"]["owner"], family)
+        # no clock: a long wait on the same durable facts lifts nothing
+        later = replace(board, turn=board.turn + 100 * HOLD)
+        self.assertIsNone(run.decide("explore", cell=(1, 1), board=later)["bars_lifted"])
+
+    def test_it_lifts_on_a_gold_or_inventory_change(self):
+        for name, change in (
+            ("gold", lambda board: replace(
+                board, player=replace(board.player, gold=board.player.gold + 1)
+            )),
+            ("inventory", lambda board: replace(
+                board, inventory=list(board.inventory)[1:]
+            )),
+        ):
+            with self.subTest(change=name):
+                run, board, family, cell = self._retired_walk()
+                walked = self._stepped(board)
+                self.assertIsNone(
+                    run.decide("shop:approach", cell=cell, board=walked)[
+                        "bars_lifted"]
+                )
+                row = run.decide("shop:approach", cell=cell, board=change(walked))
+                (gone,) = row["bars_lifted"]
+                self.assertEqual((gone["owner"], gone["kind"]), (family, BAR_ERRAND))
+                self.assertEqual(row["bars_active"], 0)
+                self.assertIsNone(row["would_bar"])
+
+    def test_the_durable_part_of_each_key_shape(self):
+        policy = _Run(_town_board()).policy
+        durable = policy._claim_durable_clearance
+        # departure: the last element is the locomotion clearance
+        departure = ("departure", (0, 0, 0), True, 0, 5, (("hp_full", True),),
+                     ("locomotion", "departure", (0, 0, 0), 6, 8))
+        self.assertEqual(durable(departure), departure[:-1])
+        self.assertEqual(
+            durable(departure[:-1] + (("locomotion", "departure", (0, 0, 0), 5, 7),)),
+            durable(departure),
+        )
+        self.assertEqual(durable(departure[:-1] + (None,)), durable(departure))
+        # the quest route-unavailable tuples are durable already
+        quest = (("quest-enter-approach-route-unavailable", 3, 1), None, None)
+        self.assertEqual(durable(quest), quest)
+        # the progress vector: the locomotion part goes, the rest stays
+        vector = ("facts", ("locomotion", "store-router", (0, 0, 0), 6, 8))
+        self.assertEqual(durable(vector), ("facts",))
 
     def test_an_errand_released_without_retirement_is_not_barred(self):
         board = _town_board()
@@ -402,23 +500,24 @@ class ErrandBarTest(unittest.TestCase):
         row = run.decide("explore", cell=(1, 1))
         self.assertIsNone(row["bars_set"])
 
-    def test_a_bar_on_an_owner_the_arbiter_does_not_hold_lifts(self):
+    def test_the_pure_rule_has_no_clock(self):
         bar = Bar(
             owner=ClaimOwner.STORE_ROUTER, goal=reach((1, 1)), kind=BAR_ERRAND,
-            clearance=("k", 1),
+            clearance=("durable", 1), since_turn=5,
         )
-        standing = {"store-router": ("k", 1)}
-        self.assertIs(
-            bar_after_board(bar, turn=5, perceived=frozenset(), hold=HOLD,
-                            retired=standing),
-            bar,
-        )
-        for retired in ({}, {"store-router": ("k", 2)}, None):
-            with self.subTest(retired=retired):
-                self.assertIsNone(bar_after_board(
-                    bar, turn=5, perceived=frozenset(), hold=HOLD,
-                    retired=retired,
-                ))
+        for turn in (5, 5 + HOLD + 1, 5 + 1000 * HOLD):
+            with self.subTest(turn=turn):
+                self.assertIs(
+                    bar_after_board(
+                        bar, turn=turn, perceived=frozenset(), hold=HOLD,
+                        clearance_of=lambda _bar: ("durable", 1),
+                    ),
+                    bar,
+                )
+        self.assertIsNone(bar_after_board(
+            bar, turn=6, perceived=frozenset(), hold=HOLD,
+            clearance_of=lambda _bar: ("durable", 2),
+        ))
 
 
 class SurvivalAndEndingsTest(unittest.TestCase):
@@ -438,9 +537,8 @@ class SurvivalAndEndingsTest(unittest.TestCase):
         row = run.decide("explore", cell=(5, 5))
         self.assertIsNone(row["bars_set"])
 
-    def test_a_survival_decision_meets_no_would_bar_and_no_gate(self):
+    def test_a_survival_decision_meets_no_would_bar(self):
         run = _Run(self.board)
-        policy = run.policy
         run.register.set_bar(Bar(
             owner=ClaimOwner.ESCAPE, goal=reach((4, 4)), kind=BAR_THREAT,
             triggers=((47, 1105),), since_turn=self.board.turn,
@@ -449,16 +547,33 @@ class SurvivalAndEndingsTest(unittest.TestCase):
         row = run.decide("emergency:seek-upstairs", cell=(4, 4))
         self.assertTrue(row["survival"])
         self.assertIsNone(row["would_bar"])
-        # the gate, switched on, passes a survival answer through
-        policy._claim_bar_enforced = True
-        saved = policy._claim_bar_saved()
-        self.assertIsNotNone(saved)
-        policy.last_reason = "emergency:seek-upstairs"
-        policy._decision_goal = ("escape", reach((4, 4)), None)
-        self.assertEqual(policy._claim_bar_gate(self.board, saved, "7"), "7")
-        # the same goal under a non-survival escape reason is skipped
-        policy.last_reason = "breeder-breakthrough:seek-upstairs"
-        self.assertIsNone(policy._claim_bar_gate(self.board, saved, "7"))
+        self.assertIsNone(row["would_skip"])
+        # the same goal under a non-survival escape reason is recorded
+        other = run.decide("breeder-breakthrough:seek-upstairs", cell=(4, 4))
+        self.assertFalse(other["survival"])
+        self.assertEqual(other["would_bar"]["owner"], "escape")
+
+    def test_no_gated_rung_can_answer_survival(self):
+        prefixes = (*SURVIVAL_REASON_PREFIXES, SURVIVAL_RETURN_PREFIX)
+        for name in sorted(BAR_GATED_RUNGS):
+            rung = rung_named(name)
+            with self.subTest(rung=name):
+                self.assertIsNotNone(rung)
+                self.assertIn(rung.family, TRIGGER_FAMILIES)
+                # a bar can carry it: ``rung_of`` reaches it by a reason
+                self.assertTrue(rung.ordinary or rung.reasons)
+                source = textwrap.dedent(
+                    inspect.getsource(getattr(HengbotPolicy, rung.producer))
+                )
+                literals = {
+                    node.value for node in ast.walk(ast.parse(source))
+                    if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                }
+                self.assertEqual(
+                    sorted(text for text in literals if text.startswith(prefixes)),
+                    [],
+                )
+                self.assertNotIn("_esp_threat_leave_key", source)
 
     def test_the_endings_that_bar_nothing(self):
         run = _Run(self.board)
@@ -521,9 +636,9 @@ class SurvivalAndEndingsTest(unittest.TestCase):
 
 
 class SwitchTest(unittest.TestCase):
-    """The switch: an attribute, off, and the gate is the identity while off."""
+    """The switch: an attribute, off, and the pre-call question answers False."""
 
-    def test_the_switch_is_off_and_the_gate_passes_everything(self):
+    def test_the_switch_is_off_and_nothing_is_skipped(self):
         _skill, boards = _dungeon_boards()
         board = boards[2]
         policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
@@ -532,13 +647,17 @@ class SwitchTest(unittest.TestCase):
             owner=ClaimOwner.POSITIONING, goal=reach(CHOKE_CELL),
             kind=BAR_THREAT, since_turn=board.turn,
             last_perceived_turn=board.turn,
+            rung="_detected_threat_preparation_key",
         ))
-        policy.last_reason = "detected:prepare-choke"
-        policy._decision_goal = ("positioning", reach(CHOKE_CELL), None)
-        self.assertIsNone(policy._claim_bar_saved())
-        answer = "6"
-        self.assertIs(policy._claim_bar_gate(board, None, answer), answer)
-        self.assertEqual(policy.last_reason, "detected:prepare-choke")
+        for name in GATED:
+            self.assertIs(policy._claim_bar_skips(board, name), False)
+        self.assertIsNone(getattr(policy, "_decision_bar_skips", None))
+        policy._claim_bar_enforced = True
+        self.assertIs(
+            policy._claim_bar_skips(board, "_detected_threat_preparation_key"),
+            True,
+        )
+        self.assertIs(policy._claim_bar_skips(board, "_choke_engagement_key"), False)
 
     def test_the_shipped_sources_never_turn_it_on(self):
         for path in (ROOT / "src" / "hengbot").glob("*.py"):
@@ -555,35 +674,89 @@ class SwitchTest(unittest.TestCase):
                             self.assertIsInstance(node.value, ast.Constant)
                             self.assertIs(node.value.value, False)
 
-    def test_the_wired_rungs(self):
+    def test_the_gated_rungs_are_asked_before_they_run(self):
         tree = ast.parse(POLICY_SOURCE.read_text(encoding="utf-8"))
         decide = next(
             node for node in ast.walk(tree)
             if isinstance(node, ast.FunctionDef) and node.name == "_decide"
         )
-        wired = []
+        gated = []
         for node in ast.walk(decide):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_claim_bar_gate"
+            if not isinstance(node, ast.IfExp):
+                continue
+            test = node.test
+            if not (
+                isinstance(test, ast.Call)
+                and isinstance(test.func, ast.Attribute)
+                and test.func.attr == "_claim_bar_skips"
             ):
-                self.assertEqual(len(node.args), 3)
-                saved, inner = node.args[1], node.args[2]
-                self.assertEqual(saved.func.attr, "_claim_bar_saved")
-                wired.append((inner.lineno, inner.func.attr))
-        self.assertEqual(
-            [name for _line, name in sorted(wired)], list(WIRED)
+                continue
+            name = test.args[1].value
+            # skipped means "not called": the rung is only in the else branch
+            self.assertIsInstance(node.body, ast.Constant)
+            self.assertIsNone(node.body.value)
+            self.assertEqual(node.orelse.func.attr, name)
+            gated.append((node.lineno, name))
+        self.assertEqual([name for _line, name in sorted(gated)], list(GATED))
+        self.assertEqual(set(GATED), BAR_GATED_RUNGS)
+        # no call anywhere asks after the rung has run
+        self.assertNotIn("_claim_bar_gate", POLICY_SOURCE.read_text(encoding="utf-8"))
+
+
+class ChokePlanTest(unittest.TestCase):
+    """Round 2: ON, a barred choke rung is not called; its plan is untouched."""
+
+    COUNTERS = ("decisions_consumed", "sight_loss_decisions", "no_progress_decisions")
+
+    def _policy(self, *, enforced, barred=True):
+        board = _quiet_dungeon_board()
+        policy = _fresh_policy(board)
+        policy.consume_skill_knowledge(_Replay.dungeon_boards()[0])
+        destination = Position(board.player.position.y, board.player.position.x - 4)
+        policy._choke_engagement_plan = ChokeEngagementPlan(
+            floor=board.floor_key, phase="reposition", destination=destination,
+            covered_retreat_direction=(0, 1), trigger_last_seen={},
+            start_exp=board.player.exp, start_gold=board.player.gold,
+            start_breeder_count=0, last_player_hp=board.player.hp,
+            closest_destination_distance=4,
         )
-        # every wired producer is a rung of a threat-triggered family
-        families = {
-            rung.producer: set() for rung in decide_rungs(CLAIM_LADDER)
-        }
-        for rung in decide_rungs(CLAIM_LADDER):
-            families[rung.producer].add(rung.family)
-        for name in set(WIRED):
-            with self.subTest(producer=name):
-                self.assertTrue(families[name] & TRIGGER_FAMILIES)
+        if barred:
+            policy._claim_register.set_bar(Bar(
+                owner=ClaimOwner.POSITIONING,
+                goal=reach((destination.y, destination.x)),
+                kind=BAR_THREAT, since_turn=board.turn,
+                last_perceived_turn=board.turn, rung="_choke_engagement_key",
+            ))
+        policy._claim_bar_enforced = enforced
+        return policy, board
+
+    def _counters(self, policy):
+        plan = policy._choke_engagement_plan
+        return {name: getattr(plan, name) for name in self.COUNTERS}
+
+    def test_on_a_barred_choke_rung_spends_nothing(self):
+        policy, board = self._policy(enforced=True)
+        before = self._counters(policy)
+        policy.choose_key(board)
+        self.assertEqual(self._counters(policy), before)
+        self.assertIsNone(policy._choke_engagement_plan.release_cause)
+        self.assertFalse((policy.last_reason or "").startswith("melee:choke"))
+        self.assertIn(
+            "_choke_engagement_key",
+            [entry["rung"] for entry in policy.decision_claim["bar_skipped"]],
+        )
+
+    def test_revert_proof_off_the_same_board_spends_the_plan(self):
+        policy, board = self._policy(enforced=False)
+        before = self._counters(policy)
+        policy.choose_key(board)
+        self.assertNotEqual(self._counters(policy), before)
+        self.assertIsNone(policy.decision_claim["bar_skipped"])
+        # and ON without a bar on the rung runs it exactly as OFF does
+        unbarred, same = self._policy(enforced=True, barred=False)
+        unbarred.choose_key(same)
+        self.assertEqual(self._counters(unbarred), self._counters(policy))
+        self.assertEqual(unbarred.last_reason, policy.last_reason)
 
 
 # -- P2 ----------------------------------------------------------------------
@@ -654,10 +827,15 @@ class LootChokeRecordedTest(unittest.TestCase):
                     "triggers": CLAIM_3_TRIGGERS,
                 },
             )
-        # recorded only: no rung was skipped, the bar never lifted
-        for _key, _reason, claim in self.off:
+        # recorded only: no rung was skipped, the bar never lifted; the rung
+        # the switch would have skipped is recorded on the same rows
+        for index, (_key, _reason, claim) in enumerate(self.off):
             self.assertIsNone(claim["bar_skipped"])
             self.assertIsNone(claim["bars_lifted"])
+            self.assertEqual(
+                claim["would_skip"],
+                SKIPPED_PREPARATION if index > MELEE_ROW else None,
+            )
 
     def test_on_the_oscillation_does_not_recur(self):
         # identical up to and including the decision that set the bar
@@ -673,15 +851,7 @@ class LootChokeRecordedTest(unittest.TestCase):
         target = Position(*goal["cell"])
         for (key, _reason, claim), board in zip(after, self.boards[MELEE_ROW + 1:]):
             with self.subTest(turn=board.turn):
-                self.assertEqual(
-                    claim["bar_skipped"],
-                    [{
-                        "owner": "positioning",
-                        "goal": {"kind": "Reach", "cell": CHOKE_CELL},
-                        "reason": "detected:prepare-choke",
-                        "bar_since_turn": BAR_TURN,
-                    }],
-                )
+                self.assertEqual(claim["bar_skipped"], [SKIPPED_PREPARATION])
                 self.assertIsNone(claim["would_bar"])
                 self.assertIsNone(claim["violation"])
                 # every loot step closes on the loot walk's goal
@@ -700,7 +870,7 @@ class LootChokeRecordedTest(unittest.TestCase):
     def test_revert_proof_without_the_gate_on_changes_nothing(self):
         policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
         policy._claim_bar_enforced = True
-        policy._claim_bar_gate = lambda _snapshot, _saved, result: result
+        policy._claim_bar_skips = lambda _snapshot, _rung: False
         policy.consume_skill_knowledge(self.skill)
         decided = []
         for board in self.boards:
@@ -757,8 +927,13 @@ class BarMetricsTest(unittest.TestCase):
             {"positioning": {"count": 1, "max_age_turns": LAST_TURN - BAR_TURN}},
         )
         self.assertEqual(numbers["skipped"], {"count": 0, "by_owner": {}})
+        self.assertEqual(
+            numbers["would_skip"],
+            {"count": 18, "by_rung": {"_detected_threat_preparation_key": 18}},
+        )
         self.assertIn("S2b.2 bar table", report)
         self.assertIn("would-bar events", report)
+        self.assertIn("would-skip decisions", report)
         self.assertRegex(report, r"\n    positioning +18 \(1 claim\(s\)\)\n")
 
     def test_lifetimes_are_read_from_the_lift(self):
@@ -820,6 +995,23 @@ class RestoredCheckpointTest(unittest.TestCase):
         again = pickle.loads(pickle.dumps(restored))
         self.assertEqual(again.bars, restored.bars)
 
+    def test_a_round_one_bar_unpickles_and_gates_nothing(self):
+        bar = Bar(
+            owner=ClaimOwner.POSITIONING, goal=reach((3, 4)), kind=BAR_THREAT,
+            since_turn=5, last_perceived_turn=5,
+        )
+        object.__delattr__(bar, "rung")
+        object.__delattr__(bar, "reason")
+        restored = pickle.loads(pickle.dumps(bar))
+        self.assertIsNone(restored.rung)
+        self.assertIsNone(restored.reason)
+        _skill, boards = _dungeon_boards()
+        policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
+        policy._claim_bar_enforced = True
+        policy._claim_register.set_bar(restored)
+        for name in GATED:
+            self.assertIs(policy._claim_bar_skips(boards[2], name), False)
+
     def test_a_merged_bar_keeps_its_start_and_unites_its_triggers(self):
         register = ClaimRegister()
         first = register.set_bar(Bar(
@@ -871,7 +1063,9 @@ class RestoredCheckpointTest(unittest.TestCase):
         del policy.__dict__["_claim_bar_enforced"]
         del policy._claim_register.__dict__["_bars"]
         del policy._claim_register.__dict__["_ended"]
-        self.assertIsNone(policy._claim_bar_saved())
+        self.assertIs(
+            policy._claim_bar_skips(boards[0], "_choke_engagement_key"), False
+        )
         key = policy.choose_key(boards[0])
         self.assertEqual((str(key), policy.last_reason), PRE_S2B2_TRAJECTORY[0])
         self.assertIsNone(policy.decision_claim["would_bar"])
