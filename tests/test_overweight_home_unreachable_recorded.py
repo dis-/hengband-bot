@@ -176,6 +176,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 replay.append({
                     "key": str(key),
                     "reason": policy.last_reason,
+                    "claim": dict(policy.decision_claim or {}),
                     "passes": ledger.unsatisfied_passes[STORE_HOME],
                     "approach_fails": ledger.approach_fails[STORE_HOME],
                     "blocked": STORE_HOME in ledger.blocked_stores,
@@ -203,6 +204,10 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     },
                 })
                 policy.confirm_key_posted(key)
+                if policy.peek_staged_prompt_chain() is not None:
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(key),
+                    })
         cls.replay = replay
         return replay
 
@@ -274,6 +279,21 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
             [*DIVERGENT, STOP],
+        )
+        self.assertEqual(
+            [index for index, row in enumerate(replay)
+             if row["claim"].get("claim_verdict_conflict")],
+            [],
+        )
+        self.assertEqual(
+            sum(bool(row["claim"].get("scan-during-pending-atomic"))
+                for row in replay),
+            2,
+        )
+        self.assertEqual(
+            sum(bool(row["claim"].get("visit_owner_mismatch"))
+                for row in replay),
+            12,
         )
 
     def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):

@@ -189,6 +189,7 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
                 decisions[index] = {
                     "key": str(key) if key is not None else None,
                     "reason": policy.last_reason,
+                    "claim": dict(policy.decision_claim or {}),
                     "staged": staged,
                     "chain": chain,
                     "read_key": (getattr(policy, "read_telemetry", None) or {}).get(
@@ -199,6 +200,10 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
                     stop = cls._drive_stop_send(policy, snapshot, key, directory)
                     break
                 policy.confirm_key_posted(key)
+                if policy.peek_staged_prompt_chain() is not None:
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(key),
+                    })
         cls.replay = (decisions, stop)
         return cls.replay
 
@@ -211,7 +216,12 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
         def recorded_winning_rung(board):
             # The recorded winning rung's real producer on the recorded board.
             key = policy._town_enchant_launcher_key(board)
-            staged.append(policy.peek_staged_prompt_chain())
+            staged.append({
+                "chain": policy.peek_staged_prompt_chain(),
+                "non_discardable_family": getattr(
+                    policy, "_decision_non_discardable", None
+                ),
+            })
             return key
 
         with patch.object(
@@ -308,13 +318,16 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
              for index in range(WINDOW, STOP + 1)],
         )
 
+
     def test_p1_stop_producer_staged_the_recorded_enchant_chain(self):
         decisions, _stop = self._replay()
         staged = decisions[STOP]["staged"]
         self.assertEqual(
-            (staged["owner"], staged["key"], tuple(staged["gates"])),
+            (staged["chain"]["owner"], staged["chain"]["key"],
+             tuple(staged["chain"]["gates"])),
             ("town:enchant-launcher-tohit", ENCHANT_READ, ENCHANT_GATES),
         )
+        self.assertEqual(staged["non_discardable_family"], "curse-enchant")
         self.assertEqual(decisions[STOP]["read_key"], self.recorded[STOP]["read_key"])
 
     def test_p1_stop_decision_posts_the_approach(self):

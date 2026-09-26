@@ -839,7 +839,7 @@ class TownArbiterMixin:
         visit = self._store_visit
         if visit is None:
             return
-        claim_operation_posted = visit.operation_posted or visit.operation_key is not None
+        claim_operation_posted = visit.operation_posted
         if visit.operation_posted:
             if (
                 self._store_buy_inflight is not None

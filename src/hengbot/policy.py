@@ -132,7 +132,6 @@ from hengbot.claim_ladder import (
     resumable_index as claim_resumable_index,
     rung_of as claim_rung_of,
     rung_of_claim as claim_rung_of_claim,
-    TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES,
     S3_FAMILIES as CLAIM_S3_FAMILIES,
 )
 from hengbot.policy_types import (
@@ -3247,8 +3246,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         release the visit's open goals.
         """
         if outcome == "completed":
-            if not operation_posted:
-                return
             operation_owners = (
                 "shop-buy", "shop-sell", "home-visit", "home-errand",
                 "equipment-txn", "calibration",
@@ -3258,9 +3255,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "store-visit:completed", owners=operation_owners,
                     sources=(CLAIM_OBSERVE_STORE_OPERATION,),
                 )
-            else:
+            elif operation_posted:
                 self._claim_close(
                     "expire", "completed-unobserved",
+                    owners=operation_owners,
+                    kinds=(CLAIM_GOAL_OBSERVE,),
+                    sources=(CLAIM_OBSERVE_STORE_OPERATION,),
+                )
+            else:
+                self._claim_close(
+                    "release", "visit-closed-no-operation",
                     owners=operation_owners,
                     kinds=(CLAIM_GOAL_OBSERVE,),
                     sources=(CLAIM_OBSERVE_STORE_OPERATION,),
@@ -3313,9 +3317,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
         visit = getattr(self, "_store_visit", None)
         if owner.value in {"shop-buy", "shop-sell"} and visit is not None:
-            if visit.operation_posted and visit.operation_key is not None:
+            if visit.operation_key is not None:
                 return claim_observe(
-                    (visit.store_type, visit.operation_key, visit.posted_sequence),
+                    (visit.store_type, visit.operation_key, visit.opened_sequence),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
         if owner.value in {"home-visit", "home-errand", "equipment-txn", "calibration"}:
@@ -3324,7 +3328,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if withdrawal is not None:
                 return claim_observe(
                     (STORE_HOME, withdrawal[0], withdrawal[1], withdrawal[3],
-                     getattr(self, "_home_atomic_withdraw_posted_turn", None)),
+                     getattr(visit, "opened_sequence", None)),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
             if deposit is not None:
@@ -3768,6 +3772,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         finished = register.take_closing()
         closed = finished.closing_dict() if finished is not None else None
         home_visit = getattr(self, "_home_visit", None)
+        active_operation = getattr(self, "_claim_active_operation_identity", None)
+        completed_operation = (
+            active_operation[1]
+            if finished is not None
+            and isinstance(active_operation, tuple)
+            and len(active_operation) == 2
+            and active_operation[0] == finished.claim_id
+            else None
+        )
         if (
             finished is not None
             and finished.closed == CLAIM_CLOSED_BY_COMPLETE
@@ -3777,7 +3790,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             }
         ):
             self._claim_last_completed_home = (
-                finished, getattr(home_visit, "visit_id", None)
+                finished, getattr(home_visit, "visit_id", None),
+                completed_operation,
             )
         verdict = None
         report = getattr(home_visit, "report", None)
@@ -3793,9 +3807,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         recent = getattr(self, "_claim_last_completed_home", None)
         if recent is not None and recent[1] != getattr(home_visit, "visit_id", None):
             recent = None
+        operation = getattr(home_visit, "operation", None)
+        operation_generation = getattr(home_visit, "operation_generation", None)
+        if operation is None and home_visit is not None:
+            reports = getattr(home_visit, "operation_reports", ())
+            if reports and reports[-1].visit_id == home_visit.visit_id:
+                operation = (reports[-1].action, reports[-1].identity)
+                operation_generation = reports[-1].posted_generation
+        operation_identity = (
+            (operation, operation_generation) if operation is not None else None
+        )
+        same_operation = (
+            recent is not None and len(recent) > 2
+            and recent[2] is not None and recent[2] == operation_identity
+        )
         completed = next(
             (candidate for candidate in (
-                finished, standing, recent[0] if recent is not None else None
+                finished if same_operation else None,
+                standing if same_operation else None,
+                recent[0] if same_operation else None,
             )
              if candidate is not None
              and candidate.closed == CLAIM_CLOSED_BY_COMPLETE
@@ -3858,9 +3888,36 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim = register.await_observation()
         else:
             claim = register.keep_active()
+        if claim.is_open and claim.owner.value in {
+            "home-visit", "home-errand", "calibration", "equipment-txn"
+        }:
+            operation = getattr(home_visit, "operation", None)
+            identity = (
+                (operation, getattr(home_visit, "operation_generation", None))
+                if operation is not None else None
+            )
+            previous_identity = getattr(self, "_claim_active_operation_identity", None)
+            if (
+                not isinstance(previous_identity, tuple)
+                or len(previous_identity) != 2
+                or previous_identity[0] != claim.claim_id
+                or (previous_identity[1] is None and identity is not None)
+            ):
+                self._claim_active_operation_identity = (claim.claim_id, identity)
         visit = getattr(self, "_store_visit", None)
         visit_owner_mismatch = None
         if visit is not None and claim.is_open and claim.owner.value in CLAIM_S3_FAMILIES:
+            if visit.owner == "town-errand" and getattr(
+                visit, "opened_producer_family", None
+            ) is None:
+                telemetry = getattr(
+                    getattr(self, "_town_turn_arbiter", None), "telemetry", None
+                )
+                selected = (
+                    telemetry.get("producer_owner")
+                    if isinstance(telemetry, dict) else None
+                )
+                visit.opened_producer_family = selected or claim.owner.value
             visit.claim_id = claim.claim_id
             visit.claim_owner = claim.owner.value
             aliases = {
@@ -3869,6 +3926,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "equipment-transaction": "equipment-txn",
             }
             alias = aliases.get(visit.owner, visit.owner)
+            if alias == "town-errand":
+                alias = visit.opened_producer_family
             if alias != claim.owner.value:
                 visit_owner_mismatch = {
                     "visit_owner": alias, "claim_owner": claim.owner.value,
@@ -3895,6 +3954,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "violation": violation,
             "visit_owner_mismatch": visit_owner_mismatch,
             "claim_verdict_conflict": claim_verdict_conflict,
+            "scan-during-pending-atomic": bool(
+                owner.value == "home-scan"
+                and (
+                    getattr(self, "_home_atomic_withdraw_pending", None) is not None
+                    or getattr(self, "_home_atomic_deposit_pending", None) is not None
+                )
+            ),
             "plan_rebuild_deferred": getattr(
                 self, "_decision_plan_rebuild_deferred", 0
             ),
@@ -4082,15 +4148,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or owner.value in {"home-scan", "home-errand"}
             )
         )
-        if (
-            kind == "owner-change"
-            and standing.owner.value in CLAIM_TOWN_ERRAND_FAMILIES
-            and owner.value in CLAIM_TOWN_ERRAND_FAMILIES
-            and held.rank == rung.rank
-            and (
-                next_stop_differs
-                or getattr(self, "_decision_plan_rebuild_deferred", 0) > 0
-            )
+        from hengbot.plan_handoff import is_plan_handoff
+        if kind == "owner-change" and is_plan_handoff(
+            holder_family=standing.owner.value,
+            next_family=owner.value,
+            holder_kind=standing.goal.kind,
+            holder_non_discardable=standing.non_discardable,
+            same_rank=held.rank == rung.rank,
+            plan_changed=(next_stop_differs or
+                          getattr(self, "_decision_plan_rebuild_deferred", 0) > 0),
         ):
             kind = "plan-handoff"
         return None, None, {

@@ -154,6 +154,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         if cls.replay is not None:
             return cls.replay
         decisions = []
+        claim_rows = []
         confirmed = {}
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
@@ -192,7 +193,12 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
                 else:
                     key = policy.choose_key(board)
                 decisions.append((str(key), policy.last_reason))
+                claim_rows.append(dict(policy.decision_claim or {}))
                 policy.confirm_key_posted(key)
+                if policy.peek_staged_prompt_chain() is not None:
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(key),
+                    })
             after = {
                 "pending": policy._home_pending_item,
                 "batch": list(policy._home_pending_batch),
@@ -229,6 +235,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
             }
         cls.replay = {
             "decisions": decisions,
+            "claim_rows": claim_rows,
             "confirmed": confirmed,
             "after": after,
             "continuation": continuation,

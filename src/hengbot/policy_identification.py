@@ -424,6 +424,7 @@ class IdentificationMixin:
                 (2, IDENTIFY_ITEM_PROMPT),
             ),
         }
+        self._declare_non_discardable()
         return key
 
     def _dungeon_equipment_identify_key(

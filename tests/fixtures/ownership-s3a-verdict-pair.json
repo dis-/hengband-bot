@@ -1,0 +1,35 @@
+[
+  {
+    "decision_sequence": 3776,
+    "reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+    "closed_claim": {
+      "claim_id": 3412,
+      "owner": "calibration",
+      "goal_kind": "Observe",
+      "closed": "complete",
+      "closed_reason": "home-withdraw-observed"
+    }
+  },
+  {
+    "decision_sequence": 6627,
+    "reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+    "closed_claim": {
+      "claim_id": 5712,
+      "owner": "calibration",
+      "goal_kind": "Observe",
+      "closed": "complete",
+      "closed_reason": "home-withdraw-observed"
+    }
+  },
+  {
+    "decision_sequence": 33,
+    "reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+    "closed_claim": {
+      "claim_id": 28,
+      "owner": "home-visit",
+      "goal_kind": "Observe",
+      "closed": "complete",
+      "closed_reason": "home-withdraw-observed"
+    }
+  }
+]

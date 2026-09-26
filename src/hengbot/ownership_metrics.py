@@ -499,7 +499,8 @@ def s3_numbers(rows: Iterable[Mapping]) -> dict:
     counts = Counter()
     for session in _claim_rows_by_session(rows):
         for row in session:
-            for name in ("claim_verdict_conflict", "visit_owner_mismatch"):
+            for name in ("claim_verdict_conflict", "visit_owner_mismatch",
+                         "scan-during-pending-atomic"):
                 if row.get(name):
                     counts[name] += 1
             counts["plan_rebuild_deferred"] += int(
@@ -1146,15 +1147,22 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
         and goal.get("cell") == [position.get("y"), position.get("x")]
     ):
         return VERDICT_COMPLETED
-    if (
-        held_family in TOWN_ERRAND_FAMILIES
-        and _family_of_row(row) in TOWN_ERRAND_FAMILIES
-        and held_family != _family_of_row(row)
-        and held.rank == new.rank
-        and (
-            goal.get("kind") == "Reach"
-            or (typing is not None and typing.content == STORE_ENTRY)
-        )
+    from hengbot.plan_handoff import is_plan_handoff
+    new_goal = row.get("goal") if isinstance(row.get("goal"), Mapping) else {}
+    if is_plan_handoff(
+        holder_family=held_family,
+        next_family=_family_of_row(row),
+        holder_kind=goal.get("kind"),
+        holder_non_discardable=bool(held_row.get("non_discardable")),
+        same_rank=held.rank == new.rank,
+        plan_changed=(
+            bool(row.get("plan_rebuild_deferred"))
+            or (goal.get("kind") == "Reach" and
+                new_goal.get("kind") == "Reach" and
+                new_goal.get("cell") != goal.get("cell"))
+            or (goal.get("kind") == "Reach" and
+                _family_of_row(row) in {"home-scan", "home-errand"})
+        ),
     ):
         return VERDICT_PLAN_HANDOFF
     return owner_change(

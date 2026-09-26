@@ -112,14 +112,13 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     "home-withdraw-observed": 3,
     # stairs and recall: Observe(floor change), completed on the floor key
     "floor-changed": 10,
-    # rev 9.2 (O): the registry's own satisfaction test, read-only at the exit
-    # S3.0: Home scans complete when catalogue knowledge becomes current;
-    # entrance waits complete on the first target-store page.  Their former
-    # generic registry completions move to those producer-specific labels.
-    "expectation-satisfied": 3,
+    # S3a R2: narrowing the home: catch-all makes the three non-operation
+    # Home keys Terminal, so they no longer open generic Observe claims.
     "home-knowledge-current": 9,
     "entered-store": 5,
     "equipment-transaction-complete": 5,
+    # The live sender commits each posted prompt tail; the replay now does so.
+    "staged-tail-posted": 19,
 }
 # Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
 # round; the shelter walk now declares the store, not its first step), and
@@ -145,7 +144,8 @@ S2A1_FAR_TARGET_REASONS = frozenset({
 # and keeps recall step-offs under the floor-change claim.
 S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    "home-visit/Observe": {"complete": 11, "release": 1, "abandoned": 1},
+    # Three former generic Home Observe claims are now correctly Terminal.
+    "home-visit/Observe": {"complete": 8, "release": 0, "abandoned": 3},
     "equipment-txn/Observe": {"complete": 5, "abandoned": 6},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
@@ -299,6 +299,12 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 _recorded_process_capture(policy, snapshot)
                 policy._claim_register = register
                 policy.confirm_key_posted(key)
+                if policy.peek_staged_prompt_chain() is not None:
+                    # The live sender commits the prompt tail after posting;
+                    # leaving it staged makes later ownership rows fictitious.
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(key),
+                    })
 
             # Value-level view of the two optional claims on the recorded
             # post-purchase board, evaluated on an independent copy after it
@@ -489,6 +495,20 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
              and row["violation"].get("kind") == "retarget"
              and row["violation"].get("from") == "equipment-txn"],
             [],
+        )
+        # R2: compose-time one-shot identity removes the 19 shop-buy and
+        # three of six shop-sell retargets seen on the base replay.
+        self.assertEqual(
+            {
+                owner: sum(
+                    isinstance(row.get("violation"), dict)
+                    and row["violation"].get("kind") == "retarget"
+                    and row["violation"].get("from") == owner
+                    for row in rows
+                )
+                for owner in ("shop-buy", "shop-sell")
+            },
+            {"shop-buy": 0, "shop-sell": 3},
         )
         # Rev 9.3 (R2): Reach claims that completed on the very next row.
         # Explore's own goal test, loot one cell away and native travel

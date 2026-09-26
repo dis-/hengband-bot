@@ -2691,6 +2691,7 @@ class EquipmentMixin:
                     )),
                 ),
             }
+            self._declare_non_discardable()
             return key
         return None
 

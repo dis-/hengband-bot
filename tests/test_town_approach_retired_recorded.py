@@ -188,6 +188,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             "claim_id": claim.get("claim_id"),
             "claim_state": claim.get("state"),
             "claim_distance": claim.get("distance"),
+            "claim": dict(claim),
             # S2b.1: a preempted claim resumed under its own id on this row
             "claim_resumed": bool(claim.get("resumed")),
             # S2b.2: the bar table's record (record-only, switch off)
@@ -199,6 +200,10 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             },
         }
         policy.confirm_key_posted(key)
+        if policy.peek_staged_prompt_chain() is not None:
+            policy.commit_staged_prompt_chain({
+                "outcome": "released", "posted": str(key),
+            })
         return decided
 
     @classmethod
@@ -333,7 +338,9 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertTrue(walk[0]["claim_resumed"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
-            {(903, "active")},
+            # R2's operation identities/typing plus the live prompt-tail
+            # commit move this later allocation from 903 to 902.
+            {(902, "active")},
         )
         self.assertEqual(
             [row["claim_distance"] for row in walk], list(range(34, 18, -1))

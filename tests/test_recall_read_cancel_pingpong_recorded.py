@@ -188,12 +188,18 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                         read_board, policy.choose_key(read_board)
                     )
                 read = (read_key, policy.last_reason)
+                read_claim = dict(policy.decision_claim or {})
                 policy.confirm_key_posted(read_key)
+                if policy.peek_staged_prompt_chain() is not None:
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(read_key),
+                    })
                 cancel_board = cls._board(policy, cancel_index, directory)
                 raw_leaves = policy._recall_town_departure_conjuncts(cancel_board)
                 departure_board = policy._recall_departure_board(cancel_board)
                 result = {
                     "read": read,
+                    "read_claim": read_claim,
                     "read_board": read_board,
                     "cancel_board": cancel_board,
                     "read_signature": read_signature,
@@ -210,6 +216,7 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                     cancel_board, policy.choose_key(cancel_board)
                 )
                 result["cancel"] = (cancel_key, policy.last_reason)
+                result["cancel_claim"] = dict(policy.decision_claim or {})
                 result["cancelled_flag"] = getattr(
                     policy, "_town_visit_unready_recall_cancelled", False
                 )
