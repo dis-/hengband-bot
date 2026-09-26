@@ -8,6 +8,7 @@ import pickle
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 
 from hengbot.claim_register import ClaimRegister, observe
 from hengbot.claim_goal_typing import GOAL_TYPING, OPERATION_CLAIMS, STORE_ENTRY, goal_typing
