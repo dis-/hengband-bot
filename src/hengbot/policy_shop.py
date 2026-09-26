@@ -4283,17 +4283,6 @@ class ShopMixin:
             and bool(self._equipment_catalog.items)
         )
         here = snapshot.grid_at(snapshot.player.position)
-        # At night the emitted grid can describe a remembered store tile as
-        # ordinary floor.  The static town map still identifies the entrance;
-        # reaching it must enter the normal await-entry / step-off protocol.
-        on_store_entrance = (
-            (here is not None and here.store_number == store_type)
-            or (
-                self._town_map_active(snapshot)
-                and self._town_map.store_position(store_type)
-                == snapshot.player.position
-            )
-        )
         entrance_step_off = getattr(self, "_store_entrance_step_off", None)
         if (
             entrance_step_off is not None
@@ -4303,7 +4292,7 @@ class ShopMixin:
             )
         ):
             self._store_entrance_step_off = None
-        if on_store_entrance:
+        if here is not None and here.store_number == store_type:
             pending_store_transaction = (
                 self._town_visit_ledger.pending_store_transaction
             )
@@ -4512,15 +4501,8 @@ class ShopMixin:
         here = snapshot.grid_at(snapshot.player.position)
         if (
             step == snapshot.player.position
-            and (
-                (here is not None and here.store_number == self._shopping_approach_store_type)
-                or (
-                    self._town_map_active(snapshot)
-                    and self._town_map.store_position(
-                        self._shopping_approach_store_type
-                    ) == snapshot.player.position
-                )
-            )
+            and here is not None
+            and here.store_number == self._shopping_approach_store_type
         ):
             self.last_reason = f"{travel_reason}:await-entry"
             self._store_entry_wait_owner = self._shopping_approach_store_type
