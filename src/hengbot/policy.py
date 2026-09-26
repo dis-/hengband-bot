@@ -4089,8 +4089,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # destroys) consults.  Observe the posted wield/takeoff on each board,
         # not only when the next mutation is requested: a transaction's last
         # wield otherwise stays POSTED after its worn change was observed, and
-        # those owners stay silenced for the rest of the town visit.
-        self._equipment_mutation.observe(snapshot)
+        # those owners stay silenced for the rest of the town visit.  Each
+        # fruitless board counts toward the executor's bounded release.
+        released = self._equipment_mutation.observe(
+            snapshot, count_fruitless=True
+        )
+        if released is not None:
+            self._pending_mutation_report = released
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if snapshot.store is not None and snapshot.player.recalling:
             # A lagged or externally observed store page cannot revive shopping
