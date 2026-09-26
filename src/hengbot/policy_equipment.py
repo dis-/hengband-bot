@@ -421,8 +421,14 @@ class EquipmentMixin:
         return bool(
             snapshot.in_town
             and (
-                getattr(self, "_decision_context", None) is not None
-                and self._decision_context.equipment_transaction_owned
+                (
+                    getattr(self, "_decision_context", None) is not None
+                    and self._decision_context.equipment_transaction_owned
+                )
+                or (
+                    self._calibration_phase in {"strip", "restore-equip"}
+                    and self._calibration_session_owned()
+                )
             )
         )
 
@@ -577,6 +583,15 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "current-inputs"
+            return self._equipment_optimization_preparation
+        if self._calibration_active():
+            # Strip, capture and redress own the equipment until the phase
+            # ends. A fresh optimizer plan here could replace their session.
+            if self._equipment_optimization_preparation is None:
+                self._equipment_optimization_preparation = WarriorOptimizationPreparation(
+                    current_loadout(self._equipment_catalog.items),
+                    None, None, ("calibration-required",),
+                )
             return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
@@ -1868,7 +1883,13 @@ class EquipmentMixin:
         if session.pending_action is not None:
             self.last_reason = "equipment-transaction:await-confirmation"
             return WAIT_KEY
-        if session.required_context == "home":
+        here = snapshot.grid_at(snapshot.player.position)
+        calibration_needs_home = (
+            self._calibration_phase in {"strip", "restore-equip"}
+            and self._calibration_session_owned()
+            and (here is None or here.store_number != STORE_HOME)
+        )
+        if session.required_context == "home" or calibration_needs_home:
             if (
                 self._store_visit is not None
                 and self._store_visit.store_type != STORE_HOME
@@ -2646,6 +2667,7 @@ class EquipmentMixin:
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
         if (
             not snapshot.in_town
+            or self._calibration_active()
             or snapshot.store is not None
             or snapshot.player.blind
             or snapshot.player.confused

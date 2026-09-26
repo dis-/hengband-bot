@@ -864,6 +864,7 @@ class ObservationMixin:
             self._last_position = None
             self._rest_count = 0
             self._last_hp = None  # HP is not comparable across floors
+            self._last_max_hp = None
             # R1: navigation progress accounting is per floor visit.
             self._nav_ledger.reset()
             self._nav_stall_count = 0
@@ -883,7 +884,13 @@ class ObservationMixin:
 
         # Attribute an HP drop only when the game names a hidden monster's blow.
         hp = snapshot.player.hp
-        self._took_damage = self._last_hp is not None and hp < self._last_hp
+        max_hp = snapshot.player.max_hp
+        last_max_hp = getattr(self, "_last_max_hp", None)
+        self._took_damage = (
+            self._last_hp is not None
+            and hp < self._last_hp
+            and (last_max_hp is None or self._last_hp - hp > last_max_hp - max_hp)
+        )
         self._unseen_attack_evidence = next(
             (
                 message
@@ -934,6 +941,7 @@ class ObservationMixin:
             self._last_hp - hp if self._took_damage and self._last_hp is not None else 0
         )
         self._last_hp = hp
+        self._last_max_hp = max_hp
 
         position = snapshot.player.position
         self._observe_one_step_explore(snapshot)

@@ -228,6 +228,9 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             store=store,
         )
 
+    def _at_home(self, snapshot):
+        return replace(snapshot, player=replace(snapshot.player, position=self.HOME))
+
     def _scan_complete_policy(self):
         policy = HengbotPolicy()
         policy._equipment_catalog.observe_home_page([])
@@ -855,7 +858,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
         )
-        dressed = self._snapshot(equipment=(sword,))
+        dressed = self._at_home(self._snapshot(equipment=(sword,)))
         policy._begin_character_calibration(dressed)
 
         self.assertEqual(policy._calibration_town_key(dressed), "5")
@@ -863,7 +866,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
         self.assertTrue(takeoff.startswith(equipment_mutation_module.TAKEOFF_KEY), takeoff)
         self.assertTrue(policy.confirm_key_posted(takeoff))
 
-        naked = self._snapshot(inventory=(replace(sword, slot="a"),))
+        naked = self._at_home(self._snapshot(inventory=(replace(sword, slot="a"),)))
         key = policy.choose_key(naked)
 
         self.assertEqual(key, policy_module.CHARACTER_DUMP_MACRO)
@@ -922,12 +925,12 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             "main_hand", 23, 4, name="long sword", known=True,
             fully_known=True, is_equipment=True,
         )
-        dressed = self._snapshot(equipment=(sword,))
+        dressed = self._at_home(self._snapshot(equipment=(sword,)))
         policy._begin_character_calibration(dressed)
         self.assertEqual(policy._calibration_town_key(dressed), "5")
         takeoff = policy._equipment_transaction_town_key(dressed)
         self.assertTrue(policy.confirm_key_posted(takeoff))
-        naked = self._snapshot(inventory=(replace(sword, slot="a"),))
+        naked = self._at_home(self._snapshot(inventory=(replace(sword, slot="a"),)))
 
         with TemporaryDirectory() as directory:
             path = Path(directory) / "character-calibration.json"
@@ -990,7 +993,7 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
             restore.current_action,
             policy_module.observe_equipment_transactions(threatened),
         )
-        dressed = self._snapshot(equipment=(sword,))
+        dressed = self._at_home(self._snapshot(equipment=(sword,)))
         restore.observe(policy_module.observe_equipment_transactions(dressed))
         policy._calibration_observe(dressed)
         self.assertIsNone(policy._calibration_phase)
@@ -2262,6 +2265,17 @@ class DeferredCalibrationDepartureRecordedPins(unittest.TestCase):
                 4195626, 4195632, 4197638,
             ],
         )
+        # The corrected strip stays on the Home tile at the first shelter
+        # divergence. Translate the remaining equipment observations there to
+        # construct a physical continuation; they are not replayed live keys.
+        home = snapshots[0].player.position
+        snapshots = [
+            snapshot if index < 3 else replace(
+                snapshot, player=replace(snapshot.player, position=home)
+            )
+            for index, snapshot in enumerate(snapshots)
+        ]
+        self.assertEqual(snapshots[3].grid_at(home).store_number, STORE_HOME)
         policy = HengbotPolicy()
         policy.consume_home_knowledge(())
         for snapshot in snapshots[:12]:
@@ -2445,10 +2459,11 @@ class CalibrationRestoreSuppliesRecordedPins(unittest.TestCase):
         )
         self.assertEqual(
             decisions[127]["reason"],
-            "calibration:request-restore-knowledge",
+            "town:entrance-step-off:calibration:await-restore-knowledge",
         )
+        self.assertEqual(decisions[127]["key"], "6")
 
-    def test_p2_recorded_restore_posts_the_composed_withdrawal(self):
+    def test_p2_diverged_restore_requests_fresh_knowledge_before_withdrawal(self):
         with gzip.open(self.FIXTURE, "rt", encoding="utf-8") as stream:
             lines = list(stream)
         knowledge = load_monrace_knowledge(self.MONRACES)
@@ -2475,15 +2490,16 @@ class CalibrationRestoreSuppliesRecordedPins(unittest.TestCase):
             key = policy.choose_key(
                 parse_snapshot(json.loads(lines[134]), knowledge)
             )
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-        self.assertEqual(key, "5 pSpQ2\rpP\x1b")
+        self.assertEqual(policy.last_reason, "calibration:request-restore-knowledge")
+        self.assertEqual(key, policy_module.HOME_KNOWLEDGE_MACRO)
 
     def test_p3_invalidated_catalogue_cannot_fake_an_item_match(self):
         missing = self._replay()[127]
         self.assertEqual(missing["phase"], "restore-supplies")
         self.assertFalse(missing["knowledge_current"])
-        self.assertEqual(missing["reason"], "calibration:request-restore-knowledge")
-        self.assertEqual(missing["key"], policy_module.HOME_KNOWLEDGE_MACRO)
+        self.assertEqual(missing["reason"],
+                         "town:entrance-step-off:calibration:await-restore-knowledge")
+        self.assertEqual(missing["key"], "6")
 
     def test_p4_calibration_restore_has_no_direct_home_approach_bypass(self):
         from test_home_visit import HomeVisitCaptureAcceptanceTest

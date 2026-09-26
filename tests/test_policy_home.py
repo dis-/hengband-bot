@@ -1312,9 +1312,8 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._find_home_deposit(snap), shots[1])
 
     def test_recorded_turn_2866604_plan_keeps_q_and_w_totalling_28(self):
-        capture = json.loads(Path(
-            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
-        ).read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).parent / "fixtures" /
+            "24-town3-reward-pack-full-stop.json").read_text(encoding="utf-8"))
         snap = parse_snapshot(capture["state"]["result"])
         policy = HengbotPolicy()
         launcher = policy._equipped_launcher(snap)
@@ -3208,9 +3207,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
 
     def test_recorded_full_pack_withdrawn_merge_remains_kept_not_deposited(self):
-        capture = json.loads(Path(
-            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
-        ).read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).parent / "fixtures" /
+            "24-town3-reward-pack-full-stop.json").read_text(encoding="utf-8"))
         before = parse_snapshot(capture["state"]["result"])
         policy = HengbotPolicy()
         plain = next(item for item in before.inventory if item.slot == "q")

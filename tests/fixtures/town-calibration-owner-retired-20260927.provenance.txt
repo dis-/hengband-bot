@@ -1,0 +1,5 @@
+Source: C:\hengband\bot-client\jsonlog\incident-20260927-0641-town-calibration-owner-retired.state.jsonl.gz
+Source compressed SHA256: b14fdb4c6fdeac37883994ab7330fbad54207a8ffa046fae77235d4b15564a10
+Selection: first player_turn rows for turns 6712128, 6712132, 6712134, 6714217, 6714557, 6714564, in source order.
+Decompressed fixture SHA256: 3df3b92fa7f8629e69700510584b1ca698aaa7abefbefd04f20e54dae8ec5328
+First divergence: decision 20064, live (9, town:seek-shelter) after HP and max HP both fell 810 to 731. Corrected damage observation is false. The 20171 movement-ownership and 20173 weapon-shop boards are independent causal pins, not a replay past the divergence.

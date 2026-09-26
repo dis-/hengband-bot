@@ -4247,7 +4247,7 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> str | None:
         """Suppress visible or still-hidden random teleport before equipping."""
-        if not snapshot.in_town:
+        if not snapshot.in_town or self._calibration_active():
             return None
 
         # choose_key normally performs this synchronization before dispatch,
