@@ -63,6 +63,7 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
 import json
@@ -200,7 +201,8 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
                     stop = cls._drive_stop_send(policy, snapshot, key, directory)
                     break
                 policy.confirm_key_posted(key)
-                if policy.peek_staged_prompt_chain() is not None:
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, key):
                     policy.commit_staged_prompt_chain({
                         "outcome": "released", "posted": str(key),
                     })
@@ -328,6 +330,10 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
             ("town:enchant-launcher-tohit", ENCHANT_READ, ENCHANT_GATES),
         )
         self.assertEqual(staged["non_discardable_family"], "curse-enchant")
+        self.assertEqual(
+            decisions[STOP]["claim"]["displaced_non_discardable_producer"],
+            {"family": "curse-enchant", "key": ENCHANT_READ},
+        )
         self.assertEqual(decisions[STOP]["read_key"], self.recorded[STOP]["read_key"])
 
     def test_p1_stop_decision_posts_the_approach(self):

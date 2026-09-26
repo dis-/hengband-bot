@@ -59,6 +59,7 @@ Temple); the fixed policy has left it at 33, so they are not fed.
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
 import json
@@ -195,7 +196,8 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
                 decisions.append((str(key), policy.last_reason))
                 claim_rows.append(dict(policy.decision_claim or {}))
                 policy.confirm_key_posted(key)
-                if policy.peek_staged_prompt_chain() is not None:
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, key):
                     policy.commit_staged_prompt_chain({
                         "outcome": "released", "posted": str(key),
                     })

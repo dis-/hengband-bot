@@ -1,6 +1,7 @@
 """Record-only S3 identity, promotion, and entry-wait regressions."""
 
 from dataclasses import replace
+import ast
 import json
 import pickle
 from pathlib import Path
@@ -15,6 +16,7 @@ from hengbot.model import Position, STORE_HOME
 from hengbot.equipment_transaction_planner import EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.home_visit import HomeOperationReport
+from hengbot.home_errand import HomeErrandRequest
 from hengbot.policy_types import StoreVisit, TownErrandPlan, TownNeed
 from hengbot.plan_handoff import is_plan_handoff
 from test_ownership_s2b1_ladder import _Decisions
@@ -22,7 +24,12 @@ from test_ownership_s2b1_ladder import _Decisions
 
 class S3aRecordTest(unittest.TestCase):
     def test_recorded_home_verdict_conflict_is_an_operation_pair(self):
-        """Three rows extracted from the 17:30 ownership-claims capture."""
+        """Run the detector with the recorded 10:22, 12:53, 17:30 verdicts.
+
+        Source: C:/hengband/bot-client/jsonlog/ownership-claims.jsonl,
+        lines 9056, 15691, 22386; SHA256
+        3a09d151ea8204cdccfac3183abac13920c5a46e9458c97d01a340dda214ab3b.
+        """
         rows = json.loads((Path(__file__).parent / "fixtures" /
                            "ownership-s3a-verdict-pair.json").read_text(encoding="utf-8"))
         self.assertEqual(len(rows), 3)
@@ -36,6 +43,15 @@ class S3aRecordTest(unittest.TestCase):
             self.assertEqual((closed["closed"], closed["closed_reason"]),
                              ("complete", "home-withdraw-observed"))
             self.assertIn("home:atomic-withdraw-target-unobserved", row["reason"])
+            decisions = _Decisions()
+            visit = decisions.policy._home_visit
+            visit.operation = ("take", f"recorded-{closed['claim_id']}")
+            opened = decisions.decide("home:atomic-withdraw")
+            decisions.register.complete("home-withdraw-observed")
+            detected = decisions.decide(row["reason"])["claim_verdict_conflict"]
+            self.assertEqual(detected["claim_id"], opened["claim_id"])
+            self.assertEqual((detected["claim_ending"], detected["verdict"]),
+                             ("complete", "target-unobserved"))
 
     def test_every_entry_wait_has_the_store_entry_source(self):
         waits = [row for row in GOAL_TYPING if row.prefix.endswith(":await-entry")]
@@ -59,6 +75,90 @@ class S3aRecordTest(unittest.TestCase):
             with self.subTest(reason=reason):
                 row = goal_typing(reason_owner_family(reason), reason)
                 self.assertEqual(row.kind, kind)
+
+    def test_emitted_home_literals_do_not_use_the_catch_all(self):
+        source = Path(__file__).parents[1] / "src" / "hengbot"
+        for path in source.glob("*.py"):
+            if path.name == "claim_goal_typing.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                    continue
+                reason = node.value
+                if not reason.startswith("home:") or reason.endswith((":", "-")):
+                    continue
+                if path.name not in {"policy.py", "policy_home.py", "policy_quest.py", "policy_shop.py"}:
+                    continue
+                typed = [r for r in GOAL_TYPING
+                         if r.family in {"home-visit", "home-scan"}
+                         and reason.startswith(r.prefix)]
+                self.assertTrue(typed, (path.name, node.lineno, reason))
+                self.assertNotEqual(max(typed, key=lambda r: len(r.prefix)).prefix,
+                                    "home:", (path.name, node.lineno, reason))
+
+    def test_home_exit_continues_pending_deposit_claim(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=9, operation_key="dax",
+        )
+        decisions.policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        posted = decisions.decide("home:atomic-deposit")
+        exit_row = decisions.decide("home:leave-after-one-operation")
+        self.assertEqual(posted["claim_id"], exit_row["claim_id"])
+        self.assertIsNone(exit_row["violation"])
+        decisions.policy._claim_store_visit_closed(
+            decisions.policy._store_visit, "completed", operation_posted=True
+        )
+        self.assertEqual(decisions.register.current.closed, "expired")
+        self.assertEqual(decisions.register.current.closed_reason,
+                         "completed-unobserved")
+
+    def test_home_errand_request_has_own_identity_during_deposit(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=9, operation_key="dax",
+        )
+        decisions.policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        decisions.policy._home_errand.request = HomeErrandRequest(
+            ("weapon", 1, 2), 1, "test", "request-knowledge"
+        )
+        deposit = decisions.decide("home:atomic-deposit")
+        request = decisions.decide("home-errand:request-knowledge:combat-weapon")
+        self.assertEqual(request["goal"]["expectation"],
+                         ["('weapon', 1, 2)", str(STORE_HOME), "errand"])
+        self.assertNotEqual(deposit["goal"]["expectation"], request["goal"]["expectation"])
+
+    def test_withdraw_identity_requires_the_home_visit(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="shop-one-shot", purpose="buy", store_type=1,
+            opened_sequence=8, operation_key="pa1",
+        )
+        decisions.policy._home_atomic_withdraw_pending = ("item", 1, 1, 1)
+        other_store = decisions.decide("home:atomic-withdraw")
+        self.assertNotIn("pa1", other_store["goal"].get("expectation", ()))
+        decisions.policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="withdraw", store_type=STORE_HOME,
+            opened_sequence=9, operation_key="pax",
+        )
+        home = decisions.decide("home:atomic-withdraw")
+        self.assertIn("pax", home["goal"]["expectation"])
+
+    def test_precursor_steps_do_not_open_store_observation(self):
+        decisions = _Decisions()
+        inscribe = decisions.decide("shop:batch-inscribe")
+        self.assertEqual(inscribe["goal"]["kind"], "Terminal")
+        target = decisions.cell(5)
+        decisions.policy._store_visit = StoreVisit(
+            owner="store-router", purpose="entry", store_type=1,
+            goal=Position(*target),
+        )
+        wait = decisions.decide("store:entry-await-observation")
+        self.assertEqual(wait["goal"]["kind"], "Reach")
+        self.assertEqual(wait["goal"]["cell"], list(target))
 
     def test_non_discardable_promotion_keeps_identity_and_rank(self):
         register = ClaimRegister()
@@ -239,13 +339,25 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNone(restored_visit.claim_id)
         self.assertIsNone(restored_visit.claim_owner)
         self.assertIsNone(restored_visit.opened_producer_family)
+        acquired = StoreVisit(
+            owner="town-errand", purpose="buy", store_type=1,
+            opened_producer_family="shop-buy",
+        )
+        self.assertEqual(pickle.loads(pickle.dumps(acquired)).opened_producer_family,
+                         "shop-buy")
         session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
         restored_session = pickle.loads(pickle.dumps(session))
         self.assertIsNone(restored_session.opened_sequence)
         decisions = _Decisions()
         decisions.policy.__dict__.pop("_claim_active_operation_identity", None)
+        decisions.policy.__dict__.pop("_decision_plan_change_evidence", None)
+        decisions.policy.__dict__.pop("_decision_displaced_producer", None)
+        decisions.policy.__dict__.pop("_claim_last_completed_home", None)
         restored_policy = pickle.loads(pickle.dumps(decisions.policy))
         self.assertIsNone(getattr(restored_policy, "_claim_active_operation_identity", None))
+        self.assertIsNone(getattr(restored_policy, "_decision_plan_change_evidence", None))
+        self.assertIsNone(getattr(restored_policy, "_decision_displaced_producer", None))
+        self.assertIsNone(getattr(restored_policy, "_claim_last_completed_home", None))
         decisions.policy = restored_policy
         self.assertEqual(decisions.decide("home:atomic-withdraw")["owner"],
                          "home-visit")
@@ -253,8 +365,14 @@ class S3aRecordTest(unittest.TestCase):
     def test_plan_handoff_remains_a_violation(self):
         decisions = _Decisions()
         first = decisions.decide("shop:approach", cell=decisions.cell(5))
+        decisions.policy._decision_plan_change_evidence = {
+            "previous_stops": (1,), "previous_index": 0,
+            "new_stops": (STORE_HOME,), "previous_stop": 1,
+            "new_stop": STORE_HOME,
+        }
         second = decisions.decide("home:request-knowledge-scan")
         self.assertEqual(second["violation"]["kind"], "plan-handoff")
+        self.assertEqual(second["plan_change_evidence"]["new_stop"], STORE_HOME)
         self.assertEqual(second["violation"]["claim_id"], first["claim_id"])
         self.assertEqual(s3_numbers([second])["plan_handoff"], 1)
 
@@ -268,6 +386,14 @@ class S3aRecordTest(unittest.TestCase):
         )
         self.assertEqual(plan.stops, [STORE_HOME])
         self.assertEqual(decisions.policy._decision_plan_rebuild_deferred, 1)
+        self.assertEqual(
+            decisions.policy._decision_plan_change_evidence,
+            {"previous_stops": (1,), "previous_index": 0,
+             "new_stops": (STORE_HOME,), "previous_stop": 1,
+             "new_stop": STORE_HOME,
+             "previous_categories": (),
+             "new_categories": ((STORE_HOME, ("knowledge",)),)},
+        )
         self.assertEqual(decisions.policy._town_errand_plan.stops, [1])
 
     def test_equipment_session_keeps_claim_as_owned_items_change(self):
@@ -416,40 +542,68 @@ class S3aRecordTest(unittest.TestCase):
         self.assertTrue(row["scan-during-pending-atomic"])
         self.assertEqual(s3_numbers([row])["scan-during-pending-atomic"], 1)
 
-    def test_town_errand_visit_owner_uses_opening_claim_family(self):
+    def test_town_errand_visit_owner_preserves_opening_producer(self):
         decisions = _Decisions()
         decisions.policy._store_visit = StoreVisit(
             owner="town-errand", purpose="buy", store_type=1,
+            opened_producer_family="shop-buy",
         )
         row = decisions.decide("shop:buy")
         self.assertIsNone(row["visit_owner_mismatch"])
         self.assertEqual(decisions.policy._store_visit.opened_producer_family,
                          "shop-buy")
 
-    def test_town_errand_mapping_uses_arbiter_selected_producer(self):
+    def test_town_errand_mapping_uses_opening_producer_not_later_telemetry(self):
         decisions = _Decisions()
         decisions.policy._store_visit = StoreVisit(
             owner="town-errand", purpose="buy", store_type=1,
+            opened_producer_family="shop-buy",
         )
         decisions.policy._town_turn_arbiter.telemetry = {
-            "producer_owner": "shop-buy",
+            "producer_owner": "store-router",
         }
         row = decisions.decide("shop:travel", cell=decisions.cell(4))
         self.assertEqual(row["visit_owner_mismatch"]["visit_owner"], "shop-buy")
         self.assertEqual(row["visit_owner_mismatch"]["claim_owner"],
                          "store-router")
 
+    def test_arbiter_records_producer_when_visit_is_acquired(self):
+        decisions = _Decisions()
+        arbiter = decisions.policy._town_turn_arbiter
+        arbiter.telemetry = {"producer_owner": "shop-buy"}
+        visit = arbiter.acquire_store_visit(
+            store_type=1, owner="town-errand", purpose="buy",
+            opened_sequence=11, opened_producer_family="shop-buy",
+            close_visit=lambda _outcome: None,
+        )
+        self.assertEqual(visit.opened_producer_family, "shop-buy")
+        arbiter.telemetry = {"producer_owner": "store-router"}
+        self.assertEqual(visit.opened_producer_family, "shop-buy")
+
+    def test_router_opening_home_operation_is_structural(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="store-router", purpose="home", store_type=STORE_HOME,
+            opened_producer_family="store-router", operation_key="da",
+            opened_sequence=4,
+        )
+        decisions.policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        row = decisions.decide("home:atomic-deposit")
+        self.assertIsNone(row["visit_owner_mismatch"])
+        self.assertEqual(row["visit_owner_structure"],
+                         "router-opens-family-operates")
+
     def test_non_discardable_handoff_keeps_rewrite_violation(self):
         decisions = _Decisions()
         decisions.policy._store_visit = StoreVisit(
-            owner="town-errand", purpose="buy", store_type=1,
+            owner="town-errand", purpose="buy", store_type=STORE_HOME,
         )
         decisions.policy._home_atomic_withdraw_pending = ("item", 1, 1, 1)
         first = decisions.decide("home:atomic-withdraw")
         self.assertTrue(first["non_discardable"])
         row = decisions.decide("shop:approach", cell=decisions.cell(3))
-        if row["violation"] is not None:
-            self.assertNotEqual(row["violation"]["kind"], "plan-handoff")
+        self.assertIsNotNone(row["violation"])
+        self.assertNotEqual(row["violation"]["kind"], "plan-handoff")
 
     def test_plan_handoff_requires_changed_plan_and_discardable_holder(self):
         common = dict(holder_family="store-router", next_family="home-scan",
@@ -576,6 +730,20 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(
             verdict["claim_verdict_conflict"]["claim_id"], first["claim_id"]
         )
+
+    def test_completed_operation_identity_survives_restored_checkpoint(self):
+        decisions = _Decisions()
+        decisions.policy._home_visit.operation = ("withdraw", "same-item")
+        first = decisions.decide("home:atomic-withdraw")
+        decisions.register.complete("home-withdraw-observed")
+        decisions.decide("shop:approach", cell=decisions.cell(4))
+        saved = decisions.policy._claim_last_completed_home
+        self.assertEqual(len(saved), 3)
+        decisions.policy = pickle.loads(pickle.dumps(decisions.policy))
+        self.assertEqual(decisions.policy._claim_last_completed_home[2], saved[2])
+        verdict = decisions.decide("home:atomic-withdraw-target-unobserved")
+        self.assertEqual(verdict["claim_verdict_conflict"]["claim_id"],
+                         first["claim_id"])
 
     def test_failed_verdict_for_another_operation_is_not_conflict(self):
         decisions = _Decisions()

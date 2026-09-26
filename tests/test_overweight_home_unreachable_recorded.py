@@ -66,6 +66,7 @@ No wall touches the Home ledger, the equipment transaction or the terminal.
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
 import json
@@ -204,7 +205,8 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     },
                 })
                 policy.confirm_key_posted(key)
-                if policy.peek_staged_prompt_chain() is not None:
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, key):
                     policy.commit_staged_prompt_chain({
                         "outcome": "released", "posted": str(key),
                     })
@@ -293,7 +295,10 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            12,
+            # R3 captures the approach producer at acquisition. Router-opened
+            # operations are structural handoffs; five genuine cross-family
+            # opener/claim pairs remain (12 in the R2 replay).
+            5,
         )
 
     def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):

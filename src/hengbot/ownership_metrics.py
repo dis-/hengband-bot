@@ -1148,21 +1148,13 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
     ):
         return VERDICT_COMPLETED
     from hengbot.plan_handoff import is_plan_handoff
-    new_goal = row.get("goal") if isinstance(row.get("goal"), Mapping) else {}
     if is_plan_handoff(
         holder_family=held_family,
         next_family=_family_of_row(row),
         holder_kind=goal.get("kind"),
         holder_non_discardable=bool(held_row.get("non_discardable")),
         same_rank=held.rank == new.rank,
-        plan_changed=(
-            bool(row.get("plan_rebuild_deferred"))
-            or (goal.get("kind") == "Reach" and
-                new_goal.get("kind") == "Reach" and
-                new_goal.get("cell") != goal.get("cell"))
-            or (goal.get("kind") == "Reach" and
-                _family_of_row(row) in {"home-scan", "home-errand"})
-        ),
+        plan_changed=bool(row.get("plan_change_evidence")),
     ):
         return VERDICT_PLAN_HANDOFF
     return owner_change(

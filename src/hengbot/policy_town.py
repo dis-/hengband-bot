@@ -3222,6 +3222,24 @@ class TownMixin:
             else None
         )
         if previous is not None:
+            old_stop = (previous.stops[previous.index]
+                        if previous.index < len(previous.stops) else None)
+            new_stop = plan.stops[0] if plan is not None else None
+            old_categories = tuple(sorted(previous.need_categories.items()))
+            new_categories = (
+                tuple(sorted(plan.need_categories.items())) if plan is not None else ()
+            )
+            if (old_stop != new_stop or tuple(previous.stops) != tuple(stops)
+                    or old_categories != new_categories):
+                self._decision_plan_change_evidence = {
+                    "previous_stops": tuple(previous.stops),
+                    "previous_index": previous.index,
+                    "new_stops": tuple(stops),
+                    "previous_stop": old_stop,
+                    "new_stop": new_stop,
+                    "previous_categories": old_categories,
+                    "new_categories": new_categories,
+                }
             held = getattr(getattr(self, "_claim_register", None), "current", None)
             visit = getattr(self, "_store_visit", None)
             current_stop = (

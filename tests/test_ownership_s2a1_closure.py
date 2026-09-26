@@ -369,7 +369,8 @@ class GoalTypingTableTest(unittest.TestCase):
             ("shop:approach", "Reach"),
             ("shop:one-shot-buy", "Observe"),
             ("home:atomic-withdraw", "Observe"),
-            ("shop:batch-inscribe", "Observe"),
+            # S3a R3: inscription outside the shop precedes the operation.
+            ("shop:batch-inscribe", "Terminal"),
             ("home:request-knowledge-scan", "Observe"),
             ("equipment-transaction:takeoff", "Observe"),
             ("return:recall", "Observe"),

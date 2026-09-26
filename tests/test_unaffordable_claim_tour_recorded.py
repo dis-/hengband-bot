@@ -39,6 +39,7 @@ is not under test:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import copy
 import gzip
 import hashlib
@@ -144,8 +145,11 @@ S2A1_FAR_TARGET_REASONS = frozenset({
 # and keeps recall step-offs under the floor-change claim.
 S2A1_ENDINGS = {
     "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    # Three former generic Home Observe claims are now correctly Terminal.
-    "home-visit/Observe": {"complete": 8, "release": 0, "abandoned": 3},
+    # R3: the three Home deposits keep their claim through the leave key;
+    # their outside boards never confirm an inventory effect, so visit close
+    # expires them as completed-unobserved instead of abandoning them.
+    "home-visit/Observe": {"complete": 8, "release": 0,
+                           "expired": 3, "abandoned": 0},
     "equipment-txn/Observe": {"complete": 5, "abandoned": 6},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
@@ -241,6 +245,30 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
     replay = None
     claim_rows = None
 
+    def test_s3_new_code_replay_names_remaining_violations(self):
+        self._replay()
+        actual = [
+            (row["decision_sequence"], v["kind"], v["from"], v["to"])
+            for row in self.claim_rows
+            if isinstance(v := row.get("violation"), dict)
+            and v.get("scope") == "S3"
+        ]
+        # The eight base retargets are gone. These handoffs still need the
+        # S3.3/S3.4 behavior stage or an observed operation ending.
+        self.assertEqual(actual, [
+            (2646, "owner-change", "equipment-txn", "departure"),
+            (2701, "owner-change", "store-router", "home-scan"),
+            (3008, "owner-change", "equipment-txn", "survival"),
+            (3009, "owner-change", "survival", "equipment-txn"),
+            (3020, "owner-change", "calibration", "equipment-txn"),
+            (3030, "owner-change", "equipment-txn", "survival"),
+            (3037, "owner-change", "calibration", "equipment-txn"),
+            (3038, "owner-change", "equipment-txn", "home-visit"),
+            (3040, "owner-change", "equipment-txn", "home-visit"),
+            (3052, "owner-change", "store-router", "home-scan"),
+            (4250, "owner-change", "equipment-txn", "home-visit"),
+        ])
+
     @classmethod
     def setUpClass(cls):
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == FIXTURE_SHA256
@@ -299,7 +327,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 _recorded_process_capture(policy, snapshot)
                 policy._claim_register = register
                 policy.confirm_key_posted(key)
-                if policy.peek_staged_prompt_chain() is not None:
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, key):
                     # The live sender commits the prompt tail after posting;
                     # leaving it staged makes later ownership rows fictitious.
                     policy.commit_staged_prompt_chain({
@@ -496,8 +525,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
              and row["violation"].get("from") == "equipment-txn"],
             [],
         )
-        # R2: compose-time one-shot identity removes the 19 shop-buy and
-        # three of six shop-sell retargets seen on the base replay.
+        # R3: batch inscription is a precursor, not a store operation; its
+        # three false shop-sell retargets disappear as well.
         self.assertEqual(
             {
                 owner: sum(
@@ -508,7 +537,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 )
                 for owner in ("shop-buy", "shop-sell")
             },
-            {"shop-buy": 0, "shop-sell": 3},
+            {"shop-buy": 0, "shop-sell": 0},
         )
         # Rev 9.3 (R2): Reach claims that completed on the very next row.
         # Explore's own goal test, loot one cell away and native travel

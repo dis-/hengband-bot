@@ -2443,6 +2443,10 @@ class HomeMixin:
                 store_type=STORE_HOME,
                 visit_origin="home-operation-staging",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family=(
+                    "equipment-txn" if self._equipment_transaction_session is not None
+                    else "home-visit"
+                ),
             )
         return self._store_visit
 

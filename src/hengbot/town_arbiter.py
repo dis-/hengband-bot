@@ -217,6 +217,7 @@ class TownTurnArbiter:
         owner: str,
         purpose: str,
         opened_sequence: int,
+        opened_producer_family: str | None = None,
         close_visit: Callable[[str], None],
     ) -> StoreVisit | None:
         """Grant one store target without letting an old visit outrank arbitration.
@@ -249,6 +250,9 @@ class TownTurnArbiter:
                 store_type=store_type,
                 visit_origin="acquire",
                 opened_sequence=opened_sequence,
+                opened_producer_family=(
+                    opened_producer_family or (owner if owner != "town-errand" else None)
+                ),
             )
             self.store_visit = visit
         return visit
@@ -715,6 +719,7 @@ class TownArbiterMixin:
                 goal=self._store_visit_pending_goal,
                 visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="store-router",
             )
             self._store_visit_pending_goal = None
 
@@ -747,6 +752,7 @@ class TownArbiterMixin:
                 owner="store-router", purpose="store-entry", store_type=value,
                 visit_origin="store-router",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="store-router",
             )
             visit = self._store_visit
         if visit.store_type == value:
@@ -799,6 +805,7 @@ class TownArbiterMixin:
                 store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
                 visit_origin="home-one-shot",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="home-visit",
             )
             self._store_visit = visit
         if visit is not None and visit.store_type == STORE_HOME:
@@ -829,6 +836,7 @@ class TownArbiterMixin:
                 owner="recovered-store-context", purpose="leave",
                 store_type=store_type, visit_origin="recovered-store-context",
                 opened_sequence=sequence,
+                opened_producer_family="recovered-store-context",
             )
             self._store_visit = visit
         visit.transition(StoreVisitPhase.LEAVING, LEAVE_STORE_KEY)

@@ -4244,6 +4244,7 @@ class ShopMixin:
             owner=requested_owner,
             purpose=("equipment-work" if equipment_owner else "shopping"),
             opened_sequence=self._decision_sequence,
+            opened_producer_family="store-router",
             close_visit=self._close_store_visit,
         )
         self._acquire_store_visit_attempt = {

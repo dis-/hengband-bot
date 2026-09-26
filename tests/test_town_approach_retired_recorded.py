@@ -61,6 +61,7 @@ whose landing is a guardian floor the current kit cannot pass
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import copy
 import gzip
 import hashlib
@@ -109,6 +110,32 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     replay = None
     path = None
     fixed_recall = None
+
+    def test_s3_new_code_replay_names_remaining_violations(self):
+        actual = [
+            (claim["decision_sequence"], v["kind"], v["from"], v["to"])
+            for row in self._replay()
+            if (claim := row["claim"])
+            if isinstance(v := claim.get("violation"), dict)
+            and v.get("scope") == "S3"
+        ]
+        self.assertEqual(actual, [
+            (1177, "owner-change", "equipment-txn", "home-errand"),
+            (1179, "owner-change", "equipment-txn", "home-visit"),
+            (1184, "plan-handoff", "home-errand", "store-router"),
+            (1885, "owner-change", "equipment-txn", "home-visit"),
+            (1893, "owner-change", "equipment-txn", "home-visit"),
+            (1899, "owner-change", "equipment-txn", "home-visit"),
+            (1906, "owner-change", "equipment-txn", "departure"),
+            (1916, "owner-change", "home-errand", "equipment-txn"),
+            (1919, "retarget", "equipment-txn", "equipment-txn"),
+            (1922, "owner-change", "home-visit", "home-errand"),
+            (1923, "owner-change", "home-errand", "home-visit"),
+            (1947, "owner-change", "home-errand", "home-visit"),
+            (1957, "owner-change", "home-errand", "home-visit"),
+            (1958, "owner-change", "home-visit", "home-errand"),
+            (1959, "owner-change", "home-errand", "home-visit"),
+        ])
 
     @classmethod
     def setUpClass(cls):
@@ -200,7 +227,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             },
         }
         policy.confirm_key_posted(key)
-        if policy.peek_staged_prompt_chain() is not None:
+        chain = policy.peek_staged_prompt_chain()
+        if chain is not None and staged_prompt_chain_matches(chain, key):
             policy.commit_staged_prompt_chain({
                 "outcome": "released", "posted": str(key),
             })
@@ -331,7 +359,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # decision.  Live retired the walk's first claim (924) on its first
         # board by recurrence and opened 925 for the rest.  S2b.1 (design rev
         # 10.1 item 5): this walk to the same entrance was opened seven
-        # decisions earlier as claim 903, suspended when melee took the
+        # decisions earlier as claim 908 on the base replay (both harnesses),
+        # suspended when melee took the
         # decision (the town kill and a loot pickup nested above it), and it
         # resumes here under its own id -- where live, before the ladder,
         # opened 924.
@@ -339,7 +368,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
             # R2's operation identities/typing plus the live prompt-tail
-            # commit move this later allocation from 903 to 902.
+            # commit move this later allocation from base 908 to 902.
+            # The earlier 903 explanation was already stale at 8fa10c0d.
             {(902, "active")},
         )
         self.assertEqual(

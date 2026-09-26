@@ -2444,7 +2444,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_goal = None
         self._decision_expectation = None
         self._decision_non_discardable = None
+        self._decision_displaced_producer = None
         self._decision_plan_rebuild_deferred = 0
+        self._decision_plan_change_evidence = None
         self._decision_home_approach_fails_before = (
             self._town_visit_ledger.approach_fails[STORE_HOME]
         )
@@ -3322,18 +3324,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (visit.store_type, visit.operation_key, visit.opened_sequence),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
-        if owner.value in {"home-visit", "home-errand", "equipment-txn", "calibration"}:
+        if owner.value == "home-visit" and reason.startswith((
+            "home:atomic-", "home:deposit", "home:withdraw-",
+            "home:weight-overload-deposit",
+            "home:morivant-temporary-deposit", "home:morivant-retry-temporary-deposit",
+            "home:morivant-restore-temporary-deposit", "home:leave-",
+            "home:store-context-exit",
+        )) and visit is not None and visit.store_type == STORE_HOME:
             withdrawal = getattr(self, "_home_atomic_withdraw_pending", None)
             deposit = getattr(self, "_home_atomic_deposit_pending", None)
-            if withdrawal is not None:
+            withdraw_step = "withdraw" in reason or reason.startswith(
+                ("home:leave-", "home:store-context-exit")
+            )
+            if withdrawal is not None and visit.operation_key is not None and withdraw_step:
                 return claim_observe(
-                    (STORE_HOME, withdrawal[0], withdrawal[1], withdrawal[3],
-                     getattr(visit, "opened_sequence", None)),
+                    (STORE_HOME, visit.opened_sequence, visit.operation_key),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
-            if deposit is not None:
+            if deposit is not None and visit.operation_key is not None:
                 return claim_observe(
-                    (STORE_HOME, tuple(deposit[0]), deposit[2]),
+                    (STORE_HOME, visit.opened_sequence, visit.operation_key),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
         if owner.value == "home-scan" and reason.startswith("home:request-knowledge"):
@@ -3389,6 +3399,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if staged is not None:
                 return staged, False, None
         if row is None or row.kind == CLAIM_GOAL_TERMINAL:
+            if owner.value == "home-visit" and reason.startswith((
+                "home:leave-", "home:store-context-exit",
+            )):
+                operation = self._claim_operation_goal(
+                    snapshot, owner, reason, CLAIM_OBSERVE_STORE_OPERATION
+                )
+                if operation is not None:
+                    return operation, False, None
             if (
                 standing is not None and standing.is_open
                 and standing.owner == owner
@@ -3435,6 +3453,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         within = CLAIM_OBSERVE_WITHIN.get(row.content, OWNER_EXPECTATION_MAX_TURNS)
         if row.content == CLAIM_OBSERVE_STORE_ENTRY:
             visit = getattr(self, "_store_visit", None)
+            if (
+                reason == "store:entry-await-observation"
+                and visit is not None and visit.goal is not None
+                and (snapshot.player.position.y, snapshot.player.position.x)
+                    != (visit.goal.y, visit.goal.x)
+            ):
+                return claim_reach((visit.goal.y, visit.goal.x)), False, None
             target = getattr(self, "_store_entry_wait_owner", None)
             if target is None and visit is not None:
                 target = visit.store_type
@@ -3906,18 +3931,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_active_operation_identity = (claim.claim_id, identity)
         visit = getattr(self, "_store_visit", None)
         visit_owner_mismatch = None
+        visit_owner_structure = None
         if visit is not None and claim.is_open and claim.owner.value in CLAIM_S3_FAMILIES:
-            if visit.owner == "town-errand" and getattr(
-                visit, "opened_producer_family", None
-            ) is None:
-                telemetry = getattr(
-                    getattr(self, "_town_turn_arbiter", None), "telemetry", None
-                )
-                selected = (
-                    telemetry.get("producer_owner")
-                    if isinstance(telemetry, dict) else None
-                )
-                visit.opened_producer_family = selected or claim.owner.value
             visit.claim_id = claim.claim_id
             visit.claim_owner = claim.owner.value
             aliases = {
@@ -3928,7 +3943,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             alias = aliases.get(visit.owner, visit.owner)
             if alias == "town-errand":
                 alias = visit.opened_producer_family
-            if alias != claim.owner.value:
+            router_for_operation = (
+                alias == "store-router" and claim.owner.value in {
+                    "home-visit", "home-errand", "home-scan",
+                    "shop-buy", "shop-sell", "equipment-txn", "calibration",
+                }
+            )
+            if router_for_operation:
+                visit_owner_structure = "router-opens-family-operates"
+            if alias != claim.owner.value and not router_for_operation:
                 visit_owner_mismatch = {
                     "visit_owner": alias, "claim_owner": claim.owner.value,
                     "claim_id": claim.claim_id,
@@ -3953,6 +3976,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "rung": rung.name,
             "violation": violation,
             "visit_owner_mismatch": visit_owner_mismatch,
+            "visit_owner_structure": visit_owner_structure,
             "claim_verdict_conflict": claim_verdict_conflict,
             "scan-during-pending-atomic": bool(
                 owner.value == "home-scan"
@@ -3963,6 +3987,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
             "plan_rebuild_deferred": getattr(
                 self, "_decision_plan_rebuild_deferred", 0
+            ),
+            "plan_change_evidence": getattr(
+                self, "_decision_plan_change_evidence", None
+            ),
+            "displaced_non_discardable_producer": getattr(
+                self, "_decision_displaced_producer", None
             ),
             "resumed": (
                 None
@@ -4138,16 +4168,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ), None
         if verdict == CLAIM_SURVIVAL_DISPLACED:
             return CLAIM_SURVIVAL_DISPLACED, CLAIM_SURVIVAL_DISPLACED, None
-        position = snapshot.player.position
-        next_stop_differs = (
-            standing.goal.kind == CLAIM_GOAL_REACH
-            and standing.goal.cell is not None
-            and standing.goal.cell != (position.y, position.x)
-            and (
-                (goal.kind == CLAIM_GOAL_REACH and goal.cell != standing.goal.cell)
-                or owner.value in {"home-scan", "home-errand"}
-            )
-        )
+        plan_changed = bool(getattr(self, "_decision_plan_change_evidence", None))
         from hengbot.plan_handoff import is_plan_handoff
         if kind == "owner-change" and is_plan_handoff(
             holder_family=standing.owner.value,
@@ -4155,8 +4176,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             holder_kind=standing.goal.kind,
             holder_non_discardable=standing.non_discardable,
             same_rank=held.rank == rung.rank,
-            plan_changed=(next_stop_differs or
-                          getattr(self, "_decision_plan_rebuild_deferred", 0) > 0),
+            plan_changed=plan_changed,
         ):
             kind = "plan-handoff"
         return None, None, {
@@ -4569,6 +4589,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         chain = self._staged_prompt_chain
         if chain is not None and not staged_prompt_chain_matches(chain, key):
+            producer = getattr(self, "_decision_non_discardable", None)
+            if producer is not None:
+                self._decision_displaced_producer = {
+                    "family": producer, "key": chain.get("key"),
+                }
             self._release_claim_goal(
                 "staged-tail-dropped",
                 owners=(self._claim_family_of(chain["owner"]),),
@@ -5779,6 +5804,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 store_type=STORE_HOME, phase=StoreVisitPhase.OPERATING,
                 visit_origin="equipment-transaction-recovery",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="equipment-txn",
             )
         elif snapshot.store is not None and self._store_visit is None:
             self._store_visit = StoreVisit(
@@ -5787,6 +5813,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 phase=StoreVisitPhase.OPERATING,
                 visit_origin="shop-handler-recovery",
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="shop-buy",
             )
         unintended_store_context = (
             snapshot.store is not None and self._store_visit is None
@@ -5911,6 +5938,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 purpose="observed-transaction",
                 store_type=observed_store,
                 opened_sequence=self._decision_sequence,
+                opened_producer_family="shop-buy",
                 close_visit=self._close_store_visit,
             )
             assert visit is not None, (

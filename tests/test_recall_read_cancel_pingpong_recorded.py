@@ -62,6 +62,7 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
 import json
@@ -190,7 +191,8 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                 read = (read_key, policy.last_reason)
                 read_claim = dict(policy.decision_claim or {})
                 policy.confirm_key_posted(read_key)
-                if policy.peek_staged_prompt_chain() is not None:
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, read_key):
                     policy.commit_staged_prompt_chain({
                         "outcome": "released", "posted": str(read_key),
                     })
