@@ -1,5 +1,8 @@
 import ast
 from collections import Counter
+from collections import deque
+import gzip
+import hashlib
 import json
 import inspect
 import os
@@ -4616,6 +4619,78 @@ class StallRecoveryTest(unittest.TestCase):
 
 
 class StationaryReasonsTest(unittest.TestCase):
+    def test_every_emitted_wait_recall_reason_is_stationary(self):
+        source_root = Path(__file__).resolve().parents[1] / "src" / "hengbot"
+        emitted = {
+            node.value
+            for path in source_root.glob("*.py")
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value.endswith(":wait-recall")
+        }
+        self.assertIn("breeder-breakthrough:wait-recall", emitted)
+        self.assertEqual(emitted - STATIONARY_REASONS, set())
+
+    def test_recorded_breeder_recall_window_clears_the_cell_guard(self):
+        # Decisions 40769-40808 from the read-only 2026-09-27 04:30 capture.
+        # Source decisions.jsonl.gz SHA256:
+        # 40be81c7c85472dedb522a431b58a9e38ac5b1e464826cb78628fc66cd639bdb
+        fixture = (
+            Path(__file__).parent / "fixtures" /
+            "breeder-wait-recall-loop-20260927.jsonl.gz"
+        )
+        self.assertEqual(
+            hashlib.sha256(fixture.read_bytes()).hexdigest(),
+            "fb8266f749badd77203fa223193100aab2031d60406ff5fd5c664e9551b8a040",
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        self.assertEqual(len(rows), LOOP_WINDOW)
+        self.assertEqual((rows[0]["decision_sequence"], rows[-1]["decision_sequence"]), (40769, 40808))
+        self.assertEqual((rows[0]["turn"], rows[-1]["turn"]), (6546443, 6546709))
+        self.assertEqual((rows[0]["reason"], rows[0]["key"]), ("breeder-breakthrough:recall", "rg"))
+        self.assertEqual(
+            [(row["reason"], row["key"]) for row in rows[1:] if row["reason"] != "breeder-breakthrough:wait-recall"],
+            [("no-wait:least-visited", "7")],
+        )
+        self.assertEqual(
+            sum(row["reason"] == "breeder-breakthrough:wait-recall" and row["key"] == "5" for row in rows),
+            38,
+        )
+        self.assertEqual(
+            {(row["position"]["y"], row["position"]["x"]) for row in rows},
+            {(14, 60), (13, 59)},
+        )
+
+        def guard_stop_sequence():
+            recent = deque(maxlen=LOOP_WINDOW)
+            previous = None
+            for row in rows:
+                position = Position(row["position"]["y"], row["position"]["x"])
+                floor = row["floor"]
+                snapshot = SimpleNamespace(
+                    in_town=False,
+                    floor_key=(floor["dungeon_id"], floor["level"], floor["quest_id"]),
+                    player=SimpleNamespace(position=position),
+                )
+                if _cell_loop_guard_applies(snapshot, row["reason"], previous):
+                    recent.append((snapshot.floor_key, position.y, position.x))
+                    if _is_looping(recent):
+                        return row["decision_sequence"]
+                else:
+                    recent.clear()
+                previous = position
+            return None
+
+        self.assertIsNone(guard_stop_sequence())
+        # Removing this one registration recreates the exact live stop.
+        with patch(
+            "hengbot.cli.STATIONARY_REASONS",
+            STATIONARY_REASONS - {"breeder-breakthrough:wait-recall"},
+        ):
+            self.assertEqual(guard_stop_sequence(), 40808)
+
     def test_stationary_exemption_depends_on_observed_position(self):
         before = parse_snapshot(json.loads(_snap_line(1, 13, 104)), {})
         after_move = parse_snapshot(json.loads(_snap_line(1, 13, 105)), {})
