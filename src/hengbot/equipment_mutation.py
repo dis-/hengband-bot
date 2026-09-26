@@ -303,6 +303,27 @@ class EquipmentMutationExecutor:
             return self.last_report
         return None
 
+    def discard_unposted(self) -> str | None:
+        """Drop a command prepared on an earlier board and never posted.
+
+        A PREPARED command becomes POSTED only when its exact key is
+        confirmed as posted.  At the next decision entry a command still
+        PREPARED was not posted (its producer blocked after composing it, the
+        key was rewritten or refused), and it gates nothing: release it
+        loudly back to IDLE.
+        """
+        if self.state != EquipmentMutationState.PREPARED:
+            return None
+        self.state = EquipmentMutationState.IDLE
+        self.goal = None
+        self.prepared_key = None
+        self.prepared_core = None
+        self.expected_signature = None
+        self.refusals = 0
+        self.board_counted = False
+        self.last_report = "posting-contract:equipment-mutation-unposted-discarded"
+        return self.last_report
+
     def _release_unobserved(self) -> None:
         self.state = EquipmentMutationState.IDLE
         self.goal = None

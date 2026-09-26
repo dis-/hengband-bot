@@ -39,6 +39,15 @@ Walls, each declared:
   index 4256, so the recorded ``~9`` response row of 4257 is delivered to the
   copy's Home-knowledge consumer (consume_home_knowledge, which the CLI calls
   for an accepted response).
+- W4 (X5, 2026-09-26 unposted-mutation discard): the capture-less town
+  replay diverges from list index 2643, where it composes a takeoff 'te' it
+  never posts.  Before the equipment executor discarded unposted commands,
+  that stale PREPARED held the replay's transaction back until it was
+  abandoned; now the transaction proceeds and the diverged replay still
+  carries an equipment transaction session at 4257 (a takeoff of the
+  sub_hand, outstanding since the divergent visit).  The session is an
+  artifact of the divergent town decisions, not of the recorded board, so
+  the X5 copies drop it (_without_diverged_transaction) before deciding.
 Hand-built boards (declared at each use): the recorded Temple page (with or
 without its Restore Life Levels) shown on the index-20 board; the recorded
 index-20 board with the drain filled; the recorded Temple page / outside
@@ -145,6 +154,13 @@ def _unwalled_copy(policy):
 def _drain_unknown(_snapshot):
     """W2: the protocol-2 view of the drain."""
     return False
+
+
+def _without_diverged_transaction(policy):
+    """W4: drop the diverged replay's equipment transaction (see docstring)."""
+    policy._equipment_transaction_session = None
+    policy._equipment_transaction_owned_items = []
+    return policy
 
 
 def _decide(policy, snapshot):
@@ -506,6 +522,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         replay = self._replay()
         experience = replay["experience_item"]
         policy, snapshot = self._board(HOME_SCAN)
+        _without_diverged_transaction(policy)
         self.assertIsNone(_potion(snapshot, SV_POTION_EXPERIENCE))
         rows = [json.loads(line) for line in replay["home_scan_segment"]]
         response = next(
@@ -543,6 +560,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
     def test_x5_route_from_the_recorded_board_claims_the_home_withdrawal(self):
         replay = self._replay()
         policy, snapshot = self._board(HOME_SCAN)
+        _without_diverged_transaction(policy)
         rows = [json.loads(line) for line in replay["home_scan_segment"]]
         response = next(
             row for row in rows

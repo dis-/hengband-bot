@@ -1400,6 +1400,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_mutation_observed_changes = 0
         self._equipment_mutation_post_commit: tuple[str, str] | None = None
         self._pending_mutation_report: str | None = None
+        # The board the equipment executor's fruitless count last saw.
+        self._equipment_mutation_counted_board = None
         self._hunt_progress_floor: tuple[int, int, int] | None = None
         self._hunt_progress: dict[tuple[int, int, Position], dict[str, int]] = {}
         self._hunt_target_identities: dict[int, tuple[int, int, Position]] = {}
@@ -4090,12 +4092,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # not only when the next mutation is requested: a transaction's last
         # wield otherwise stays POSTED after its worn change was observed, and
         # those owners stay silenced for the rest of the town visit.  Each
-        # fruitless board counts toward the executor's bounded release.
+        # fruitless board counts toward the executor's bounded release, once
+        # per board (the driver re-decides the same board after a refused
+        # post).  A command prepared on an earlier decision and never posted
+        # is discarded first.
+        discarded = self._equipment_mutation.discard_unposted()
         released = self._equipment_mutation.observe(
-            snapshot, count_fruitless=True
+            snapshot,
+            count_fruitless=(
+                snapshot
+                is not getattr(self, "_equipment_mutation_counted_board", None)
+            ),
         )
-        if released is not None:
-            self._pending_mutation_report = released
+        self._equipment_mutation_counted_board = snapshot
+        if (released or discarded) is not None:
+            self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         if snapshot.store is not None and snapshot.player.recalling:
             # A lagged or externally observed store page cannot revive shopping
