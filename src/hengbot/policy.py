@@ -8545,6 +8545,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         remove_curse = self._town_remove_curse_key(snapshot)
         if remove_curse is not None:
             return remove_curse
+        self._bind_home_star_remove_curse_withdrawal(snapshot)
 
         enchant_launcher = self._town_enchant_launcher_key(snapshot)
         if enchant_launcher is not None:
@@ -8642,6 +8643,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.in_town:
             self._end_fundraising_set_at_gold_target(snapshot)
             self._town_order_select_required_supply(snapshot)
+            self._bind_home_star_remove_curse_withdrawal(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:
                 # The former router performed terminal bookkeeping before it
