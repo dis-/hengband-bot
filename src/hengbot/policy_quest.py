@@ -574,7 +574,7 @@ class QuestMixin:
             self._town_terminal_transitions(snapshot)
         if claims_active:
             step = self._shopping_approach_step(
-                snapshot, requester="store-router"
+                snapshot, router_plan_stop=True
             )
             if step is not None:
                 self.last_reason = "shop:approach"
@@ -602,14 +602,14 @@ class QuestMixin:
         failed = readiness.get("strategy_force", {}).get("failed", ())
         if failed:
             step = self._shopping_approach_step(
-                snapshot, requester="store-router"
+                snapshot, router_plan_stop=True
             )
             if step is not None:
                 self.last_reason = "shop:approach"
                 return self._shopping_approach_key(snapshot, step, "shop:travel")
             if self._start_fundraising(snapshot):
                 step = self._shopping_approach_step(
-                    snapshot, requester="store-router"
+                    snapshot, router_plan_stop=True
                 )
                 if step is not None:
                     self.last_reason = "shop:approach"

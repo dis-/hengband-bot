@@ -2761,7 +2761,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             supplier = self._departure_supplier_counterfactual(snapshot)
             step = (
                 self._shopping_approach_step(
-                    snapshot, supplier, requester="store-router"
+                    snapshot, supplier, router_plan_stop=True
                 )
                 if (
                     supplier is not None
@@ -3018,13 +3018,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (reason and reason.startswith("home:atomic-")
                 and composing_family in {"equipment-txn", "calibration"}):
             return composing_family
-        if composing_family is None:
-            request = getattr(getattr(self, "_home_visit", None), "request", None)
-            if getattr(request, "requester", None) == "equipment-transaction":
-                composing_family = (
-                    "calibration" if self._calibration_session_owned()
-                    else "equipment-txn"
-                )
         if reason and reason.startswith((
             "home:atomic-", "home:deposit", "home:withdraw-",
             "home:weight-overload-deposit", "home:morivant-temporary-deposit",
@@ -3496,12 +3489,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if reason.startswith("town:entrance-step-off:"):
             reason = reason.split(":", 2)[2]
+        if (reason == "shop:await-leave-confirmation"
+                and standing is not None and standing.is_open
+                and standing.owner == owner
+                and standing.goal.kind == CLAIM_GOAL_OBSERVE
+                and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION):
+            return standing.goal, False, None
         visit = getattr(self, "_store_visit", None)
+        completed_transaction = (
+            reason == "home:leave-after-one-operation"
+            and getattr(self, "_claim_register", None) is not None
+            and self._claim_register.current is not None
+            and self._claim_register.current.closed == "complete"
+            and self._claim_register.current.closed_reason == "equipment-transaction-complete"
+        )
         if (
             reason in {"shop:leave", "shop:store-context-exit"}
             or reason.startswith("home:leave-")
             or reason == "home:store-context-exit"
-        ) and visit is not None and visit.operation_effect_observed:
+        ) and (completed_transaction or (visit is not None and visit.operation_effect_observed)):
             if (
                 standing is not None and standing.is_open
                 and standing.owner == owner
@@ -3949,11 +3955,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             standing.owner if continuing_home_errand
             else claim_owner_of(self._claim_family_of(reason))
         )
-        if (
-            reason.startswith("home:")
-            and owner.value in {"equipment-txn", "calibration"}
-        ):
-            self.decision_attribution = owner.value
+        if reason == "shop:await-leave-confirmation":
+            visit = getattr(self, "_store_visit", None)
+            family = (getattr(visit, "claim_owner", None)
+                      or getattr(visit, "operation_producer_family", None)
+                      or getattr(visit, "opened_for_family", None))
+            if family and family != "store-router":
+                owner = claim_owner_of(family)
         self._claim_refresh_non_discardable(owner)
         # S2b.1 (rev 10.1 items 1-2): the rung and rank of this decision.
         non_discardable = (
@@ -4166,16 +4174,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or (filed is not None and filed.purpose == "experience-potion"
                 and reason == "experience:quaff")
         ):
-            pending_signature = getattr(self, "_home_pending_item", None)
-            item = next((candidate for candidate in snapshot.inventory
-                         if pending_signature is not None
-                         and self._item_signature(candidate) == pending_signature),
-                        None)
-            if item is None:
-                item = next((candidate for candidate in snapshot.inventory
-                             if candidate.slot == key[-1]), None)
-            if item is not None:
-                purpose_identity = ("item", self._item_signature(item))
+            # Identify macros are command + source slot + target slot, often
+            # followed by a prompt-dismissal suffix.  Quaff is command + item
+            # slot.  Unknown shapes have no provable target and stay untyped.
+            selected_slot = (
+                key[1] if reason == "experience:quaff" and key.startswith("q")
+                else key[2] if reason.startswith(("identify:", "identification:"))
+                and key[0] in "uzr" and len(key) >= 3
+                else None
+            )
+            selected = [item for item in snapshot.inventory
+                        if item.slot == selected_slot]
+            if len(selected) == 1:
+                purpose_identity = ("item", self._item_signature(selected[0]))
         filed_identity = None
         if filed is not None:
             filed_identity = (
@@ -4223,7 +4234,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         visit = getattr(self, "_store_visit", None)
         visit_owner_mismatch = None
         visit_owner_structure = None
+        visit_requester = None
+        leave_confirmation_interruption = None
         if visit is not None and claim.is_open and claim.owner.value in CLAIM_S3_FAMILIES:
+            visit_requester = getattr(visit, "opened_for_family", None)
+            if (
+                getattr(self, "_store_leave_inflight", None) is not None
+                and claim.goal.kind == CLAIM_GOAL_OBSERVE
+                and claim.goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and visit_requester is not None
+                and visit_requester != claim.owner.value
+                and reason != "shop:await-leave-confirmation"
+                and not reason.startswith("home:leave-")
+                and reason != "home:store-context-exit"
+            ):
+                leave_confirmation_interruption = {
+                    "kind": "leave-confirmation-interruption", "scope": "S3",
+                    "from": visit_requester, "to": claim.owner.value,
+                    "claim_id": claim.claim_id,
+                }
+                if violation is None:
+                    violation = leave_confirmation_interruption
             visit.claim_id = claim.claim_id
             visit.claim_owner = claim.owner.value
             aliases = {
@@ -4248,7 +4279,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and claim.owner.value == getattr(visit, "opened_for_family", None)
             )
             if router_for_operation:
-                visit_owner_structure = "router-opens-family-operates"
+                visit_owner_structure = (
+                    "router-plan-stop"
+                    if getattr(visit, "request_structure", None) == "router-plan-stop"
+                    else "router-opens-family-operates"
+                )
             if requester_missing:
                 visit_owner_structure = "requester-missing"
             if (
@@ -4284,6 +4319,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "purpose_duplicates": purpose_duplicates,
             "visit_owner_mismatch": visit_owner_mismatch,
             "visit_owner_structure": visit_owner_structure,
+            "visit_requester": visit_requester,
+            "visit_operator": claim.owner.value if visit is not None else None,
+            "leave_confirmation_interruption": leave_confirmation_interruption,
+            "leave_confirmation_pending": (
+                getattr(self, "_store_leave_inflight", None) is not None
+            ),
             "requester_missing": visit_owner_structure == "requester-missing",
             "claim_verdict_conflict": claim_verdict_conflict,
             "scan-during-pending-atomic": bool(
@@ -5441,7 +5482,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._town_travel_state = None
                 step = self._shopping_approach_step(
-                    snapshot, posted_entry_owner, requester="store-router"
+                    snapshot, posted_entry_owner, router_plan_stop=True
                 )
                 if step is not None:
                     self.last_reason = "store:entry-interrupted-replan"
@@ -5579,7 +5620,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 StoreVisitPhase.APPROACHING
                             )
                         step = self._shopping_approach_step(
-                            snapshot, posted_entry_owner, requester="store-router"
+                            snapshot, posted_entry_owner, router_plan_stop=True
                         )
                         if step is not None:
                             self.last_reason = (
@@ -8607,7 +8648,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_terminal_transitions(snapshot)
             if claims_active:
                 step = self._shopping_approach_step(
-                    snapshot, requester="store-router"
+                    snapshot, router_plan_stop=True
                 )
                 if step is not None:
                     self.last_reason = "shop:approach"
