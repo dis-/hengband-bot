@@ -1064,8 +1064,8 @@ def _selection_equivalence_key(
 # "safe enough" and additional survival margin is not worth sacrificing melee
 # offense.  Above the floor the selection is offense-first (DPS primary); below
 # it (a genuinely dangerous field where nothing is comfortably safe) the
-# selection falls back to survival-first.  survival_turns = player_hp divided by
-# expected incoming damage per turn, i.e. the turns available to disengage/heal.
+# selection falls back to survival-first. survival_turns counts player actions:
+# player_hp divided by energy-adjusted incoming damage per player turn.
 SUFFICIENT_SURVIVAL_TURNS = 30.0
 
 
