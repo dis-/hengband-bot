@@ -1106,7 +1106,16 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
+        if getattr(self, "_town_claim_bar_enforced", False):
+            holder = self._claim_errand_hold("store-router")
+            if (holder is not None
+                    and holder is getattr(self._claim_register, "current", None)):
+                self._claim_exit_completion(snapshot, holder, [])
         if self._defer_town_errand("store-router", "procurement-decision"):
+            if self._claim_family_of(self.last_reason) == "store-router":
+                return self._town_holder_wait_key(
+                    self._claim_errand_hold("store-router"), snapshot
+                )
             return None
         proposed_reason = self.last_reason or ""
         if (

@@ -4703,6 +4703,9 @@ class ShopMixin:
             )
             if self._store_visit is not None:
                 self._store_visit.operation_posted = True
+                self._store_visit.operation_producer_family = (
+                    "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
+                )
                 self._store_visit.operation_key = operation_key
                 self._store_visit.operation_released = False
                 self._store_visit.composed_key = key

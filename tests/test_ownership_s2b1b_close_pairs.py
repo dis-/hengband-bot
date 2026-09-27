@@ -678,9 +678,13 @@ class TownKillMobChaseTest(unittest.TestCase):
             ("retarget", "survival"),
         )
         hostile_row = self._reacquired_adjacent(friendly=False, release=False)
+        # S3.3 Q3: adjacent town melee interrupts and later resumes the
+        # unfinished chase, even if its explicit release was regressed.
         self.assertEqual(
-            (hostile_row["violation"]["from"], hostile_row["violation"]["to"]),
-            ("survival", "combat"),
+            (hostile_row["violation"], hostile_row["survival"],
+             hostile_row["closed_claim"]["state"],
+             hostile_row["closed_claim"]["closed_reason"]),
+            (None, True, "suspended", "survival-preemption"),
         )
 
 

@@ -170,6 +170,9 @@ class PolicyHelpersMixin:
         self._look_floor_items = records
         self._look_probe_inflight = False
     def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and self._claim_errand_hold("bookkeeping") is not None):
+            return False
         visit = self._store_visit
         if (
             self._store_entry_wait_owner is not None

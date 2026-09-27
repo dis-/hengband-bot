@@ -1311,6 +1311,13 @@ class EquipmentMixin:
         self, snapshot: Snapshot | None = None
     ) -> None:
         session = self._equipment_transaction_session
+        if (session is not None
+                and getattr(self, "_town_claim_bar_enforced", False)):
+            self._release_claim_goal(
+                "equipment-transaction-abandoned",
+                owners=("equipment-txn", "calibration"),
+                kinds=("Observe",), sources=("transaction", "calibration"),
+            )
         if self._store_visit is not None:
             target_store_type = (
                 STORE_HOME

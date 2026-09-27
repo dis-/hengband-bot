@@ -25,6 +25,273 @@ from test_ownership_s2b1_ladder import _Decisions
 
 
 class S3aRecordTest(unittest.TestCase):
+    def test_holder_silent_stop_keeps_its_open_claim(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        stopped = decisions.decide(
+            "ownership:holder-silent:store-router", key=""
+        )
+        self.assertEqual(stopped["claim_id"], held["claim_id"])
+        self.assertEqual(stopped["goal"], held["goal"])
+        self.assertIsNone(stopped["violation"])
+
+    def test_posted_equipment_action_waits_for_observation(self):
+        decisions = _Decisions()
+        decisions.decide("equipment-transaction:await-confirmation")
+        policy = decisions.policy
+        policy._equipment_transaction_session = SimpleNamespace(
+            pending_action=object()
+        )
+        self.assertEqual(policy._town_holder_wait_key(
+            decisions.register.current, decisions.board), "")
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-await:equipment-txn")
+
+    def test_new_leave_is_not_a_prior_leave_interruption(self):
+        for posted_sequence, interrupted in ((1, True), (2, False)):
+            with self.subTest(posted_sequence=posted_sequence):
+                decisions = _Decisions()
+                policy = decisions.policy
+                policy._decision_sequence = 1
+                policy._store_visit = StoreVisit(
+                    owner="shop-one-shot", purpose="entry",
+                    store_type=STORE_HOME, opened_sequence=1,
+                    opened_for_family="shop-buy",
+                )
+                policy._store_leave_inflight = (
+                    posted_sequence, decisions.board.turn, STORE_HOME
+                )
+                row = decisions.decide("home:request-knowledge-scan", key="\x1b")
+                self.assertEqual(row["decision_sequence"], 2)
+                self.assertEqual(
+                    row["leave_confirmation_interruption"] is not None,
+                    interrupted,
+                )
+
+    def test_downstream_router_result_yields_to_awaiting_knowledge(self):
+        decisions = _Decisions()
+        held = decisions.decide("home:request-knowledge-scan")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._home_knowledge_scan_requested = True
+        policy.last_reason = "shop:approach"
+        self.assertEqual(
+            policy._town_procurement_decision(decisions.board, "9"), ""
+        )
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-await:home-scan")
+        waiting = decisions.decide(policy.last_reason, key="")
+        self.assertEqual(waiting["claim_id"], held["claim_id"])
+        self.assertIsNone(waiting["violation"])
+
+    def test_final_town_result_cannot_emit_competing_errand(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy = decisions.policy
+        policy.last_reason = "home:request-knowledge-scan"
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, "~9\x1b\x1b"), "~9\x1b\x1b")
+        policy._town_claim_bar_enforced = True
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, "~9\x1b\x1b"), "")
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:store-router")
+        self.assertEqual(policy._decision_errand_deferred[-1]["holder_claim_id"],
+                         held["claim_id"])
+
+    def test_committed_store_walk_survives_plan_retirement_until_arrival(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy = decisions.policy
+        policy._town_turn_arbiter.telemetry = {
+            "retired": True, "producer_owner": "store-router",
+        }
+        owner = decisions.register.current.owner
+        self.assertEqual(owner.value, held["owner"])
+        self.assertTrue(policy._claim_owner_retired(owner))
+        policy._town_claim_bar_enforced = True
+        self.assertFalse(policy._claim_owner_retired(owner))
+        next_step = decisions.decide("shop:approach", key="1")
+        self.assertEqual(next_step["claim_id"], held["claim_id"])
+        self.assertEqual(next_step["goal"], held["goal"])
+        self.assertIsNone(next_step["violation"])
+
+    def test_abandoned_equipment_session_releases_its_claim_by_name(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((), (), 0)
+        )
+        policy._store_visit = StoreVisit(
+            owner="equipment-transaction", purpose="entry",
+            store_type=STORE_HOME, opened_sequence=1,
+            opened_producer_family="equipment-txn",
+        )
+        held = decisions.decide("equipment-transaction:await-confirmation")
+        self.assertEqual(held["owner"], "equipment-txn")
+        policy._abandon_blocked_equipment_transaction(decisions.board)
+        self.assertEqual(decisions.register.current.closed, "release")
+        self.assertEqual(decisions.register.current.closed_reason,
+                         "equipment-transaction-abandoned")
+
+    def test_periodic_bookkeeping_waits_for_open_town_claim_when_on(self):
+        decisions = _Decisions()
+        decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy = decisions.policy
+        self.assertTrue(policy._periodic_filler_is_safe(decisions.board))
+        policy._town_claim_bar_enforced = True
+        self.assertFalse(policy._periodic_filler_is_safe(decisions.board))
+
+    def test_store_exit_wait_keeps_pending_transaction_on(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((), (), 0)
+        )
+        policy._store_visit = StoreVisit(
+            owner="equipment-transaction", purpose="entry",
+            store_type=STORE_HOME, opened_sequence=1,
+            opened_producer_family="equipment-txn",
+        )
+        held = decisions.decide("equipment-transaction:await-confirmation")
+        entry_wait = decisions.decide("store:entry-await-observation", key="")
+        self.assertEqual(entry_wait["claim_id"], held["claim_id"])
+        self.assertIsNone(entry_wait["violation"])
+        exit_row = decisions.decide("policy:none-store-exit", key="\x1b")
+        self.assertEqual(exit_row["claim_id"], held["claim_id"])
+        self.assertIsNone(exit_row["violation"])
+
+    def test_town_kill_suspends_pending_home_operation(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=1, operation_key="da\x1b",
+            operation_producer_family="home-visit",
+        )
+        policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        held = decisions.decide("home:atomic-deposit")
+        fight = decisions.decide("town:kill-mob", key="1")
+        self.assertIsNone(fight["violation"])
+        self.assertEqual(fight["closed_claim"]["claim_id"], held["claim_id"])
+        self.assertEqual(fight["closed_claim"]["state"], "suspended")
+
+    def test_emergency_suspends_pending_home_operation(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=1, operation_key="da\x1b",
+            operation_producer_family="home-visit",
+        )
+        policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        held = decisions.decide("home:atomic-deposit")
+        escape = decisions.decide("emergency:teleport", key="r")
+        self.assertIsNone(escape["violation"])
+        self.assertEqual(escape["closed_claim"]["claim_id"], held["claim_id"])
+        self.assertEqual(escape["closed_claim"]["state"], "suspended")
+
+    def test_town_holder_resumes_after_survival_before_another_errand(self):
+        decisions = _Decisions()
+        held = decisions.decide("home:request-knowledge-scan")
+        escape = decisions.decide("emergency:teleport", key="r")
+        self.assertEqual(escape["closed_claim"]["state"], "suspended")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        holder = policy._claim_errand_hold("shop-buy")
+        self.assertEqual(holder.claim_id, held["claim_id"])
+        policy._home_knowledge_scan_requested = True
+        self.assertEqual(policy._town_holder_wait_key(holder, decisions.board), "")
+        resumed = decisions.decide(policy.last_reason, key="")
+        self.assertEqual(resumed["claim_id"], held["claim_id"])
+        self.assertIsNone(resumed["violation"])
+
+    def test_suspended_route_refuses_owner_retired_terminal(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        interrupted = decisions.decide("emergency:teleport", key="r")
+        self.assertEqual(interrupted["closed_claim"]["state"], "suspended")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy.last_reason = "town:blocked:owner-retired"
+        self.assertEqual(
+            policy._enforce_town_claim_result(decisions.board, "5"), ""
+        )
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:store-router")
+        resumed = decisions.decide(policy.last_reason, key="")
+        self.assertEqual(resumed["claim_id"], held["claim_id"])
+        self.assertIsNone(resumed["violation"])
+
+    def test_suspended_route_replaces_empty_entry_wrapper(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        decisions.decide("emergency:teleport", key="r")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy.last_reason = "store:entry-await-observation"
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, ""), "")
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:store-router")
+        resumed = decisions.decide(policy.last_reason, key="")
+        self.assertEqual(resumed["claim_id"], held["claim_id"])
+
+    def test_active_route_replaces_empty_entry_wrapper(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy.last_reason = "store:entry-await-observation"
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, ""), "")
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:store-router")
+        continued = decisions.decide(policy.last_reason, key="")
+        self.assertEqual(continued["claim_id"], held["claim_id"])
+
+    def test_posted_shop_and_store_entry_wait_keep_visit_family(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="shop-one-shot", purpose="sell", store_type=1,
+            opened_sequence=1, operation_producer_family="shop-sell",
+            operation_key="s1\x1b",
+        )
+        self.assertEqual(decisions.policy._claim_family_of(
+            "shop:one-shot-in-flight"), "shop-sell")
+        posted = decisions.decide("shop:one-shot-sell", key="s1\x1b")
+        in_flight = decisions.decide("shop:one-shot-in-flight", key="")
+        self.assertEqual(in_flight["claim_id"], posted["claim_id"])
+        self.assertIsNone(in_flight["violation"])
+        decisions.policy._store_visit = StoreVisit(
+            owner="equipment-transaction", purpose="entry",
+            store_type=STORE_HOME, opened_sequence=2,
+            opened_producer_family="equipment-txn",
+        )
+        self.assertEqual(decisions.policy._claim_family_of(
+            "store:entry-await-observation"), "equipment-txn")
+
+    def test_incomplete_page_and_entry_wait_keep_observe_identity(self):
+        knowledge = _Decisions()
+        scan = knowledge.decide("home:request-knowledge-scan")
+        incomplete = knowledge.decide("home:scan-incomplete-open-page", key="\x1b")
+        self.assertEqual(incomplete["claim_id"], scan["claim_id"])
+        self.assertIsNone(incomplete["violation"])
+
+        home = _Decisions()
+        home.policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=1, operation_key="da\x1b",
+            operation_producer_family="home-visit",
+        )
+        home.policy._home_atomic_deposit_pending = (("item",), 1, 2)
+        posted = home.decide("home:atomic-deposit")
+        waiting = home.decide("store:entry-await-observation", key="")
+        self.assertEqual(waiting["claim_id"], posted["claim_id"])
+        self.assertIsNone(waiting["violation"])
+
     def test_town_producer_entries_defer_without_starting_sessions(self):
         decisions = _Decisions()
         policy = decisions.policy
@@ -182,6 +449,9 @@ class S3aRecordTest(unittest.TestCase):
             opened_sequence=1, opened_for_family="shop-buy",
         )
         decisions.policy._store_leave_inflight = (1, 1, STORE_HOME)
+        # The leave belongs to the preceding decision. A leave issued on
+        # this row is not an interruption of its own confirmation wait.
+        decisions.policy._decision_sequence = 1
         decisions.policy._home_errand.file(
             HomeErrandRequest(("weapon", 1, 2), 1, "test", "combat-weapon"),
             knowledge_current=False,

@@ -484,6 +484,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     ),
     *_rows(
         "detectors",
+        ("ownership:", T, EFFECT),
         ("livelock:", T, EFFECT),
         ("livelock:ascend", O, FLOOR_CHANGE),
         ("livelock:recall-escape", O, FLOOR_CHANGE),
