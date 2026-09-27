@@ -6696,9 +6696,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q22_recorded_ammo_readiness_counts_only_the_kept_plan(self):
-        capture = json.loads(Path(
-            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
-        ).read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).parent / "fixtures" /
+            "24-town3-reward-pack-full-stop.json").read_text(encoding="utf-8"))
         snapshot = parse_snapshot(capture["state"]["result"])
         policy = self._policy()
         profile = self.profiles[22]
@@ -6728,9 +6727,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
     def test_q22_ammo_procurement_claim_merges_plain_and_rejects_nonplain(self):
-        capture = json.loads(Path(
-            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
-        ).read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).parent / "fixtures" /
+            "24-town3-reward-pack-full-stop.json").read_text(encoding="utf-8"))
         snapshot = parse_snapshot(capture["state"]["result"])
         policy = self._policy()
         profile = self.profiles[22]

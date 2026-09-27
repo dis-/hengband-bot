@@ -19,9 +19,12 @@ from hengbot.policy_types import StoreVisit
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CAPTURE_DIR = ROOT / "jsonlog"
+if not (CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl").exists():
+    CAPTURE_DIR = ROOT.parent / "bot-client" / "jsonlog"
 CAPTURES = {
-    "equip-swap": ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl",
-    "no-actionable": ROOT / "jsonlog" / "incident-no-actionable-claim-20260827.snapshots.jsonl",
+    "equip-swap": CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl",
+    "no-actionable": CAPTURE_DIR / "incident-no-actionable-claim-20260827.snapshots.jsonl",
 }
 PROPERTY_BACKED_STATE = ("_store_visit",)
 

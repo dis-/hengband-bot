@@ -666,6 +666,8 @@ class TownProgressInvariantTest(unittest.TestCase):
             / "jsonlog"
             / "incident-town-wander-20260819.jsonl"
         )
+        if not incident.exists():
+            incident = incident.parent.parent.parent / "bot-client" / "jsonlog" / incident.name
         captured = json.loads(incident.read_text(encoding="utf-8").splitlines()[-1])
         equipment = captured["equipment_optimization"]
         route = equipment["home_route_projection"]

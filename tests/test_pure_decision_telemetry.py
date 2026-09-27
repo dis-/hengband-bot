@@ -72,6 +72,7 @@ import test_esp_threat_rest_recorded as esp_recorded
 import test_golden_trajectory as golden
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
+from recorded_loadout import recorded_loadout_replay
 
 
 # The tour lifetime's first town visit: list index 20 is the recorded
@@ -438,6 +439,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             lockstep.decide(boards, boundaries["recorded"][index][1], index)
         return lockstep, boundaries
 
+    @recorded_loadout_replay
     def test_t1_t2_protocol3_tour_first_town_visit(self):
         lockstep, boundaries = self._recorded_lifetime(
             tour.FIXTURE, tour.FIXTURE_SHA256, _tour_build, _tour_walls,
@@ -459,6 +461,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
         )
         lockstep.assert_pure()
 
+    @recorded_loadout_replay
     def test_t1_t2_protocol3_town_arrival_reuses_no_telemetry_result(self):
         """T1 revert-proof: the second town arrival of the tour lifetime.
 

@@ -13,6 +13,7 @@ from hengbot.home_entry_capture import HomeEntryCapture, STATE_FIELDS, _home_own
 from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import STORE_HOME, StoreState
 from tests import test_policy, test_policy_home
+from recorded_loadout import recorded_loadout_replay
 
 
 class HomeEntryCaptureTest(unittest.TestCase):
@@ -92,6 +93,7 @@ class HomeEntryCaptureTest(unittest.TestCase):
         self.assertTrue(replay._home_candidate_waiting)
         self.assertEqual(record["last_reason"], "shop:travel:await-entry")
 
+    @recorded_loadout_replay
     def test_gate1_substrate_replays_fixed_digger_arming_and_composed_key(self):
         path = Path(__file__).parent / "fixtures" / "digger-withdraw-gate1.jsonl"
         if not path.exists():

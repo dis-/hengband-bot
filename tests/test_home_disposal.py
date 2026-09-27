@@ -145,36 +145,39 @@ class HomeDisposalTests(unittest.TestCase):
 
     def test_bare_policy_unittest_does_not_touch_repository_history(self):
         repository = Path(__file__).resolve().parents[1]
-        history = repository / "home-withdraw-history.jsonc"
-        before = hashlib.sha256(history.read_bytes()).digest()
-        environment = os.environ.copy()
-        environment.pop("HENGBOT_HOME_HISTORY_DIR", None)
-        source_root = repository / "src"
-        environment["PYTHONPATH"] = os.pathsep.join(
-            filter(
-                None,
-                (
-                    str(source_root),
-                    str(repository / "tests"),
-                    environment.get("PYTHONPATH", ""),
-                ),
+        with TemporaryDirectory() as directory:
+            history = Path(directory) / "home-withdraw-history.jsonc"
+            history.write_text('{"sentinel": true}', encoding="utf-8")
+            before = hashlib.sha256(history.read_bytes()).digest()
+            environment = os.environ.copy()
+            environment.pop("HENGBOT_HOME_HISTORY_DIR", None)
+            source_root = repository / "src"
+            environment["PYTHONPATH"] = os.pathsep.join(
+                filter(
+                    None,
+                    (
+                        str(source_root),
+                        str(repository),
+                        str(repository / "tests"),
+                        environment.get("PYTHONPATH", ""),
+                    ),
+                )
             )
-        )
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "unittest",
-                "test_policy.HistoryIsolationProbeTest.test_policy_history_writer_uses_fixture_default",
-            ],
-            cwd=repository,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(hashlib.sha256(history.read_bytes()).digest(), before)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "unittest",
+                    "test_policy.HistoryIsolationProbeTest.test_policy_history_writer_uses_fixture_default",
+                ],
+                cwd=directory,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(hashlib.sha256(history.read_bytes()).digest(), before)
 
     def test_queue_is_real_data_shaped_and_collapses_duplicate_signatures(self):
         state = self.state()

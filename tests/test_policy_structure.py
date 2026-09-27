@@ -32,6 +32,8 @@ from hengbot.town_arbiter import TownArbiterMixin
 
 ROOT = Path(__file__).resolve().parents[1]
 EQUIP_SWAP = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+if not EQUIP_SWAP.exists():
+    EQUIP_SWAP = ROOT.parent / "bot-client" / "jsonlog" / EQUIP_SWAP.name
 
 
 def _member_names(owner):

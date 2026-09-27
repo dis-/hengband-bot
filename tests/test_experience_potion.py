@@ -87,6 +87,7 @@ import absorbing_state_catalog
 import test_esp_threat_rest_recorded as esp_recorded
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
+from recorded_loadout import recorded_loadout_replay
 
 
 # List indices into the recorded decisions (decision_sequence + 4).
@@ -216,6 +217,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         return tour._independent_copy(pre_decision if walled else decided), snapshot
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         if cls.replay is not None:
             return cls.replay
@@ -589,6 +591,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
 
 
 class ExperiencePotionProtocol2Test(unittest.TestCase):
+    @recorded_loadout_replay
     def test_x7_protocol2_lifetime_decisions_are_unchanged(self):
         """X7: a recorded protocol-2 lifetime carrying the Experience potion."""
         boundaries_path = morivant.FIXTURE.with_suffix(".boundaries.json")

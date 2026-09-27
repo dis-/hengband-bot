@@ -783,9 +783,8 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertFalse(any("pd" in value for value in later))
 
     def test_recorded_ammo_top_up_buys_71_plain_bolts_into_q(self):
-        capture = json.loads(Path(
-            "jsonlog/live-screens/24-town3-reward-pack-full-stop.json"
-        ).read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).parent / "fixtures" /
+            "24-town3-reward-pack-full-stop.json").read_text(encoding="utf-8"))
         snap = parse_snapshot(capture["state"]["result"])
         plain = next(item for item in snap.inventory if item.slot == "q")
         ware = StoreItem(

@@ -49,6 +49,7 @@ from test_esp_threat_rest_recorded import (
     FIXTURE_SHA256,
     _policy,
 )
+from recorded_loadout import recorded_loadout_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DERIVED = FIXTURES / "esp-threat-rest-20260921.protocol3.jsonl.gz"
@@ -218,6 +219,7 @@ class P1LifetimeTest(unittest.TestCase):
     diverges at decisions 4 and 7 (town equipment calibration and purchase).
     """
 
+    @recorded_loadout_replay
     def test_p1_lifetime_prefix_matches_the_recording_under_v3(self):
         v2, v3, starts, monrace = _Substrate.get()
         recorded = json.loads(

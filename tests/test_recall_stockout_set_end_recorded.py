@@ -225,6 +225,7 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
                         policy.request_game_save()
                     elif recorded_reason == "periodic:character-dump":
                         policy.request_character_dump()
+                    # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: each iteration consumes the next recorded response board, including its movement
                     key = policy.choose_key(snapshot)
                     decisions[index + 1] = (str(key), policy.last_reason)
                     policy.confirm_key_posted(key)
