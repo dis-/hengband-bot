@@ -4223,10 +4223,15 @@ class ShopMixin:
                 not self._home_errand.active
                 or self._home_errand.request is None
             )
+            and not (
+                self._home_withdrawal_queued
+                and self._home_pending_item is not None
+            )
         ):
             # Keep the staged post-Alchemist stop in the disposable plan, but
             # do not turn it into movement until its requester has filed the
-            # executor's exact withdrawal request.
+            # executor's exact withdrawal request. A later Home ammo take can
+            # own the same stop even while this plan projection is stale.
             return None
         if store_type == STORE_HOME:
             if not self._ensure_home_visit_request(snapshot):
