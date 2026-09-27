@@ -145,6 +145,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # Older captures predate the read/cancel class bound; False is "no recall
     # cancelled as unready this visit", what a fresh visit starts with.
     restored.__dict__.setdefault("_town_visit_unready_recall_cancelled", False)
+    restored.__dict__.setdefault("_safety_deferred_loot", set())
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     restored.__dict__.setdefault("_home_knowledge_scan_epoch", None)
     if not token_was_present:

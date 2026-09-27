@@ -1,0 +1,9 @@
+Source: C:\hengband\bot-client\jsonlog\incident-20260927-1526-loot-ledger-mass-deferral.decisions.jsonl.gz
+Source SHA-256: 9cd20560b1bf25ee055232ac1bf9a3f06b35a06a84c742363756d1f6febb6dde
+Captured run: 2026-09-27 15:23:43-15:28:48 JST, Orc cave 23F.
+Fixture: decision rows 980-1040 and 1100, 1300, 1500, 1800 from the 15:xx run, in original order.
+Retained fields: decision_sequence, time, reason, key, position, loot.
+Fixture SHA-256: 031a5b515f97803270c5cc8ae9de125f2755a8f1b1b34da21a0c80f189846dcb
+The fixture pins recorded output fields. The policy tests separately simulate
+ownership, genuine pursuit stalls, teleport relocation, and safety rearming;
+they do not replay boards after a changed decision key.

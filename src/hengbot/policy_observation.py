@@ -835,6 +835,7 @@ class ObservationMixin:
             self._release_claim_goal("loot-floor-changed", self._loot_target, owners=CLAIM_LOOT_OWNERS)
             self._loot_target = None
             self._deferred_loot.clear()
+            self._safety_deferred_loot.clear()
             self._nav_ledger_deferred_loot.clear()
             self._loot_ledger_rearmed.clear()
             self._loot_defer_blocker = None
@@ -990,6 +991,7 @@ class ObservationMixin:
             ):
                 self._known_loot.discard(grid.position)
                 self._deferred_loot.discard(grid.position)
+                self._safety_deferred_loot.discard(grid.position)
                 self._nav_ledger_deferred_loot.discard(grid.position)
                 self._loot_ledger_rearmed.discard(grid.position)
                 if (

@@ -996,6 +996,7 @@ class IdentificationMixin:
         avoided_loot = self._known_loot & self._engagement_avoid_cells
         if avoided_loot:
             self._deferred_loot.update(avoided_loot)
+            self._safety_deferred_loot.update(avoided_loot)
             if avoided_loot & self._paralyzer_avoid_cells:
                 self._loot_defer_blocker = "paralyzer-ring"
         candidates = self._known_loot - self._deferred_loot
@@ -1007,6 +1008,8 @@ class IdentificationMixin:
             }
         candidates -= self._deferred_loot
         candidates -= self._engagement_avoid_cells
+        if candidates and self._loot_defer_blocker == "navigation-ledger:loot":
+            self._loot_defer_blocker = None
         if not candidates:
             self._release_claim_goal("loot-no-candidates", self._loot_target, owners=CLAIM_LOOT_OWNERS)
             self._loot_target = None
@@ -1064,6 +1067,20 @@ class IdentificationMixin:
         monsters do not erase realised floor value. Trap-undetected grids are
         eligible because ordinary exploration already traverses them.
         """
+        if self._safety_deferred_loot:
+            blocker_now = self._loot_block_reason(snapshot, hostiles)
+            if blocker_now not in LOOT_DEFER_BLOCKERS:
+                released = (
+                    self._safety_deferred_loot
+                    - self._nav_ledger_deferred_loot
+                    - self._engagement_avoid_cells
+                )
+                for position in released:
+                    self._nav_ledger.release("loot", position)
+                self._deferred_loot.difference_update(released)
+                self._safety_deferred_loot.difference_update(released)
+                if not self._safety_deferred_loot and self._loot_defer_blocker == "paralyzer-ring":
+                    self._loot_defer_blocker = None
         guarded = self._guarded_paralyzers(snapshot, hostiles)
         if guarded:
             ranged = self._ranged_attack_key(snapshot, guarded, [])
@@ -1104,12 +1121,14 @@ class IdentificationMixin:
                     self._known_loot - self._deferred_loot
                 ) & self._paralyzer_avoid_cells
                 self._deferred_loot.update(guarded_loot)
+                self._safety_deferred_loot.update(guarded_loot)
                 self._loot_defer_blocker = "paralyzer-ring"
             if blocker in LOOT_DEFER_BLOCKERS and self._loot_target is not None:
                 self._release_claim_goal(
                     f"loot-deferred:{blocker}", self._loot_target, owners=CLAIM_LOOT_OWNERS
                 )
                 self._deferred_loot.add(self._loot_target)
+                self._safety_deferred_loot.add(self._loot_target)
                 self._loot_target = None
             return None
         current_loot = self._current_floor_item_key(

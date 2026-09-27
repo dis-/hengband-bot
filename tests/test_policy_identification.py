@@ -507,7 +507,7 @@ class PickupTest(unittest.TestCase):
 
         self.assertIsNone(policy._secret_wall_search_step(snapshot))
 
-    def test_multiplier_blocked_loot_stays_deferred_after_threat_leaves_view(self):
+    def test_multiplier_blocked_loot_resumes_after_threat_leaves_view(self):
         floor_key = (DUNGEON_YEEK_CAVE, 3, 0)
         loot = Position(10, 12)
         policy = HengbotPolicy()
@@ -551,11 +551,11 @@ class PickupTest(unittest.TestCase):
             [],
             floor_key=floor_key,
         )
-        policy.choose_key(hidden_again)
+        key = policy.choose_key(hidden_again)
 
-        self.assertNotEqual(policy.last_reason, "seek-loot")
-        self.assertIsNone(policy._loot_target)
-        self.assertEqual(policy.loot_state(hidden_again)["deferred"], [{"y": 10, "x": 12}])
+        self.assertEqual((policy.last_reason, key), ("seek-loot", "6"))
+        self.assertEqual(policy._loot_target, loot)
+        self.assertEqual(policy.loot_state(hidden_again)["deferred"], [])
 
     def test_routine_return_sweeps_nearby_safe_loot(self):
         grids = {

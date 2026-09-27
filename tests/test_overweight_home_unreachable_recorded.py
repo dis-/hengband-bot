@@ -288,15 +288,28 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             self.assertEqual(self.recorded[index]["key"], old)
             self.assertEqual(replay[index]["key"], new)
             self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
+        # The loot-ledger repair first changes the path at 2636: the live key
+        # moved south, while the repaired policy keeps pursuing the adjacent
+        # item to the west. Later recorded boards are no longer a trajectory
+        # pin, even though the separate Home assertions still inspect them.
+        self.assertEqual(
+            (self.recorded[2636]["key"], self.recorded[2636]["reason"]),
+            ("1", "seek-loot"),
+        )
+        self.assertEqual(
+            (replay[2636]["key"], replay[2636]["reason"]),
+            ("4", "seek-loot"),
+        )
+        self.assertEqual(replay[2636]["claim"]["goal"]["cell"], [4, 99])
         self.assertEqual(
             [
                 index
-                for index in range(STOP + 1)
+                for index in range(2636)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            [*DIVERGENT, STOP],
+            [],
         )
         self.assertEqual(
             [index for index, row in enumerate(replay)

@@ -1674,6 +1674,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
+        self._safety_deferred_loot: set[Position] = set()
         # Of the deferred positions, the ones the navigation ledger expired
         # (blocker "navigation-ledger:loot"), and the ones a calm return has
         # already handed a second budget.  Both are per floor visit.
@@ -13515,15 +13516,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return self._step_toward(snapshot, step)
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:
-        """Observe loot and exploration owners on every dungeon decision."""
+        """Charge loot only for the preceding loot owner's actual pursuit."""
         committed_loot = self._loot_target
-        if committed_loot is None:
-            committed_loot = min(
-                self._known_loot - self._deferred_loot,
-                key=lambda pos: (pos.y, pos.x),
-                default=None,
-            )
-        if committed_loot is not None:
+        pursued_loot = self.last_reason in (
+            "seek-loot", "return:seek-loot", "victory:seek-loot",
+            "conquest:seek-loot", "fundraise:seek-loot",
+        )
+        previous_position = self._recent[-2] if len(self._recent) >= 2 else None
+        jumped = (
+            previous_position is not None
+            and previous_position.distance_to(snapshot.player.position) > 1
+        )
+        if committed_loot is not None and jumped:
+            self._nav_ledger.release("loot", committed_loot)
+        if committed_loot is not None and pursued_loot and not jumped:
             self._nav_ledger.observe(
                 "loot",
                 committed_loot,
@@ -13532,7 +13538,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if self._nav_ledger.is_expired("loot", committed_loot):
                 self._deferred_loot.add(committed_loot)
                 self._nav_ledger_deferred_loot.add(committed_loot)
-                self._loot_defer_blocker = "navigation-ledger:loot"
+                if not (self._known_loot - self._deferred_loot):
+                    self._loot_defer_blocker = "navigation-ledger:loot"
+                elif self._loot_defer_blocker == "navigation-ledger:loot":
+                    self._loot_defer_blocker = None
                 if self._loot_target == committed_loot:
                     self._release_claim_goal(
                         "loot-navigation-expired", committed_loot, owners=CLAIM_LOOT_OWNERS
@@ -13557,10 +13566,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot.player.position.distance_to(monster.position),
             )
             if self._nav_ledger.is_expired("paralyzer-guard", monster.position):
-                self._deferred_loot.update(
+                guarded_loot = {
                     loot for loot in self._known_loot
                     if loot.distance_to(monster.position) <= 1
-                )
+                }
+                self._deferred_loot.update(guarded_loot)
+                self._safety_deferred_loot.update(guarded_loot)
 
 
     def _loot_before_recall_calm(self, snapshot: Snapshot) -> bool:
@@ -13597,14 +13608,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _rearm_navigation_ledger_loot(self) -> None:
         """Hand ledger-expired loot one fresh budget, once per floor visit.
 
-        The ledger expires a loot target whose best distance stopped improving
-        for NAV_TARGET_STALL_LIMIT decisions.  While an emergency owns every
-        decision that is guaranteed: the player is fleeing, not approaching,
-        and a teleport moves it bodily away.  The expiry therefore records the
-        flight, not an unreachable item, so the calm recall countdown that
-        follows is entitled to judge the route once more.  A position released
-        here is never released again on this floor visit: if it stalls under
-        the new circumstances it expires for good and the wait resumes.
+        A calm recall countdown is a distinct opportunity to collect an item
+        previously abandoned after a genuine pursuit stall. A position is
+        released only once per floor visit; a second stall retires it again.
         """
         for position in sorted(
             self._nav_ledger_deferred_loot - self._loot_ledger_rearmed,

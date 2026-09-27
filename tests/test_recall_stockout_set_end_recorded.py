@@ -197,7 +197,15 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
             for sequence, decided in decisions.items()
             if list(decided) != recorded[sequence - 1]
         }
-        self.assertEqual(divergent, KNOWN_HARNESS_DIVERGENCES)
+        # The loot-ledger repair first changes this fundraising walk: its
+        # active loot target remains selectable, so it steps west instead of
+        # taking the recorded southwest step. Later boards are counterfactual.
+        self.assertEqual(recorded[1036], ["7", "fundraise:seek-loot"])
+        self.assertEqual(decisions[1037], ("4", "fundraise:seek-loot"))
+        self.assertEqual(
+            {sequence for sequence in divergent if sequence < 1037},
+            {501, 502, 503},
+        )
         self.assertEqual(
             [decisions[sequence] for sequence in range(1422, STOCKOUT_START + 1)],
             [
