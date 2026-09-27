@@ -312,14 +312,14 @@ class OverflowDisposalTest(unittest.TestCase):
     def test_preserves_entire_detection_stack_when_only_part_is_surplus(self):
         detection = item(
             "a", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE,
-            count=7, name="Detect Treasure",
+            count=10, name="Detect Treasure",
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
         policy._mining_detection_scroll_target = lambda snapshot: 4
         snapshot = self._town([detection])
 
-        self.assertEqual(policy._retention_surplus(snapshot, detection), 3)
+        self.assertEqual(policy._retention_surplus(snapshot, detection), 1)
         self.assertIsNone(policy._overflow_disposal_item(snapshot))
 
     def test_verified_destroy_rejects_partially_reserved_stack(self):
