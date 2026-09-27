@@ -25,6 +25,33 @@ from test_ownership_s2b1_ladder import _Decisions
 
 
 class S3aRecordTest(unittest.TestCase):
+    def test_town_hold_is_one_predicate_and_restores_with_switch_off(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        self.assertFalse(policy._town_claim_bar_enforced)
+        self.assertIsNone(policy._claim_errand_hold("home-scan"))
+        row = decisions.decide("shop:approach", cell=decisions.cell(4))
+        held = policy._claim_errand_hold("home-scan")
+        self.assertIsNotNone(held)
+        self.assertEqual(held.claim_id, row["claim_id"])
+        self.assertIsNone(policy._claim_errand_hold("store-router"))
+        self.assertFalse(policy._defer_town_errand("home-scan", "home:request-knowledge-scan"))
+        self.assertEqual(policy._decision_errand_deferred[-1], {
+            "holder_family": "store-router",
+            "holder_claim_id": row["claim_id"],
+            "deferred_family": "home-scan",
+            "deferred_reason": "home:request-knowledge-scan",
+        })
+        restored = pickle.loads(pickle.dumps(policy))
+        del restored._town_claim_bar_enforced
+        del restored._decision_errand_deferred
+        self.assertFalse(restored._defer_town_errand("home-scan", "scan"))
+        self.assertEqual(len(restored._decision_errand_deferred), 1)
+        restored._town_claim_bar_enforced = True
+        self.assertTrue(restored._defer_town_errand("home-scan", "scan"))
+        restored._claim_register.release("stop-obsolete")
+        self.assertIsNone(restored._claim_errand_hold("home-scan"))
+
     def test_knowledge_observe_can_yield_but_store_operation_cannot(self):
         self.assertEqual(
             goal_typing("home-scan", "home:request-knowledge-scan").content,

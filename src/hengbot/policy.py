@@ -1794,6 +1794,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # until a live measurement decides otherwise (user decision
         # 2026-09-26).
         self._claim_bar_enforced = False
+        # S3.3 town errand admission is independent of the S2b.2 threat bar.
+        # A restored checkpoint may predate this attribute; readers use
+        # getattr(..., False) until its first decision.
+        self._town_claim_bar_enforced = False
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2460,6 +2464,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_triggers = None
         # S2b.2: the rungs the bar skipped on this decision (switch on only).
         self._decision_bar_skips = None
+        self._decision_errand_deferred = []
         # Round 4 (F3): an armed path-target capture never outlives the
         # decision that armed it (each arm/take pair is also try/finally).
         self.__dict__.pop("_claim_target_capture", None)
@@ -4361,6 +4366,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "bars_active": len(register.bars),
             "bar_skipped": list(getattr(self, "_decision_bar_skips", None) or ())
             or None,
+            "errand_deferred": list(
+                getattr(self, "_decision_errand_deferred", None) or ()
+            ) or None,
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
@@ -4971,6 +4979,43 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ]
             return True
         return False
+
+    def _claim_errand_hold(self, family: str):
+        """Return the open town errand that owns a different producer's turn.
+
+        This is deliberately a single read of the standing claim.  In
+        particular, neither a suspended claim nor an already closed claim
+        holds a new town producer.  Callers ask before changing their own
+        session, plan, or inventory-selection state.
+        """
+        register = getattr(self, "_claim_register", None)
+        standing = getattr(register, "current", None)
+        if (
+            standing is not None
+            and standing.is_open
+            and standing.owner.value in CLAIM_S3_FAMILIES
+            and standing.owner.value != family
+            and standing.goal.kind in {CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE}
+        ):
+            return standing
+        return None
+
+    def _defer_town_errand(self, family: str, reason: str) -> bool:
+        """Record a competing producer and enforce the hold only when ON."""
+        holder = self._claim_errand_hold(family)
+        if holder is None:
+            return False
+        deferred = getattr(self, "_decision_errand_deferred", None)
+        if deferred is None:
+            deferred = []
+            self._decision_errand_deferred = deferred
+        deferred.append({
+            "holder_family": holder.owner.value,
+            "holder_claim_id": holder.claim_id,
+            "deferred_family": family,
+            "deferred_reason": reason,
+        })
+        return getattr(self, "_town_claim_bar_enforced", False)
 
     # -- rev 9.2 (S): the survival return trigger ----------------------------
 
