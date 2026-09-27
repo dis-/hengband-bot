@@ -14272,6 +14272,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         }
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=("calibration-required",), result=None,
+            encounters_total=0, encounters_evaluated=0, transaction=None,
         )
         policy._town_errand_plan = TownErrandPlan(
             [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],

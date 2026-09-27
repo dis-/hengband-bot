@@ -881,9 +881,14 @@ class ObservationMixin:
         if self._descent_block_countdown > 0:
             self._descent_block_countdown -= 1
 
-        # Attribute an HP drop only when the game names a hidden monster's blow.
+        # Lower max HP can clamp current HP without an attack. Count only the
+        # drop below that clamp as damage.
         hp = snapshot.player.hp
-        self._took_damage = self._last_hp is not None and hp < self._last_hp
+        max_hp = snapshot.player.max_hp
+        hp_without_damage = (
+            min(self._last_hp, max_hp) if self._last_hp is not None else hp
+        )
+        self._took_damage = hp < hp_without_damage
         self._unseen_attack_evidence = next(
             (
                 message
@@ -931,7 +936,7 @@ class ObservationMixin:
             for message in snapshot.messages
         )
         self._last_damage_amount = (
-            self._last_hp - hp if self._took_damage and self._last_hp is not None else 0
+            hp_without_damage - hp if self._took_damage else 0
         )
         self._last_hp = hp
 

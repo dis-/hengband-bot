@@ -421,8 +421,14 @@ class EquipmentMixin:
         return bool(
             snapshot.in_town
             and (
-                getattr(self, "_decision_context", None) is not None
-                and self._decision_context.equipment_transaction_owned
+                (
+                    getattr(self, "_decision_context", None) is not None
+                    and self._decision_context.equipment_transaction_owned
+                )
+                or (
+                    self._calibration_phase in {"strip", "restore-equip"}
+                    and self._calibration_session_owned()
+                )
             )
         )
 
@@ -1588,10 +1594,23 @@ class EquipmentMixin:
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
             return LEAVE_STORE_KEY
+        session = self._equipment_transaction_session
+        if (
+            session is not None
+            and session.pending_action is None
+            and session.required_context == "outside_home"
+        ):
+            # A legacy equip action belongs outside Home. Leave before
+            # preparing a command so the session can keep its context.
+            self.last_reason = "equipment-transaction:leave-home-for-equip"
+            return LEAVE_STORE_KEY
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
             return None
+        if session.pending_action is None and session.required_context == "outside_home":
+            self.last_reason = "equipment-transaction:leave-home-for-equip"
+            return LEAVE_STORE_KEY
         if not session.executable:
             self._abandon_blocked_equipment_transaction(snapshot)
             self.last_reason = "equipment-transaction:abandon-blocked-home"
