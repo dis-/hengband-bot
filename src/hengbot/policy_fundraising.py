@@ -26,6 +26,7 @@ from hengbot.model import (
 )
 from hengbot.policy_constants import (
     BARREN_FLOOR_SKIP_THRESHOLD,
+    DETECTION_SCROLL_BUFFER,
     DIGGER_WIELD_LIMIT,
     EAT_KEY,
     ExplorationPathOutcome,
@@ -123,6 +124,10 @@ class FundraisingMixin:
             self._effective_mining_run_target() - self._mining_runs_completed,
         )
         return remaining_runs
+
+    def _mining_detection_stock_target(self, snapshot: Snapshot) -> int:
+        """Scroll count shared by town purchasing and pack retention."""
+        return self._mining_detection_scroll_target(snapshot) + DETECTION_SCROLL_BUFFER
 
     def _fundraising_light_ready(self, snapshot: Snapshot) -> bool:
         """Whether level-one fundraising can start with a working light."""

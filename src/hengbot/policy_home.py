@@ -770,7 +770,7 @@ class HomeMixin:
         # trigger.  That router can activate fundraising later in the same visit,
         # after Home has already asked this retention authority what may be stashed.
         elif item.is_treasure_detection_scroll and mining_planned:
-            target = self._mining_detection_scroll_target(snapshot)
+            target = self._mining_detection_stock_target(snapshot)
             matches = lambda candidate: candidate.is_treasure_detection_scroll
             branch = "mining:detection"
         elif item.is_digging_tool and mining_planned:
