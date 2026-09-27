@@ -2738,8 +2738,10 @@ class CombatTest(unittest.TestCase):
             "choke-hold-lower-bound-20260921.jsonl"
         )
         self.assertEqual(
-            hashlib.sha256(capture.read_bytes()).hexdigest(),
-            "96b7923cb63d403b83c9623803770a87aedc1d3571069e6987d66aa244f4979d",
+            hashlib.sha256(
+                capture.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+            ).hexdigest(),
+            "6cb58659031c8a2e906d085c23afac5e83eb122d76f4ca58c90a5cf813f31733",
         )
         knowledge = load_monrace_knowledge(
             Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
@@ -5972,7 +5974,7 @@ class PredictiveEscapeTest(unittest.TestCase):
         self.assertNotEqual(key, "vt6")
         self.assertNotEqual(policy.last_reason, "ranged:throw-torch")
 
-    def test_silent_loot_owner_does_not_consume_ledger_budget(self):
+    def test_capture_two_cycle_breaks_through_loot_ledger(self):
         capture = Path(
             "tests/fixtures/incident-20260821-loop-capture-rows.jsonl.gz"
         )
@@ -5988,17 +5990,21 @@ class PredictiveEscapeTest(unittest.TestCase):
             [], floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
         )
         policy = HengbotPolicy()
+        policy._floor_key = snapshot.floor_key
         policy._known_loot.add(loot)
         policy._loot_target = loot
         policy._nav_ledger = policy_module.NavigationLedger(stall_limit=2)
 
         for _ in range(3):
+            # The two-cell capture keeps renewing this commitment; this
+            # reduced board has no route map and probe would clear it.
+            policy._loot_target = loot
             policy.choose_key(snapshot)
 
-        self.assertFalse(policy._nav_ledger.is_expired("loot", loot))
-        self.assertNotIn(loot, policy._deferred_loot)
+        self.assertTrue(policy._nav_ledger.is_expired("loot", loot))
+        self.assertIn(loot, policy._deferred_loot)
 
-    def test_navigation_observes_only_explore_on_silent_loot_owner_half(self):
+    def test_navigation_observes_loot_and_explore_on_silent_owner_half(self):
         snapshot = Snapshot(
             player(10, 10), {Position(10, 10): grid(10, 10)}, [],
             floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
@@ -6015,7 +6021,7 @@ class PredictiveEscapeTest(unittest.TestCase):
 
         policy._observe_navigation_commitments(snapshot)
 
-        self.assertNotIn(("loot", loot), policy._nav_ledger._progress)
+        self.assertIn(("loot", loot), policy._nav_ledger._progress)
         self.assertIn(("explore:VISIT", frontier), policy._nav_ledger._progress)
 
     def test_paralyzer_approach_expires_through_navigation_ledger(self):
@@ -6136,7 +6142,6 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy._known_loot.add(target)
         policy._loot_target = target
         policy._nav_ledger = policy_module.NavigationLedger(stall_limit=1)
-        policy.last_reason = "seek-loot"
 
         policy._observe_navigation_commitments(snapshot)
         policy._observe_navigation_commitments(snapshot)

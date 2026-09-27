@@ -97,6 +97,18 @@ class NavigationLedger:
         self._expired.discard((kind, target))
         self._progress.pop((kind, target), None)
 
+    def rearm(
+        self, kind: str, target: Hashable, *, distance: int | None = None
+    ) -> None:
+        """Grant one fresh budget without erasing the target's progress record."""
+        key = (kind, target)
+        entry = self._progress.get(key)
+        if entry is not None:
+            if distance is not None:
+                entry.best_distance = distance
+            entry.stall = 0
+        self._expired.discard(key)
+
     def expire(self, kind: str, target: Hashable) -> None:
         """Expire a target immediately from external rejection evidence."""
         self._expired.add((kind, target))

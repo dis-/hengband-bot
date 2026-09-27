@@ -27,12 +27,8 @@ from hengbot.policy import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CAPTURE_ROOT = ROOT / "jsonlog"
-if not (CAPTURE_ROOT / "incident-equip-swap-loop-20260826.jsonl").exists():
-    # Linked worktrees do not copy the live checkout's read-only captures.
-    CAPTURE_ROOT = Path("C:/hengband/bot-client/jsonlog")
-DECISIONS = CAPTURE_ROOT / "incident-equip-swap-loop-20260826.jsonl"
-SNAPSHOTS = CAPTURE_ROOT / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+DECISIONS = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.jsonl"
+SNAPSHOTS = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
 RAG = "8cc0213094bf60d5"
 HARD_ARMOUR = "ba9b081829fa4479"
 DIRECTIONS = {

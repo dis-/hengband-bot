@@ -1676,10 +1676,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._deferred_loot: set[Position] = set()
         self._safety_deferred_loot: set[Position] = set()
         # Of the deferred positions, the ones the navigation ledger expired
-        # (blocker "navigation-ledger:loot"), and the ones a calm return has
-        # already handed a second budget.  Both are per floor visit.
+        # (blocker "navigation-ledger:loot"), and positions that already used
+        # their one relocation/recall rearm budget. Both are per floor visit.
         self._nav_ledger_deferred_loot: set[Position] = set()
         self._loot_ledger_rearmed: set[Position] = set()
+        self._loot_safety_rearmed: set[Position] = set()
         self._loot_defer_blocker: str | None = None
         self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
@@ -13516,20 +13517,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return self._step_toward(snapshot, step)
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:
-        """Charge loot only for the preceding loot owner's actual pursuit."""
+        """Charge a committed loot goal on every decision until it expires."""
         committed_loot = self._loot_target
-        pursued_loot = self.last_reason in (
-            "seek-loot", "return:seek-loot", "victory:seek-loot",
-            "conquest:seek-loot", "fundraise:seek-loot",
-        )
         previous_position = self._recent[-2] if len(self._recent) >= 2 else None
         jumped = (
             previous_position is not None
             and previous_position.distance_to(snapshot.player.position) > 1
         )
-        if committed_loot is not None and jumped:
-            self._nav_ledger.release("loot", committed_loot)
-        if committed_loot is not None and pursued_loot and not jumped:
+        if (
+            committed_loot is not None
+            and jumped
+            and committed_loot not in self._loot_ledger_rearmed
+        ):
+            self._loot_ledger_rearmed.add(committed_loot)
+            self._nav_ledger.rearm(
+                "loot", committed_loot,
+                distance=snapshot.player.position.distance_to(committed_loot),
+            )
+        if committed_loot is not None and not jumped:
             self._nav_ledger.observe(
                 "loot",
                 committed_loot,
@@ -13609,8 +13614,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Hand ledger-expired loot one fresh budget, once per floor visit.
 
         A calm recall countdown is a distinct opportunity to collect an item
-        previously abandoned after a genuine pursuit stall. A position is
-        released only once per floor visit; a second stall retires it again.
+        previously abandoned after a genuine pursuit stall. Relocation and
+        recall share one fresh budget per position for the floor visit.
         """
         for position in sorted(
             self._nav_ledger_deferred_loot - self._loot_ledger_rearmed,
@@ -13618,7 +13623,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             self._loot_ledger_rearmed.add(position)
             self._nav_ledger_deferred_loot.discard(position)
-            self._nav_ledger.release("loot", position)
+            self._nav_ledger.rearm("loot", position)
             self._deferred_loot.discard(position)
         if (
             self._loot_defer_blocker == "navigation-ledger:loot"

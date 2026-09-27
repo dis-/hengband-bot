@@ -65,11 +65,13 @@ import hashlib
 import json
 import re
 import unittest
+from collections import deque
 from dataclasses import replace
 from pathlib import Path
 
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import Position, parse_snapshot
+from hengbot.navigation import NAV_TARGET_STALL_LIMIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 
@@ -234,10 +236,7 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
     def test_l1_the_countdown_collects_the_drop_instead_of_waiting(self):
         """L1: the first recorded wait decision becomes a collection."""
         policy, _replayed, countdown = self._replay_to_recall()
-        # Exploration and emergency turns no longer expire unpursued loot.
         self.assertIsNone(policy._loot_defer_blocker)
-        blocked = set(policy._nav_ledger_deferred_loot)
-        self.assertEqual(blocked, set())
 
         key = policy.choose_key(countdown)
 
@@ -246,11 +245,29 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         # through the existing step-off that makes the game run its own floor
         # handling on re-entry (_current_floor_item_key, position unchanged).
         self.assertEqual((policy.last_reason, key), ("trigger-autodestroy", "7"))
-        # No false ledger expiry needs to be re-armed on this board.
-        self.assertEqual(policy._loot_ledger_rearmed, set())
-        self.assertEqual(policy._nav_ledger_deferred_loot, set())
-        self.assertEqual(blocked, set())
         self.assertIsNone(policy.loot_state(countdown)["blocker"])
+
+    def test_countdown_rearms_a_real_ledger_expiry_once(self):
+        policy, _replayed, countdown = self._replay_to_recall()
+        target = BESIDE[0]
+        self.assertIn(target, policy._known_loot)
+        policy._loot_target = target
+        policy._recent = deque([countdown.player.position] * 2, maxlen=20)
+        for _ in range(NAV_TARGET_STALL_LIMIT + 1):
+            policy._observe_navigation_commitments(countdown)
+        self.assertTrue(policy._nav_ledger.is_expired("loot", target))
+        self.assertEqual(policy._nav_ledger_deferred_loot, {target})
+        self.assertIn(target, policy._deferred_loot)
+        progress = policy._nav_ledger._progress[("loot", target)]
+
+        key = policy.choose_key(countdown)
+
+        self.assertEqual((policy.last_reason, key), ("trigger-autodestroy", "7"))
+        self.assertEqual(policy._loot_ledger_rearmed, {target})
+        self.assertNotIn(target, policy._nav_ledger_deferred_loot)
+        self.assertNotIn(target, policy._deferred_loot)
+        self.assertFalse(policy._nav_ledger.is_expired("loot", target))
+        self.assertIs(policy._nav_ledger._progress[("loot", target)], progress)
 
     def test_l2_a_visible_hostile_waits_exactly_as_recorded(self):
         """L2: the gate closes on any visible hostile; the wait is unchanged."""
@@ -382,23 +399,21 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
     def test_checkpoint_from_before_the_split_restores_and_decides(self):
         """A capture that predates the two new sets still replays."""
         policy, _replayed, countdown = self._replay_to_recall()
-        blocked = set(policy._nav_ledger_deferred_loot)
-        self.assertEqual(blocked, set())
         del policy._nav_ledger_deferred_loot
         del policy._loot_ledger_rearmed
         del policy._safety_deferred_loot
+        del policy._loot_safety_rearmed
 
         restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
 
         self.assertEqual(restored._nav_ledger_deferred_loot, set())
         self.assertEqual(restored._loot_ledger_rearmed, set())
         self.assertEqual(restored._safety_deferred_loot, set())
+        self.assertEqual(restored._loot_safety_rearmed, set())
         key = restored.choose_key(countdown)
         # Nothing is ledger-deferred, so the restored policy collects the
         # drop underfoot without using the recall-time rearm.
         self.assertEqual((restored.last_reason, key), ("trigger-autodestroy", "7"))
-        self.assertEqual(restored._loot_ledger_rearmed, set())
-        self.assertEqual(restored._nav_ledger_deferred_loot, blocked)
 
     def _recorded_ghoul(self):
         """A hostile actually recorded in this window, taken from its board."""

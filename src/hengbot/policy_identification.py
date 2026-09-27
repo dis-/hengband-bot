@@ -1074,9 +1074,9 @@ class IdentificationMixin:
                     self._safety_deferred_loot
                     - self._nav_ledger_deferred_loot
                     - self._engagement_avoid_cells
+                    - self._loot_safety_rearmed
                 )
-                for position in released:
-                    self._nav_ledger.release("loot", position)
+                self._loot_safety_rearmed.update(released)
                 self._deferred_loot.difference_update(released)
                 self._safety_deferred_loot.difference_update(released)
                 if not self._safety_deferred_loot and self._loot_defer_blocker == "paralyzer-ring":
