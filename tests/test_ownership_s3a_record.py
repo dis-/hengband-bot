@@ -25,6 +25,81 @@ from test_ownership_s2b1_ladder import _Decisions
 
 
 class S3aRecordTest(unittest.TestCase):
+    def test_router_plan_stop_requester_is_recorded_per_reused_visit(self):
+        decisions = _Decisions()
+        visit = StoreVisit(
+            owner="store-router", purpose="town-need", store_type=STORE_HOME,
+            opened_sequence=1, opened_for_family="home-scan",
+        )
+        decisions.policy._store_visit = visit
+        decisions.policy._request_store_trip(
+            STORE_HOME, "home-visit", structure="router-plan-stop"
+        )
+        self.assertIs(decisions.policy._store_visit, visit)
+        self.assertEqual(visit.opened_for_family, "home-visit")
+        self.assertEqual(visit.request_structure, "router-plan-stop")
+        restored = pickle.loads(pickle.dumps(decisions.policy))
+        self.assertEqual(restored._store_visit.opened_for_family, "home-visit")
+        self.assertEqual(restored._store_visit.request_structure,
+                         "router-plan-stop")
+        restored._store_visit.owner = "town-errand"
+        restored._request_store_trip(STORE_HOME, "shop-buy")
+        self.assertEqual(restored._store_visit.opened_for_family, "shop-buy")
+        self.assertIsNone(restored._store_visit.request_structure)
+
+    def test_router_plan_stop_names_only_unambiguous_family(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME], {STORE_HOME: ("weight-overload",)}
+        )
+        self.assertEqual(policy._router_plan_stop_family(None), "home-visit")
+        policy._town_errand_plan.need_categories[STORE_HOME] = (
+            "weight-overload", "identification-withdrawal"
+        )
+        self.assertIsNone(policy._router_plan_stop_family(None))
+        policy._town_errand_plan.need_categories[STORE_HOME] = ("unknown-need",)
+        self.assertIsNone(policy._router_plan_stop_family(None))
+
+    def test_claim_recording_preserves_decision_attribution(self):
+        decisions = _Decisions()
+        decisions.policy.decision_attribution = "original-arbiter-owner"
+        decisions.policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=1, opened_producer_family="calibration",
+        )
+        decisions.policy._home_atomic_deposit_pending = ("item", 1)
+        decisions.decide("home:atomic-deposit")
+        self.assertEqual(decisions.policy.decision_attribution,
+                         "original-arbiter-owner")
+
+    def test_leave_confirmation_barrier_uses_visit_family(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="store-router", purpose="home", store_type=STORE_HOME,
+            opened_sequence=1, opened_for_family="home-errand",
+            claim_owner="home-errand", operation_producer_family="shop-buy",
+        )
+        barrier = decisions.decide("shop:await-leave-confirmation")
+        self.assertEqual(barrier["owner"], "home-errand")
+
+    def test_new_store_operation_during_unconfirmed_leave_is_recorded(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="store-router", purpose="home", store_type=STORE_HOME,
+            opened_sequence=1, opened_for_family="shop-buy",
+        )
+        decisions.policy._store_leave_inflight = (1, 1, STORE_HOME)
+        decisions.policy._home_errand.file(
+            HomeErrandRequest(("weapon", 1, 2), 1, "test", "combat-weapon"),
+            knowledge_current=False,
+        )
+        row = decisions.decide("home-errand:request-knowledge:combat-weapon")
+        self.assertEqual(row["violation"]["kind"],
+                         "leave-confirmation-interruption")
+        self.assertEqual((row["violation"]["from"], row["violation"]["to"]),
+                         ("shop-buy", "home-errand"))
+
     def test_recorded_home_verdict_conflict_is_an_operation_pair(self):
         """Run the detector with the recorded 10:22, 12:53, 17:30 verdicts.
 
@@ -266,7 +341,7 @@ class S3aRecordTest(unittest.TestCase):
 
     def test_filed_item_purposes_match_identification_and_experience_work(self):
         for purpose, reason, key in (
-            ("identification", "identify:normal", "ra"),
+            ("identification", "identify:normal", "rba"),
             ("experience-potion", "experience:quaff", "qa"),
         ):
             with self.subTest(purpose=purpose):
@@ -284,6 +359,21 @@ class S3aRecordTest(unittest.TestCase):
                 row = decisions.decide(reason, board=board, key=key)
                 self.assertEqual(row["purpose_duplicates"][0]["purpose"],
                                  [purpose, signature])
+
+    def test_filed_item_does_not_duplicate_another_identification_target(self):
+        decisions = _Decisions()
+        filed = InventoryItem(slot="a", name="filed", count=1, tval=75,
+                              sval=1, aware=True, known=True)
+        other = InventoryItem(slot="c", name="other", count=1, tval=75,
+                              sval=2, aware=True, known=True)
+        board = replace(decisions.board, inventory=(filed, other))
+        decisions.policy._home_errand.file(
+            HomeErrandRequest(decisions.policy._item_signature(filed), 1,
+                              "test", "identification"),
+            knowledge_current=False,
+        )
+        row = decisions.decide("identify:normal", board=board, key="rbc\x1b")
+        self.assertEqual(row["purpose_duplicates"], [])
 
     def test_town_damage_response_suspends_transaction_claim(self):
         decisions = _Decisions()
@@ -1092,6 +1182,11 @@ class S3aRecordTest(unittest.TestCase):
         decisions.policy._complete_equipment_transaction_claim()
         self.assertEqual(decisions.register.current.closed, "complete")
         self.assertEqual(decisions.register.current.closed_reason,
+                         "equipment-transaction-complete")
+        exit_row = decisions.decide("home:leave-after-one-operation")
+        self.assertEqual(exit_row["goal"]["kind"], "Terminal")
+        self.assertEqual(exit_row["closed_claim"]["claim_id"], held["claim_id"])
+        self.assertEqual(exit_row["closed_claim"]["closed_reason"],
                          "equipment-transaction-complete")
 
     def test_transaction_completion_uses_recorded_family_after_session_changes(self):

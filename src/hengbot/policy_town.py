@@ -1016,7 +1016,7 @@ class TownMixin:
         if supplier is None:
             return None
         step = self._shopping_approach_step(
-            snapshot, supplier, requester="store-router"
+            snapshot, supplier, router_plan_stop=True
         )
         if step is None:
             return None
@@ -1435,7 +1435,7 @@ class TownMixin:
             if store_type == current_store:
                 continue
             step = self._shopping_approach_step(
-                snapshot, store_type, requester="store-router"
+                snapshot, store_type, router_plan_stop=True
             )
             if step is None:
                 continue
@@ -4563,7 +4563,7 @@ class TownMixin:
                 # approach router to bind the store that is required now.
                 self._close_store_visit("repetition-block-abandoned")
             shopping_step = self._shopping_approach_step(
-                snapshot, requester="store-router"
+                snapshot, router_plan_stop=True
             )
             if shopping_step is not None:
                 self.last_reason = "town:repetition-required-shopping"

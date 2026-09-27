@@ -213,6 +213,7 @@ class StoreVisit:
     claim_owner: str | None = field(default=None, compare=False, repr=False)
     opened_producer_family: str | None = field(default=None, compare=False, repr=False)
     opened_for_family: str | None = field(default=None, compare=False, repr=False)
+    request_structure: str | None = field(default=None, compare=False, repr=False)
     operation_producer_family: str | None = field(default=None, compare=False, repr=False)
     claim_operation_identity: tuple | None = field(default=None, compare=False, repr=False)
 
