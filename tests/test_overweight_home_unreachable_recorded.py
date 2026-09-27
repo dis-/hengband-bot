@@ -59,9 +59,10 @@ Walls, each declared:
   instead of the live ``probe`` '8').  The replay decides them identically
   with and without the fix, before any Home pass of the visit, and every
   later recorded board is decided as live -- the pre-fix code reproduces
-  every other decision of the process, the stop included. The loot-ledger
-  change now alters the dungeon route at index 2636, so later policy state
-  from replaying frozen boards is no longer a trajectory assertion.
+  every other decision of the process, the stop included;
+- pre_fix_loot_observation restores the original fallback charge for this
+  Home-subject lifetime replay. The production loot boundary test runs without
+  the wall and stops at the first changed key.
 No wall touches the Home ledger, the equipment transaction or the terminal.
 """
 
@@ -85,6 +86,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME, TOWN_STOP_PASS_LIMIT
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 
 
@@ -114,6 +116,7 @@ HOME_ENTRANCE = (45, 123)
 
 class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
     replay = None
+    live_prefix = None
 
     @classmethod
     def setUpClass(cls):
@@ -155,7 +158,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         if cls.replay is not None:
             return cls.replay
         replay = []
-        with TemporaryDirectory() as raw_directory:
+        with pre_fix_loot_observation(), TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             policy = _policy(directory, cls.monrace)
             policy._character_calibration_path.write_bytes(
@@ -214,6 +217,55 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     })
         cls.replay = replay
         return replay
+
+    @classmethod
+    def _live_loot_prefix(cls):
+        """Replay only through the first loot change with production policy."""
+        if cls.live_prefix is not None:
+            return cls.live_prefix
+        decisions = []
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, cls.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            for index in range(2637):
+                _decoded, snapshots = _consume_response_sequence(
+                    cls._board_lines(index), policy, lambda _key: True,
+                    cls.monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                reason = cls.recorded[index]["reason"]
+                if reason == "periodic:game-save":
+                    policy.request_game_save()
+                elif reason == "periodic:character-dump":
+                    policy.request_character_dump()
+                key = policy.choose_key(snapshots[-1])
+                decisions.append((str(key), policy.last_reason,
+                                  dict(policy.decision_claim or {})))
+                policy.confirm_key_posted(key)
+                chain = policy.peek_staged_prompt_chain()
+                if chain is not None and staged_prompt_chain_matches(chain, key):
+                    policy.commit_staged_prompt_chain({
+                        "outcome": "released", "posted": str(key),
+                    })
+        cls.live_prefix = decisions
+        return decisions
+
+    def test_production_loot_route_changes_at_the_recorded_boundary(self):
+        replay = self._live_loot_prefix()
+        quantity_keys = {3, 3713, RING_DEPOSIT}
+        self.assertEqual(
+            [index for index in range(2636)
+             if ((self.recorded[index]["key"] if index in quantity_keys
+                  else replay[index][0]), replay[index][1])
+             != (self.recorded[index]["key"], self.recorded[index]["reason"])],
+            [],
+        )
+        self.assertEqual(
+            (self.recorded[2636]["key"], self.recorded[2636]["reason"]),
+            ("1", "seek-loot"),
+        )
+        self.assertEqual(replay[2636][:2], ("4", "seek-loot"))
+        self.assertEqual(replay[2636][2]["goal"]["cell"], [4, 99])
 
     # ------------------------------------------------------------ recorded
     def test_recorded_home_passes_outlived_observed_home_effects(self):
@@ -290,38 +342,79 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             self.assertEqual(self.recorded[index]["key"], old)
             self.assertEqual(replay[index]["key"], new)
             self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
-        # The loot-ledger repair first changes the path at 2636: the live key
-        # moved south, while the repaired policy keeps pursuing the adjacent
-        # item to the west. Later recorded boards are no longer a trajectory
-        # pin, even though the separate Home assertions still inspect them.
-        self.assertEqual(
-            (self.recorded[2636]["key"], self.recorded[2636]["reason"]),
-            ("1", "seek-loot"),
-        )
-        self.assertEqual(
-            (replay[2636]["key"], replay[2636]["reason"]),
-            ("4", "seek-loot"),
-        )
-        self.assertEqual(replay[2636]["claim"]["goal"]["cell"], [4, 99])
         self.assertEqual(
             [
                 index
-                for index in range(2636)
+                for index in range(STOP + 1)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
+            [*DIVERGENT, STOP],
+        )
+        self.assertEqual(
+            [index for index, row in enumerate(replay)
+             if row["claim"].get("claim_verdict_conflict")],
             [],
         )
-        # The frozen town boards retain these observed decision differences,
-        # including the terminal STOP, after the earlier dungeon divergence.
         self.assertEqual(
-            [
-                index for index in range(VISIT_START, STOP + 1)
-                if (replay[index]["key"], replay[index]["reason"])
-                != (self.recorded[index]["key"], self.recorded[index]["reason"])
-            ],
-            [3702, 3706, 3707, 3713, 3779, 3781],
+            sum(bool(row["claim"].get("scan-during-pending-atomic"))
+                for row in replay),
+            2,
+        )
+        self.assertEqual(
+            sum(bool(row["claim"].get("visit_owner_mismatch"))
+                for row in replay),
+            # Router plan stops now record the family they serve. The four
+            # remaining rows are actual requester/operator disagreements.
+            4,
+        )
+
+    def test_calibration_transaction_observes_still_complete(self):
+        endings = {
+            row["claim"]["decision_sequence"]: row["claim"]["closed_claim"]
+            for row in self._replay()
+            if row["claim"]["decision_sequence"] in {3755, 3767}
+        }
+        self.assertEqual(set(endings), {3755, 3767})
+        for sequence in (3755, 3767):
+            self.assertEqual(
+                (endings[sequence]["owner"], endings[sequence]["goal_kind"],
+                 endings[sequence]["closed"], endings[sequence]["closed_reason"]),
+                ("calibration", "Observe", "complete",
+                 "equipment-transaction-complete"),
+            )
+
+    def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
+        # S2b.2 (record-only, switch off; the decisions are pinned above).
+        # Seven hunts lost their monster (``target-lost``) and were barred
+        # until it is unseen for the 50-turn clock; four of those bars lifted
+        # inside the window, and three later hunts of a still-barred monster
+        # are recorded as would-bars.  Nothing was skipped.
+        replay = self._replay()
+        bars_set = [
+            (entry["owner"], entry["kind"], entry["ending"])
+            for row in replay for entry in (row["bars_set"] or ())
+        ]
+        self.assertEqual(
+            bars_set, [("hunt", "threat", "release:target-lost")] * 7
+        )
+        self.assertEqual(
+            [entry["owner"] for row in replay
+             for entry in (row["bars_lifted"] or ())],
+            ["hunt"] * 4,
+        )
+        would = [row for row in replay if row["would_bar"] is not None]
+        self.assertEqual(len(would), 3)
+        for row in would:
+            self.assertEqual(row["would_bar"]["owner"], "hunt")
+            self.assertTrue(row["reason"].startswith("hunt"), row["reason"])
+            self.assertEqual(
+                row["would_bar"]["goal"]["monster"],
+                row["would_bar"]["triggers"][0],
+            )
+        self.assertEqual(
+            [row for row in replay if row["bar_skipped"] is not None], []
         )
 
     def test_h1_stop_board_proceeds_to_the_home_deposit(self):
@@ -334,6 +427,48 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         # It enters Home for the surplus deposit instead of the terminal.
         self.assertEqual(
             (stop["key"], stop["reason"]), ("5", "home:weight-overload-deposit")
+        )
+        self.assertIsNone(stop["blocked_reason"])
+        self.assertFalse(stop["blocked"])
+        self.assertIn("weight-overload", stop["claims"])
+        for row in replay[VISIT_START : STOP + 1]:
+            self.assertNotEqual(
+                row["blocked_reason"], "overweight-home-unreachable", row
+            )
+
+    def test_h1_every_observed_home_effect_resets_the_pass_count(self):
+        replay = self._replay()
+        recorded = self.recorded
+        # Until the first observed effect the count is the recorded one.
+        self.assertEqual(
+            [row["passes"] for row in replay[VISIT_START : DEPOSITS_OBSERVED[0]]],
+            [
+                row["home_unsatisfied_passes"]
+                for row in recorded[VISIT_START : DEPOSITS_OBSERVED[0]]
+            ],
+        )
+        # Each confirmed deposit/withdrawal clears the passes charged before
+        # it; a later pass counts from there.
+        self.assertEqual(
+            [
+                replay[index]["passes"]
+                for index in (
+                    3736, *DEPOSITS_OBSERVED, 3770, *RESTORES_OBSERVED,
+                    STAFF_OBSERVED, 3778, RING_DEPOSIT, RING_OBSERVED,
+                )
+            ],
+            [2, 0, 0, 0, 1, 0, 0, 1, 1, 2, 2, 1],
+        )
+        # The Ring deposit still finishes the equipment work and drops the
+        # bound to 3, but one pass after an observed effect blocks nothing.
+        ring = replay[RING_OBSERVED]
+        self.assertEqual(
+            (ring["key"], ring["reason"], ring["limit"], ring["blocked"]),
+            ("\x1b", "home:leave-after-one-operation", 3, False),
+        )
+        self.assertEqual(
+            {row["approach_fails"] for row in replay[VISIT_START : STOP + 1]},
+            {0},
         )
 
 

@@ -755,7 +755,7 @@ class ShopMixin:
         if not self._food_ready(snapshot):
             self._town_store_attempted.pop(food_store, None)
             step = self._shopping_approach_step(
-                snapshot, food_store, requester="store-router"
+                snapshot, food_store, router_plan_stop=True
             )
             if step is not None:
                 self.last_reason = "shop:approach"
@@ -763,7 +763,7 @@ class ShopMixin:
             self._town_blocked_reason = "restock-store-unreachable"
             return self._town_blocked_key(snapshot)
         step = self._shopping_approach_step(
-            snapshot, requester="store-router"
+            snapshot, router_plan_stop=True
         )
         if step is not None and self._shopping_approach_store_type in store_types:
             self.last_reason = "shop:approach"
@@ -774,7 +774,7 @@ class ShopMixin:
         # unreachable.
         for store_type in self._order_town_stops(snapshot, list(store_types)):
             step = self._shopping_approach_step(
-                snapshot, store_type, requester="store-router"
+                snapshot, store_type, router_plan_stop=True
             )
             if step is not None:
                 self.last_reason = "shop:approach"
@@ -4184,10 +4184,61 @@ class ShopMixin:
         self.last_reason = "shop:leave"
         return LEAVE_STORE_KEY
 
+    def _router_plan_stop_family(self, store_type: int | None) -> str | None:
+        """The family whose recorded need the current plan stop serves."""
+        shop_buy_categories = {
+            "stat-restore", "experience-restore", "experience-restore-check",
+            "fundraising-digger", "fundraising-detection", "fundraising-food",
+            "mining-detection", "mining-digger", "fundraising-light",
+            "fundraising-oil", "identification-source", "recall", "teleport",
+            "cure-critical", "oil", "food", "quest-throwing-items",
+            "quest-ranged-kit", "quest-scrolls", "quest-carry", "quest-speed",
+            "quest-healing", "light", "identify-staff", "ammo",
+            "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
+            "star-remove-curse", "launcher-enchant", "black-market",
+        }
+        home_errand_categories = {
+            "experience-potion-home", "identification-withdrawal",
+            "fundraising-kit", "stored-detection", "stored-digger",
+            "ammo-home-first", "home-star-remove-curse-use",
+            "home-star-remove-curse-check",
+        }
+        plan = self._town_errand_plan
+        if plan is None:
+            return None
+        if store_type is None and plan.index < len(plan.stops):
+            store_type = plan.stops[plan.index]
+        categories = set(plan.need_categories.get(store_type, ()))
+        if not categories:
+            return None
+        families = set()
+        for category in categories:
+            if category.startswith("calibration-"):
+                families.add("calibration")
+            elif category.startswith("equipment-") or category == "quest-launcher":
+                families.add("equipment-txn")
+            elif category in home_errand_categories:
+                families.add("home-errand")
+            elif category.startswith("experience-"):
+                families.add("shop-buy")
+            elif category.startswith("identification-"):
+                families.add("home-errand" if store_type == STORE_HOME else "shop-buy")
+            elif category in {"deposit", "weight-overload", "space-deposit", "equipment-catalog"}:
+                families.add("home-visit")
+            elif category.endswith("-sale") or category == "organization-sale":
+                families.add("shop-sell")
+            elif category in shop_buy_categories:
+                families.add("shop-buy")
+            else:
+                return None
+        return next(iter(families)) if len(families) == 1 else None
+
     def _shopping_approach_step(
         self, snapshot: Snapshot, store_type: int | None = None,
-        *, requester: str | None = None,
+        *, requester: str | None = None, router_plan_stop: bool = False,
     ) -> Position | None:
+        if router_plan_stop:
+            requester = self._router_plan_stop_family(store_type)
         equipment_home_route = (
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.required_context == "home"
@@ -4223,10 +4274,15 @@ class ShopMixin:
                 not self._home_errand.active
                 or self._home_errand.request is None
             )
+            and not (
+                self._home_withdrawal_queued
+                and self._home_pending_item is not None
+            )
         ):
             # Keep the staged post-Alchemist stop in the disposable plan, but
             # do not turn it into movement until its requester has filed the
-            # executor's exact withdrawal request.
+            # executor's exact withdrawal request. A later Home ammo take can
+            # own the same stop even while this plan projection is stale.
             return None
         if store_type == STORE_HOME:
             if not self._ensure_home_visit_request(snapshot):
@@ -4283,7 +4339,14 @@ class ShopMixin:
         ):
             self._set_town_store_attempted(store_type, snapshot.turn, "approach-fails-limit")
             return None
-        self._request_store_trip(store_type, requester)
+        self._request_store_trip(
+            store_type, requester,
+            structure="router-plan-stop" if router_plan_stop else None,
+        )
+        if self._store_visit is not None:
+            self._store_visit.request_structure = (
+                "router-plan-stop" if router_plan_stop else None
+            )
         if self._town_map_active(snapshot):
             self._shopping_approach_goal = self._town_map.store_position(store_type)
         if self._shopping_approach_goal is None:

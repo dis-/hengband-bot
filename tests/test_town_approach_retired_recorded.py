@@ -148,7 +148,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             # Main's quantity answer keeps this earlier store approach live
             # when the filed Home knowledge request takes the decision.
             (1941, "owner-change", "store-router", "home-errand"),
-            (1958, "owner-change", "home-errand", "shop-buy"),
+            (1947, "leave-confirmation-interruption", "shop-buy", "home-errand"),
+            (1957, "leave-confirmation-interruption", "shop-buy", "home-errand"),
         ])
         operation = [
             row["claim"] for row in replay

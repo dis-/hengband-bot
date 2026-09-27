@@ -1,31 +1,34 @@
-"""Recorded prefix pin for the recall-stockout process lifetime.
+"""Recorded pins: the D1 recall-stockout time-pass vs the D2 gold set-end.
 
 2026-09-21 19:33:56-19:38:42 (one bot process, 1431 decisions).  Back in town
 at 18,365 gold with recall 9/10 and no actionable supplier, the stockout run
 started on a supplier page and the every-town-return gold set-end cleared it on
 the next decision; stockout/shop alternated until the owner retired.
 
-Substrate: recorded decisions through the first changed loot move (1141),
-replayed through the public response path on one policy
-(tests/extract_recall_stockout_set_end_fixture.py). Later stockout boards are
-counterfactual after that move, so this module does not assert their policy
-state. Walls, each on a collaborator that is not under test:
+Substrate: every recorded decision of the process lifetime, replayed through
+the public response path on one policy (tests/extract_recall_stockout_set_end_
+fixture.py).  Walls, each on a collaborator that is not under test:
 - policy_combat.CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO = 0.0 restores the choke
   combat code the live process ran (the floor landed after the incident);
 - the recorded periodic save/dump decisions receive the CLI timer request
   that produced them;
 - Home history/disposal files and the calibration file live in a temporary
   directory (the calibration file is the one the process loaded).
+- pre_fix_loot_observation restores the original fallback charge only for the
+  town-subject lifetime replay, preserving its recorded dungeon route. The
+  production loot boundary test below runs without this wall.
 """
 
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+import copy
 import gzip
 import hashlib
 import json
 import shutil
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -34,9 +37,11 @@ from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _consume_response_sequence
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
+from hengbot.model import STORE_HOME
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 import hengbot.policy_combat as policy_combat
+from recorded_loot_observation import pre_fix_loot_observation
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
@@ -52,6 +57,12 @@ CALIBRATION = FIXTURES / "recall-stockout-set-end-20260921.character-calibration
 FIXTURE_SHA256 = "a18d5e6cec3e9a8ff5ea8d0ba997f201cdfbe4b1493933d69be615ff36911558"
 BOUNDARIES_SHA256 = "53b906d917a7d0750feeb45dc6fb96eb2b18bfe1d50aebbcec274395f8f21d26"
 CALIBRATION_SHA256 = "d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd286edf7"
+# Decisions whose replayed (key, reason) differ from the recorded ones before
+# the stockout start: 501-503 (a mid-run equipment-transaction Home trip) and
+# 1417-1421 (a travel interruption the live executor reported).  The replay
+# re-converges after each and matches 1422-1425 exactly.
+KNOWN_HARNESS_DIVERGENCES = {501, 502, 503, 1417, 1418, 1419, 1420, 1421}
+STOCKOUT_START = 1425
 
 
 def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
@@ -90,6 +101,7 @@ def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
 
 class RecallStockoutSetEndRecordedTest(unittest.TestCase):
     replay = None
+    live_prefix = None
 
     @classmethod
     def setUpClass(cls):
@@ -108,7 +120,11 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
 
     @classmethod
     def _replay(cls):
-        """Drive recorded inputs only through the first changed loot move."""
+        """Drive the recorded lifetime through decision 1425, then decide 1426.
+
+        1425's recorded key (ESC out of the supplier page) is also the key the
+        replay posts, so 1426's recorded input is the true effect of that key.
+        """
         if cls.replay is not None:
             return cls.replay
         with TemporaryDirectory() as raw_directory:
@@ -117,6 +133,77 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
             decisions = {}
             cursor = 0
             snapshot = None
+            with pre_fix_loot_observation(), patch.object(
+                policy_combat, "CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO", 0.0
+            ):
+                for index in range(STOCKOUT_START + 1):
+                    count = cls.boundaries["input_rows"][index]
+                    segment = cls.lines[cursor : cursor + count]
+                    cursor += count
+                    _decoded, snapshots = _consume_response_sequence(
+                        segment, policy, lambda _key: True, monrace,
+                        knowledge_ledger_path=directory / "knowledge.jsonl",
+                    )
+                    snapshot = snapshots[-1]
+                    if index == STOCKOUT_START:
+                        break
+                    recorded_reason = cls.boundaries["recorded"][index][1]
+                    if recorded_reason == "periodic:game-save":
+                        policy.request_game_save()
+                    elif recorded_reason == "periodic:character-dump":
+                        policy.request_character_dump()
+                    key = policy.choose_key(snapshot)
+                    decisions[index + 1] = (str(key), policy.last_reason)
+                    policy.confirm_key_posted(key)
+                # S2 decides the same 1426 input on an identical copy of the
+                # replayed policy (the S1 decision below mutates the original).
+                resolved_policy = copy.deepcopy(policy)
+                # Decide 1426 inside the same wall and directory.
+                key = policy.choose_key(snapshot)
+                result = (
+                    policy, decisions, snapshot,
+                    (str(key), policy.last_reason),
+                    {
+                        "mode": policy._fundraising_mode,
+                        "planned_runs": policy._planned_mining_runs,
+                        "completed_runs": policy._mining_runs_completed,
+                        "visit_store": policy._shopping_approach_store_type,
+                        "cross_town": policy._cross_town_shopping,
+                        "recall": next(
+                            row for row in policy.procurement_requirements(snapshot)
+                            if row["item"] == "Word of Recall scrolls"
+                        ),
+                    },
+                )
+                # S2 board: the same recorded 1426 input with the recall
+                # shortage resolved (two more scrolls carried).
+                resolved = replace(snapshot, inventory=type(snapshot.inventory)(
+                    replace(entry, count=entry.count + 2)
+                    if entry.is_recall_scroll else entry
+                    for entry in snapshot.inventory
+                ))
+                resolved_persists = resolved_policy._recall_stockout_persists(
+                    resolved
+                )
+                resolved_key = resolved_policy.choose_key(resolved)
+                cls.replay = result + (
+                    resolved_persists,
+                    (str(resolved_key), resolved_policy.last_reason),
+                    resolved_policy._fundraising_mode,
+                    resolved_policy._recall_stockout_mining_plan,
+                )
+        return cls.replay
+
+    @classmethod
+    def _live_loot_prefix(cls):
+        """Use production loot behavior through the first changed key."""
+        if cls.live_prefix is not None:
+            return cls.live_prefix
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy, monrace = _live_like_policy(directory)
+            decisions = {}
+            cursor = 0
             with patch.object(
                 policy_combat, "CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO", 0.0
             ):
@@ -137,21 +224,16 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
                     key = policy.choose_key(snapshot)
                     decisions[index + 1] = (str(key), policy.last_reason)
                     policy.confirm_key_posted(key)
-                cls.replay = (policy, decisions)
-        return cls.replay
+            cls.live_prefix = decisions
+        return cls.live_prefix
 
-    def test_replay_matches_recorded_prefix_until_loot_route_changes(self):
-        _policy, decisions, *_rest = self._replay()
+    def test_production_loot_route_changes_at_the_recorded_boundary(self):
+        decisions = self._live_loot_prefix()
         recorded = self.boundaries["recorded"]
         divergent = {
-            sequence
-            for sequence, decided in decisions.items()
+            sequence for sequence, decided in decisions.items()
             if list(decided) != recorded[sequence - 1]
         }
-        # The fallback removal leaves a fundraising loot route selectable at
-        # 1141. On frozen later boards the changed keys recur over 1141-1144,
-        # 1186-1188, 1282-1284, 1288-1289 and 1308. Only the first move is
-        # a trajectory pin; later boards describe the old route.
         self.assertEqual(
             {sequence for sequence in divergent if sequence < 1141},
             {501, 502, 503},
@@ -159,6 +241,60 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         self.assertIn(1141, divergent)
         self.assertEqual(recorded[1140], ["4", "fundraise:seek-loot"])
         self.assertEqual(decisions[1141][1], "fundraise:seek-loot")
+
+    def test_s0_replay_matches_recorded_lifetime_through_stockout_start(self):
+        _policy, decisions, *_rest = self._replay()
+        recorded = self.boundaries["recorded"]
+        divergent = {
+            sequence
+            for sequence, decided in decisions.items()
+            if list(decided) != recorded[sequence - 1]
+        }
+        self.assertEqual(divergent, KNOWN_HARNESS_DIVERGENCES)
+        self.assertEqual(
+            [decisions[sequence] for sequence in range(1422, STOCKOUT_START + 1)],
+            [
+                ("1", "melee"),
+                ("1", "seek-loot"),
+                ("\x1b`n#.", "shop:travel"),
+                ("\x1b", "town:recall-stockout-mining"),
+            ],
+        )
+
+    def test_s1_recorded_stockout_run_survives_next_town_decision(self):
+        _policy, _decisions, snapshot, decided_1426, state, *_rest = self._replay()
+
+        self.assertEqual(snapshot.player.gold, 18365)
+        # Live 1426: ('1', 'shop:approach') with fundraising.mode None.  The
+        # time-pass now keeps its run and heads Home for its D3 kit.
+        self.assertEqual(decided_1426, ("\x1b`n(.", "shop:travel"))
+        self.assertEqual(state["mode"], "prepare")
+        self.assertEqual(state["planned_runs"], 1)
+        self.assertEqual(state["completed_runs"], 0)
+        self.assertEqual(state["visit_store"], STORE_HOME)
+        # Still a stockout: recall 9/10 (prepare-mode target), no supplier.
+        recall = state["recall"]
+        self.assertEqual(
+            (recall["current"], recall["target"], recall["blocked_reason"]),
+            (9, 10, "no-actionable-supplier"),
+        )
+
+    def test_s4_no_cross_town_shopping_is_started(self):
+        _policy, _decisions, _snapshot, decided_1426, state, *_rest = self._replay()
+
+        self.assertIsNone(state["cross_town"])
+        self.assertFalse(decided_1426[1].startswith("cross-town"))
+
+    def test_s2_resolved_recall_shortage_ends_the_set_at_gold_target(self):
+        (
+            _policy, _decisions, _snapshot, _decided, _state,
+            resolved_persists, resolved_decision, mode, flag,
+        ) = self._replay()
+
+        self.assertFalse(resolved_persists)
+        self.assertIsNone(mode, resolved_decision)
+        self.assertFalse(flag)
+
 
 if __name__ == "__main__":
     unittest.main()

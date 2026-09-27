@@ -27,8 +27,13 @@ from hengbot.policy import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DECISIONS = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.jsonl"
-SNAPSHOTS = ROOT / "jsonlog" / "incident-equip-swap-loop-20260826.snapshots.jsonl"
+CAPTURE_DIR = ROOT / "jsonlog"
+if not (CAPTURE_DIR / "incident-equip-swap-loop-20260826.jsonl").exists():
+    # Linked worktrees may omit this historical capture. Read the same
+    # fixture from the main checkout; the replay never writes there.
+    CAPTURE_DIR = ROOT.parent / "bot-client" / "jsonlog"
+DECISIONS = CAPTURE_DIR / "incident-equip-swap-loop-20260826.jsonl"
+SNAPSHOTS = CAPTURE_DIR / "incident-equip-swap-loop-20260826.snapshots.jsonl"
 RAG = "8cc0213094bf60d5"
 HARD_ARMOUR = "ba9b081829fa4479"
 DIRECTIONS = {

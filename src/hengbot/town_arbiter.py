@@ -257,6 +257,9 @@ class TownTurnArbiter:
                 opened_for_family=opened_for_family,
             )
             self.store_visit = visit
+        else:
+            # Each operation records the request that reused this visit.
+            visit.opened_for_family = opened_for_family
         return visit
 
     def owner_for_reason(self, reason: str) -> str:
@@ -711,14 +714,17 @@ class TownArbiterMixin:
         visit = self._store_visit
         return visit.store_type if visit is not None else None
 
-    def _request_store_trip(self, store_type: int | None, requester: str | None) -> None:
+    def _request_store_trip(
+        self, store_type: int | None, requester: str | None,
+        structure: str | None = None,
+    ) -> None:
         """Set the approach target and record its composing producer at open."""
         if store_type is None:
             return
-        previous = self._store_visit
         self._shopping_approach_store_type = store_type
-        if self._store_visit is not None and self._store_visit is not previous:
+        if self._store_visit is not None:
             self._store_visit.opened_for_family = requester
+            self._store_visit.request_structure = structure
 
     @_shopping_approach_store_type.setter
     def _shopping_approach_store_type(self, value: int | None) -> None:
