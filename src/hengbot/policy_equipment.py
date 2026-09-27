@@ -420,16 +420,8 @@ class EquipmentMixin:
         """Whether this decision began with equipment locomotion ownership."""
         return bool(
             snapshot.in_town
-            and (
-                (
-                    getattr(self, "_decision_context", None) is not None
-                    and self._decision_context.equipment_transaction_owned
-                )
-                or (
-                    self._calibration_phase in {"strip", "restore-equip"}
-                    and self._calibration_session_owned()
-                )
-            )
+            and getattr(self, "_decision_context", None) is not None
+            and self._decision_context.equipment_transaction_owned
         )
 
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:

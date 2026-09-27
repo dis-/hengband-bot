@@ -83,13 +83,13 @@ class TownCalibrationOwnerRetiredRecordedTest(unittest.TestCase):
         self.assertTrue(policy._install_calibration_strip_session(snapshot))
         return policy, snapshot
 
-    def test_new_strip_session_keeps_home_movement_ownership(self):
-        # Decision 20171 installed the strip session after Home deposits, then
-        # the arbiter rewrote its key into shop travel in the same decision.
+    def test_new_strip_session_does_not_retroactively_own_relocation(self):
+        # A freshly installed strip session has no relocation claim at this
+        # decision's start. Its own takeoff executor still retains the session.
         policy, home_door = self._install_strip(6714217)
         session = policy._equipment_transaction_session
         self.assertEqual(session.required_context, "outside_home")
-        self.assertTrue(policy._equipment_transaction_owns_town_relocation(home_door))
+        self.assertFalse(policy._equipment_transaction_owns_town_relocation(home_door))
         key = policy._equipment_transaction_town_key(home_door)
         self.assertEqual((key, policy.last_reason),
                          ("tb", "equipment-transaction:takeoff"))

@@ -219,8 +219,8 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
             policy._town_turn_arbiter._retired["quest-request"]
         )
 
-        # A public max-HP transition makes _took_damage true while the lower
-        # board is still at full HP, reaching the damaged-WAIT rewrite seam.
+        # A max-HP transition alone clamps current HP without damage. One
+        # point below the clamp is a real hit and reaches the safety rewrite.
         higher = copy.deepcopy(boxed)
         higher["turn"] += 60
         higher["player"]["max_hp"] += 1
@@ -228,10 +228,17 @@ class QuestEnterApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase)
         policy.confirm_key_posted(policy.choose_key(parse_snapshot(higher, self.monrace)))
         lowered = copy.deepcopy(boxed)
         lowered["turn"] += 70
+        lowered["player"]["hp"] -= 1
+        self.assertEqual(
+            ((higher["player"]["hp"], higher["player"]["max_hp"]),
+             (lowered["player"]["hp"], lowered["player"]["max_hp"])),
+            ((433, 433), (431, 432)),
+        )
         lowered_key = policy.choose_key(parse_snapshot(lowered, self.monrace))
         policy.confirm_key_posted(lowered_key)
+        self.assertTrue(policy._took_damage)
         self.assertEqual((str(lowered_key), policy.last_reason),
-                         ("rd", "no-wait:escape-scroll"))
+                         ("R&\r", "town:recover"))
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
         restored_raw = copy.deepcopy(source)

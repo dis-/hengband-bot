@@ -632,9 +632,11 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
                 index + 1 for index, decision in enumerate(decided[:682])
                 if decision != boundaries["recorded"][index]
             ],
-            # M0's earlier combat moves. R4 stops at the quantity prompt at
-            # sequence 683: recorded db ESC, corrected db 1 Return ESC.
-            [153, 155, 158, 618, 620],
+            # M0's combat moves and the max-HP clamps at 218 and 268
+            # (537/537 -> 506/506); the following recorded boards at 219
+            # and 269 reflect the shelter keys absent from this replay.
+            # R4 stops at the quantity prompt at sequence 683.
+            [153, 155, 158, 218, 219, 268, 269, 618, 620],
         )
         self.assertEqual(boundaries["recorded"][682], ["db\x1b", "home:atomic-deposit"])
         self.assertEqual(decided[682], ["db1\r\x1b", "home:atomic-deposit"])
