@@ -968,6 +968,8 @@ class CalibrationMixin:
     @claims(ClaimOwner.CALIBRATION)
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
+        if self._defer_town_errand("calibration", "town-key"):
+            return None
         in_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         if (
             not snapshot.in_town

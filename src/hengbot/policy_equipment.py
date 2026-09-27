@@ -1558,6 +1558,8 @@ class EquipmentMixin:
         self, snapshot: Snapshot
     ) -> str | None:
         """Give a stripped transaction exclusive ownership of town decisions."""
+        if self._defer_town_errand("equipment-txn", "town-owner"):
+            return None
         if not self._equipment_transaction_owned_items:
             return None
         self._declare_non_discardable("equipment-txn")
@@ -1865,6 +1867,8 @@ class EquipmentMixin:
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_town_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.store is not None:
+            return None
+        if self._defer_town_errand("equipment-txn", "town-key"):
             return None
         if self._release_stalled_equipment_transaction(snapshot):
             return WAIT_KEY
@@ -2504,6 +2508,11 @@ class EquipmentMixin:
             )
             weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
             signature = self._item_signature(weapon)
+            if (
+                getattr(self, "_town_claim_bar_enforced", False)
+                and self._defer_town_errand("home-errand", "file-combat-weapon")
+            ):
+                return None
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(signature, 1, "home-page", "combat-weapon"),
@@ -2531,6 +2540,8 @@ class EquipmentMixin:
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or self._calibration_active():
+            return None
+        if self._defer_town_errand("equipment-txn", "restore-weapon"):
             return None
         current = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None

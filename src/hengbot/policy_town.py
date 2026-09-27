@@ -947,6 +947,8 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> tuple[str, str] | None:
         """Compose the next step of an available approach->enter->buy route."""
+        if self._defer_town_errand("store-router", "procurement-progress"):
+            return None
         home_scan_pending = (
             not self._equipment_catalog.home_scan_complete
             and self._home_available_for_probe(snapshot)
@@ -1104,6 +1106,10 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str:
         """Enforce composable progress at the one downstream town-result seam."""
+        if self._defer_town_errand("store-router", "procurement-decision"):
+            # The holder's key has already won upstream; this downstream seam
+            # must not compose a competing procurement approach over it.
+            return key
         proposed_reason = self.last_reason or ""
         if (
             snapshot.store is None

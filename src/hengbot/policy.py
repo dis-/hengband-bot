@@ -2775,6 +2775,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     supplier is not None
                     and snapshot.store is None
                     and retired_owner != "store-router"
+                    and not self._defer_town_errand(
+                        "store-router", "counterfactual-approach"
+                    )
                     and arbiter.preview_may_select(
                         "shop:approach",
                         self._town_arbiter_progress_vector(snapshot, "shop:approach"),
@@ -5326,7 +5329,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._equipment_transaction_session is None
             and not self._calibration_active()
             and not self._town_space_deposit_actionable(snapshot)
+            and not getattr(self, "_town_claim_bar_enforced", False)
+            and not (
+                getattr(self, "_town_claim_bar_enforced", False)
+                and (
+                    self._home_atomic_deposit_pending is not None
+                    or self._home_atomic_withdraw_pending is not None
+                )
+            )
         ):
+            if self._defer_town_errand("home-scan", "choose-key-scan"):
+                return None
             self.last_reason = (
                 self._home_errand.reason("request-knowledge")
                 if self._home_errand.needs_knowledge
@@ -6168,7 +6181,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or self._equipment_mutation.goal == "transaction-apply"
             )
             and not self._town_space_deposit_actionable(snapshot)
+            and not (
+                getattr(self, "_town_claim_bar_enforced", False)
+                and (
+                    self._home_atomic_deposit_pending is not None
+                    or self._home_atomic_withdraw_pending is not None
+                )
+            )
         ):
+            if self._defer_town_errand("home-scan", "outside-scan"):
+                return None
             if self._home_errand.needs_knowledge:
                 self.last_reason = self._home_errand.reason("request-knowledge")
             else:
@@ -6723,6 +6745,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and self._home_knowledge_invalidated
                     and not self._home_knowledge_scan_requested
                     and self._home_knowledge_scan_epoch is None
+                    and not getattr(self, "_town_claim_bar_enforced", False)
+                    and not (
+                        getattr(self, "_town_claim_bar_enforced", False)
+                        and (
+                            self._home_atomic_deposit_pending is not None
+                            or self._home_atomic_withdraw_pending is not None
+                        )
+                    )
+                    and not self._defer_town_errand(
+                        "home-scan", "open-home-scan"
+                    )
                 ):
                     self.last_reason = "home:request-knowledge-scan"
                     key = HOME_KNOWLEDGE_MACRO

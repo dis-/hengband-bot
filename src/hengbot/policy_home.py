@@ -46,6 +46,8 @@ class HomeMixin:
         knowledge_current: bool,
     ) -> bool:
         """File migrated Home work and register its observation expectation."""
+        if self._defer_town_errand("home-errand", "file"):
+            return False
         filed = self._home_errand.file(
             request, knowledge_current=knowledge_current
         )
@@ -2876,6 +2878,11 @@ class HomeMixin:
             None,
         )
         if source is None:
+            return False
+        if (
+            getattr(self, "_town_claim_bar_enforced", False)
+            and self._defer_town_errand("home-errand", "file-identification")
+        ):
             return False
         self._file_home_errand(
             snapshot,
