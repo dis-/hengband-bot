@@ -1001,6 +1001,24 @@ class HomeMixin:
             for item in snapshot.inventory
             if item.weight > 0
             and self._retention_surplus(snapshot, item) > 0
+            # Finish an immediately actionable identification before shedding
+            # its Home withdrawal.  Otherwise the overweight owner puts the
+            # same item straight back and the catalogue owner takes it again.
+            # An item without a usable source can still be deposited to clear
+            # excess weight while the town procures that source.
+            and not (
+                self._identification_flow_owns(item)
+                and self._find_identification_source(
+                    snapshot,
+                    full=bool(
+                        item.known
+                        and item_requires_full_identification(item)
+                        and not item.fully_known
+                    ),
+                    reliable_only=True,
+                    reservation_target=self._item_signature(item),
+                ) is not None
+            )
             # A blocking supply without a retention target is not surplus merely
             # because the retention table does not yet quantify its need.
             and not unreserved_required_supply(item)
