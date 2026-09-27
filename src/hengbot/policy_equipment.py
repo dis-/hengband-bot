@@ -584,15 +584,6 @@ class EquipmentMixin:
                 "search_telemetry_freshness"
             ] = "current-inputs"
             return self._equipment_optimization_preparation
-        if self._calibration_active():
-            # Strip, capture and redress own the equipment until the phase
-            # ends. A fresh optimizer plan here could replace their session.
-            if self._equipment_optimization_preparation is None:
-                self._equipment_optimization_preparation = WarriorOptimizationPreparation(
-                    current_loadout(self._equipment_catalog.items),
-                    None, None, ("calibration-required",),
-                )
-            return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
         # the town execution layer owns running the calibration phase — the
@@ -1603,10 +1594,23 @@ class EquipmentMixin:
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
             return LEAVE_STORE_KEY
+        session = self._equipment_transaction_session
+        if (
+            session is not None
+            and session.pending_action is None
+            and session.required_context == "outside_home"
+        ):
+            # A legacy equip action belongs outside Home. Leave before
+            # preparing a command so the session can keep its context.
+            self.last_reason = "equipment-transaction:leave-home-for-equip"
+            return LEAVE_STORE_KEY
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
             return None
+        if session.pending_action is None and session.required_context == "outside_home":
+            self.last_reason = "equipment-transaction:leave-home-for-equip"
+            return LEAVE_STORE_KEY
         if not session.executable:
             self._abandon_blocked_equipment_transaction(snapshot)
             self.last_reason = "equipment-transaction:abandon-blocked-home"
@@ -1883,13 +1887,7 @@ class EquipmentMixin:
         if session.pending_action is not None:
             self.last_reason = "equipment-transaction:await-confirmation"
             return WAIT_KEY
-        here = snapshot.grid_at(snapshot.player.position)
-        calibration_needs_home = (
-            self._calibration_phase in {"strip", "restore-equip"}
-            and self._calibration_session_owned()
-            and (here is None or here.store_number != STORE_HOME)
-        )
-        if session.required_context == "home" or calibration_needs_home:
+        if session.required_context == "home":
             if (
                 self._store_visit is not None
                 and self._store_visit.store_type != STORE_HOME
@@ -2667,7 +2665,6 @@ class EquipmentMixin:
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
         if (
             not snapshot.in_town
-            or self._calibration_active()
             or snapshot.store is not None
             or snapshot.player.blind
             or snapshot.player.confused

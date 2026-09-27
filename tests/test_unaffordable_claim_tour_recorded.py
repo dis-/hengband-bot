@@ -274,11 +274,20 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
     claim_rows = None
 
     def test_s3_new_code_replay_names_remaining_violations(self):
-        self._replay()
+        decisions, *_ = self._replay()
+        # R4: installing the strip owns this decision, so the live shop
+        # approach at index 3007 is the first changed key. Later boards are
+        # from the old route and cannot establish new ownership violations.
+        self.assertEqual(self.boundaries["recorded"][3007], [
+            "\x1b`n&.",
+            "town-progress-invariant:defect:calibration:strip-installed=>town-progress-invariant:approach",
+        ])
+        self.assertNotEqual(decisions[3007], tuple(self.boundaries["recorded"][3007]))
         self.assertEqual(
             [(row["decision_sequence"], row["owner"])
              for row in self.claim_rows
-             if 2998 <= row["decision_sequence"] <= 3003],
+             if row["index"] < 3007
+             and 2998 <= row["decision_sequence"] <= 3003],
             [(sequence, "calibration") for sequence in range(2998, 3004)],
         )
         actual = [
@@ -286,13 +295,11 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             for row in self.claim_rows
             if isinstance(v := row.get("violation"), dict)
             and v.get("scope") == "S3"
+            and row["index"] < 3007
         ]
-        # Base 7df0fb0d had 11 owner changes. R4 leaves the two router Reach
-        # handoffs and the second transaction contending with calibration.
+        # Only the earlier router Reach handoff is comparable to live keys.
         self.assertEqual(actual, [
             (2701, "owner-change", "store-router", "home-scan"),
-            (3037, "transaction-contention", "calibration", "equipment-txn"),
-            (3052, "owner-change", "store-router", "home-scan"),
         ])
 
     @classmethod

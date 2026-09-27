@@ -1716,7 +1716,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # HP last decision, to notice damage from an attacker we cannot see
         # (a monster in the dark / invisible) — resting through that is fatal.
         self._last_hp: int | None = None
-        self._last_max_hp: int | None = None
         self._took_damage = False
         self._took_curse_damage = False
         self._took_trap_or_terrain_damage = False

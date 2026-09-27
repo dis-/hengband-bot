@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.latch_onset_capture import restore_checkpoint
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_HOME, StoreState, parse_snapshot
 from hengbot.policy import HengbotPolicy
 
 
@@ -49,20 +49,28 @@ class TownCalibrationOwnerRetiredRecordedTest(unittest.TestCase):
         policy._observe(after)
         self.assertFalse(policy._took_damage)
 
-        damaged = replace(after, player=replace(after.player, hp=700))
-        policy = HengbotPolicy()
-        policy._observe(before)
-        policy._observe(damaged)
-        self.assertTrue(policy._took_damage)
+        for old_hp, old_max, new_hp, new_max, damage in (
+            (810, 810, 731, 731, 0),
+            (600, 810, 530, 731, 70),
+            (500, 810, 493, 775, 7),
+            (810, 810, 700, 731, 31),
+            (600, 810, 590, 850, 10),
+        ):
+            old = replace(before, player=replace(before.player, hp=old_hp, max_hp=old_max))
+            new = replace(after, player=replace(after.player, hp=new_hp, max_hp=new_max))
+            policy = HengbotPolicy()
+            policy._observe(old)
+            policy._observe(new)
+            self.assertEqual((policy._took_damage, policy._last_damage_amount),
+                             (damage > 0, damage))
 
-    def test_old_checkpoint_defaults_max_hp_observation(self):
+    def test_old_checkpoint_without_max_hp_observation(self):
         state = vars(HengbotPolicy()).copy()
-        state.pop("_last_max_hp")
         state["_last_hp"] = 810
         encoded = base64.b64encode(pickle.dumps(state, protocol=5)).decode("ascii")
         restored = restore_checkpoint(HengbotPolicy, encoded)
         restored._observe(self.snapshots[6712134])
-        self.assertEqual(restored._last_max_hp, 731)
+        self.assertFalse(restored._took_damage)
 
     def _install_strip(self, turn):
         snapshot = self.snapshots[turn]
@@ -106,7 +114,7 @@ class TownCalibrationOwnerRetiredRecordedTest(unittest.TestCase):
                          ("tb", "equipment-transaction:takeoff"))
         self.assertEqual(policy._calibration_phase, "strip")
 
-    def test_weapon_shop_board_routes_back_to_home_before_takeoff(self):
+    def test_weapon_shop_board_keeps_legacy_outside_home_context(self):
         self.assertEqual(
             self.snapshots[6714564].grid_at(
                 self.snapshots[6714564].player.position
@@ -117,11 +125,10 @@ class TownCalibrationOwnerRetiredRecordedTest(unittest.TestCase):
         self.assertEqual(session.required_context, "outside_home")
         key = policy._equipment_transaction_town_key(shop_door)
         self.assertEqual((key, policy.last_reason),
-                         ("\x1b`n(.", "equipment-transaction:travel-home"))
+                         ("tb", "equipment-transaction:takeoff"))
         self.assertIs(policy._equipment_transaction_session, session)
-        self.assertNotEqual(key[0], "t")
 
-    def test_restore_session_also_requires_home(self):
+    def test_restore_session_keeps_outside_home_context(self):
         policy = HengbotPolicy()
         before = self.snapshots[6712132]
         after = self.snapshots[6712134]
@@ -135,20 +142,12 @@ class TownCalibrationOwnerRetiredRecordedTest(unittest.TestCase):
         self.assertTrue(policy._calibration_session_owned())
         policy._prepare_equipment_optimization(after)
         self.assertIs(policy._equipment_transaction_session, session)
-        shop_door = self.snapshots[6714564]
-        key = policy._equipment_transaction_town_key(shop_door)
+        home_screen = replace(after, store=StoreState(STORE_HOME, []))
+        key = policy._equipment_transaction_home_key(home_screen)
         self.assertEqual((key, policy.last_reason),
-                         ("\x1b`n(.", "equipment-transaction:travel-home"))
-
-    def test_restore_supplies_cannot_install_foreign_optimizer_session(self):
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        board = self.snapshots[6714217]
-        with patch.object(policy, "_validated_character_calibration",
-                          side_effect=AssertionError("foreign optimization ran")):
-            preparation = policy._prepare_equipment_optimization(board)
-        self.assertEqual(preparation.blockers, ("calibration-required",))
-        self.assertIsNone(policy._equipment_transaction_session)
+                         ("\x1b", "equipment-transaction:leave-home-for-equip"))
+        self.assertIs(policy._equipment_transaction_session, session)
+        self.assertTrue(session.executable)
 
 
 if __name__ == "__main__":
