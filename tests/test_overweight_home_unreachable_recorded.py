@@ -276,12 +276,13 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         # Quantity-only key changes on the same frozen boards: e is an
         # eleven-item stack at 3 and 3713, so a one-item Home deposit needs
         # "1 Return". At 3779, o is a singleton ring and needs no Return.
-        # R4 compares only up to the new strip ownership at index 3743.
-        # These earlier quantity answers are already declared divergences.
-        first_divergence = 3743
+        # R4 compares the remaining stream modulo these exact answers; the
+        # captured later boards reflect the old keys and cannot prove their
+        # counterfactual effects.
         quantity_keys = {
             3: ("de\x1b", "de1\r\x1b"),
             3713: ("de\x1b", "de1\r\x1b"),
+            RING_DEPOSIT: ("do\r", "do"),
         }
         for index, (old, new) in quantity_keys.items():
             self.assertEqual(self.recorded[index]["key"], old)
@@ -290,19 +291,12 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             [
                 index
-                for index in range(first_divergence)
+                for index in range(STOP + 1)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            list(DIVERGENT),
-        )
-        self.assertIn("calibration:strip-installed",
-                      self.recorded[first_divergence]["reason"])
-        self.assertNotEqual(
-            (replay[first_divergence]["key"], replay[first_divergence]["reason"]),
-            (self.recorded[first_divergence]["key"],
-             self.recorded[first_divergence]["reason"]),
+            [*DIVERGENT, STOP],
         )
         self.assertEqual(
             [index for index, row in enumerate(replay)
