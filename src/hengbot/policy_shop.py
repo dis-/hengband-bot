@@ -7,7 +7,7 @@ from hengbot.claim_goal_typing import (
     STORE_OPERATION as CLAIM_STORE_OPERATION,
 )
 from hengbot.claim_register import ClaimOwner, claims
-from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, DETECTION_SCROLL_BUFFER, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
+from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
@@ -2200,7 +2200,7 @@ class ShopMixin:
         add(rung("legacy:ration", "food", lambda: snapshot.player.food_type == FOOD_TYPE_RATION and self._needs_food_restock(snapshot), lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL))
         mining = lambda: self._fundraising_mode in {"prepare", "mine", "scavenge"}
         add(rung("mining:digger", "digging-tool", lambda: mining() and (not self._has_withdrawable_digging_tool(snapshot) or self._digger_buy_fallback_available(snapshot) or self._withdrawable_digging_tool_count(snapshot) < 2), lambda i: i.is_digging_tool))
-        add(rung("mining:treasure-detection", "treasure-detection", lambda: mining() and self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot) + DETECTION_SCROLL_BUFFER, lambda i: i.is_treasure_detection_scroll, current=lambda: self._count_treasure_detection_scrolls(snapshot), target=lambda: self._mining_detection_scroll_target(snapshot) + DETECTION_SCROLL_BUFFER))
+        add(rung("mining:treasure-detection", "treasure-detection", lambda: mining() and self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_stock_target(snapshot), lambda i: i.is_treasure_detection_scroll, current=lambda: self._count_treasure_detection_scrolls(snapshot), target=lambda: self._mining_detection_stock_target(snapshot)))
         add(rung("mandatory:recall", "recall", lambda: ledger["recall"].count < ledger["recall"].required_departure, lambda i: i.is_recall_scroll, current=lambda: ledger["recall"].count, target=lambda: ledger["recall"].required_departure))
         add(rung("mandatory:food", "food", lambda: snapshot.player.food_type != FOOD_TYPE_MANA and ledger["food"].count < ledger["food"].required_departure, lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL, current=lambda: ledger["food"].count, target=lambda: ledger["food"].required_departure))
         add(rung("mandatory:teleport", "teleport", lambda: ledger["teleport"].count < ledger["teleport"].required_departure, lambda i: i.is_teleport_scroll, current=lambda: ledger["teleport"].count, target=lambda: ledger["teleport"].required_departure))
@@ -2536,10 +2536,7 @@ class ShopMixin:
                     )
                 if food is not None:
                     return food
-            scrolls_needed = (
-                self._mining_detection_scroll_target(snapshot)
-                + DETECTION_SCROLL_BUFFER
-            )
+            scrolls_needed = self._mining_detection_stock_target(snapshot)
             if self._count_treasure_detection_scrolls(snapshot) < scrolls_needed:
                 detection_scroll = next(
                     (
@@ -2869,10 +2866,7 @@ class ShopMixin:
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
             needed = ledger["cure"].required_departure - ledger["cure"].count
         elif item.is_treasure_detection_scroll:
-            target = (
-                self._mining_detection_scroll_target(snapshot)
-                + DETECTION_SCROLL_BUFFER
-            )
+            target = self._mining_detection_stock_target(snapshot)
             needed = target - self._count_treasure_detection_scrolls(snapshot)
         elif item.is_ammo:
             needed = AMMO_CARRY_TARGET - self._count_matching_ammo(snapshot)
@@ -3664,7 +3658,7 @@ class ShopMixin:
                 if deposit is not None and self._home_entry_operation_posted:
                     return self._home_deposit_key(snapshot, deposit)
                 required_scrolls = self._mining_detection_scroll_target(snapshot)
-                scrolls_needed = required_scrolls + DETECTION_SCROLL_BUFFER
+                scrolls_needed = self._mining_detection_stock_target(snapshot)
                 scrolls_missing = max(
                     0,
                     scrolls_needed
