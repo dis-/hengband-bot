@@ -74,6 +74,7 @@ from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.equipment_optimizer import Loadout, current_loadout
+from recorded_loadout import recorded_loadout_replay
 from hengbot.model import SV_SCROLL_DETECT_TREASURE, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, speed_energy
@@ -165,6 +166,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         return list(_parse_items(row["knowledge"]["items"]))
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Decisions 0..33 on one policy, then the constructed continuation."""
         if cls.replay is not None:
@@ -493,10 +495,9 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         after = replay["after"]
         self.assertFalse(after["knowledge_current"])
         self.assertTrue(after["knowledge_invalidated"])
-        # The recorded board did not confirm the new equipment withdrawal at
-        # index 5, so its pending Theoden transaction is deferred. The later
-        # scroll take and shortened-prefix measurement still run on new code.
-        self.assertEqual(after["deferred"], {THEODEN})
+        # The ownership replay keeps the recorded gear choice, so no
+        # counterfactual Theoden withdrawal is left to defer.
+        self.assertEqual(after["deferred"], set())
         self.assertEqual(after["digger_failures"], 0)
         # The scroll's withdrawal is complete; the shovel and the potions
         # remain queued Home work.
@@ -517,7 +518,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         )
         self.assertEqual(continuation["key"], "5  pk2\r\x1b")
         self.assertEqual(continuation["reason"], "home:atomic-withdraw")
-        self.assertEqual(continuation["deferred"], {THEODEN})
+        self.assertEqual(continuation["deferred"], set())
         self.assertEqual(continuation["digger_failures"], 0)
 
 

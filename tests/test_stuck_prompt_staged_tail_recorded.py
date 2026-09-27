@@ -63,6 +63,7 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from recorded_loadout import recorded_loadout_replay
 from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
@@ -159,6 +160,7 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
         return segment
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Replay the closing window on one policy; drive the stop's send."""
         if cls.replay is not None:
