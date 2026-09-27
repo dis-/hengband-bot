@@ -18,8 +18,11 @@ from hengbot.policy import HengbotPolicy
 from tests.support.faithful_home import FaithfulHomeGame
 
 ROOT = Path(__file__).resolve().parents[1]
-INCIDENT = ROOT / "jsonlog" / "incident-20260914-town0-resume-2305" / "decisions.jsonl"
-CAPTURE = ROOT / "jsonlog" / "live-screens" / "25-town0-home-equip-leave-loop.json"
+JSONLOG = ROOT / "jsonlog"
+if not (JSONLOG / "incident-20260914-town0-resume-2305" / "decisions.jsonl").exists():
+    JSONLOG = Path("C:/hengband/bot-client/jsonlog")
+INCIDENT = JSONLOG / "incident-20260914-town0-resume-2305" / "decisions.jsonl"
+CAPTURE = JSONLOG / "live-screens" / "25-town0-home-equip-leave-loop.json"
 RECORDED = ROOT / "tests" / "fixtures" / "equipment-in-home-town0-2305.jsonl.gz"
 ENTER_LEAVE_RECORDED = (
     ROOT / "tests" / "fixtures" /

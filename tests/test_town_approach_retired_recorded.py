@@ -90,6 +90,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SHOP_APPROACH_STUCK_LIMIT, TOWN_TRAVEL_STALL_LIMIT
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_loadout import recorded_loadout_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -264,6 +265,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         return decided
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:

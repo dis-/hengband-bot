@@ -14,6 +14,7 @@ from hengbot.monster_ranged_evaluator import (
     WarriorRangedDefenseResult,
     evaluate_warrior_ranged_defense,
 )
+from hengbot.policy_constants import speed_energy
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -333,7 +334,11 @@ def _combine_warrior_results(
     defense: WarriorDefenseResult,
     ranged: WarriorRangedDefenseResult,
 ) -> WarriorLoadoutResult:
-    incoming = defense.expected_melee_damage + ranged.expected_ranged_damage
+    player_energy = speed_energy(inputs.defense.base_speed + _speed_bonus(loadout))
+    incoming = (
+        defense.energy_weighted_melee_damage
+        + ranged.energy_weighted_ranged_damage
+    ) / player_energy
     player_hp = loadout_max_hp(loadout, inputs)
     survival_turns = (
         player_hp / incoming if incoming > 0 else float("inf")

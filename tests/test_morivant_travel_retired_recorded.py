@@ -21,6 +21,9 @@ Walls, each on a collaborator that is not under test:
 - M2's stall board is the recorded decision-703 input with only the game turn
   advanced per repeat: the step was posted and the player did not move.
 No wall touches the Morivant producer, the progress core or the arbiter.
+The speed-adjusted optimizer changes the key at sequence 242. Later boards
+are counterfactual new-code measurements; the late walk is now store-router
+owned, while the live-key comparison ends before 242.
 """
 
 from __future__ import annotations
@@ -48,7 +51,6 @@ FIXTURE_SHA256 = "285b1b312642a9b004759fb209538efc8f9b95dbc3a9b5abccac9f030a3ff2
 BOUNDARIES_SHA256 = "0858a57d73d6933db11b817cdec96fbe858ab73ae5a3ea0575e8b7138702f62a"
 CALIBRATION = FIXTURES / "esp-threat-rest-20260921.character-calibration.json"
 CALIBRATION_SHA256 = "d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd286edf7"
-TRAVEL = "town:morivant-full-identify:travel-2"
 WALK_START = 699
 TERMINAL = 708
 STALL_AFTER = 703
@@ -117,23 +119,24 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         cls.replay = decided, progress, stall
         return cls.replay
 
-    def test_m0_replay_matches_recorded_lifetime_before_the_terminal(self):
+    def test_m0_replay_matches_recorded_lifetime_before_equipment_choice(self):
         decided, _progress, _stall = self._replay()
         recorded = self.boundaries["recorded"]
-        # R4: sequence 683 deposits one item from a stack of eleven. The
-        # recording omitted the quantity answer (db ESC), while the current
-        # key answers the prompt (db 1 Return ESC). Subsequent captured boards
-        # are effects of the old key, so compare only through that boundary.
+        # R4: sequence 242 changes from an equipment equip to taking off the
+        # cold shield. The new best keeps Theoden in main_hand and leaves
+        # sub_hand empty (11.243 survival turns); the old calculation chose
+        # the shielded loadout (15.608). Keep the established earlier
+        # divergences, but stop the live-key comparison before sequence 242.
         divergent = [
-            sequence for sequence in range(1, 683)
+            sequence for sequence in range(1, 242)
             if decided[sequence] != recorded[sequence - 1]
         ]
         # The first new divergence is 218: max HP and current HP both fall
         # 537 -> 506. Hengband clamps current HP to the new maximum, so this
         # is not damage and the town shelter key is no longer warranted.
         # 219 is the following recorded board after that changed key. The
-        # same max-HP clamp and following-board pair recurs at 268/269.
-        for before, clamp, after in ((217, 218, 219), (267, 268, 269)):
+        # The later recurrence at 268/269 is beyond the R4 boundary.
+        for before, clamp, after in ((217, 218, 219),):
             prior = self._consume(None, before).player
             clamped = self._consume(None, clamp).player
             following = self._consume(None, after).player
@@ -150,25 +153,24 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         # earlier combat decisions:
         # 153 emergency:teleport -> melee (HP 370, operational 554 -> 316),
         # 155 return:recall -> rest (follows 153: no teleport was read),
-        # 158 emergency:teleport -> melee (HP 341, 372 -> 210),
-        # 618 emergency:teleport -> melee (HP 413, 468 -> 243),
-        # 620 esp-threat:leave-recall -> explore (STRONG 263 / 416 -> MEDIUM
-        # 131 / 416).  The recorded boards after each are the live keys'
-        # effects; the town walk 699..708 below is unaffected.
-        self.assertEqual(divergent, [153, 155, 158, 218, 219, 268, 269, 618, 620])
-        self.assertEqual(recorded[682], ["db\x1b", "home:atomic-deposit"])
-        self.assertEqual(decided[683], ["db1\r\x1b", "home:atomic-deposit"])
-        self.assertEqual(recorded[TERMINAL - 1], ["5", "town:blocked:owner-retired"])
+        # 158 emergency:teleport -> melee (HP 341, 372 -> 210).
+        self.assertEqual(divergent, [153, 155, 158, 218, 219])
 
     def test_m1_recorded_walk_closing_its_distance_is_not_retired(self):
         decided, progress, _stall = self._replay()
 
-        # Live 708: ('5', 'town:blocked:owner-retired') with cross-town
-        # retired after 700..707 were counted as no-progress.
-        self.assertEqual(decided[TERMINAL], ["6", TRAVEL])
+        # The changed equipment transaction leaves the later recorded walk
+        # with the store-router owner. Position changes still count as progress.
+        self.assertEqual(
+            [decided[sequence] for sequence in range(WALK_START, TERMINAL + 1)],
+            [["1", "town:blocked:equipment-calibration-required"]]
+            + [[key, "shop:approach"] for key in
+               ("6", "6", "6", "6", "9", "9", "9", "9", "6")],
+        )
         self.assertEqual(
             [progress[sequence] for sequence in range(WALK_START, TERMINAL + 1)],
-            [("cross-town", True, ())] * (TERMINAL - WALK_START + 1),
+            [("town-plan", True, ())]
+            + [("store-router", True, ())] * (TERMINAL - WALK_START),
         )
         self.assertEqual(
             [
@@ -185,27 +187,34 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         _decided, _progress, (policy, snapshot) = self._replay()
         policy = copy.deepcopy(policy)
         self.assertEqual(
-            policy._town_turn_arbiter.registry["cross-town"].budget,
+            policy._town_turn_arbiter.registry["store-router"].budget,
             TOWN_TRAVEL_STALL_LIMIT,
         )
 
         stalled = []
+        retirements = []
         for repeat in range(1, 3 * TOWN_TRAVEL_STALL_LIMIT):
             board = replace(snapshot, turn=snapshot.turn + 10 * repeat)
             key = policy.choose_key(board)
             stalled.append((str(key), policy.last_reason))
+            retirements.append(tuple(
+                (policy._town_turn_arbiter.telemetry or {}).get(
+                    "retirement_set", ()
+                )
+            ))
             policy.confirm_key_posted(key)
             if policy.last_reason == "town:blocked:owner-retired":
                 break
 
-        # The step toward (46,89) is posted but the player stays at (46,88):
-        # the distance stops closing, each repeat is non-progress, and the
-        # owner retires on the existing bound counted from the stall onset.
+        # The store-router steps stay at (46,88). A detector breakout interrupts
+        # the attempt, then the owner retires on the next stalled step.
         self.assertEqual(
             stalled,
-            [("6", TRAVEL)] * TOWN_TRAVEL_STALL_LIMIT
-            + [("5", "town:blocked:owner-retired")],
+            [("6", "shop:approach")] * 3
+            + [("2", "breakout"), ("6", "shop:approach"),
+               ("5", "town:blocked:owner-retired")],
         )
+        self.assertEqual(retirements, [()] * 4 + [("store-router",), ()])
 
 
 if __name__ == "__main__":

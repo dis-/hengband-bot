@@ -12,6 +12,7 @@ from functools import lru_cache
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_optimizer import Loadout, SLOT_MAIN_HAND, SLOT_SUB_HAND
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonsterBlow
+from hengbot.policy_constants import speed_energy
 from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index
 
 
@@ -137,6 +138,7 @@ class WarriorDefenseResult:
     unsupported_effects: frozenset[str]
     status_turn_exposure: tuple[tuple[str, float], ...] = ()
     resource_event_exposure: tuple[tuple[str, float], ...] = ()
+    energy_weighted_melee_damage: float = 0.0
 
     @property
     def melee_complete(self) -> bool:
@@ -448,6 +450,7 @@ def evaluate_warrior_defense(
     speed = inputs.base_speed + _pval_total(loadout, TR_SPEED)
     acid_probability = _acid_armor_probability(loadout)
     expected = 0.0
+    energy_weighted = 0.0
     unsupported: set[str] = set()
     status_exposure: dict[str, float] = {}
     resource_exposure: dict[str, float] = {}
@@ -463,7 +466,7 @@ def evaluate_warrior_defense(
                 * EQUIPMENT_HIT_AVOIDANCE_AC_NUMERATOR
                 // EQUIPMENT_HIT_AVOIDANCE_AC_DENOMINATOR,
             )
-            expected += encounter.weight * hit_probability * expected_blow_hp_damage(
+            blow_damage = encounter.weight * hit_probability * expected_blow_hp_damage(
                 blow,
                 monster_level=race.level,
                 armor_class=armor_class,
@@ -471,6 +474,8 @@ def evaluate_warrior_defense(
                 acid_armor_probability=acid_probability,
                 speed=speed,
             )
+            expected += blow_damage
+            energy_weighted += blow_damage * speed_energy(race.speed)
             status, resource = _blow_side_effect_exposure(
                 blow,
                 monster_level=race.level,
@@ -489,4 +494,5 @@ def evaluate_warrior_defense(
         frozenset(unsupported),
         tuple(sorted(status_exposure.items())),
         tuple(sorted(resource_exposure.items())),
+        energy_weighted,
     )

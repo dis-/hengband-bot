@@ -62,6 +62,7 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from recorded_loadout import recorded_loadout_replay
 from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
@@ -225,6 +226,7 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
         return result
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         if cls.replay is None:
             cls.replay = [cls._pair(pair) for pair in range(len(PAIRS))]

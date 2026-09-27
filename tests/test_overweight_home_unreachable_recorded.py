@@ -88,6 +88,7 @@ from hengbot.policy_constants import STORE_HOME, TOWN_STOP_PASS_LIMIT
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
+from recorded_loadout import recorded_loadout_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -153,6 +154,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         return segment
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:

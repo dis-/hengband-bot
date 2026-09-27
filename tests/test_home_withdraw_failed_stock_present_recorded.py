@@ -54,6 +54,9 @@ through the public response path on one policy.  Walls, each declared:
   the recorded sequence-33 entrance board.
 The capture boards after 33 are the live bot's own path (step-off, Alchemist,
 Temple); the fixed policy has left it at 33, so they are not fed.
+The speed-adjusted optimizer changes decision 5. Live-key comparison stops
+before that row; the later scroll and shovel checks remain counterfactual
+new-code measurements on the captured boards.
 """
 
 from __future__ import annotations
@@ -70,8 +73,17 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence, _parse_items
+from hengbot.equipment_optimizer import Loadout, current_loadout
+from recorded_loadout import recorded_loadout_replay
 from hengbot.model import SV_SCROLL_DETECT_TREASURE, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, speed_energy
+from hengbot.warrior_defense_evaluator import (
+    EQUIPMENT_HIT_AVOIDANCE_AC_DENOMINATOR,
+    EQUIPMENT_HIT_AVOIDANCE_AC_NUMERATOR,
+    monster_melee_hit_chance,
+)
+from hengbot.warrior_loadout_evaluator import loadout_max_hp
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -91,6 +103,10 @@ CALIBRATION_SHA256 = (
 SCROLL = ["財宝感知の巻物", 70, 26]
 SHOVEL = ["シャベル (1d2) (+0,+0) (+1) {+掘}", 20, 1]
 POTION = ["体力回復の薬 {25%引き}", 75, 37]
+THEODEN = (
+    "★更正せるセオデン王のビークド・アックス (2d6) (+8,+10) (+3) {+賢耐;遅祝/竜~感}",
+    22, 10,
+)
 SCAN = 26  # requested the last complete ~9 catalogue before the take
 SCAN_RESPONSE = 27  # whose input carries that response
 TAKE = 32  # '5pl1\r\x1b': one Treasure Detection scroll, index 11
@@ -150,6 +166,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         return list(_parse_items(row["knowledge"]["items"]))
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Decisions 0..33 on one policy, then the constructed continuation."""
         if cls.replay is not None:
@@ -245,6 +262,141 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         return cls.replay
 
     # ------------------------------------------------------------ recorded
+    def test_shield_and_weapon_survival_terms_on_first_changed_board(self):
+        """The shield protects; Theoden's CON and two-hand offense explain the swap."""
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, self.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            for index in range(6):
+                _decoded, snapshots = _consume_response_sequence(
+                    self._board_lines(index), policy, lambda _key: True,
+                    self.monrace, knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                board = snapshots[-1]
+                key = policy.choose_key(board)
+                policy.confirm_key_posted(key)
+            self.assertEqual((str(key), policy.last_reason), (
+                "5  pe\x1b", "equipment-transaction:atomic-withdraw",
+            ))
+            evaluator = policy._warrior_evaluator_cache.evaluator
+            self.assertIsNotNone(evaluator)
+            items = policy._equipment_catalog.items
+            avabia_shield = current_loadout(items)
+            theoden = next(
+                item for item in items
+                if item.origin == "home" and item.item.tval == 22
+                and item.item.is_artifact
+            )
+            slots = dict(avabia_shield.slots)
+            slots["main_hand"] = theoden
+            theoden_shield = Loadout(tuple(sorted(slots.items())), "weapon_shield")
+            slots.pop("sub_hand")
+            theoden_empty = Loadout(tuple(sorted(slots.items())), "two_handed")
+            old = evaluator(avabia_shield)
+            protected = evaluator(theoden_shield)
+            empty = evaluator(theoden_empty)
+
+            self.assertEqual(
+                [loadout_max_hp(loadout, evaluator.inputs) for loadout in
+                 (avabia_shield, theoden_shield, theoden_empty)],
+                [550, 601, 601],
+            )
+            self.assertEqual(
+                [result.defense.armor_class for result in (old, protected, empty)],
+                [64, 52, 44],
+            )
+            def mean_hit_probability(ac):
+                effective_ac = (
+                    ac * EQUIPMENT_HIT_AVOIDANCE_AC_NUMERATOR
+                    // EQUIPMENT_HIT_AVOIDANCE_AC_DENOMINATOR
+                )
+                blows = [
+                    (encounter.weight,
+                     monster_melee_hit_chance(
+                         blow.effect, encounter.knowledge.level, effective_ac
+                     ))
+                    for encounter in evaluator.encounters
+                    for blow in encounter.knowledge.blows
+                ]
+                return (sum(weight * chance for weight, chance in blows)
+                        / sum(weight for weight, _chance in blows))
+
+            for result, expected_hit in zip(
+                (old, protected, empty),
+                (0.7614845783624836, 0.8007586245369662,
+                 0.8243230522416557),
+            ):
+                self.assertAlmostEqual(
+                    mean_hit_probability(result.defense.armor_class),
+                    expected_hit,
+                )
+            self.assertEqual(evaluator.inputs.defense.base_speed, 110)
+            self.assertEqual(
+                [speed_energy(evaluator.inputs.defense.base_speed
+                              + result.metrics.speed_bonus)
+                 for result in (old, protected, empty)],
+                [14, 14, 14],
+            )
+            self.assertEqual(
+                sum(item.weight * item.count for item in
+                    (*board.inventory, *board.equipment)), 1383,
+            )
+            self.assertEqual(
+                ADJ_STR_WEIGHT_LIMIT[board.player.stat_index[0]] * 50, 1600,
+            )
+            for result, expected in zip(
+                (old, protected, empty),
+                ((23.615594003700558, 9.203874811013444,
+                  427.760305782165, 181.79354556038467),
+                 (25.53163055471328, 9.204054101733808,
+                  460.07232153573045, 181.80161364280107),
+                 (26.837898977288845, 9.204054101733808,
+                  482.34061419454565, 181.80161364280107)),
+            ):
+                actual = (
+                    result.defense.expected_melee_damage,
+                    result.ranged.expected_ranged_damage,
+                    result.defense.energy_weighted_melee_damage,
+                    result.ranged.energy_weighted_ranged_damage,
+                )
+                for measured, pinned in zip(actual, expected):
+                    self.assertAlmostEqual(measured, pinned)
+            self.assertAlmostEqual(old.metrics.survival_turns, 12.632189892723435)
+            self.assertAlmostEqual(protected.metrics.survival_turns, 13.108493021545923)
+            self.assertAlmostEqual(empty.metrics.survival_turns, 12.668973071323286)
+            self.assertGreater(protected.metrics.survival_turns,
+                               empty.metrics.survival_turns)
+            (shield_hand,) = protected.melee.hands
+            (empty_hand,) = empty.melee.hands
+            self.assertEqual((shield_hand.blows, empty_hand.blows), (5, 5))
+            self.assertAlmostEqual(shield_hand.hit_chance_ac100, 0.74)
+            self.assertAlmostEqual(empty_hand.hit_chance_ac100, 0.76)
+            self.assertAlmostEqual(shield_hand.expected_damage_per_hit,
+                                   35.49950111042539)
+            self.assertAlmostEqual(empty_hand.expected_damage_per_hit,
+                                   37.62067103777284)
+            self.assertGreater(empty.metrics.expected_dps,
+                               protected.metrics.expected_dps * 1.05)
+            self.assertGreater(empty.metrics.survival_turns,
+                               protected.metrics.survival_turns * 0.95)
+            selection = policy._prepare_equipment_optimization(board).result
+            max_survival = max(
+                entry.metrics.survival_turns
+                for entry in selection.pareto_frontier
+            )
+            self.assertAlmostEqual(max_survival, 13.302337777550207)
+            # The old weapon/shield misses the field-wide 95% band by 0.005
+            # turn. Theoden/empty survives it; Theoden/shield then misses the
+            # offense band by 4.61 DPS. These are the existing selector bands.
+            self.assertLess(old.metrics.survival_turns, max_survival * 0.95)
+            self.assertGreaterEqual(empty.metrics.survival_turns,
+                                    max_survival * 0.95)
+            self.assertLess(protected.metrics.expected_dps,
+                            empty.metrics.expected_dps * 0.95)
+            self.assertEqual(selection.best.loadout.item_ids,
+                             theoden_empty.item_ids)
+
     def test_recorded_stop_followed_a_confirmed_take_never_a_shovel_take(self):
         recorded = self.recorded
         take, confirm, stop = recorded[TAKE], recorded[CONFIRM], recorded[STOP]
@@ -295,11 +447,18 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         self.assertTrue(stop["home_gate_deferred_retry"]["fresh_attempt_failed"])
 
     # ------------------------------------------------------------ fidelity
-    def test_replay_reproduces_the_process_up_to_the_confirmed_take(self):
+    def test_replay_reproduces_the_process_before_equipment_choice(self):
         decisions = self._replay()["decisions"]
+        # R4: index 5 is the first changed key. The comparison also changes
+        # weapons: Theoden's CON raises HP from 550 to 601. At equal speed 114,
+        # it has 12.669 survival turns with an empty off hand, versus 12.632
+        # for Avabia with the shield. With Theoden in both loadouts, the shield
+        # improves survival to 13.108. The 5% survival band permits the empty
+        # hand's 8.8% melee output gain. Subsequent recorded boards followed
+        # the old key, so live-key comparison ends before 5.
         self.assertEqual(
-            decisions[:CONFIRM],
-            [(row["key"], row["reason"]) for row in self.recorded[:CONFIRM]],
+            decisions[:5],
+            [(row["key"], row["reason"]) for row in self.recorded[:5]],
         )
 
     def test_the_take_shortened_the_prefix_past_the_shovel(self):
@@ -328,7 +487,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------ W1
     def test_w1_confirming_board_rescans_instead_of_deferring(self):
-        """Fixed: decision 33 enters Home for a fresh ~9, nothing is deferred."""
+        """Decision 33 rescans Home without deferring the shovel."""
         replay = self._replay()
         self.assertEqual(
             replay["decisions"][CONFIRM], ("5", "shop:travel:await-entry")
@@ -336,6 +495,8 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         after = replay["after"]
         self.assertFalse(after["knowledge_current"])
         self.assertTrue(after["knowledge_invalidated"])
+        # The ownership replay keeps the recorded gear choice, so no
+        # counterfactual Theoden withdrawal is left to defer.
         self.assertEqual(after["deferred"], set())
         self.assertEqual(after["digger_failures"], 0)
         # The scroll's withdrawal is complete; the shovel and the potions

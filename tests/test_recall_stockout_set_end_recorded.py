@@ -17,6 +17,8 @@ fixture.py).  Walls, each on a collaborator that is not under test:
 - pre_fix_loot_observation restores the original fallback charge only for the
   town-subject lifetime replay, preserving its recorded dungeon route. The
   production loot boundary test below runs without this wall.
+- recorded_loadout_replay holds the optimizer on the captured equipment path
+  for the town measurements and the isolated production-loot boundary.
 """
 
 from __future__ import annotations
@@ -37,11 +39,12 @@ from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _consume_response_sequence
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
-from hengbot.model import STORE_HOME
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
+from hengbot.model import STORE_HOME
 import hengbot.policy_combat as policy_combat
 from recorded_loot_observation import pre_fix_loot_observation
+from recorded_loadout import recorded_loadout_replay
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
@@ -119,11 +122,11 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         assert len(cls.lines) == sum(cls.boundaries["input_rows"])
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
-        """Drive the recorded lifetime through decision 1425, then decide 1426.
+        """Measure new-code decisions through the recorded 1426 input.
 
-        1425's recorded key (ESC out of the supplier page) is also the key the
-        replay posts, so 1426's recorded input is the true effect of that key.
+        The equipment and loot walls preserve the route into the stockout.
         """
         if cls.replay is not None:
             return cls.replay
@@ -195,6 +198,7 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         return cls.replay
 
     @classmethod
+    @recorded_loadout_replay
     def _live_loot_prefix(cls):
         """Use production loot behavior through the first changed key."""
         if cls.live_prefix is not None:
@@ -246,8 +250,7 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         _policy, decisions, *_rest = self._replay()
         recorded = self.boundaries["recorded"]
         divergent = {
-            sequence
-            for sequence, decided in decisions.items()
+            sequence for sequence, decided in decisions.items()
             if list(decided) != recorded[sequence - 1]
         }
         self.assertEqual(divergent, KNOWN_HARNESS_DIVERGENCES)
@@ -265,8 +268,6 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         _policy, _decisions, snapshot, decided_1426, state, *_rest = self._replay()
 
         self.assertEqual(snapshot.player.gold, 18365)
-        # Live 1426: ('1', 'shop:approach') with fundraising.mode None.  The
-        # time-pass now keeps its run and heads Home for its D3 kit.
         self.assertEqual(decided_1426, ("\x1b`n(.", "shop:travel"))
         self.assertEqual(state["mode"], "prepare")
         self.assertEqual(state["planned_runs"], 1)

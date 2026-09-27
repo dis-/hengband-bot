@@ -124,6 +124,7 @@ from hengbot.town_arbiter import (
 )
 
 from test_ownership_claims import LEGACY_CHECKPOINT, _Replay
+from recorded_loadout import recorded_loadout_replay
 from test_ownership_s2a_classification import _reason_literals
 
 
@@ -714,6 +715,7 @@ class ClosingPathsTest(unittest.TestCase):
     # -- the recorded lifetime with purchases, sales and Home operations --
 
     @staticmethod
+    @recorded_loadout_replay
     def tour_rows(*, limit: int):
         """The first ``limit`` decisions of the tour lifetime, with claims."""
         import test_unaffordable_claim_tour_recorded as tour

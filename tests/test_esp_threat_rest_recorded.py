@@ -170,7 +170,7 @@ class EspThreatRestTest(unittest.TestCase):
         """Replay decisions 1..137 as recorded, then decide 138."""
         if cls.lifetime is not None:
             return cls.lifetime
-        helper = cls("test_e1_lifetime_replays_recorded_until_first_detected_rest")
+        helper = cls("test_e1_lifetime_replays_recorded_before_equipment_choice")
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             policy = _policy(directory, cls.monrace)
@@ -241,13 +241,18 @@ class EspThreatRestTest(unittest.TestCase):
         )
 
     # ------------------------------------------------------------- E1 live
-    def test_e1_lifetime_replays_recorded_until_first_detected_rest(self):
+    def test_e1_lifetime_replays_recorded_before_equipment_choice(self):
         decided, *_rest = self._lifetime()
         recorded = self.boundaries["recorded"]
+        # R4: at sequence 4 the speed-adjusted optimizer takes off the cold
+        # shield. Theoden remains in main_hand; the preferred empty sub_hand
+        # has 11.243 survival turns versus 15.608 for the shielded loadout
+        # under the old measure. Recorded shop travel no longer occurs, so
+        # later boards belong to the recorded key's path.
         self.assertEqual(
             [
                 sequence
-                for sequence in range(1, FIRST_DETECTED_REST)
+                for sequence in range(1, 4)
                 if decided[sequence] != recorded[sequence - 1]
             ],
             [],

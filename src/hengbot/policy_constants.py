@@ -142,6 +142,20 @@ SPEED_ENERGY_90 = (
     49, 49, 49, 49, 49, 49, 49, 49, 49, 49,
 )
 
+
+def speed_energy(speed: int) -> int:
+    """Hengband core/speed-table.cpp extract_energy, including slow actors."""
+    if speed < 70:
+        return 1
+    if speed < 88:
+        return 2
+    if speed < 90:
+        return 3
+    if speed >= 200:
+        return 49
+    return SPEED_ENERGY_90[speed - 90]
+
+
 DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (-1, -1): "7",
     (-1, 0): "8",

@@ -10,6 +10,7 @@ import numpy as np
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.monrace_knowledge import MonraceKnowledge, SUMMON_ABILITIES
+from hengbot.policy_constants import speed_energy
 
 
 TR_IM_ACID = 40
@@ -57,6 +58,7 @@ class WarriorRangedDefenseResult:
     status_turn_exposure: tuple[tuple[str, float], ...] = ()
     resource_event_exposure: tuple[tuple[str, float], ...] = ()
     unsupported_effects: frozenset[str] = frozenset()
+    energy_weighted_ranged_damage: float = 0.0
 
     @property
     def ranged_complete(self) -> bool:
@@ -1309,6 +1311,7 @@ def evaluate_warrior_ranged_defense(
     result remains explicitly incomplete until that context is supplied.
     """
     expected_damage = 0.0
+    energy_weighted = 0.0
     status: dict[str, float] = {}
     resource: dict[str, float] = {}
     unsupported: set[str] = set()
@@ -1346,7 +1349,9 @@ def evaluate_warrior_ranged_defense(
                 blind=blind,
                 saving_skill=saving_skill,
             )
-            expected_damage += occurrence * result.expected_hp_damage
+            ability_damage = occurrence * result.expected_hp_damage
+            expected_damage += ability_damage
+            energy_weighted += ability_damage * speed_energy(monster.speed)
             unsupported.update(result.unsupported_effects)
             for name, value in result.status_turn_exposure:
                 status[name] = status.get(name, 0.0) + occurrence * value
@@ -1357,4 +1362,5 @@ def evaluate_warrior_ranged_defense(
         tuple(sorted(status.items())),
         tuple(sorted(resource.items())),
         frozenset(unsupported),
+        energy_weighted,
     )

@@ -34,6 +34,10 @@ is not under test:
   the pre-decision lifetime, so the replay walls the policy's drain view to
   unknown throughout (the unchanged protocol-2 behaviour); the potion's own
   pins are in test_experience_potion.
+
+The production speed-adjusted optimizer first changes the key at list index 2.
+The live-key check ends there. Ownership tests use ``recorded_loadout_replay``
+to keep equipment selection on the path that the later boards confirm.
 """
 
 from __future__ import annotations
@@ -66,6 +70,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from recorded_loadout import recorded_loadout_replay
 
 
 GAME_ROOT = Path("C:/hengband")
@@ -310,7 +315,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             cls.lines = list(stream)
         assert len(cls.lines) == sum(cls.boundaries["input_rows"])
 
-    def test_s0_replay_stops_at_first_changed_home_deposit(self):
+    def test_s0_replay_stops_at_first_changed_equipment_choice(self):
         """Recorded boards are authoritative only until the first changed key."""
         with TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
@@ -330,29 +335,27 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
+                if index == 2:
+                    # The production speed-adjusted optimizer first changes
+                    # the key here; later recorded boards do not confirm it.
+                    key = policy.choose_key(snapshot)
+                    self.assertEqual((str(key), policy.last_reason),
+                                     ("tb", "equipment-transaction:takeoff"))
+                    return
                 key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
                 decided = (str(key), policy.last_reason)
                 recorded = tuple(self.boundaries["recorded"][index])
-                expected_previous_fix = (
-                    CHOKE_ALTERNATION_FIXED.get(index)
-                    or STALE_MUTATION_GATE_FIXED.get(index)
-                )
-                if decided != recorded and decided != expected_previous_fix:
-                    self.assertEqual(index, 5, (recorded, decided))
-                    self.assertEqual(recorded, ("db\x1b", "home:atomic-deposit"))
-                    self.assertEqual(decided, ("db1\r\x1b", "home:atomic-deposit"))
-                    selected = next(item for item in snapshot.inventory if item.slot == "b")
-                    self.assertEqual(selected.count, 11)
-                    return
+                self.assertEqual(decided, recorded)
                 register = policy._claim_register
                 policy._claim_register = copy.copy(register)
                 _recorded_process_capture(policy, snapshot)
                 policy._claim_register = register
                 policy.confirm_key_posted(key)
-        self.fail("recorded Home quantity divergence was not reached")
+        self.fail("equipment-choice divergence was not reached")
 
     @classmethod
+    @recorded_loadout_replay
     def _replay(cls):
         """Drive the recorded lifetime through the Healing purchase, then decide."""
         if cls.replay is not None:
