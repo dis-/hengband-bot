@@ -5,6 +5,7 @@ python scripts/measure_s3_errand_deferred.py tour
 """
 
 from collections import Counter
+import hashlib
 import json
 import sys
 import unittest
@@ -28,7 +29,9 @@ CASES = {
 
 def main(case: str) -> int:
     counts = Counter()
-    original = HengbotPolicy._defer_town_errand
+    key_reasons = []
+    original = getattr(HengbotPolicy, "_defer_town_errand", None)
+    original_choose_key = HengbotPolicy.choose_key
 
     def measure(self, family, reason):
         before = len(getattr(self, "_decision_errand_deferred", ()))
@@ -38,7 +41,14 @@ def main(case: str) -> int:
             counts[(row["holder_family"], row["deferred_family"])] += 1
         return barred
 
-    HengbotPolicy._defer_town_errand = measure
+    def capture_key_reason(self, snapshot):
+        key = original_choose_key(self, snapshot)
+        key_reasons.append((str(key), self.last_reason))
+        return key
+
+    if original is not None:
+        HengbotPolicy._defer_town_errand = measure
+    HengbotPolicy.choose_key = capture_key_reason
     suite = unittest.defaultTestLoader.loadTestsFromName(CASES[case])
     result = unittest.TextTestRunner(stream=sys.stderr, verbosity=0).run(suite)
     print(json.dumps({
@@ -50,6 +60,11 @@ def main(case: str) -> int:
         ],
         "tests_run": result.testsRun,
         "passed": result.wasSuccessful(),
+        "decisions": len(key_reasons),
+        "key_reason_sha256": hashlib.sha256(
+            json.dumps(key_reasons, ensure_ascii=False, separators=(",", ":"))
+            .encode("utf-8")
+        ).hexdigest(),
     }, sort_keys=True))
     return 0 if result.wasSuccessful() else 1
 
