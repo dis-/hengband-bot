@@ -170,8 +170,24 @@ class RewardApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
         policy.confirm_key_posted(policy.choose_key(parse_snapshot(higher, self.monrace)))
         damaged = copy.deepcopy(source)
         damaged["turn"] += 60
+        damaged["player"]["hp"] -= 1  # Below the max-HP clamp: a real hit.
+        self.assertEqual(
+            ((higher["player"]["hp"], higher["player"]["max_hp"]),
+             (damaged["player"]["hp"], damaged["player"]["max_hp"])),
+            ((433, 433), (431, 432)),
+        )
         key = policy.choose_key(parse_snapshot(damaged, self.monrace))
-        self.assertEqual((str(key), policy.last_reason), ("rf", "no-wait:escape-scroll"))
+        self.assertTrue(policy._took_damage)
+        self.assertEqual((str(key), policy.last_reason), ("R&\r", "town:recover"))
+        # If this same hit reaches an unsanctioned WAIT, the final safety
+        # seam still spends the carried escape scroll.
+        safety = copy.deepcopy(policy)
+        safety.last_reason = "fixedquest:reward-approach:unsatisfiable"
+        escape = safety._forbid_wait_while_damaged(
+            parse_snapshot(damaged, self.monrace), WAIT_KEY
+        )
+        self.assertEqual((str(escape), safety.last_reason),
+                         ("rf", "no-wait:escape-scroll"))
         self.assertIn("quest-request", policy._town_turn_arbiter._retired)
 
 

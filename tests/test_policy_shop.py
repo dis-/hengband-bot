@@ -7225,6 +7225,8 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
         )
 
         self.assertEqual(policy.choose_key(outside), WAIT_KEY)
+        self.assertEqual(policy._calibration_phase, "strip")
+        self.assertIsNone(policy._equipment_transaction_session.pending_action)
         self.assertTrue(policy.last_reason.endswith("shop:one-shot-buy"))
         self.assertIsNone(
             policy._shop_selector_diagnostics.get("composition_refusal")

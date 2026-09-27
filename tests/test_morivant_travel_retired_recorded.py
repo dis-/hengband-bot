@@ -128,8 +128,26 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
             sequence for sequence in range(1, 683)
             if decided[sequence] != recorded[sequence - 1]
         ]
+        # The first new divergence is 218: max HP and current HP both fall
+        # 537 -> 506. Hengband clamps current HP to the new maximum, so this
+        # is not damage and the town shelter key is no longer warranted.
+        # 219 is the following recorded board after that changed key. The
+        # same max-HP clamp and following-board pair recurs at 268/269.
+        for before, clamp, after in ((217, 218, 219), (267, 268, 269)):
+            prior = self._consume(None, before).player
+            clamped = self._consume(None, clamp).player
+            following = self._consume(None, after).player
+            self.assertEqual(
+                ((prior.hp, prior.max_hp), (clamped.hp, clamped.max_hp),
+                 (following.hp, following.max_hp)),
+                ((537, 537), (506, 506), (506, 506)),
+            )
+            self.assertEqual(recorded[clamp - 1], ["9", "town:seek-shelter"])
+            self.assertEqual(decided[clamp], ["te", "equipment-transaction:takeoff"])
+            self.assertEqual(recorded[after - 1], ["te", "equipment-transaction:takeoff"])
+            self.assertEqual(decided[after], ["5", "equipment-transaction:await-confirmation"])
         # melee-threat-p95-adjacency (user 2026-09-22) moved exactly these
-        # recorded decisions (was []; every other decision still matches):
+        # earlier combat decisions:
         # 153 emergency:teleport -> melee (HP 370, operational 554 -> 316),
         # 155 return:recall -> rest (follows 153: no teleport was read),
         # 158 emergency:teleport -> melee (HP 341, 372 -> 210),
@@ -137,7 +155,7 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         # 620 esp-threat:leave-recall -> explore (STRONG 263 / 416 -> MEDIUM
         # 131 / 416).  The recorded boards after each are the live keys'
         # effects; the town walk 699..708 below is unaffected.
-        self.assertEqual(divergent, [153, 155, 158, 618, 620])
+        self.assertEqual(divergent, [153, 155, 158, 218, 219, 268, 269, 618, 620])
         self.assertEqual(recorded[682], ["db\x1b", "home:atomic-deposit"])
         self.assertEqual(decided[683], ["db1\r\x1b", "home:atomic-deposit"])
         self.assertEqual(recorded[TERMINAL - 1], ["5", "town:blocked:owner-retired"])
