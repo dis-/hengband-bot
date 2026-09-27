@@ -1731,16 +1731,29 @@ class CombatMixin:
             self._unseen_recall_damage_streak = 0
 
         predicted = self._predicted_damage(snapshot, hostiles, turns=3)
+        unseen_spell_hit = (
+            self._unseen_attack_evidence is not None
+            and self._is_unseen_spell_message(self._unseen_attack_evidence)
+        )
         unseen_lethal = (
             self._took_damage
-            and self._unseen_attack_evidence is not None
+            and (
+                self._unseen_attack_evidence is not None
+                or self._unexplained_damage_streak >= 2
+            )
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
             and not hostiles
+            and not snapshot.visible_monsters
             and not snapshot.in_town
-            and not player.poisoned
-            and not player.cut
-            and self._last_damage_amount >= player.hp
+            and (unseen_spell_hit or not (player.poisoned or player.cut))
+            and (
+                self._last_damage_amount >= player.hp
+                or unseen_spell_hit
+                or player.hp_ratio < HEAL_HP_RATIO
+                or self._unexplained_damage_streak >= 2
+                or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
+            )
         )
         ranged_scroll_lock = self._ranged_scroll_lock_escape_needed(
             snapshot, hostiles, predicted=predicted

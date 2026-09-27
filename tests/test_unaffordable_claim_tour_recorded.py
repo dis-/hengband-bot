@@ -34,6 +34,10 @@ is not under test:
   the pre-decision lifetime, so the replay walls the policy's drain view to
   unknown throughout (the unchanged protocol-2 behaviour); the potion's own
   pins are in test_experience_potion.
+- unseen-caster death: a hidden shard breath at list index 2812 lowers HP
+  456 -> 440.  This supplier-ownership lifetime walls only that earlier
+  caster decision and its new HP-loss streak; otherwise the streak arms an
+  escape on 2813. The death capture pins the new emergency escape.
 
 The production speed-adjusted optimizer first changes the key at list index 2.
 The live-key check ends there. Ownership tests use ``recorded_loadout_replay``
@@ -53,6 +57,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import (
@@ -385,7 +390,16 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
-                key = policy.choose_key(snapshot)
+                if index == 2812:
+                    assert snapshot.player.hp == 440
+                    assert snapshot.messages[0] == "何かが破片のブレスを吐いた。"
+                    with patch.object(
+                        HengbotPolicy, "_is_unseen_spell_message", return_value=False
+                    ):
+                        key = policy.choose_key(snapshot)
+                    policy._unexplained_damage_streak = 0
+                else:
+                    key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
                 decisions[index] = (str(key), policy.last_reason)
                 claim_rows.append(_claim_row(policy, snapshot, key, index))

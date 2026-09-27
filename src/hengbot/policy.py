@@ -1810,6 +1810,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_remaining = 0
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
+        self._unexplained_damage_streak = 0
 
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
@@ -15158,15 +15159,56 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
 
     @staticmethod
+    def _is_unseen_spell_message(message: str) -> bool:
+        return any(
+            fragment in message
+            for fragment in (
+                "呪文を唱え",
+                "ブレスを吐いた",
+                "を放った",
+                "つぶやいた",
+                "身振りをした",
+                "を指さして",
+                "叫んだ",
+                "を射った",
+                "を発射した",
+                "を投げた",
+                " casts ",
+                " breathes",
+                " fires ",
+                " mumbles",
+                " gestures ",
+                " invokes ",
+                " shoots ",
+                " throws ",
+                " points at ",
+                " screams ",
+                " tries to cast ",
+            )
+        )
+
+    @staticmethod
     def _is_unseen_attack_message(message: str) -> bool:
-        """Whether a direct monster blow names Hengband's hidden actor.
+        """Whether a monster attack names Hengband's hidden actor.
 
         The finite method text comes from monster-attack-describer.cpp:64-229.
         monster-attack-player.cpp:297-310 joins the actor to that text, while
         monster-describer.cpp:39-53,91 supplies 何か / it / something when the
-        attacking monster is hidden.
+        attacking monster is hidden. Spell wording comes from mspell-bolt.cpp,
+        mspell-ball.cpp, mspell-breath.cpp and mspell-curse.cpp.
         """
         message = re.sub(r" <x[1-9]\d*>$", "", message)
+        # mspell-util.cpp formats the hidden actor through monster_name().
+        # The spell tables use many different verbs and spell names; keep the
+        # actor anchor, then accept the spell/breath/shot families they emit.
+        if message.startswith("何か") and HengbotPolicy._is_unseen_spell_message(
+            message
+        ):
+            return True
+        if message.startswith(("It ", "Something ")) and HengbotPolicy._is_unseen_spell_message(
+            message
+        ):
+            return True
         japanese_acts = (
             "殴られた。",
             "触られた。",

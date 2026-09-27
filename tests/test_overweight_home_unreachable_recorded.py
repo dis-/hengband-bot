@@ -64,6 +64,10 @@ Walls, each declared:
   Home-subject lifetime replay. The production loot boundary test runs without
   the wall and stops at the first changed key.
 No wall touches the Home ledger, the equipment transaction or the terminal.
+The unseen-caster death fix changes the key at index 1594 (hidden gas breath,
+HP 542 -> 538).  This Home-subject replay walls only that earlier caster
+decision and its HP-loss streak; the death incident pins the new escape on
+its own first-hit board.
 """
 
 from __future__ import annotations
@@ -113,6 +117,18 @@ RING_DEPOSIT = 3779  # sequence 3778, 'do\r'
 RING_OBSERVED = 3780  # sequence 3779, home:leave-after-one-operation
 STOP = 3781  # sequence 3780, town:blocked:overweight-home-unreachable
 HOME_ENTRANCE = (45, 123)
+PRE_CASTER_WALL = 1594
+
+
+def _choose_before_caster_fix(policy, snapshot, index):
+    if index != PRE_CASTER_WALL:
+        return policy.choose_key(snapshot)
+    assert snapshot.player.hp == 538
+    assert snapshot.messages[0] == "何かがガスのブレスを吐いた。"
+    with patch.object(HengbotPolicy, "_is_unseen_spell_message", return_value=False):
+        key = policy.choose_key(snapshot)
+    policy._unexplained_damage_streak = 0
+    return key
 
 
 class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
@@ -178,7 +194,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
                 snapshot = snapshots[-1]
-                key = policy.choose_key(snapshot)
+                key = _choose_before_caster_fix(policy, snapshot, index)
                 ledger = policy._town_visit_ledger
                 here = snapshot.grid_at(snapshot.player.position)
                 replay.append({
@@ -240,7 +256,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     policy.request_game_save()
                 elif reason == "periodic:character-dump":
                     policy.request_character_dump()
-                key = policy.choose_key(snapshots[-1])
+                key = _choose_before_caster_fix(policy, snapshots[-1], index)
                 decisions.append((str(key), policy.last_reason,
                                   dict(policy.decision_claim or {})))
                 policy.confirm_key_posted(key)

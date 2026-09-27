@@ -910,6 +910,7 @@ class ObservationMixin:
                 "トラップが作動してしまいました！",
                 "トラップを作動させてしまった！",
                 "You set off a trap!",
+                "トラップだ！",
                 "熱で火傷した！",
                 "The heat burns you!",
                 "冷気に覆われた！",
@@ -939,6 +940,18 @@ class ObservationMixin:
         )
         self._last_damage_amount = (
             hp_without_damage - hp if self._took_damage else 0
+        )
+        unexplained = (
+            self._took_damage
+            and not snapshot.in_town
+            and not snapshot.visible_monsters
+            and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
+            and not snapshot.player.poisoned
+            and not snapshot.player.cut
+        )
+        self._unexplained_damage_streak = (
+            self._unexplained_damage_streak + 1 if unexplained else 0
         )
         self._last_hp = hp
 
