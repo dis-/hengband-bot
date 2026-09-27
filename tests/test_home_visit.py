@@ -405,7 +405,11 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
     def test_door_bounce_capture_collapses_to_report_and_durable_budget(self):
         fixture = "tests/fixtures/home-door-bounce-decisions.jsonl"
         self.assertEqual(
-            hashlib.sha256((self.ROOT / fixture).read_bytes()).hexdigest(),
+            hashlib.sha256(
+                (self.ROOT / fixture).read_bytes().replace(b"
+", b"
+")
+            ).hexdigest(),
             "b0f15535c02c3756a6c89fb24cf323ba6ebba0e2af7b385e0bd9fc84d147ae50",
         )
         rows = self._rows(
