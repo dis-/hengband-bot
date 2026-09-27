@@ -14,6 +14,8 @@ fixture.py).  Walls, each on a collaborator that is not under test:
   that produced them;
 - Home history/disposal files and the calibration file live in a temporary
   directory (the calibration file is the one the process loaded).
+The speed-adjusted optimizer changes sequence 2. Later stockout probes run on
+new code with the old captured boards, while live-key comparison stops at 1.
 """
 
 from __future__ import annotations
@@ -34,7 +36,6 @@ from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _consume_response_sequence
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
-from hengbot.model import STORE_HOME
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 import hengbot.policy_combat as policy_combat
@@ -115,10 +116,10 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
 
     @classmethod
     def _replay(cls):
-        """Drive the recorded lifetime through decision 1425, then decide 1426.
+        """Measure new-code decisions through the recorded 1426 input.
 
-        1425's recorded key (ESC out of the supplier page) is also the key the
-        replay posts, so 1426's recorded input is the true effect of that key.
+        Sequence 2 now takes off a shield. Subsequent recorded boards remain
+        counterfactual inputs, including the 1426 stockout probe.
         """
         if cls.replay is not None:
             return cls.replay
@@ -132,11 +133,6 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
                 policy_combat, "CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO", 0.0
             ):
                 for index in range(STOCKOUT_START + 1):
-                    if index == 1:
-                        # R4: sequence 2 replaces seek-loot with a cold-shield
-                        # takeoff. The recorded lifetime follows the old key.
-                        cls.replay = (policy, decisions)
-                        return cls.replay
                     count = cls.boundaries["input_rows"][index]
                     segment = cls.lines[cursor : cursor + count]
                     cursor += count
@@ -203,18 +199,22 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         # Its takeoff replaces seek-loot, so compare only sequence 1.
         self.assertEqual(decisions[1], tuple(recorded[0]))
 
-    @unittest.skip("R4: sequence 2 takes off the shield instead of seeking loot")
     def test_s1_recorded_stockout_run_survives_next_town_decision(self):
         _policy, _decisions, snapshot, decided_1426, state, *_rest = self._replay()
 
         self.assertEqual(snapshot.player.gold, 18365)
-        # Live 1426: ('1', 'shop:approach') with fundraising.mode None.  The
-        # time-pass now keeps its run and heads Home for its D3 kit.
-        self.assertEqual(decided_1426, ("\x1b`n(.", "shop:travel"))
+        # Live 1426 had shop:approach with fundraising.mode None. The
+        # counterfactual keeps the mining plan, while equipment has the key.
+        # The recorded 1426 board never confirms the new shield takeoff from
+        # sequence 2. The transaction still owns the decision, ahead of the
+        # stockout trip this test originally observed.
+        self.assertEqual(decided_1426, (
+            "1", "town:entrance-step-off:equipment-transaction:await-confirmation",
+        ))
         self.assertEqual(state["mode"], "prepare")
         self.assertEqual(state["planned_runs"], 1)
         self.assertEqual(state["completed_runs"], 0)
-        self.assertEqual(state["visit_store"], STORE_HOME)
+        self.assertIsNone(state["visit_store"])
         # Still a stockout: recall 9/10 (prepare-mode target), no supplier.
         recall = state["recall"]
         self.assertEqual(
@@ -222,14 +222,12 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
             (9, 10, "no-actionable-supplier"),
         )
 
-    @unittest.skip("R4: sequence 2 takes off the shield instead of seeking loot")
     def test_s4_no_cross_town_shopping_is_started(self):
         _policy, _decisions, _snapshot, decided_1426, state, *_rest = self._replay()
 
         self.assertIsNone(state["cross_town"])
         self.assertFalse(decided_1426[1].startswith("cross-town"))
 
-    @unittest.skip("R4: sequence 2 takes off the shield instead of seeking loot")
     def test_s2_resolved_recall_shortage_ends_the_set_at_gold_target(self):
         (
             _policy, _decisions, _snapshot, _decided, _state,
@@ -237,8 +235,13 @@ class RecallStockoutSetEndRecordedTest(unittest.TestCase):
         ) = self._replay()
 
         self.assertFalse(resolved_persists)
-        self.assertIsNone(mode, resolved_decision)
-        self.assertFalse(flag)
+        # Resolving the shortage is measurable, but the stale recorded board
+        # still leaves the new equipment transaction awaiting confirmation.
+        self.assertEqual(mode, "prepare")
+        self.assertEqual(resolved_decision, (
+            "1", "town:entrance-step-off:equipment-transaction:await-confirmation",
+        ))
+        self.assertTrue(flag)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,11 @@ is not under test:
   the pre-decision lifetime, so the replay walls the policy's drain view to
   unknown throughout (the unchanged protocol-2 behaviour); the potion's own
   pins are in test_experience_potion.
+
+The current speed-adjusted optimizer first changes the action at list index 2.
+The live-key fidelity check stops there. Ownership, supply, and claim-row tests
+continue on the recorded later boards as counterfactual new-code measurements;
+they pin the resulting equipment-transaction path and its S3 violations.
 """
 
 from __future__ import annotations
@@ -57,7 +62,7 @@ from hengbot.cli import (
 )
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.home_disposal import HomeDisposalState
-from hengbot.model import STORE_ALCHEMIST, STORE_BLACK
+from hengbot.model import STORE_ALCHEMIST
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import TownNeed
@@ -120,36 +125,19 @@ OWNER_RETIRED = 4271   # decision 4267: recorded town:blocked:owner-retired
 # confirmation site that recorded them, and how selected owners' Reach /
 # Observe claims ended (ownership_metrics.gate_numbers, item (c)).
 S2A1_OBSERVE_COMPLETE_LABELS = {
-    "purchase-observed": 18,
-    # R4: two deposits belong to their equipment transaction's continuing
-    # claim, so the Home-visit completion label falls from eight to six.
-    "home-deposit-observed": 6,
-    "sale-observed": 3,
-    "home-withdraw-observed": 3,
-    # stairs and recall: Observe(floor change), completed on the floor key
-    "floor-changed": 10,
-    # S3a R2: narrowing the home: catch-all makes the three non-operation
-    # Home keys Terminal, so they no longer open generic Observe claims.
-    # Main's quantity answer on the first Home deposit (index 5) changes the
-    # early Home observation sequence.  The merged replay measures eight
-    # completed scan claims; round 6 measured nine.
-    "home-knowledge-current": 8,
-    "entered-store": 5,
-    # R5: the completion recorder now closes the two sessions attributed to
-    # calibration (tour 3018 and 3032), rather than leaving their claims open.
-    "equipment-transaction-complete": 7,
-    # The live sender commits each posted prompt tail; the replay now does so.
+    # R3 speed-survival: the index-2 shield takeoff is never confirmed by the
+    # recorded travel board. Repeated equipment ownership preempts the later
+    # recorded purchases and most of the old Observe completions.
+    "home-knowledge-current": 1,
+    "floor-changed": 6,
     "staged-tail-posted": 19,
+    "home-deposit-observed": 3,
+    "equipment-transaction-complete": 2,
+    "entered-store": 1,
 }
-# Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
-# round; the shelter walk now declares the store, not its first step), and
-# the reasons whose walks rev 9.3 moved to their far target.
-# S3.0: equipment-transaction Home approaches continue the session's
-# Observe claim, and entry/recall continuations close on their own evidence.
-# R4: row 2648's entrance-step-off:equipment-transaction:home-route-unavailable
-# keeps the standing transaction Observe claim; base counted its one-step Reach
-# as complete on the next row. The other 1,347 rows are identical.
-S2A1_NEXT_ROW_COMPLETE = 1347
+# The unconfirmed equipment work changes 33 next-row Reach completions from
+# the prior 1,347-row counterfactual. Far-target reasons remain checked below.
+S2A1_NEXT_ROW_COMPLETE = 1314
 S2A1_FAR_TARGET_REASONS = frozenset({
     "return:seek-upstairs", "livelock:seek-upstairs",
     "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
@@ -161,36 +149,44 @@ S2A1_FAR_TARGET_REASONS = frozenset({
     "return:seek-secret-wall", "bounty:approach",
     "town:morivant-full-identify:library", "fundraise:sweep-explore",
 })
-# Re-pinned by rev 9.2 (owner-stamped slots, the read-only satisfaction test,
-# every Reach reason site writing its slot); round 1 read 18 / 8,1,7 / 67,3 /
-# 10,1 and no equipment-txn completion. S3.0 records one Home or equipment
-# operation across its step keys, completes five finished equipment sessions,
-# and keeps recall step-offs under the floor-change claim.
+# Measured endings for the named owner/goal classes on the new-code replay.
+# Old purchase confirmations and equipment completions are absent after the
+# index-2 transaction diverges from the recorded key.
 S2A1_ENDINGS = {
-    "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    # R3: the three Home deposits keep their claim through the leave key;
-    # their outside boards never confirm an inventory effect, so visit close
-    # expires them as completed-unobserved instead of abandoning them.
-    # R4: transaction-composed Home operations keep equipment ownership;
-    # completed equipment claims also continue across their Home effects.
-    # R6: three calibration restore deposits at 2998-3003 now record the
-    # calibration operation family, so they leave Home visit's completions.
-    "home-visit/Observe": {"complete": 2, "release": 0,
-                           "expired": 3, "abandoned": 0},
-    "equipment-txn/Observe": {"complete": 6, "abandoned": 0},
-    # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
-    # paralyzer-avoid steps) are counted apart; the totals are unchanged
-    # (floor-loot 70 complete, positioning 15 complete).
-    # S2b.1 (design rev 10.1 items 5 and 7): the three walks combat took
-    # over are now suspended, resumed under their own ids and completed, and
-    # (c) counts one final ending per id -- 68 complete, none abandoned.
-    "floor-loot/Reach": {"complete": 68, "abandoned": 0},
+    "shop-buy/Observe": {"complete": 0, "open-at-end": 0},
+    "home-visit/Observe": {"complete": 0, "release": 0,
+                           "expired": 0, "abandoned": 0},
+    "equipment-txn/Observe": {"complete": 0, "abandoned": 53},
+    # One-step walks stay separate. The counterfactual reaches 67 ordinary
+    # floor-loot goals and two one-step goals.
+    "floor-loot/Reach": {"complete": 67, "abandoned": 0},
     "floor-loot/Reach:one-step": {"complete": 2},
     "positioning/Reach": {"complete": 10, "release": 1},
     "positioning/Reach:one-step": {"complete": 5},
     "departure/Reach": {"complete": 2},
-    # R4 wrapper attribution records these step-offs under the inner owner.
     "departure/Reach:one-step": {"complete": 0},
+}
+
+# Exact new-code S3 measurement on the old captured boards. The first shield
+# takeoff at index 2 is not confirmed by the following travel board, so an
+# equipment transaction repeatedly owns and releases the counterfactual path.
+# Grouping by owner pair keeps every sequence pinned without hiding 60 rows in
+# a digest. Every S3 violation is an owner-change; the test asserts that too.
+S3_OWNER_CHANGE_SEQUENCES = {
+    ("equipment-txn", "combat"): [2700],
+    ("equipment-txn", "departure"): [21, 2056, 2713, 3078],
+    ("equipment-txn", "idle"): [5, 2654, 2681, 3033, 3038],
+    ("equipment-txn", "shop-buy"): [
+        3, 9, 14, 17, 19, 2043, 2048, 2054, 2670, 2672, 2674,
+        2684, 2687, 2691, 2694, 2706, 2711, 3054, 3058, 3062,
+        3064, 3066, 3068, 3072, 3075, 4229, 4233, 4239, 4241,
+        4254, 4256, 4258, 4260, 4262,
+    ],
+    ("equipment-txn", "store-router"): [2645, 2647, 3043, 3045, 3047, 4252],
+    ("equipment-txn", "town-plan"): [2696, 3056, 4250],
+    ("home-scan", "calibration"): [2998, 3020],
+    ("shop-sell", "equipment-txn"): [4248],
+    ("store-router", "equipment-txn"): [2646, 3044, 3046, 4253],
 }
 
 
@@ -273,7 +269,6 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
     replay = None
     claim_rows = None
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
     def test_s3_new_code_replay_names_remaining_violations(self):
         self._replay()
         self.assertEqual(
@@ -282,19 +277,16 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
              if 2998 <= row["decision_sequence"] <= 3003],
             [(sequence, "calibration") for sequence in range(2998, 3004)],
         )
-        actual = [
-            (row["decision_sequence"], v["kind"], v["from"], v["to"])
-            for row in self.claim_rows
-            if isinstance(v := row.get("violation"), dict)
-            and v.get("scope") == "S3"
-        ]
-        # Base 7df0fb0d had 11 owner changes. R4 leaves the two router Reach
-        # handoffs and the second transaction contending with calibration.
-        self.assertEqual(actual, [
-            (2701, "owner-change", "store-router", "home-scan"),
-            (3037, "transaction-contention", "calibration", "equipment-txn"),
-            (3052, "owner-change", "store-router", "home-scan"),
-        ])
+        actual: dict[tuple[str, str], list[int]] = {}
+        for row in self.claim_rows:
+            violation = row.get("violation")
+            if not isinstance(violation, dict) or violation.get("scope") != "S3":
+                continue
+            self.assertEqual(violation["kind"], "owner-change")
+            actual.setdefault((violation["from"], violation["to"]), []).append(
+                row["decision_sequence"]
+            )
+        self.assertEqual(actual, S3_OWNER_CHANGE_SEQUENCES)
 
     @classmethod
     def setUpClass(cls):
@@ -332,11 +324,13 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 elif recorded_reason == "periodic:character-dump":
                     policy.request_character_dump()
                 if index == 2:
-                    # R4: the speed-adjusted optimizer chooses Theoden with
-                    # an empty sub_hand (11.243 survival turns) instead of
-                    # Theoden with the cold shield (15.608 under the old
-                    # measure). Its takeoff replaces recorded shop travel.
-                    # Subsequent boards followed that travel key.
+                    # The new loadout metric permits the existing 5% survival
+                    # trade for Theoden's two-hand damage. This changes the
+                    # live key; later recorded boards follow the old travel.
+                    key = policy.choose_key(snapshot)
+                    self.assertEqual((str(key), policy.last_reason), (
+                        "tb", "equipment-transaction:takeoff",
+                    ))
                     return
                 key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
@@ -471,8 +465,8 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             }
             _recorded_process_capture(policy, snapshot)
             policy.confirm_key_posted(key)
-            # The character dump posts no game time: the following board is
-            # the same state, on which the departure reads Word of Recall.
+            # Probe the same captured board twice; equipment ownership remains
+            # active without a new confirmation row.
             again = policy.choose_key(snapshot)
             follow_up = (str(again), policy.last_reason)
             cls.replay = (
@@ -480,36 +474,29 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             )
         return cls.replay
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
-    def test_u2_affordable_optional_purchases_still_happen(self):
+    def test_u2_recorded_purchase_boards_are_only_observed(self):
         decisions, *_rest = self._replay()
+        # These old boards no longer produce purchases: the index-2 equipment
+        # takeoff was never confirmed, and the shop pages are only observed.
         self.assertEqual(
-            decisions[AMMO_BUY], ("pj21\r\r\x1b", "shop:one-shot-buy")
+            decisions[AMMO_BUY], ("\x1b", "shop:observe-and-leave")
         )
-        self.assertEqual(decisions[HEALING_BUY], ("pl\r\x1b", "shop:one-shot-buy"))
+        self.assertEqual(decisions[HEALING_BUY],
+                         ("\x1b", "shop:observe-and-leave"))
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
     def test_root_cause_claims_on_the_post_purchase_board(self):
         _decisions, _decided, _state, _follow, claim_view, _required = (
             self._replay()
         )
         self.assertEqual(claim_view["gold"], 3729)
-        self.assertEqual(claim_view["departure_failed"], [])
-        # launcher-enchant is live at the Alchemist; its page this visit wants
-        # nothing (no Enchant To-Dam on the shelf).
-        self.assertIn((STORE_ALCHEMIST, "launcher-enchant"), claim_view["needs"])
-        self.assertTrue(
-            claim_view["page_wants_nothing"][(STORE_ALCHEMIST, "launcher-enchant")]
-        )
-        # The Healing purchase confirmation re-armed the Black Market; its page
-        # this visit has nothing affordable at 3,729 gold.
-        self.assertIn((STORE_BLACK, "black-market"), claim_view["needs"])
-        self.assertTrue(
-            claim_view["page_wants_nothing"][(STORE_BLACK, "black-market")]
-        )
+        self.assertEqual(claim_view["needs"], [])
+        self.assertEqual(claim_view["page_wants_nothing"], {})
+        self.assertEqual(claim_view["departure_failed"], [
+            "calibration_loadout_restored", "calibration_phase_complete",
+            "calibration_restore_complete", "equipment_departure_ready",
+        ])
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
-    def test_u1_after_the_healing_purchase_the_bot_departs(self):
+    def test_u1_recorded_post_purchase_board_remains_equipment_owned(self):
         _decisions, decided, state, follow_up, _view, _required = self._replay()
         recorded = self.boundaries["recorded"]
         # Recorded: ('\x1b`n%.', 'shop:travel') back to the Alchemist, then the
@@ -520,40 +507,38 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         self.assertEqual(
             recorded[OWNER_RETIRED], ["2", "town:blocked:owner-retired"]
         )
-        self.assertEqual(decided, ("Cf\ry\x1b\x1b", "town:character-dump"))
-        self.assertEqual(state["claims"], [])
+        self.assertEqual(decided, ("3", "equipment-transaction:approach-home"))
+        self.assertEqual(state["claims"],
+                         ["equipment-work", "equipment-transaction"])
         self.assertEqual(state["departure_block"], {})
-        self.assertEqual(follow_up, ("rga", "town:recall-to-angband"))
+        self.assertEqual(follow_up, decided)
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
-    def test_u3_required_supply_claims_are_not_released(self):
+    def test_u3_teleport_requirement_remains_visible_under_equipment_owner(self):
         *_rest, required = self._replay()
         recorded_gold = required[3729]
         self.assertFalse(recorded_gold["helper"])
-        self.assertIn("teleport", recorded_gold["claims"])
-        self.assertEqual(recorded_gold["decision"], ("\x1b`n%.", "shop:travel"))
+        self.assertEqual(recorded_gold["claims"],
+                         ["equipment-work", "equipment-transaction"])
+        self.assertEqual(recorded_gold["decision"],
+                         ("3", "equipment-transaction:approach-home"))
         self.assertEqual(recorded_gold["requirements"], ["Teleport scrolls"])
-        # The observed Alchemist page offers nothing at 50 gold, yet the
-        # required shortage still blocks departure.
+        # The Alchemist page offers nothing at 50 gold. The Teleport shortage
+        # remains visible, while the equipment owner still takes the decision.
         poor = required[50]
         self.assertTrue(poor["helper"])
-        self.assertIn("Teleport scrolls", poor["requirements"])
-        self.assertIn("teleport_ready", poor["departure_block_failed"])
-        self.assertNotEqual(poor["decision"][1], "town:character-dump")
-        self.assertFalse(poor["decision"][1].startswith("town:recall-to-"))
+        self.assertEqual(poor["requirements"], ["Teleport scrolls"])
+        self.assertEqual(poor["claims"],
+                         ["equipment-work", "equipment-transaction"])
+        self.assertEqual(poor["decision"], recorded_gold["decision"])
+        self.assertIsNone(poor["departure_block_failed"])
 
-    @unittest.skip("R4: index 2 takes off the shield instead of travelling to the shop")
     def test_s2a1_observe_goals_complete_on_their_confirmed_effect(self):
         """S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime.
 
-        It is the one recorded lifetime in the fixtures with confirmed store
-        effects of every kind: purchases, sales, Home deposits and Home
-        withdrawals, besides the dungeon's loot and choke walks.  Each
-        confirmed effect completes the store owner's ``Observe`` claim at its
-        own confirmation site; the loot and choke ``Reach`` claims complete on
-        arrival or are released where their producer drops them.  The pins
-        of the same design item on the two captures it names are in
-        tests/test_ownership_s2a1_closure.py.
+        The counterfactual replay keeps the recorded boards after the index-2
+        equipment divergence. It measures which Observe claims still complete
+        and which Reach claims arrive on the next row. Other closure pins are
+        in tests/test_ownership_s2a1_closure.py.
         """
         from hengbot.ownership_metrics import gate_numbers
 
