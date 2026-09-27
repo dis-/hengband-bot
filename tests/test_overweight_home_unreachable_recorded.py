@@ -311,10 +311,9 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            # R6 captures the Home scan as the opening requester at sequences
-            # 3-4; the Home visit then deposits on that visit, adding two
-            # genuine mismatches to R5's 15. No requester is missing.
-            17,
+            # Router plan stops now record the family they serve. The four
+            # remaining rows are actual requester/operator disagreements.
+            4,
         )
 
     def test_calibration_transaction_observes_still_complete(self):
