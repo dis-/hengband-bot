@@ -11,8 +11,8 @@ import unittest
 import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 
 from hengbot.claim_register import ClaimRegister, observe
-from hengbot.claim_goal_typing import GOAL_TYPING, OPERATION_CLAIMS, STORE_ENTRY, goal_typing
-from hengbot.claim_ladder import rung_of
+from hengbot.claim_goal_typing import GOAL_TYPING, OPERATION_CLAIMS, STORE_ENTRY, KNOWLEDGE, goal_typing
+from hengbot.claim_ladder import rung_of, owner_change, PREEMPTION, VIOLATION
 from hengbot.ownership_metrics import read_records, s3_numbers
 from hengbot.model import InventoryItem, Position, STORE_HOME
 from hengbot.equipment_transaction_planner import EquipmentTransactionPlan
@@ -25,6 +25,24 @@ from test_ownership_s2b1_ladder import _Decisions
 
 
 class S3aRecordTest(unittest.TestCase):
+    def test_knowledge_observe_can_yield_but_store_operation_cannot(self):
+        self.assertEqual(
+            goal_typing("home-scan", "home:request-knowledge-scan").content,
+            KNOWLEDGE,
+        )
+        self.assertEqual(
+            goal_typing("home-errand", "home-errand:request-knowledge:combat-weapon").content,
+            KNOWLEDGE,
+        )
+        self.assertEqual(owner_change(
+            held_rank=10, held_goal_kind="Observe", held_goal_source=KNOWLEDGE,
+            held_survival=False, new_rank=0, new_survival=False,
+        ), PREEMPTION)
+        self.assertEqual(owner_change(
+            held_rank=10, held_goal_kind="Observe", held_goal_source="store-operation",
+            held_survival=False, new_rank=0, new_survival=False,
+        ), VIOLATION)
+
     def test_router_plan_stop_requester_is_recorded_per_reused_visit(self):
         decisions = _Decisions()
         visit = StoreVisit(
@@ -256,9 +274,10 @@ class S3aRecordTest(unittest.TestCase):
         )
         deposit = decisions.decide("home:atomic-deposit")
         request = decisions.decide("home-errand:request-knowledge:combat-weapon")
-        self.assertEqual(request["goal"]["expectation"][1:],
-                         ["('weapon', 1, 2)", str(STORE_HOME), "errand"])
-        self.assertIn("knowledge", request["goal"]["expectation"][0])
+        self.assertEqual(request["goal"]["expectation"],
+                         [str(decisions.policy._town_visit_epoch),
+                          str(STORE_HOME), "knowledge"])
+        self.assertEqual(request["goal"]["source"], "knowledge")
         self.assertNotEqual(deposit["goal"]["expectation"], request["goal"]["expectation"])
         self.assertTrue(request["scan-during-pending-atomic"])
         self.assertFalse(request["non_discardable"])

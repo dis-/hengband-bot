@@ -507,7 +507,9 @@ def pair_scope(held: Rung, new: Rung) -> str:
 
 def never_suspended(goal_kind: str | None, goal_source: str | None) -> bool:
     """Rev 10.1 item 6: a store-operation or transaction Observe claim."""
-    return goal_kind == GOAL_OBSERVE and goal_source not in (FLOOR_CHANGE, "store-entry")
+    return goal_kind == GOAL_OBSERVE and goal_source not in (
+        FLOOR_CHANGE, "store-entry", "knowledge"
+    )
 
 
 def owner_change(

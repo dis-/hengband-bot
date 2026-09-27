@@ -107,6 +107,7 @@ from hengbot.claim_goal_typing import (
     OBSERVE_WITHIN as CLAIM_OBSERVE_WITHIN,
     STORE_OPERATION as CLAIM_OBSERVE_STORE_OPERATION,
     STORE_ENTRY as CLAIM_OBSERVE_STORE_ENTRY,
+    KNOWLEDGE as CLAIM_OBSERVE_KNOWLEDGE,
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     STORE_OPERATION_OWNERS as CLAIM_STORE_OPERATION_OWNERS,
     GOAL_NOTE_NO_SLOT as CLAIM_GOAL_NOTE_NO_SLOT,
@@ -3403,6 +3404,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
                     source="calibration",
                 )
+        if content == CLAIM_OBSERVE_KNOWLEDGE:
+            return claim_observe(
+                (STORE_HOME, "knowledge",
+                 getattr(self, "_home_knowledge_scan_epoch", None)
+                 or getattr(self, "_town_visit_epoch", None)),
+                STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_KNOWLEDGE,
+            )
         if content != CLAIM_OBSERVE_STORE_OPERATION:
             return None
         visit = getattr(self, "_store_visit", None)
@@ -3437,13 +3445,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     identity,
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
-        if owner.value == "home-scan" and reason.startswith("home:request-knowledge"):
-            return claim_observe(
-                (STORE_HOME, "knowledge",
-                 getattr(self, "_home_knowledge_scan_epoch", None)
-                 or getattr(self, "_town_visit_epoch", None)),
-                STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
-            )
         if owner.value == "home-errand":
             request = getattr(getattr(self, "_home_errand", None), "request", None)
             if request is not None:
@@ -3748,11 +3749,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if goal.kind != CLAIM_GOAL_OBSERVE:
             return
         if (
-            standing.owner.value == "home-errand"
-            and goal.source == CLAIM_OBSERVE_STORE_OPERATION
+            goal.source == CLAIM_OBSERVE_KNOWLEDGE
             and (getattr(self, "_home_knowledge_current", False)
                  or getattr(self, "_claim_home_knowledge_observed", False))
-            and any(part.startswith("('knowledge',") for part in goal.expectation)
         ):
             self._complete_claim_goal("home-knowledge-current", owners=own)
             return
@@ -3901,21 +3900,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         standing = register.current
         self._claim_exit_completion(snapshot, standing, pops)
         standing = register.current
-        if (
-            reason == "town-progress-invariant:continue-observed-shop"
-            and standing is not None and standing.is_open
-            and standing.owner.value == "home-errand"
-            and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-        ):
-            # This shop-page exit abandons the attempted Home knowledge
-            # request in favor of the observed shop page.  The filed errand
-            # persists and opens a fresh request after that page is handled.
-            self._release_claim_goal(
-                "shop-observation-interruption", owners=(standing.owner,),
-                kinds=(CLAIM_GOAL_OBSERVE,),
-                sources=(CLAIM_OBSERVE_STORE_OPERATION,),
-            )
-            standing = register.current
         if (
             standing is not None and standing.is_open
             and standing.goal.kind == CLAIM_GOAL_REACH
@@ -4243,7 +4227,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (
                 getattr(self, "_store_leave_inflight", None) is not None
                 and claim.goal.kind == CLAIM_GOAL_OBSERVE
-                and claim.goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and claim.goal.source in {
+                    CLAIM_OBSERVE_STORE_OPERATION, CLAIM_OBSERVE_KNOWLEDGE,
+                }
                 and visit_requester is not None
                 and visit_requester != claim.owner.value
                 and reason != "shop:await-leave-confirmation"
@@ -4405,10 +4391,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         for claim in register.suspended:
             goal = claim.goal
             if (
-                claim.owner.value == "home-errand"
-                and goal.kind == CLAIM_GOAL_OBSERVE
-                and goal.source == CLAIM_OBSERVE_STORE_OPERATION
-                and any(part.startswith("('knowledge',") for part in goal.expectation)
+                goal.kind == CLAIM_GOAL_OBSERVE
+                and goal.source == CLAIM_OBSERVE_KNOWLEDGE
                 and (getattr(self, "_home_knowledge_current", False)
                      or getattr(self, "_claim_home_knowledge_observed", False))
             ):
@@ -4510,15 +4494,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The same owner pursuing the same goal keeps its claim, survival
             # or not (``declare`` updates its survival flag).
             return None, None, None
-        if (
-            (self.last_reason or "") == "town:character-dump"
-            and owner.value == "bookkeeping"
-            and standing.non_discardable
-            and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-        ):
-            # The periodic dump is bookkeeping between posted operation
-            # pages.  Preserve the operation claim for its later receipt.
-            return CLAIM_PREEMPTION, "bookkeeping-interruption", None
         if (standing.owner == owner
                 and standing.goal.source in {"transaction", "calibration"}
                 and goal.source == CLAIM_OBSERVE_STORE_ENTRY

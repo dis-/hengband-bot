@@ -5094,6 +5094,7 @@ class TownMixin:
                 not self._char_dump_done_this_visit
                 and not snapshot.player.blind
                 and not snapshot.player.confused
+                and self._periodic_filler_is_safe(snapshot)
             ):
                 # Snapshot the full character sheet just before committing to the
                 # dive, so the human can review stats/resistances/equipment per dive.

@@ -272,7 +272,7 @@ class HomeMixin:
         self._claim_home_knowledge_observed = True
         self._complete_observed_effect(
             "home-knowledge-current", owners=("home-scan",),
-            sources=("store-operation",),
+            sources=("knowledge",),
         )
         self._home_knowledge_invalidated = False
         self._equipment_catalog.complete_home_scan(items)
@@ -295,7 +295,7 @@ class HomeMixin:
         if not self._home_knowledge_current:
             self._release_claim_goal(
                 "home-knowledge-request-cleared", owners=("home-scan",),
-                kinds=("Observe",), sources=("store-operation",),
+                kinds=("Observe",), sources=("knowledge",),
             )
         self._home_knowledge_scan_epoch = None
         self._home_knowledge_scan_inflight = False
@@ -1902,7 +1902,7 @@ class HomeMixin:
         else:
             self._release_claim_goal(
                 "target-unobserved", owners=("home-visit", "home-errand"),
-                kinds=("Observe",), sources=("store-operation",),
+                kinds=("Observe",), sources=("knowledge",),
             )
         self._home_atomic_withdraw_pending = None
         self._home_atomic_withdraw_procurement_class = None
