@@ -406,9 +406,7 @@ class HomeVisitCaptureAcceptanceTest(unittest.TestCase):
         fixture = "tests/fixtures/home-door-bounce-decisions.jsonl"
         self.assertEqual(
             hashlib.sha256(
-                (self.ROOT / fixture).read_bytes().replace(b"
-", b"
-")
+                (self.ROOT / fixture).read_bytes().replace(b"\r\n", b"\n")
             ).hexdigest(),
             "b0f15535c02c3756a6c89fb24cf323ba6ebba0e2af7b385e0bd9fc84d147ae50",
         )
