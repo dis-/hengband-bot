@@ -14889,7 +14889,11 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
         ):
             key = policy.choose_key(self.before)
 
-        self.assertIn("town:character-dump", policy.last_reason)
+        # Ruling (a') gates the departure dump on a quiet claim state even
+        # with the S3.3 switch OFF. The open shop approach therefore steps
+        # off the entrance first on this recorded board.
+        self.assertEqual((str(key), policy.last_reason),
+                         ("6", "town:entrance-step-off:shop:approach"))
         self.assertNotIn("deposit", policy.last_reason)
 
     def test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow(self):
