@@ -25,6 +25,53 @@ from test_ownership_s2b1_ladder import _Decisions
 
 
 class S3aRecordTest(unittest.TestCase):
+    def test_town_producer_entries_defer_without_starting_sessions(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        board = decisions.board
+        holder = decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy._town_claim_bar_enforced = True
+        before = (
+            policy._equipment_transaction_session,
+            policy._home_errand.request,
+            policy._calibration_phase,
+        )
+        self.assertIsNone(policy._town_restore_weapon_key(board))
+        self.assertIsNone(policy._equipment_transaction_town_key(board))
+        self.assertIsNone(policy._equipment_transaction_town_owner_key(board))
+        self.assertIsNone(policy._calibration_town_key(board))
+        self.assertIsNone(policy._town_procurement_progress_key(board))
+        self.assertFalse(policy._file_home_errand(
+            board, HomeErrandRequest(("test", 1, 1), 1, "home-catalog", "test"),
+            knowledge_current=False,
+        ))
+        self.assertEqual(before, (
+            policy._equipment_transaction_session,
+            policy._home_errand.request,
+            policy._calibration_phase,
+        ))
+        rows = policy._decision_errand_deferred
+        self.assertEqual({row["deferred_family"] for row in rows}, {
+            "equipment-txn", "calibration", "home-errand",
+        })
+        self.assertTrue(all(row["holder_claim_id"] == holder["claim_id"] for row in rows))
+
+        home = _Decisions()
+        home_claim = home.decide(
+            "calibration:request-restore-knowledge", cell=home.cell(3)
+        )
+        home.policy._town_claim_bar_enforced = True
+        self.assertIsNotNone(
+            home.policy._claim_errand_hold("store-router"), home_claim
+        )
+        self.assertIsNone(home.policy._town_procurement_decision(home.board, "k"))
+        self.assertEqual(home.policy._decision_errand_deferred[-1], {
+            "holder_family": "calibration",
+            "holder_claim_id": home_claim["claim_id"],
+            "deferred_family": "store-router",
+            "deferred_reason": "procurement-decision",
+        })
+
     def test_town_hold_is_one_predicate_and_restores_with_switch_off(self):
         decisions = _Decisions()
         policy = decisions.policy

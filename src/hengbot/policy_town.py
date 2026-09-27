@@ -1104,12 +1104,10 @@ class TownMixin:
 
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
-    ) -> str:
+    ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
         if self._defer_town_errand("store-router", "procurement-decision"):
-            # The holder's key has already won upstream; this downstream seam
-            # must not compose a competing procurement approach over it.
-            return key
+            return None
         proposed_reason = self.last_reason or ""
         if (
             snapshot.store is None
