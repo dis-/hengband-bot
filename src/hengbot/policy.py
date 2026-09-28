@@ -10362,6 +10362,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             blocker = "equipment-transaction-active"
         elif self._identification_need_actionable(snapshot):
             blocker = "identification-active"
+        elif self._calibration_unrewearable_worn(snapshot):
+            blocker = "identify-first-worn"
         elif self._home_pending_item is not None:
             blocker = "home-item-pending"
         elif self._home_pending_batch:
