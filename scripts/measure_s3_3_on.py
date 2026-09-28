@@ -38,8 +38,11 @@ def claim_goal_summary(rows, claim_id):
 def main(case, mode="on"):
     original_init = HengbotPolicy.__init__
     original_choose = HengbotPolicy.choose_key
+    original_confirm = HengbotPolicy.confirm_key_posted
     silent_details = []
     stale_visit_details = []
+    typed_observation_waits = []
+    empty_non_typed = []
 
     def enforced_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
@@ -50,6 +53,25 @@ def main(case, mode="on"):
     def captured_choose(self, snapshot):
         key = original_choose(self, snapshot)
         visit = getattr(self, "_store_visit", None)
+        if key == "":
+            reason = self.last_reason or ""
+            entry_wait = (reason == "store:entry-await-observation"
+                          and visit is not None
+                          and visit.posted_sequence is not None
+                          and self._store_entry_posted_owner == visit.store_type
+                          and self._store_entry_wait_owner == visit.store_type)
+            operation_wait = (reason in {
+                "shop:one-shot-in-flight",
+                "home:atomic-deposit-await-confirmation",
+                "home:atomic-withdraw-await-confirmation",
+            } and visit is not None and visit.operation_posted
+                and visit.claim_operation_identity is not None)
+            target = typed_observation_waits if (entry_wait or operation_wait) else empty_non_typed
+            target.append({"sequence": self._decision_sequence,
+                           "reason": reason,
+                           "identity": (visit.posted_sequence if entry_wait
+                                        else visit.claim_operation_identity
+                                        if operation_wait else None)})
         for deferred in getattr(self, "_decision_errand_deferred", ()) or ():
             holder_id = deferred.get("holder_claim_id")
             if visit is not None and visit.claim_id == holder_id and (
@@ -82,6 +104,14 @@ def main(case, mode="on"):
             })
         return key
     HengbotPolicy.choose_key = captured_choose
+    if mode == "on":
+        def confirm_or_stop(self, key):
+            if key is None and (self.last_reason or "").startswith(
+                "ownership:holder-silent:"
+            ):
+                return None
+            return original_confirm(self, key)
+        HengbotPolicy.confirm_key_posted = confirm_or_stop
     module_name, class_name = CASES[case]
     fixture = getattr(importlib.import_module(module_name), class_name)
     fixture.setUpClass()
@@ -256,6 +286,8 @@ def main(case, mode="on"):
             for (holder, claim_id), count in holder_claims.most_common(12)
         ],
         "holder_silent": silent, "stops": stops,
+        "typed_observation_waits": typed_observation_waits,
+        "empty_non_typed": empty_non_typed,
         "holder_silent_details": silent_details,
         "stale_visit_details": stale_visit_details,
         "focus": focus, "violation_windows": violation_windows,

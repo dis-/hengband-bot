@@ -7267,8 +7267,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (active_holder is not None
                     and active_holder.owner.value == "equipment-txn"
                     and session is not None
-                    and getattr(session.pending_action, "kind", None) == "deposit"
-                    and getattr(self._store_visit, "operation_posted", False)):
+                    and getattr(self._store_visit, "operation_posted", False)
+                    and not getattr(self._store_visit, "operation_released", False)):
                 self.last_reason = "equipment-transaction:atomic-deposit"
                 key = WAIT_KEY
             elif (rearm := self._home_rearm_key(snapshot)) is not None:
