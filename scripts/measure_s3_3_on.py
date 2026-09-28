@@ -128,6 +128,8 @@ def main(case, mode="on"):
     s3_gate = (ladder.get("violations", {}).get("S3", {}).get("count", 0)
                - s3.get("plan_handoff", 0))
     deferrals = Counter()
+    token_admissions = Counter()
+    real_interruption_admissions = []
     holder_claims = Counter()
     holder_examples = {}
     claim_endings = {}
@@ -154,6 +156,17 @@ def main(case, mode="on"):
         for deferred in row.get("errand_deferred") or ():
             deferrals[(deferred.get("holder_family"),
                        deferred.get("deferred_family"))] += 1
+            if deferred.get("token_would_admit"):
+                token_admissions[(deferred.get("holder_family"),
+                                  deferred.get("deferred_family"))] += 1
+                if ((case == "tour" and sequence in {2701, 3052})
+                        or (case == "overweight" and sequence == 3723)
+                        or (case == "town" and sequence in {
+                            1177, 1916, 1922, 1958,
+                        })):
+                    real_interruption_admissions.append({
+                        "sequence": sequence, "deferred": deferred,
+                    })
             holder_claims[(deferred.get("holder_family"),
                            deferred.get("holder_claim_id"))] += 1
             holder_examples.setdefault(
@@ -226,6 +239,12 @@ def main(case, mode="on"):
         "classes": dict(classes),
         "s3_gate": s3_gate,
         "errand_deferred": sum(deferrals.values()),
+        "token_admissions": sum(token_admissions.values()),
+        "token_admission_families": [
+            {"holder": holder, "delegate": delegate, "count": count}
+            for (holder, delegate), count in token_admissions.most_common()
+        ],
+        "real_interruption_admissions": real_interruption_admissions,
         "deferral_families": [
             {"holder": holder, "deferred": deferred, "count": count}
             for (holder, deferred), count in deferrals.most_common()

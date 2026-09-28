@@ -255,11 +255,19 @@ class TownTurnArbiter:
                     opened_producer_family or (owner if owner != "town-errand" else None)
                 ),
                 opened_for_family=opened_for_family,
+                requester_families=(
+                    frozenset({opened_for_family}) if opened_for_family else frozenset()
+                ),
             )
             self.store_visit = visit
         else:
             # Each operation records the request that reused this visit.
             visit.opened_for_family = opened_for_family
+            if opened_for_family:
+                visit.requester_families = (
+                    getattr(visit, "requester_families", frozenset())
+                    | {opened_for_family}
+                )
         return visit
 
     def owner_for_reason(self, reason: str) -> str:
@@ -721,10 +729,25 @@ class TownArbiterMixin:
         """Set the approach target and record its composing producer at open."""
         if store_type is None:
             return
+        visit = self._store_visit
+        if visit is not None:
+            # A route is its own top-level owner.  The plan stop's later
+            # buy/sell is a separate sequential operation, not a route child.
+            self._open_execution_delegation(
+                "store-router", "store-router",
+                ("route", visit.opened_sequence, store_type),
+                ("trip", requester, visit.purpose, store_type),
+                "arrived-or-entered", "town-travel-progress-budget",
+            )
         self._shopping_approach_store_type = store_type
         if self._store_visit is not None:
             self._store_visit.opened_for_family = requester
             self._store_visit.request_structure = structure
+            if requester:
+                self._store_visit.requester_families = (
+                    getattr(self._store_visit, "requester_families", frozenset())
+                    | {requester}
+                )
 
     @_shopping_approach_store_type.setter
     def _shopping_approach_store_type(self, value: int | None) -> None:

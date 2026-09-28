@@ -3259,6 +3259,13 @@ class TownMixin:
             if stops
             else None
         )
+        if plan is not None:
+            plan.requester_families = {
+                store_type: self._router_plan_stop_families(
+                    store_type, plan=plan
+                )
+                for store_type in dict.fromkeys(stops)
+            }
         if previous is not None:
             old_stop = (previous.stops[previous.index]
                         if previous.index < len(previous.stops) else None)

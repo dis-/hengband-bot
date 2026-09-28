@@ -337,6 +337,8 @@ class S3aRecordTest(unittest.TestCase):
             "holder_claim_id": home_claim["claim_id"],
             "deferred_family": "store-router",
             "deferred_reason": "procurement-decision",
+            "token_would_admit": False,
+            "token_work_identity": None,
         })
 
     def test_town_hold_is_one_predicate_and_restores_with_switch_off(self):
@@ -355,6 +357,8 @@ class S3aRecordTest(unittest.TestCase):
             "holder_claim_id": row["claim_id"],
             "deferred_family": "home-scan",
             "deferred_reason": "home:request-knowledge-scan",
+            "token_would_admit": False,
+            "token_work_identity": None,
         })
         restored = pickle.loads(pickle.dumps(policy))
         del restored._town_claim_bar_enforced
@@ -397,14 +401,20 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIs(decisions.policy._store_visit, visit)
         self.assertEqual(visit.opened_for_family, "home-visit")
         self.assertEqual(visit.request_structure, "router-plan-stop")
+        self.assertEqual(visit.requester_families,
+                         frozenset({"home-visit"}))
         restored = pickle.loads(pickle.dumps(decisions.policy))
         self.assertEqual(restored._store_visit.opened_for_family, "home-visit")
         self.assertEqual(restored._store_visit.request_structure,
                          "router-plan-stop")
+        self.assertEqual(restored._store_visit.requester_families,
+                         frozenset({"home-visit"}))
         restored._store_visit.owner = "town-errand"
         restored._request_store_trip(STORE_HOME, "shop-buy")
         self.assertEqual(restored._store_visit.opened_for_family, "shop-buy")
         self.assertIsNone(restored._store_visit.request_structure)
+        self.assertEqual(restored._store_visit.requester_families,
+                         frozenset({"home-visit", "shop-buy"}))
 
     def test_router_plan_stop_names_only_unambiguous_family(self):
         decisions = _Decisions()
@@ -417,8 +427,23 @@ class S3aRecordTest(unittest.TestCase):
             "weight-overload", "identification-withdrawal"
         )
         self.assertIsNone(policy._router_plan_stop_family(None))
+        self.assertEqual(policy._router_plan_stop_families(None),
+                         frozenset({"home-visit", "home-errand"}))
+        policy._town_errand_plan.requester_families[STORE_HOME] = (
+            policy._router_plan_stop_families(None)
+        )
+        self.assertEqual(
+            pickle.loads(pickle.dumps(policy))._town_errand_plan
+            .requester_families[STORE_HOME],
+            frozenset({"home-visit", "home-errand"}),
+        )
+        restored = pickle.loads(pickle.dumps(policy))
+        del restored._town_errand_plan.requester_families
+        self.assertEqual(restored._router_plan_stop_families(None),
+                         frozenset({"home-visit", "home-errand"}))
         policy._town_errand_plan.need_categories[STORE_HOME] = ("unknown-need",)
         self.assertIsNone(policy._router_plan_stop_family(None))
+        self.assertEqual(policy._router_plan_stop_families(None), frozenset())
 
     def test_claim_recording_preserves_decision_attribution(self):
         decisions = _Decisions()

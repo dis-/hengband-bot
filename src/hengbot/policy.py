@@ -11,6 +11,29 @@ from enum import Enum
 from typing import Callable, Iterable, Literal, Mapping
 from pathlib import Path
 
+
+@dataclass
+class ExecutionDelegation:
+    """Recorded, explicitly opened executor work; never inferred at a hold."""
+
+    parent_claim_id: int | None
+    parent_family: str
+    delegate_family: str
+    work_identity: tuple
+    purpose_identity: tuple
+    opening_decision: int
+    expected_effect: str
+    budget_reference: str
+    lifecycle: str = "reserved"
+    ending: str | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        return {name: getattr(self, name) for name in (
+            "parent_claim_id", "parent_family", "delegate_family",
+            "work_identity", "purpose_identity", "opening_decision",
+            "expected_effect", "budget_reference", "lifecycle", "ending",
+        )}
+
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
     assignment_provenance,
@@ -2294,6 +2317,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_naked_dump_inflight = False
         self._calibration_naked_flags: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
+        # #8 record-only explicit executor grants.  A reserved child binds to
+        # the parent's claim at the choose_key exit, before the next gate.
+        self._execution_delegations: list[ExecutionDelegation] = []
         self._equipment_atomic_withdraw_leave_count = 0
         # Physical equipment removed by the live optimizer transaction remains
         # owned by that transaction until it is observed worn again.  This is
@@ -4428,6 +4454,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot, register,
             dropped=standing if transition_violation is not None else None,
         )
+        self._bind_execution_delegations(claim)
+        self._observe_execution_delegations()
         self.decision_claim = {
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
@@ -4500,6 +4528,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "errand_deferred": list(
                 getattr(self, "_decision_errand_deferred", None) or ()
             ) or None,
+            "requester_families": sorted(
+                getattr(getattr(self, "_store_visit", None),
+                        "requester_families", ())
+            ),
+            "execution_delegations": [
+                record.as_dict() for record in self._delegation_records()
+                if record.lifecycle in {"reserved", "open"}
+                and record.parent_claim_id == claim.claim_id
+            ] or None,
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
@@ -5148,11 +5185,157 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return claim
         return None
 
-    def _defer_town_errand(self, family: str, reason: str) -> bool:
+    def _delegation_records(self) -> list[ExecutionDelegation]:
+        records = getattr(self, "_execution_delegations", None)
+        if records is None:
+            records = []
+            self._execution_delegations = records
+        return records
+
+    def _open_execution_delegation(
+        self, parent_family: str, delegate_family: str,
+        work_identity: tuple, purpose_identity: tuple,
+        expected_effect: str, budget_reference: str,
+    ) -> ExecutionDelegation:
+        """Reserve a named child before invoking its executor (record-only)."""
+        work_identity = tuple(work_identity)
+        purpose_identity = tuple(purpose_identity)
+        for record in self._delegation_records():
+            if (record.lifecycle in {"reserved", "open"}
+                    and record.parent_family == parent_family
+                    and record.delegate_family == delegate_family
+                    and record.work_identity == work_identity
+                    and record.purpose_identity == purpose_identity):
+                return record
+        register = getattr(self, "_claim_register", None)
+        parent = getattr(register, "current", None)
+        parent_id = (parent.claim_id if parent is not None and parent.is_open
+                     and parent.owner.value == parent_family else None)
+        record = ExecutionDelegation(
+            parent_id, parent_family, delegate_family, work_identity,
+            purpose_identity, self._decision_sequence, expected_effect,
+            budget_reference, "open" if parent_id is not None else "reserved",
+        )
+        self._delegation_records().append(record)
+        return record
+
+    def _end_execution_delegation(
+        self, delegate_family: str, work_identity: tuple,
+        *, completed: bool, cause: str,
+    ) -> None:
+        for record in self._delegation_records():
+            if (record.lifecycle in {"reserved", "open"}
+                    and record.delegate_family == delegate_family
+                    and record.work_identity == tuple(work_identity)):
+                record.lifecycle = "completed" if completed else "released"
+                record.ending = cause
+
+    def _bind_execution_delegations(self, claim) -> None:
+        """Bind same-decision reservations or cancel an unmatched opening."""
+        for record in self._delegation_records():
+            if (record.lifecycle != "reserved"
+                    or record.opening_decision != self._decision_sequence):
+                continue
+            if claim is not None and claim.is_open and (
+                claim.owner.value == record.parent_family
+            ):
+                record.parent_claim_id = claim.claim_id
+                record.lifecycle = "open"
+            else:
+                record.lifecycle = "released"
+                record.ending = "exit-owner-mismatch"
+
+    def _observe_execution_delegations(self) -> None:
+        """Retire children only when their named source resolves."""
+        session = self._equipment_transaction_session
+        visit = self._store_visit
+        for record in self._delegation_records():
+            if record.lifecycle != "open":
+                continue
+            work = record.work_identity
+            if work[:1] == ("session",):
+                same_session = (
+                    session is not None
+                    and session.target_loadout_id == work[2]
+                    and tuple((action.kind, action.target_slot,
+                               action.item_identity)
+                              for action in session.plan.actions) == work[3]
+                )
+                if not same_session:
+                    record.lifecycle = "released"
+                    record.ending = "session-replaced-or-ended"
+                elif session.complete:
+                    record.lifecycle = "completed"
+                    record.ending = "session-effect-observed"
+            elif work[:1] in {("home-operation",), ("staged-tail",)}:
+                identity = tuple(work[1:])
+                if visit is not None and visit.claim_operation_identity == identity:
+                    if visit.operation_effect_observed:
+                        record.lifecycle = "completed"
+                        record.ending = "home-operation-effect-observed"
+                elif visit is None or visit.phase == StoreVisitPhase.CLOSED:
+                    record.lifecycle = "released"
+                    record.ending = "home-operation-ended-unobserved"
+            elif work[:1] == ("route",):
+                if visit is not None and visit.opened_sequence == work[1]:
+                    if visit.phase in {
+                        StoreVisitPhase.OPERATING, StoreVisitPhase.LEAVING,
+                        StoreVisitPhase.CLOSED,
+                    }:
+                        record.lifecycle = "completed"
+                        record.ending = "route-arrived"
+                elif visit is None:
+                    record.lifecycle = "released"
+                    record.ending = "route-ended-unobserved"
+            elif record.delegate_family == "home-scan":
+                if self._home_knowledge_current:
+                    record.lifecycle = "completed"
+                    record.ending = "catalogue-adopted"
+            elif work[:1] == ("filed",):
+                request = self._home_errand.request
+                if request is None or (
+                    request.signature, request.quantity,
+                    request.origin, request.purpose
+                ) != work[1:]:
+                    record.lifecycle = "released"
+                    record.ending = "filed-request-replaced"
+                elif not self._home_errand.active:
+                    record.lifecycle = "completed" if (
+                        self._home_errand.state.value == "done"
+                    ) else "released"
+                    record.ending = f"filed-request:{self._home_errand.state.value}"
+            elif work[:1] == ("deposit-candidate",):
+                if self._calibration_phase != "deposit":
+                    record.lifecycle = "completed" if (
+                        work[1] in self._calibration_restore_signatures
+                    ) else "released"
+                    record.ending = "calibration-deposit-phase-ended"
+            elif work[:1] == ("restore-batch",):
+                if self._calibration_phase != "restore-supplies":
+                    record.lifecycle = "completed" if (
+                        not self._calibration_restore_signatures
+                    ) else "released"
+                    record.ending = "calibration-restore-phase-ended"
+            if record.lifecycle == "open" and record.parent_claim_id is not None:
+                register = self._claim_register
+                live = [register.current, *register.suspended]
+                if not any(
+                    claim is not None and claim.claim_id == record.parent_claim_id
+                    and claim.is_open for claim in live
+                ):
+                    record.lifecycle = "released"
+                    record.ending = "parent-claim-ended"
+
+    def _defer_town_errand(
+        self, family: str, reason: str, *, work_identity: tuple | None = None,
+    ) -> bool:
         """Record a competing producer and enforce the hold only when ON."""
         holder = self._claim_errand_hold(family)
         if holder is None:
             return False
+        token = self._recorded_execution_token(
+            holder, family, reason, work_identity=work_identity
+        )
         deferred = getattr(self, "_decision_errand_deferred", None)
         if deferred is None:
             deferred = []
@@ -5162,8 +5345,71 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "holder_claim_id": holder.claim_id,
             "deferred_family": family,
             "deferred_reason": reason,
+            "token_would_admit": token is not None,
+            "token_work_identity": token.work_identity if token else None,
         })
         return getattr(self, "_town_claim_bar_enforced", False)
+
+    def _recorded_execution_token(
+        self, holder, family: str, reason: str,
+        *, work_identity: tuple | None = None,
+    ):
+        """Measure exact child admission without changing the ON hold."""
+        for record in self._delegation_records():
+            if (record.lifecycle != "open"
+                    or record.parent_claim_id != holder.claim_id
+                    or record.parent_family != holder.owner.value
+                    or record.delegate_family != family):
+                continue
+            work = record.work_identity
+            if family == "equipment-txn" and work[:1] == ("session",):
+                session = self._equipment_transaction_session
+                if (session is not None
+                        and session.target_loadout_id == work[2]
+                        and tuple((action.kind, action.target_slot,
+                                   action.item_identity)
+                                  for action in session.plan.actions) == work[3]):
+                    return record
+            elif family == "home-scan" and reason == "choose-key-scan":
+                request = self._home_errand.request
+                if (request is not None and self._home_errand.needs_knowledge
+                        and work[:1] == ("knowledge",)
+                        and work[2:] == (request.signature, request.purpose)
+                        and self._home_atomic_deposit_pending is None
+                        and self._home_atomic_withdraw_pending is None):
+                    return record
+            elif family == "store-router" and work[:1] == ("route",):
+                visit = self._store_visit
+                if (visit is not None and visit.opened_sequence == work[1]
+                        and visit.store_type == work[2]):
+                    return record
+            elif family == "home-visit" and work[:1] == ("home-operation",):
+                visit = self._store_visit
+                if (visit is not None and visit.operation_posted
+                        and visit.claim_operation_identity == work[1:]
+                        and visit.operation_producer_family == holder.owner.value):
+                    return record
+            elif family == "home-errand" and work[:1] == ("filed",):
+                session = self._equipment_transaction_session
+                visit = self._store_visit
+                unfinished_transaction = (
+                    holder.owner.value == "equipment-txn"
+                    and (
+                        (session is not None and not session.complete)
+                        or (visit is not None and visit.operation_posted
+                            and not visit.operation_effect_observed)
+                    )
+                )
+                if (reason in {
+                        "file", "file-combat-weapon", "file-identification"
+                    }
+                        and work_identity is not None
+                        and work == tuple(work_identity)
+                        and not unfinished_transaction
+                        and self._home_atomic_deposit_pending is None
+                        and self._home_atomic_withdraw_pending is None):
+                    return record
+        return None
 
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str:
         """Keep an awaiting holder, or expose a holder that cannot advance."""

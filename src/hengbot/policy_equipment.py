@@ -2547,9 +2547,20 @@ class EquipmentMixin:
             )
             weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
             signature = self._item_signature(weapon)
+            filing_identity = (
+                "filed", signature, 1, "home-page", "combat-weapon"
+            )
+            self._open_execution_delegation(
+                "equipment-txn", "home-errand", filing_identity,
+                ("combat-weapon", signature), "filed-home-request",
+                "equipment/home-errand-existing-budget",
+            )
             if (
                 getattr(self, "_town_claim_bar_enforced", False)
-                and self._defer_town_errand("home-errand", "file-combat-weapon")
+                and self._defer_town_errand(
+                    "home-errand", "file-combat-weapon",
+                    work_identity=filing_identity,
+                )
             ):
                 return None
             self._file_home_errand(
