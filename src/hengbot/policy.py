@@ -6080,6 +6080,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 )
                             self._persist_calibration_redress_obligation()
             if self._equipment_transaction_session.complete:
+                self._retire_replaced_equipment_transaction_owned_items(
+                    snapshot, self._equipment_transaction_session
+                )
                 if (
                     self._equipment_transaction_restoring
                     and self._equipment_transaction_owned_items
