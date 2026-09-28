@@ -1,0 +1,7 @@
+Source (read only): C:\hengband\bot-client\jsonlog\incident-20260928-1153-newchar-quest34-wield-light-loop
+state.jsonl.gz SHA256 D5681A17EC22A53508CEA2DF266B28AEDA47650D5A8690C4A59693CEFD47B0B3
+decisions.jsonl.gz SHA256 EB3579B563C74AFD4D57EFF0EF9D0E7470EB4A3DFB4ABCC5A2BD7D56855D409B
+
+The JSON gzip fixture contains complete state rows at turns 75445, 75453,
+75496 and 75507, plus decision_sequence, turn, reason and key from decision
+rows 50, 51, 55 and 56. No source artifact was modified.
