@@ -465,7 +465,42 @@ class S3aRecordTest(unittest.TestCase):
             claim_owner="home-errand", operation_producer_family="shop-buy",
         )
         barrier = decisions.decide("shop:await-leave-confirmation")
-        self.assertEqual(barrier["owner"], "home-errand")
+        self.assertEqual(barrier["owner"], "shop-buy")
+        self.assertEqual(barrier["barrier_provenance"], "shop-buy")
+        generation = decisions.decide("shop:await-leave-generation")
+        self.assertEqual(generation["owner"], "shop-buy")
+        self.assertEqual(generation["barrier_provenance"], "shop-buy")
+
+    def test_leave_barrier_falls_back_only_to_selected_requester(self):
+        decisions = _Decisions()
+        visit = StoreVisit(
+            owner="store-router", purpose="home", store_type=STORE_HOME,
+            opened_sequence=1, claim_owner="calibration",
+            requester_families=frozenset({"home-visit", "home-errand"}),
+            exit_requester="home-errand",
+        )
+        decisions.policy._store_visit = visit
+        self.assertEqual(decisions.decide("shop:await-leave-confirmation")
+                         ["barrier_provenance"], "home-errand")
+        visit.exit_requester = None
+        self.assertEqual(decisions.decide("shop:await-leave-generation")
+                         ["barrier_provenance"], "barrier-provenance-missing")
+        restored = pickle.loads(pickle.dumps(decisions.policy))
+        self.assertIsNone(restored._store_visit.exit_requester)
+        del restored._store_visit.exit_requester
+        self.assertEqual(restored._visit_exit_family(),
+                         "barrier-provenance-missing")
+
+    def test_completed_operation_exit_does_not_open_store_observe(self):
+        decisions = _Decisions()
+        decisions.policy._store_visit = StoreVisit(
+            owner="shop-one-shot", purpose="purchase", store_type=STORE_HOME,
+            opened_sequence=1, operation_producer_family="shop-buy",
+            operation_effect_observed=True,
+        )
+        row = decisions.decide("shop:await-leave-confirmation")
+        self.assertNotEqual(row["goal"].get("source"), "store-operation")
+        self.assertEqual(row["barrier_provenance"], "shop-buy")
 
     def test_new_store_operation_during_unconfirmed_leave_is_recorded(self):
         decisions = _Decisions()

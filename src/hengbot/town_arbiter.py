@@ -881,6 +881,10 @@ class TownArbiterMixin:
                 opened_producer_family="recovered-store-context",
             )
             self._store_visit = visit
+        if visit.exit_requester is None:
+            selected = getattr(self, "_decision_non_discardable", None)
+            if selected in visit.requester_families:
+                visit.exit_requester = selected
         visit.transition(StoreVisitPhase.LEAVING, LEAVE_STORE_KEY)
         visit.posted_sequence = sequence
         visit.posted_turn = turn

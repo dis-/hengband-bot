@@ -2936,6 +2936,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
         )
         self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
+        if self.last_reason in {"shop:await-leave-confirmation",
+                                "shop:await-leave-generation"}:
+            self.decision_attribution = self._visit_exit_family()
         if (
             self._equipment_transaction_session is None
             and STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -3045,8 +3048,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # producer calls them on the board that uses its own target; the
     # declaration at the ``choose_key`` exit reads only the slot.
 
+    def _visit_exit_family(self) -> str:
+        """Return the captured operation's owner for a store leave barrier."""
+        visit = getattr(self, "_store_visit", None)
+        producer = getattr(visit, "operation_producer_family", None)
+        if producer in CLAIM_S3_FAMILIES:
+            return producer
+        requester = getattr(visit, "exit_requester", None)
+        if (requester in CLAIM_S3_FAMILIES
+                and requester in getattr(visit, "requester_families", ())):
+            return requester
+        return "barrier-provenance-missing"
+
     def _claim_family_of(self, reason: str | None) -> str:
         """The census family of a reason, answered by the live arbiter."""
+        if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
+            return self._visit_exit_family()
         if reason and reason.startswith("town:entrance-step-off:"):
             return self._claim_family_of(reason.split(":", 2)[2])
         if reason and reason.startswith((
@@ -3588,11 +3605,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # Neither a lagged store entry nor an incomplete Home page ends
             # the operation or knowledge observation it is waiting for.
             return standing.goal, False, None
-        if (reason == "shop:await-leave-confirmation"
+        if (reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}
                 and standing is not None and standing.is_open
                 and standing.owner == owner
                 and standing.goal.kind == CLAIM_GOAL_OBSERVE
-                and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION):
+                and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and not getattr(getattr(self, "_store_visit", None),
+                                "operation_effect_observed", False)):
             return standing.goal, False, None
         visit = getattr(self, "_store_visit", None)
         completed_transaction = (
@@ -3603,7 +3622,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._claim_register.current.closed_reason == "equipment-transaction-complete"
         )
         if (
-            reason in {"shop:leave", "shop:store-context-exit"}
+            reason in {"shop:leave", "shop:store-context-exit",
+                       "shop:await-leave-confirmation",
+                       "shop:await-leave-generation"}
             or reason.startswith("home:leave-")
             or reason == "home:store-context-exit"
         ) and (completed_transaction or (visit is not None and visit.operation_effect_observed)):
@@ -4099,12 +4120,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             continuation_claim.owner if continuing_owner
             else claim_owner_of(self._claim_family_of(reason))
         )
-        if reason == "shop:await-leave-confirmation":
-            visit = getattr(self, "_store_visit", None)
-            family = (getattr(visit, "claim_owner", None)
-                      or getattr(visit, "operation_producer_family", None)
-                      or getattr(visit, "opened_for_family", None))
-            if family and family != "store-router":
+        if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
+            family = self._visit_exit_family()
+            if family != "barrier-provenance-missing":
                 owner = claim_owner_of(family)
         self._claim_refresh_non_discardable(owner)
         # S2b.1 (rev 10.1 items 1-2): the rung and rank of this decision.
@@ -4473,6 +4491,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "visit_owner_structure": visit_owner_structure,
             "visit_requester": visit_requester,
             "visit_operator": claim.owner.value if visit is not None else None,
+            "barrier_provenance": (
+                self._visit_exit_family()
+                if reason in {"shop:await-leave-confirmation",
+                              "shop:await-leave-generation"} else None
+            ),
             "leave_confirmation_interruption": leave_confirmation_interruption,
             "leave_confirmation_pending": (
                 getattr(self, "_store_leave_inflight", None) is not None
