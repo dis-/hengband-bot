@@ -11,6 +11,7 @@ from __future__ import annotations
 import gzip
 import json
 import unittest
+import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 from dataclasses import replace
 from pathlib import Path
 
