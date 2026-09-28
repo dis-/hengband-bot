@@ -18,7 +18,10 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot.model import STORE_HOME, TVAL_BOLT, _parse_items, parse_snapshot
+from hengbot.model import (STORE_HOME, TVAL_BOLT, TVAL_SCROLL,
+                           SV_SCROLL_STAR_REMOVE_CURSE, _parse_items,
+                           parse_snapshot)
+from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import TownErrandPlan
 from hengbot.protocol import snapshot_protocol_version
@@ -147,6 +150,45 @@ class TownHomeCandidateStallRecordedTest(unittest.TestCase):
         conjuncts = policy._recall_town_departure_conjuncts(observed)
         self.assertTrue(conjuncts["home_candidate_resolved"])
         self.assertTrue(conjuncts["home_pending_item_clear"])
+
+    def test_recorded_home_star_scroll_files_withdrawal_across_restore(self):
+        policy = HengbotPolicy()
+        policy.prime(self.board)
+        knowledge = self.capture["knowledge"]
+        policy.consume_home_knowledge(tuple(_parse_items(
+            knowledge["knowledge"]["items"],
+            protocol=snapshot_protocol_version(knowledge),
+        )))
+        reserve = next(item for item in policy._home_knowledge_items
+                       if item.tval == TVAL_SCROLL
+                       and item.sval == SV_SCROLL_STAR_REMOVE_CURSE)
+        self.assertEqual((reserve.count, reserve.aware), (1, True))
+        self.assertEqual((policy._home_star_remove_curse_count,
+                          policy._carried_star_remove_curse_count(self.board),
+                          policy._recall_departure_shortage(self.board)),
+                         (1, 0, False))
+        self.assertIn("home-star-remove-curse-use",
+                      {need.category for need in policy._enumerate_town_needs(self.board)})
+        policy._town_errand_plan = TownErrandPlan(
+            [4, STORE_HOME, 3, 2, 6],
+            {STORE_HOME: ("identification-withdrawal",)}, index=1,
+        )
+        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        # The capture's ammo withdrawal owns the first Home take.  Once that
+        # operation completes, the still-cursed robe needs the next request.
+        policy._home_pending_item = None
+        policy._home_withdrawal_queued = False
+        board = replace(self.board, player=replace(
+            self.board.player, two_weapon_skill=0, shield_skill=0,
+        ))
+        self.assertEqual(policy.choose_key(board), "\x1b`n(.")
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertEqual(policy._home_pending_item, policy._item_signature(reserve))
+        self.assertTrue(policy._home_withdrawal_queued)
+        request = policy._derived_home_visit_request(board)
+        self.assertEqual((request.item_identity, request.quantity),
+                         (policy._item_signature(reserve), 1))
+        self.assertIsNone(policy.home_route_refusal_state())
 
 
 if __name__ == "__main__":
