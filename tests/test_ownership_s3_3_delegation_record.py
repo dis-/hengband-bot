@@ -24,6 +24,80 @@ from hengbot.home_errand import HomeErrandRequest
 
 
 class DelegationRecordTest(unittest.TestCase):
+    def test_posted_entry_wait_keeps_route_child_until_observation(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=decisions.cell(4))
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._store_visit = StoreVisit(
+            owner="store-router", purpose="approach", store_type=STORE_HOME,
+            opened_sequence=1, posted_sequence=policy._decision_sequence,
+        )
+        policy._store_entry_posted_owner = STORE_HOME
+        policy._store_entry_wait_owner = STORE_HOME
+        policy.last_reason = "store:entry-await-observation"
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, ""), "")
+        self.assertEqual(policy.last_reason, "store:entry-await-observation")
+        self.assertEqual(decisions.register.current.claim_id, held["claim_id"])
+        self.assertTrue(decisions.register.current.is_open)
+        policy._store_visit.posted_sequence = None
+        with patch.object(policy, "_town_holder_wait_key", return_value="8") as route:
+            self.assertEqual(policy._enforce_town_claim_result(
+                decisions.board, ""), "8")
+        route.assert_called_once()
+
+    def test_unrestored_obligation_has_visible_stop_without_a_key(self):
+        from hengbot.cli import _policy_final_stop_banner
+
+        decisions = _Decisions()
+        decisions.decide("calibration:restore-wield")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._calibration_stripped_unrestored = True
+        holder = policy._claim_errand_hold("__none__")
+        self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:calibration")
+        self.assertIn("stopping the bot", _policy_final_stop_banner(
+            policy.last_reason))
+        self.assertTrue(decisions.register.current.is_open)
+
+    def test_posted_home_operation_without_provenance_stops(self):
+        decisions = _Decisions()
+        held = decisions.decide("home:atomic-deposit")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._store_visit = StoreVisit(
+            owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
+            opened_sequence=1, operation_posted=True,
+        )
+        holder = policy._claim_errand_hold("__none__")
+        self.assertEqual(holder.claim_id, held["claim_id"])
+        self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:home-visit")
+        self.assertTrue(decisions.register.current.is_open)
+
+    def test_no_step_owner_releases_and_bars_its_durable_work(self):
+        decisions = _Decisions()
+        held = decisions.decide("home:atomic-deposit")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy._map_predicate_snapshot = decisions.board
+        owner = policy._claim_errand_hold("__none__")
+        self.assertEqual(owner.claim_id, held["claim_id"])
+        self.assertIsNone(policy._town_holder_wait_key(owner, decisions.board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-released:home-visit")
+        self.assertEqual(decisions.register.current.closed_reason,
+                         "no-step:unposted")
+        bar = decisions.register.bars[-1]
+        self.assertEqual((bar.owner.value, bar.goal),
+                         (owner.owner.value, owner.goal))
+        self.assertIn(":no-step:", bar.ending)
+        self.assertTrue(policy._defer_town_errand("home-visit", "reopen"))
+
     def test_calibration_strip_installer_records_exact_session(self):
         rows = recorded_rows()
         dressed = parse_snapshot(rows[0], {})
@@ -105,6 +179,10 @@ class DelegationRecordTest(unittest.TestCase):
         )
         self.assertEqual(token.lifecycle, "reserved")
         self.assertIsNone(token.parent_claim_id)
+        policy._town_claim_bar_enforced = True
+        self.assertIs(policy._recorded_execution_token(
+            policy._claim_errand_hold("equipment-txn"),
+            "equipment-txn", "town-key"), token)
         policy.last_reason = "calibration:restore-wield"
         policy._record_decision_claim(decisions.board, "k")
         self.assertEqual(token.parent_claim_id, held["claim_id"])
@@ -112,6 +190,10 @@ class DelegationRecordTest(unittest.TestCase):
         holder = policy._claim_errand_hold("equipment-txn")
         self.assertIs(policy._recorded_execution_token(
             holder, "equipment-txn", "town-key"), token)
+        self.assertIsNone(policy._recorded_execution_token(
+            holder, "equipment-txn", "town-key",
+            work_identity=("session", "restore", "other", ()),
+        ))
         policy._town_claim_bar_enforced = True
         self.assertFalse(policy._defer_town_errand("equipment-txn", "town-key"))
         self.assertTrue(policy._defer_town_errand("home-scan", "outside-scan"))

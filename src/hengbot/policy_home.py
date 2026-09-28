@@ -1933,7 +1933,8 @@ class HomeMixin:
             )
         if succeeded and not failed:
             self._complete_observed_effect(
-                "home-withdraw-observed", owners=("home-visit", "home-errand"),
+                "home-withdraw-observed",
+                owners=("home-visit", "home-errand", "calibration"),
                 sources=("store-operation",),
             )
         else:

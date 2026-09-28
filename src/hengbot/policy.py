@@ -2495,6 +2495,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # S2b.2: the rungs the bar skipped on this decision (switch on only).
         self._decision_bar_skips = None
         self._decision_errand_deferred = []
+        self._decision_no_step_release = False
+        self._decision_cancelled_home_reservation = None
         # Round 4 (F3): an armed path-target capture never outlives the
         # decision that armed it (each arm/take pair is also try/finally).
         self.__dict__.pop("_claim_target_capture", None)
@@ -2662,30 +2664,65 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._record_decision_claim(snapshot, key)
                 return key
         self._last_policy_progress_core = current_progress_core
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and (snapshot.in_town or snapshot.store is not None)):
+            # Finish an observed arrival or store entry before asking the next
+            # town producer.  Otherwise its entry gate sees yesterday's route.
+            standing = getattr(self._claim_register, "current", None)
+            if standing is not None and standing.is_open:
+                self._claim_exit_completion(snapshot, standing, [])
+            self._observe_execution_delegations()
         home_capture = self._home_entry_capture
         if home_capture is not None:
             key = home_capture.choose_key(self, snapshot)
         else:
             key = self._choose_key_with_latch_capture(snapshot)
         key = self._enforce_town_claim_result(snapshot, key)
-        if (key is None and snapshot.in_town
-                and getattr(self, "_town_claim_bar_enforced", False)
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and (snapshot.in_town or snapshot.store is not None)
                 and not self._warning_prompt_stops_decision):
-            holder = self._claim_errand_hold("__none__")
-            if holder is not None:
-                if holder is getattr(self._claim_register, "current", None):
-                    self._claim_exit_completion(snapshot, holder, [])
+            retried = set()
+            while key is None and not (self.last_reason or "").startswith(
+                "ownership:holder-silent:"
+            ):
                 holder = self._claim_errand_hold("__none__")
                 if holder is not None:
-                    key = self._town_holder_wait_key(holder, snapshot)
-                else:
-                    self.last_reason = "ownership:holder-complete"
-                    key = WAIT_KEY
-            elif getattr(self, "_decision_errand_deferred", None):
-                # A producer yielded before this board completed its holder.
-                # Advance once so the next decision can use the closed claim.
-                self.last_reason = "ownership:holder-complete"
+                    if holder.claim_id in retried:
+                        self.last_reason = (
+                            f"ownership:holder-silent:{holder.owner.value}"
+                        )
+                        break
+                    retried.add(holder.claim_id)
+                    if holder is getattr(self._claim_register, "current", None):
+                        self._claim_exit_completion(snapshot, holder, [])
+                    holder = self._claim_errand_hold("__none__")
+                    if holder is not None:
+                        key = self._town_holder_wait_key(holder, snapshot)
+                        if key is not None or (self.last_reason or "").startswith(
+                            "ownership:holder-silent:"
+                        ):
+                            break
+                elif not getattr(self, "_decision_errand_deferred", None):
+                    break
+                # An observed completion or named release gives the next
+                # eligible producer the same immutable board.
+                self._decision_errand_deferred = []
+                key = self._choose_key_with_latch_capture(snapshot)
+                key = self._enforce_town_claim_result(snapshot, key)
+            if (key == "" and (self.last_reason or "").startswith(
+                "ownership:holder-await:home-scan"
+            )):
                 key = WAIT_KEY
+                self.last_reason = "home:scan-await-observation"
+            if (key is None and getattr(self, "_decision_no_step_release", False)
+                    and self._claim_errand_hold("__none__") is None):
+                self.last_reason = "town:blocked:owner-retired"
+                key = WAIT_KEY
+            if (self.last_reason or "").startswith(
+                "ownership:holder-silent:"
+            ):
+                self._record_decision_claim(snapshot, None)
+                return None
         # The producers below commit the store visit to the key they return:
         # an in-store leave arms _store_leave_inflight and a composed one-shot
         # marks operation_posted.  Every rewrite between here and the return
@@ -4563,6 +4600,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if record.lifecycle in {"reserved", "open"}
                 and record.parent_claim_id == claim.claim_id
             ] or None,
+            "cancelled_home_reservation": getattr(
+                self, "_decision_cancelled_home_reservation", None
+            ),
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
@@ -5068,11 +5108,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ),
                 **common,
             )
-        if ending != CLAIM_CLOSED_BY_RETIRED:
+        no_step = (claim.closed_reason or "").startswith("no-step:")
+        if ending != CLAIM_CLOSED_BY_RETIRED and not no_step:
             return None
         # The retirement is this decision's (``_claim_owner_retired``), so the
         # reason the key is computed for is the decision's own.
-        reason = (
+        reason = None if no_step else (
             self.last_reason
             if self._claim_family_of(self.last_reason) == claim.owner.value
             else None
@@ -5307,7 +5348,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     record.ending = "home-operation-ended-unobserved"
             elif work[:1] == ("route",):
                 if visit is not None and visit.opened_sequence == work[1]:
-                    if visit.phase in {
+                    parent = getattr(self._claim_register, "current", None)
+                    arrived_claim = (
+                        parent is not None
+                        and parent.claim_id == record.parent_claim_id
+                        and parent.closed == CLAIM_CLOSED_BY_COMPLETE
+                    )
+                    if arrived_claim or visit.phase in {
                         StoreVisitPhase.OPERATING, StoreVisitPhase.LEAVING,
                         StoreVisitPhase.CLOSED,
                     }:
@@ -5359,6 +5406,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, family: str, reason: str, *, work_identity: tuple | None = None,
     ) -> bool:
         """Record a competing producer and enforce the hold only when ON."""
+        if getattr(self, "_town_claim_bar_enforced", False):
+            board = getattr(self, "_map_predicate_snapshot", None)
+            register = getattr(self, "_claim_register", None)
+            if board is not None and register is not None:
+                for bar in register.bars:
+                    if (bar.kind == CLAIM_BAR_ERRAND
+                            and ":no-step:" in (bar.ending or "")
+                            and bar.owner.value == family
+                            and self._claim_bar_after(board, bar) is not None):
+                        return True
         holder = self._claim_errand_hold(family)
         if holder is None:
             return False
@@ -5384,17 +5441,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, holder, family: str, reason: str,
         *, work_identity: tuple | None = None,
     ):
-        """Measure exact child admission without changing the ON hold."""
+        """Find the live, identity-matching grant for this executor."""
         for record in self._delegation_records():
-            if (record.lifecycle != "open"
-                    or record.parent_claim_id != holder.claim_id
+            bound = (record.lifecycle == "open"
+                     and record.parent_claim_id == holder.claim_id)
+            reserved_for_holder = (
+                record.lifecycle == "reserved"
+                and record.opening_decision == self._decision_sequence
+                and record.parent_claim_id is None
+                and holder is getattr(self._claim_register, "current", None)
+            )
+            if (not (bound or reserved_for_holder)
                     or record.parent_family != holder.owner.value
                     or record.delegate_family != family):
                 continue
             work = record.work_identity
             if family == "equipment-txn" and work[:1] == ("session",):
                 session = self._equipment_transaction_session
-                if (session is not None
+                if ((work_identity is None
+                     or work == tuple(work_identity))
+                        and session is not None
                         and session.target_loadout_id == work[2]
                         and tuple((action.kind, action.target_slot,
                                    action.item_identity)
@@ -5403,11 +5469,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif family == "home-scan" and reason in {
                 "choose-key-scan", "outside-scan", "open-home-scan",
                 "final:home:request-knowledge-scan",
-        }:
+            }:
                 request = self._home_errand.request
                 if (request is not None and self._home_errand.needs_knowledge
                         and work[:1] == ("knowledge",)
                         and work[2:] == (request.signature, request.purpose)
+                        and self._home_atomic_deposit_pending is None
+                        and self._home_atomic_withdraw_pending is None):
+                    return record
+                if (record.parent_family == "calibration"
+                        and work[:1] == ("restore-scan",)
+                        and self._calibration_phase == "restore-supplies"
+                        and work[2] == tuple(
+                            self._calibration_restore_signatures
+                        )
                         and self._home_atomic_deposit_pending is None
                         and self._home_atomic_withdraw_pending is None):
                     return record
@@ -5444,8 +5519,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return record
         return None
 
-    def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str:
-        """Keep an awaiting holder, or expose a holder that cannot advance."""
+    def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
+        """Advance the named holder, release an exhausted one, or stop."""
         if (holder.owner.value == "store-router"
                 and holder.goal.kind == CLAIM_GOAL_REACH
                 and holder.goal.cell is not None):
@@ -5474,24 +5549,81 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         # one-cell fallback did not write a fresh goal slot.
                         self._declare_reach(goal, family="store-router")
                     return key
-        awaiting = (
-            holder.state.value == "awaiting"
-            or (holder.goal.source == CLAIM_OBSERVE_STORE_ENTRY
-                and self._store_entry_wait_owner is not None)
-            or (holder.goal.source == CLAIM_OBSERVE_KNOWLEDGE
-                and (self._home_knowledge_scan_requested
-                     or self._home_knowledge_scan_epoch is not None))
-            or (holder.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-                and (getattr(self._store_visit, "operation_posted", False)
-                     or self._home_atomic_deposit_pending is not None
-                     or self._home_atomic_withdraw_pending is not None))
-            or (holder.goal.source in {"transaction", "calibration"}
-                and getattr(self._equipment_transaction_session,
-                            "pending_action", None) is not None)
-        )
-        status = "holder-await" if awaiting else "holder-silent"
-        self.last_reason = f"ownership:{status}:{holder.owner.value}"
-        return ""
+            self.last_reason = "ownership:holder-silent:store-router"
+            return None
+        session = self._equipment_transaction_session
+        if (holder.owner.value in {"equipment-txn", "calibration"}
+                and session is not None
+                and not getattr(session, "complete", False)):
+            if session.pending_action is not None:
+                self.last_reason = "equipment-transaction:await-confirmation"
+                return (LEAVE_STORE_KEY if snapshot.store is not None
+                        else WAIT_KEY)
+            if getattr(session, "current_action", None) is not None:
+                key = (self._equipment_transaction_home_key(snapshot)
+                       if snapshot.store is not None
+                       and snapshot.store.store_type == STORE_HOME
+                       else self._equipment_transaction_town_key(snapshot))
+                if key is not None:
+                    return key
+        visit = self._store_visit
+        if (visit is not None and visit.operation_posted
+                and not visit.operation_released
+                and not visit.operation_effect_observed
+                and visit.operation_producer_family == holder.owner.value):
+            if snapshot.store is not None:
+                self.last_reason = "shop:await-leave-confirmation"
+                return (LEAVE_STORE_KEY if snapshot.store.store_type == STORE_HOME
+                        and self._home_entry_operation_posted else "\r")
+            self.last_reason = (
+                "equipment-transaction:await-confirmation"
+                if holder.owner.value == "equipment-txn"
+                else "home:atomic-deposit-await-confirmation"
+                if holder.owner.value == "home-visit"
+                else "shop:one-shot-in-flight"
+            )
+            return WAIT_KEY
+        if (holder.goal.source == CLAIM_OBSERVE_STORE_ENTRY
+                and self._store_entry_wait_owner is not None
+                and self._store_entry_posted_owner is not None):
+            self.last_reason = "store:entry-await-observation"
+            return WAIT_KEY
+        if (holder.goal.source == CLAIM_OBSERVE_KNOWLEDGE
+                and self._home_knowledge_scan_requested):
+            if holder is getattr(self._claim_register, "current", None):
+                self.last_reason = "home:scan-await-observation"
+                return WAIT_KEY
+            self.last_reason = f"ownership:holder-silent:{holder.owner.value}"
+            return None
+        children = [record for record in self._delegation_records()
+                    if record.lifecycle == "open"
+                    and record.parent_claim_id == holder.claim_id]
+        unresolved = (holder.non_discardable or bool(children)
+                      or (holder.owner.value in {"calibration", "equipment-txn"}
+                          and bool(self._calibration_stripped_unrestored))
+                      or (visit is not None and visit.operation_posted
+                          and not visit.operation_effect_observed
+                          and not visit.operation_released)
+                      or self._home_atomic_withdraw_pending is not None)
+        if not unresolved:
+            register = self._claim_register
+            if holder is register.current:
+                ended = register.release("no-step:unposted")
+            else:
+                register.close_suspended(
+                    holder.claim_id, "release", "no-step:unposted"
+                )
+                ended = replace(holder, closed="release",
+                                closed_reason="no-step:unposted")
+            if ended is not None:
+                bar = self._claim_bar_for(snapshot, ended, ended.closed)
+                if bar is not None:
+                    register.set_bar(bar)
+            self._decision_no_step_release = True
+            self.last_reason = f"ownership:holder-released:{holder.owner.value}"
+            return None
+        self.last_reason = f"ownership:holder-silent:{holder.owner.value}"
+        return None
 
     def _enforce_town_claim_result(self, snapshot: Snapshot, key):
         """Catch a town result from a producer that missed its entry hold."""
@@ -5504,6 +5636,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
         route = self._claim_errand_hold("__none__")
+        visit = self._store_visit
+        if (reason == "store:entry-await-observation" and key == ""
+                and visit is not None
+                and visit.posted_sequence is not None
+                and self._store_entry_posted_owner == visit.store_type
+                and self._store_entry_wait_owner == visit.store_type
+                and snapshot.store is None):
+            # The posted entry is the live operation being observed.  Its
+            # existing wait owns this board; the route child cannot post a
+            # second travel command until the entry is observed or released.
+            return key
         if (route is not None and route.owner.value == "store-router"
                 and route.goal.kind == CLAIM_GOAL_REACH
                 and family == "store-router"
@@ -6710,16 +6853,35 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or self._equipment_mutation.goal == "transaction-apply"
             )
             and not self._town_space_deposit_actionable(snapshot)
-            and not (
-                getattr(self, "_town_claim_bar_enforced", False)
-                and (
-                    self._home_atomic_deposit_pending is not None
-                    or self._home_atomic_withdraw_pending is not None
-                )
-            )
         ):
             if self._defer_town_errand("home-scan", "outside-scan"):
                 return None
+            if (getattr(self, "_town_claim_bar_enforced", False)
+                    and self._home_atomic_deposit_pending is not None
+                    and not getattr(self._store_visit, "operation_posted", False)
+                    and self._claim_errand_hold("__none__") is None):
+                # A staged but unposted deposit owns no turn without a claim.
+                # Cancel its named reservation before choosing the scan.
+                visit = self._store_visit
+                identity = getattr(visit, "claim_operation_identity", None)
+                if identity is not None:
+                    self._end_execution_delegation(
+                        "home-tail", ("staged-tail", *identity),
+                        completed=False, cause="unposted-reservation-cancelled",
+                    )
+                pending = self._home_atomic_deposit_pending
+                self._decision_cancelled_home_reservation = {
+                    "work_identity": ("unposted-home-deposit",
+                                      tuple(pending[0]), pending[2]),
+                    "cause": "selected-home-scan",
+                }
+                self._home_atomic_deposit_pending = None
+                self._home_entry_operation_posted = False
+                self._store_entry_wait_owner = None
+                self._store_entry_wait_key = None
+                self._store_entry_wait_turn = None
+                self._town_visit_ledger.pending_store_transaction = None
+                self._intentional_entrance_activation = False
             if self._home_errand.needs_knowledge:
                 self.last_reason = self._home_errand.reason("request-knowledge")
             else:
@@ -7097,9 +7259,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # Home item selection is never decided in the store loop.  Every
             # authorized deposit/withdrawal is a complete outside-composed
             # one-shot; an independently observed Home context is recovery-only.
-            rearm = self._home_rearm_key(snapshot)
-            if rearm is not None:
+            session = self._equipment_transaction_session
+            active_holder = (
+                self._claim_errand_hold("__none__")
+                if getattr(self, "_town_claim_bar_enforced", False) else None
+            )
+            if (active_holder is not None
+                    and active_holder.owner.value == "equipment-txn"
+                    and session is not None
+                    and getattr(session.pending_action, "kind", None) == "deposit"
+                    and getattr(self._store_visit, "operation_posted", False)):
+                self.last_reason = "equipment-transaction:atomic-deposit"
+                key = WAIT_KEY
+            elif (rearm := self._home_rearm_key(snapshot)) is not None:
                 key = rearm
+            elif (
+                getattr(self, "_town_claim_bar_enforced", False)
+                and self._equipment_transaction_session is not None
+                and self._equipment_transaction_session.pending_action is None
+                and (holder := self._claim_errand_hold("__none__")) is not None
+                and holder.owner.value == "equipment-txn"
+                and (equipment_key := self._equipment_transaction_home_key(
+                    snapshot
+                )) is not None
+            ):
+                key = equipment_key
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None

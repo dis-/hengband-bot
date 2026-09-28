@@ -43,9 +43,9 @@ class S3aRecordTest(unittest.TestCase):
             pending_action=object()
         )
         self.assertEqual(policy._town_holder_wait_key(
-            decisions.register.current, decisions.board), "")
+            decisions.register.current, decisions.board), "5")
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-await:equipment-txn")
+                         "equipment-transaction:await-confirmation")
 
     def test_new_leave_is_not_a_prior_leave_interruption(self):
         for posted_sequence, interrupted in ((1, True), (2, False)):
@@ -76,11 +76,11 @@ class S3aRecordTest(unittest.TestCase):
         policy._home_knowledge_scan_requested = True
         policy.last_reason = "shop:approach"
         self.assertEqual(
-            policy._town_procurement_decision(decisions.board, "9"), ""
+            policy._town_procurement_decision(decisions.board, "9"), "5"
         )
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-await:home-scan")
-        waiting = decisions.decide(policy.last_reason, key="")
+                         "home:scan-await-observation")
+        waiting = decisions.decide(policy.last_reason, key="5")
         self.assertEqual(waiting["claim_id"], held["claim_id"])
         self.assertIsNone(waiting["violation"])
 
@@ -92,8 +92,8 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(policy._enforce_town_claim_result(
             decisions.board, "~9\x1b\x1b"), "~9\x1b\x1b")
         policy._town_claim_bar_enforced = True
-        self.assertEqual(policy._enforce_town_claim_result(
-            decisions.board, "~9\x1b\x1b"), "")
+        self.assertIsNone(policy._enforce_town_claim_result(
+            decisions.board, "~9\x1b\x1b"))
         self.assertEqual(policy.last_reason,
                          "ownership:holder-silent:store-router")
         self.assertEqual(policy._decision_errand_deferred[-1]["holder_claim_id"],
@@ -203,10 +203,10 @@ class S3aRecordTest(unittest.TestCase):
         holder = policy._claim_errand_hold("shop-buy")
         self.assertEqual(holder.claim_id, held["claim_id"])
         policy._home_knowledge_scan_requested = True
-        self.assertEqual(policy._town_holder_wait_key(holder, decisions.board), "")
-        resumed = decisions.decide(policy.last_reason, key="")
-        self.assertEqual(resumed["claim_id"], held["claim_id"])
-        self.assertIsNone(resumed["violation"])
+        self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
+        self.assertEqual(policy.last_reason, "ownership:holder-silent:home-scan")
+        self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
+                         held["claim_id"])
 
     def test_suspended_route_refuses_owner_retired_terminal(self):
         decisions = _Decisions()
@@ -216,14 +216,13 @@ class S3aRecordTest(unittest.TestCase):
         policy = decisions.policy
         policy._town_claim_bar_enforced = True
         policy.last_reason = "town:blocked:owner-retired"
-        self.assertEqual(
-            policy._enforce_town_claim_result(decisions.board, "5"), ""
+        self.assertIsNone(
+            policy._enforce_town_claim_result(decisions.board, "5")
         )
         self.assertEqual(policy.last_reason,
                          "ownership:holder-silent:store-router")
-        resumed = decisions.decide(policy.last_reason, key="")
-        self.assertEqual(resumed["claim_id"], held["claim_id"])
-        self.assertIsNone(resumed["violation"])
+        self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
+                         held["claim_id"])
 
     def test_suspended_route_replaces_empty_entry_wrapper(self):
         decisions = _Decisions()
@@ -232,12 +231,12 @@ class S3aRecordTest(unittest.TestCase):
         policy = decisions.policy
         policy._town_claim_bar_enforced = True
         policy.last_reason = "store:entry-await-observation"
-        self.assertEqual(policy._enforce_town_claim_result(
-            decisions.board, ""), "")
+        self.assertIsNone(policy._enforce_town_claim_result(
+            decisions.board, ""))
         self.assertEqual(policy.last_reason,
                          "ownership:holder-silent:store-router")
-        resumed = decisions.decide(policy.last_reason, key="")
-        self.assertEqual(resumed["claim_id"], held["claim_id"])
+        self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
+                         held["claim_id"])
 
     def test_active_route_replaces_empty_entry_wrapper(self):
         decisions = _Decisions()
@@ -245,12 +244,12 @@ class S3aRecordTest(unittest.TestCase):
         policy = decisions.policy
         policy._town_claim_bar_enforced = True
         policy.last_reason = "store:entry-await-observation"
-        self.assertEqual(policy._enforce_town_claim_result(
-            decisions.board, ""), "")
+        self.assertIsNone(policy._enforce_town_claim_result(
+            decisions.board, ""))
         self.assertEqual(policy.last_reason,
                          "ownership:holder-silent:store-router")
-        continued = decisions.decide(policy.last_reason, key="")
-        self.assertEqual(continued["claim_id"], held["claim_id"])
+        self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
+                         held["claim_id"])
 
     def test_posted_shop_and_store_entry_wait_keep_visit_family(self):
         decisions = _Decisions()

@@ -396,6 +396,9 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 
 
 def _policy_final_stop_banner(reason: str) -> str:
+    if reason.startswith("ownership:holder-silent:"):
+        return (f"<{reason}> the town claim has no safe continuation; "
+                "stopping the bot for investigation")
     messages = {
         "equipment-transaction:restore-blocked-terminal": "recoverable gear restored; missing owned items remain",
         "equipment-transaction:home-route-repeat-terminal": "the same Home route failure recurred without an observed state change",
@@ -3977,7 +3980,9 @@ def _run_follow(
                             flush=True,
                         )
                         return incident_stop("loop-detected", snapshot)
-                    if policy.last_reason in POLICY_FINAL_STOP_REASONS:
+                    if (policy.last_reason in POLICY_FINAL_STOP_REASONS
+                            or (policy.last_reason or "").startswith(
+                                "ownership:holder-silent:")):
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, repeating_reason_count,
