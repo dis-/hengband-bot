@@ -2289,11 +2289,11 @@ class CombatMixin:
         # deep-floor caster, and one decision asks for the same prediction up to
         # six times (emergency/return gates plus the decision-log telemetry).
         # Key the memo on OBJECT IDENTITY plus turn/turns — and store the
-        # snapshot itself in the entry: the strong reference keeps its id from
-        # being recycled, and the `is` check proves the hit really is the same
-        # object (a gc'd snapshot's id CAN be reused by its successor, which
-        # once served a stale prediction). _observe also clears the memo every
-        # decision, scoping it to exactly the repeats it exists for.
+        # snapshot and hostiles in the entry: their strong references keep all
+        # keyed ids from being recycled.  A fixed-quest budget creates fresh
+        # modeled monsters against one snapshot; without retaining the old
+        # monsters, a later one's recycled id can return the wrong prediction.
+        # _observe also clears the memo every decision.
         memo_key = (
             id(snapshot),
             snapshot.turn,
@@ -2304,8 +2304,10 @@ class CombatMixin:
             melee_slots,
         )
         cached = self._threat_prediction_memo.get(memo_key)
-        if cached is not None and cached[0] is snapshot:
-            return cached[1]
+        if (cached is not None and len(cached) == 3 and cached[0] is snapshot
+                and len(cached[1]) == len(hostiles)
+                and all(old is new for old, new in zip(cached[1], hostiles))):
+            return cached[2]
         total = 0
         speed = snapshot.player.speed if player_speed is None else player_speed
         rows = []
@@ -2595,7 +2597,7 @@ class CombatMixin:
         }
         if len(self._threat_prediction_memo) >= THREAT_PREDICTION_MEMO_LIMIT:
             self._threat_prediction_memo.clear()
-        self._threat_prediction_memo[memo_key] = (snapshot, result)
+        self._threat_prediction_memo[memo_key] = (snapshot, tuple(hostiles), result)
         return result
     def _melee_blow_distributions(
         self, snapshot: Snapshot, knowledge, stunned: bool

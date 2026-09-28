@@ -1,6 +1,7 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 
 import ast
+import builtins
 import gzip
 import hashlib
 import inspect
@@ -9196,6 +9197,37 @@ class ThreatPredictionMemoTest(unittest.TestCase):
             pol.threat_prediction(one, [threat]),
             pol.threat_prediction(two, [threat]),
         )
+
+    def test_reused_hostile_identity_cannot_hit_a_previous_prediction(self):
+        first = hostile(1, 10, 12, hp=30, max_hp=30, distance=2,
+                        max_melee_damage=10)
+        second = hostile(2, 10, 12, hp=30, max_hp=30, distance=2,
+                         max_melee_damage=40)
+        snap = self._snap(first)
+        pol = HengbotPolicy()
+
+        def recycled_id(value):
+            return 99 if value is first or value is second else builtins.id(value)
+
+        with patch.object(policy_combat_module, "id", recycled_id, create=True):
+            one = pol.threat_prediction(snap, [first])
+            two = pol.threat_prediction(snap, [second])
+            self.assertIsNot(one, two)
+            self.assertIs(pol.threat_prediction(snap, [second]), two)
+        self.assertIs(next(iter(pol._threat_prediction_memo.values()))[1][0], second)
+
+    def test_restored_legacy_memo_entry_is_recomputed(self):
+        threat = hostile(1, 10, 12, hp=30, max_hp=30, distance=2,
+                         max_melee_damage=10)
+        snap = self._snap(threat)
+        pol = HengbotPolicy()
+        original = pol.threat_prediction(snap, [threat])
+        key = next(iter(pol._threat_prediction_memo))
+        pol._threat_prediction_memo[key] = (snap, original)
+        self.assertEqual(pol.threat_prediction(snap, [threat]), original)
+        self.assertEqual(len(pol._threat_prediction_memo[key]), 3)
+
+
 class AggregateRangedCacheTest(unittest.TestCase):
     """_aggregate_ranged_percentile keys the expensive convolution on its actual
     inputs, so an unchanged engagement (same race, actions, distance, player
