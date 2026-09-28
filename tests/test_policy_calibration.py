@@ -62,6 +62,192 @@ class CharacterCalibrationPhaseTest(unittest.TestCase):
 
     HOME = Position(10, 12)
 
+    def _newchar_identify_capture(self):
+        path = Path(__file__).parent / "fixtures" / "incident-newchar-calibration-identify-first.json"
+        capture = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(capture["provenance"]["state_line_numbers"], [415, 416, 420])
+        self.assertEqual(capture["provenance"]["decision_line_numbers"], list(range(289, 301)))
+        self.assertEqual(
+            [(row["reason"], row["key"]) for row in capture["decisions"][:6]],
+            [
+                ("equipment-transaction:takeoff", "ta"),
+                ("equipment-transaction:takeoff", "td"),
+                ("equipment-transaction:takeoff", "th"),
+                ("equipment-transaction:takeoff", "tg"),
+                ("calibration:request-naked-character", policy_module.CHARACTER_DUMP_MACRO),
+                ("town:entrance-step-off:equipment-mutation:identify-first", "9"),
+            ],
+        )
+        self.assertEqual(
+            [row["reason"] for row in capture["decisions"][6:]],
+            [
+                "equipment-transaction:abandon-blocked",
+                "equipment-mutation:identify-first",
+                "equipment-transaction:abandon-blocked",
+                "equipment-mutation:identify-first",
+                "equipment-transaction:abandon-blocked",
+                "town:blocked:owner-retired",
+            ],
+        )
+        dressed = parse_snapshot(capture["dressed"], {})
+        stripped = parse_snapshot(capture["stripped"], {})
+        self.assertEqual(dressed.turn, 79460)
+        self.assertEqual(stripped.turn, 79479)
+        self.assertEqual(dressed.player.gold, 136)
+        self.assertEqual(
+            [(it.slot, it.tval, it.sval, it.known) for it in dressed.equipment],
+            [
+                ("main_hand", 23, 16, True),
+                ("main_ring", 45, 38, True),
+                ("light", 39, 1, False),
+                ("body", 37, 4, True),
+            ],
+        )
+        self.assertEqual(stripped.equipment, [])
+        self.assertEqual(
+            [(it.slot, it.tval, it.sval, it.known) for it in stripped.inventory],
+            [("a", 45, 38, True), ("b", 39, 1, False),
+             ("c", 37, 4, True), ("d", 23, 16, True)],
+        )
+        torch = capture["home_torch"]
+        self.assertEqual(
+            (torch["tval"], torch["sval"], torch["known"], torch["light_turns"]),
+            (39, 0, True, 2491),
+        )
+        return dressed, stripped
+
+    def test_newchar_capture_unknown_worn_lantern_defers_calibration(self):
+        dressed, _ = self._newchar_identify_capture()
+        policy = self._scan_complete_policy()
+
+        self.assertFalse(policy._calibration_unrewearable_worn(
+            replace(dressed, equipment=[it for it in dressed.equipment if it.slot != "light"])
+        ))
+        self.assertEqual(
+            policy.calibration_entry_state(dressed)["entry_blocker"],
+            "identify-first-worn",
+        )
+        self.assertIsNone(policy._calibration_town_key(dressed))
+        self.assertIsNone(policy._calibration_phase)
+        self.assertIsNone(policy._equipment_transaction_session)
+
+        self.assertIsNone(policy._town_equipped_identification_key(dressed))
+        self.assertEqual(policy._identification_need, "normal")
+        self.assertEqual(
+            policy._identification_candidate,
+            policy._item_signature(next(it for it in dressed.equipment if it.slot == "light")),
+        )
+
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="Identify", known=True)
+        affordable = replace(dressed, inventory=[scroll])
+        policy = self._scan_complete_policy()
+        self.assertEqual(policy._town_equipped_identification_key(affordable), "rs/g")
+        self.assertEqual(policy.last_reason, "identify:normal-equipped")
+
+        identified = replace(
+            dressed,
+            equipment=[
+                replace(it, known=True, fully_known=True)
+                if it.slot == "light" else it
+                for it in dressed.equipment
+            ],
+        )
+        policy = self._scan_complete_policy()
+        self.assertEqual(policy._calibration_town_key(identified), WAIT_KEY)
+        self.assertEqual(policy._calibration_phase, "strip")
+
+    def test_newchar_capture_restore_skips_unknown_but_keeps_known_gear(self):
+        dressed, stripped = self._newchar_identify_capture()
+        policy = self._scan_complete_policy()
+        policy._calibration_worn_before = tuple(
+            (it.slot, equipment_identity(it)) for it in dressed.equipment
+        )
+        policy._calibration_stripped_unrestored = True
+
+        self.assertTrue(policy._install_calibration_restore_session(stripped))
+        actions = policy._equipment_transaction_session.plan.actions
+        self.assertEqual(
+            [(action.kind, action.target_slot) for action in actions],
+            [("equip", "body"), ("equip", "main_ring"),
+             ("equip", "main_hand")],
+        )
+        self.assertEqual(policy._equipment_transaction_town_key(stripped), "wc")
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+
+    def test_newchar_capture_checkpoint_redresses_known_items_before_unknown(self):
+        dressed, stripped = self._newchar_identify_capture()
+        obligations = [(it.slot, equipment_identity(it)) for it in dressed.equipment]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "character-calibration.json"
+            path.write_text(json.dumps({"redress_obligation": obligations}), encoding="utf-8")
+            policy = self._scan_complete_policy()
+            policy._character_calibration_path = path
+
+            policy._restore_calibration_redress_obligation(stripped)
+            key = policy._calibration_redress_key(stripped)
+            self.assertEqual(key, "wd")
+            self.assertEqual(policy.last_reason, "calibration:redress")
+            self.assertTrue(policy._calibration_stripped_unrestored)
+
+            weapon = next(it for it in stripped.inventory if it.tval == TVAL_SWORD)
+            ring = next(it for it in stripped.inventory if it.tval == TVAL_RING)
+            armour = next(it for it in stripped.inventory if it.tval == 37)
+            lantern = next(it for it in stripped.inventory if it.tval == TVAL_LITE)
+            after_weapon = replace(
+                stripped,
+                equipment=[replace(weapon, slot="main_hand")],
+                inventory=[ring, lantern, armour],
+                turn=stripped.turn + 1,
+            )
+            self.assertEqual(policy._calibration_redress_key(after_weapon), "wa(")
+            after_ring = replace(
+                after_weapon,
+                equipment=[*after_weapon.equipment, replace(ring, slot="main_ring")],
+                inventory=[lantern, armour],
+                turn=stripped.turn + 2,
+            )
+            self.assertEqual(policy._calibration_redress_key(after_ring), "wc")
+            self.assertNotIn(
+                ("light", equipment_identity(next(it for it in dressed.equipment if it.slot == "light"))),
+                policy._calibration_worn_before,
+            )
+            after_armour = replace(
+                after_ring,
+                equipment=[*after_ring.equipment, replace(armour, slot="body")],
+                inventory=[lantern],
+                turn=stripped.turn + 3,
+            )
+            policy._calibration_redress_observe(after_armour)
+            self.assertFalse(policy._calibration_stripped_unrestored)
+            self.assertNotIn("redress_obligation", json.loads(path.read_text()))
+            self.assertFalse(policy._light_ready(after_armour))
+            self.assertFalse(policy._town_departure_ready(after_armour))
+            # The same Home board held known torches. Once one is carried, the
+            # ordinary light owner can equip it without re-wielding the lantern.
+            torch = item(
+                "a", TVAL_LITE, 0, name="Torch", known=True,
+                fully_known=True, is_equipment=True, fuel=2491,
+            )
+            with_torch = replace(after_armour, inventory=[lantern, torch])
+            self.assertEqual(policy._light_to_wield(with_torch), torch)
+            self.assertEqual(
+                policy._equipment_wield(with_torch, "light-loadout", torch, "light"),
+                "wa",
+            )
+
+    def test_newchar_capture_deposit_phase_never_strips_unknown_light(self):
+        dressed, _ = self._newchar_identify_capture()
+        policy = self._scan_complete_policy()
+        policy._calibration_phase = "deposit"
+        policy._calibration_worn_before = tuple(
+            (it.slot, equipment_identity(it)) for it in dressed.equipment
+        )
+
+        self.assertEqual(policy._calibration_town_key(dressed), WAIT_KEY)
+        self.assertEqual(policy._calibration_last_abort, "calibration:abort:identify-first-worn")
+        self.assertIsNone(policy._equipment_transaction_session)
+        self.assertFalse(policy._calibration_stripped_unrestored)
+
     def test_legacy_policy_initializes_calibration_restore_move_identities(self):
         policy = HengbotPolicy()
         del policy._calibration_restore_move_identities
