@@ -3009,6 +3009,45 @@ class QuestMixin:
             profile.quest_id, set()
         )
         throwing_points = profile.engagement_plan.get("throwing_points", ())
+
+        def fixed_target_cell_visible(target: Position, cell: GridState | None) -> bool:
+            if cell is None or not cell.known or not cell.currently_observed:
+                return False
+            if cell.in_view:
+                return True
+            # Protocol 3 sends the displayed lighting variant, not CAVE_VIEW.
+            # At the reviewed Q34 stand a lit target down an open line is
+            # observable with the opening lantern.  Checking each intervening
+            # square prevents an occluded cell from certifying a kill.
+            planned_stand = next(
+                (
+                    Position(*plan["stand"])
+                    for plan in throwing_points
+                    if Position(*plan["target"]) == target
+                ),
+                None,
+            )
+            if (
+                profile.quest_id != 34
+                or planned_stand != snapshot.player.position
+                or cell.map_lighting != 1
+                or snapshot.light_radius is None
+                or snapshot.player.position.distance_to(target) > snapshot.light_radius
+            ):
+                return False
+            dy = target.y - snapshot.player.position.y
+            dx = target.x - snapshot.player.position.x
+            if dy != 0 and dx != 0:
+                return False
+            distance = abs(dy) + abs(dx)
+            return all(
+                (between := snapshot.grid_at(Position(
+                    snapshot.player.position.y + offset * (1 if dy > 0 else -1 if dy < 0 else 0),
+                    snapshot.player.position.x + offset * (1 if dx > 0 else -1 if dx < 0 else 0),
+                ))) is not None
+                and between.allows_los
+                for offset in range(1, distance)
+            )
         # A stationary target disappearing from the visible-monster list is not
         # itself proof of death: changing light/FOV can hide a living target.
         # Confirm its known fixed cell is currently visible and empty before
@@ -3019,8 +3058,7 @@ class QuestMixin:
             if (
                 (target_grid := snapshot.grid_at(Position(target[1], target[2])))
                 is not None
-                and target_grid.known
-                and target_grid.in_view
+                and fixed_target_cell_visible(Position(target[1], target[2]), target_grid)
                 and not target_grid.has_monster
                 and (
                     profile.quest_id != 34
@@ -3503,18 +3541,15 @@ class QuestMixin:
                     )
                     target_position = Position(*survey_plan["target"])
                     target_grid = snapshot.grid_at(target_position)
-                    if profile.quest_id == 34:
-                        # Q34 throws are allowed only from the reviewed stand and
-                        # only while the corresponding target is visible.  Blind
-                        # throws have a lower hit rate and are user-prohibited.
-                        self.last_reason = "quest:blocked:fixed-target-not-visible"
-                        return WAIT_KEY
                     if (
-                        target_grid is not None
-                        and target_grid.known
-                        and target_grid.in_view
+                        fixed_target_cell_visible(target_position, target_grid)
                         and not target_grid.has_monster
                     ):
+                        # The approved Q34 route recovers this volley before
+                        # moving to the next fixed target.  An empty, visible
+                        # target cell at its reviewed stand also proves the
+                        # kill after a checkpoint restore; a monster merely
+                        # disappearing from the list does not.
                         cleared_targets.add(target_key)
                         self._quest_strategy_pending_recovery[
                             profile.quest_id
@@ -3522,7 +3557,10 @@ class QuestMixin:
                         self.last_reason = "quest-strategy:survey-target-cleared"
                         return WAIT_KEY
                     if profile.quest_id == 34:
-                        self.last_reason = "quest:blocked:survey-target-not-visible"
+                        # Do not throw blindly or enter an uncleared target's
+                        # adjacent cells.  The driver treats this as a final
+                        # investigation stop instead of repeating a wait.
+                        self.last_reason = "quest:blocked:fixed-target-not-visible"
                         return WAIT_KEY
                     if (
                         target_grid is not None

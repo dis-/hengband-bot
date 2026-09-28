@@ -1158,6 +1158,11 @@ class OperationExecutor:
                 self.active.continuations.pop(0)
                 continue
             break
+        if match.kind is ScreenKind.BUILDING and not self.active.continuations:
+            # A movement operation can land on a building entrance. The same
+            # operation owns the resulting menu and must close it before its
+            # command barrier is complete.
+            return self._post_and_barrier("\x1b", deadline, role="exit")
         if (
             match.kind is ScreenKind.CONFIRM
             and self._is_warning_confirm(match.feature)

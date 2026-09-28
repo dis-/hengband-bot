@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 import hengbot.policy as policy_module
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint, write_window
+from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.model import (
     STORE_ALCHEMIST,
     STORE_ARMOURY,
@@ -62,7 +63,14 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         )
 
         replay = restore_checkpoint(policy_module.HengbotPolicy, slim)
-        self.assertEqual(replay._monrace_knowledge, old_policy._monrace_knowledge)
+        # A slim checkpoint omits monster knowledge and reloads it from the
+        # current game data (latch_onset_capture.restore_checkpoint), so compare
+        # with that source; the pickled old knowledge follows upstream edits.
+        definitions = find_monrace_definitions(Path(policy_module.__file__), None)
+        self.assertIsNotNone(definitions)
+        self.assertEqual(
+            replay._monrace_knowledge, load_monrace_knowledge(definitions)
+        )
         self.assertEqual(replay._remembered_grid_sources, {})
         self.assertEqual(replay._remembered_grid_signatures, {})
         self.assertEqual(replay._threat_prediction_memo, {})

@@ -214,6 +214,13 @@ class CalibrationMixin:
             if item.is_equipment and not item.is_cursed
         ]
 
+    def _calibration_unrewearable_worn(self, snapshot: Snapshot) -> bool:
+        """A strip must never remove gear that identify-first cannot restore."""
+        return any(
+            self._equip_blocked_by_identification(item)
+            for item in self._calibration_removable_worn(snapshot)
+        )
+
     def _home_stat_restore_candidate(
         self, snapshot: Snapshot
     ) -> InventoryItem | None:
@@ -343,6 +350,7 @@ class CalibrationMixin:
         if (
             reason == "capture-invalid"
             or reason == "unremovable-cursed-equipment"
+            or reason == "identify-first-worn"
             or self._calibration_aborts_this_visit >= STORE_STUCK_LIMIT
         ):
             self._calibration_blocked_this_visit = True
@@ -643,6 +651,8 @@ class CalibrationMixin:
             self.last_reason = "calibration:redressed"
 
     def _install_calibration_strip_session(self, snapshot: Snapshot) -> bool:
+        if self._calibration_unrewearable_worn(snapshot):
+            return False
         removable = sorted(
             self._calibration_removable_worn(snapshot),
             key=lambda item: (-EQUIP_ORDER.get(item.slot, 1_000), item.slot),
@@ -701,7 +711,9 @@ class CalibrationMixin:
         missing = [
             (slot, identity, equipment_move_identity(pack_by_identity[identity]))
             for slot, identity in self._calibration_worn_before
-            if slot not in worn_now and identity in pack_identities
+            if slot not in worn_now
+            and identity in pack_identities
+            and not self._equip_blocked_by_identification(pack_by_identity[identity])
         ]
         if not missing or self._equipment_transaction_session is not None:
             return False
@@ -1009,7 +1021,12 @@ class CalibrationMixin:
                     if self._install_calibration_strip_session(snapshot):
                         self.last_reason = "calibration:strip-resumed"
                         return WAIT_KEY
-                    self._abort_character_calibration(snapshot, "no-pack-space")
+                    self._abort_character_calibration(
+                        snapshot,
+                        "identify-first-worn"
+                        if self._calibration_unrewearable_worn(snapshot)
+                        else "no-pack-space",
+                    )
                     return WAIT_KEY
             entry_blocker = self.calibration_entry_state(snapshot)[
                 "entry_blocker"
@@ -1039,6 +1056,7 @@ class CalibrationMixin:
                 or self._home_pending_batch
                 or self._home_atomic_withdraw_pending is not None
                 or self._calibration_actionable_invalidator(snapshot) is not None
+                or self._calibration_unrewearable_worn(snapshot)
             ):
                 return None
             self._begin_character_calibration(snapshot)
@@ -1047,6 +1065,9 @@ class CalibrationMixin:
             if self._home_atomic_deposit_pending is not None:
                 return None
             if self._find_home_deposit(snapshot) is None:
+                if self._calibration_unrewearable_worn(snapshot):
+                    self._abort_character_calibration(snapshot, "identify-first-worn")
+                    return WAIT_KEY
                 # Pack drained as far as Home accepts; strip if the takeoffs
                 # fit, otherwise the observation cannot be made this visit.
                 if self._install_calibration_strip_session(snapshot):

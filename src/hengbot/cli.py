@@ -52,6 +52,7 @@ from hengbot.policy import (
 )
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
+    ENTER_DUNGEON_MACRO,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
     POLICY_FINAL_STOP_REASONS,
@@ -413,6 +414,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
         "quest:blocked:q34-recovery-no-progress": "a posted Q34 recovery pickup made no progress",
         "quest:blocked:q34-throw-point-unreachable": "the approved Q34 throwing point has no route",
+        "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
     }
     return f"<{reason}> {messages[reason]}; stopping the bot for investigation"
@@ -2195,13 +2197,22 @@ def _send_new_decision_key(
     ):
         return SendResult.DESIGNED_WAIT, posted_line
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
+    dungeon_entrance = _dungeon_entrance_continuation(snapshot, key, owner)
+    if dungeon_entrance is not None and not isinstance(send, _ExecutorInputPort):
+        # A bare sender cannot observe the message/confirmation boundary.
+        return SendResult.TERMINAL, posted_line
     home_modal = _home_modal_continuation(snapshot, key, owner)
     store_buy = _store_buy_continuations(key, owner)
     pile_pickup = _floor_pile_pickup_continuations(snapshot, key)
     if (posting_contract is not None and snapshot is not None
             and hasattr(posting_contract, "prepare")):
         posting_contract.prepare(snapshot, key, owner, sequence)
-    if home_modal is not None and isinstance(send, _ExecutorInputPort):
+    if dungeon_entrance is not None and isinstance(send, _ExecutorInputPort):
+        prefix, continuations = dungeon_entrance
+        sent = send.submit_operation(
+            prefix, decision=decision, continuations=continuations
+        )
+    elif home_modal is not None and isinstance(send, _ExecutorInputPort):
         prefix, continuations = home_modal
         sent = send.submit_operation(
             prefix, decision=decision, continuations=continuations
@@ -2324,6 +2335,30 @@ _QUEST_ENTRY_QUESTIONS = (
     "クエストに入りますか？[y/n]",
     "Do you enter? [y/n]",
 )
+
+
+_FIRST_DUNGEON_ENTRANCE_QUESTIONS = (
+    "\u672c\u5f53\u306b\u3053\u306e\u30c0\u30f3\u30b8\u30e7\u30f3\u306b\u5165\u308a\u307e\u3059\u304b\uff1f[y/n]",
+    "Do you really get in this dungeon? [y/n]",
+)
+
+
+def _dungeon_entrance_continuation(snapshot, key: str, owner: str):
+    """Post the entrance command before answering its optional first-visit question.
+
+    cmd-move.cpp prints the entrance message before input_check; msg_erase may
+    show -more- while clearing it. OperationExecutor owns that page and only
+    posts y once the exact question is visible. Subsequent entries have no
+    question, so the optional continuation is dropped at the command board.
+    """
+    if (key != ENTER_DUNGEON_MACRO or snapshot is None or not snapshot.in_town
+            or owner not in {"descend", "town:repetition-depart:enter"}):
+        return None
+    return ">", [Continuation(
+        frozenset({ScreenKind.CONFIRM}), "y",
+        _FIRST_DUNGEON_ENTRANCE_QUESTIONS,
+        exact_feature=True, optional=True,
+    )]
 
 
 def _quest_entry_continuations(snapshot, key: str, owner: str) -> list[Continuation]:

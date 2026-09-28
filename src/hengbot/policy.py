@@ -1815,6 +1815,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_remaining = 0
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
+        self._unexplained_damage_streak = 0
 
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
@@ -6354,6 +6355,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 )
                             self._persist_calibration_redress_obligation()
             if self._equipment_transaction_session.complete:
+                self._retire_replaced_equipment_transaction_owned_items(
+                    snapshot, self._equipment_transaction_session
+                )
                 if (
                     self._equipment_transaction_restoring
                     and self._equipment_transaction_owned_items
@@ -8843,6 +8847,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         remove_curse = self._town_remove_curse_key(snapshot)
         if remove_curse is not None:
             return remove_curse
+        self._bind_home_star_remove_curse_withdrawal(snapshot)
 
         enchant_launcher = self._town_enchant_launcher_key(snapshot)
         if enchant_launcher is not None:
@@ -8940,6 +8945,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.in_town:
             self._end_fundraising_set_at_gold_target(snapshot)
             self._town_order_select_required_supply(snapshot)
+            self._bind_home_star_remove_curse_withdrawal(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:
                 # The former router performed terminal bookkeeping before it
@@ -10172,6 +10178,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
+        worn = next((item for item in snapshot.equipment if item.is_light), None)
+        if worn is not None and (
+            worn.sval > SV_LITE_LANTERN
+            or (worn.is_lantern and worn.fuel > LANTERN_REFILL_FUEL)
+            or (worn.is_torch and worn.fuel > TORCH_REFILL_FUEL)
+        ):
+            # A fresher torch in the pack does not improve usable illumination.
+            # Only the existing low-fuel rule can replace the worn torch.
+            return None
         return max(
             (
                 item
@@ -10187,6 +10202,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _darkness_recovery_key(self, snapshot: Snapshot) -> str | None:
         if not self._is_dark(snapshot):
+            # Protocol 3 reports whether the player can see their own square.
+            # A stale/unlit grid flag cannot override that direct observation:
+            # doing so swaps a healthy worn torch for a fresher pack torch.
+            if snapshot.can_see_own_grid is not None:
+                return None
             here = snapshot.grid_at(snapshot.player.position)
             legacy_unlit = (
                 snapshot.dungeon_level >= 1
@@ -10643,6 +10663,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             blocker = "equipment-transaction-active"
         elif self._identification_need_actionable(snapshot):
             blocker = "identification-active"
+        elif self._calibration_unrewearable_worn(snapshot):
+            blocker = "identify-first-worn"
         elif self._home_pending_item is not None:
             blocker = "home-item-pending"
         elif self._home_pending_batch:
@@ -15456,15 +15478,56 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
 
     @staticmethod
+    def _is_unseen_spell_message(message: str) -> bool:
+        return any(
+            fragment in message
+            for fragment in (
+                "呪文を唱え",
+                "ブレスを吐いた",
+                "を放った",
+                "つぶやいた",
+                "身振りをした",
+                "を指さして",
+                "叫んだ",
+                "を射った",
+                "を発射した",
+                "を投げた",
+                " casts ",
+                " breathes",
+                " fires ",
+                " mumbles",
+                " gestures ",
+                " invokes ",
+                " shoots ",
+                " throws ",
+                " points at ",
+                " screams ",
+                " tries to cast ",
+            )
+        )
+
+    @staticmethod
     def _is_unseen_attack_message(message: str) -> bool:
-        """Whether a direct monster blow names Hengband's hidden actor.
+        """Whether a monster attack names Hengband's hidden actor.
 
         The finite method text comes from monster-attack-describer.cpp:64-229.
         monster-attack-player.cpp:297-310 joins the actor to that text, while
         monster-describer.cpp:39-53,91 supplies 何か / it / something when the
-        attacking monster is hidden.
+        attacking monster is hidden. Spell wording comes from mspell-bolt.cpp,
+        mspell-ball.cpp, mspell-breath.cpp and mspell-curse.cpp.
         """
         message = re.sub(r" <x[1-9]\d*>$", "", message)
+        # mspell-util.cpp formats the hidden actor through monster_name().
+        # The spell tables use many different verbs and spell names; keep the
+        # actor anchor, then accept the spell/breath/shot families they emit.
+        if message.startswith("何か") and HengbotPolicy._is_unseen_spell_message(
+            message
+        ):
+            return True
+        if message.startswith(("It ", "Something ")) and HengbotPolicy._is_unseen_spell_message(
+            message
+        ):
+            return True
         japanese_acts = (
             "殴られた。",
             "触られた。",
@@ -16107,6 +16170,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, snapshot.player.position
             )
             if candidate not in self._engagement_avoid_cells
+            and (
+                not snapshot.in_town
+                or (
+                    (grid := snapshot.grid_at(candidate)) is not None
+                    and grid.store_number < 0
+                    and grid.building_type < 0
+                )
+            )
         ]
         if not candidates:
             return None

@@ -8475,7 +8475,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             WAIT_KEY,
         )
         self.assertEqual(
-            policy.last_reason, "quest:blocked:fixed-target-not-visible"
+            policy.last_reason, "quest-strategy:survey-target-cleared"
+        )
+        self.assertIn((243, 7, 15), policy._quest_strategy_cleared_targets[34])
+        self.assertEqual(
+            policy._quest_strategy_pending_recovery[34]["target"], [7, 15]
         )
 
     def test_q34_does_not_clear_or_recover_an_unlit_fixed_target(self):

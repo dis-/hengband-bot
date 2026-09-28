@@ -2083,6 +2083,56 @@ class HomeMixin:
                 knowledge_current=self._home_knowledge_current,
             )
 
+    def _bind_home_star_remove_curse_withdrawal(self, snapshot: Snapshot) -> None:
+        """Give the Home curse need an addressed withdrawal before routing."""
+        plan = self._town_errand_plan
+        if (
+            plan is not None
+            and plan.index < len(plan.stops)
+            and plan.stops[plan.index] != STORE_HOME
+        ):
+            # Finish the already-routed store stop before filing a Home take.
+            return
+        if (
+            not snapshot.in_town
+            or not self._has_unremovable_curse_target(snapshot)
+            or self._carried_star_remove_curse_count(snapshot)
+            or self._recall_departure_shortage(snapshot)
+            or self._home_pending_item is not None
+            or self._home_pending_batch
+            or self._home_errand.active
+            or self._calibration_active()
+            or not self._home_knowledge_current
+            # A filed Home take suppresses the carried identification path.
+            # Finish those already-actionable targets before filing this one.
+            or any(
+                item.is_equipment
+                and self._identification_flow_candidate(item)
+                and self._item_signature(item) not in self._deferred_home_items
+                and self._item_signature(item) not in self._unidentifiable_sigs
+                and self._item_signature(item)
+                not in self._town_unidentifiable_carried_sigs
+                for item in (*snapshot.inventory, *snapshot.equipment)
+            )
+        ):
+            return
+        reserve = next((
+            item for item in self._home_knowledge_items[
+                :self._home_knowledge_valid_before
+            ]
+            if item.tval == TVAL_SCROLL
+            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+            and item.count > 0
+            and self._item_signature(item) not in self._deferred_home_items
+        ), None)
+        if reserve is None:
+            return
+        signature = self._item_signature(reserve)
+        self._home_pending_item = signature
+        self._home_pending_quantity = 1
+        self._home_withdrawal_queued = True
+        self._star_remove_curse_reserve_withdraw_pending = True
+
     def _requeue_home_withdrawal(self, signature: tuple[str, int, int]) -> None:
         """A new request queues ``signature`` for withdrawal again.
 
