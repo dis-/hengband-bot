@@ -285,6 +285,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         "town:blocked:guardian-bounce-no-alternate",
         "quest:blocked:q34-recovery-no-progress",
         "quest:blocked:q34-throw-point-unreachable",
+        "quest:blocked:fixed-target-not-visible",
         "wilderness:no-safe-route",
     }
 )

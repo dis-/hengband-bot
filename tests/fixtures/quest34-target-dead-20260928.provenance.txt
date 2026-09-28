@@ -1,0 +1,4 @@
+Read-only source: C:\hengband\bot-client\jsonlog\incident-20260928-1452-quest34-target-not-visible.{state.jsonl.gz,decisions.jsonl.gz}
+Selected complete state boards: turn 76590 at approved throw point; turn 76603 with kill messages; turn 76611 after wait.
+Selected complete decisions: turn 76590 throw and turn 76603 first fixed-target-not-visible wait.
+Extraction preserved JSON values; only selection and gzip JSON packaging were applied.
