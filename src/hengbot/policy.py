@@ -2688,9 +2688,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 holder = self._claim_errand_hold("__none__")
                 if holder is not None:
                     if holder.claim_id in retried:
-                        self.last_reason = (
-                            f"ownership:holder-silent:{holder.owner.value}"
-                        )
+                        key = self._town_holder_wait_key(holder, snapshot)
                         break
                     retried.add(holder.claim_id)
                     if holder is getattr(self._claim_register, "current", None):
@@ -5521,6 +5519,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
+        route_unresolved = False
         if (holder.owner.value == "store-router"
                 and holder.goal.kind == CLAIM_GOAL_REACH
                 and holder.goal.cell is not None):
@@ -5549,8 +5548,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         # one-cell fallback did not write a fresh goal slot.
                         self._declare_reach(goal, family="store-router")
                     return key
-            self.last_reason = "ownership:holder-silent:store-router"
-            return None
+            # A Reach still en route cannot be released as a no-step errand.
+            # The final §3 branch reports an unresolved route consistently.
+            route_unresolved = True
         session = self._equipment_transaction_session
         if (holder.owner.value in {"equipment-txn", "calibration"}
                 and session is not None
@@ -5593,12 +5593,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if holder is getattr(self._claim_register, "current", None):
                 self.last_reason = "home:scan-await-observation"
                 return WAIT_KEY
-            self.last_reason = f"ownership:holder-silent:{holder.owner.value}"
-            return None
+            # A suspended scan cannot be safely released while posted.
+            knowledge_unresolved = True
+        else:
+            knowledge_unresolved = False
         children = [record for record in self._delegation_records()
                     if record.lifecycle == "open"
                     and record.parent_claim_id == holder.claim_id]
-        unresolved = (holder.non_discardable or bool(children)
+        unresolved = (route_unresolved or knowledge_unresolved
+                      or holder.non_discardable or bool(children)
                       or (holder.owner.value in {"calibration", "equipment-txn"}
                           and bool(self._calibration_stripped_unrestored))
                       or (visit is not None and visit.operation_posted

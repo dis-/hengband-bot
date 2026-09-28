@@ -1,6 +1,8 @@
 """Record-only #8 delegation identity and requester-set pins."""
 
 import pickle
+import ast
+import inspect
 import unittest
 from unittest.mock import patch
 
@@ -24,6 +26,27 @@ from hengbot.home_errand import HomeErrandRequest
 
 
 class DelegationRecordTest(unittest.TestCase):
+    def test_holder_silent_has_one_final_construction_site(self):
+        source = inspect.getsource(HengbotPolicy)
+        tree = ast.parse(source)
+        sites = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Attribute)
+                       and target.attr == "last_reason"
+                       for target in node.targets):
+                continue
+            value = node.value
+            prefix = (value.value if isinstance(value, ast.Constant)
+                      else value.values[0].value
+                      if isinstance(value, ast.JoinedStr)
+                      and isinstance(value.values[0], ast.Constant) else "")
+            if isinstance(prefix, str) and prefix.startswith(
+                    "ownership:holder-silent:"):
+                sites.append(node.lineno)
+        self.assertEqual(len(sites), 1, sites)
+
     def test_posted_entry_wait_keeps_route_child_until_observation(self):
         decisions = _Decisions()
         held = decisions.decide("shop:approach", cell=decisions.cell(4))
