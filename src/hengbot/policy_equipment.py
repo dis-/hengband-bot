@@ -446,6 +446,38 @@ class EquipmentMixin:
                 owners=("equipment-txn",), sources=("transaction",),
             )
 
+    def _retire_replaced_equipment_transaction_owned_items(
+        self, snapshot: Snapshot, session: EquipmentTransactionSession,
+    ) -> None:
+        """A completed light replacement discharges the old light's restore debt.
+
+        A takeoff records the old item so an interrupted swap can restore it.
+        Once the plan has equipped its replacement, restoring the old item
+        would undo that successful swap and restart the optimizer indefinitely.
+        """
+        if not session.complete or self._equipment_transaction_restoring:
+            return
+        equipped = {
+            item.slot: equipment_identity(item)
+            for item in snapshot.equipment if item.is_equipment
+        }
+        replacements = {
+            action.target_slot: (
+                action.move_identity or action.item_identity,
+                action.item_identity,
+            )
+            for action in session.plan.actions
+            if action.kind in {"equip", "reposition"}
+            and action.target_slot == "light"
+            and equipped.get(action.target_slot) == action.item_identity
+        }
+        if replacements:
+            self._equipment_transaction_owned_items = [
+                owned for owned in self._equipment_transaction_owned_items
+                if owned[1] not in replacements
+                or owned[0] in replacements[owned[1]]
+            ]
+
     @staticmethod
     def _launcher_average_damage(item: InventoryItem | StoreItem | None) -> float:
         return launcher_average_damage(item)
