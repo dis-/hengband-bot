@@ -881,7 +881,7 @@ class TownArbiterMixin:
                 opened_producer_family="recovered-store-context",
             )
             self._store_visit = visit
-        if visit.exit_requester is None:
+        if getattr(visit, "exit_requester", None) is None:
             selected = getattr(self, "_decision_non_discardable", None)
             if selected in visit.requester_families:
                 visit.exit_requester = selected
