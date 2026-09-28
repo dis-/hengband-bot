@@ -1739,7 +1739,7 @@ class CombatMixin:
             self._took_damage
             and (
                 self._unseen_attack_evidence is not None
-                or self._unexplained_damage_streak >= 2
+                or getattr(self, "_unexplained_damage_streak", 0) >= 2
             )
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
@@ -1751,7 +1751,7 @@ class CombatMixin:
                 self._last_damage_amount >= player.hp
                 or unseen_spell_hit
                 or player.hp_ratio < HEAL_HP_RATIO
-                or self._unexplained_damage_streak >= 2
+                or getattr(self, "_unexplained_damage_streak", 0) >= 2
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
             )
         )

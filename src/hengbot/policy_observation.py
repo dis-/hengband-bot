@@ -951,7 +951,7 @@ class ObservationMixin:
             and not snapshot.player.cut
         )
         self._unexplained_damage_streak = (
-            self._unexplained_damage_streak + 1 if unexplained else 0
+            getattr(self, "_unexplained_damage_streak", 0) + 1 if unexplained else 0
         )
         self._last_hp = hp
 
