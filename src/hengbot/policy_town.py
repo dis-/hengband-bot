@@ -4784,6 +4784,20 @@ class TownMixin:
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
 
         if (
+            self._fundraising_mode == "prepare"
+            and not self._fundraising_supplies_ready(snapshot)
+            and self._town_errand_plan is not None
+            and self._town_errand_plan.index >= len(self._town_errand_plan.stops)
+            and self._town_recall_destination(snapshot, guardian_gate=False)[0] is None
+        ):
+            # The final shop may have supplied only part of the mining kit.
+            # Resolve the exhausted walk-in plan now, while its result is
+            # observable; a recall destination still owns its departure gates.
+            self._break_town_cycle(snapshot)
+            self.last_reason = "fundraise:fallback-exhausted-plan"
+            return WAIT_KEY
+
+        if (
             self._target_dungeon_id == DUNGEON_ANGBAND
             and snapshot.angband_recall_unlocked
             and not self._identify_staff_ready(snapshot)

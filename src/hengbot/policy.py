@@ -15869,6 +15869,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, snapshot.player.position
             )
             if candidate not in self._engagement_avoid_cells
+            and (
+                not snapshot.in_town
+                or (
+                    (grid := snapshot.grid_at(candidate)) is not None
+                    and grid.store_number < 0
+                    and grid.building_type < 0
+                )
+            )
         ]
         if not candidates:
             return None

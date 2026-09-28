@@ -1758,6 +1758,23 @@ class TcpBarrierPinTest(ProductionHarness):
                 self.assertEqual(executor.submit(op, deadline=9999999999).outcome, "completed")
                 self.assertEqual(game.accepted, [prefix, answer])
 
+    def test_accidental_building_menu_is_closed_by_movement_owner(self):
+        building = {"width": 80, "height": 24,
+                    "cursor": {"y": 23, "x": 0}, "lines": [""] * 24}
+        building["lines"][2] = " The Innkeeper"
+        building["lines"][19] = " a) Rest 10 gold"
+        building["lines"][23] = " ESC) Exit building"
+        game, _client, executor = self.make()
+        game.screens = [building, command_screen(3)]
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(
+            Operation(41, "stuck:wander", "8", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "completed")
+        self.assertEqual(game.accepted, ["8", "\x1b"])
+        self.assertEqual(result.operation.owner, "stuck:wander")
+
     def test_continuations_are_ordered_and_exact_question_bound(self):
         game, _client, executor = self.make()
         game.screens = [prompt_screen("Cancel recall? [y/n]")]
