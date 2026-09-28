@@ -9877,6 +9877,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
+        worn = next((item for item in snapshot.equipment if item.is_light), None)
+        if worn is not None and (
+            worn.sval > SV_LITE_LANTERN
+            or (worn.is_lantern and worn.fuel > LANTERN_REFILL_FUEL)
+            or (worn.is_torch and worn.fuel > TORCH_REFILL_FUEL)
+        ):
+            # A fresher torch in the pack does not improve usable illumination.
+            # Only the existing low-fuel rule can replace the worn torch.
+            return None
         return max(
             (
                 item
@@ -9892,6 +9901,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _darkness_recovery_key(self, snapshot: Snapshot) -> str | None:
         if not self._is_dark(snapshot):
+            # Protocol 3 reports whether the player can see their own square.
+            # A stale/unlit grid flag cannot override that direct observation:
+            # doing so swaps a healthy worn torch for a fresher pack torch.
+            if snapshot.can_see_own_grid is not None:
+                return None
             here = snapshot.grid_at(snapshot.player.position)
             legacy_unlit = (
                 snapshot.dungeon_level >= 1
