@@ -153,6 +153,17 @@ class DelegationRecordTest(unittest.TestCase):
                          (("session", "strip", "orphan", ()),
                           "released", "exit-owner-mismatch"))
 
+    def test_next_decision_cancels_reservation_that_missed_exit(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        token = policy._open_execution_delegation(
+            "calibration", "equipment-txn", ("session", "strip", "missed", ()),
+            ("calibration", "strip"), "takeoffs", "claim-bound",
+        )
+        policy.choose_key(decisions.board)
+        self.assertEqual((token.lifecycle, token.ending),
+                         ("released", "exit-not-reached"))
+
     def test_generic_scan_cannot_borrow_named_knowledge_child(self):
         decisions = _Decisions()
         held = decisions.decide("home-errand:request-knowledge:combat-weapon")

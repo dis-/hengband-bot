@@ -2475,6 +2475,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        # A producer that never reached the previous decision's claim exit
+        # cannot carry an unbound grant into this decision.
+        self._cancel_unbound_execution_delegations()
         # S2a.1 (design rev 9 item 2): the per-decision goal slot.  Only a
         # producer writes it, on the board whose key uses its target; the
         # declaration at the exit reads nothing else.  Record-only.
@@ -5263,6 +5266,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 record.lifecycle = "released"
                 record.ending = "exit-owner-mismatch"
+
+    def _cancel_unbound_execution_delegations(self) -> None:
+        """End reservations left behind by a decision without a claim exit."""
+        for record in self._delegation_records():
+            if record.lifecycle == "reserved":
+                record.lifecycle = "released"
+                record.ending = "exit-not-reached"
 
     def _observe_execution_delegations(self) -> None:
         """Retire children only when their named source resolves."""
