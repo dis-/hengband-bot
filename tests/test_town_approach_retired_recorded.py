@@ -153,8 +153,15 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             (1947, "leave-confirmation-interruption", "shop-buy", "home-errand"),
             (1948, "plan-handoff", "home-errand", "store-router"),
             (1957, "leave-confirmation-interruption", "shop-buy", "home-errand"),
-            (1958, "retarget", "home-errand", "home-errand"),
+            (1958, "owner-change", "home-errand", "unregistered"),
         ])
+        leave_1958 = next(
+            row["claim"] for row in replay
+            if row["claim"]["decision_sequence"] == 1958
+        )
+        self.assertEqual(
+            leave_1958["barrier_provenance"], "barrier-provenance-missing"
+        )
         operation = [
             row["claim"] for row in replay
             if 1960 <= row["claim"]["decision_sequence"] <= 1962
