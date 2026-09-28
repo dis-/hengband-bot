@@ -491,6 +491,22 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(restored._visit_exit_family(),
                          "barrier-provenance-missing")
 
+    def test_exit_requester_is_captured_once_when_leave_is_selected(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        visit = StoreVisit(
+            owner="store-router", purpose="home", store_type=STORE_HOME,
+            opened_sequence=1,
+            requester_families=frozenset({"home-visit", "home-errand"}),
+        )
+        policy._store_visit = visit
+        policy._decision_non_discardable = "home-errand"
+        policy._store_leave_inflight = (1, 1, STORE_HOME)
+        self.assertEqual(visit.exit_requester, "home-errand")
+        policy._decision_non_discardable = "home-visit"
+        policy._store_leave_inflight = (2, 2, STORE_HOME)
+        self.assertEqual(visit.exit_requester, "home-errand")
+
     def test_completed_operation_exit_does_not_open_store_observe(self):
         decisions = _Decisions()
         decisions.policy._store_visit = StoreVisit(
