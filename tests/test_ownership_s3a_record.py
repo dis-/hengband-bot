@@ -493,6 +493,10 @@ class S3aRecordTest(unittest.TestCase):
         restored._decision_non_discardable = "home-errand"
         restored._store_leave_inflight = (3, 3, STORE_HOME)
         self.assertEqual(restored._store_visit.exit_requester, "home-errand")
+        del restored._store_visit.requester_families
+        restored._store_visit.exit_requester = None
+        restored._store_leave_inflight = (4, 4, STORE_HOME)
+        self.assertIsNone(restored._store_visit.exit_requester)
 
     def test_exit_requester_is_captured_once_when_leave_is_selected(self):
         decisions = _Decisions()

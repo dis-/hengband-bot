@@ -883,7 +883,7 @@ class TownArbiterMixin:
             self._store_visit = visit
         if getattr(visit, "exit_requester", None) is None:
             selected = getattr(self, "_decision_non_discardable", None)
-            if selected in visit.requester_families:
+            if selected in getattr(visit, "requester_families", ()):
                 visit.exit_requester = selected
         visit.transition(StoreVisitPhase.LEAVING, LEAVE_STORE_KEY)
         visit.posted_sequence = sequence
