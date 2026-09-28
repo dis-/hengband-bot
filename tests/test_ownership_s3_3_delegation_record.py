@@ -112,11 +112,15 @@ class DelegationRecordTest(unittest.TestCase):
         holder = policy._claim_errand_hold("equipment-txn")
         self.assertIs(policy._recorded_execution_token(
             holder, "equipment-txn", "town-key"), token)
+        policy._town_claim_bar_enforced = True
+        self.assertFalse(policy._defer_town_errand("equipment-txn", "town-key"))
+        self.assertTrue(policy._defer_town_errand("home-scan", "outside-scan"))
         policy._equipment_transaction_session = EquipmentTransactionSession(
             EquipmentTransactionPlan((), (), 1)
         )
         self.assertIsNone(policy._recorded_execution_token(
             holder, "equipment-txn", "town-key"))
+        self.assertTrue(policy._defer_town_errand("equipment-txn", "town-key"))
         token.lifecycle = "released"
         policy._equipment_transaction_session = session
         self.assertIsNone(policy._recorded_execution_token(

@@ -5377,7 +5377,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "token_would_admit": token is not None,
             "token_work_identity": token.work_identity if token else None,
         })
-        return getattr(self, "_town_claim_bar_enforced", False)
+        return (getattr(self, "_town_claim_bar_enforced", False)
+                and token is None)
 
     def _recorded_execution_token(
         self, holder, family: str, reason: str,
@@ -5399,7 +5400,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                    action.item_identity)
                                   for action in session.plan.actions) == work[3]):
                     return record
-            elif family == "home-scan" and reason == "choose-key-scan":
+            elif family == "home-scan" and reason in {
+                "choose-key-scan", "outside-scan", "open-home-scan",
+                "final:home:request-knowledge-scan",
+        }:
                 request = self._home_errand.request
                 if (request is not None and self._home_errand.needs_knowledge
                         and work[:1] == ("knowledge",)
@@ -5526,6 +5530,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         holder = self._claim_errand_hold(family)
         if holder is None:
+            return key
+        if self._recorded_execution_token(
+            holder, family, f"final:{reason}"
+        ) is not None:
             return key
         if holder is getattr(self._claim_register, "current", None):
             self._claim_exit_completion(snapshot, holder, [])
