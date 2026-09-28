@@ -2,6 +2,7 @@
 
 import pickle
 import unittest
+from unittest.mock import patch
 
 import tests  # noqa: F401 -- policy runtime isolation
 
@@ -37,6 +38,7 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(token.work_identity[1], "strip")
         self.assertEqual(token.work_identity[2], session.target_loadout_id)
         self.assertEqual(len(token.work_identity[3]), len(session.plan.actions))
+        self.assertEqual(token.lifecycle, "reserved")
 
     def test_calibration_restore_installer_records_exact_session(self):
         rows = recorded_rows()
@@ -57,6 +59,32 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(token.work_identity[2],
                          policy._equipment_transaction_session.target_loadout_id)
         self.assertEqual(len(token.work_identity[3]), 1)
+        self.assertEqual(token.lifecycle, "reserved")
+
+    def test_town_family_producers_probe_existing_holder_at_entry(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        board = decisions.board
+        with patch.object(policy, "_claim_errand_hold", return_value=None) as hold:
+            policy._town_equipped_identification_key(board)
+            policy._town_device_processing_key(board)
+            policy._town_enchant_launcher_key(board)
+            policy._town_remove_curse_key(board)
+            policy._morivant_full_identify_key(board)
+            policy._cross_town_shopping_key(board)
+        families = [call.args[0] for call in hold.call_args_list]
+        self.assertGreaterEqual(families.count("identification"), 2)
+        self.assertGreaterEqual(families.count("curse-enchant"), 2)
+        self.assertGreaterEqual(families.count("cross-town"), 2)
+
+    def test_rumor_branch_probes_holder_before_selecting_key(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        policy._rumor_unlock_pending = True
+        policy._town_travel_rumor_pending = 1
+        with patch.object(policy, "_claim_errand_hold", return_value=None) as hold:
+            policy._town_special_key(decisions.board)
+        self.assertIn("rumor", [call.args[0] for call in hold.call_args_list])
 
     def test_session_child_binds_to_existing_parent_and_exact_session(self):
         decisions = _Decisions()
@@ -75,6 +103,10 @@ class DelegationRecordTest(unittest.TestCase):
             "calibration", "equipment-txn", work, ("calibration", "restore"),
             "observed-equips", "claim-bound/equipment-confirmation-limit",
         )
+        self.assertEqual(token.lifecycle, "reserved")
+        self.assertIsNone(token.parent_claim_id)
+        policy.last_reason = "calibration:restore-wield"
+        policy._record_decision_claim(decisions.board, "k")
         self.assertEqual(token.parent_claim_id, held["claim_id"])
         self.assertEqual(token.lifecycle, "open")
         holder = policy._claim_errand_hold("equipment-txn")
@@ -109,6 +141,18 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(token.lifecycle, "released")
         self.assertEqual(token.ending, "exit-owner-mismatch")
 
+    def test_reservation_without_a_claim_exit_is_cancelled_by_name(self):
+        decisions = _Decisions()
+        policy = decisions.policy
+        token = policy._open_execution_delegation(
+            "calibration", "equipment-txn", ("session", "strip", "orphan", ()),
+            ("calibration", "strip"), "takeoffs", "claim-bound",
+        )
+        policy._bind_execution_delegations(None)
+        self.assertEqual((token.work_identity, token.lifecycle, token.ending),
+                         (("session", "strip", "orphan", ()),
+                          "released", "exit-owner-mismatch"))
+
     def test_generic_scan_cannot_borrow_named_knowledge_child(self):
         decisions = _Decisions()
         held = decisions.decide("home-errand:request-knowledge:combat-weapon")
@@ -119,6 +163,9 @@ class DelegationRecordTest(unittest.TestCase):
             ("home-request", "combat-weapon", ("weapon", 1, 2)),
             "catalogue-adopted", "home-knowledge-existing-epoch",
         )
+        self.assertEqual(token.lifecycle, "reserved")
+        policy.last_reason = "home-errand:request-knowledge:combat-weapon"
+        policy._record_decision_claim(decisions.board, "k")
         self.assertEqual(token.parent_claim_id, held["claim_id"])
         holder = policy._claim_errand_hold("home-scan")
         self.assertIsNone(policy._recorded_execution_token(
@@ -144,6 +191,14 @@ class DelegationRecordTest(unittest.TestCase):
             ("combat-weapon", ("weapon", 1, 2)),
             "filed-home-request", "equipment/home-errand-existing-budget",
         )
+        self.assertEqual(token.lifecycle, "reserved")
+        policy._home_errand.file(
+            HomeErrandRequest(("weapon", 1, 2), 1, "home-page",
+                              "combat-weapon"),
+            knowledge_current=False,
+        )
+        policy.last_reason = "equipment-transaction:await-confirmation"
+        policy._record_decision_claim(decisions.board, "k")
         self.assertEqual(token.parent_claim_id, held["claim_id"])
         holder = policy._claim_errand_hold("home-errand")
         self.assertIs(policy._recorded_execution_token(
@@ -263,6 +318,9 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(tail.work_identity[1:],
                          policy._store_visit.claim_operation_identity)
         self.assertFalse(policy._store_visit.operation_released)
+        self.assertEqual(tail.lifecycle, "reserved")
+        policy.last_reason = "home:atomic-deposit"
+        policy._record_decision_claim(decisions.board, "k")
         policy._store_visit.operation_effect_observed = True
         policy._observe_execution_delegations()
         self.assertEqual((tail.lifecycle, tail.ending),

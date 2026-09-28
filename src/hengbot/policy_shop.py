@@ -1402,6 +1402,8 @@ class ShopMixin:
 
     @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
+        if snapshot.in_town:
+            self._claim_errand_hold("cross-town")
         shortages = self._cross_town_shortages(snapshot)
         unobtainable = self._cross_town_unobtainable_categories(
             snapshot, shortages

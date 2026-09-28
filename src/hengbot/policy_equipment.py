@@ -2185,6 +2185,8 @@ class EquipmentMixin:
         are held unused in the pack (see the 2026-07-15 town deadlock, whose
         dominant blocker was exactly this: a worn, unidentified Bastard Sword).
         """
+        if snapshot.in_town:
+            self._claim_errand_hold("identification")
         if not snapshot.in_town or snapshot.store is not None:
             return None
         target = next(
@@ -2716,6 +2718,8 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
+        if snapshot.in_town:
+            self._claim_errand_hold("curse-enchant")
         if (
             not snapshot.in_town
             or snapshot.store is not None

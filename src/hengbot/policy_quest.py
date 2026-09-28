@@ -1298,6 +1298,8 @@ class QuestMixin:
     @claims(ClaimOwner.CROSS_TOWN)
     def _morivant_full_identify_key(self, snapshot: Snapshot) -> str | None:
         """Batch carried *Identify* work through Morivant's Library."""
+        if snapshot.in_town:
+            self._claim_errand_hold("cross-town")
         if not snapshot.in_town or snapshot.store is not None:
             return None
         targets = self._carried_full_identify_targets(snapshot)

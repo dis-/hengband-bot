@@ -5230,14 +5230,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and record.work_identity == work_identity
                     and record.purpose_identity == purpose_identity):
                 return record
-        register = getattr(self, "_claim_register", None)
-        parent = getattr(register, "current", None)
-        parent_id = (parent.claim_id if parent is not None and parent.is_open
-                     and parent.owner.value == parent_family else None)
         record = ExecutionDelegation(
-            parent_id, parent_family, delegate_family, work_identity,
+            None, parent_family, delegate_family, work_identity,
             purpose_identity, self._decision_sequence, expected_effect,
-            budget_reference, "open" if parent_id is not None else "reserved",
+            budget_reference, "reserved",
         )
         self._delegation_records().append(record)
         return record
@@ -10098,6 +10094,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     @claims(ClaimOwner.IDENTIFICATION)
     def _verified_destroy_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
         """Destroy a selected item while detecting refused or stalled attempts."""
+        if snapshot.in_town:
+            self._claim_errand_hold("identification")
         transaction = self._equipment_transaction_session
         if (
             self._equipment_mutation.state == EquipmentMutationState.POSTED
