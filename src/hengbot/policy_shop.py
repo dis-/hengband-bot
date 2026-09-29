@@ -487,7 +487,14 @@ class ShopMixin:
             potion = self._carried_restore_potion(snapshot, stat)
             if potion is not None:
                 self.last_reason = f"restore:quaff-{stat}"
-                return QUAFF_KEY + potion.slot
+                key = QUAFF_KEY + potion.slot
+                self._offer_execution(
+                    key, producer="survival", work_id=f"restore:{stat}",
+                    next_step="survival.quaff-stat-restore",
+                    arguments=(stat, self._item_signature(potion)),
+                    expected_effect="stat-restored",
+                )
+                return key
         return None
 
     # Potion of Experience (user decision 2026-09-22): drink it right away, but
@@ -661,9 +668,23 @@ class ShopMixin:
             if restore is None:
                 return None
             self.last_reason = "experience:quaff-restore-life-levels"
-            return QUAFF_KEY + restore.slot
+            key = QUAFF_KEY + restore.slot
+            self._offer_execution(
+                key, producer="survival", work_id="experience:restore-levels",
+                next_step="survival.quaff-experience-restore",
+                arguments=(self._item_signature(restore),),
+                expected_effect="experience-restored",
+            )
+            return key
         self.last_reason = "experience:quaff"
-        return QUAFF_KEY + experience.slot
+        key = QUAFF_KEY + experience.slot
+        self._offer_execution(
+            key, producer="survival", work_id="experience:quaff",
+            next_step="survival.quaff-experience",
+            arguments=(self._item_signature(experience),),
+            expected_effect="experience-gained",
+        )
+        return key
 
     @staticmethod
     def _dominated_disposal_store(item: InventoryItem | StoreItem) -> int | None:

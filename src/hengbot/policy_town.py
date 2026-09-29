@@ -1509,9 +1509,10 @@ class TownMixin:
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
             self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+            producer = self._claim_family_of(prior_reason)
             if key is not None:
                 self._offer_execution(
-                    key, producer="departure",
+                    key, producer=producer,
                     work_id="town:entrance-step-off",
                     next_step="departure.step-off-entrance",
                     arguments=(step.y, step.x),
@@ -1519,7 +1520,7 @@ class TownMixin:
                 )
             else:
                 self._offer_execution_no_step(
-                    producer="departure", work_id="town:entrance-step-off",
+                    producer=producer, work_id="town:entrance-step-off",
                     cause="entrance-step-unavailable",
                 )
         return key
@@ -2114,6 +2115,11 @@ class TownMixin:
         self._home_candidate_waiting = not self._home_pending_batch
         if self._home_pending_batch:
             self.last_reason = "home:process-next-batch-item"
+            self._offer_execution(
+                WAIT_KEY, producer="home-visit", work_id="home:next-batch-item",
+                next_step="home.process-next-batch-item",
+                expected_effect="batch-item-selected",
+            )
             return WAIT_KEY
         self.last_reason = "identify:complete"
         self._offer_execution_done(
@@ -4822,6 +4828,13 @@ class TownMixin:
                 # exact purchase before re-entry releases its command tail.
                 self._shop_observation = (store, self._decision_sequence)
                 self.last_reason = "shop:observe-and-leave"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer="shop-buy",
+                    work_id="shop:blocked-observe-shelf",
+                    next_step="store.leave.send",
+                    arguments=(store.store_type,),
+                    expected_effect="outside-store",
+                )
             else:
                 self._close_store_visit("repetition-block-abandoned")
             return LEAVE_STORE_KEY

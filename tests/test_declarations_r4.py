@@ -1,6 +1,7 @@
 """Pins for producer outcomes that can be superseded before claim exit."""
 
 import unittest
+import tests  # noqa: F401
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch

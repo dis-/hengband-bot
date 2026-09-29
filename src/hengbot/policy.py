@@ -7503,6 +7503,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             key = LEAVE_STORE_KEY
             if self.last_reason == "home:scan-complete-from-open-page":
                 self._offer_home_scan_leave()
+            else:
+                self._offer_execution(
+                    key, producer=self._claim_family_of(self.last_reason),
+                    work_id="store:unexpected-context-exit",
+                    next_step="store.leave.send",
+                    arguments=(snapshot.store.store_type,),
+                    expected_effect="outside-store",
+                )
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7582,6 +7590,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # ordinary outside snapshot, never from waiting or retrying inside.
             self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
+            self._offer_execution(
+                key, producer="home-visit", work_id="home:one-operation-leave",
+                next_step="store.leave.send", arguments=(STORE_HOME,),
+                expected_effect="outside-store",
+            )
         elif (
             snapshot.store is None
             and self._shop_observation is not None
@@ -7688,6 +7701,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     key = LEAVE_STORE_KEY
                     if self.last_reason == "home:scan-complete-from-open-page":
                         self._offer_home_scan_leave()
+                    else:
+                        self._offer_execution(
+                            key, producer="home-visit",
+                            work_id="home:store-context-exit",
+                            next_step="store.leave.send",
+                            arguments=(STORE_HOME,),
+                            expected_effect="outside-store",
+                        )
                 else:
                     key = self._decide(snapshot)
             elif (
@@ -7767,6 +7788,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._request_store_trip(STORE_HOME, "home-visit")
                 self.last_reason = "home:queue-catalogue-shortage"
                 key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="home-visit", work_id="home:catalogue-shortage",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -7908,6 +7934,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._request_store_trip(STORE_HOME, "home-visit")
                 self.last_reason = "home:leave-for-pending-withdraw"
                 key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="home-visit", work_id="home:pending-withdraw",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -8017,6 +8048,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "home:identify-staff-reserve-unavailable"
                 )
                 key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="home-visit",
+                    work_id="home:identify-staff-reserve",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -8031,6 +8068,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, self.last_reason, "store_type"
                 )
                 key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer="home-visit", work_id="home:route-unfulfilled",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
             else:
                 request = getattr(self._home_visit, "request", None)
                 requester = (
@@ -8061,6 +8103,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, self.last_reason, "store_type"
                 )
                 key = LEAVE_STORE_KEY
+                self._offer_execution(
+                    key, producer=self._claim_family_of(self.last_reason),
+                    work_id="home:context-recovery",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
         else:
             key = self._decide(snapshot)
         if (getattr(self, "_town_claim_bar_enforced", False)
@@ -8090,6 +8138,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # the adjacent outside snapshot and posted with entry and exit.
             self.last_reason = "home:leave-unbound-deposit"
             key = LEAVE_STORE_KEY
+            self._offer_execution(
+                key, producer="home-visit", work_id="home:unbound-deposit",
+                next_step="store.leave.send", arguments=(STORE_HOME,),
+                expected_effect="outside-store",
+            )
         self._remember_swarm_distances(snapshot)
         if (getattr(self, "_town_claim_bar_enforced", False)
                 and key is None and (self.last_reason or "").startswith(
@@ -8884,6 +8937,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._observe_restock_supplier_page(snapshot)
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
                     self.last_reason = "town:recall-stockout-mining"
+                    self._offer_execution(
+                        LEAVE_STORE_KEY, producer="fundraising",
+                        work_id="fundraising:recall-stockout",
+                        next_step="store.leave.send",
+                        arguments=(snapshot.store.store_type,),
+                        expected_effect="outside-store",
+                    )
                     return LEAVE_STORE_KEY
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
@@ -8917,6 +8977,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._shop_observation = (snapshot.store, self._decision_sequence)
             self.last_reason = "shop:observe-and-leave"
             key = LEAVE_STORE_KEY
+            self._offer_execution(
+                key, producer="shop-buy", work_id="shop:observe-shelf",
+                next_step="store.leave.send",
+                arguments=(snapshot.store.store_type,),
+                expected_effect="outside-store",
+            )
             self._record_shop_selector_diagnostics(snapshot, key)
             return key
 
@@ -13101,7 +13167,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if potion is not None:
             self.last_reason = "stat-gain:quaff"
-            return QUAFF_KEY + potion.slot
+            key = QUAFF_KEY + potion.slot
+            self._offer_execution(
+                key, producer="survival", work_id="stat-gain:quaff",
+                next_step="survival.quaff-stat-gain",
+                arguments=(self._item_signature(potion),),
+                expected_effect="stat-gain-observed",
+            )
+            return key
         return None
 
     def _is_disposable_dominated_armour(

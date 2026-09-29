@@ -1,6 +1,7 @@
 """Producer offers bind only to the final key and named claim owner."""
 
 import unittest
+import tests  # noqa: F401
 from types import SimpleNamespace
 from unittest.mock import patch
 

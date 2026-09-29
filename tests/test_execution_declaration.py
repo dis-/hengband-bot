@@ -2,6 +2,7 @@
 
 import pickle
 import unittest
+import tests  # noqa: F401
 from pathlib import Path
 from types import SimpleNamespace
 import gzip

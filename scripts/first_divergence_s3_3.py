@@ -37,6 +37,12 @@ OFF_SHA = {
 # six-fixture stream.
 CROSSAREA_EXPECTED_FIRST = {case: None for case in OFF_SHA}
 MODES = {"off", "s33", "crossarea"}
+DECLARATION_TOWN_FAMILIES = frozenset({
+    "equipment-opt", "equipment-txn", "calibration", "departure",
+    "fundraising", "bookkeeping", "survival", "identification",
+    "curse-enchant", "cross-town", "rumor", "home-visit",
+    "home-errand", "home-scan", "shop-buy", "shop-sell", "store-router",
+})
 
 
 def _identity(value):
@@ -106,18 +112,20 @@ def _declaration_counts(calls):
         mismatch = decision.get("declaration_mismatch")
         if mismatch is not None:
             declared = mismatch.get("declared")
-            rows.append({"kind": "mismatch", "decision_sequence": sequence,
-                         "reason": reason, "key": key, "family": family,
-                         "inferred": mismatch.get("inferred"),
-                         "declared": declared.get("state") if isinstance(declared, dict)
-                         else None})
+            if family in DECLARATION_TOWN_FAMILIES:
+                rows.append({"kind": "mismatch", "decision_sequence": sequence,
+                             "reason": reason, "key": key, "family": family,
+                             "inferred": mismatch.get("inferred"),
+                             "declared": declared.get("state") if isinstance(declared, dict)
+                             else None})
             mismatches[(family, mismatch.get("inferred"),
                         declared.get("state") if isinstance(declared, dict)
                         else None)] += 1
         if decision.get("execution") is None:
             missing[family] += 1
-            rows.append({"kind": "missing", "decision_sequence": sequence,
-                         "reason": reason, "key": key, "family": family})
+            if family in DECLARATION_TOWN_FAMILIES:
+                rows.append({"kind": "missing", "decision_sequence": sequence,
+                             "reason": reason, "key": key, "family": family})
     return {
         "declaration_gap_rows": rows,
         "declaration_mismatch_counts": [

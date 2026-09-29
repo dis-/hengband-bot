@@ -966,7 +966,14 @@ class SupplyMixin:
         if snapshot.in_town:
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
-                return EAT_KEY + food.slot
+                key = EAT_KEY + food.slot
+                self._offer_execution(
+                    key, producer="survival", work_id="town:eat",
+                    next_step="survival.eat",
+                    arguments=(self._item_signature(food),),
+                    expected_effect="hunger-relieved",
+                )
+                return key
             step = self._shopping_approach_step(
                 snapshot, requester="survival"
             )
