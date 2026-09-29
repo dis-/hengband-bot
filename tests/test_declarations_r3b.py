@@ -228,6 +228,24 @@ class EquipmentTxnDeclarationTest(unittest.TestCase):
                          ("equipment-txn", "acting",
                           "equipment.restore-blocked-stop"))
 
+    def test_posted_action_wait_keeps_operation_identity(self):
+        policy = HengbotPolicy()
+        claim = policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "equipment"))
+        policy._offer_execution_awaiting(
+            "5", producer="equipment-txn", work_id="equipment:town:pending:a",
+            operation_ref="command:42", expected_effect="equipment-action-confirmed",
+            continuation="equipment.next-action",
+        )
+        policy._record_execution_declaration(
+            claim, "5", "equipment-transaction:await-confirmation")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.state, declaration.operation_ref,
+                          declaration.expected_effect),
+                         ("awaiting", "command:42",
+                          "equipment-action-confirmed"))
+        self.assertIsNone(getattr(policy, "_execution_pending_post", None))
+
 
 class EquipmentOptDeclarationTest(unittest.TestCase):
     def test_optimizer_outside_town_declares_no_step(self):

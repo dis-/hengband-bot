@@ -4401,6 +4401,10 @@ class TownMixin:
     ) -> str | None:
         """Suppress visible or still-hidden random teleport before equipping."""
         if not snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="suppress-random-teleport",
+                cause="outside-town",
+            )
             return None
 
         # choose_key normally performs this synchronization before dispatch,
@@ -4423,14 +4427,36 @@ class TownMixin:
         if pack_owned is not None or equipped_owned is not None:
             if snapshot.store is not None:
                 self.last_reason = "equipment:leave-store-to-suppress-random-teleport"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer="equipment-txn",
+                    work_id="suppress-random-teleport",
+                    next_step="store.leave-for-teleport-suppression",
+                    expected_effect="store-exited",
+                )
                 return LEAVE_STORE_KEY
             if pack_owned is not None:
                 self.last_reason = "equipment:suppress-random-teleport"
-                return INSCRIBE_KEY + pack_owned.item.slot + ".\r"
+                key = INSCRIBE_KEY + pack_owned.item.slot + ".\r"
+                self._offer_execution(
+                    key, producer="equipment-txn",
+                    work_id="suppress-random-teleport",
+                    next_step="equipment.inscribe-teleport-suppression",
+                    arguments=(self._item_signature(pack_owned.item),),
+                    expected_effect="random-teleport-suppressed",
+                )
+                return key
             slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
             if slot_key is not None:
                 self.last_reason = "equipment:suppress-equipped-random-teleport"
-                return INSCRIBE_KEY + "/" + slot_key + ".\r"
+                key = INSCRIBE_KEY + "/" + slot_key + ".\r"
+                self._offer_execution(
+                    key, producer="equipment-txn",
+                    work_id="suppress-random-teleport",
+                    next_step="equipment.inscribe-teleport-suppression",
+                    arguments=(self._item_signature(equipped_owned.item),),
+                    expected_effect="random-teleport-suppressed",
+                )
+                return key
 
         home_owned = next(
             (owned for owned in pending if owned.origin == "home"), None
@@ -4449,6 +4475,18 @@ class TownMixin:
             # take command, and the exit.
             self._home_pending_item = self._item_signature(home_owned.item)
             self._home_random_teleport_withdrawal = self._home_pending_item
+            self._offer_execution(
+                None, producer="equipment-txn",
+                work_id="suppress-random-teleport:home",
+                next_step="home.withdraw-for-teleport-suppression",
+                arguments=(self._home_pending_item,),
+                expected_effect="item-withdrawn",
+            )
+            return None
+        self._offer_execution_no_step(
+            producer="equipment-txn", work_id="suppress-random-teleport",
+            cause="no-suppression-target",
+        )
         return None
 
     def _town_cycle_detected(self) -> bool:

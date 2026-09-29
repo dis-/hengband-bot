@@ -3354,12 +3354,31 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._execution_offer_sequence = sequence
         offers.append((producer, work_id, evidence, sequence, "done"))
 
+    def _offer_execution_awaiting(
+        self, key: str | None, *, producer: str, work_id: str,
+        operation_ref: str, expected_effect: str,
+        continuation: str | None = None,
+    ) -> None:
+        """A producer names an already accepted operation it is observing."""
+        offers = getattr(self, "_execution_wait_offers", None)
+        if offers is None:
+            offers = []
+            self._execution_wait_offers = offers
+        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
+        self._execution_offer_sequence = sequence
+        offers.append((
+            key, producer, work_id, operation_ref, expected_effect,
+            continuation, sequence,
+        ))
+
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
         offers = getattr(self, "_execution_offers", None) or ()
         self._execution_offers = []
         no_steps = getattr(self, "_execution_no_step_offers", None) or ()
         self._execution_no_step_offers = []
+        waits = getattr(self, "_execution_wait_offers", None) or ()
+        self._execution_wait_offers = []
         offer = next((candidate for candidate in reversed(offers)
                       if key == candidate[0]
                       and claim.owner.value == candidate[1]), None)
@@ -3368,6 +3387,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                   if claim.owner.value == candidate[0]), None)
             if key is None else None
         )
+        wait = next((candidate for candidate in reversed(waits)
+                     if key == candidate[0]
+                     and claim.owner.value == candidate[1]), None)
         posted_wait = (
             key is None and claim.execution is not None
             and claim.execution.state == "awaiting"
@@ -3375,6 +3397,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if posted_wait:
             # A producer's no-key result cannot settle an unresolved send.
+            offer = None
+            no_step = None
+            wait = None
+        if wait is not None and (offer is None or wait[6] > offer[8]) and (
+            no_step is None or wait[6] > no_step[3]
+        ):
+            _, producer, work_id, operation_ref, effect, continuation, _ = wait
+            current_execution = claim.execution
+            if (current_execution is None
+                    or current_execution.state != "awaiting"
+                    or current_execution.operation_ref != operation_ref):
+                register.declare_execution(
+                    claim.claim_id, work_id=work_id, producer=producer,
+                    state="awaiting", operation_ref=operation_ref,
+                    expected_effect=effect, continuation=continuation,
+                )
             offer = None
             no_step = None
         if no_step is not None and (offer is None or no_step[3] > offer[8]):
@@ -6201,6 +6239,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _choose_key(self, snapshot: Snapshot) -> str | None:
         self._execution_offers = []
         self._execution_no_step_offers = []
+        self._execution_wait_offers = []
         self._execution_pending_post = None
         self._staged_shop_approach = None
         self._read_binding = None
@@ -13896,17 +13935,37 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if stale_tag is not None:
             slot_key = EQUIPMENT_SLOT_KEY.get(stale_tag.slot)
             if slot_key is None:
+                self._offer_execution_no_step(
+                    producer="equipment-txn", work_id="heavy-curse-tag",
+                    cause="tag-slot-unavailable",
+                )
                 return None
             self._heavy_cursed_items.discard(self._item_signature(stale_tag))
             cleaned = stale_tag.inscription.replace(HEAVY_CURSE_TAG, "").strip()
             if not cleaned:
                 self.last_reason = "equipment:clear-heavy-curse-tag"
-                return UNINSCRIBE_KEY + "/" + slot_key
+                key = UNINSCRIBE_KEY + "/" + slot_key
+                self._offer_execution(
+                    key, producer="equipment-txn", work_id="heavy-curse-tag",
+                    next_step="equipment.clear-heavy-curse-tag",
+                    expected_effect="stale-tag-removed",
+                )
+                return key
             self.last_reason = "equipment:remove-heavy-curse-tag"
-            return INSCRIBE_KEY + "/" + slot_key + cleaned + "\r"
+            key = INSCRIBE_KEY + "/" + slot_key + cleaned + "\r"
+            self._offer_execution(
+                key, producer="equipment-txn", work_id="heavy-curse-tag",
+                next_step="equipment.remove-heavy-curse-tag",
+                expected_effect="stale-tag-removed",
+            )
+            return key
 
         signature = self._heavy_curse_inscription_pending
         if signature is None or not snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="heavy-curse-tag",
+                cause="no-town-heavy-curse-work",
+            )
             return None
         target = next(
             (
@@ -13917,19 +13976,39 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if target is None or HEAVY_CURSE_TAG in target.inscription:
             self._heavy_curse_inscription_pending = None
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="heavy-curse-tag",
+                cause="tag-target-unavailable-or-complete",
+            )
             return None
         if snapshot.store is not None:
             self.last_reason = "equipment:leave-store-to-mark-heavy-curse"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="equipment-txn",
+                work_id="heavy-curse-tag",
+                next_step="store.leave-for-heavy-curse-tag",
+                expected_effect="store-exited",
+            )
             return LEAVE_STORE_KEY
         slot_key = EQUIPMENT_SLOT_KEY.get(target.slot)
         if slot_key is None:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="heavy-curse-tag",
+                cause="target-slot-unavailable",
+            )
             return None
         self._heavy_curse_inscription_pending = None
         # The initial inscription opens in overwrite mode. Ctrl-E moves to its
         # end and switches to insert mode before the persistent marker is added.
         suffix = "\x05 " + HEAVY_CURSE_TAG
         self.last_reason = "equipment:mark-heavy-curse"
-        return INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
+        key = INSCRIBE_KEY + "/" + slot_key + suffix + "\r"
+        self._offer_execution(
+            key, producer="equipment-txn", work_id="heavy-curse-tag",
+            next_step="equipment.mark-heavy-curse-tag",
+            expected_effect="heavy-curse-tag-added",
+        )
+        return key
 
     def _find_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(

@@ -1754,10 +1754,28 @@ class EquipmentMixin:
         )
         return WAIT_KEY
 
+    def _equipment_home_outcome(self, key: str | None, *, label: str,
+                                effect: str = "store-exited") -> str | None:
+        """Name a Home transaction exit that has no prepared action offer."""
+        work_id = f"equipment:home:{label}"
+        if key is None:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id=work_id, cause=label,
+            )
+        else:
+            self._offer_execution(
+                key, producer="equipment-txn", work_id=work_id,
+                next_step=f"equipment.home.{label}", expected_effect=effect,
+                continuation="equipment.next-action",
+            )
+        return key
+
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
-            return LEAVE_STORE_KEY
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="release-stalled",
+            )
         session = self._equipment_transaction_session
         if (
             session is not None
@@ -1767,29 +1785,45 @@ class EquipmentMixin:
             # A legacy equip action belongs outside Home. Leave before
             # preparing a command so the session can keep its context.
             self.last_reason = "equipment-transaction:leave-home-for-equip"
-            return LEAVE_STORE_KEY
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="leave-for-equip",
+            )
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
-            return None
+            return self._equipment_home_outcome(None, label="session-absent")
         if session.pending_action is None and session.required_context == "outside_home":
             self.last_reason = "equipment-transaction:leave-home-for-equip"
-            return LEAVE_STORE_KEY
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="leave-for-equip",
+            )
         if not session.executable:
             self._abandon_blocked_equipment_transaction(snapshot)
             self.last_reason = "equipment-transaction:abandon-blocked-home"
-            return LEAVE_STORE_KEY
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label="abandon-blocked",
+            )
         if session.pending_action is not None:
             # A STORE board is the causal post-command barrier.  ``prime``
             # reconciles it before policy dispatch; never leave merely to make
             # the same inventory/equipment observation outside.
             self.last_reason = "equipment-transaction:await-home-barrier"
+            self._offer_execution(
+                None, producer="equipment-txn",
+                work_id=f"equipment:home:pending:{session.target_loadout_id}",
+                next_step="equipment.observe-home-barrier",
+                arguments=(session.posted_command_id,),
+                expected_effect="equipment-action-confirmed",
+                continuation="equipment.next-action",
+            )
             return None
 
         action = session.current_action
         store = snapshot.store
         if action is None or store is None or store.store_type != STORE_HOME:
-            return None
+            return self._equipment_home_outcome(
+                None, label="home-action-context-unavailable",
+            )
         observation = observe_equipment_transactions(snapshot)
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
@@ -1797,22 +1831,31 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
-                return None
+                return self._equipment_home_outcome(
+                    None, label="takeoff-slot-unknown",
+                )
             observed_identity = observation.equipped_identity(action.target_slot)
             if observed_identity != action.item_identity:
                 self._invalidate_stale_equipment_transaction(
                     snapshot, action, observed_identity
                 )
-                return WAIT_KEY
+                return self._equipment_home_outcome(
+                    WAIT_KEY, label="takeoff-stale",
+                    effect="transaction-replanned",
+                )
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
-                return None
+                return self._equipment_home_outcome(
+                    None, label="takeoff-key-unavailable",
+                )
             if not self._prepare_equipment_transaction_command(
                 session, action, observation, key,
                 ("home", snapshot.turn, action.target_slot, action.item_identity),
             ):
                 self._block_equipment_transaction("takeoff-dispatch-rejected")
-                return None
+                return self._equipment_home_outcome(
+                    None, label="takeoff-dispatch-rejected",
+                )
             self.last_reason = "equipment-transaction:takeoff"
             return key
 
@@ -1826,7 +1869,9 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"
                 )
-                return None
+                return self._equipment_home_outcome(
+                    None, label="equip-item-missing",
+                )
             key = self._equipment_wield(
                 snapshot, "transaction-apply", target, action.target_slot
             )
@@ -1835,14 +1880,18 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     refusal or f"unknown-equipment-slot:{action.target_slot}"
                 )
-                return None
+                return self._equipment_home_outcome(
+                    None, label="equip-key-unavailable",
+                )
             if not self._prepare_equipment_transaction_command(
                 session, action, observation, key,
                 ("home", snapshot.turn, target.slot, action.target_slot,
                  action.item_identity),
             ):
                 self._block_equipment_transaction("equip-dispatch-rejected")
-                return None
+                return self._equipment_home_outcome(
+                    None, label="equip-dispatch-rejected",
+                )
             self.last_reason = f"equipment-transaction:{action.kind}"
             return key
 
@@ -1869,18 +1918,25 @@ class EquipmentMixin:
                     self._equipment_transaction_failed_items.difference_update(
                         self._equipment_action_memory_keys(action)
                     )
-                    return WAIT_KEY
+                    return self._equipment_home_outcome(
+                        WAIT_KEY, label="deposit-stale-worn",
+                        effect="transaction-replanned",
+                    )
                 self._block_equipment_transaction(
                     f"deposit-item-missing:{action.item_id}"
                 )
                 self.last_reason = "equipment-transaction:deposit-missing"
-                return LEAVE_STORE_KEY
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="deposit-item-missing",
+                )
             if self._retention_reservation(snapshot, target) > 0:
                 # A transaction cached before a purchase or plan transition is
                 # stale. Replan without ever dispatching its reserved deposit.
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:retain-reserved"
-                return LEAVE_STORE_KEY
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="retain-reserved",
+                )
             if self._identification_flow_owns(target):
                 # Identification owns this item until its hidden equipment
                 # properties are known.  Discard the stale plan and let the
@@ -1888,7 +1944,9 @@ class EquipmentMixin:
                 # issuing the deposit that would restart the carousel.
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:defer-identification"
-                return None
+                return self._equipment_home_outcome(
+                    None, label="defer-identification",
+                )
             if target.is_digging_tool and not self._is_surplus_digging_tool(
                 snapshot, target
             ):
@@ -1896,7 +1954,9 @@ class EquipmentMixin:
                 # put the newly acquired kit straight back on Home's shelf.
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:retain-digging-tool"
-                return None
+                return self._equipment_home_outcome(
+                    None, label="retain-digging-tool",
+                )
             main_hand = next(
                 (item for item in snapshot.equipment if item.slot == "main_hand"),
                 None,
@@ -1924,7 +1984,9 @@ class EquipmentMixin:
                 ),
             ):
                 self._block_equipment_transaction("deposit-dispatch-rejected")
-                return LEAVE_STORE_KEY
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="deposit-dispatch-rejected",
+                )
             self.last_reason = "equipment-transaction:deposit"
             self._equipment_transaction_prepared_catalog_update = (
                 "deposit",
@@ -1983,7 +2045,9 @@ class EquipmentMixin:
                     self._block_equipment_transaction(
                         "withdraw-dispatch-rejected"
                     )
-                    return None
+                    return self._equipment_home_outcome(
+                        None, label="withdraw-dispatch-rejected",
+                    )
                 self.last_reason = "equipment-transaction:withdraw"
                 return key
             target_observed = any(
@@ -2001,12 +2065,16 @@ class EquipmentMixin:
                 ):
                     self._invalidate_home_observation()
                     self.last_reason = "equipment-transaction:await-fresh-knowledge"
-                    return LEAVE_STORE_KEY
+                    return self._equipment_home_outcome(
+                        LEAVE_STORE_KEY, label="await-fresh-knowledge",
+                    )
                 self._block_equipment_transaction(
                     f"withdraw-item-missing:{action.item_id}"
                 )
                 self.last_reason = "equipment-transaction:withdraw-missing"
-                return LEAVE_STORE_KEY
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="withdraw-item-missing",
+                )
             if self._home_atomic_withdraw_pending is not None:
                 self._equipment_atomic_withdraw_leave_count = 0
             if session.physical_context != "home":
@@ -2017,41 +2085,84 @@ class EquipmentMixin:
                     self.last_reason = (
                         "equipment-transaction:atomic-withdraw-unreachable"
                     )
-                    return LEAVE_STORE_KEY
+                    return self._equipment_home_outcome(
+                        LEAVE_STORE_KEY, label="atomic-withdraw-unreachable",
+                    )
                 self._equipment_atomic_withdraw_leave_count += 1
                 self.last_reason = (
                     "equipment-transaction:leave-for-atomic-withdraw"
                 )
-                return LEAVE_STORE_KEY
+                return self._equipment_home_outcome(
+                    LEAVE_STORE_KEY, label="leave-for-atomic-withdraw",
+                )
             # The complete Home catalogue proves the item exists, but Home
             # letters are page-relative.  Keep this session as the owner and
             # use the existing bounded Home paging protocol until the target
             # page is observed; blocking here used to discard the session and
             # strand calibration-stripped slots.
             self.last_reason = "equipment-transaction:seek-home-page"
-            return " "
+            return self._equipment_home_outcome(
+                " ", label="seek-home-page",
+                effect="home-page-changed",
+            )
 
         self._block_equipment_transaction(f"invalid-home-action:{action.kind}")
-        return LEAVE_STORE_KEY
+        return self._equipment_home_outcome(
+            LEAVE_STORE_KEY, label="invalid-home-action",
+        )
+
+    def _equipment_town_outcome(self, key: str | None, *, label: str,
+                                effect: str = "transaction-progress") -> str | None:
+        work_id = f"equipment:town:{label}"
+        if key is None:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id=work_id, cause=label,
+            )
+        else:
+            self._offer_execution(
+                key, producer="equipment-txn", work_id=work_id,
+                next_step=f"equipment.town.{label}", expected_effect=effect,
+                continuation="equipment.next-action",
+            )
+        return key
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_town_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.store is not None:
-            return None
+            return self._equipment_town_outcome(
+                None, label="town-context-unavailable",
+            )
         if self._defer_town_errand("equipment-txn", "town-key"):
-            return None
+            return self._equipment_town_outcome(
+                None, label="deferred-by-town-holder",
+            )
         if self._release_stalled_equipment_transaction(snapshot):
-            return WAIT_KEY
+            return self._equipment_town_outcome(
+                WAIT_KEY, label="release-stalled",
+            )
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:
-            return None
+            return self._equipment_town_outcome(
+                None, label="session-absent",
+            )
         if not session.executable:
             self._abandon_blocked_equipment_transaction(snapshot)
             self.last_reason = "equipment-transaction:abandon-blocked"
-            return WAIT_KEY
+            return self._equipment_town_outcome(
+                WAIT_KEY, label="abandon-blocked",
+            )
         if session.pending_action is not None:
             self.last_reason = "equipment-transaction:await-confirmation"
+            operation_ref = session.posted_command_id
+            if operation_ref is not None:
+                self._offer_execution_awaiting(
+                    WAIT_KEY, producer="equipment-txn",
+                    work_id=f"equipment:town:pending:{session.target_loadout_id}",
+                    operation_ref=operation_ref,
+                    expected_effect="equipment-action-confirmed",
+                    continuation="equipment.next-action",
+                )
             return WAIT_KEY
         if session.required_context == "home":
             if (
@@ -2090,7 +2201,9 @@ class EquipmentMixin:
             if step is None or self._shopping_approach_store_type != STORE_HOME:
                 self._block_equipment_transaction("home-route-unavailable")
                 self.last_reason = "equipment-transaction:home-route-unavailable"
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="home-route-unavailable",
+                )
             # Every issued approach is one attempt by this Home-owned work.
             # Charge it to the existing 300-pass ceiling before preserving the
             # route step. If movement never arrives, the 300th attempt blocks
@@ -2101,13 +2214,18 @@ class EquipmentMixin:
                 snapshot, STORE_HOME, goal_satisfied=False
             )
             self.last_reason = "equipment-transaction:approach-home"
-            return self._shopping_approach_key(
+            key = self._shopping_approach_key(
                 snapshot, step, "equipment-transaction:travel-home"
+            )
+            return self._equipment_town_outcome(
+                key, label="approach-home", effect="home-reached",
             )
 
         action = session.current_action
         if action is None:
-            return None
+            return self._equipment_town_outcome(
+                None, label="session-action-complete",
+            )
         observation = observe_equipment_transactions(snapshot)
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
@@ -2115,18 +2233,24 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"unknown-equipment-slot:{action.target_slot}"
                 )
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="takeoff-slot-unknown",
+                )
             observed_identity = observation.equipped_identity(action.target_slot)
             if observed_identity != action.item_identity:
                 self._invalidate_stale_equipment_transaction(
                     snapshot, action, observed_identity
                 )
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="takeoff-stale",
+                )
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
                 if not self.last_reason.startswith("posting-contract:"):
                     self.last_reason = "equipment-mutation:busy"
-                return None
+                return self._equipment_town_outcome(
+                    None, label="takeoff-mutation-busy",
+                )
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,
@@ -2138,7 +2262,9 @@ class EquipmentMixin:
                 ),
             ):
                 self._block_equipment_transaction("takeoff-dispatch-rejected")
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="takeoff-dispatch-rejected",
+                )
             self.last_reason = "equipment-transaction:takeoff"
             return key
 
@@ -2156,7 +2282,9 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"
                 )
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="equip-item-missing",
+                )
             macro = self._equipment_wield(
                 snapshot, "transaction-apply", target, action.target_slot
             )
@@ -2165,7 +2293,9 @@ class EquipmentMixin:
                 self._block_equipment_transaction(
                     refusal or f"unknown-equipment-slot:{action.target_slot}"
                 )
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="equip-key-unavailable",
+                )
             if not self._prepare_equipment_transaction_command(
                 session,
                 action,
@@ -2177,12 +2307,16 @@ class EquipmentMixin:
                 ),
             ):
                 self._block_equipment_transaction("equip-dispatch-rejected")
-                return WAIT_KEY
+                return self._equipment_town_outcome(
+                    WAIT_KEY, label="equip-dispatch-rejected",
+                )
             self.last_reason = f"equipment-transaction:{action.kind}"
             return macro
 
         self._block_equipment_transaction(f"invalid-equip-action:{action.kind}")
-        return WAIT_KEY
+        return self._equipment_town_outcome(
+            WAIT_KEY, label="invalid-equip-action",
+        )
 
     def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
         """Permit completion now or a recorded loadout with no visit-local work."""
@@ -2746,8 +2880,16 @@ class EquipmentMixin:
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or self._calibration_active():
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="restore-context-unavailable",
+            )
             return None
         if self._defer_town_errand("equipment-txn", "restore-weapon"):
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="deferred-by-town-holder",
+            )
             return None
         current = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
@@ -2757,16 +2899,39 @@ class EquipmentMixin:
                 snapshot, "town:restore-combat-weapon"
             )
             if restore is not None:
+                self._offer_execution(
+                    restore, producer="equipment-txn",
+                    work_id="restore-combat-weapon",
+                    next_step="equipment.restore-combat-hand",
+                    expected_effect="combat-weapon-equipped",
+                )
                 return restore
         replacing_no_teleport = current is not None and self._blocks_teleport(current)
         if replacing_no_teleport:
             if current.is_cursed:
+                self._offer_execution_no_step(
+                    producer="equipment-txn", work_id="restore-combat-weapon",
+                    cause="no-teleport-weapon-cursed",
+                )
                 return None
             self._no_teleport_rearm_pending = True
             self.last_reason = "town:remove-no-teleport-weapon"
-            return self._equipment_takeoff(
+            key = self._equipment_takeoff(
                 snapshot, "replace-no-teleport", "a"
             )
+            if key is not None:
+                self._offer_execution(
+                    key, producer="equipment-txn",
+                    work_id="restore-combat-weapon",
+                    next_step="equipment.remove-no-teleport-weapon",
+                    expected_effect="main-hand-empty",
+                )
+            else:
+                self._offer_execution_no_step(
+                    producer="equipment-txn", work_id="restore-combat-weapon",
+                    cause="takeoff-unavailable",
+                )
+            return key
         blocked_weapon_in_pack = any(
             item.is_melee_weapon and self._blocks_teleport(item)
             for item in snapshot.inventory
@@ -2783,6 +2948,10 @@ class EquipmentMixin:
             self._equipped_digging_tool(snapshot) is None
             and not replacing_no_teleport
         ):
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="no-restoration-required",
+            )
             return None
         # Swap the mining pickaxe back out for a real weapon BEFORE diving/recalling —
         # a digger is a feeble weapon and the next floor's monsters are not. Prefer the
@@ -2812,6 +2981,10 @@ class EquipmentMixin:
         if weapon is None:
             # No combat weapon to restore — the pickaxe is our only weapon. Don't hang
             # the town routine WAITing for one that will never appear; carry on.
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="combat-weapon-unavailable",
+            )
             return None
         reason = (
             "town:replace-no-teleport-weapon"
@@ -2822,6 +2995,18 @@ class EquipmentMixin:
         key = self._wield_weapon_key(snapshot, weapon)
         if key is not None:
             self._equipment_mutation_post_commit = (key, "no-teleport-rearm")
+            self._offer_execution(
+                key, producer="equipment-txn",
+                work_id="restore-combat-weapon",
+                next_step="equipment.wield-combat-weapon",
+                arguments=(self._item_signature(weapon),),
+                expected_effect="combat-weapon-equipped",
+            )
+        else:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="wield-unavailable",
+            )
         return key
 
     def _launcher_enchant_needed_svals(self, snapshot: Snapshot) -> tuple[int, ...]:
