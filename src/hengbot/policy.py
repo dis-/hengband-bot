@@ -6854,7 +6854,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # The confirmed transaction moved an item into or out of Home.
                 self._observe_home_operation_effect()
-            if advanced and pending is not None:
+            if (getattr(self, "_town_claim_bar_enforced", False)
+                    and advanced and pending is not None):
                 visit = self._store_visit
                 if (visit is not None
                         and visit.store_type == STORE_HOME
@@ -7731,7 +7732,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
         else:
             key = self._decide(snapshot)
-        if (key == "\r" and snapshot.store is not None
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and key == "\r" and snapshot.store is not None
                 and self._equipment_transaction_session is not None
                 and (self._equipment_transaction_session.pending_action is not None
                      or (self._store_visit is not None
@@ -7758,7 +7760,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-unbound-deposit"
             key = LEAVE_STORE_KEY
         self._remember_swarm_distances(snapshot)
-        if key is None and (self.last_reason or "").startswith(
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and key is None and (self.last_reason or "").startswith(
             "ownership:holder-silent:"
         ):
             return None
@@ -11782,7 +11785,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return mutation_committed
         session = self._equipment_transaction_session
         committed = session is not None and session.confirm_posted(key)
-        if committed and session is not None:
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and committed and session is not None):
             visit = self._store_visit
             if (visit is not None and visit.store_type == STORE_HOME
                     and visit.operation_posted
