@@ -7610,15 +7610,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
             self._offer_execution(
-                key, producer=(
-                    self._store_visit.operation_producer_family
-                    if self._store_visit is not None
-                    and self._store_visit.operation_producer_family in {
-                        "equipment-txn", "calibration", "home-visit"
-                    } else "equipment-txn"
-                    if self._equipment_transaction_session is not None
-                    else "home-visit"
-                ), work_id="home:leave-after-one-operation",
+                key, producer=self._claim_family_of(self.last_reason),
+                work_id="home:leave-after-one-operation",
                 next_step="store.leave.send", arguments=(STORE_HOME,),
                 expected_effect="outside-store",
             )
