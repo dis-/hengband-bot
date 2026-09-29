@@ -237,5 +237,26 @@ class FundraisingDeclarationTest(unittest.TestCase):
                           "fundraising.observe-town-arrival"))
 
 
+class EquipmentTxnDeclarationTest(unittest.TestCase):
+    def test_restore_terminal_declares_owed_stop(self):
+        policy = HengbotPolicy()
+        policy._equipment_transaction_owned_items = [("armour-a", "body")]
+        policy._equipment_transaction_restore_terminal = (
+            "equipment-transaction:restore-blocked-terminal"
+        )
+        board = SimpleNamespace(store=None)
+        with (patch.object(policy, "_defer_town_errand", return_value=False),
+              patch.object(policy, "_abandon_blocked_equipment_transaction")):
+            key = policy._equipment_transaction_town_owner_key(board)
+        claim = policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "equipment"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step),
+                         ("equipment-txn", "acting",
+                          "equipment.restore-blocked-stop"))
+
+
 if __name__ == "__main__":
     unittest.main()

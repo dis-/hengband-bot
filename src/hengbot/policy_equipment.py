@@ -1638,21 +1638,43 @@ class EquipmentMixin:
     ) -> str | None:
         """Give a stripped transaction exclusive ownership of town decisions."""
         if self._defer_town_errand("equipment-txn", "town-owner"):
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:town-owner",
+                cause="deferred-by-town-holder",
+            )
             return None
         if not self._equipment_transaction_owned_items:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:town-owner",
+                cause="no-transaction-debt",
+            )
             return None
         self._declare_non_discardable("equipment-txn")
         if self._equipment_transaction_session is None:
             self._abandon_blocked_equipment_transaction(snapshot)
         if self._equipment_transaction_restore_terminal is not None:
             self.last_reason = self._equipment_transaction_restore_terminal
-            return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+            key = LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+            self._offer_execution(
+                key, producer="equipment-txn",
+                work_id="equipment:restore-terminal",
+                next_step="equipment.restore-blocked-stop",
+                expected_effect="transaction-terminal-recorded",
+            )
+            return key
         if snapshot.store is not None:
             if snapshot.store.store_type == STORE_HOME:
                 key = self._equipment_transaction_home_key(snapshot)
                 if key is not None:
                     return key
             self.last_reason = "equipment-transaction:owns-town-leave-store"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="equipment-txn",
+                work_id="equipment:town-leave-store",
+                next_step="store.leave-for-equipment",
+                expected_effect="store-exited",
+                continuation="equipment.next-action",
+            )
             return LEAVE_STORE_KEY
         key = self._equipment_transaction_town_key(snapshot)
         if key is not None:
@@ -1661,6 +1683,12 @@ class EquipmentMixin:
             "equipment-transaction:restore-blocked-terminal"
         )
         self.last_reason = self._equipment_transaction_restore_terminal
+        self._offer_execution(
+            WAIT_KEY, producer="equipment-txn",
+            work_id="equipment:restore-terminal",
+            next_step="equipment.restore-blocked-stop",
+            expected_effect="transaction-terminal-recorded",
+        )
         return WAIT_KEY
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
