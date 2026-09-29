@@ -11,12 +11,13 @@ from unittest.mock import patch
 from hengbot.claim_register import (
     ClaimRegister, declaration_mismatch, observe, reach,
 )
+from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
 from test_policy import (
     Snapshot, StoreState, STORE_ALCHEMIST, SV_SCROLL_REMOVE_CURSE,
-    TVAL_SCROLL, grid, player, store_item,
+    STORE_HOME, TVAL_CHAOS_BOOK, TVAL_SCROLL, grid, item, player, store_item,
 )
 
 
@@ -114,6 +115,26 @@ class ExecutionDeclarationTest(unittest.TestCase):
         declaration = policy._claim_register.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("pa\r", "shop-buy", "shop.purchase.send"))
+
+    def test_home_errand_filing_leave_names_its_request(self):
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 46
+        policy._home_errand.file(
+            HomeErrandRequest(("weapon", 1, 2), 1, "home-page", "combat-weapon"),
+            knowledge_current=True,
+        )
+        key = policy._shop(board)
+        claim = policy._claim_register.declare(
+            "home-errand", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("\x1b", "home-errand", "store.leave.send"))
 
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()

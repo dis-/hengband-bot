@@ -3344,7 +3344,19 @@ class ShopMixin:
         """Declare the final direct store-page command produced by this page."""
         key = self._shop_core(snapshot)
         family = self._claim_family_of(self.last_reason)
-        if family in {"shop-buy", "shop-sell", "home-visit"} and not any(
+        request = getattr(self._home_errand, "request", None)
+        if (key == LEAVE_STORE_KEY and self._home_errand.active
+                and request is not None):
+            self._offer_execution(
+                key, producer="home-errand",
+                work_id=f"home-request:{request.purpose}:{request.signature}",
+                next_step="store.leave.send",
+                arguments=(STORE_HOME, request.purpose, request.signature),
+                expected_effect="outside-store",
+                continuation="home.request.resume",
+                budget_ref="home-errand-existing-budget",
+            )
+        if family in {"shop-buy", "shop-sell", "home-visit", "home-errand"} and not any(
             offer[0] == key and offer[1] == family
             for offer in getattr(self, "_execution_offers", ())
         ):
