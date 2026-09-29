@@ -198,6 +198,20 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("\x1b", "home-errand", "store.leave.send"))
 
+    def test_home_errand_unaddressed_withdraw_declares_retry(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 48
+        policy.last_reason = "home-errand:target-unobserved:combat-weapon"
+        policy._offer_unaddressed_home_withdraw("\x1b", ("weapon", 1, 2))
+        claim = policy._claim_register.declare(
+            "home-errand", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, "\x1b", policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.arguments),
+                         ("home-errand", "store.leave.send",
+                          (("weapon", 1, 2),)))
+
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()
         policy._decision_sequence = 32
