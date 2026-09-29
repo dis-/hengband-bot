@@ -126,6 +126,7 @@ from hengbot.equipment_mutation import (
     EquipmentMutationState,
 )
 from hengbot.claim_register import (
+    CLAIM_OWNER_ATTRIBUTE,
     BAR_ERRAND as CLAIM_BAR_ERRAND,
     BAR_THREAT as CLAIM_BAR_THREAT,
     CLOSED_BY_COMPLETE as CLAIM_CLOSED_BY_COMPLETE,
@@ -3355,7 +3356,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and "snapshot" in frame.f_locals
                     and code.co_argcount == 2):
                 method = getattr(self, code.co_name, None)
-                if getattr(method, "__code__", None) is code:
+                owner = getattr(getattr(method, "__func__", None),
+                                CLAIM_OWNER_ATTRIBUTE, None)
+                if (getattr(method, "__code__", None) is code
+                        and getattr(owner, "value", None) == producer):
                     entry = code.co_name
                     break
             frame = frame.f_back
