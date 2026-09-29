@@ -3332,6 +3332,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             expected_effect, continuation, budget_ref, state, evidence, cause,
         ))
 
+    def _offer_home_scan_leave(self) -> None:
+        """A complete Home catalogue still has a page-exit command to send."""
+        self._offer_execution(
+            LEAVE_STORE_KEY, producer="home-scan",
+            work_id=f"home-scan-page:{self._decision_sequence}",
+            next_step="store.leave.send", arguments=(STORE_HOME,),
+            expected_effect="outside-store",
+            continuation="home.knowledge.done",
+            budget_ref="home-knowledge-existing-epoch",
+        )
+
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
         offers = getattr(self, "_execution_offers", None) or ()
@@ -7360,6 +7371,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "shop:store-context-exit"
                 )
             key = LEAVE_STORE_KEY
+            if self.last_reason == "home:scan-complete-from-open-page":
+                self._offer_home_scan_leave()
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7387,6 +7400,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_scan_source = "foreign-store-page"
             self.last_reason = "home:scan-complete-from-open-page"
             key = LEAVE_STORE_KEY
+            self._offer_home_scan_leave()
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7542,6 +7556,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else:
                         self.last_reason = "home:store-context-exit"
                     key = LEAVE_STORE_KEY
+                    if self.last_reason == "home:scan-complete-from-open-page":
+                        self._offer_home_scan_leave()
                 else:
                     key = self._decide(snapshot)
             elif (
@@ -7695,6 +7711,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
+                self._offer_home_scan_leave()
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -7713,6 +7730,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._home_scan_source = "observed-home-page"
                 self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
+                self._offer_home_scan_leave()
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None

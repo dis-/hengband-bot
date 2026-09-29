@@ -32,6 +32,16 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
+    def test_town_page_declarations_do_not_change_keys_with_s33_switch(self):
+        outcomes = []
+        for enforced in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = enforced
+            policy._decision_sequence = 47
+            key = policy._shop(SimpleNamespace(store=None))
+            outcomes.append((key, policy.last_reason))
+        self.assertEqual(outcomes[0], outcomes[1])
+
     def test_home_scan_holder_wait_declares_named_observation(self):
         policy = HengbotPolicy()
         board = short_route_board()
@@ -48,7 +58,22 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.work_id),
                          ("home-scan", "home.knowledge.observe",
-                          "home-knowledge:7"))
+                         "home-knowledge:7"))
+
+    def test_open_home_scan_completion_declares_page_exit(self):
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        key = policy.choose_key(board)
+        declaration = policy.decision_claim["execution"]
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "home:scan-complete-from-open-page"))
+        self.assertEqual((declaration["producer"], declaration["next_step"],
+                          declaration["expected_effect"]),
+                         ("home-scan", "store.leave.send", "outside-store"))
 
     def test_direct_home_page_deposit_declares_exact_item_and_count(self):
         policy = HengbotPolicy()
