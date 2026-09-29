@@ -1298,9 +1298,12 @@ class QuestMixin:
                 self._identification_need = None
 
         if expedition.phase in {"prepare-home", "return-home", "restore-home"}:
-            self._offer_execution_no_step(
-                producer="cross-town", work_id="morivant-full-identify",
-                cause=f"home-handoff:{expedition.phase}",
+            self._offer_execution(
+                None, producer="cross-town", work_id="morivant-full-identify",
+                next_step="home.resume-identification-handoff",
+                arguments=(expedition.phase,),
+                expected_effect="home-work-completed",
+                continuation="morivant-full-identify.resume",
             )
             return None
 
@@ -1311,15 +1314,19 @@ class QuestMixin:
                     expedition.phase = "return-home"
                     self._home_candidate_waiting = True
                     self._rearm_town_store_for_new_work(STORE_HOME)
-                    self._offer_execution_no_step(
-                        producer="cross-town", work_id="morivant-full-identify",
-                        cause="return-home-handoff",
+                    self._offer_execution(
+                        None, producer="cross-town",
+                        work_id="morivant-full-identify",
+                        next_step="home.resume-identification-handoff",
+                        arguments=("return-home",),
+                        expected_effect="home-work-completed",
+                        continuation="morivant-full-identify.resume",
                     )
                     return None
                 self._finish_morivant_full_identify()
-                self._offer_execution_no_step(
+                self._offer_execution_done(
                     producer="cross-town", work_id="morivant-full-identify",
-                    cause="expedition-complete",
+                    evidence="expedition-complete",
                 )
                 return None
             destination = (

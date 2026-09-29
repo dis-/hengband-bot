@@ -4203,9 +4203,9 @@ class TownMixin:
                     owners=(ClaimOwner.SURVIVAL,),
                 )
                 self._town_hunt_target = None
-                self._offer_execution_no_step(
+                self._offer_execution_done(
                     producer="survival", work_id="town-monster:last-known",
-                    cause="last-known-reached",
+                    evidence="last-known-reached",
                 )
                 return None
             step = self._nearest_goal_step(

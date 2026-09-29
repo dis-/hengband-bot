@@ -3341,7 +3341,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._execution_no_step_offers = offers
         sequence = getattr(self, "_execution_offer_sequence", 0) + 1
         self._execution_offer_sequence = sequence
-        offers.append((producer, work_id, cause, sequence))
+        offers.append((producer, work_id, cause, sequence, "releasing"))
+
+    def _offer_execution_done(self, *, producer: str, evidence: str,
+                              work_id: str) -> None:
+        """A producer reports observed completion without emitting a key."""
+        offers = getattr(self, "_execution_no_step_offers", None)
+        if offers is None:
+            offers = []
+            self._execution_no_step_offers = offers
+        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
+        self._execution_offer_sequence = sequence
+        offers.append((producer, work_id, evidence, sequence, "done"))
 
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
@@ -3367,11 +3378,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             offer = None
             no_step = None
         if no_step is not None and (offer is None or no_step[3] > offer[8]):
-            producer, work_id, cause, _ = no_step
-            register.declare_execution(
-                claim.claim_id, work_id=work_id, producer=producer,
-                state="releasing", cause=cause,
-            )
+            producer, work_id, fact, _, state = no_step
+            if state == "done":
+                register.declare_execution(
+                    claim.claim_id, work_id=work_id, producer=producer,
+                    state="done", evidence=fact,
+                )
+            else:
+                register.declare_execution(
+                    claim.claim_id, work_id=work_id, producer=producer,
+                    state="releasing", cause=fact,
+                )
             offer = None
         if offer is not None:
             _, producer, work_id, step, args, effect, continuation, budget, _ = offer
@@ -8244,9 +8261,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.player.two_weapon_skill is not None
             and snapshot.player.shield_skill is not None
         ):
-            self._offer_execution_no_step(
+            self._offer_execution_done(
                 producer="bookkeeping", work_id="skill-exp-knowledge",
-                cause="skill-list-already-known",
+                evidence="skill-list-already-known",
             )
             return None
         if any(
