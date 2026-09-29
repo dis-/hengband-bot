@@ -5583,6 +5583,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         # one-cell fallback did not write a fresh goal slot.
                         self._declare_reach(goal, family="store-router")
                     return key
+            # A store plan may cease returning its old route after the posted
+            # action ends short. The open Reach still names its destination;
+            # keep walking there rather than treating the holder as silent.
+            step = (self._town_map_goal_step(snapshot, goal)
+                    or self._nearest_goal_step(
+                        snapshot, lambda grid: grid.position == goal
+                    ))
+            if step is not None:
+                self.last_reason = "shop:approach"
+                self._declare_reach(goal, family="store-router")
+                return self._direction_key(snapshot.player.position, step)
             # A Reach still en route cannot be released as a no-step errand.
             # The final §3 branch reports an unresolved route consistently.
             route_unresolved = True

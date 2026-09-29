@@ -21,15 +21,19 @@ from hengbot.policy_types import TownTravelProgress
 
 
 FIXTURE = Path(__file__).parent / "fixtures/s33-live-short-entrance-224.json.gz"
-FIXTURE_SHA256 = "d101903ad128bfcc890f9ef21bcb25c2a57a04fcb33f80ee8920eac4aff91f6c"
+FIXTURE_SHA256 = "c57f7f152b6deb983bc666260351834e8e0bcdab61c54c88c515fec176ad4321"
 
 
 class LiveShortRouteTest(unittest.TestCase):
+    @staticmethod
+    def _recording():
+        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+            return json.load(stream)
+
     def test_awaiting_entrance_route_continues_under_claim_140(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
                          FIXTURE_SHA256)
-        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            recorded = json.load(stream)
+        recorded = self._recording()
         row = recorded["decision"]
         prior = recorded["prior_decision"]
         board = parse_snapshot(recorded["snapshot"], load_monrace_knowledge(
@@ -67,6 +71,29 @@ class LiveShortRouteTest(unittest.TestCase):
                          claim_row["budget"])
         self.assertTrue(policy._claim_register.current.is_open)
         self.assertNotEqual(policy.last_reason, "ownership:holder-silent:store-router")
+
+    def test_open_store_reach_walks_when_plan_identity_is_lost(self):
+        # Class scenario: the 224 board with the recorded store goal from
+        # decision 219, but no shopping plan or visit. This is not a replay
+        # of decision 219; it covers the same awaiting-state final branch.
+        recorded = self._recording()
+        board = parse_snapshot(recorded["snapshot"], load_monrace_knowledge(
+            Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")))
+        store = recorded["store_route_decision"]
+        self.assertEqual((store["decision_sequence"],
+                          store["claim"]["goal"]["cell"]),
+                         (219, [31, 119]))
+        policy = HengbotPolicy()
+        policy.prime(board)
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 119)), floor=board.floor_key,
+        )
+        policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
+        key = policy._town_holder_wait_key(policy._claim_register.current, board)
+        self.assertIn(key, "12346789")
+        self.assertEqual(policy.last_reason, "shop:approach")
+        self.assertEqual(policy._claim_register.current.goal.cell, (31, 119))
 
 
 if __name__ == "__main__":
