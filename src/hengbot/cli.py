@@ -410,6 +410,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
         "town:blocked:home-withdraw-failed-stock-present": "Home still records the requested item after its bounded withdrawal failed",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
+        "town:blocked:calibration-restore-home-visit-exhausted": "calibration deposits remain at Home after the bounded restore visit failed",
+        "town:blocked:calibration-restore-target-absent": "a deposited calibration item could not be found at Home",
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",

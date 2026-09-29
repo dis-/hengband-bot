@@ -2955,6 +2955,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and key == WAIT_KEY
+                    and self.last_reason == "town:blocked:owner-retired"
+                    and self._calibration_restore_signatures):
+                self._town_blocked_reason = (
+                    "calibration-restore-home-visit-exhausted"
+                )
+                self.last_reason = (
+                    "town:blocked:calibration-restore-home-visit-exhausted"
+                )
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         if snapshot.store is not None and key in DIRECTION_KEYS.values():
             # This is the final policy emission seam.  No producer or
@@ -6888,6 +6898,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         )
                         self._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self._calibration_observe(snapshot)
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self.last_reason in {
+                    "town:blocked:calibration-restore-home-visit-exhausted",
+                    "town:blocked:calibration-restore-target-absent",
+                }):
+            return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
         if not self._observe_fundraising_transport(snapshot):
             self.last_reason = (
