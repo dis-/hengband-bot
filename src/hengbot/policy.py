@@ -7762,8 +7762,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._remember_swarm_distances(snapshot)
         if (getattr(self, "_town_claim_bar_enforced", False)
                 and key is None and (self.last_reason or "").startswith(
-            "ownership:holder-silent:"
-        ):
+                    "ownership:holder-silent:")):
             return None
         if key is None and self._warning_prompt_stops_decision:
             return None
