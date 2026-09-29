@@ -652,10 +652,11 @@ class ClosingPathsTest(unittest.TestCase):
         """The captures are effects that never arrived; their closings.
 
         18:15 (P3 setup): the Home cycle's store trip reaches its entrance.
-        20:10 (P2 setup): the leave confirmation that could never be answered
-        ends with its visit (``leave-unconfirmed``) -- a release of the store
-        operation's Observe claim, not a completion, because no effect was
-        observed.  An Observe ``complete`` cannot occur on these boards.
+        20:10 (P2 setup): the raw leave capture has no operation provenance,
+        so it cannot create a store-operation Observe. With an explicitly
+        identified shop-buy operation, the unconfirmed leave releases that
+        Observe, because no effect was observed. An Observe ``complete``
+        cannot occur on these boards.
         """
         from test_posted_effect_unobserved import (
             LEAVE_REPEAT, LEAVE_STORE_KEY, STORE_HOME,
@@ -687,6 +688,31 @@ class ClosingPathsTest(unittest.TestCase):
         for index in range(10):
             key = policy.choose_key(board)
             rows.append(_row(policy, board, key, "p2", index))
+            if policy._store_visit_last_closed is not None:
+                break
+            policy._decision_sequence += 1
+        # The historical capture predates operation provenance. Its visit has
+        # no posted operation family, so assigning a shop-buy Observe here
+        # would invent one from the leave reason.
+        self.assertEqual(_closings(rows), [])
+        self.assertEqual(
+            [row["barrier_provenance"] for row in rows
+             if row["reason"] == "shop:await-leave-confirmation"],
+            ["barrier-provenance-missing"] * 2,
+        )
+
+        # Keep the original unobserved-effect closing pin when the exiting
+        # operation was actually captured as shop-buy.
+        policy = pins._policy(LEAVE_REPEAT, board, 5429)
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._store_visit = pins._recorded_visit(
+            LEAVE_REPEAT, 5429, composed_key=LEAVE_STORE_KEY,
+            operation_producer_family="shop-buy",
+        )
+        rows = []
+        for index in range(10):
+            key = policy.choose_key(board)
+            rows.append(_row(policy, board, key, "p2-provenance", index))
             if policy._store_visit_last_closed is not None:
                 break
             policy._decision_sequence += 1

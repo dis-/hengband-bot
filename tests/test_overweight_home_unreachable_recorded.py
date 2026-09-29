@@ -383,9 +383,10 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            # Router plan stops now record the family they serve. The four
-            # remaining rows are actual requester/operator disagreements.
-            4,
+            # The knowledge-source claim from ruling (c') adds one genuine
+            # Home-scan requester/operator disagreement to the four plan
+            # requester disagreements already pinned here.
+            5,
         )
 
     def test_calibration_transaction_observes_still_complete(self):

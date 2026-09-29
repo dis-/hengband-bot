@@ -129,6 +129,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     fixed_recall = None
 
     def test_s3_new_code_replay_names_remaining_violations(self):
+        self.maxDiff = None
         # Base 7df0fb0d had 14 non-handoff rows. Transaction Home steps and
         # entry waits now continue/suspend their own claim, stale identity
         # releases by name, and unadopted rebuilds provide no handoff evidence.
@@ -150,8 +151,17 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             # when the filed Home knowledge request takes the decision.
             (1941, "owner-change", "store-router", "home-errand"),
             (1947, "leave-confirmation-interruption", "shop-buy", "home-errand"),
+            (1948, "plan-handoff", "home-errand", "store-router"),
             (1957, "leave-confirmation-interruption", "shop-buy", "home-errand"),
+            (1958, "owner-change", "home-errand", "unregistered"),
         ])
+        leave_1958 = next(
+            row["claim"] for row in replay
+            if row["claim"]["decision_sequence"] == 1958
+        )
+        self.assertEqual(
+            leave_1958["barrier_provenance"], "barrier-provenance-missing"
+        )
         operation = [
             row["claim"] for row in replay
             if 1960 <= row["claim"]["decision_sequence"] <= 1962
@@ -164,7 +174,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         )
         self.assertEqual(
             observed_shop["closed_claim"]["closed_reason"],
-            "shop-observation-interruption",
+            "preempted-by:detectors",
         )
 
     @classmethod

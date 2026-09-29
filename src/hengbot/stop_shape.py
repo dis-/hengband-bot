@@ -301,6 +301,8 @@ def classify_stop(
             reason
             for reason in (kind, row.get("reason"), window[-1] if window else None)
             if reason in POLICY_FINAL_STOP_REASONS
+            or (isinstance(reason, str) and reason.startswith(
+                "ownership:holder-silent:"))
         ),
         None,
     )

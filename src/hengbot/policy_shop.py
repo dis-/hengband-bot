@@ -1402,6 +1402,8 @@ class ShopMixin:
 
     @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
+        if snapshot.in_town:
+            self._claim_errand_hold("cross-town")
         shortages = self._cross_town_shortages(snapshot)
         unobtainable = self._cross_town_unobtainable_categories(
             snapshot, shortages
@@ -4178,8 +4180,15 @@ class ShopMixin:
         self.last_reason = "shop:leave"
         return LEAVE_STORE_KEY
 
-    def _router_plan_stop_family(self, store_type: int | None) -> str | None:
-        """The family whose recorded need the current plan stop serves."""
+    def _router_plan_stop_families(
+        self, store_type: int | None, *, plan=None,
+    ) -> frozenset[str]:
+        """S3 operation families whose filed need the current stop serves.
+
+        Quest producers are outside the S3 town family set; their shop
+        operations are recorded as shop-buy, with the quest category retained
+        separately in the plan's need_categories.
+        """
         shop_buy_categories = {
             "stat-restore", "experience-restore", "experience-restore-check",
             "fundraising-digger", "fundraising-detection", "fundraising-food",
@@ -4197,14 +4206,14 @@ class ShopMixin:
             "ammo-home-first", "home-star-remove-curse-use",
             "home-star-remove-curse-check",
         }
-        plan = self._town_errand_plan
+        plan = self._town_errand_plan if plan is None else plan
         if plan is None:
-            return None
+            return frozenset()
         if store_type is None and plan.index < len(plan.stops):
             store_type = plan.stops[plan.index]
         categories = set(plan.need_categories.get(store_type, ()))
         if not categories:
-            return None
+            return frozenset()
         families = set()
         for category in categories:
             if category.startswith("calibration-"):
@@ -4224,7 +4233,11 @@ class ShopMixin:
             elif category in shop_buy_categories:
                 families.add("shop-buy")
             else:
-                return None
+                return frozenset()
+        return frozenset(families)
+
+    def _router_plan_stop_family(self, store_type: int | None) -> str | None:
+        families = self._router_plan_stop_families(store_type)
         return next(iter(families)) if len(families) == 1 else None
 
     def _shopping_approach_step(
@@ -4341,6 +4354,17 @@ class ShopMixin:
             self._store_visit.request_structure = (
                 "router-plan-stop" if router_plan_stop else None
             )
+            if router_plan_stop:
+                plan = self._town_errand_plan
+                planned_families = (
+                    getattr(plan, "requester_families", {}).get(store_type)
+                    if plan is not None else None
+                )
+                self._store_visit.requester_families = (
+                    getattr(self._store_visit, "requester_families", frozenset())
+                    | (planned_families if planned_families is not None
+                       else self._router_plan_stop_families(store_type))
+                )
         if self._town_map_active(snapshot):
             self._shopping_approach_goal = self._town_map.store_position(store_type)
         if self._shopping_approach_goal is None:
@@ -4702,8 +4726,30 @@ class ShopMixin:
                 else "shop:one-shot-sell"
             )
             if self._store_visit is not None:
+                operation_family = (
+                    "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
+                )
+                self._open_execution_delegation(
+                    operation_family, operation_family,
+                    ("shop-operation", self._store_visit.opened_sequence,
+                     observed_store.store_type, operation_key),
+                    ("plan-stop-operation", observed_store.store_type,
+                     tuple(sorted(getattr(
+                         self._store_visit, "requester_families", ()
+                     )))),
+                    "inventory/gold-effect", "shop-one-shot-existing-budget",
+                )
                 self._store_visit.operation_posted = True
+                self._store_visit.operation_producer_family = operation_family
                 self._store_visit.operation_key = operation_key
+                # The posted one-shot's observation wait needs the immutable
+                # operation identity captured at composition, including while
+                # the store page has not appeared yet.
+                self._store_visit.claim_operation_identity = (
+                    observed_store.store_type,
+                    self._store_visit.opened_sequence,
+                    operation_key,
+                )
                 self._store_visit.operation_released = False
                 self._store_visit.composed_key = key
                 self._store_visit.posted_sequence = generation

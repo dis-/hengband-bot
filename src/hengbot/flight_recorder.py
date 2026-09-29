@@ -324,6 +324,7 @@ def append_session_marker(
     *,
     input_delays: dict[str, float] | None = None,
     prompt_japanese: bool | None = None,
+    enforce_town_claims: bool | None = None,
 ) -> dict | None:
     """Write the session-start record and return it, so a second ledger of
     the same session records the same start rather than describing its own."""
@@ -332,6 +333,8 @@ def append_session_marker(
     record = session_start_record(
         argv, input_delays=input_delays, prompt_japanese=prompt_japanese
     )
+    if enforce_town_claims is not None:
+        record["enforce_town_claims"] = enforce_town_claims
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as file:

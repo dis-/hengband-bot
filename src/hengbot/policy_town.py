@@ -947,6 +947,8 @@ class TownMixin:
         self, snapshot: Snapshot
     ) -> tuple[str, str] | None:
         """Compose the next step of an available approach->enter->buy route."""
+        if self._defer_town_errand("store-router", "procurement-progress"):
+            return None
         home_scan_pending = (
             not self._equipment_catalog.home_scan_complete
             and self._home_available_for_probe(snapshot)
@@ -1102,8 +1104,19 @@ class TownMixin:
 
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
-    ) -> str:
+    ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
+        if getattr(self, "_town_claim_bar_enforced", False):
+            holder = self._claim_errand_hold("store-router")
+            if (holder is not None
+                    and holder is getattr(self._claim_register, "current", None)):
+                self._claim_exit_completion(snapshot, holder, [])
+        if self._defer_town_errand("store-router", "procurement-decision"):
+            if self._claim_family_of(self.last_reason) == "store-router":
+                return self._town_holder_wait_key(
+                    self._claim_errand_hold("store-router"), snapshot
+                )
+            return None
         proposed_reason = self.last_reason or ""
         if (
             snapshot.store is None
@@ -1783,6 +1796,8 @@ class TownMixin:
 
     @claims(ClaimOwner.IDENTIFICATION)
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
+        if snapshot.in_town:
+            self._claim_errand_hold("identification")
         if not snapshot.in_town:
             return None
         target = self._first_item(
@@ -3246,6 +3261,13 @@ class TownMixin:
             if stops
             else None
         )
+        if plan is not None:
+            plan.requester_families = {
+                store_type: self._router_plan_stop_families(
+                    store_type, plan=plan
+                )
+                for store_type in dict.fromkeys(stops)
+            }
         if previous is not None:
             old_stop = (previous.stops[previous.index]
                         if previous.index < len(previous.stops) else None)
@@ -4196,6 +4218,8 @@ class TownMixin:
     def _town_remove_curse_key(self, snapshot: Snapshot) -> str | None:
         """Read a Remove Curse scroll during town prep when a cursed item is worn,
         so it can be swapped/upgraded and its penalties lifted before diving."""
+        if snapshot.in_town:
+            self._claim_errand_hold("curse-enchant")
         if not snapshot.in_town or not self._has_cursed_equipment(snapshot):
             return None
         player = snapshot.player
@@ -4908,6 +4932,7 @@ class TownMixin:
             self._rumor_unlock_pending and not snapshot.angband_recall_unlocked
         ) or self._town_travel_rumor_pending is not None
         if rumor_needed:
+            self._claim_errand_hold("rumor")
             # Revealing a destination is a town prerequisite, not an expedition.
             # Do not require a complete dive loadout before reading the rumors
             # needed to make the inn's travel destination selectable.
@@ -5108,6 +5133,7 @@ class TownMixin:
                 not self._char_dump_done_this_visit
                 and not snapshot.player.blind
                 and not snapshot.player.confused
+                and self._periodic_filler_is_safe(snapshot)
             ):
                 # Snapshot the full character sheet just before committing to the
                 # dive, so the human can review stats/resistances/equipment per dive.

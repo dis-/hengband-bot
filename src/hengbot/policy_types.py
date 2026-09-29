@@ -213,8 +213,12 @@ class StoreVisit:
     claim_owner: str | None = field(default=None, compare=False, repr=False)
     opened_producer_family: str | None = field(default=None, compare=False, repr=False)
     opened_for_family: str | None = field(default=None, compare=False, repr=False)
+    requester_families: frozenset[str] = field(
+        default_factory=frozenset, compare=False, repr=False
+    )
     request_structure: str | None = field(default=None, compare=False, repr=False)
     operation_producer_family: str | None = field(default=None, compare=False, repr=False)
+    exit_requester: str | None = field(default=None, compare=False, repr=False)
     claim_operation_identity: tuple | None = field(default=None, compare=False, repr=False)
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
@@ -560,6 +564,7 @@ class TownErrandPlan:
     completed_this_visit: list[int] | None = None
     blocked_this_visit: list[int] | None = None
     current_stop_passes: int = 0
+    requester_families: dict[int, frozenset[str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.inserted_this_visit is None:

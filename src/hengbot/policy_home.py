@@ -46,13 +46,50 @@ class HomeMixin:
         knowledge_current: bool,
     ) -> bool:
         """File migrated Home work and register its observation expectation."""
+        register = getattr(self, "_claim_register", None)
+        standing = getattr(register, "current", None)
+        requester = (
+            "equipment-txn" if request.purpose == "combat-weapon"
+            else "identification" if request.purpose == "identification"
+            else "home-errand"
+        )
+        parent_family = (
+            requester if standing is not None and standing.is_open
+            and standing.owner.value == requester else "home-errand"
+        )
+        filing_identity = (
+            "filed", request.signature, request.quantity,
+            request.origin, request.purpose,
+        )
+        self._open_execution_delegation(
+            parent_family, "home-errand", filing_identity,
+            ("home-request", request.purpose, request.signature),
+            "inventory-effect", "home-errand-existing-budget",
+        )
+        if self._defer_town_errand(
+            "home-errand", "file", work_identity=filing_identity
+        ):
+            return False
         filed = self._home_errand.file(
             request, knowledge_current=knowledge_current
         )
         if filed:
+            if self._home_errand.needs_knowledge:
+                self._open_execution_delegation(
+                    "home-errand", "home-scan",
+                    ("knowledge", self._home_knowledge_scan_epoch,
+                     request.signature, request.purpose),
+                    ("home-request", request.purpose, request.signature),
+                    "catalogue-adopted", "home-knowledge-existing-epoch",
+                )
             self._post_owner_expectation(
                 snapshot, f"home-errand:{request.purpose}",
                 "inventory", "equipment",
+            )
+        else:
+            self._end_execution_delegation(
+                "home-errand", filing_identity,
+                completed=False, cause="file-refused",
             )
         return filed
 
@@ -272,7 +309,7 @@ class HomeMixin:
         self._claim_home_knowledge_observed = True
         self._complete_observed_effect(
             "home-knowledge-current", owners=("home-scan",),
-            sources=("store-operation",),
+            sources=("knowledge",),
         )
         self._home_knowledge_invalidated = False
         self._equipment_catalog.complete_home_scan(items)
@@ -295,7 +332,7 @@ class HomeMixin:
         if not self._home_knowledge_current:
             self._release_claim_goal(
                 "home-knowledge-request-cleared", owners=("home-scan",),
-                kinds=("Observe",), sources=("store-operation",),
+                kinds=("Observe",), sources=("knowledge",),
             )
         self._home_knowledge_scan_epoch = None
         self._home_knowledge_scan_inflight = False
@@ -1896,13 +1933,14 @@ class HomeMixin:
             )
         if succeeded and not failed:
             self._complete_observed_effect(
-                "home-withdraw-observed", owners=("home-visit", "home-errand"),
+                "home-withdraw-observed",
+                owners=("home-visit", "home-errand", "calibration"),
                 sources=("store-operation",),
             )
         else:
             self._release_claim_goal(
                 "target-unobserved", owners=("home-visit", "home-errand"),
-                kinds=("Observe",), sources=("store-operation",),
+                kinds=("Observe",), sources=("knowledge",),
             )
         self._home_atomic_withdraw_pending = None
         self._home_atomic_withdraw_procurement_class = None
@@ -2493,6 +2531,28 @@ class HomeMixin:
                   in pending_by_signature.items()),
             None, snapshot.turn, 0,
         )
+        if self._calibration_phase == "deposit":
+            signatures = tuple(pending_by_signature)
+            candidates = {
+                record.work_identity[1]
+                for record in self._delegation_records()
+                if record.lifecycle in {"reserved", "open"}
+                and record.parent_family == "calibration"
+                and record.work_identity[:1] == ("deposit-candidate",)
+            }
+            if signatures and all(
+                signature in candidates
+                and signature in self._calibration_restore_signatures
+                for signature in signatures
+            ):
+                self._open_execution_delegation(
+                    "calibration", "home-visit",
+                    ("home-operation", STORE_HOME,
+                     visit.opened_sequence, operation_key),
+                    ("calibration", "deposit", signatures),
+                    "inventory-decreased/home-stock-increased",
+                    "home-operation-existing-budget",
+                )
         visit.operation_posted = True
         visit.operation_producer_family = (
             "calibration" if self._calibration_phase == "deposit"
@@ -2546,12 +2606,34 @@ class HomeMixin:
         visit = self._home_operation_visit(producer_family)
         if visit is None:
             return False
+        operation_identity = (STORE_HOME, visit.opened_sequence, operation_key)
+        if producer_family == "calibration":
+            signatures = tuple(
+                row[0] for row in self._home_atomic_deposit_pending[0]
+            ) if self._home_atomic_deposit_pending is not None else ()
+            candidates = {
+                record.work_identity[1]
+                for record in self._delegation_records()
+                if record.lifecycle in {"reserved", "open"}
+                and record.parent_family == "calibration"
+                and record.work_identity[:1] == ("deposit-candidate",)
+            }
+            if signatures and all(
+                signature in candidates
+                and signature in self._calibration_restore_signatures
+                for signature in signatures
+            ):
+                self._open_execution_delegation(
+                    "calibration", "home-visit",
+                    ("home-operation", *operation_identity),
+                    ("calibration", "deposit", signatures),
+                    "inventory-decreased/home-stock-increased",
+                    "home-operation-existing-budget",
+                )
         visit.operation_posted = True
         visit.operation_producer_family = producer_family
         visit.operation_key = operation_key
-        visit.claim_operation_identity = (
-            STORE_HOME, visit.opened_sequence, operation_key
-        )
+        visit.claim_operation_identity = operation_identity
         visit.operation_released = True
         visit.composed_key = composed_key
         visit.posted_sequence = self._decision_sequence
@@ -2575,12 +2657,41 @@ class HomeMixin:
         visit = self._home_operation_visit(producer_family)
         if visit is None:
             return False
+        operation_identity = (STORE_HOME, visit.opened_sequence, operation_key)
+        parent_family = producer_family or "home-visit"
+        self._open_execution_delegation(
+            parent_family, "home-tail",
+            ("staged-tail", *operation_identity),
+            ("visit-operation", visit.opened_sequence, operation_key),
+            "staged-tail-released/operation-effect", "home-operation-existing-budget",
+        )
+        if producer_family == "calibration":
+            signatures = tuple(
+                row[0] for row in self._home_atomic_deposit_pending[0]
+            ) if self._home_atomic_deposit_pending is not None else ()
+            candidates = {
+                record.work_identity[1]
+                for record in self._delegation_records()
+                if record.lifecycle in {"reserved", "open"}
+                and record.parent_family == "calibration"
+                and record.work_identity[:1] == ("deposit-candidate",)
+            }
+            if signatures and all(
+                signature in candidates
+                and signature in self._calibration_restore_signatures
+                for signature in signatures
+            ):
+                self._open_execution_delegation(
+                    "calibration", "home-visit",
+                    ("home-operation", *operation_identity),
+                    ("calibration", "deposit", signatures),
+                    "inventory-decreased/home-stock-increased",
+                    "home-operation-existing-budget",
+                )
         visit.operation_posted = True
         visit.operation_producer_family = producer_family
         visit.operation_key = operation_key
-        visit.claim_operation_identity = (
-            STORE_HOME, visit.opened_sequence, operation_key
-        )
+        visit.claim_operation_identity = operation_identity
         visit.operation_released = False
         visit.composed_key = WAIT_KEY
         visit.posted_sequence = self._decision_sequence
@@ -2927,10 +3038,28 @@ class HomeMixin:
         )
         if source is None:
             return False
+        identification_signature = self._item_signature(source)
+        filing_identity = (
+            "filed", identification_signature, 1,
+            "home-catalog", "identification",
+        )
+        self._open_execution_delegation(
+            "identification", "home-errand", filing_identity,
+            ("identification", identification_signature),
+            "filed-home-request", "identification/home-errand-existing-budget",
+        )
+        if (
+            getattr(self, "_town_claim_bar_enforced", False)
+            and self._defer_town_errand(
+                "home-errand", "file-identification",
+                work_identity=filing_identity,
+            )
+        ):
+            return False
         self._file_home_errand(
             snapshot,
             HomeErrandRequest(
-                self._item_signature(source), 1, "home-catalog", "identification"
+                identification_signature, 1, "home-catalog", "identification"
             ),
             knowledge_current=self._home_knowledge_current,
         )

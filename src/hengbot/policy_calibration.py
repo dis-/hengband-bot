@@ -685,6 +685,14 @@ class CalibrationMixin:
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
         )
         self._equipment_transaction_session = session
+        self._open_execution_delegation(
+            "calibration", "equipment-txn",
+            ("session", "strip", session.target_loadout_id,
+             tuple((action.kind, action.target_slot, action.item_identity)
+                   for action in actions)),
+            ("calibration", "strip", tuple(self._calibration_worn_before)),
+            "observed-takeoffs", "claim-bound/equipment-confirmation-limit",
+        )
         self._calibration_session_target = session.target_loadout_id
         self._calibration_phase = "strip"
         self._calibration_stripped_unrestored = True
@@ -737,6 +745,14 @@ class CalibrationMixin:
             max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
         )
         self._equipment_transaction_session = session
+        self._open_execution_delegation(
+            "calibration", "equipment-txn",
+            ("session", "restore", session.target_loadout_id,
+             tuple((action.kind, action.target_slot, action.item_identity)
+                   for action in actions)),
+            ("calibration", "restore", tuple(self._calibration_worn_before)),
+            "observed-equips", "claim-bound/equipment-confirmation-limit",
+        )
         self._calibration_session_target = session.target_loadout_id
         self._calibration_phase = "restore-equip"
         return True
@@ -980,6 +996,8 @@ class CalibrationMixin:
     @claims(ClaimOwner.CALIBRATION)
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
+        if self._defer_town_errand("calibration", "town-key"):
+            return None
         in_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         if (
             not snapshot.in_town
@@ -1062,7 +1080,8 @@ class CalibrationMixin:
         if phase == "deposit":
             if self._home_atomic_deposit_pending is not None:
                 return None
-            if self._find_home_deposit(snapshot) is None:
+            deposit_candidate = self._find_home_deposit(snapshot)
+            if deposit_candidate is None:
                 if self._calibration_unrewearable_worn(snapshot):
                     self._abort_character_calibration(snapshot, "identify-first-worn")
                     return WAIT_KEY
@@ -1073,6 +1092,18 @@ class CalibrationMixin:
                     return WAIT_KEY
                 self._abort_character_calibration(snapshot, "no-pack-space")
                 return WAIT_KEY
+            for item in snapshot.inventory:
+                signature = self._item_signature(item)
+                if (signature in self._home_rejected_deposits
+                        or signature in self._calibration_restore_signatures):
+                    continue
+                self._open_execution_delegation(
+                    "calibration", "home-visit",
+                    ("deposit-candidate", signature),
+                    ("calibration", "deposit", self._calibration_session_target),
+                    "inventory-decreased/home-stock-increased",
+                    "claim-bound/home-visit",
+                )
             # Deposits ride the ordinary Home routing (atomic entry deposit,
             # one operation per entry); nothing to post from here.
             return None
@@ -1110,12 +1141,27 @@ class CalibrationMixin:
                     not self._home_knowledge_scan_requested
                     and self._home_knowledge_scan_epoch is None
                 ):
+                    self._open_execution_delegation(
+                        "calibration", "home-scan",
+                        ("restore-scan", self._decision_sequence,
+                         tuple(self._calibration_restore_signatures)),
+                        ("calibration", "restore-supplies",
+                         tuple(self._calibration_restore_signatures)),
+                        "catalogue-adopted", "home-knowledge-existing-epoch",
+                    )
                     self.last_reason = "calibration:request-restore-knowledge"
                     return HOME_KNOWLEDGE_MACRO
                 self.last_reason = "calibration:await-restore-knowledge"
                 return WAIT_KEY
             # Calibration is only a requester.  The Home visit executor owns
             # filing and approach just as it does for every other Home visit.
+            self._open_execution_delegation(
+                "calibration", "home-visit",
+                ("restore-batch", tuple(self._calibration_restore_signatures)),
+                ("calibration", "restore-supplies",
+                 tuple(self._calibration_restore_signatures)),
+                "inventory-restored", "calibration-existing-obligation",
+            )
             if not self._ensure_home_visit_request(snapshot):
                 self.last_reason = "calibration:restore-home-unavailable"
                 return WAIT_KEY

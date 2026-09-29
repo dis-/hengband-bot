@@ -74,6 +74,7 @@ ENTRANCE = "entrance"              # Reach: the entrance cell of a building
 TRANSACTION = "transaction"        # Observe: a transaction's expected change
 STORE_OPERATION = "store-operation"  # Observe: a posted store/Home effect
 STORE_ENTRY = "store-entry"          # Observe: an entrance command awaiting a page
+KNOWLEDGE = "knowledge"              # Observe: Home catalogue becomes current
 FLOOR_CHANGE = "floor-change"      # Observe: the floor key changes
 EFFECT = "effect"                  # Terminal: the effect label
 
@@ -81,6 +82,7 @@ OBSERVE_WITHIN = {
     TRANSACTION: OWNER_EXPECTATION_MAX_TURNS,
     STORE_OPERATION: STORE_STUCK_LIMIT,
     STORE_ENTRY: STORE_STUCK_LIMIT,
+    KNOWLEDGE: STORE_STUCK_LIMIT,
     FLOOR_CHANGE: RECALL_ACTIVATION_MAX_GAME_TURNS,
 }
 # The observable a floor-change goal names (an ``OwnerProgressCore`` field).
@@ -114,7 +116,7 @@ OPERATION_CLAIMS = (
                        "Home,visit-opened-sequence,operation key", ("inventory",),
                       "observe_outside(effect_observed)", "clear without effect / expiry"),
     OperationClaimRow("home-scan", "_home_knowledge_scan_requested",
-                      STORE_OPERATION, STORE_STUCK_LIMIT,
+                       KNOWLEDGE, STORE_STUCK_LIMIT,
                       "Home,knowledge,scan-epoch", ("home knowledge",),
                       "_adopt_home_catalogue", "request cleared / expiry"),
     OperationClaimRow("home-errand", "_file_home_errand", STORE_OPERATION,
@@ -159,13 +161,14 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "home-errand",
         ("home-errand:", O, STORE_OPERATION),
+        ("home-errand:request-knowledge:", O, KNOWLEDGE),
         ("home-errand:stopped:", T, EFFECT),
         ("home-errand:filed:", T, EFFECT),
     ),
     *_rows(
         "home-scan",
-        ("home:request-knowledge", O, STORE_OPERATION),
-        ("home:scan", O, STORE_OPERATION),
+        ("home:request-knowledge", O, KNOWLEDGE),
+        ("home:scan", O, KNOWLEDGE),
         ("home:scan-complete-from-open-page", T, EFFECT),
         ("home:scan-incomplete-open-page", T, EFFECT),
         ("home:seek-", T, EFFECT),
@@ -310,6 +313,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("home:leave-after-one-operation", O, STORE_OPERATION),
         ("home:atomic-withdraw-target-unobserved", T, EFFECT),
         ("calibration:", O, TRANSACTION),
+        ("calibration:request-restore-knowledge", O, KNOWLEDGE),
         ("calibration:restore-home-unavailable", T, EFFECT),
         ("calibration:restore-home-unreachable", T, EFFECT),
         # Rev 9.2 (T2): calibration's walks to the Home are native travel.
@@ -480,6 +484,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     ),
     *_rows(
         "detectors",
+        ("ownership:", T, EFFECT),
         ("livelock:", T, EFFECT),
         ("livelock:ascend", O, FLOOR_CHANGE),
         ("livelock:recall-escape", O, FLOOR_CHANGE),

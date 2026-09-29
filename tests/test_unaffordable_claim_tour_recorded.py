@@ -140,10 +140,10 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
     "floor-changed": 10,
     # S3a R2: narrowing the home: catch-all makes the three non-operation
     # Home keys Terminal, so they no longer open generic Observe claims.
-    # Main's quantity answer on the first Home deposit (index 5) changes the
-    # early Home observation sequence.  The merged replay measures eight
-    # completed scan claims; round 6 measured nine.
-    "home-knowledge-current": 8,
+    # Ruling (c') gives knowledge requests their own Observe source. The
+    # suspended requests now complete when the Home catalogue becomes current,
+    # adding three completions to main's eight on this replay.
+    "home-knowledge-current": 11,
     "entered-store": 5,
     # R5: the completion recorder now closes the two sessions attributed to
     # calibration (tour 3018 and 3032), rather than leaving their claims open.
@@ -297,10 +297,14 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             if isinstance(v := row.get("violation"), dict)
             and v.get("scope") == "S3"
         ]
-        # Base 7df0fb0d had 11 owner changes. R4 leaves the two router Reach
-        # handoffs and the second transaction contending with calibration.
+        # Base 7df0fb0d had 11 owner changes. Ruling (c') types calibration's
+        # knowledge request as Observe(knowledge), so its replacement of the
+        # previous calibration goal is now a visible same-family retarget at
+        # 3035. The two router Reach handoffs and the second transaction
+        # contending with calibration remain.
         self.assertEqual(actual, [
             (2701, "owner-change", "store-router", "home-scan"),
+            (3035, "retarget", "calibration", "calibration"),
             (3037, "transaction-contention", "calibration", "equipment-txn"),
             (3052, "owner-change", "store-router", "home-scan"),
         ])

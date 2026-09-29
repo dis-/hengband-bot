@@ -485,6 +485,7 @@ class FlightRecorderTest(unittest.TestCase):
                 "completed_this_visit": [2],
                 "blocked_this_visit": [5],
                 "current_stop_passes": 3,
+                "requester_families": {},
             },
         )
         self.assertEqual(

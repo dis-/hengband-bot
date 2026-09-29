@@ -631,7 +631,7 @@ class StackSemanticsTest(unittest.TestCase):
         self.assertEqual(again["claim_id"], recall["claim_id"])
         self.assertIsNone(again["closed_claim"])
 
-    def test_store_operation_and_transaction_observe_are_never_suspended(self):
+    def test_store_operation_and_transaction_observe_only_yield_to_survival(self):
         for reason, family in (
             ("home:atomic-deposit", "home-visit"),
             ("equipment-transaction:takeoff", "equipment-txn"),
@@ -643,6 +643,18 @@ class StackSemanticsTest(unittest.TestCase):
                     self.assertEqual(held["goal"]["kind"], "Observe")
                     self.assertNotEqual(held["goal"].get("source"), FLOOR_CHANGE)
                     after = run.decide(preemptor)
+                    if preemptor == "emergency:teleport":
+                        # S3.3 Q3: survival temporarily suspends even a
+                        # store operation or transaction Observe claim.
+                        self.assertEqual(
+                            (after["closed_claim"]["claim_id"],
+                             after["closed_claim"]["state"],
+                             after["closed_claim"]["closed_reason"],
+                             after["suspended_depth"], after["violation"]),
+                            (held["claim_id"], "suspended",
+                             "survival-preemption", 1, None),
+                        )
+                        continue
                     self.assertIsNone(after["closed_claim"])
                     self.assertEqual(after["suspended_depth"], 0)
                     self.assertEqual(

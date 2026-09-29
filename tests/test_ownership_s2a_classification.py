@@ -114,10 +114,12 @@ ARBITRATING_FAMILIES = (
     "survival", "departure", "town-plan", "rumor", "quest-request",
     "detectors", "misc",
 )
-# Measured on the pre-S2a tree (HEAD f7e80d2) and again after this round;
-# the two agree, which is the evidence that arbitration did not move.
+# Measured on the pre-S2a tree (HEAD f7e80d2) and again after that round.
+# S3.3 adds the detector-owned ``ownership:holder-silent`` stop prefix to the
+# arbitration table.  The hash pins that one intentional extension; existing
+# family prefixes and their order remain covered by the table assertion.
 ARBITRATION_TABLE_SHA256 = (
-    "48465520040f2f8ec138fee10e0a1259693bf1c9481cb28bcf5cad01bd30f07d"
+    "02975525ecea1685f8b50ed6f1e6d20011c270ff362a69ab8d4b481094c806a8"
 )
 
 # The ten families S2a adds, each named after what it owns.  They are

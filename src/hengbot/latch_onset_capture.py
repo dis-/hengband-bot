@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 from collections import Counter, deque
 import inspect
+import io
 import json
+import pathlib
 import pickle
 from dataclasses import replace
 from pathlib import Path
@@ -77,7 +79,26 @@ def checkpoint(policy: Any) -> str:
 def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     """Restore a capture checkpoint without running policy initialization."""
     restored = policy_type.__new__(policy_type)
-    restored.__dict__.update(pickle.loads(base64.b64decode(encoded)))
+    payload = base64.b64decode(encoded)
+    try:
+        state = pickle.loads(payload)
+    except ModuleNotFoundError as error:
+        if error.name != "pathlib._local":
+            raise
+
+        class _LegacyPathUnpickler(pickle.Unpickler):
+            def find_class(self, module, name):
+                if module == "pathlib._local" and name in {
+                    "WindowsPath", "PosixPath", "PureWindowsPath",
+                    "PurePosixPath",
+                }:
+                    return getattr(pathlib, name)
+                return super().find_class(module, name)
+
+        # Checkpoints emitted by newer Python use pathlib._local. The
+        # portable runtime keeps the same path classes in pathlib itself.
+        state = _LegacyPathUnpickler(io.BytesIO(payload)).load()
+    restored.__dict__.update(state)
     restored._latch_capture_path = None
     restored._latch_capture_previous = None
     restored._latch_capture_predecision = None
@@ -205,6 +226,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # off, as it is in every checkpoint this change can meet.
     restored.__dict__.setdefault("_decision_bar_skips", None)
     restored.__dict__.setdefault("_claim_bar_enforced", False)
+    restored.__dict__.setdefault("_town_claim_bar_enforced", False)
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.

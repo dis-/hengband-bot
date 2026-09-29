@@ -121,6 +121,17 @@ class UnseenCasterDeathRecorded(unittest.TestCase):
         policy._unexplained_damage_streak = 2
         self.assertIsNone(policy._emergency_item(board, []))
 
+    def test_restored_checkpoint_without_damage_streak_starts_at_zero(self):
+        board = replace(self.board, messages=())
+        seed = HengbotPolicy()
+        seed._floor_key = board.floor_key
+        seed._last_hp = 841
+        del seed._unexplained_damage_streak
+        policy = restore_checkpoint(HengbotPolicy, checkpoint(seed))
+        self.assertNotIn("_unexplained_damage_streak", vars(policy))
+        policy._observe(board)
+        self.assertEqual(policy._unexplained_damage_streak, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1343,6 +1343,13 @@ class EquipmentMixin:
         self, snapshot: Snapshot | None = None
     ) -> None:
         session = self._equipment_transaction_session
+        if (session is not None
+                and getattr(self, "_town_claim_bar_enforced", False)):
+            self._release_claim_goal(
+                "equipment-transaction-abandoned",
+                owners=("equipment-txn", "calibration"),
+                kinds=("Observe",), sources=("transaction", "calibration"),
+            )
         if self._store_visit is not None:
             target_store_type = (
                 STORE_HOME
@@ -1590,6 +1597,8 @@ class EquipmentMixin:
         self, snapshot: Snapshot
     ) -> str | None:
         """Give a stripped transaction exclusive ownership of town decisions."""
+        if self._defer_town_errand("equipment-txn", "town-owner"):
+            return None
         if not self._equipment_transaction_owned_items:
             return None
         self._declare_non_discardable("equipment-txn")
@@ -1898,6 +1907,8 @@ class EquipmentMixin:
     def _equipment_transaction_town_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or snapshot.store is not None:
             return None
+        if self._defer_town_errand("equipment-txn", "town-key"):
+            return None
         if self._release_stalled_equipment_transaction(snapshot):
             return WAIT_KEY
         self._prepare_equipment_optimization(snapshot)
@@ -2174,6 +2185,8 @@ class EquipmentMixin:
         are held unused in the pack (see the 2026-07-15 town deadlock, whose
         dominant blocker was exactly this: a worn, unidentified Bastard Sword).
         """
+        if snapshot.in_town:
+            self._claim_errand_hold("identification")
         if not snapshot.in_town or snapshot.store is not None:
             return None
         target = next(
@@ -2536,6 +2549,22 @@ class EquipmentMixin:
             )
             weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
             signature = self._item_signature(weapon)
+            filing_identity = (
+                "filed", signature, 1, "home-page", "combat-weapon"
+            )
+            self._open_execution_delegation(
+                "equipment-txn", "home-errand", filing_identity,
+                ("combat-weapon", signature), "filed-home-request",
+                "equipment/home-errand-existing-budget",
+            )
+            if (
+                getattr(self, "_town_claim_bar_enforced", False)
+                and self._defer_town_errand(
+                    "home-errand", "file-combat-weapon",
+                    work_identity=filing_identity,
+                )
+            ):
+                return None
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(signature, 1, "home-page", "combat-weapon"),
@@ -2563,6 +2592,8 @@ class EquipmentMixin:
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or self._calibration_active():
+            return None
+        if self._defer_town_errand("equipment-txn", "restore-weapon"):
             return None
         current = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
@@ -2687,6 +2718,8 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
+        if snapshot.in_town:
+            self._claim_errand_hold("curse-enchant")
         if (
             not snapshot.in_town
             or snapshot.store is not None
