@@ -1401,6 +1401,12 @@ class QuestMixin:
                             arguments=(len(chosen),),
                             expected_effect="items-fully-identified",
                         )
+                    else:
+                        self._offer_execution_no_step(
+                            producer="cross-town",
+                            work_id="morivant-full-identify:library",
+                            cause="library-entry-step-unavailable",
+                        )
                     return key
                 key = self._step_toward(snapshot, step)
                 if key is not None:
@@ -1409,6 +1415,12 @@ class QuestMixin:
                         work_id="morivant-full-identify:library-route",
                         next_step="library.approach",
                         expected_effect="library-reached",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="cross-town",
+                        work_id="morivant-full-identify:library-route",
+                        cause="library-approach-step-unavailable",
                     )
                 return key
 
