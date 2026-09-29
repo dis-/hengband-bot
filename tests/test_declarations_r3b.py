@@ -166,5 +166,30 @@ class IdentificationDeclarationTest(unittest.TestCase):
                           ("normal", ("device", 1))))
 
 
+class CalibrationDeclarationTest(unittest.TestCase):
+    def test_deposit_handoff_declares_next_executor(self):
+        policy = HengbotPolicy()
+        policy._calibration_phase = "deposit"
+        carried = SimpleNamespace()
+        board = SimpleNamespace(
+            in_town=True, store=None,
+            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+            inventory=(carried,),
+        )
+        with (patch.object(policy, "_defer_town_errand", return_value=False),
+              patch.object(policy, "_find_home_deposit", return_value=carried),
+              patch.object(policy, "_item_signature", return_value=("item", 1)),
+              patch.object(policy, "_open_execution_delegation")):
+            key = policy._calibration_town_key(board)
+        self.assertIsNone(key)
+        claim = policy._claim_register.declare(
+            "calibration", observe(("character",), 8, "calibration"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step),
+                         ("calibration", "acting", "home.deposit-next-candidate"))
+
+
 if __name__ == "__main__":
     unittest.main()

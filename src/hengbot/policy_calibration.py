@@ -1019,6 +1019,10 @@ class CalibrationMixin:
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
         if self._defer_town_errand("calibration", "town-key"):
+            self._offer_execution_no_step(
+                producer="calibration", work_id="calibration:town",
+                cause="deferred-by-town-holder",
+            )
             return None
         in_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         if (
@@ -1026,6 +1030,10 @@ class CalibrationMixin:
             or (snapshot.store is not None and not in_home)
             or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
         ):
+            self._offer_execution_no_step(
+                producer="calibration", work_id="calibration:town",
+                cause="calibration-context-unavailable",
+            )
             return None
         phase = self._calibration_phase
         if (
@@ -1033,6 +1041,10 @@ class CalibrationMixin:
             and self._equipment_transaction_session is not None
             and not self._calibration_session_owned()
         ):
+            self._offer_execution_no_step(
+                producer="calibration", work_id="calibration:town",
+                cause="other-equipment-session-active",
+            )
             return None
         if phase is None:
             if self._calibration_suspended_phase is not None:
@@ -1048,6 +1060,10 @@ class CalibrationMixin:
                         and not self._calibration_preconditions_met(snapshot)
                     )
                 ):
+                    self._offer_execution_no_step(
+                        producer="calibration", work_id="calibration:resume",
+                        cause="suspended-phase-not-ready",
+                    )
                     return None
                 phase = suspended
                 self._calibration_suspended_phase = None
@@ -1073,6 +1089,12 @@ class CalibrationMixin:
                         "identify-first-worn"
                         if self._calibration_unrewearable_worn(snapshot)
                         else "no-pack-space",
+                    )
+                    self._offer_execution(
+                        WAIT_KEY, producer="calibration",
+                        work_id="calibration:strip-aborted",
+                        next_step="calibration.abort-observe",
+                        expected_effect="calibration-abort-recorded",
                     )
                     return WAIT_KEY
             entry_blocker = self.calibration_entry_state(snapshot)[
@@ -1105,16 +1127,32 @@ class CalibrationMixin:
                 or self._calibration_actionable_invalidator(snapshot) is not None
                 or self._calibration_unrewearable_worn(snapshot)
             ):
+                self._offer_execution_no_step(
+                    producer="calibration", work_id="calibration:entry",
+                    cause=f"entry-blocked:{entry_blocker}",
+                )
                 return None
             self._begin_character_calibration(snapshot)
             phase = "deposit"
         if phase == "deposit":
             if self._home_atomic_deposit_pending is not None:
+                self._offer_execution(
+                    None, producer="calibration",
+                    work_id="calibration:deposit-pending",
+                    next_step="calibration.await-home-deposit",
+                    expected_effect="inventory-decreased/home-stock-increased",
+                )
                 return None
             deposit_candidate = self._find_home_deposit(snapshot)
             if deposit_candidate is None:
                 if self._calibration_unrewearable_worn(snapshot):
                     self._abort_character_calibration(snapshot, "identify-first-worn")
+                    self._offer_execution(
+                        WAIT_KEY, producer="calibration",
+                        work_id="calibration:deposit-aborted",
+                        next_step="calibration.abort-observe",
+                        expected_effect="calibration-abort-recorded",
+                    )
                     return WAIT_KEY
                 # Pack drained as far as Home accepts; strip if the takeoffs
                 # fit, otherwise the observation cannot be made this visit.
@@ -1131,6 +1169,12 @@ class CalibrationMixin:
                     )
                     return WAIT_KEY
                 self._abort_character_calibration(snapshot, "no-pack-space")
+                self._offer_execution(
+                    WAIT_KEY, producer="calibration",
+                    work_id="calibration:deposit-aborted",
+                    next_step="calibration.abort-observe",
+                    expected_effect="calibration-abort-recorded",
+                )
                 return WAIT_KEY
             for item in snapshot.inventory:
                 signature = self._item_signature(item)
@@ -1146,6 +1190,13 @@ class CalibrationMixin:
                 )
             # Deposits ride the ordinary Home routing (atomic entry deposit,
             # one operation per entry); nothing to post from here.
+            self._offer_execution(
+                None, producer="calibration",
+                work_id="calibration:deposit-handoff",
+                next_step="home.deposit-next-candidate",
+                expected_effect="inventory-decreased/home-stock-increased",
+                continuation="calibration.strip",
+            )
             return None
         if phase == "capture":
             self._town_order_expected_observation = "naked-character"
@@ -1192,6 +1243,13 @@ class CalibrationMixin:
                     and self._inventory_overweight(snapshot)):
                 # Free pack capacity through the ordinary Home deposit path;
                 # the restore signatures remain owed after that effect.
+                self._offer_execution(
+                    None, producer="calibration",
+                    work_id="calibration:restore-overweight",
+                    next_step="home.deposit-overweight",
+                    expected_effect="pack-weight-reduced",
+                    continuation="calibration.restore-supplies",
+                )
                 return None
             # Each successful Home withdrawal invalidates its page-relative
             # addresses.  Calibration still owns the next decision, so renew
@@ -1243,14 +1301,45 @@ class CalibrationMixin:
             )
             if not self._ensure_home_visit_request(snapshot):
                 self.last_reason = "calibration:restore-home-unavailable"
+                self._offer_execution(
+                    WAIT_KEY, producer="calibration",
+                    work_id="calibration:restore-home",
+                    next_step="calibration.wait-for-home",
+                    expected_effect="home-visit-available",
+                )
                 return WAIT_KEY
             step = self._shopping_approach_step(
                 snapshot, STORE_HOME, requester="calibration"
             )
             if step is not None:
-                return self._shopping_approach_key(
+                key = self._shopping_approach_key(
                     snapshot, step, "calibration:restore-travel"
                 )
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="calibration",
+                        work_id="calibration:restore-travel",
+                        next_step="home.approach-for-restore",
+                        expected_effect="home-reached",
+                        continuation="calibration.restore-supplies",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="calibration",
+                        work_id="calibration:restore-travel",
+                        cause="approach-key-unavailable",
+                    )
+                return key
             self.last_reason = "calibration:restore-home-unreachable"
+            self._offer_execution(
+                WAIT_KEY, producer="calibration",
+                work_id="calibration:restore-home",
+                next_step="calibration.wait-for-home-route",
+                expected_effect="home-route-available",
+            )
             return WAIT_KEY
+        self._offer_execution_no_step(
+            producer="calibration", work_id="calibration:town",
+            cause="phase-inactive",
+        )
         return None
