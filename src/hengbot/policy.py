@@ -3316,10 +3316,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _offer_execution(self, key: str | None, *, producer: str, work_id: str,
-                         next_step: str, arguments: tuple = (),
+                         next_step: str | None = None, arguments: tuple = (),
                          expected_effect: str | None = None,
                          continuation: str | None = None,
-                         budget_ref: str | None = None) -> None:
+                         budget_ref: str | None = None,
+                         state: str = "acting", evidence: str | None = None,
+                         cause: str | None = None,
+                         post_on_emit: bool = True) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
         offers = getattr(self, "_execution_offers", None)
         if offers is None:
@@ -3329,7 +3332,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._execution_offer_sequence = sequence
         offers.append((
             key, producer, work_id, next_step, tuple(arguments),
-            expected_effect, continuation, budget_ref, sequence,
+            expected_effect, continuation, budget_ref, state, evidence, cause,
+            post_on_emit, sequence,
         ))
 
     def _offer_execution_no_step(self, *, producer: str, cause: str,
@@ -3371,6 +3375,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             continuation, sequence,
         ))
 
+    def _offer_home_scan_leave(self) -> None:
+        """A complete Home catalogue still has a page-exit command to send."""
+        self._offer_execution(
+            LEAVE_STORE_KEY, producer="home-scan",
+            work_id=f"home-scan-page:{self._decision_sequence}",
+            next_step="store.leave.send", arguments=(STORE_HOME,),
+            expected_effect="outside-store",
+            continuation="home.knowledge.done",
+            budget_ref="home-knowledge-existing-epoch",
+        )
+
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
         offers = getattr(self, "_execution_offers", None) or ()
@@ -3400,7 +3415,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             offer = None
             no_step = None
             wait = None
-        if wait is not None and (offer is None or wait[6] > offer[8]) and (
+        if wait is not None and (offer is None or wait[6] > offer[12]) and (
             no_step is None or wait[6] > no_step[3]
         ):
             _, producer, work_id, operation_ref, effect, continuation, _ = wait
@@ -3415,7 +3430,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
             offer = None
             no_step = None
-        if no_step is not None and (offer is None or no_step[3] > offer[8]):
+        if no_step is not None and (offer is None or no_step[3] > offer[12]):
             producer, work_id, fact, _, state = no_step
             if state == "done":
                 register.declare_execution(
@@ -3429,15 +3444,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
             offer = None
         if offer is not None:
-            _, producer, work_id, step, args, effect, continuation, budget, _ = offer
+            (_, producer, work_id, step, args, effect, continuation, budget,
+             state, evidence, cause, post_on_emit, _) = offer
             register.declare_execution(
                 claim.claim_id, work_id=work_id, producer=producer,
-                state="acting", next_step=step, arguments=args,
+                state=state, next_step=step, arguments=args,
                 expected_effect=effect, continuation=continuation,
-                budget_ref=budget,
+                budget_ref=budget, evidence=evidence, cause=cause,
             )
             # The driver alone can turn an emitted command into a posted wait.
-            if key not in (None, ""):
+            if state == "acting" and post_on_emit and key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
         claim = register.current
         inferred = (
@@ -5824,7 +5840,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if step is not None:
                     self.last_reason = "shop:approach"
                     self._declare_reach(goal, family="store-router")
-                    return self._direction_key(snapshot.player.position, step)
+                    key = self._direction_key(snapshot.player.position, step)
+                    self._offer_execution(
+                        key, producer="store-router",
+                        work_id=f"route:entrance:{goal.y},{goal.x}",
+                        next_step="route.resume",
+                        arguments=("entrance", (goal.y, goal.x)),
+                        expected_effect=f"arrive:{goal.y},{goal.x}",
+                        continuation="route.resume", budget_ref="town-travel",
+                    )
+                    return key
             if store_type is not None:
                 step = self._shopping_approach_step(
                     snapshot, store_type, requester="store-router"
@@ -5851,7 +5876,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "shop:approach"
                 self._declare_reach(goal, family="store-router")
-                return self._direction_key(snapshot.player.position, step)
+                key = self._direction_key(snapshot.player.position, step)
+                self._offer_execution(
+                    key, producer="store-router",
+                    work_id=f"route:store:{goal.y},{goal.x}",
+                    next_step="route.resume",
+                    arguments=("store", (goal.y, goal.x)),
+                    expected_effect=f"arrive:{goal.y},{goal.x}",
+                    continuation="route.resume", budget_ref="town-travel",
+                )
+                return key
             # A Reach still en route cannot be released as a no-step errand.
             # The final §3 branch reports an unresolved route consistently.
             route_unresolved = True
@@ -5896,6 +5930,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._home_knowledge_scan_requested):
             if holder is getattr(self._claim_register, "current", None):
                 self.last_reason = "home:scan-await-observation"
+                self._offer_execution(
+                    WAIT_KEY, producer="home-scan",
+                    work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                    next_step="home.knowledge.observe",
+                    expected_effect="catalogue-adopted",
+                    continuation="home.knowledge.observe",
+                    budget_ref="home-knowledge-existing-epoch",
+                )
                 return WAIT_KEY
             # A suspended scan cannot be safely released while posted.
             knowledge_unresolved = True
@@ -6334,6 +6376,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._home_errand.reason("request-knowledge")
                 if self._home_errand.needs_knowledge
                 else "home:request-knowledge-scan"
+            )
+            self._offer_execution(
+                HOME_KNOWLEDGE_MACRO, producer="home-scan",
+                work_id=f"home-knowledge:{self._town_visit_epoch}",
+                next_step="home.knowledge.request",
+                expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch",
             )
             return HOME_KNOWLEDGE_MACRO
         if (
@@ -7279,6 +7329,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = self._home_errand.reason("request-knowledge")
             else:
                 self.last_reason = "home:request-knowledge-scan"
+            self._offer_execution(
+                "~9\x1b\x1b", producer="home-scan",
+                work_id=f"home-knowledge:{self._town_visit_epoch}",
+                next_step="home.knowledge.request",
+                expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch",
+            )
             return "~9\x1b\x1b"
         leaving_home = (
             self._store_leave_inflight is not None
@@ -7430,6 +7488,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "shop:store-context-exit"
                 )
             key = LEAVE_STORE_KEY
+            if self.last_reason == "home:scan-complete-from-open-page":
+                self._offer_home_scan_leave()
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7457,6 +7517,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._home_scan_source = "foreign-store-page"
             self.last_reason = "home:scan-complete-from-open-page"
             key = LEAVE_STORE_KEY
+            self._offer_home_scan_leave()
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7612,6 +7673,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else:
                         self.last_reason = "home:store-context-exit"
                     key = LEAVE_STORE_KEY
+                    if self.last_reason == "home:scan-complete-from-open-page":
+                        self._offer_home_scan_leave()
                 else:
                     key = self._decide(snapshot)
             elif (
@@ -7765,6 +7828,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
+                self._offer_home_scan_leave()
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -7783,6 +7847,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._home_scan_source = "observed-home-page"
                 self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
+                self._offer_home_scan_leave()
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None
@@ -7868,11 +7933,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ):
                     self.last_reason = "home:request-knowledge-scan"
                     key = HOME_KNOWLEDGE_MACRO
+                    self._offer_execution(
+                        key, producer="home-scan",
+                        work_id=f"home-knowledge:{self._town_visit_epoch}",
+                        next_step="home.knowledge.request",
+                        expected_effect="catalogue-adopted",
+                        continuation="home.knowledge.observe",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
                 else:
                     # A visible page of a multi-page (or metadata-poor) Home is
                     # useful evidence, but it cannot replace the complete ~9 list.
                     self.last_reason = "home:scan-incomplete-open-page"
                     key = LEAVE_STORE_KEY
+                    self._offer_execution(
+                        key, producer="home-scan",
+                        work_id=f"home-knowledge-leave:{self._decision_sequence}",
+                        next_step="store.leave.send",
+                        expected_effect="outside-store",
+                        continuation="home.knowledge.request",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None

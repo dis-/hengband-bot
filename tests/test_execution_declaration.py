@@ -6,13 +6,21 @@ from pathlib import Path
 from types import SimpleNamespace
 import gzip
 import json
+from unittest.mock import patch
+from dataclasses import replace
 
 from hengbot.claim_register import (
     ClaimRegister, declaration_mismatch, observe, reach,
 )
+from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
+from hengbot.policy_types import StoreVisit
+from test_policy import (
+    Snapshot, StoreState, STORE_ALCHEMIST, SV_SCROLL_REMOVE_CURSE,
+    STORE_HOME, TVAL_CHAOS_BOOK, TVAL_SCROLL, grid, item, player, store_item,
+)
 
 
 SHORT_ROUTE = Path(__file__).parent / "fixtures/s33-live-short-entrance-224.json.gz"
@@ -26,6 +34,49 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
+    def test_town_page_declarations_do_not_change_keys_with_s33_switch(self):
+        outcomes = []
+        for enforced in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = enforced
+            policy._decision_sequence = 47
+            key = policy._shop(SimpleNamespace(store=None))
+            outcomes.append((key, policy.last_reason))
+        self.assertEqual(outcomes[0], outcomes[1])
+
+    def test_home_scan_holder_wait_declares_named_observation(self):
+        policy = HengbotPolicy()
+        board = short_route_board()
+        policy.prime(board)
+        policy._decision_sequence = 41
+        policy._home_knowledge_scan_requested = True
+        policy._home_knowledge_scan_epoch = 7
+        claim = policy._claim_register.declare(
+            "home-scan", observe(("home-knowledge-current",), 8, "knowledge"))
+        key = policy._town_holder_wait_key(claim, board)
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual(key, "5")
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.work_id),
+                         ("home-scan", "home.knowledge.observe",
+                         "home-knowledge:7"))
+
+    def test_open_home_scan_completion_declares_page_exit(self):
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        key = policy.choose_key(board)
+        declaration = policy.decision_claim["execution"]
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "home:scan-complete-from-open-page"))
+        self.assertEqual((declaration["producer"], declaration["next_step"],
+                          declaration["expected_effect"]),
+                         ("home-scan", "store.leave.send", "outside-store"))
+
     def test_direct_home_page_deposit_declares_exact_item_and_count(self):
         policy = HengbotPolicy()
         policy._decision_sequence = 31
@@ -42,7 +93,124 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.arguments),
                          ("acting", "home.deposit.send",
-                          ("h", 3, ("torch", 39, 0))))
+                         ("h", 3, ("torch", 39, 0))))
+
+    def test_rejected_home_page_deposit_declares_leave(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 32
+        policy._item_signature = lambda item: ("torch", 39, 0)
+        item = SimpleNamespace(slot="h", count=5, charges=0)
+        board = SimpleNamespace(inventory=(item,), player=SimpleNamespace(gold=42))
+        policy._last_sell_sig = ("h", ("torch", 39, 0), 5, 0, 1, 42)
+        policy._store_sell_stuck_count = 999
+        key = policy._home_deposit_key(board, item)
+        claim = policy._claim_register.declare(
+            "home-visit", observe(("store",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("\x1b", "home-visit", "store.leave.send"))
+
+    def test_shop_invalid_page_declares_leave_under_shop_seller(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 44
+        key = policy._shop(SimpleNamespace(store=None))
+        claim = policy._claim_register.declare(
+            "shop-sell", observe(("store",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step,
+                          declaration.expected_effect),
+                         ("\x1b", "shop-sell", "store.leave.send",
+                          "outside-store"))
+
+    def test_shop_buy_declares_exact_page_command(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_ALCHEMIST, [ware]),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 45
+        with (patch.object(policy, "_next_purchase", return_value=ware),
+              patch.object(policy, "_purchase_quantity", return_value=1)):
+            key = policy._shop(board)
+        claim = policy._claim_register.declare(
+            "shop-buy", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("pa\r", "shop-buy", "shop.purchase.send"))
+
+    def test_shop_one_shot_composition_wait_is_not_a_posted_purchase(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)
+        observed = StoreState(STORE_ALCHEMIST, [ware], page_top=0)
+        outside = Snapshot(
+            player(10, 10),
+            {Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_ALCHEMIST)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=None,
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 45
+        policy._shop_observation = (observed, 45)
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_ALCHEMIST)
+        with (patch.object(policy, "_next_purchase", return_value=ware),
+              patch.object(policy, "_purchase_quantity", return_value=1)):
+            wait_key = policy._atomic_shop_transaction_key(outside)
+        claim = policy._claim_register.declare(
+            "shop-buy", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, wait_key, policy.last_reason)
+        self.assertEqual(policy._claim_register.current.execution.next_step,
+                         "shop.one-shot.dispatch")
+        policy.confirm_key_posted(wait_key)
+        self.assertEqual(policy._claim_register.current.execution.state,
+                         "acting")
+        self.assertIsNone(policy._claim_register.current.execution.operation_ref)
+        operation_key = policy._release_staged_store_operation(
+            replace(outside, store=observed))
+        self.assertEqual(operation_key, "pa\r\x1b")
+        policy._record_execution_declaration(
+            policy._claim_register.current, operation_key, policy.last_reason)
+        self.assertEqual(policy._claim_register.current.execution.next_step,
+                         "shop.one-shot.send")
+
+    def test_home_errand_filing_leave_names_its_request(self):
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_HOME, []),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 46
+        policy._home_errand.file(
+            HomeErrandRequest(("weapon", 1, 2), 1, "home-page", "combat-weapon"),
+            knowledge_current=True,
+        )
+        key = policy._shop(board)
+        claim = policy._claim_register.declare(
+            "home-errand", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("\x1b", "home-errand", "store.leave.send"))
+
+    def test_home_errand_unaddressed_withdraw_declares_retry(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 48
+        policy.last_reason = "home-errand:target-unobserved:combat-weapon"
+        policy._offer_unaddressed_home_withdraw("\x1b", ("weapon", 1, 2))
+        claim = policy._claim_register.declare(
+            "home-errand", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, "\x1b", policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.arguments),
+                         ("home-errand", "store.leave.send",
+                          (("weapon", 1, 2),)))
 
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()
@@ -149,6 +317,44 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
                           mismatch["declared"]["next_step"]),
                          ("silent", "acting", "route.resume"))
+
+    def test_store_router_short_entrance_walk_declares_final_direction(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy.prime(board)
+        policy._decision_sequence = 224
+        policy._town_travel_key = lambda *args: None
+        policy._town_map_goal_step = lambda *args: Position(32, 145)
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        key = policy._town_holder_wait_key(claim, board)
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.arguments),
+                         ("store-router", "route.resume",
+                         ("entrance", (31, 150))))
+
+    def test_store_router_failed_step_off_releases_by_name(self):
+        board = Snapshot(
+            player(10, 10),
+            {Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_ALCHEMIST)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=None,
+        )
+        policy = HengbotPolicy()
+        policy._store_entry_failed_owner = STORE_ALCHEMIST
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        policy._shopping_approach_goal = Position(10, 10)
+        key = policy._shopping_approach_key(
+            board, board.player.position, "shop:travel")
+        claim = policy._claim_register.declare(
+            "store-router", reach((10, 10)))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.state, declaration.cause),
+                         ("", "releasing", "no-walkable-step-off"))
 
     def test_1904_home_withdraw_effect_closes_named_operation(self):
         # The recorded Home transfer was observed before visit state retired.

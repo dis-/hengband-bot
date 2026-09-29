@@ -327,6 +327,18 @@ class ShopMixin:
             return None
         visit.transition(StoreVisitPhase.OPERATING)
         visit.operation_released = True
+        if visit.operation_producer_family in {"shop-buy", "shop-sell"}:
+            self._offer_execution(
+                visit.operation_key,
+                producer=visit.operation_producer_family,
+                work_id=(f"shop-operation:{visit.opened_sequence}:"
+                         f"{visit.store_type}:{visit.operation_key}"),
+                next_step="shop.one-shot.send",
+                arguments=(visit.store_type, visit.operation_key),
+                expected_effect="inventory/gold-effect",
+                continuation="shop.one-shot.observe",
+                budget_ref="shop-one-shot-existing-budget",
+            )
         return visit.operation_key
 
     @staticmethod
@@ -3375,6 +3387,54 @@ class ShopMixin:
         }
 
     def _shop(self, snapshot: Snapshot) -> str:
+        """Declare the final direct store-page command produced by this page."""
+        key = self._shop_core(snapshot)
+        family = self._claim_family_of(self.last_reason)
+        request = getattr(self._home_errand, "request", None)
+        if (key == LEAVE_STORE_KEY and self._home_errand.active
+                and request is not None):
+            self._offer_execution(
+                key, producer="home-errand",
+                work_id=f"home-request:{request.purpose}:{request.signature}",
+                next_step="store.leave.send",
+                arguments=(STORE_HOME, request.purpose, request.signature),
+                expected_effect="outside-store",
+                continuation="home.request.resume",
+                budget_ref="home-errand-existing-budget",
+            )
+        if family in {"shop-buy", "shop-sell", "home-visit", "home-errand"} and not any(
+            offer[0] == key and offer[1] == family
+            for offer in getattr(self, "_execution_offers", ())
+        ):
+            store_type = getattr(snapshot.store, "store_type", None)
+            work_id = f"store-page:{store_type}:{self._decision_sequence}:{self.last_reason}"
+            if key is None:
+                self._offer_execution(
+                    None, producer=family, work_id=work_id,
+                    state="releasing", cause=self.last_reason,
+                )
+            else:
+                step = (
+                    "shop.purchase.send" if key.startswith(BUY_KEY)
+                    else "shop.sale.send" if key.startswith(SELL_KEY)
+                    else "store.leave.send" if key == LEAVE_STORE_KEY
+                    else "shop.page.send"
+                )
+                self._offer_execution(
+                    key, producer=family, work_id=work_id,
+                    next_step=step, arguments=(store_type,),
+                    expected_effect=(
+                        "outside-store" if key == LEAVE_STORE_KEY
+                        else "inventory/gold-effect" if step in {
+                            "shop.purchase.send", "shop.sale.send"
+                        } else "store-page-effect"
+                    ),
+                    continuation="shop.page.observe",
+                    budget_ref="store-visit-existing-budget",
+                )
+        return key
+
+    def _shop_core(self, snapshot: Snapshot) -> str:
         store = snapshot.store
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         if store is None:
@@ -4683,6 +4743,15 @@ class ShopMixin:
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self.last_reason = "store:entry-failed-step-off"
+            if not neighbors:
+                self._offer_execution(
+                    "", producer="store-router",
+                    work_id=(f"store-entry-step-off:"
+                             f"{self._shopping_approach_store_type}:"
+                             f"{snapshot.player.position.y},"
+                             f"{snapshot.player.position.x}"),
+                    state="releasing", cause="no-walkable-step-off",
+                )
             return (
                 self._stage_shopping_approach_key(
                     snapshot, self._step_toward(snapshot, neighbors[0])
@@ -4700,6 +4769,17 @@ class ShopMixin:
             self._store_entry_wait_key = WAIT_KEY
             self._store_entry_wait_turn = None
             self._intentional_entrance_activation = True
+            if self._shopping_approach_goal is not None:
+                goal = self._shopping_approach_goal
+                self._offer_execution(
+                    WAIT_KEY, producer="store-router",
+                    work_id=f"store-entry:{self._shopping_approach_store_type}:{goal.y},{goal.x}",
+                    next_step="store.entry.observe",
+                    arguments=(self._shopping_approach_store_type, (goal.y, goal.x)),
+                    expected_effect="store-page-open",
+                    continuation="store.entry.observe",
+                    budget_ref="town-travel",
+                )
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._stage_shopping_approach_key(
@@ -4814,10 +4894,25 @@ class ShopMixin:
                 if inner.startswith(BUY_KEY)
                 else "shop:one-shot-sell"
             )
+            operation_family = (
+                "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
+            )
+            opened_sequence = (
+                self._store_visit.opened_sequence
+                if self._store_visit is not None else generation
+            )
+            self._offer_execution(
+                key, producer=operation_family,
+                work_id=(f"shop-operation:{opened_sequence}:"
+                         f"{observed_store.store_type}:{operation_key}"),
+                next_step="shop.one-shot.dispatch",
+                arguments=(observed_store.store_type, operation_key),
+                expected_effect="store-page-open",
+                continuation="shop.one-shot.send",
+                budget_ref="shop-one-shot-existing-budget",
+                post_on_emit=False,
+            )
             if self._store_visit is not None:
-                operation_family = (
-                    "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
-                )
                 self._open_execution_delegation(
                     operation_family, operation_family,
                     ("shop-operation", self._store_visit.opened_sequence,

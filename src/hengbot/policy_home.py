@@ -1264,6 +1264,14 @@ class HomeMixin:
             self._store_sell_stuck_count = 0
             self._last_sell_sig = None
             self.last_reason = "home:deposit-rejected"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="home-visit",
+                work_id=f"home-deposit-rejected:{self._decision_sequence}:{deposit.slot}",
+                next_step="store.leave.send",
+                arguments=(STORE_HOME,), expected_effect="outside-store",
+                continuation="home.visit.finish",
+                budget_ref="home-visit-existing-budget",
+            )
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
         deposit_count = (
@@ -1304,6 +1312,25 @@ class HomeMixin:
             budget_ref="home-visit-existing-budget",
         )
         return key
+
+    def _offer_unaddressed_home_withdraw(
+        self, key: str | None, signature: tuple
+    ) -> None:
+        """The request owner names its recovery after an invalid Home address."""
+        family = self._claim_family_of(self.last_reason)
+        if family not in {"home-errand", "home-visit"}:
+            return
+        self._offer_execution(
+            key, producer=family,
+            work_id=f"home-withdraw-address:{signature}",
+            next_step=("home.knowledge.request" if key is None
+                       else "store.leave.send"),
+            arguments=(signature,),
+            expected_effect=("catalogue-adopted" if key is None
+                             else "outside-store"),
+            continuation="home.withdraw.retry",
+            budget_ref="home-errand-existing-budget",
+        )
 
     def _atomic_home_withdraw_key(
         self, snapshot: Snapshot, step: Position
@@ -1632,6 +1659,7 @@ class HomeMixin:
             # errand's item is in Home at a moved address (see above).
             self._invalidate_home_observation()
             self.last_reason = self._home_errand.reason("await-fresh-knowledge")
+            self._offer_unaddressed_home_withdraw(None, signature)
             return None
         if signature not in observed_signatures and self._home_errand.active:
             self._home_errand.observe_unaddressed_entry(
@@ -1640,6 +1668,7 @@ class HomeMixin:
             self.last_reason = self._home_errand.reason("target-unobserved")
             self._record_digger_home_withdraw_failure(signature)
             self._defer_unobserved_home_withdrawal(signature)
+            self._offer_unaddressed_home_withdraw(LEAVE_STORE_KEY, signature)
             return LEAVE_STORE_KEY
         if self._calibration_phase == "restore-supplies":
             for restore_signature in self._calibration_restore_signatures:
@@ -1673,6 +1702,7 @@ class HomeMixin:
                 self.last_reason = "home:atomic-withdraw-slot-unobserved"
                 deferred = self._defer_unobserved_home_withdrawal(signature)
                 self._record_digger_home_withdraw_failure(deferred)
+            self._offer_unaddressed_home_withdraw(LEAVE_STORE_KEY, signature)
             return LEAVE_STORE_KEY
         catalogue_index, item = selected
         observed_address = self._home_observed_addresses.get(signature)
@@ -1708,6 +1738,7 @@ class HomeMixin:
                 self.last_reason = "home:atomic-withdraw-address-invalid"
                 deferred = self._defer_unobserved_home_withdrawal(signature)
                 self._record_digger_home_withdraw_failure(deferred)
+            self._offer_unaddressed_home_withdraw(LEAVE_STORE_KEY, signature)
             return LEAVE_STORE_KEY
         requested_quantity = (
             quantity
