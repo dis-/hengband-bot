@@ -589,6 +589,38 @@ class EquipmentMixin:
                 counts[SLOT_SUB_RING] += 1
         return dict(sorted(counts.items()))
 
+    def _offer_optimizer_result(self, preparation, *, source: str) -> None:
+        """Declare the optimizer's result before its caller selects a key."""
+        work_id = f"equipment:optimizer:{source}"
+        session = self._equipment_transaction_session
+        action = None if session is None else getattr(session, "current_action", None)
+        if action is not None:
+            self._offer_execution(
+                None, producer="equipment-opt", work_id=work_id,
+                next_step="equipment.next-action",
+                arguments=(action.kind, action.item_identity),
+                expected_effect=f"equipment-effect:{action.kind}",
+                continuation="equipment.optimize",
+            )
+            return
+        if preparation is None:
+            self._offer_execution_no_step(
+                producer="equipment-opt", work_id=work_id,
+                cause=f"{source}:no-preparation",
+            )
+            return
+        blockers = tuple(getattr(preparation, "blockers", ()) or ())
+        if blockers:
+            self._offer_execution_no_step(
+                producer="equipment-opt", work_id=work_id,
+                cause=f"{source}:blocked:{','.join(blockers)}",
+            )
+            return
+        self._offer_execution_done(
+            producer="equipment-opt", work_id=work_id,
+            evidence=f"{source}:loadout-selected",
+        )
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -611,12 +643,9 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "current-inputs"
-            self._offer_execution(
-                None, producer="equipment-opt",
-                work_id="equipment:optimizer:in-flight-session",
-                next_step="equipment.next-action",
-                expected_effect="equipment-session-progress",
-                continuation="equipment.optimize",
+            self._offer_optimizer_result(
+                self._equipment_optimization_preparation,
+                source="in-flight-session",
             )
             return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
@@ -670,6 +699,9 @@ class EquipmentMixin:
                 self._equipment_optimization_preparation = preparation
                 self._equipment_optimization_signature = None
                 self._set_equipment_transaction_session(None)
+                self._offer_optimizer_result(
+                    preparation, source="retired-worn-loadout",
+                )
                 return preparation
         optimization_depth = depth_override
         operational_catalog = tuple(
@@ -988,6 +1020,10 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "current-inputs"
+            self._offer_optimizer_result(
+                self._equipment_optimization_preparation,
+                source="signature-cache-hit",
+            )
             return self._equipment_optimization_preparation
         if (
             depth_override is None
@@ -1006,6 +1042,10 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "stale-republished"
+            self._offer_optimizer_result(
+                self._equipment_optimization_preparation,
+                source="town-visit-timeout",
+            )
             return self._equipment_optimization_preparation
         if signature == self._equipment_optimization_signature:
             self._equipment_optimization_telemetry["result_source"] = (
@@ -1061,6 +1101,10 @@ class EquipmentMixin:
                 identification_exempt_item_ids=identification_exempt,
                 calibration=calibration,
                 knowledge_key=self._equipment_optimizer_knowledge_key,
+            )
+            self._offer_optimizer_result(
+                self._equipment_optimization_preparation,
+                source="signature-cache-replanned",
             )
             return self._equipment_optimization_preparation
         if self._equipment_optimizer_knowledge_key is None:
@@ -1302,6 +1346,7 @@ class EquipmentMixin:
             "trigger_reason": self.last_reason,
         }
         self._equipment_fresh_search_target_ids = current_target_ids
+        self._offer_optimizer_result(preparation, source="fresh-search")
         return preparation
 
     @staticmethod
