@@ -9,6 +9,7 @@ import hashlib
 import importlib
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -93,6 +94,38 @@ def _stream(case, fixture, replay):
     return [(row.get("key"), row.get("reason")) for row in replay]
 
 
+def _declaration_counts(calls):
+    """Summarize only decisions actually reached by this replay mode."""
+    mismatches = Counter()
+    missing = Counter()
+    for _key, _reason, _sequence, _before, decision in calls:
+        if not isinstance(decision, dict):
+            continue
+        family = decision.get("owner") or "unknown"
+        mismatch = decision.get("declaration_mismatch")
+        if mismatch is not None:
+            declared = mismatch.get("declared")
+            mismatches[(family, mismatch.get("inferred"),
+                        declared.get("state") if isinstance(declared, dict)
+                        else None)] += 1
+        if decision.get("execution") is None:
+            missing[family] += 1
+    return {
+        "declaration_mismatch_counts": [
+            {"family": family, "inferred": inferred, "declared": declared,
+             "count": count}
+            for (family, inferred, declared), count in sorted(
+                mismatches.items(), key=lambda pair: tuple(
+                    "" if item is None else str(item) for item in pair[0]
+                )
+            )
+        ],
+        "missing_declaration_decisions": sum(missing.values()),
+        "missing_declaration_by_family": dict(sorted(missing.items())),
+        "declaration_decisions_measured": len(calls),
+    }
+
+
 class FirstDifference(Exception):
     def __init__(self, row):
         self.row = row
@@ -112,7 +145,8 @@ def measure(case, mode="s33"):
     def observe_off(policy, snapshot):
         before = _state(policy)
         key = original_choose(policy, snapshot)
-        off_calls.append((key, policy.last_reason, policy._decision_sequence, before))
+        off_calls.append((key, policy.last_reason, policy._decision_sequence,
+                          before, getattr(policy, "decision_claim", None)))
         return key
 
     HengbotPolicy.choose_key = observe_off
@@ -135,7 +169,8 @@ def measure(case, mode="s33"):
         return {"case": case, "mode": mode,
                 "fixture_sha256": module.FIXTURE_SHA256,
                 "off_sha256": digest, "off_rows": len(stream),
-                "first_divergence": None}
+                "first_divergence": None,
+                **_declaration_counts(off_calls)}
 
     def enforced_init(policy, *args, **kwargs):
         original_init(policy, *args, **kwargs)
@@ -148,7 +183,8 @@ def measure(case, mode="s33"):
         before = _state(policy)
         key = original_choose(policy, snapshot)
         index = len(on_calls)
-        observed = (key, policy.last_reason, policy._decision_sequence, before)
+        observed = (key, policy.last_reason, policy._decision_sequence,
+                    before, getattr(policy, "decision_claim", None))
         on_calls.append(observed)
         if index >= len(off_calls) or observed[:2] != off_calls[index][:2]:
             raise FirstDifference((index, off_calls[index] if index < len(off_calls)
@@ -167,7 +203,9 @@ def measure(case, mode="s33"):
         HengbotPolicy.choose_key = original_choose
     result = {"case": case, "mode": mode,
               "fixture_sha256": module.FIXTURE_SHA256,
-              "off_sha256": digest, "off_rows": len(stream)}
+              "off_sha256": digest, "off_rows": len(stream),
+              "off_declarations": _declaration_counts(off_calls),
+              **_declaration_counts(on_calls)}
     expected = (EXPECTED_FIRST if mode == "s33"
                 else CROSSAREA_EXPECTED_FIRST)
     if difference is None:
