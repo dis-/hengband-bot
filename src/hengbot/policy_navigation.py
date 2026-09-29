@@ -228,6 +228,12 @@ class NavigationMixin:
                 self._owner_expectations.release("stair-command")
                 probe = self._look_probe_key(snapshot)
                 self.last_reason = "stair:observation-timeout-probe"
+                self._offer_execution(
+                    probe, producer="departure",
+                    work_id="stair:observation-timeout",
+                    next_step="stair.probe-after-timeout",
+                    expected_effect="stair-observation-refreshed",
+                )
                 return probe
             self.last_reason = "stair:await-observation"
             current = getattr(self._claim_register, "current", None)

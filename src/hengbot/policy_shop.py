@@ -3559,6 +3559,12 @@ class ShopMixin:
             if target is None:
                 self._clear_pending_disposal()
                 self.last_reason = "equipment:sale-complete"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer="equipment-txn",
+                    work_id="equipment:dominated-sale",
+                    next_step="equipment.leave-after-sale",
+                    expected_effect="store-exited",
+                )
                 return LEAVE_STORE_KEY
             if store.store_type != self._dominated_disposal_store(target):
                 return None
@@ -3568,6 +3574,20 @@ class ShopMixin:
             )
             if key == LEAVE_STORE_KEY:
                 self._disposal_store_attempts.add(store.store_type)
+            if key is not None:
+                self._offer_execution(
+                    key, producer="equipment-txn",
+                    work_id="equipment:dominated-sale",
+                    next_step="equipment.sell-dominated-item",
+                    arguments=(self._item_signature(target),),
+                    expected_effect="dominated-item-sold",
+                )
+            else:
+                self._offer_execution_no_step(
+                    producer="equipment-txn",
+                    work_id="equipment:dominated-sale",
+                    cause="sale-command-unavailable",
+                )
             return key
 
         if self._home_disposal_pending is not None:

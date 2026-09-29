@@ -1286,6 +1286,13 @@ class TownMixin:
                         self.last_reason = "town:cross-town-walk-in-return"
                         self._adopt_decision_goal()
                         self._record_shop_selector_diagnostics(snapshot, returning)
+                        self._offer_execution(
+                            returning, producer="cross-town",
+                            work_id="town:cross-town-walk-in-return",
+                            next_step="cross-town.return-for-walk-in",
+                            arguments=(OUTPOST_TOWN_ID,),
+                            expected_effect="outpost-reached",
+                        )
                         return returning
                 # The return is itself impossible (no fare, no reachable Inn,
                 # no legal exit -- town_teleport_refusal records a refused
@@ -1502,6 +1509,19 @@ class TownMixin:
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
             self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+            if key is not None:
+                self._offer_execution(
+                    key, producer="departure",
+                    work_id="town:entrance-step-off",
+                    next_step="departure.step-off-entrance",
+                    arguments=(step.y, step.x),
+                    expected_effect="entrance-cell-cleared",
+                )
+            else:
+                self._offer_execution_no_step(
+                    producer="departure", work_id="town:entrance-step-off",
+                    cause="entrance-step-unavailable",
+                )
         return key
 
     def _release_stale_town_block(self, snapshot: Snapshot) -> None:
@@ -1872,6 +1892,10 @@ class TownMixin:
 
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:town-item",
+                cause="outside-town",
+            )
             return None
         self._activate_home_batch_item()
         if self._home_pending_item is None:
@@ -1889,6 +1913,10 @@ class TownMixin:
                 and self._identification_flow_candidate(item),
             )
             if target is None:
+                self._offer_execution_no_step(
+                    producer="identification", work_id="identify:town-item",
+                    cause="no-carried-target",
+                )
                 return None
             full = target.known
             key = self._carried_identify_command(snapshot, target, full=full)
@@ -1898,17 +1926,40 @@ class TownMixin:
                     or self._item_signature(target)
                     in self._town_unidentifiable_carried_sigs
                 ):
+                    self._offer_execution_no_step(
+                        producer="identification", work_id="identify:town-item",
+                        cause="target-deferred",
+                    )
                     return None
                 signature = self._item_signature(target)
                 if full and STORE_ALCHEMIST in self._town_store_attempted:
                     self._defer_full_identification(signature)
+                    self._offer_execution_no_step(
+                        producer="identification",
+                        work_id=f"identify:town-item:{signature}",
+                        cause="full-identification-deferred",
+                    )
                 else:
                     self._identification_candidate = signature
                     self._request_identification("full" if full else "normal")
+                    self._offer_execution(
+                        None, producer="identification",
+                        work_id=f"identify:town-item:{signature}",
+                        next_step="identification.acquire-source",
+                        arguments=("full" if full else "normal", signature),
+                        expected_effect="identification-source-ready",
+                    )
                 return None
             self._identification_need = None
             self._identification_candidate = None
             self.last_reason = "identify:full" if full else "identify:normal"
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"identify:town-item:{self._item_signature(target)}",
+                next_step="identification.use-carried-source",
+                arguments=(self._item_signature(target), full),
+                expected_effect="carried-item-identified",
+            )
             return key
         if self._home_withdrawal_queued:
             # The in-store chooser has selected a Home identity, but the atomic
@@ -1918,6 +1969,12 @@ class TownMixin:
             # not mistake that pre-existing stack for withdrawal success.  A
             # posted atomic command clears this queued state before the newly
             # observed inventory may be processed.
+            self._offer_execution(
+                None, producer="identification",
+                work_id="identify:home-withdrawal-queued",
+                next_step="home.withdraw-for-identification",
+                expected_effect="target-withdrawn",
+            )
             return None
         target = self._pending_inventory_item(snapshot)
         if target is None:
@@ -1939,6 +1996,10 @@ class TownMixin:
             self.last_reason = "home:withdraw-failed-deferred"
             if self._home_pending_batch:
                 return self._town_item_processing_key(snapshot)
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:town-item",
+                cause="home-withdrawal-failed-deferred",
+            )
             return None
         if (
             self._home_atomic_withdraw_pending is not None
@@ -1960,11 +2021,25 @@ class TownMixin:
             )
             if key is None:
                 self._request_identification("normal")
+                self._offer_execution(
+                    None, producer="identification",
+                    work_id=f"identify:home-item:{self._home_pending_item}",
+                    next_step="identification.acquire-source",
+                    arguments=("normal", self._home_pending_item),
+                    expected_effect="identification-source-ready",
+                )
                 return None
             self._identification_need = None
             if self._identification_source_reservation is not None:
                 self._identification_source_reservation["state"] = "identifying"
             self.last_reason = "identify:normal"
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"identify:home-item:{self._home_pending_item}",
+                next_step="identification.use-carried-source",
+                arguments=(self._item_signature(target), False),
+                expected_effect="carried-item-identified",
+            )
             return key
 
         if target.known and self._identification_flow_candidate(target):
@@ -1977,8 +2052,20 @@ class TownMixin:
                 signature = self._item_signature(target)
                 if STORE_ALCHEMIST in self._town_store_attempted:
                     self._defer_full_identification(signature)
+                    self._offer_execution_no_step(
+                        producer="identification",
+                        work_id=f"identify:home-item:{signature}",
+                        cause="full-identification-deferred",
+                    )
                 else:
                     self._request_identification("full")
+                    self._offer_execution(
+                        None, producer="identification",
+                        work_id=f"identify:home-item:{signature}",
+                        next_step="identification.acquire-source",
+                        arguments=("full", signature),
+                        expected_effect="identification-source-ready",
+                    )
                 return None
             command, item = source
             self._identification_need = None
@@ -1986,10 +2073,19 @@ class TownMixin:
                 self._identification_source_reservation["state"] = "identifying"
             self.last_reason = "identify:full"
             if command == READ_KEY:
-                return self._read_key(
+                key = self._read_key(
                     snapshot, item, target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
                 )
-            return command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
+            else:
+                key = command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"identify:home-item:{self._item_signature(target)}",
+                next_step="identification.use-carried-source",
+                arguments=(self._item_signature(target), True),
+                expected_effect="carried-item-fully-identified",
+            )
+            return key
 
         target_signature = self._item_signature(target)
         self._release_identification_source_reservation(self._home_pending_item)
@@ -2004,6 +2100,10 @@ class TownMixin:
             if self._home_pending_batch:
                 return self._town_item_processing_key(snapshot)
             self.last_reason = "identify:batch-complete"
+            self._offer_execution_done(
+                producer="identification", work_id="identify:home-batch",
+                evidence="batch-item-processed",
+            )
             return None
 
         self._home_pending_item = None
@@ -2016,15 +2116,27 @@ class TownMixin:
             self.last_reason = "home:process-next-batch-item"
             return WAIT_KEY
         self.last_reason = "identify:complete"
+        self._offer_execution_done(
+            producer="identification", work_id="identify:home-item",
+            evidence="home-item-processed",
+        )
         return None
 
     def _town_destroy_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town or not self._destroy_pending:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:destroy",
+                cause="no-town-disposal-pending",
+            )
             return None
         target = self._pending_disposal(snapshot)
         if target is None:
             self._clear_pending_disposal()
             self.last_reason = "equipment:destroy-complete"
+            self._offer_execution_done(
+                producer="equipment-txn", work_id="equipment:destroy",
+                evidence="dominated-item-absent",
+            )
             return None
         if self._destroy_attempts >= STORE_STUCK_LIMIT:
             self._town_blocked_reason = "dominated-item-destroy-failed"
@@ -2038,9 +2150,24 @@ class TownMixin:
         if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
             self._clear_pending_disposal()
             self.last_reason = "equipment:destroy-refused-superior-item"
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:destroy",
+                cause="superior-item-protected",
+            )
             return None
         if key is not None:
             self._destroy_attempts += 1
+            self._offer_execution(
+                key, producer="equipment-txn", work_id="equipment:destroy",
+                next_step="equipment.destroy-dominated-item",
+                arguments=(self._item_signature(target),),
+                expected_effect="dominated-item-removed",
+            )
+        else:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:destroy",
+                cause="destroy-command-unavailable",
+            )
         return key
 
     def _town_need_candidates(self, snapshot: Snapshot) -> list[TownNeed]:
@@ -4783,6 +4910,13 @@ class TownMixin:
                 )
             ):
                 self.last_reason = "town:repetition-depart:enter"
+                self._offer_execution(
+                    ENTER_DUNGEON_MACRO, producer="departure",
+                    work_id="town:repetition-enter",
+                    next_step="stair.descend.send",
+                    expected_effect="floor-change",
+                    continuation="departure.observe-arrival",
+                )
                 return ENTER_DUNGEON_MACRO
             step = self._descent_step(snapshot)
             if step is not None:
@@ -4797,6 +4931,19 @@ class TownMixin:
                 walk = self._step_toward(snapshot, step)
                 if walk != WAIT_KEY:
                     self.last_reason = "town:repetition-depart"
+                    if walk is not None:
+                        self._offer_execution(
+                            walk, producer="departure",
+                            work_id="town:repetition-descent-route",
+                            next_step="departure.approach-descent",
+                            expected_effect="descent-target-reached",
+                        )
+                    else:
+                        self._offer_execution_no_step(
+                            producer="departure",
+                            work_id="town:repetition-descent-route",
+                            cause="walk-step-unavailable",
+                        )
                     return walk
             if not snapshot.player.recalling:
                 recall = self._find_recall_scroll(snapshot)

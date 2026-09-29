@@ -1187,6 +1187,12 @@ class SupplyMixin:
                 self._declare_place("wilderness:nearest-town")
                 return key
             self.last_reason = "wilderness:no-safe-route"
+            self._offer_execution(
+                WAIT_KEY, producer="departure",
+                work_id="wilderness:no-safe-route",
+                next_step="departure.wait-for-safe-route",
+                expected_effect="safe-route-available",
+            )
             return WAIT_KEY
 
         nearby_hostiles = [

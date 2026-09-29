@@ -9841,9 +9841,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             wield = self._light_to_wield(snapshot)
             if wield is not None:
                 self.last_reason = "wield-light"
-                return self._equipment_wield(
+                key = self._equipment_wield(
                     snapshot, "light-loadout", wield, "light"
                 )
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="equipment:wield-light",
+                        next_step="equipment.wield-light",
+                        arguments=(self._item_signature(wield),),
+                        expected_effect="light-equipped",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="equipment-txn",
+                        work_id="equipment:wield-light",
+                        cause="light-wield-unavailable",
+                    )
+                return key
             refill = self._light_refill_item(snapshot)
             if refill is not None:
                 self.last_reason = "refill-light"
@@ -10144,11 +10159,38 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._declare_monster(
                         getattr(self, "_hunt_step_target", None)
                     )
-                    return self._step_toward(snapshot, clear_step)
+                    key = self._step_toward(snapshot, clear_step)
+                    if key is not None:
+                        self._offer_execution(
+                            key, producer="departure",
+                            work_id="departure:clear-descent",
+                            next_step="departure.clear-descent-blocker",
+                            expected_effect="descent-route-cleared",
+                        )
+                    else:
+                        self._offer_execution_no_step(
+                            producer="departure",
+                            work_id="departure:clear-descent",
+                            cause="blocker-step-unavailable",
+                        )
+                    return key
             travel = self._entrance_travel_key(snapshot, self._descent_target_goal)
             if travel is not None:
                 return travel
-            return self._step_toward(snapshot, step)
+            key = self._step_toward(snapshot, step)
+            if key is not None:
+                self._offer_execution(
+                    key, producer="departure",
+                    work_id=f"departure:descent-route:{self._descent_target_goal}",
+                    next_step="departure.approach-descent",
+                    expected_effect="descent-target-reached",
+                )
+            else:
+                self._offer_execution_no_step(
+                    producer="departure", work_id="departure:descent-route",
+                    cause="descent-step-unavailable",
+                )
+            return key
 
         # 7. Eat when hungry and it is safe to do so.
         if player.hungry and not physical_hostiles:
