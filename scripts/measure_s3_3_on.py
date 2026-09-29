@@ -51,6 +51,13 @@ def main(case, mode="on"):
     if mode == "on":
         HengbotPolicy.__init__ = enforced_init
     def captured_choose(self, snapshot):
+        before_visit = getattr(self, "_store_visit", None)
+        before_visit_state = (None if before_visit is None else {
+            "phase": before_visit.phase.value,
+            "posted": before_visit.operation_posted,
+            "released": before_visit.operation_released,
+            "identity": before_visit.claim_operation_identity,
+        })
         key = original_choose(self, snapshot)
         visit = getattr(self, "_store_visit", None)
         if key == "":
@@ -71,7 +78,23 @@ def main(case, mode="on"):
                            "reason": reason,
                            "identity": (visit.posted_sequence if entry_wait
                                         else visit.claim_operation_identity
-                                        if operation_wait else None)})
+                                        if operation_wait else None),
+                           "visit": (None if visit is None else {
+                               "phase": visit.phase.value,
+                               "posted": visit.operation_posted,
+                               "released": visit.operation_released,
+                               "opened_sequence": visit.opened_sequence,
+                               "posted_sequence": visit.posted_sequence,
+                               "operation_key": visit.operation_key,
+                               "claim_operation_identity": visit.claim_operation_identity,
+                           }),
+                           "buy_inflight": getattr(self, "_store_buy_inflight", None),
+                           "sell_pending": getattr(self, "_batch_sell_pending", None),
+                           "before_visit": before_visit_state,
+                           "last_closed_outcome": getattr(
+                               getattr(self, "_store_visit_last_closed", None),
+                               "outcome", None),
+                           })
         for deferred in getattr(self, "_decision_errand_deferred", ()) or ():
             holder_id = deferred.get("holder_claim_id")
             if visit is not None and visit.claim_id == holder_id and (
