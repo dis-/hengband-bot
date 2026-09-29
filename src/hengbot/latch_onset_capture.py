@@ -135,7 +135,8 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     restored.__dict__.setdefault("_crossarea_fundraising_enforced", False)
     restored.__dict__.setdefault("_fundraising_run_purpose", None)
     restored.__dict__.setdefault("_fundraising_purpose_record", None)
-    restored.__dict__.setdefault("_fundraising_runs_started", 0)
+    restored.__dict__.setdefault("_fundraising_runs_started", None)
+    restored.__dict__.setdefault("_fundraising_affordable_food_seen", False)
     # Fundraising set-end now runs on every town decision.  Older captures
     # predate the identify-staff mining-plan flag; False preserves their
     # former terminal-transition behavior.

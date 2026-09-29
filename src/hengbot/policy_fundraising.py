@@ -186,15 +186,25 @@ class FundraisingMixin:
                                 and item.sval >= FOOD_MIN_SVAL
                                 for item in self._home_knowledge_items))
         store = snapshot.store
-        shop_affordable = bool(store is not None
+        shop_affordable = (getattr(
+            self, "_fundraising_affordable_food_seen", False
+        ) or bool(store is not None
             and store.store_type == food_store
             and any(item.price <= snapshot.player.gold and (
                 item.tval in {TVAL_STAFF, TVAL_WAND}
                 if snapshot.player.food_type == FOOD_TYPE_MANA
                 else item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
-            ) for item in store.items))
+            ) for item in store.items)))
         exhausted = (home_known and not home_edible and not shop_affordable
                      and food_store in self._town_store_attempted)
+        runs_started = getattr(self, "_fundraising_runs_started", None)
+        first_departure_proven = (
+            runs_started == 0
+            or (runs_started is None
+                and getattr(snapshot, "protocol_version", 0) >= 3
+                and getattr(snapshot, "visited_town_ids", None) is not None
+                and DUNGEON_YEEK_CAVE not in snapshot.entered_dungeon_ids)
+        )
         return FundraisingFacts(
             carried_edible=self._find_edible(snapshot) is not None,
             hungry=snapshot.player.hungry,
@@ -202,10 +212,8 @@ class FundraisingMixin:
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
             objective_achieved=snapshot.player.gold >= FUNDRAISING_GOLD_TARGET,
             procurement_exhausted=exhausted,
-            first_run=(
-                getattr(self, "_fundraising_runs_started", 0)
-                == (0 if snapshot.in_town else 1)
-            ),
+            first_run=(first_departure_proven if snapshot.in_town
+                       else runs_started == 1),
         )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
@@ -376,9 +384,13 @@ class FundraisingMixin:
                 if snapshot.player.food_type == FOOD_TYPE_MANA
                 else STORE_GENERAL
             )
-            food_ready = self._food_ready(snapshot) or (
-                food_store in self._town_store_attempted
-                and not snapshot.player.hungry
+            food_ready = (
+                True
+                if getattr(self, "_crossarea_fundraising_enforced", False)
+                else self._food_ready(snapshot) or (
+                    food_store in self._town_store_attempted
+                    and not snapshot.player.hungry
+                )
             )
             digger_ready = self._has_digging_tool(snapshot) or (
                 STORE_HOME in self._town_store_attempted
@@ -933,6 +945,23 @@ class FundraisingMixin:
             or snapshot.dungeon_level != 1
         ):
             return None
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            purpose = getattr(self, "_fundraising_run_purpose", None)
+            record = getattr(self, "_fundraising_purpose_record", None)
+            child = None if record is None else record.child
+            if (purpose is None or record is None
+                    or record.purpose != purpose or record.status == "failed"
+                    or child is None or child.purpose_id != purpose.identity
+                    or not ((child.direction == "depart"
+                             and child.state == "complete")
+                            or (child.direction == "return"
+                                and child.state == "posted"))):
+                if snapshot.player.hungry and self._find_edible(snapshot) is None:
+                    return self._leave_fundraising_floor(snapshot)
+                self.last_reason = (
+                    "ownership:contract-conflict:fundraising:missing-purpose"
+                )
+                return WAIT_KEY
         mining_hostiles = self._physical_hostiles(snapshot)
         combat_equip = self._fundraising_combat_equipment_key(
             snapshot, mining_hostiles
@@ -967,10 +996,6 @@ class FundraisingMixin:
             return self._leave_fundraising_floor(snapshot)
 
         if getattr(self, "_crossarea_fundraising_enforced", False):
-            purpose = getattr(self, "_fundraising_run_purpose", None)
-            if purpose is None:
-                self.last_reason = "ownership:contract-conflict:fundraising:missing-purpose"
-                return WAIT_KEY
             facts = self._fundraising_facts(snapshot)
             no_food_left = not fundraising_run_verdict(
                 facts, purpose

@@ -2098,7 +2098,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._fundraising_mode: str | None = None
         self._fundraising_run_purpose: FundraisingPurpose | None = None
         self._fundraising_purpose_record: FundraisingPurposeRecord | None = None
-        self._fundraising_runs_started = 0
+        # Unknown on a fresh attachment until save-backed progress proves that
+        # Yeek Cave has never been entered.  A restart is not a new character.
+        self._fundraising_runs_started: int | None = None
+        self._fundraising_affordable_food_seen = False
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
         self._identify_staff_mining_plan = False
@@ -6906,6 +6909,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
         if not self._observe_fundraising_transport(snapshot):
+            purpose_record = self._fundraising_purpose_record
+            if purpose_record is not None:
+                self._claim_register.set_bar(ClaimBar(
+                    owner=ClaimOwner.FUNDRAISING,
+                    goal=claim_observe(
+                        ("fundraising-purpose",
+                         str(purpose_record.purpose.identity)), None,
+                        source="fundraising-purpose",
+                    ),
+                    kind=CLAIM_BAR_ERRAND,
+                    clearance=self._claim_errand_clearance(
+                        snapshot, "fundraising", None
+                    ),
+                    rung="fundraising",
+                    since_turn=snapshot.turn,
+                    since_sequence=self._decision_sequence,
+                    claim_id=purpose_record.purpose.identity,
+                    ending=f"failed:{purpose_record.failure}",
+                ))
             self.last_reason = (
                 "ownership:contract-conflict:fundraising:wrong-destination"
             )
@@ -9729,7 +9751,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         ),
                     )
                 )
-                self._fundraising_runs_started += 1
+                self._fundraising_runs_started = (
+                    (self._fundraising_runs_started or 0) + 1
+                )
                 self._post_fundraising_transport(snapshot, "depart")
             return (
                 ENTER_DUNGEON_MACRO
