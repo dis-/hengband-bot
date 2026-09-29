@@ -2888,6 +2888,10 @@ class EquipmentMixin:
 
         self._home_rearm_seen_pages.add(page)
         self.last_reason = "home:seek-combat-weapon-page"
+        self._offer_execution(
+            " ", producer="home-scan", work_id="home:seek-combat-weapon-page",
+            next_step="home.page.advance", expected_effect="next-home-page",
+        )
         return " "
 
     @claims(ClaimOwner.EQUIPMENT_TXN)

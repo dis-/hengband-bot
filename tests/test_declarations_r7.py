@@ -88,5 +88,21 @@ class HomeErrandRows(unittest.TestCase):
         self.assertEqual(declaration.next_step, "home.knowledge.request")
 
 
+class HomeScanRows(unittest.TestCase):
+    def test_town_1185_page_seek_has_home_scan_offer(self):
+        policy = HengbotPolicy()
+        policy._no_teleport_rearm_pending = True
+        board = replace(town_board(), store=StoreState(STORE_HOME, []),
+                        inventory=[], equipment=[
+                            item("main_hand", TVAL_DIGGING, 1,
+                                 is_equipment=True)])
+        key = policy._home_rearm_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         (" ", "home:seek-combat-weapon-page"))
+        declaration = bind(policy, "home-scan", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("home-scan", "home.page.advance"))
+
+
 if __name__ == "__main__":
     unittest.main()
