@@ -46,6 +46,10 @@ class S3aRecordTest(unittest.TestCase):
             decisions.register.current, decisions.board), "5")
         self.assertEqual(policy.last_reason,
                          "equipment-transaction:await-confirmation")
+        self.assertEqual(
+            policy._execution_offers_for()[-1][2],
+            f"equipment:pending:{decisions.register.current.claim_id}",
+        )
 
     def test_new_leave_is_not_a_prior_leave_interruption(self):
         for posted_sequence, interrupted in ((1, True), (2, False)):

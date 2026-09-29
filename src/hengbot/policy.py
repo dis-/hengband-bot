@@ -5920,7 +5920,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
                 self._offer_execution(
                     key, producer=holder.owner.value,
-                    work_id=f"equipment:pending:{session.target_loadout_id}",
+                    work_id=("equipment:pending:"
+                             f"{getattr(session, 'target_loadout_id', holder.claim_id)}"),
                     next_step="equipment.action.observe",
                     expected_effect="equipment-action-confirmed",
                     continuation="equipment.next-action",
