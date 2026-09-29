@@ -5134,6 +5134,11 @@ class TownMixin:
                             arguments=(reads,),
                             expected_effect="rumor-batch-observed",
                         )
+                    else:
+                        self._offer_execution_no_step(
+                            producer="rumor", work_id="rumor:inn-batch",
+                            cause="inn-entry-step-unavailable",
+                        )
                     return key
                 key = self._step_toward(snapshot, step)
                 if key is not None:
@@ -5142,6 +5147,11 @@ class TownMixin:
                         next_step="rumor.approach-inn",
                         arguments=(step_target.y, step_target.x),
                         expected_effect="inn-reached",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="rumor", work_id="rumor:inn-route",
+                        cause="inn-approach-step-unavailable",
                     )
                 return key
             # Inn unreachable, or we are already standing on it. Do NOT latch a
