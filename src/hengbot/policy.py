@@ -6186,17 +6186,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
         route = self._claim_errand_hold("__none__")
-        visit = self._store_visit
-        if (reason == "store:entry-await-observation" and key == ""
-                and visit is not None
-                and visit.posted_sequence is not None
-                and self._store_entry_posted_owner == visit.store_type
-                and self._store_entry_wait_owner == visit.store_type
-                and snapshot.store is None):
-            # The posted entry is the live operation being observed.  Its
-            # existing wait owns this board; the route child cannot post a
-            # second travel command until the entry is observed or released.
-            return key
+        if reason == "store:entry-await-observation" and key == "":
+            # A posted entry is an identity-bound observation wait. Visit
+            # flags alone cannot authorize this empty output.
+            declaration = getattr(route, "execution", None)
+            if (route is not None and declaration is not None
+                    and declaration.claim_id == route.claim_id
+                    and declaration.state == "awaiting"
+                    and declaration.operation_ref
+                    and declaration.expected_effect == "store-page-open"):
+                return key
+            return self._town_declaration_stop(
+                route.owner.value if route is not None else "store-router")
         if (route is not None and route.owner.value == "store-router"
                 and route.goal.kind == CLAIM_GOAL_REACH
                 and family == "store-router"
