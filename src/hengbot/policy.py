@@ -5704,6 +5704,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect=previous.expected_effect,
                     continuation="route.resume", budget_ref=previous.budget_ref,
                 )
+                holder = self._claim_register.current
             store_type = (
                 self._shopping_approach_store_type
                 if self._shopping_approach_goal == goal else None
