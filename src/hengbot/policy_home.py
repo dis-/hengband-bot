@@ -1264,6 +1264,14 @@ class HomeMixin:
             self._store_sell_stuck_count = 0
             self._last_sell_sig = None
             self.last_reason = "home:deposit-rejected"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="home-visit",
+                work_id=f"home-deposit-rejected:{self._decision_sequence}:{deposit.slot}",
+                next_step="store.leave.send",
+                arguments=(STORE_HOME,), expected_effect="outside-store",
+                continuation="home.visit.finish",
+                budget_ref="home-visit-existing-budget",
+            )
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
         deposit_count = (

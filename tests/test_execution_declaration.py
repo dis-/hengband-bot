@@ -60,7 +60,23 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.arguments),
                          ("acting", "home.deposit.send",
-                          ("h", 3, ("torch", 39, 0))))
+                         ("h", 3, ("torch", 39, 0))))
+
+    def test_rejected_home_page_deposit_declares_leave(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 32
+        policy._item_signature = lambda item: ("torch", 39, 0)
+        item = SimpleNamespace(slot="h", count=5, charges=0)
+        board = SimpleNamespace(inventory=(item,), player=SimpleNamespace(gold=42))
+        policy._last_sell_sig = ("h", ("torch", 39, 0), 5, 0, 1, 42)
+        policy._store_sell_stuck_count = 999
+        key = policy._home_deposit_key(board, item)
+        claim = policy._claim_register.declare(
+            "home-visit", observe(("store",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("\x1b", "home-visit", "store.leave.send"))
 
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()
