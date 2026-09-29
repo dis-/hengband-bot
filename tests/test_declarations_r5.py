@@ -41,6 +41,15 @@ class DeclarationReturnTest(unittest.TestCase):
                           declaration.next_step),
                          ("home-visit", "acting", "departure.step-off-entrance"))
 
+    def test_equipment_wait_step_off_rebinds_final_equipment_key(self):
+        policy = HengbotPolicy()
+        key = policy._town_entrance_step_off_key(
+            town_board(entrance=True),
+            "equipment-transaction:await-confirmation")
+        declaration = bind(policy, "equipment-txn", key)
+        self.assertEqual((declaration.state, declaration.next_step),
+                         ("acting", "departure.step-off-entrance"))
+
     def test_shop_observation_leave_has_shop_buy_offer(self):
         policy = HengbotPolicy()
         board = town_board(store=StoreState(STORE_GENERAL, []))
@@ -61,6 +70,16 @@ class DeclarationReturnTest(unittest.TestCase):
                            return_value=True)):
             key = policy._choose_key(board)
         self.assertEqual(policy.last_reason, "home:queue-catalogue-shortage")
+        declaration = bind(policy, "home-visit", key)
+        self.assertEqual((declaration.state, declaration.next_step),
+                         ("acting", "store.leave.send"))
+
+    def test_one_operation_home_leave_has_home_offer(self):
+        policy = HengbotPolicy()
+        policy._home_entry_operation_posted = True
+        board = town_board(store=StoreState(STORE_HOME, []))
+        key = policy._choose_key(board)
+        self.assertEqual(policy.last_reason, "home:leave-after-one-operation")
         declaration = bind(policy, "home-visit", key)
         self.assertEqual((declaration.state, declaration.next_step),
                          ("acting", "store.leave.send"))
@@ -96,6 +115,17 @@ class DeclarationReturnTest(unittest.TestCase):
         declaration = bind(policy, "survival", key)
         self.assertEqual((key, declaration.next_step),
                          ("Ed", "survival.absorb-mana-food"))
+
+    def test_skill_request_offer_binds_on_first_decision(self):
+        policy = HengbotPolicy()
+        initial = town_board()
+        board = replace(initial, protocol_version=3,
+                        player=replace(initial.player, two_weapon_skill=None,
+                                       shield_skill=None))
+        self.assertEqual(policy.choose_key(board), "~f\x1b")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("bookkeeping", "knowledge.skill-exp.request"))
 
 
 if __name__ == "__main__":
