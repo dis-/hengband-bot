@@ -11907,7 +11907,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         previous = self._equipment_transaction_session
         self._equipment_transaction_session = session
         if session is not None and session is not previous:
-            action = session.current_action
+            action = getattr(session, "current_action", None)
             if action is not None:
                 self._offer_execution(
                     "", producer="equipment-txn",
