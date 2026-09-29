@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -70,6 +70,30 @@ class FundraisingPurpose:
 
 
 @dataclass(frozen=True)
+class FundraisingTransportChild:
+    purpose_id: int
+    direction: str
+    from_floor: tuple[int, int, int]
+    posted_sequence: int
+    state: str = "posted"
+
+
+@dataclass(frozen=True)
+class FundraisingPurposeRecord:
+    """Separate purpose ledger: floor-change claims cannot own economic work.
+
+    The claim register holds only the currently selected Reach/Observe child.
+    This record survives that child's completion; failed purposes retain their
+    identity for the fundraising admission bar to read on the next town row.
+    """
+
+    purpose: FundraisingPurpose
+    status: str = "active"
+    child: FundraisingTransportChild | None = None
+    failure: str | None = None
+
+
+@dataclass(frozen=True)
 class FundraisingFacts:
     carried_edible: bool
     hungry: bool
@@ -108,6 +132,47 @@ def fundraising_run_verdict(
 
 
 class FundraisingMixin:
+
+    def _post_fundraising_transport(
+        self, snapshot: Snapshot, direction: str
+    ) -> None:
+        purpose = getattr(self, "_fundraising_run_purpose", None)
+        if purpose is None:
+            return
+        record = getattr(self, "_fundraising_purpose_record", None)
+        if record is None or record.purpose != purpose:
+            record = FundraisingPurposeRecord(purpose)
+        self._fundraising_purpose_record = replace(
+            record, child=FundraisingTransportChild(
+                purpose.identity, direction, tuple(snapshot.floor_key),
+                self._decision_sequence,
+            ),
+        )
+
+    def _observe_fundraising_transport(self, snapshot: Snapshot) -> bool:
+        """Complete only the matching transport child, never its purpose."""
+        if not getattr(self, "_crossarea_fundraising_enforced", False):
+            return True
+        record = getattr(self, "_fundraising_purpose_record", None)
+        if record is None:
+            return True
+        child = record.child
+        if child is not None and child.state == "posted":
+            if tuple(snapshot.floor_key) != child.from_floor:
+                expected = (snapshot.in_town if child.direction == "return"
+                            else snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+                            and snapshot.dungeon_level == 1)
+                if not expected or child.purpose_id != record.purpose.identity:
+                    self._fundraising_purpose_record = replace(
+                        record, status="failed", failure="wrong-destination",
+                    )
+                    return False
+                record = replace(record, child=replace(child, state="complete"))
+        if (record.status == "active"
+                and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET):
+            record = replace(record, status="complete")
+        self._fundraising_purpose_record = record
+        return record.status != "failed"
 
     def _fundraising_facts(self, snapshot: Snapshot) -> FundraisingFacts:
         food_store = (STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA
@@ -277,6 +342,9 @@ class FundraisingMixin:
 
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         if getattr(self, "_crossarea_fundraising_enforced", False):
+            record = getattr(self, "_fundraising_purpose_record", None)
+            if record is not None and record.status == "failed":
+                return False
             facts = self._fundraising_facts(snapshot)
             if not fundraising_run_verdict(facts, None).may_depart:
                 return False
@@ -391,6 +459,8 @@ class FundraisingMixin:
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
+            if getattr(self, "_crossarea_fundraising_enforced", False):
+                self._post_fundraising_transport(snapshot, "return")
             return UP_STAIRS_KEY
         # The remembered route to a distant staircase can change as mining
         # reveals terrain, making BFS alternate between two equally short first

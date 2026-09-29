@@ -429,7 +429,9 @@ from hengbot.town_arbiter import (
 )
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_identification import IdentificationMixin
-from hengbot.policy_fundraising import FundraisingMixin, FundraisingPurpose
+from hengbot.policy_fundraising import (
+    FundraisingMixin, FundraisingPurpose, FundraisingPurposeRecord,
+)
 from hengbot.policy_supply import SupplyMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
 from hengbot.quest_knowledge import (
@@ -2095,6 +2097,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
         self._fundraising_run_purpose: FundraisingPurpose | None = None
+        self._fundraising_purpose_record: FundraisingPurposeRecord | None = None
         self._fundraising_runs_started = 0
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
@@ -4534,6 +4537,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
             "reason": reason,
+            "fundraising_purpose": (
+                {
+                    "register_kind": "separate-purpose-ledger",
+                    "id": purpose_record.purpose.identity,
+                    "mode": purpose_record.purpose.mode,
+                    "first_run_food_waiver": (
+                        purpose_record.purpose.first_run_food_waiver
+                    ),
+                    "status": purpose_record.status,
+                    "failure": purpose_record.failure,
+                    "child": (
+                        None if purpose_record.child is None else {
+                            "direction": purpose_record.child.direction,
+                            "state": purpose_record.child.state,
+                            "posted_sequence": (
+                                purpose_record.child.posted_sequence
+                            ),
+                        }
+                    ),
+                }
+                if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and (purpose_record := getattr(
+                        self, "_fundraising_purpose_record", None
+                    )) is not None)
+                else None
+            ),
             "closed_claim": closed,
             "goal_missing": goal_missing,
             "goal_note": goal_note,
@@ -6860,6 +6889,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         self._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self._calibration_observe(snapshot)
         self._observe(snapshot, observation=latest_snapshot)
+        if not self._observe_fundraising_transport(snapshot):
+            self.last_reason = (
+                "ownership:contract-conflict:fundraising:wrong-destination"
+            )
+            return WAIT_KEY
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         self.town_teleport_refusal = None
@@ -9675,6 +9709,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     ),
                 )
                 self._fundraising_runs_started += 1
+                self._post_fundraising_transport(snapshot, "depart")
             return (
                 ENTER_DUNGEON_MACRO
                 if static_entrance_here or (here is not None and here.has_entrance)
