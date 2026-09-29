@@ -1152,6 +1152,11 @@ class CalibrationMixin:
             self.last_reason = "calibration:await-capture"
             return WAIT_KEY
         if phase == "restore-supplies":
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and self._inventory_overweight(snapshot)):
+                # Free pack capacity through the ordinary Home deposit path;
+                # the restore signatures remain owed after that effect.
+                return None
             # Each successful Home withdrawal invalidates its page-relative
             # addresses.  Calibration still owns the next decision, so renew
             # that address space before allowing its open visit to enter Home.

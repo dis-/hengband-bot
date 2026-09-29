@@ -1957,12 +1957,19 @@ class HomeMixin:
         self._home_atomic_withdraw_index = None
         self._home_entry_operation_posted = False
         for signature, before_count, withdrawn, quantity, _index in succeeded:
-            if signature in self._calibration_restore_signatures:
-                self._calibration_restore_signatures.remove(signature)
+            owner_signature = (
+                next((owner for owner in self._calibration_restore_signatures
+                      if owner == signature or owner[1:] == signature[1:]), None)
+                if getattr(self, "_crossarea_fundraising_enforced", False)
+                else signature
+            )
+            if owner_signature in self._calibration_restore_signatures:
+                self._calibration_restore_signatures.remove(owner_signature)
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            self._calibration_restore_move_identities.pop(signature, None)
-            self._calibration_restore_item_ids.pop(signature, None)
+            if owner_signature is not None:
+                self._calibration_restore_move_identities.pop(owner_signature, None)
+                self._calibration_restore_item_ids.pop(owner_signature, None)
             self._home_pending_quantities.pop(signature, None)
             self._equipment_catalog.record_home_withdrawal(
                 withdrawn,

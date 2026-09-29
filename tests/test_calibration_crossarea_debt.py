@@ -3,6 +3,7 @@
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,7 +13,7 @@ import tests  # noqa: F401 -- isolate runtime files
 from hengbot.model import STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.model import Position, Snapshot
-from policy_fixtures import grid, player
+from policy_fixtures import grid, item, player
 
 
 CAPTURE = Path(r"C:\hengband\bot-client\jsonlog") / (
@@ -86,6 +87,23 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
             policy._calibration_observe(SimpleNamespace(in_town=True))
         self.assertEqual(policy._calibration_phase, "restore-supplies")
         self.assertEqual(policy._calibration_restore_signatures, [signature])
+
+    def test_overweight_home_deposit_precedes_restore_scan_without_erasing_debt(self):
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        policy._calibration_phase = "restore-supplies"
+        signature = ("Stone-to-Mud wand", 65, 6)
+        policy._calibration_restore_signatures = [signature]
+        carried = replace(item("a", 65, 6), weight=10000)
+        snapshot = Snapshot(
+            replace(player(10, 10), stat_index=(0,)),
+            {Position(10, 10): grid(10, 10)}, [],
+            inventory=[carried], town_flag=True,
+        )
+        self.assertTrue(policy._inventory_overweight(snapshot))
+        self.assertIsNone(policy._calibration_town_key(snapshot))
+        self.assertEqual(policy._calibration_restore_signatures, [signature])
+        self.assertEqual(policy._calibration_phase, "restore-supplies")
 
 
 if __name__ == "__main__":

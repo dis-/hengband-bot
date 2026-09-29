@@ -6549,10 +6549,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if signature == self._home_pending_item:
                     self._home_pending_take_confirmed = signature
-                if signature in self._calibration_restore_signatures:
-                    self._calibration_restore_signatures.remove(signature)
-                self._calibration_restore_move_identities.pop(signature, None)
-                self._calibration_restore_item_ids.pop(signature, None)
+                if getattr(self, "_crossarea_fundraising_enforced", False):
+                    restore_owner = next((
+                        owner for owner in self._calibration_restore_signatures
+                        if owner == signature or owner[1:] == signature[1:]
+                    ), None)
+                    if restore_owner is not None:
+                        self._calibration_restore_signatures.remove(restore_owner)
+                        self._calibration_restore_move_identities.pop(
+                            restore_owner, None
+                        )
+                        self._calibration_restore_item_ids.pop(
+                            restore_owner, None
+                        )
+                else:
+                    if signature in self._calibration_restore_signatures:
+                        self._calibration_restore_signatures.remove(signature)
+                    self._calibration_restore_move_identities.pop(signature, None)
+                    self._calibration_restore_item_ids.pop(signature, None)
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
                 self._home_pending_quantities.pop(signature, None)
