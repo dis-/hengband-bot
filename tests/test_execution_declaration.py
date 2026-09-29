@@ -333,7 +333,28 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.arguments),
                          ("store-router", "route.resume",
-                          ("entrance", (31, 150))))
+                         ("entrance", (31, 150))))
+
+    def test_store_router_failed_step_off_releases_by_name(self):
+        board = Snapshot(
+            player(10, 10),
+            {Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_ALCHEMIST)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=None,
+        )
+        policy = HengbotPolicy()
+        policy._store_entry_failed_owner = STORE_ALCHEMIST
+        policy._shopping_approach_store_type = STORE_ALCHEMIST
+        policy._shopping_approach_goal = Position(10, 10)
+        key = policy._shopping_approach_key(
+            board, board.player.position, "shop:travel")
+        claim = policy._claim_register.declare(
+            "store-router", reach((10, 10)))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.state, declaration.cause),
+                         ("", "releasing", "no-walkable-step-off"))
 
     def test_1904_home_withdraw_effect_closes_named_operation(self):
         # The recorded Home transfer was observed before visit state retired.
