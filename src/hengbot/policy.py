@@ -8393,7 +8393,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (
                 (self._store_visit is not None
                  and self._store_visit.operation_posted
-                 and not self._store_visit.operation_released)
+                 and (not getattr(self, "_town_claim_bar_enforced", False)
+                      or not self._store_visit.operation_released))
                 or self._store_buy_inflight is not None
                 or (
                     self._batch_sell_pending is not None

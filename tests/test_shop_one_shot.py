@@ -501,6 +501,7 @@ class ShopOneShotTest(unittest.TestCase):
         ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
         inside = self._inside(STORE_TEMPLE, [], [ware])
         policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
         policy.choose_key(inside)
         outside = self._outside(policy, inside)
         self.assertEqual(policy.choose_key(outside), "5")
