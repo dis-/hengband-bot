@@ -6283,6 +6283,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # store handler cannot recover a fresh visit and later re-approach it.
             self._close_store_visit("recall-in-flight")
             self.last_reason = "town:wait-recall-leave"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="departure",
+                work_id="town:recall-leave-store",
+                next_step="store.leave-for-recall",
+                expected_effect="store-exited",
+                continuation="recall.observe-arrival",
+            )
             return LEAVE_STORE_KEY
         if (
             snapshot.store is not None
@@ -9475,8 +9482,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if neighbors:
                     self.last_reason = "town:wait-recall-step-off"
                     self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
-                    return self._step_toward(snapshot, neighbors[0])
+                    key = self._step_toward(snapshot, neighbors[0])
+                    if key is not None:
+                        self._offer_execution(
+                            key, producer="departure",
+                            work_id="town:recall-step-off",
+                            next_step="recall.step-off-store",
+                            expected_effect="store-cell-cleared",
+                        )
+                    else:
+                        self._offer_execution_no_step(
+                            producer="departure",
+                            work_id="town:recall-step-off",
+                            cause="step-off-unavailable",
+                        )
+                    return key
             self.last_reason = "town:wait-recall"
+            self._offer_execution(
+                WAIT_KEY, producer="departure",
+                work_id="town:recall-countdown",
+                next_step="recall.observe-arrival",
+                expected_effect="floor-change",
+            )
             return WAIT_KEY
 
         # Native travel can cross most of town without another bot decision.

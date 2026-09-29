@@ -4314,7 +4314,13 @@ class TownMixin:
             "cancelled", owners=("departure",), kinds=("Observe",),
             sources=("floor-change",),
         )
-        return self._read_key(snapshot, recall)
+        key = self._read_key(snapshot, recall)
+        self._offer_execution(
+            key, producer="departure", work_id="town:cancel-recall",
+            next_step="recall.cancel.send",
+            arguments=(recall.slot,), expected_effect="recall-cancelled",
+        )
+        return key
 
     @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_remove_curse_key(self, snapshot: Snapshot) -> str | None:
@@ -4854,7 +4860,16 @@ class TownMixin:
                             return WAIT_KEY
                     self.last_reason = "town:repetition-depart:recall"
                     self._emergency_recall_sanctioned = True
-                    return self._read_key(snapshot, recall, selection)
+                    key = self._read_key(snapshot, recall, selection)
+                    self._offer_execution(
+                        key, producer="departure",
+                        work_id=f"town:repetition-recall:{recall_dungeon_id}",
+                        next_step="recall.scroll.send",
+                        arguments=(recall.slot, recall_dungeon_id),
+                        expected_effect="recall-activated",
+                        continuation="recall.observe-arrival",
+                    )
+                    return key
         return WAIT_KEY
 
     def _town_recall_destination(
@@ -5319,6 +5334,12 @@ class TownMixin:
                     # likewise not evidence of rejection.  Wait for the engine's
                     # next authoritative state instead of spending another scroll.
                     self.last_reason = "town:await-recall-confirmation"
+                    self._offer_execution(
+                        WAIT_KEY, producer="departure",
+                        work_id=f"town:recall-confirm:{recall_dungeon_id}",
+                        next_step="recall.observe-activation",
+                        expected_effect="recall-activated",
+                    )
                     return WAIT_KEY
                 else:
                     # The turn advanced without consuming the scroll: the read
@@ -5334,8 +5355,28 @@ class TownMixin:
                     if neighbors:
                         self.last_reason = "town:wait-recall-step-off"
                         self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
-                        return self._step_toward(snapshot, neighbors[0])
+                        key = self._step_toward(snapshot, neighbors[0])
+                        if key is not None:
+                            self._offer_execution(
+                                key, producer="departure",
+                                work_id="town:recall-step-off",
+                                next_step="recall.step-off-store",
+                                expected_effect="store-cell-cleared",
+                            )
+                        else:
+                            self._offer_execution_no_step(
+                                producer="departure",
+                                work_id="town:recall-step-off",
+                                cause="step-off-unavailable",
+                            )
+                        return key
                 self.last_reason = "town:wait-recall"
+                self._offer_execution(
+                    WAIT_KEY, producer="departure",
+                    work_id="town:recall-countdown",
+                    next_step="recall.observe-arrival",
+                    expected_effect="floor-change",
+                )
                 return WAIT_KEY
             if (
                 not self._char_dump_done_this_visit
@@ -5347,6 +5388,13 @@ class TownMixin:
                 # dive, so the human can review stats/resistances/equipment per dive.
                 self._char_dump_done_this_visit = True
                 self.last_reason = "town:character-dump"
+                self._offer_execution(
+                    CHARACTER_DUMP_MACRO, producer="departure",
+                    work_id="town:departure-character-dump",
+                    next_step="character.dump-before-departure",
+                    expected_effect="character-dump-confirmed",
+                    continuation="recall.read",
+                )
                 return CHARACTER_DUMP_MACRO
             if not snapshot.player.blind and not snapshot.player.confused:
                 recall = self._find_recall_scroll(snapshot)
@@ -5371,8 +5419,19 @@ class TownMixin:
                         snapshot, recall_dungeon_id
                     ):
                         self.last_reason = "town:unsafe-recall-fallback"
+                        self._offer_execution(
+                            WAIT_KEY, producer="departure",
+                            work_id="town:guardian-recall-fallback",
+                            next_step="recall.observe-fallback",
+                            expected_effect="safe-destination-selected",
+                        )
                         return WAIT_KEY
                     if self._equipment_work_home_route_available():
+                        self._offer_execution_no_step(
+                            producer="departure",
+                            work_id="town:guardian-recall-fallback",
+                            cause="equipment-home-route-takes-priority",
+                        )
                         return None
                     if self._outstanding_equipment_work():
                         self._town_blocked_reason = (
@@ -5390,11 +5449,22 @@ class TownMixin:
                         via_recall=True,
                         destination_depth=destination_depth,
                     ):
+                        self._offer_execution(
+                            WAIT_KEY, producer="departure",
+                            work_id="town:recall-entry-gate",
+                            next_step="recall.wait-for-entry-kit",
+                            expected_effect="entry-kit-ready",
+                        )
                         return WAIT_KEY
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )
                     if selection is None:
+                        self._offer_execution_no_step(
+                            producer="departure",
+                            work_id="town:recall-selection",
+                            cause="selection-unavailable",
+                        )
                         return None
                     self._pending_recall_dungeon_id = recall_dungeon_id
                     self._town_recall_issue_watch = (
@@ -5403,7 +5473,16 @@ class TownMixin:
                         recall_count,
                     )
                     self.last_reason = f"town:recall-to-{recall_dest}"
-                    return self._read_key(snapshot, recall, selection)
+                    key = self._read_key(snapshot, recall, selection)
+                    self._offer_execution(
+                        key, producer="departure",
+                        work_id=f"town:recall:{recall_dungeon_id}",
+                        next_step="recall.scroll.send",
+                        arguments=(recall.slot, recall_dungeon_id),
+                        expected_effect="recall-activated",
+                        continuation="recall.observe-arrival",
+                    )
+                    return key
 
         if recall_dest is not None and not departure_ok:
             blocker = self._terminal_equipment_blocker(snapshot)
@@ -5445,6 +5524,12 @@ class TownMixin:
                 snapshot, destination_depth
             ) is not None:
                 self.last_reason = "town:unsafe-recall-fallback"
+                self._offer_execution(
+                    WAIT_KEY, producer="departure",
+                    work_id="town:unsafe-recall-fallback",
+                    next_step="recall.observe-fallback",
+                    expected_effect="safe-destination-selected",
+                )
                 return WAIT_KEY
             if self._town_claims_active(snapshot):
                 return None
