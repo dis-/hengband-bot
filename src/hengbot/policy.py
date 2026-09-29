@@ -5689,6 +5689,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             and ":no-step:" in (bar.ending or "")
                             and bar.owner.value == family
                             and self._claim_bar_after(board, bar) is not None):
+                        if family == "home-scan":
+                            self._offer_execution_no_step(
+                                producer="home-scan",
+                                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                                cause=f"deferred:{reason}:active-bar",
+                            )
                         return True
         holder = self._claim_errand_hold(family)
         if holder is None:
@@ -5708,8 +5714,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "token_would_admit": token is not None,
             "token_work_identity": token.work_identity if token else None,
         })
-        return (getattr(self, "_town_claim_bar_enforced", False)
-                and token is None)
+        deferred_now = (getattr(self, "_town_claim_bar_enforced", False)
+                        and token is None)
+        if deferred_now and family == "home-scan":
+            self._offer_execution_no_step(
+                producer="home-scan",
+                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                cause=f"deferred:{reason}:holder:{holder.claim_id}",
+            )
+        return deferred_now
 
     def _recorded_execution_token(
         self, holder, family: str, reason: str,

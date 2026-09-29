@@ -69,11 +69,27 @@ class HomeMixin:
         if self._defer_town_errand(
             "home-errand", "file", work_identity=filing_identity
         ):
+            self._offer_execution_no_step(
+                producer="home-errand", work_id=f"home-request:{filing_identity}",
+                cause="file-deferred-by-holder",
+            )
             return False
         filed = self._home_errand.file(
             request, knowledge_current=knowledge_current
         )
         if filed:
+            self._offer_execution(
+                None, producer="home-errand",
+                work_id=f"home-request:{filing_identity}",
+                next_step=("home.knowledge.request"
+                           if self._home_errand.needs_knowledge
+                           else "home.withdraw.resume"),
+                arguments=(request.purpose, request.signature, request.quantity),
+                expected_effect="inventory-effect",
+                continuation="home.request.resume",
+                budget_ref="home-errand-existing-budget",
+                post_on_emit=False,
+            )
             if self._home_errand.needs_knowledge:
                 self._open_execution_delegation(
                     "home-errand", "home-scan",
@@ -87,6 +103,10 @@ class HomeMixin:
                 "inventory", "equipment",
             )
         else:
+            self._offer_execution_no_step(
+                producer="home-errand", work_id=f"home-request:{filing_identity}",
+                cause="file-refused",
+            )
             self._end_execution_delegation(
                 "home-errand", filing_identity,
                 completed=False, cause="file-refused",
@@ -1332,6 +1352,24 @@ class HomeMixin:
             budget_ref="home-errand-existing-budget",
         )
 
+    def _offer_home_atomic_no_step(self, operation: str, cause: str) -> None:
+        """Name a rejected Home composer probe if it is the final outcome."""
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        family = (
+            "equipment-txn" if action is not None and action.kind == operation
+            else "home-errand" if operation == "withdraw" and self._home_errand.active
+            else "calibration" if self._calibration_phase in {"deposit", "restore-supplies"}
+            else "home-visit"
+        )
+        pending = (self._home_atomic_withdraw_pending if operation == "withdraw"
+                   else self._home_atomic_deposit_pending)
+        self._offer_execution_no_step(
+            producer=family,
+            work_id=f"home-{operation}:{self._decision_sequence}:{pending!r}",
+            cause=cause,
+        )
+
     def _atomic_home_withdraw_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
@@ -1349,9 +1387,11 @@ class HomeMixin:
                 and self._store_entrance_step_off[0] != self._decision_sequence
             )
         ):
+            self._offer_home_atomic_no_step("withdraw", "wrong-surface-or-pending")
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
         if entrance is None or entrance.store_number != STORE_HOME:
+            self._offer_home_atomic_no_step("withdraw", "not-at-home-entrance")
             return None
         taken = getattr(self, "_home_pending_take_confirmed", None)
         if taken is not None and taken != self._home_pending_item:
@@ -1366,6 +1406,7 @@ class HomeMixin:
             or (action is not None and action.kind == "withdraw")
         )
         if not withdrawal_requested:
+            self._offer_home_atomic_no_step("withdraw", "no-withdrawal-request")
             return None
         if not self._home_knowledge_current:
             self.last_reason = (
@@ -1373,9 +1414,11 @@ class HomeMixin:
                 if self._home_errand.active
                 else "home:await-fresh-knowledge"
             )
+            self._offer_home_atomic_no_step("withdraw", "await-fresh-knowledge")
             return None
         if not self._home_page_size:
             self.last_reason = "home:await-page-size"
+            self._offer_home_atomic_no_step("withdraw", "await-page-size")
             return None
 
         signature: tuple[str, int, int] | None = None
@@ -1620,6 +1663,7 @@ class HomeMixin:
                 if catalogued_beyond_prefix:
                     self._invalidate_home_observation()
                     self.last_reason = "home:await-fresh-knowledge"
+                    self._offer_home_atomic_no_step("withdraw", "catalogue-address-invalidated")
                     return None
                 if taken is not None and not (
                     self._calibration_restore_signatures
@@ -1850,6 +1894,13 @@ class HomeMixin:
                 ),
             ):
                 self.last_reason = "equipment-transaction:atomic-withdraw-refused"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer="equipment-txn",
+                    work_id=f"home-withdraw-refused:{action.item_identity}",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                    continuation="equipment-transaction.resume",
+                )
                 return LEAVE_STORE_KEY
         visit_identity = transaction_identity or signature
         if not self._prepare_home_visit_operation(
@@ -1862,6 +1913,7 @@ class HomeMixin:
             ),
         ):
             self.last_reason = "home-visit:withdraw-not-authorized"
+            self._offer_home_atomic_no_step("withdraw", "withdraw-not-authorized")
             return None
         move_identity = (
             equipment_move_identity(item)
@@ -2325,14 +2377,17 @@ class HomeMixin:
                 and self._store_entrance_step_off[0] != self._decision_sequence
             )
         ):
+            self._offer_home_atomic_no_step("deposit", "wrong-surface-or-pending")
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
         if entrance is None or entrance.store_number != STORE_HOME:
+            self._offer_home_atomic_no_step("deposit", "not-at-home-entrance")
             return None
         session = self._equipment_transaction_session
         if session is not None:
             action = session.current_action
             if action is None or action.kind != "deposit":
+                self._offer_home_atomic_no_step("deposit", "transaction-action-not-deposit")
                 return None
             current = next(
                 (
@@ -2344,16 +2399,20 @@ class HomeMixin:
                 None,
             )
             if current is None:
+                self._offer_home_atomic_no_step("deposit", "transaction-item-absent")
                 return None
             if self._retention_reservation(snapshot, current) > 0:
+                self._offer_home_atomic_no_step("deposit", "item-reserved")
                 return None
             if self._identification_flow_owns(current):
+                self._offer_home_atomic_no_step("deposit", "identification-owns-item")
                 return None
             if current.is_digging_tool and not self._is_surplus_digging_tool(
                 snapshot, current
             ):
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:retain-digging-tool"
+                self._offer_home_atomic_no_step("deposit", "retain-digging-tool")
                 return None
             if not self._prepare_home_visit_operation(
                 "put",
@@ -2361,6 +2420,7 @@ class HomeMixin:
                 (self._item_signature(current), current.slot, snapshot.turn),
             ):
                 self.last_reason = "home-visit:deposit-not-authorized"
+                self._offer_home_atomic_no_step("deposit", "transaction-deposit-not-authorized")
                 return None
             # The one-shot transaction observation binds both the pack letter
             # and count used by the operation at this owned Home entry.
@@ -2382,6 +2442,7 @@ class HomeMixin:
                     action.item_identity,
                 ),
             ):
+                self._offer_home_atomic_no_step("deposit", "transaction-command-refused")
                 return None
             self._equipment_transaction_prepared_catalog_update = (
                 "deposit",
@@ -2424,6 +2485,7 @@ class HomeMixin:
             # recorded, and the caller's remaining fall-through emits a
             # movement key without setting one, so the decision reached the log
             # (and the arbiter's reason census) with an empty owner.
+            self._offer_home_atomic_no_step("deposit", "no-deposit-candidate")
             return None
         current = next(
             (
@@ -2434,9 +2496,11 @@ class HomeMixin:
             None,
         )
         if current is None:
+            self._offer_home_atomic_no_step("deposit", "deposit-item-missing")
             return None
         operation = self._home_deposit_key(snapshot, current)
         if operation == LEAVE_STORE_KEY:
+            self._offer_home_atomic_no_step("deposit", "deposit-command-unavailable")
             return None
         if not self._prepare_home_visit_operation(
             "put",
@@ -2444,6 +2508,7 @@ class HomeMixin:
             (self._item_signature(current), current.slot, snapshot.turn),
         ):
             self.last_reason = "home-visit:deposit-not-authorized"
+            self._offer_home_atomic_no_step("deposit", "deposit-not-authorized")
             return None
         deposits = self._home_deposit_batch(snapshot, current)
         operations = []
@@ -2492,6 +2557,7 @@ class HomeMixin:
                         deposited_owned.id
                     )
         if not operations:
+            self._offer_home_atomic_no_step("deposit", "deposit-batch-empty")
             return None
         self._home_entry_operation_posted = True
         self._home_atomic_deposit_pending = (
@@ -2557,12 +2623,14 @@ class HomeMixin:
             or self._home_atomic_deposit_pending is not None
             or self._equipment_transaction_session is not None
         ):
+            self._offer_home_atomic_no_step("deposit", "open-page-not-composable")
             return None
         first = self._find_home_deposit(snapshot)
         if first is None or not self._prepare_home_visit_operation(
             "put", self._item_signature(first),
             (self._item_signature(first), first.slot, snapshot.turn),
         ):
+            self._offer_home_atomic_no_step("deposit", "open-page-deposit-not-authorized")
             return None
         operations = []
         pending_by_signature = {}
@@ -2588,6 +2656,7 @@ class HomeMixin:
                         item.charges, len(snapshot.inventory)),
             )
         if not operations:
+            self._offer_home_atomic_no_step("deposit", "open-page-deposit-batch-empty")
             return None
         operation_key = "".join(operations) + LEAVE_STORE_KEY
         self._home_entry_operation_posted = True

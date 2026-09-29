@@ -4180,18 +4180,28 @@ class TownMixin:
         unknown approach). The latch clears when the goal changes or the floor
         does. Near goals just walk — a travel round-trip costs more than the
         last couple of steps."""
+        route_kind = "entrance" if reason == "town:travel-entrance" else "store"
+        family = self._claim_family_of(reason)
+        work_id = f"route:{route_kind}:{goal.y},{goal.x}"
+        def no_route(cause: str) -> None:
+            self._offer_execution_no_step(
+                producer=family, work_id=work_id, cause=cause,
+            )
         if goal not in snapshot.grids:
             # An undisclosed goal cannot support native travel.  The emitted
             # grid set is not, however, an authoritative projection of
             # point_target's live candidate vector; a disclosed goal may still
             # be rejected.  That failure is handled after the recovery nudge.
+            no_route("goal-undisclosed")
             return None
         position = snapshot.player.position
         distance = position.distance_to(goal)
         if distance < TOWN_TRAVEL_MIN_DISTANCE:
+            no_route("near-goal-walk-required")
             return None
         if self._town_travel_fallback is not None:
             if self._town_travel_fallback == goal:
+                no_route("native-travel-fallback-latched")
                 return None
             self._town_travel_fallback = None
         state = self._town_travel_state
@@ -4200,6 +4210,7 @@ class TownMixin:
                 self._town_travel_fallback = goal
                 self._release_claim_goal("town-travel:stalled", goal, owners=CLAIM_ENTRANCE_OWNERS)
                 self._town_travel_state = None
+                no_route("native-travel-stalled")
                 return None
         else:
             self._town_travel_state = TownTravelProgress(
@@ -4207,11 +4218,9 @@ class TownMixin:
             )
         self.last_reason = reason
         self._declare_reach(goal)
-        family = self._claim_family_of(reason)
-        route_kind = "entrance" if reason == "town:travel-entrance" else "store"
         self._offer_execution(
             macro, producer=family,
-            work_id=f"route:{route_kind}:{goal.y},{goal.x}",
+            work_id=work_id,
             next_step="route.resume",
             arguments=(route_kind, (goal.y, goal.x)),
             expected_effect=f"arrive:{goal.y},{goal.x}",

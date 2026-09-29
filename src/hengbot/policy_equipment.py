@@ -2862,6 +2862,15 @@ class EquipmentMixin:
             self._identification_candidate = None
             self._home_candidate_waiting = False
             self.last_reason = self._home_errand.reason("filed")
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="home-errand",
+                work_id=f"home-request:{filing_identity}",
+                next_step="store.leave.send",
+                arguments=(STORE_HOME, "combat-weapon", signature),
+                expected_effect="outside-store",
+                continuation="home.request.resume",
+                budget_ref="home-errand-existing-budget",
+            )
             return LEAVE_STORE_KEY
 
         page = tuple(

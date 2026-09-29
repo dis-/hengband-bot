@@ -4607,14 +4607,14 @@ class ShopMixin:
         return step
 
     def _stage_shopping_approach_key(
-        self, snapshot: Snapshot, key: str, *, claim_family: str | None = None
-    ) -> str:
+        self, snapshot: Snapshot, key: str | None, *, claim_family: str | None = None
+    ) -> str | None:
         # Record-only (S2a.1): the entrance this approach step heads for,
         # stamped with the family whose errand the router runs (rev 9.2 C).
         self._declare_reach(self._shopping_approach_goal, family=claim_family)
         goal = self._shopping_approach_goal
+        family = claim_family or self._claim_family_of(self.last_reason)
         if goal is not None and key not in {None, ""}:
-            family = claim_family or self._claim_family_of(self.last_reason)
             self._offer_execution(
                 key, producer=family,
                 work_id=f"route:store:{goal.y},{goal.x}",
@@ -4622,6 +4622,28 @@ class ShopMixin:
                 arguments=("store", (goal.y, goal.x)),
                 expected_effect=f"arrive:{goal.y},{goal.x}",
                 continuation="route.resume", budget_ref="town-travel",
+            )
+        elif goal is not None:
+            work_id = f"route:store:{goal.y},{goal.x}"
+            if key is None:
+                self._offer_execution(
+                    "None", producer=family, work_id=work_id,
+                    state="releasing", cause="approach-step-unresolved",
+                )
+            else:
+                self._offer_execution(
+                    key, producer=family, work_id=work_id,
+                    state="releasing", cause="approach-step-unresolved",
+                )
+        else:
+            emitted_key = "None" if key is None else key
+            self._offer_execution(
+                emitted_key, producer=family,
+                work_id=f"route:store-unresolved:{self._shopping_approach_store_type}",
+                next_step="route.resolve-goal" if emitted_key else None,
+                state="acting" if emitted_key else "releasing",
+                cause=None if emitted_key else "approach-goal-unresolved",
+                post_on_emit=False,
             )
         provenance = object()
         self._staged_shop_approach = (
@@ -4715,6 +4737,12 @@ class ShopMixin:
             # Every store route, including candidate probes and one-step
             # fallbacks, converges here.  Refusal is deliberately pure: only
             # the transaction executor may mutate or abandon its session.
+            self._offer_execution(
+                WAIT_KEY, producer="store-router",
+                work_id=f"route-refused:{self._shopping_approach_store_type}",
+                state="releasing", cause="equipment-transaction-owns-relocation",
+                post_on_emit=False,
+            )
             return WAIT_KEY
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
@@ -4739,6 +4767,13 @@ class ShopMixin:
                 self._shopping_approach_store_type == STORE_HOME
                 and self._resolve_observed_uncomposable_stop(snapshot)
             ):
+                self._offer_execution(
+                    WAIT_KEY, producer="store-router",
+                    work_id=f"home-stop:{self._shopping_approach_store_type}",
+                    next_step="town-plan.resume",
+                    expected_effect="home-stop-advanced",
+                    post_on_emit=False,
+                )
                 return WAIT_KEY
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
@@ -4769,17 +4804,16 @@ class ShopMixin:
             self._store_entry_wait_key = WAIT_KEY
             self._store_entry_wait_turn = None
             self._intentional_entrance_activation = True
-            if self._shopping_approach_goal is not None:
-                goal = self._shopping_approach_goal
-                self._offer_execution(
-                    WAIT_KEY, producer="store-router",
-                    work_id=f"store-entry:{self._shopping_approach_store_type}:{goal.y},{goal.x}",
-                    next_step="store.entry.observe",
-                    arguments=(self._shopping_approach_store_type, (goal.y, goal.x)),
-                    expected_effect="store-page-open",
-                    continuation="store.entry.observe",
-                    budget_ref="town-travel",
-                )
+            goal = self._shopping_approach_goal or snapshot.player.position
+            self._offer_execution(
+                WAIT_KEY, producer="store-router",
+                work_id=f"store-entry:{self._shopping_approach_store_type}:{goal.y},{goal.x}",
+                next_step="store.entry.observe",
+                arguments=(self._shopping_approach_store_type, (goal.y, goal.x)),
+                expected_effect="store-page-open",
+                continuation="store.entry.observe",
+                budget_ref="town-travel",
+            )
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._stage_shopping_approach_key(
@@ -4851,6 +4885,23 @@ class ShopMixin:
     def _atomic_shop_transaction_key(self, snapshot: Snapshot) -> str | None:
         """Compose one transaction from the latest observed page, outside."""
         observation = self._shop_observation
+        def offer_outcome(key: str | None, cause: str) -> None:
+            family = self._claim_family_of(self.last_reason)
+            if family not in {"shop-buy", "shop-sell", "store-router"}:
+                family = "store-router"
+            store_type = observation[0].store_type if observation else None
+            work_id = f"shop-page:{store_type}:{self._decision_sequence}"
+            if key is None:
+                self._offer_execution_no_step(
+                    producer=family, work_id=work_id, cause=cause,
+                )
+            else:
+                self._offer_execution(
+                    key, producer=family, work_id=work_id,
+                    next_step="shop.page.observe", state="acting",
+                    expected_effect="store-page-or-plan-advance",
+                    continuation="town-plan.resume", post_on_emit=False,
+                )
         if not self._can_compose_shop_observation(snapshot):
             # Preserve the established malformed-page disposal at the same
             # composition boundary.  The predicate itself remains pure.
@@ -4865,6 +4916,7 @@ class ShopMixin:
             ):
                 self._shop_observation = None
                 self.last_reason = "shop:one-shot-page-not-zero"
+            offer_outcome(None, "page-not-composable")
             return None
         # Bind the one-shot to the page that was actually observed, not the
         # mutable town-plan cursor.  The ordinary shop handler advances that
@@ -4982,6 +5034,7 @@ class ShopMixin:
             self._shop_observation = None
             self._close_store_visit("home-first-yield")
             self.last_reason = reason_before_composition
+            offer_outcome(None, "home-first-plan-advanced")
             return None
         if composition_refusal == "town:blocked:home-withdraw-failed-stock-present":
             # This is the deliberate terminal produced by a refreshed Home
@@ -4990,11 +5043,13 @@ class ShopMixin:
             self._town_visit_ledger.pending_store_transaction = None
             self._town_visit_ledger.pending_store_context_waits = 0
             self._publish_purchase_home_block()
+            offer_outcome(WAIT_KEY, "home-purchase-blocked")
             return WAIT_KEY
         # Decide the observed no-op while this page is still current, then
         # consume it exactly as the pre-composition contract did.  A later
         # pack/gold change must re-observe the shelf before using its letters.
         if self._resolve_observed_uncomposable_stop(snapshot):
+            offer_outcome(WAIT_KEY, "uncomposable-stop-advanced")
             return WAIT_KEY
         if composition_refusal in {
             "town:blocked:procurement-home-unavailable",
@@ -5002,6 +5057,7 @@ class ShopMixin:
         }:
             self.last_reason = reason_before_composition
         self._shop_observation = None
+        offer_outcome(None, "uncomposable-page-released")
         return None
 
     def _star_remove_curse_reserve_purchase_needed(
