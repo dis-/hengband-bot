@@ -1041,7 +1041,14 @@ class SupplyMixin:
         if edible is not None:
             self._home_procurement_probe = None
             self.last_reason = "survival:mana-absorb"
-            return EAT_KEY + edible.slot
+            key = EAT_KEY + edible.slot
+            self._offer_execution(
+                key, producer="survival", work_id="survival:mana-absorb",
+                next_step="survival.absorb-mana-food",
+                arguments=(self._item_signature(edible),),
+                expected_effect="hunger-relieved",
+            )
+            return key
 
         # Home is the universal first supplier.  Stale knowledge means "scan",
         # never absence; only a current complete catalogue may release a buy.
