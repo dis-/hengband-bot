@@ -1,5 +1,7 @@
 import json
 import unittest
+
+import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 from pathlib import Path
 from tempfile import TemporaryDirectory
 

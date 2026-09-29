@@ -7,6 +7,8 @@ them.  An earlier measured difference is a defect, not a new expectation.
 
 import unittest
 
+import tests  # noqa: F401  (bare runs stay isolated from runtime files)
+
 
 # List indices, distinct from decision_sequence.  The tour's declared
 # KNOWN_HARNESS_DIVERGENCES index 2701 is an OFF/historical wall difference;
