@@ -402,6 +402,9 @@ def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
+    if reason.startswith("ownership:declaration-"):
+        return (f"<{reason}> the town claim has no valid execution declaration; "
+                "stopping the bot for investigation")
     messages = {
         "equipment-transaction:restore-blocked-terminal": "recoverable gear restored; missing owned items remain",
         "equipment-transaction:home-route-repeat-terminal": "the same Home route failure recurred without an observed state change",
@@ -3893,6 +3896,9 @@ def _run_follow(
                             ownership_ledger=ownership_ledger,
                         )
                         print(f"<no-key:{policy.last_reason}>", flush=True)
+                        if (policy.last_reason or "").startswith(
+                            "ownership:declaration-"):
+                            return incident_stop("declaration-invalid", snapshot)
                         no_key_streak = (
                             getattr(policy, "_cli_no_key_streak", 0) + 1
                         )
@@ -4003,6 +4009,7 @@ def _run_follow(
                     if (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
                                 ("ownership:holder-silent:",
+                                 "ownership:declaration-",
                                  "ownership:contract-conflict:fundraising:"))):
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
@@ -4225,6 +4232,9 @@ def _run_follow(
                                 ownership_ledger=ownership_ledger,
                             )
                             print(f"<no-key:{policy.last_reason}>", flush=True)
+                            if (policy.last_reason or "").startswith(
+                                "ownership:declaration-"):
+                                return incident_stop("declaration-invalid", snapshot)
                             poll_wait_started_at = time.perf_counter()
                             continue
                         phase_started_at = time.perf_counter()

@@ -2716,9 +2716,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and (snapshot.in_town or snapshot.store is not None)
                 and not self._warning_prompt_stops_decision):
             retried = set()
-            while key is None and not (self.last_reason or "").startswith(
-                "ownership:holder-silent:"
-            ):
+            while key is None and not (self.last_reason or "").startswith((
+                "ownership:holder-silent:", "ownership:declaration-",
+            )):
                 holder = self._claim_errand_hold("__none__")
                 if holder is not None:
                     if holder.claim_id in retried:
@@ -2730,9 +2730,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     holder = self._claim_errand_hold("__none__")
                     if holder is not None:
                         key = self._town_holder_wait_key(holder, snapshot)
-                        if key is not None or (self.last_reason or "").startswith(
-                            "ownership:holder-silent:"
-                        ):
+                        if key is not None or (self.last_reason or "").startswith((
+                            "ownership:holder-silent:", "ownership:declaration-",
+                        )):
                             break
                 elif not getattr(self, "_decision_errand_deferred", None):
                     break
@@ -2750,9 +2750,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and self._claim_errand_hold("__none__") is None):
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
-            if (self.last_reason or "").startswith(
-                "ownership:holder-silent:"
-            ):
+            if (self.last_reason or "").startswith((
+                "ownership:holder-silent:", "ownership:declaration-",
+            )):
                 self._record_decision_claim(snapshot, None)
                 return None
         # The producers below commit the store visit to the key they return:
@@ -4351,7 +4351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                  and reason.endswith(f":{claim.owner.value}")), None)
         continuing_holder_wait = (
             reason.startswith(("ownership:holder-silent:",
-                               "ownership:holder-await:"))
+                               "ownership:holder-await:",
+                               "ownership:declaration-"))
             and ((standing is not None and standing.is_open
                   and reason.endswith(f":{standing.owner.value}"))
                  or suspended_holder is not None)
@@ -5817,8 +5818,173 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return record
         return None
 
+    def _town_declaration_stop(self, family: str, cause: str = "missing") -> None:
+        self.last_reason = f"ownership:declaration-{cause}:{family}"
+        return None
+
+    def _town_release_declared_holder(self, holder, snapshot: Snapshot,
+                                      cause: str) -> None:
+        register = self._claim_register
+        if holder is register.current:
+            ended = register.release(f"no-step:{cause}")
+        else:
+            register.close_suspended(holder.claim_id, "release",
+                                     f"no-step:{cause}")
+            ended = replace(holder, closed="release",
+                            closed_reason=f"no-step:{cause}")
+        if ended is not None:
+            bar = self._claim_bar_for(snapshot, ended, ended.closed)
+            if bar is not None:
+                register.set_bar(bar)
+        self._decision_no_step_release = True
+        self.last_reason = f"ownership:holder-released:{holder.owner.value}"
+        return None
+
+    def _town_holder_declared_key(self, holder, snapshot: Snapshot) -> str | None:
+        """Dispatch the holder's bound producer step; never reconstruct work."""
+        family = holder.owner.value
+        declaration = getattr(holder, "execution", None)
+        if (declaration is None or declaration.claim_id != holder.claim_id
+                or declaration.producer != family):
+            return self._town_declaration_stop(family)
+        if declaration.state in {"done", "releasing"}:
+            if declaration.operation_ref is not None or (
+                declaration.state == "releasing" and holder.non_discardable
+            ):
+                return self._town_declaration_stop(family, "stale")
+            if declaration.state == "done":
+                if holder is self._claim_register.current:
+                    self._claim_register.complete(
+                        declaration.evidence or "producer-complete")
+                else:
+                    self._claim_register.close_suspended(
+                        holder.claim_id, "complete",
+                        declaration.evidence or "producer-complete")
+                self.last_reason = f"ownership:holder-complete:{family}"
+                return None
+            return self._town_release_declared_holder(
+                holder, snapshot, declaration.cause or declaration.evidence
+                or "producer-complete")
+        if declaration.state == "awaiting":
+            operation_ref = declaration.operation_ref
+            if not operation_ref or not operation_ref.startswith("decision:"):
+                return self._town_declaration_stop(family, "stale")
+            # A posted native route can end short of its destination. The
+            # declaration itself carries its next route step and destination.
+            if declaration.continuation == "route.resume":
+                self._claim_register.declare_execution(
+                    holder.claim_id, work_id=declaration.work_id,
+                    producer=family, state="acting", next_step="route.resume",
+                    arguments=declaration.arguments,
+                    expected_effect=declaration.expected_effect,
+                    continuation="route.resume", budget_ref=declaration.budget_ref)
+                holder = self._claim_register.current
+                declaration = holder.execution
+            elif declaration.continuation == "equipment.next-action":
+                session = self._equipment_transaction_session
+                if session is None:
+                    return self._town_declaration_stop(family, "stale")
+                if session.pending_action is None:
+                    self._claim_register.declare_execution(
+                        holder.claim_id, work_id=declaration.work_id,
+                        producer=family, state="acting",
+                        next_step="equipment.next-action",
+                        arguments=(), expected_effect=declaration.expected_effect,
+                        continuation="equipment.next-action",
+                        budget_ref=declaration.budget_ref)
+                    holder = self._claim_register.current
+                    declaration = holder.execution
+                else:
+                    self.last_reason = "equipment-transaction:await-confirmation"
+                    return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
+            elif declaration.continuation in {
+                "home.knowledge.observe", "store.entry.observe",
+                "home.operation.observe", "shop.one-shot.dispatch",
+            }:
+                self.last_reason = (
+                    "home:scan-await-observation" if family == "home-scan"
+                    else "store:entry-await-observation" if
+                    declaration.continuation == "store.entry.observe"
+                    else "shop:one-shot-in-flight")
+                return WAIT_KEY
+            else:
+                return self._town_declaration_stop(family, "stale")
+        if declaration.state != "acting" or not declaration.next_step:
+            return self._town_declaration_stop(family, "stale")
+        step = declaration.next_step
+        if step == "route.resume":
+            if len(declaration.arguments) != 2:
+                return self._town_declaration_stop(family, "stale")
+            route_kind, cell = declaration.arguments
+            if not isinstance(cell, (tuple, list)) or len(cell) != 2:
+                return self._town_declaration_stop(family, "stale")
+            goal = Position(*cell)
+            if (holder.goal.kind != CLAIM_GOAL_REACH
+                    or holder.goal.cell != tuple(cell)):
+                return self._town_declaration_stop(family, "stale")
+            if route_kind == "entrance":
+                key = self._town_travel_key(
+                    snapshot, goal, ENTRANCE_TRAVEL_MACRO,
+                    "town:travel-entrance")
+                if key is not None:
+                    return key
+            elif route_kind != "store":
+                return self._town_declaration_stop(family, "stale")
+            next_cell = (self._town_map_goal_step(snapshot, goal)
+                         or self._nearest_goal_step(
+                             snapshot, lambda grid: grid.position == goal))
+            if next_cell is None:
+                return self._silent_holder_stop(family)
+            self.last_reason = "shop:approach"
+            self._declare_reach(goal, family=family)
+            key = self._direction_key(snapshot.player.position, next_cell)
+            self._offer_execution(
+                key, producer=family, work_id=declaration.work_id,
+                next_step="route.resume", arguments=declaration.arguments,
+                expected_effect=declaration.expected_effect,
+                continuation="route.resume", budget_ref=declaration.budget_ref)
+            return key
+        if step == "equipment.next-action":
+            session = self._equipment_transaction_session
+            if session is None or session.current_action is None:
+                return self._town_declaration_stop(family, "stale")
+            if declaration.arguments and (
+                declaration.arguments[0] not in {"strip", "restore", "deposit"}
+                and declaration.arguments[0] != session.current_action.kind
+            ):
+                return self._town_declaration_stop(family, "stale")
+            return (self._equipment_transaction_home_key(snapshot)
+                    if snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME
+                    else self._equipment_transaction_town_key(snapshot))
+        if step == "stair.post":
+            if len(declaration.arguments) != 3:
+                return self._town_declaration_stop(family, "stale")
+            direction, floor, cell = declaration.arguments
+            if (floor != snapshot.floor_key
+                    or tuple(cell) != (snapshot.player.position.y,
+                                       snapshot.player.position.x)
+                    or direction not in {"<", ">"}
+                    or snapshot.store is not None):
+                return self._town_declaration_stop(family, "stale")
+            self.last_reason = "town:descend" if direction == ">" else "town:ascend"
+            self._offer_execution(
+                direction, producer=family, work_id=declaration.work_id,
+                next_step="stair.post", arguments=declaration.arguments,
+                expected_effect="floor-change",
+                continuation="stair.observe-arrival",
+                budget_ref=declaration.budget_ref)
+            return direction
+        if step in {"home.knowledge.observe", "equipment.action.observe",
+                    "home.operation.observe", "store.entry.observe"}:
+            # An acting observation without a posted operation is not a wait.
+            return self._town_declaration_stop(family, "stale")
+        return self._town_declaration_stop(family, "stale")
+
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
+        if getattr(self, "_town_claim_bar_enforced", False):
+            return self._town_holder_declared_key(holder, snapshot)
         route_unresolved = False
         if (holder.owner.value == "store-router"
                 and holder.goal.kind == CLAIM_GOAL_REACH
@@ -6044,7 +6210,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (route is not None and route.owner.value == "store-router"
                     and route.goal.kind == CLAIM_GOAL_REACH):
                 return self._town_holder_wait_key(route, snapshot)
-        if reason.startswith("ownership:holder-"):
+        if reason.startswith(("ownership:holder-", "ownership:declaration-")):
             return key
         if (claim_is_survival(reason, self._survival_return_trigger)
                 or reason == "town:kill-mob"
@@ -8174,8 +8340,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         self._remember_swarm_distances(snapshot)
         if (getattr(self, "_town_claim_bar_enforced", False)
-                and key is None and (self.last_reason or "").startswith(
-                    "ownership:holder-silent:")):
+                and key is None and (self.last_reason or "").startswith((
+                    "ownership:holder-silent:", "ownership:declaration-"))):
             return None
         if key is None and self._warning_prompt_stops_decision:
             return None
