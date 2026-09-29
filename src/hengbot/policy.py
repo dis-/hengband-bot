@@ -5840,6 +5840,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = f"ownership:holder-released:{holder.owner.value}"
         return None
 
+    def _town_declared_producer_result(self, holder, snapshot: Snapshot,
+                                       key: str | None,
+                                       since_sequence: int) -> str | None:
+        if key is not None:
+            return key
+        buffer = _decision_offers.get(self)
+        endings = () if buffer is None else buffer.no_steps
+        outcome = next((entry for entry in reversed(endings)
+                        if entry[0] == holder.owner.value
+                        and entry[3] > since_sequence), None)
+        if outcome is None or holder is not self._claim_register.current:
+            return self._town_declaration_stop(holder.owner.value, "stale")
+        _, work_id, fact, _, state = outcome
+        if state == "done":
+            self._claim_register.declare_execution(
+                holder.claim_id, work_id=work_id,
+                producer=holder.owner.value, state="done", evidence=fact)
+        else:
+            self._claim_register.declare_execution(
+                holder.claim_id, work_id=work_id,
+                producer=holder.owner.value, state="releasing", cause=fact)
+        return self._town_holder_declared_key(
+            self._claim_register.current, snapshot)
+
     def _town_holder_declared_key(self, holder, snapshot: Snapshot) -> str | None:
         """Dispatch the holder's bound producer step; never reconstruct work."""
         family = holder.owner.value
@@ -5953,10 +5977,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and declaration.arguments[0] != session.current_action.kind
             ):
                 return self._town_declaration_stop(family, "stale")
-            return (self._equipment_transaction_home_key(snapshot)
-                    if snapshot.store is not None
-                    and snapshot.store.store_type == STORE_HOME
-                    else self._equipment_transaction_town_key(snapshot))
+            since = self._decision_offer_buffer().sequence
+            key = (self._equipment_transaction_home_key(snapshot)
+                   if snapshot.store is not None
+                   and snapshot.store.store_type == STORE_HOME
+                   else self._equipment_transaction_town_key(snapshot))
+            return self._town_declared_producer_result(
+                holder, snapshot, key, since)
+        if family == "calibration" and step.startswith("calibration."):
+            since = self._decision_offer_buffer().sequence
+            key = self._calibration_town_key(snapshot)
+            return self._town_declared_producer_result(
+                holder, snapshot, key, since)
         if step == "stair.post":
             if len(declaration.arguments) != 3:
                 return self._town_declaration_stop(family, "stale")

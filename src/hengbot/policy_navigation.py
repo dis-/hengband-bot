@@ -216,6 +216,25 @@ class NavigationMixin:
                 self._pending_stair_command = None
                 self._stair_observation_waits = 0
                 return key
+            if getattr(self, "_town_claim_bar_enforced", False):
+                claim = getattr(self._claim_register, "current", None)
+                declared = None if claim is None else claim.execution
+                position = snapshot.player.position
+                identity = (key[0], snapshot.floor_key,
+                            (position.y, position.x))
+                if (declared is not None and declared.claim_id == claim.claim_id
+                        and declared.producer == "departure"
+                        and declared.state == "acting"
+                        and declared.next_step == "stair.post"
+                        and declared.operation_ref is None
+                        and declared.arguments == identity
+                        and self._pending_stair_command[:3] == (
+                            key[0], snapshot.floor_key, position)):
+                    # The old watch was never posted. This exact stair step
+                    # remains the holder's declared action.
+                    self._pending_stair_command = None
+                    self._stair_observation_waits = 0
+                    return key
             self._stair_observation_waits += 1
             if self._stair_observation_waits >= STAIR_OBSERVATION_WAIT_LIMIT:
                 # A message-bearing acknowledgement followed by quiet copies

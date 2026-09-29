@@ -542,6 +542,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
                        (board.player.position.y, board.player.position.x)))
         self.assertEqual(policy._town_holder_wait_key(
             policy._claim_register.current, board), ">")
+        policy._pending_stair_command = (
+            ">", board.floor_key, board.player.position, board.turn, board)
+        policy._owner_may_select = lambda *args: False
+        self.assertEqual(policy._suppress_pending_stair_command(board, ">"), ">")
+        self.assertIsNone(policy._pending_stair_command)
 
     def test_2322_posted_takeoff_waits_on_its_declared_operation(self):
         board = short_route_board()
