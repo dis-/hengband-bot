@@ -121,5 +121,21 @@ class AtomicHomeRows(unittest.TestCase):
                          ("home-visit", "home.operation.send"))
 
 
+class CalibrationRows(unittest.TestCase):
+    def test_overweight_calibration_tail_keeps_calibration_owner(self):
+        policy = HengbotPolicy()
+        visit = StoreVisit("town-errand", "calibration", STORE_HOME,
+                           opened_sequence=3737, posted_turn=20,
+                           operation_posted=True, operation_key="di11\r\x1b",
+                           operation_producer_family="calibration")
+        policy._store_visit = visit
+        board = replace(town_board(), turn=20,
+                        store=StoreState(STORE_HOME, []))
+        key = policy._release_staged_store_operation(board)
+        declaration = bind(policy, "calibration", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("calibration", "home.operation.send"))
+
+
 if __name__ == "__main__":
     unittest.main()
