@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.claim_register import observe
+from hengbot.model import Position
 from hengbot.policy import HengbotPolicy
 
 
@@ -42,6 +43,28 @@ class BookkeepingDeclarationTest(unittest.TestCase):
                           declaration.cause),
                          ("bookkeeping", "releasing",
                           "skill-list-protocol-unavailable"))
+
+
+class TownMobDeclarationTest(unittest.TestCase):
+    def test_friendly_attack_declares_exact_monster(self):
+        policy = HengbotPolicy()
+        target = SimpleNamespace(
+            index=7, race_id=33, position=Position(1, 2), distance=1,
+            friendly=True, pet=False,
+        )
+        board = SimpleNamespace(
+            in_town=True, dungeon_level=0,
+            player=SimpleNamespace(position=Position(1, 1)),
+            visible_monsters=(target,),
+        )
+        key = policy._town_kill_mob_key(board)
+        claim = policy._claim_register.declare(
+            "survival", observe(("monster",), 8, "town-combat"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.state, declaration.next_step,
+                          declaration.arguments),
+                         ("acting", "town-monster.attack-friendly", (7, 33)))
 
 
 if __name__ == "__main__":

@@ -4082,6 +4082,10 @@ class TownMixin:
         """
         if not snapshot.in_town or snapshot.dungeon_level != 0:
             self._town_hunt_target = None
+            self._offer_execution_no_step(
+                producer="survival", work_id="town-kill-mob",
+                cause="outside-town",
+            )
             return None
         player = snapshot.player
         targets = sorted(
@@ -4104,8 +4108,21 @@ class TownMixin:
                 )
                 if target.friendly:
                     self.last_reason = "town:kill-mob-friendly"
-                    return "+" + self._direction_key(player.position, target.position) + "y"
+                    key = "+" + self._direction_key(player.position, target.position) + "y"
+                    self._offer_execution(
+                        key, producer="survival",
+                        work_id=f"town-monster:{target.index}:{target.race_id}",
+                        next_step="town-monster.attack-friendly",
+                        arguments=(target.index, target.race_id),
+                        expected_effect="monster-removed",
+                    )
+                    return key
                 # Preserve the ordinary adjacent-hostile melee path and reason.
+                self._offer_execution_no_step(
+                    producer="survival",
+                    work_id=f"town-monster:{target.index}:{target.race_id}",
+                    cause="adjacent-hostile-melee-delegated",
+                )
                 return None
             step = self._nearest_goal_step(
                 snapshot,
@@ -4121,7 +4138,21 @@ class TownMixin:
                 )
                 self.last_reason = "town:kill-mob-approach"
                 self._declare_monster((target.index, target.race_id))
-                return self._step_toward(snapshot, step)
+                key = self._step_toward(snapshot, step)
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="survival",
+                        work_id=f"town-monster:{target.index}:{target.race_id}",
+                        next_step="town-monster.approach",
+                        arguments=(target.index, target.race_id),
+                        expected_effect="monster-adjacent",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="survival", work_id="town-kill-mob",
+                        cause="approach-step-unavailable",
+                    )
+                return key
         if self._town_hunt_target is not None:
             # S2b.1b, record-only: this producer chases only what it sees.  A
             # chased monster still perceived by detection alone is not
@@ -4145,6 +4176,10 @@ class TownMixin:
                     owners=(ClaimOwner.SURVIVAL,),
                 )
                 self._town_hunt_target = None
+                self._offer_execution_no_step(
+                    producer="survival", work_id="town-monster:last-known",
+                    cause="last-known-reached",
+                )
                 return None
             step = self._nearest_goal_step(
                 snapshot,
@@ -4157,12 +4192,31 @@ class TownMixin:
                 self._declare_reach(
                     self._town_hunt_target, note=CLAIM_GOAL_NOTE_LAST_KNOWN
                 )
-                return self._step_toward(snapshot, step)
+                key = self._step_toward(snapshot, step)
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="survival",
+                        work_id="town-monster:last-known",
+                        next_step="town-monster.approach-last-known",
+                        arguments=(self._town_hunt_target.y,
+                                   self._town_hunt_target.x),
+                        expected_effect="last-known-reached",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="survival", work_id="town-monster:last-known",
+                        cause="last-known-step-unavailable",
+                    )
+                return key
             self._release_claim_goal(
                 "last-known-unreachable", self._town_hunt_target,
                 owners=(ClaimOwner.SURVIVAL,),
             )
             self._town_hunt_target = None
+        self._offer_execution_no_step(
+            producer="survival", work_id="town-kill-mob",
+            cause="no-target-or-last-known-unreachable",
+        )
         return None
 
     def _town_cancel_unsafe_recall_key(self, snapshot: Snapshot) -> str | None:
