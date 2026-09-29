@@ -460,6 +460,24 @@ class FundraisingMixin:
             self._mining_combat_contact_streak = 0
             self._mining_threat_free_streak = 0
 
+    def _fundraising_return_route_key(
+        self, key: str | None, *, step: str, work_id: str,
+        expected_effect: str = "upstairs-route-progress",
+    ) -> str | None:
+        """The income return producer names its chosen escape step."""
+        if key is None:
+            self._offer_execution_no_step(
+                producer="fundraising", work_id=work_id,
+                cause=f"{step}-unavailable",
+            )
+        else:
+            self._offer_execution(
+                key, producer="fundraising", work_id=work_id,
+                next_step=step, expected_effect=expected_effect,
+                continuation="fundraising.return-to-town",
+            )
+        return key
+
     @claims(ClaimOwner.FUNDRAISING)
     def _leave_fundraising_floor(
         self, snapshot: Snapshot, *, allow_recall: bool = True
@@ -513,7 +531,11 @@ class FundraisingMixin:
             if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
-                return self._step_toward(snapshot, step)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="fundraising.seek-upstairs",
+                    work_id="fundraise:return:upstairs-step",
+                )
         self._claim_target_capture = []
         try:
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
@@ -522,13 +544,21 @@ class FundraisingMixin:
         if step is not None:
             self.last_reason = "fundraise:seek-upstairs"
             self._declare_reach(step_target)
-            return self._step_toward(snapshot, step)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, step),
+                step="fundraising.seek-upstairs",
+                work_id="fundraise:return:upstairs-route",
+            )
         blocker = self._blocking_escape_melee_key(
             snapshot, self._physical_hostiles(snapshot), self._is_upstairs_target
         )
         if blocker is not None:
             self.last_reason = "fundraise:clear-escape-path"
-            return blocker
+            return self._fundraising_return_route_key(
+                blocker, step="fundraising.clear-escape-path",
+                work_id="fundraise:return:escape-blocker",
+                expected_effect="escape-path-cleared",
+            )
         upstairs_search_expired = self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         if upstairs_search_expired and allow_recall:
             recall = self._find_recall_scroll(snapshot)
@@ -542,30 +572,51 @@ class FundraisingMixin:
                 self._note_return_start(None)
                 self._returning_to_town = True
                 self.last_reason = "fundraise:recall-stuck"
-                return self._read_key(snapshot, recall)
+                return self._fundraising_return_route_key(
+                    self._read_key(snapshot, recall),
+                    step="fundraising.recall-stuck.send",
+                    work_id="fundraise:return:recall-stuck",
+                    expected_effect="recall-activated",
+                )
         else:
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "fundraise:seek-upstairs-explore"
                 self._declare_explore_goal()
-                return self._step_toward(snapshot, step)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="fundraising.explore-for-upstairs",
+                    work_id="fundraise:return:explore",
+                )
             if self._is_oscillating():
                 step = self._probe_unknown_step(snapshot)
                 if step is not None:
                     self.last_reason = "fundraise:probe"
-                    return self._step_toward(snapshot, step)
+                    return self._fundraising_return_route_key(
+                        self._step_toward(snapshot, step),
+                        step="fundraising.probe-for-upstairs",
+                        work_id="fundraise:return:probe",
+                    )
                 here_key = (snapshot.player.position.y, snapshot.player.position.x)
                 if self._search_counts[here_key] < SEARCH_LIMIT:
                     self._search_counts[here_key] += 1
                     self.last_reason = "fundraise:search"
-                    return SEARCH_KEY
+                    return self._fundraising_return_route_key(
+                        SEARCH_KEY, step="fundraising.search-for-upstairs",
+                        work_id="fundraise:return:search",
+                        expected_effect="wall-observation",
+                    )
             step = self._least_visited_neighbor(snapshot)
             if step is not None and (
                 not oscillation_cells or step not in oscillation_cells
             ):
                 self.last_reason = "fundraise:seek-upstairs-wander"
                 self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
-                return self._step_toward(snapshot, step)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="fundraising.wander-for-upstairs",
+                    work_id="fundraise:return:wander",
+                )
         # Terminal: no reachable up-stairs, nothing to explore, and no walkable
         # neighbour that escapes a confined cycle (a mining tunnel can wall us into a
         # pocket). A miner DIGS out rather
@@ -580,7 +631,11 @@ class FundraisingMixin:
                 dig = self._tunnel_step_toward(snapshot, goal)
                 if dig is not None:
                     self.last_reason = "fundraise:tunnel-out"
-                    return dig
+                    return self._fundraising_return_route_key(
+                        dig, step="fundraising.tunnel-out",
+                        work_id="fundraise:return:tunnel-out",
+                        expected_effect="escape-tunnel-progress",
+                    )
         self.last_reason = "fundraise:upstairs-not-found"
         self._offer_execution(
             WAIT_KEY, producer="fundraising",
