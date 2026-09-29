@@ -43,13 +43,33 @@ def rows_in_window(path: Path, start: datetime, end: datetime):
                 yield row
 
 
+def state_count(path: Path, start: datetime, end: datetime,
+                decision_rows: list[dict]) -> int:
+    """State JSONL normally has a game turn but no wall-clock timestamp."""
+    if not path.exists():
+        return 0
+    turns = {row.get("turn") for row in decision_rows if row.get("turn") is not None}
+    count = 0
+    with path.open(encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            try:
+                row = json.loads(line)
+                when = timestamp(row["time"]) if row.get("time") else None
+            except (TypeError, ValueError):
+                continue
+            if ((when is not None and start <= when < end)
+                    or (when is None and row.get("turn") in turns)):
+                count += 1
+    return count
+
+
 def summarize(decisions: Path, states: Path, start: datetime, end: datetime,
               metrics: Path | None = None) -> dict:
     if end <= start:
         raise ValueError("end must be after start")
     hours = (end - start).total_seconds() / 3600
     decision_rows = list(rows_in_window(decisions, start, end))
-    state_rows = list(rows_in_window(states, start, end))
+    states_seen = state_count(states, start, end, decision_rows)
     metric_rows = list(rows_in_window(metrics or decisions.with_name(
         "ownership-metrics.jsonl"), start, end))
     stops = [row for row in metric_rows if row.get("kind") == "stop"]
@@ -90,7 +110,7 @@ def summarize(decisions: Path, states: Path, start: datetime, end: datetime,
             typed_stops.append((row.get("decision_sequence"), reason))
     return {
         "minutes": (end - start).total_seconds() / 60,
-        "decisions": len(decision_rows), "states": len(state_rows),
+        "decisions": len(decision_rows), "states": states_seen,
         "stops": dict(shapes),
         "stops_per_hour": {name: shapes[name] / hours for name in SHAPES},
         "s3_violations": violations, "s3_violations_per_hour": violations / hours,

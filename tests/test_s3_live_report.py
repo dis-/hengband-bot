@@ -20,7 +20,7 @@ class S3LiveReportTest(unittest.TestCase):
             write(decisions, [
                 {"time": "2026-09-29T09:59:59+09:00", "reason": "old"},
                 {"time": "2026-09-29T10:01:00+09:00", "decision_sequence": 11,
-                 "reason": "shop:one-shot-in-flight", "key": "",
+                 "reason": "shop:one-shot-in-flight", "key": "", "turn": 100,
                  "claim": {"violation": {"scope": "S3"},
                            "claim_verdict_conflict": {"kind": "test"},
                            "errand_deferred": [{"owner": "shop"}]}},
@@ -31,13 +31,14 @@ class S3LiveReportTest(unittest.TestCase):
                 {"time": "2026-09-29T10:04:00+09:00", "decision_sequence": 14,
                  "reason": "shop:barrier-provenance-missing", "key": None},
             ])
-            write(states, [{"time": "2026-09-29T10:01:30+09:00"}])
+            write(states, [{"turn": 100}, {"turn": 99}])
             write(metrics, [{"time": "2026-09-29T10:05:00+09:00",
                              "kind": "stop", "shape": "no-exit"}])
             result = summarize(decisions, states,
                                timestamp("2026-09-29T10:00:00+09:00"),
                                timestamp("2026-09-29T10:30:00+09:00"), metrics)
             self.assertEqual(result["minutes"], 30)
+            self.assertEqual(result["states"], 1)
             self.assertEqual(result["stops_per_hour"]["no-exit"], 2)
             self.assertEqual(result["s3_violations_per_hour"], 2)
             self.assertEqual(result["claim_verdict_conflict"], 1)
