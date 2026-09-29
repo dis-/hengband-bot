@@ -5547,6 +5547,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (store_type is None and visit is not None
                     and visit.goal == goal):
                 store_type = visit.store_type
+            if (store_type is None and snapshot.store is None
+                    and (entrance := snapshot.grids.get(goal)) is not None
+                    and self._is_active_dungeon_entrance(entrance)):
+                # The entrance is a store-router Reach without a store visit.
+                # Native travel may release short of it; continue toward the
+                # recorded cell under the same claim and travel stall budget.
+                key = self._town_travel_key(
+                    snapshot, goal, ENTRANCE_TRAVEL_MACRO,
+                    "town:travel-entrance",
+                )
+                if key is not None:
+                    return key
+                step = (self._town_map_goal_step(snapshot, goal)
+                        or self._nearest_goal_step(
+                            snapshot, lambda grid: grid.position == goal
+                        ))
+                if step is not None:
+                    self.last_reason = "shop:approach"
+                    self._declare_reach(goal, family="store-router")
+                    return self._direction_key(snapshot.player.position, step)
             if store_type is not None:
                 step = self._shopping_approach_step(
                     snapshot, store_type, requester="store-router"
