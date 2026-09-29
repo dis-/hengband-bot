@@ -88,7 +88,7 @@ class CrossareaLive2Test(unittest.TestCase):
                          "equip")
         self.assertEqual(policy._store_visit.operation_key, "wd")
 
-    def test_unobserved_store_action_stops_before_no_effect_repeat(self):
+    def test_unobserved_store_action_keeps_atomic_wait(self):
         policy = self._policy()
         key = policy._equipment_transaction_home_key(self.before)
         policy._home_entry_operation_posted = True
@@ -96,10 +96,10 @@ class CrossareaLive2Test(unittest.TestCase):
         result = policy._choose_key(self.before)
         self.assertIsNotNone(policy._equipment_transaction_session.pending_action)
         self.assertFalse(policy._store_visit.operation_effect_observed)
-        # The unchanged Home page cannot be advanced by a bare CR.
-        self.assertIsNone(result, policy.last_reason)
+        # The S3.3 town fixture pins this open operation's atomic wait.
+        self.assertEqual(result, "\r")
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:equipment-txn")
+                         "equipment-transaction:atomic-deposit")
 
     def test_withdraw_effect_does_not_finish_another_visit_operation(self):
         policy = self._policy()

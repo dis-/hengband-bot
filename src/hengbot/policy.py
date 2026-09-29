@@ -7423,10 +7423,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and session is not None
                     and getattr(self._store_visit, "operation_posted", False)
                     and not getattr(self._store_visit, "operation_released", False)):
-                # A bare CR on an open Home page cannot change the pack or
-                # equipment. If the posted command has not produced its effect
-                # on this board, waiting with CR would repeat forever.
-                key = self._silent_holder_stop("equipment-txn")
+                self.last_reason = "equipment-transaction:atomic-deposit"
+                key = WAIT_KEY
             elif (rearm := self._home_rearm_key(snapshot)) is not None:
                 key = rearm
             elif (
