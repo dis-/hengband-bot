@@ -5563,7 +5563,7 @@ class TownMixin:
                 self._char_dump_done_this_visit = True
                 self.last_reason = "town:character-dump"
                 self._offer_execution(
-                    CHARACTER_DUMP_MACRO, producer="departure",
+                    CHARACTER_DUMP_MACRO, producer="bookkeeping",
                     work_id="town:departure-character-dump",
                     next_step="character.dump-before-departure",
                     expected_effect="character-dump-confirmed",

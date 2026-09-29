@@ -56,5 +56,20 @@ class SurvivalRows(unittest.TestCase):
                          ("acting", "player.rest"))
 
 
+class BookkeepingRows(unittest.TestCase):
+    def test_tour_departure_dump_binds_bookkeeping(self):
+        policy = HengbotPolicy()
+        board = town_board()
+        set_completed_equipment_optimization(policy)
+        policy._deepest_level = 8
+        policy._target_dungeon_id = DUNGEON_ANGBAND
+        key = policy._town_special_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         (CHARACTER_DUMP_MACRO, "town:character-dump"))
+        declaration = bind(policy, "bookkeeping", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("bookkeeping", "character.dump-before-departure"))
+
+
 if __name__ == "__main__":
     unittest.main()
