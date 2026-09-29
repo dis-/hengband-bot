@@ -14,13 +14,14 @@ from pathlib import Path
 
 import tests  # noqa: F401
 from hengbot.claim_register import ClaimState, reach
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy import HengbotPolicy
+from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
+from hengbot.policy_types import TownTravelProgress
 
 
 FIXTURE = Path(__file__).parent / "fixtures/s33-live-short-entrance-224.json.gz"
-FIXTURE_SHA256 = "bd9f88471194faa0042274e32c609a6f43bbe239cb0eb58499e77868a336fba7"
+FIXTURE_SHA256 = "d101903ad128bfcc890f9ef21bcb25c2a57a04fcb33f80ee8920eac4aff91f6c"
 
 
 class LiveShortRouteTest(unittest.TestCase):
@@ -30,6 +31,7 @@ class LiveShortRouteTest(unittest.TestCase):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             recorded = json.load(stream)
         row = recorded["decision"]
+        prior = recorded["prior_decision"]
         board = parse_snapshot(recorded["snapshot"], load_monrace_knowledge(
             Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc")))
         claim_row = row["claim"]
@@ -38,6 +40,9 @@ class LiveShortRouteTest(unittest.TestCase):
                           claim_row["distance"], claim_row["state"]),
                          (224, "ownership:holder-silent:store-router", 140,
                           [31, 150], 5, "awaiting"))
+        self.assertEqual((prior["decision_sequence"], prior["reason"],
+                          prior["claim"]["distance"]),
+                         (223, "town:travel-entrance", 59))
         policy = HengbotPolicy()
         policy.prime(board)
         policy._town_claim_bar_enforced = True
@@ -49,10 +54,13 @@ class LiveShortRouteTest(unittest.TestCase):
             opened_turn=board.turn - 1,
         )
         policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
+        policy._town_travel_state = TownTravelProgress(
+            Position(31, 150), prior["claim"]["distance"], 0, 0,
+            prior["turn"],
+        )
         key = policy._town_holder_wait_key(policy._claim_register.current, board)
-        self.assertIsInstance(key, str)
-        self.assertTrue(key)
-        self.assertNotEqual(key, "5")
+        self.assertEqual(key, ENTRANCE_TRAVEL_MACRO)
+        self.assertEqual(policy._town_travel_state.best_distance, 5)
         self.assertEqual(policy._claim_register.current.claim_id, 140)
         self.assertEqual(policy._claim_register.current.goal.cell, (31, 150))
         self.assertTrue(policy._claim_register.current.is_open)
