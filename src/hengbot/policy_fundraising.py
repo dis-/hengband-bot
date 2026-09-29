@@ -463,6 +463,7 @@ class FundraisingMixin:
     def _fundraising_return_route_key(
         self, key: str | None, *, step: str, work_id: str,
         expected_effect: str = "upstairs-route-progress",
+        continuation: str = "fundraising.return-to-town",
     ) -> str | None:
         """The income return producer names its chosen escape step."""
         if key is None:
@@ -474,7 +475,7 @@ class FundraisingMixin:
             self._offer_execution(
                 key, producer="fundraising", work_id=work_id,
                 next_step=step, expected_effect=expected_effect,
-                continuation="fundraising.return-to-town",
+                continuation=continuation,
             )
         return key
 
@@ -684,14 +685,30 @@ class FundraisingMixin:
     ) -> str | None:
         """Mark an adjacent mining wall before issuing Hengband's tunnel key."""
         if grid_position in self._mining_unmarkable_grids:
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:tunnel",
+                cause="wall-unmarkable",
+            )
             return None
         grid = snapshot.grids.get(grid_position)
         if grid is None or not grid.tunnel or grid.enterable:
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:tunnel",
+                cause="no-diggable-wall",
+            )
             return None
         direction = self._direction_key(snapshot.player.position, grid_position)
         if grid.marked:
             self._mining_mark_bumps.pop(grid_position, None)
-            return TUNNEL_KEY + direction
+            key = TUNNEL_KEY + direction
+            self._offer_execution(
+                key, producer="fundraising",
+                work_id=f"fundraise:tunnel:{grid_position.y},{grid_position.x}",
+                next_step="fundraising.tunnel-wall",
+                arguments=(grid_position.y, grid_position.x),
+                expected_effect="wall-dug",
+            )
+            return key
 
         self._mining_mark_bumps[grid_position] += 1
         if self._mining_mark_bumps[grid_position] >= DIGGER_WIELD_LIMIT:
@@ -699,8 +716,20 @@ class FundraisingMixin:
             self._mining_unmarkable_grids.add(grid_position)
             if vein is not None:
                 self._drop_mining_vein(vein)
+            self._offer_execution_no_step(
+                producer="fundraising",
+                work_id=f"fundraise:tunnel:{grid_position.y},{grid_position.x}",
+                cause="wall-mark-bump-limit",
+            )
             return None
         self.last_reason = "fundraise:dig-mark-bump"
+        self._offer_execution(
+            direction, producer="fundraising",
+            work_id=f"fundraise:mark-wall:{grid_position.y},{grid_position.x}",
+            next_step="fundraising.mark-wall",
+            arguments=(grid_position.y, grid_position.x),
+            expected_effect="wall-marked",
+        )
         return direction
 
     def _dig_to_known_downstairs_key(self, snapshot: Snapshot) -> str | None:
@@ -899,7 +928,13 @@ class FundraisingMixin:
                 continue
             self.last_reason = "fundraise:seek-treasure"
             self._declare_reach(target)
-            return self._step_toward(snapshot, step)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, step),
+                step="fundraising.seek-treasure",
+                work_id=f"fundraise:treasure:{target.y},{target.x}",
+                expected_effect="treasure-reached",
+                continuation="fundraising.resume-run",
+            )
 
         return self._finish_mining_floor(snapshot)
 
@@ -1003,7 +1038,13 @@ class FundraisingMixin:
             self._record_mining_sweep_step(snapshot)
             self.last_reason = "fundraise:sweep-explore"
             self._declare_reach(self._mining_sweep_goal)
-            return self._step_toward(snapshot, sweep)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, sweep),
+                step="fundraising.sweep-explore",
+                work_id="fundraise:mining-sweep",
+                expected_effect="mining-frontier-reached",
+                continuation="fundraising.resume-run",
+            )
         self._mining_stall_turns = MINING_STALL_LIMIT
         return self._finish_mining_floor(snapshot)
 
@@ -1012,12 +1053,20 @@ class FundraisingMixin:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         if self._fundraising_mode not in {"mine", "scavenge"}:
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:run",
+                cause="fundraising-mode-inactive",
+            )
             return None
         if snapshot.in_town and self._calibration_active():
             # The unequipped calibration phase owns the town while it runs.
             # Fundraising town work (kit purchases, departure) would feed the
             # calibration deposit loop its own purchases; it resumes untouched
             # once the phase releases the town.
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:run",
+                cause="calibration-owns-town",
+            )
             return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
@@ -1030,6 +1079,10 @@ class FundraisingMixin:
             snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
             or snapshot.dungeon_level != 1
         ):
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:run",
+                cause="outside-mining-floor",
+            )
             return None
         if getattr(self, "_crossarea_fundraising_enforced", False):
             purpose = getattr(self, "_fundraising_run_purpose", None)
@@ -1047,12 +1100,24 @@ class FundraisingMixin:
                 self.last_reason = (
                     "ownership:contract-conflict:fundraising:missing-purpose"
                 )
+                self._offer_execution(
+                    WAIT_KEY, producer="fundraising",
+                    work_id="fundraise:purpose-conflict",
+                    next_step="fundraising.contract-conflict-stop",
+                    expected_effect="purpose-conflict-recorded",
+                )
                 return WAIT_KEY
         mining_hostiles = self._physical_hostiles(snapshot)
         combat_equip = self._fundraising_combat_equipment_key(
             snapshot, mining_hostiles
         )
         if combat_equip is not None:
+            self._offer_execution(
+                combat_equip, producer="fundraising",
+                work_id="fundraise:combat-equipment",
+                next_step="fundraising.equip-for-combat",
+                expected_effect="combat-loadout-ready",
+            )
             return combat_equip
         if self._breeder_breakthrough_floor == snapshot.floor_key:
             return self._finish_mining_floor(snapshot)
@@ -1097,20 +1162,45 @@ class FundraisingMixin:
             if light is None:
                 return self._leave_fundraising_floor(snapshot)
             self.last_reason = "fundraise:wield-light"
-            return self._equipment_wield(
+            key = self._equipment_wield(
                 snapshot, "light-loadout", light, "light"
             )
+            if key is not None:
+                self._offer_execution(
+                    key, producer="fundraising",
+                    work_id="fundraise:wield-light",
+                    next_step="fundraising.wield-light",
+                    expected_effect="light-equipped",
+                )
+            else:
+                self._offer_execution_no_step(
+                    producer="fundraising", work_id="fundraise:wield-light",
+                    cause="light-wield-unavailable",
+                )
+            return key
 
         if snapshot.player.hungry:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "fundraise:eat"
-                return EAT_KEY + food.slot
+                key = EAT_KEY + food.slot
+                self._offer_execution(
+                    key, producer="fundraising", work_id="fundraise:eat",
+                    next_step="fundraising.eat",
+                    arguments=(food.slot,), expected_effect="hunger-reduced",
+                )
+                return key
 
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "fundraise:refill-light"
-            return REFILL_KEY + refill.slot
+            key = REFILL_KEY + refill.slot
+            self._offer_execution(
+                key, producer="fundraising", work_id="fundraise:refill-light",
+                next_step="fundraising.refill-light",
+                arguments=(refill.slot,), expected_effect="light-fuel-increased",
+            )
+            return key
 
         if self._escape_state.owner == "disengage":
             # A declared walk-out owns movement until EscapeState releases it.
@@ -1118,6 +1208,10 @@ class FundraisingMixin:
             # permits bump-attacking a blocker while preventing multiplier,
             # loot, mining, and exploration routes from pulling against the
             # disengage direction.
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:run",
+                cause="disengage-owns-movement",
+            )
             return None
         multipliers = [monster for monster in hostiles if monster.can_multiply]
         if multipliers:
@@ -1140,7 +1234,13 @@ class FundraisingMixin:
                     owners=("fundraising",),
                 )
                 self.last_reason = "fundraise:eliminate-multiplier"
-                return self._step_toward(snapshot, step)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="fundraising.approach-multiplier",
+                    work_id=f"fundraise:multiplier:{target.index}:{target.race_id}",
+                    expected_effect="multiplier-adjacent",
+                    continuation="fundraising.resume-run",
+                )
         elif self._multiplier_target is not None and self._multiplier_target_grace:
             self._multiplier_target_grace -= 1
             if snapshot.player.position == self._multiplier_target:
@@ -1153,7 +1253,13 @@ class FundraisingMixin:
                 )
                 if step is not None:
                     self.last_reason = "fundraise:eliminate-multiplier-last-seen"
-                    return self._step_toward(snapshot, step)
+                    return self._fundraising_return_route_key(
+                        self._step_toward(snapshot, step),
+                        step="fundraising.approach-last-seen-multiplier",
+                        work_id="fundraise:multiplier:last-seen",
+                        expected_effect="last-seen-cell-reached",
+                        continuation="fundraising.resume-run",
+                    )
         # Do not chase distant weak monsters during a fundraising run. Global
         # survival handling already escaped dangerous threats and normal melee
         # already attacked adjacent ones; hunting here makes the bot alternate
@@ -1165,6 +1271,12 @@ class FundraisingMixin:
             trigger_reason="fundraise:trigger-autodestroy",
         )
         if current_loot is not None:
+            self._offer_execution(
+                current_loot, producer="fundraising",
+                work_id="fundraise:floor-loot",
+                next_step="fundraising.collect-current-loot",
+                expected_effect="floor-loot-collected",
+            )
             return current_loot
 
         visible_loot_step = None
@@ -1189,7 +1301,13 @@ class FundraisingMixin:
             )
             self.last_reason = "fundraise:seek-loot"
             self._declare_reach(self._loot_target)
-            return self._step_toward(snapshot, visible_loot_step)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, visible_loot_step),
+                step="fundraising.approach-loot",
+                work_id="fundraise:loot-route",
+                expected_effect="floor-loot-reached",
+                continuation="fundraising.resume-run",
+            )
 
         if self._fundraising_mode == "scavenge":
             if len(snapshot.inventory) >= PACK_CAPACITY:
@@ -1220,7 +1338,13 @@ class FundraisingMixin:
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "fundraise:scavenge"
-                return self._step_toward(snapshot, step)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="fundraising.scavenge-explore",
+                    work_id="fundraise:scavenge-route",
+                    expected_effect="scavenge-frontier-reached",
+                    continuation="fundraising.resume-run",
+                )
             return self._leave_fundraising_floor(snapshot)
 
         desired_diggers = min(2, self._digging_tool_count(snapshot))
@@ -1232,10 +1356,20 @@ class FundraisingMixin:
             # Re-enter the mining loadout only after the same bounded quiet
             # streak used by the wield transaction has elapsed.
             if self._mining_threat_free_streak < MINING_THREAT_FREE_LIMIT:
+                self._offer_execution_no_step(
+                    producer="fundraising", work_id="fundraise:wield-digger",
+                    cause="combat-quiet-streak-insufficient",
+                )
                 return None
             if not self._has_digging_tool(snapshot):
                 self._town_blocked_reason = "digging-tool-lost"
                 self.last_reason = "fundraise:digging-tool-lost"
+                self._offer_execution(
+                    WAIT_KEY, producer="fundraising",
+                    work_id="fundraise:digging-tool-lost",
+                    next_step="fundraising.wait-for-digging-tool",
+                    expected_effect="digging-tool-restored",
+                )
                 return WAIT_KEY
             # Backstop: the wield below normally takes on the first try (answering the
             # hand prompt when needed). If it still keeps not taking — a genuinely stuck
@@ -1260,10 +1394,25 @@ class FundraisingMixin:
                         self._fundraising_mode = None
                         leave = self._leave_fundraising_floor(snapshot)
                         self.last_reason = "fundraise:abandon-unwieldable-digger"
+                        self._offer_execution(
+                            leave, producer="fundraising",
+                            work_id="fundraise:abandon-unwieldable-digger",
+                            next_step="fundraising.return-without-digger",
+                            expected_effect="town-arrival",
+                        )
                         return leave
+                    self._offer_execution_no_step(
+                        producer="fundraising", work_id="fundraise:wield-digger",
+                        cause=f"wield-deferred:{report}",
+                    )
                     return None
                 self._fundraising_mode = None
                 return self._leave_fundraising_floor(snapshot)
+            self._offer_execution(
+                wield, producer="fundraising", work_id="fundraise:wield-digger",
+                next_step="fundraising.wield-digger",
+                expected_effect="digging-tool-equipped",
+            )
             return wield
         self._digger_wield_attempts = 0
 
@@ -1295,7 +1444,15 @@ class FundraisingMixin:
                 self._mining_mark_bumps.clear()
                 self._mining_unmarkable_grids.clear()
                 self.last_reason = "fundraise:detect-treasure"
-                return self._read_key(snapshot, scroll)
+                key = self._read_key(snapshot, scroll)
+                self._offer_execution(
+                    key, producer="fundraising",
+                    work_id="fundraise:detect-treasure",
+                    next_step="fundraising.detect-treasure",
+                    arguments=(scroll.slot,),
+                    expected_effect="treasure-locations-observed",
+                )
+                return key
 
         # The detection command's snapshot does not contain its effect yet.  Assess
         # exactly once on the following decision, after _observe has incorporated
