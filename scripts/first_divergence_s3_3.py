@@ -98,19 +98,28 @@ def _declaration_counts(calls):
     """Summarize only decisions actually reached by this replay mode."""
     mismatches = Counter()
     missing = Counter()
-    for _key, _reason, _sequence, _before, decision in calls:
+    rows = []
+    for key, reason, sequence, _before, decision in calls:
         if not isinstance(decision, dict):
             continue
         family = decision.get("owner") or "unknown"
         mismatch = decision.get("declaration_mismatch")
         if mismatch is not None:
             declared = mismatch.get("declared")
+            rows.append({"kind": "mismatch", "decision_sequence": sequence,
+                         "reason": reason, "key": key, "family": family,
+                         "inferred": mismatch.get("inferred"),
+                         "declared": declared.get("state") if isinstance(declared, dict)
+                         else None})
             mismatches[(family, mismatch.get("inferred"),
                         declared.get("state") if isinstance(declared, dict)
                         else None)] += 1
         if decision.get("execution") is None:
             missing[family] += 1
+            rows.append({"kind": "missing", "decision_sequence": sequence,
+                         "reason": reason, "key": key, "family": family})
     return {
+        "declaration_gap_rows": rows,
         "declaration_mismatch_counts": [
             {"family": family, "inferred": inferred, "declared": declared,
              "count": count}
