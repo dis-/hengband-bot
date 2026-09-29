@@ -38,6 +38,7 @@ class CrossAreaFundraisingTest(unittest.TestCase):
             carried_edible=False, hungry=False, light_ready=True,
             pack_full=False, objective_achieved=False,
             procurement_exhausted=True, first_run=True,
+            known_treasure=False, mode="mine",
         )
         self.purpose = FundraisingPurpose(29, "mine", True)
 
@@ -110,6 +111,14 @@ class CrossAreaFundraisingTest(unittest.TestCase):
             self.assertTrue(fundraising_run_verdict(
                 replace(self.facts, **change), self.purpose
             ).must_return)
+        self.assertFalse(fundraising_run_verdict(
+            replace(self.facts, objective_achieved=True,
+                    known_treasure=True), self.purpose
+        ).must_return)
+        self.assertTrue(fundraising_run_verdict(
+            replace(self.facts, objective_achieved=True,
+                    known_treasure=True, mode="scavenge"), self.purpose
+        ).must_return)
 
     def test_home_copy_and_affordable_shop_prevent_first_run_waiver(self):
         policy = HengbotPolicy()

@@ -102,6 +102,8 @@ class FundraisingFacts:
     objective_achieved: bool
     procurement_exhausted: bool
     first_run: bool
+    known_treasure: bool
+    mode: str
 
 
 @dataclass(frozen=True)
@@ -121,8 +123,10 @@ def fundraising_run_verdict(
               facts.first_run and facts.procurement_exhausted)
     food_admitted = facts.carried_edible or waiver
     survival_return = facts.hungry and not facts.carried_edible
+    gold_return = (facts.objective_achieved
+                   and (facts.mode == "scavenge" or not facts.known_treasure))
     must_return = (survival_return or facts.pack_full
-                   or facts.objective_achieved or not facts.light_ready)
+                   or gold_return or not facts.light_ready)
     return FundraisingVerdict(
         may_depart=food_admitted and facts.light_ready and not facts.pack_full
         and not facts.hungry,
@@ -214,6 +218,8 @@ class FundraisingMixin:
             procurement_exhausted=exhausted,
             first_run=(first_departure_proven if snapshot.in_town
                        else runs_started == 1),
+            known_treasure=bool(self._known_treasure),
+            mode=self._fundraising_mode,
         )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
