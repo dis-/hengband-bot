@@ -395,6 +395,12 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 # importing the driver; re-exported here, where its operator banner lives.
 
 
+def _declaration_requires_no_send(key: str | None, reason: str | None) -> bool:
+    """The driver must stop before writing a command for a typed declaration defect."""
+    return key is None and bool(reason and reason.startswith(
+        "ownership:declaration-"))
+
+
 def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith("ownership:contract-conflict:fundraising:"):
         return (f"<{reason}> fundraising has no valid purpose continuation; "
@@ -3896,8 +3902,7 @@ def _run_follow(
                             ownership_ledger=ownership_ledger,
                         )
                         print(f"<no-key:{policy.last_reason}>", flush=True)
-                        if (policy.last_reason or "").startswith(
-                            "ownership:declaration-"):
+                        if _declaration_requires_no_send(key, policy.last_reason):
                             return incident_stop("declaration-invalid", snapshot)
                         no_key_streak = (
                             getattr(policy, "_cli_no_key_streak", 0) + 1
@@ -4232,8 +4237,8 @@ def _run_follow(
                                 ownership_ledger=ownership_ledger,
                             )
                             print(f"<no-key:{policy.last_reason}>", flush=True)
-                            if (policy.last_reason or "").startswith(
-                                "ownership:declaration-"):
+                            if _declaration_requires_no_send(
+                                key, policy.last_reason):
                                 return incident_stop("declaration-invalid", snapshot)
                             poll_wait_started_at = time.perf_counter()
                             continue

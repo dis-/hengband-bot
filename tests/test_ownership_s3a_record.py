@@ -78,6 +78,11 @@ class S3aRecordTest(unittest.TestCase):
         policy = decisions.policy
         policy._town_claim_bar_enforced = True
         policy._home_knowledge_scan_requested = True
+        decisions.register.declare_execution(
+            held["claim_id"], work_id="home-knowledge:posted",
+            producer="home-scan", state="awaiting",
+            operation_ref="decision:1:~9", expected_effect="catalogue-adopted",
+            continuation="home.knowledge.observe")
         policy.last_reason = "shop:approach"
         self.assertEqual(
             policy._town_procurement_decision(decisions.board, "9"), "5"
@@ -99,7 +104,7 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNone(policy._enforce_town_claim_result(
             decisions.board, "~9\x1b\x1b"))
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:store-router")
+                         "ownership:declaration-missing:store-router")
         self.assertEqual(policy._decision_errand_deferred[-1]["holder_claim_id"],
                          held["claim_id"])
 
@@ -208,7 +213,7 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(holder.claim_id, held["claim_id"])
         policy._home_knowledge_scan_requested = True
         self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
-        self.assertEqual(policy.last_reason, "ownership:holder-silent:home-scan")
+        self.assertEqual(policy.last_reason, "ownership:declaration-missing:home-scan")
         self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
                          held["claim_id"])
 
@@ -224,7 +229,7 @@ class S3aRecordTest(unittest.TestCase):
             policy._enforce_town_claim_result(decisions.board, "5")
         )
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:store-router")
+                         "ownership:declaration-missing:store-router")
         self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
                          held["claim_id"])
 
@@ -238,7 +243,7 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNone(policy._enforce_town_claim_result(
             decisions.board, ""))
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:store-router")
+                         "ownership:declaration-missing:store-router")
         self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
                          held["claim_id"])
 
@@ -251,7 +256,7 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNone(policy._enforce_town_claim_result(
             decisions.board, ""))
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:store-router")
+                         "ownership:declaration-missing:store-router")
         self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,
                          held["claim_id"])
 

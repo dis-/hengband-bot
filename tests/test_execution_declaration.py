@@ -13,6 +13,7 @@ from dataclasses import replace
 from hengbot.claim_register import (
     ClaimRegister, declaration_mismatch, observe, reach,
 )
+from hengbot.cli import _declaration_requires_no_send
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -469,6 +470,152 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
                           mismatch["declared"]["operation_ref"]),
                          ("unposted-await", "acting", None))
+
+    def test_1154_short_route_dispatches_declared_destination_with_s33_on(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy.prime(board)
+        policy._town_claim_bar_enforced = True
+        policy._decision_sequence = 224
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:entrance:31,150",
+            producer="store-router", state="awaiting",
+            arguments=("entrance", (31, 150)),
+            operation_ref="decision:223:travel", expected_effect="arrive:31,150",
+            continuation="route.resume", budget_ref="town-travel")
+        key = policy._town_holder_wait_key(policy._claim_register.current, board)
+        self.assertIsNotNone(key)
+        self.assertNotEqual(policy.last_reason,
+                            "ownership:holder-silent:store-router")
+        self.assertEqual(policy._claim_register.current.execution.next_step,
+                         "route.resume")
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:entrance:31,150",
+            producer="store-router", state="acting", next_step="route.resume",
+            arguments=("unknown-route", (31, 150)))
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:store-router")
+
+    def test_1904_withdraw_effect_dispatches_next_declared_equipment_step(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        action = SimpleNamespace(kind="takeoff", item_identity="armour-a")
+        policy._equipment_transaction_session = SimpleNamespace(
+            current_action=action, pending_action=None, complete=False)
+        claim = policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "equipment"))
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="equipment:next", producer="equipment-txn",
+            state="acting", next_step="equipment.next-action",
+            arguments=("takeoff", "armour-a"))
+        with patch.object(policy, "_equipment_transaction_town_key",
+                          return_value="ta") as executor:
+            self.assertEqual(policy._town_holder_wait_key(
+                policy._claim_register.current, board), "ta")
+        executor.assert_called_once_with(board)
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="equipment:wrong", producer="equipment-txn",
+            state="acting", next_step="equipment.next-action",
+            arguments=("wield", "armour-a"))
+        with patch.object(policy, "_equipment_transaction_town_key",
+                          return_value="ta"):
+            self.assertIsNone(policy._town_holder_wait_key(
+                policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:equipment-txn")
+
+    def test_2134_unposted_stair_dispatches_declared_command(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "departure", observe(("floor",), 350, "floor-change"))
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="stair:down", producer="departure",
+            state="acting", next_step="stair.post",
+            arguments=(">", board.floor_key,
+                       (board.player.position.y, board.player.position.x)))
+        self.assertEqual(policy._town_holder_wait_key(
+            policy._claim_register.current, board), ">")
+
+    def test_2322_posted_takeoff_waits_on_its_declared_operation(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        policy._equipment_transaction_session = SimpleNamespace(
+            pending_action=SimpleNamespace(kind="takeoff"))
+        claim = policy._claim_register.declare(
+            "calibration", observe(("transaction",), 8, "calibration"))
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="equipment:takeoff:main_hand",
+            producer="calibration", state="awaiting",
+            operation_ref="decision:42:ta",
+            expected_effect="equipment-effect:takeoff:main_hand",
+            continuation="equipment.next-action")
+        self.assertEqual(policy._town_holder_wait_key(
+            policy._claim_register.current, board), "5")
+        self.assertEqual(policy.last_reason,
+                         "equipment-transaction:await-confirmation")
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="equipment:takeoff:main_hand",
+            producer="calibration", state="awaiting",
+            expected_effect="equipment-effect:takeoff:main_hand",
+            continuation="equipment.next-action")
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:calibration")
+
+    def test_missing_holder_declaration_is_typed_stop(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        self.assertIsNone(policy._town_holder_wait_key(claim, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-missing:store-router")
+        self.assertTrue(_declaration_requires_no_send(
+            None, policy.last_reason))
+        self.assertFalse(_declaration_requires_no_send(
+            "5", policy.last_reason))
+
+    def test_unposted_await_is_stale_and_cannot_emit_wait(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "departure", observe(("floor",), 350, "floor-change"))
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="stair:down", producer="departure",
+            state="awaiting", expected_effect="floor-change",
+            continuation="stair.observe-arrival")
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:departure")
+
+    def test_declared_no_step_releases_and_bars_the_same_claim(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:no-step", producer="store-router",
+            state="releasing", cause="route-unavailable")
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
+        self.assertEqual(policy._claim_register.current.closed_reason,
+                         "no-step:route-unavailable")
+        self.assertTrue(policy._decision_no_step_release)
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-released:store-router")
 
 
 if __name__ == "__main__":
