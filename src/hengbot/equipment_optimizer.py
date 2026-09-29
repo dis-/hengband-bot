@@ -1198,6 +1198,7 @@ def optimize_loadout(
     timeout_seconds: float = 5.0,
     candidate_loadouts: Iterable[Loadout] | None = None,
     require_light: bool | None = None,
+    require_body: bool | None = None,
     identification_exempt_item_ids: frozenset[str] = frozenset(),
     obtainable_ammunition: Iterable[EquipmentItem] = (),
 ) -> OptimizationResult:
@@ -1211,6 +1212,11 @@ def optimize_loadout(
     }
     if require_light is None:
         require_light = any(usable_light_candidate(item) for item in catalog)
+    if require_body is None:
+        require_body = any(
+            item.exploration_legal and slot_for(item.item) == SLOT_BODY
+            for item in catalog
+        )
     incomplete = frozenset(
         item.id
         for item in catalog
@@ -1243,6 +1249,12 @@ def optimize_loadout(
             timed_out = True
             break
         considered += 1
+        # A legal body armour source makes an empty body slot inadmissible.
+        # Apply this before the existing combat bands so a small margin
+        # difference cannot select nakedness or remove armour next visit.
+        if require_body and loadout.item_at(SLOT_BODY) is None:
+            invalid += 1
+            continue
         if not _meets_static_requirements(
             loadout,
             depth=depth,

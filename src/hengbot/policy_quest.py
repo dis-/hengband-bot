@@ -1033,7 +1033,7 @@ class QuestMixin:
         return False
 
     def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
-        """Create the normal Home transaction when a safer body armour is idle."""
+        """Ask the shared selector to resolve body armour with the whole kit."""
         if (
             not snapshot.in_town
             or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
@@ -1044,64 +1044,14 @@ class QuestMixin:
             or not self._home_knowledge_current
         ):
             return
-
-        current = current_loadout(self._equipment_catalog.items)
-        current_slots = dict(current.slots)
-        worn = current_slots.get(SLOT_BODY)
-
-        def armour_score(owned) -> tuple[int, int, int]:
-            item = owned.item
-            return (item.ac + item.to_a, item.to_a, item.ac)
-
-        attempted_ids = getattr(self, "_priority_body_rearm_attempted_ids", None)
-        if attempted_ids is None:
-            attempted_ids = set()
-            self._priority_body_rearm_attempted_ids = attempted_ids
-        candidates = [
-            owned
-            for owned in self._equipment_catalog.items
-            if owned.origin == "home"
+        if not any(
+            owned.origin in {"pack", "home"}
             and slot_for(owned.item) == SLOT_BODY
             and owned.exploration_legal
-            and owned.id not in attempted_ids
-            and (
-                worn is None
-                or (
-                    worn.flags.issubset(owned.flags)
-                    and armour_score(owned) > armour_score(worn)
-                )
-            )
-        ]
-        if not candidates:
-            return
-        target_body = max(candidates, key=lambda owned: (armour_score(owned), owned.id))
-        current_slots[SLOT_BODY] = target_body
-        target = Loadout(tuple(sorted(current_slots.items())), current.hand_mode)
-        preserve_pack = frozenset(
-            owned.id
             for owned in self._equipment_catalog.items
-            if owned.origin == "pack"
-        )
-        transaction = plan_equipment_transactions(
-            self._equipment_catalog.items,
-            current,
-            target,
-            current_pack_items=len(snapshot.inventory),
-            home_scan_complete=True,
-            preserve_pack_item_ids=preserve_pack,
-        )
-        if not transaction.actions or not transaction.executable:
+        ):
             return
-        attempted_ids.add(target_body.id)
-        self._set_equipment_transaction_session(EquipmentTransactionSession(
-            transaction,
-            max_unconfirmed_observations=EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
-        ))
-        self._equipment_optimization_telemetry["priority_body_rearm"] = {
-            "item_id": target_body.id,
-            "empty_slot": worn is None,
-            "armour_score": armour_score(target_body),
-        }
+        self._prepare_equipment_optimization(snapshot)
 
     def _conquest_departure_ready(self, snapshot: Snapshot) -> bool:
         """Apply the ordinary recall departure gate, independent of fundraising."""

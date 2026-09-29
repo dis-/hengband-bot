@@ -620,7 +620,6 @@ class ObservationMixin:
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
             self._equipment_retired_worn_item_ids = frozenset()
-            getattr(self, "_priority_body_rearm_attempted_ids", set()).clear()
             self._equipment_quarantine_second_chance_ids.clear()
             self._equipment_quarantine_burned_ids.clear()
 

@@ -2350,7 +2350,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # the optimizer target as well as clearing the blocker: otherwise the
         # next rebuild can select the same failed item and recreate work.
         self._equipment_retired_worn_item_ids: frozenset[str] = frozenset()
-        self._priority_body_rearm_attempted_ids: set[str] = set()
         self._equipment_transaction_last_failure: dict[str, object] | None = None
         self._equipment_transaction_prepared_key: str | None = None
         self._equipment_transaction_prepared_catalog_update: tuple[

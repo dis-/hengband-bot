@@ -5316,7 +5316,7 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         )
         self.assertFalse(policy._owner_may_select(moved, "equipment-transaction"))
 
-    def test_empty_body_requests_home_withdraw_then_wield_despite_quarantine(self):
+    def test_empty_body_rearm_uses_normal_selector_even_with_quarantine(self):
         snapshot = Snapshot(
             replace(
                 player(10, 10, class_id=PLAYER_CLASS_WARRIOR, level=8),
@@ -5350,19 +5350,9 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         )
         policy._equipment_transaction_failed_items.add(home_owned.id)
 
-        policy._request_priority_body_rearm(snapshot)
-
-        session = policy._equipment_transaction_session
-        self.assertIsNotNone(session)
-        self.assertEqual(
-            [(action.kind, action.target_slot) for action in session.plan.actions],
-            [("withdraw", None), ("equip", "body")],
-        )
-        self.assertEqual(session.plan.actions[0].item_id, home_owned.id)
-        self.assertGreater(armour.ac + armour.to_a, snapshot.player.ac)
-
-        policy._equipment_transaction_session = None
-        policy._request_priority_body_rearm(snapshot)
+        with patch.object(policy, "_prepare_equipment_optimization") as select:
+            policy._request_priority_body_rearm(snapshot)
+            select.assert_called_once_with(snapshot)
         self.assertIsNone(policy._equipment_transaction_session)
 
     def test_boxed_breakout_uses_distinct_landmark_travel_not_wait(self):
