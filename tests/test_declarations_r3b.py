@@ -1,6 +1,7 @@
 """Producer offers bind only to the final key and named claim owner."""
 
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -189,6 +190,31 @@ class CalibrationDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step),
                          ("calibration", "acting", "home.deposit-next-candidate"))
+
+
+class DepartureDeclarationTest(unittest.TestCase):
+    def test_recall_wait_declares_observation_step(self):
+        position = Position(6, 39)
+        board = Snapshot(
+            player(position.y, position.x, food=12000),
+            {position: grid(position.y, position.x)},
+            [], floor_key=(2, 5, 0), width=80, height=20, turn=100,
+        )
+        board = replace(board, player=replace(board.player, recalling=True))
+        policy = HengbotPolicy()
+        with (patch.object(policy, "_quest_floor_exit_locked", return_value=False),
+              patch.object(policy, "_active_fixed_quest_id", return_value=None),
+              patch.object(policy, "_should_start_town_return", return_value=False),
+              patch.object(policy, "_loot_before_recall_calm", return_value=False)):
+            key = policy._return_to_town_key(board, [])
+        claim = policy._claim_register.declare(
+            "departure", observe(("floor",), 8, "return"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step, declaration.expected_effect),
+                         ("departure", "acting", "recall.observe-arrival",
+                          "floor-change"))
 
 
 if __name__ == "__main__":

@@ -5560,15 +5560,27 @@ class TownMixin:
         """Share the pending dungeon-recall read guard between all issuers."""
         issue_watch = self._dungeon_recall_issue_watch
         if snapshot.player.recalling or issue_watch is None:
+            self._offer_execution_no_step(
+                producer="departure", work_id="return:recall-confirmation",
+                cause="recall-confirmation-not-pending",
+            )
             return None
         if not self._owner_may_select(
             snapshot, "return:await-recall-confirmation"
         ):
             self._dungeon_recall_issue_watch = None
+            self._offer_execution_no_step(
+                producer="departure", work_id="return:recall-confirmation",
+                cause="recall-owner-unavailable",
+            )
             return None
         watched_floor, issue_turn, pre_read_count = issue_watch
         if watched_floor != snapshot.floor_key:
             self._dungeon_recall_issue_watch = None
+            self._offer_execution_no_step(
+                producer="departure", work_id="return:recall-confirmation",
+                cause="floor-changed",
+            )
             return None
         recall_count = sum(
             item.count for item in snapshot.inventory if item.is_recall_scroll
@@ -5589,11 +5601,21 @@ class TownMixin:
                 "recalling",
                 "floor",
             )
+            self._offer_execution(
+                WAIT_KEY, producer="departure",
+                work_id="return:recall-confirmation",
+                next_step="recall.observe-activation",
+                expected_effect="recall-activated",
+            )
             return WAIT_KEY
         # The turn advanced without consuming the scroll: the command was
         # genuinely rejected, so one ordinary retry is safe.
         self._dungeon_recall_issue_watch = None
         self._owner_expectations.release("return:recall")
+        self._offer_execution_no_step(
+            producer="departure", work_id="return:recall-confirmation",
+            cause="recall-command-rejected",
+        )
         return None
 
     def _should_start_town_return(self, snapshot: Snapshot) -> bool:
@@ -5716,6 +5738,10 @@ class TownMixin:
         player = snapshot.player
         if snapshot.in_town:
             self._dungeon_recall_issue_watch = None
+            self._offer_execution_no_step(
+                producer="departure", work_id="return-to-town",
+                cause="already-in-town",
+            )
             return None
         active_fixed = self._active_fixed_quest_id(snapshot)
         if (
@@ -5728,16 +5754,31 @@ class TownMixin:
             self._returning_to_town = False
             self._note_return_end()
             self._last_return_trigger = None
+            self._offer_execution_no_step(
+                producer="departure", work_id="return-to-town",
+                cause="quest-exit-locked",
+            )
             return None
         if self._should_start_town_return(snapshot) or player.recalling:
             self._note_return_start(None)
             self._returning_to_town = True
         if not self._returning_to_town:
+            self._offer_execution_no_step(
+                producer="departure", work_id="return-to-town",
+                cause="return-not-requested",
+            )
             return None
 
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "return:ascend"
+            self._offer_execution(
+                UP_STAIRS_KEY, producer="departure",
+                work_id=f"return:ascend:{snapshot.floor_key}",
+                next_step="stair.ascend.send",
+                expected_effect="floor-change",
+                continuation="departure.observe-arrival",
+            )
             return UP_STAIRS_KEY
 
         pending_recall = self._dungeon_recall_confirmation_key(snapshot)
@@ -5766,6 +5807,11 @@ class TownMixin:
                 if collecting is not None:
                     return collecting
             self.last_reason = "return:wait-recall"
+            self._offer_execution(
+                WAIT_KEY, producer="departure", work_id="return:recall-wait",
+                next_step="recall.observe-arrival",
+                expected_effect="floor-change",
+            )
             return WAIT_KEY
 
         # A previously latched return bypasses the ordinary light-upkeep block
@@ -5791,7 +5837,15 @@ class TownMixin:
             and self._owner_may_select(snapshot, "return:recall")
         ):
             self.last_reason = "return:recall"
-            return self._read_dungeon_recall_scroll_key(snapshot, recall)
+            key = self._read_dungeon_recall_scroll_key(snapshot, recall)
+            self._offer_execution(
+                key, producer="departure", work_id="return:recall",
+                next_step="recall.scroll.send",
+                arguments=(recall.slot,),
+                expected_effect="recall-activated",
+                continuation="recall.observe-arrival",
+            )
+            return key
 
         self._claim_target_capture = []
         try:
@@ -5923,6 +5977,11 @@ class TownMixin:
             return self._step_toward(snapshot, step)
 
         self.last_reason = "return:wait"
+        self._offer_execution(
+            WAIT_KEY, producer="departure", work_id="return:wait",
+            next_step="return.wait-for-route",
+            expected_effect="route-available",
+        )
         return WAIT_KEY
 
     def _town_entrance_cells(self, snapshot: Snapshot) -> set[Position]:
