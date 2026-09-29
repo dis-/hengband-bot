@@ -261,6 +261,38 @@ def terminal(effect: str) -> Goal:
 
 
 @dataclass(frozen=True)
+class ExecutionDeclaration:
+    """Checkpoint-safe, producer-written work state, independent of lifecycle."""
+
+    claim_id: int
+    work_id: str
+    revision: int
+    producer: str
+    state: str
+    next_step: str | None = None
+    arguments: tuple = ()
+    operation_ref: str | None = None
+    expected_effect: str | None = None
+    continuation: str | None = None
+    budget_ref: str | None = None
+    evidence: str | None = None
+    cause: str | None = None
+
+    def as_dict(self) -> dict:
+        return {
+            "claim_id": self.claim_id, "work_id": self.work_id,
+            "revision": self.revision, "producer": self.producer,
+            "state": self.state, "next_step": self.next_step,
+            "arguments": list(self.arguments),
+            "operation_ref": self.operation_ref,
+            "expected_effect": self.expected_effect,
+            "continuation": self.continuation,
+            "budget_ref": self.budget_ref, "evidence": self.evidence,
+            "cause": self.cause,
+        }
+
+
+@dataclass(frozen=True)
 class Claim:
     """One declared claim.  Frozen: a transition replaces it.
 
@@ -320,6 +352,8 @@ class Claim:
     suspended_turns: int = 0
     trigger_monsters: tuple[tuple[int, int], ...] = ()
     last_perceived_turn: int | None = None
+    # A pre-declaration checkpoint reads this class default after unpickling.
+    execution: ExecutionDeclaration | None = None
 
     def as_dict(self, *, distance: int | None = None) -> dict:
         """The row form: plain JSON types only."""
@@ -333,6 +367,7 @@ class Claim:
             "budget": self.budget,
             "non_discardable": self.non_discardable,
             "distance": distance,
+            "execution": self.execution.as_dict() if self.execution else None,
         }
 
     def closing_dict(self) -> dict:
@@ -501,6 +536,30 @@ class ClaimRegister:
     @property
     def current(self) -> Claim | None:
         return self._claim
+
+    def declare_execution(self, claim_id: int, *, work_id: str,
+                          producer: str, state: str, next_step: str | None = None,
+                          arguments: tuple = (), operation_ref: str | None = None,
+                          expected_effect: str | None = None,
+                          continuation: str | None = None,
+                          budget_ref: str | None = None,
+                          evidence: str | None = None,
+                          cause: str | None = None) -> ExecutionDeclaration | None:
+        """Replace the named current/child declaration without altering the claim."""
+        if state not in {"acting", "awaiting", "done", "releasing"}:
+            raise ValueError(state)
+        claim = self._claim
+        if claim is None or claim.claim_id != claim_id:
+            return None
+        old = claim.execution
+        revision = old.revision + 1 if old is not None else 1
+        declaration = ExecutionDeclaration(
+            claim_id, str(work_id), revision, str(producer), state,
+            next_step, tuple(arguments), operation_ref, expected_effect,
+            continuation, budget_ref, evidence, cause,
+        )
+        self._claim = replace(claim, execution=declaration)
+        return declaration
 
     # -- declaration -----------------------------------------------------
 
