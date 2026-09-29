@@ -7598,7 +7598,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
             self._offer_execution(
-                key, producer="home-visit", work_id="home:one-operation-leave",
+                key, producer="home-visit", work_id="home:leave-after-one-operation",
                 next_step="store.leave.send", arguments=(STORE_HOME,),
                 expected_effect="outside-store",
             )
@@ -7796,7 +7796,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "home:queue-catalogue-shortage"
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
-                    key, producer="home-visit", work_id="home:catalogue-shortage",
+                    key, producer="home-visit", work_id="home:queue-catalogue-shortage",
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                 )
@@ -7942,7 +7942,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "home:leave-for-pending-withdraw"
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
-                    key, producer="home-visit", work_id="home:pending-withdraw",
+                    key, producer="home-visit", work_id="home:leave-for-pending-withdraw",
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                 )
@@ -8057,7 +8057,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
                     key, producer="home-visit",
-                    work_id="home:identify-staff-reserve",
+                    work_id=self.last_reason,
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                 )
@@ -8076,7 +8076,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
-                    key, producer="home-visit", work_id="home:route-unfulfilled",
+                    key, producer="home-visit", work_id="home:route-claim-unfulfilled",
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                 )
@@ -8112,7 +8112,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
                     key, producer=self._claim_family_of(self.last_reason),
-                    work_id="home:context-recovery",
+                    work_id=self.last_reason,
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                 )
