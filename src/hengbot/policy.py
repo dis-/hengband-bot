@@ -8146,7 +8146,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-unbound-deposit"
             key = LEAVE_STORE_KEY
             self._offer_execution(
-                key, producer="home-visit", work_id="home:unbound-deposit",
+                key, producer="home-visit", work_id="home:leave-unbound-deposit",
                 next_step="store.leave.send", arguments=(STORE_HOME,),
                 expected_effect="outside-store",
             )
