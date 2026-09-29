@@ -37,5 +37,35 @@ class TownClaimSwitchTest(unittest.TestCase):
         self.assertFalse(old_restored._town_claim_bar_enforced)
 
 
+class CrossareaFundraisingSwitchTest(unittest.TestCase):
+    def test_opt_in_and_default(self):
+        parser = _build_argument_parser()
+        self.assertFalse(parser.parse_args(
+            ["--state-file", "state.jsonl"]).enforce_crossarea_fundraising)
+        self.assertTrue(parser.parse_args([
+            "--state-file", "state.jsonl", "--enforce-crossarea-fundraising",
+        ]).enforce_crossarea_fundraising)
+
+    def test_session_header_echoes_both_modes(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.jsonl"
+            for enabled in (False, True):
+                append_session_marker(
+                    path, [], enforce_crossarea_fundraising=enabled)
+            rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(
+                [row["enforce_crossarea_fundraising"] for row in rows],
+                [False, True])
+
+    def test_checkpoint_preserves_on_and_defaults_old_checkpoint_off(self):
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertTrue(restored._crossarea_fundraising_enforced)
+        del policy._crossarea_fundraising_enforced
+        old_restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertFalse(old_restored._crossarea_fundraising_enforced)
+
+
 if __name__ == "__main__":
     unittest.main()
