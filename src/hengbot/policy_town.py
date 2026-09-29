@@ -4971,6 +4971,7 @@ class TownMixin:
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
                     selection = ""
+                    recall_dungeon_id = snapshot.recall_dungeon_id
                     if snapshot.in_town:
                         recall_dest, recall_dungeon_id = (
                             self._town_recall_destination(snapshot)
