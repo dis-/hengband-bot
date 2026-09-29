@@ -1044,6 +1044,8 @@ class QuestMixin:
             or not self._home_knowledge_current
         ):
             return
+        if current_loadout(self._equipment_catalog.items).item_at(SLOT_BODY) is not None:
+            return
         if not any(
             owned.origin in {"pack", "home"}
             and slot_for(owned.item) == SLOT_BODY
