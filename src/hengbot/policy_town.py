@@ -5237,6 +5237,10 @@ class TownMixin:
             or not self._temporary_status_clear(snapshot)
         ) and player.food_state in {"normal", "full", "gorged"}:
             self.last_reason = "town:recover"
+            self._offer_execution(
+                REST_MACRO, producer="survival", work_id="town:recover",
+                next_step="player.rest", expected_effect="hp/mp/status-recovered",
+            )
             return REST_MACRO
 
         if self._fundraising_mode in {"mine", "scavenge"}:

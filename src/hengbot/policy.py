@@ -9728,6 +9728,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return victory_loot
 
         conquest_loot = self._conquest_loot_key(snapshot)
+                self._offer_execution(
+                    REST_MACRO, producer="survival", work_id="town:recover",
+                    next_step="player.rest", expected_effect="hp/mp/status-recovered",
+                )
         if conquest_loot is not None:
             return conquest_loot
 
@@ -10215,6 +10219,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and here.has_entrance
                 and self._is_active_dungeon_entrance(here)
             )
+                self._offer_execution(
+                    REST_MACRO, producer="survival", work_id="rest",
+                    next_step="player.rest", expected_effect="hp/mp-recovered",
+                )
             else snapshot.dungeon_level + 1
             if snapshot.dungeon_level > 0
             and here is not None
