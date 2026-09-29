@@ -35,6 +35,27 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
+    def test_calibration_town_confirmation_binds_to_calibration_claim(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 3009
+        policy._calibration_session_owned = lambda: True
+        claim = policy._claim_register.declare(
+            "calibration", observe(("transaction",), 8, "calibration"))
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="old-confirmation", producer="calibration",
+            state="awaiting", operation_ref="decision:3008:ta",
+            expected_effect="equipment-action-confirmed")
+        key = policy._equipment_town_outcome("5", label="await-confirmation")
+        policy._record_execution_declaration(
+            policy._claim_register.current, key,
+            "equipment-transaction:await-confirmation")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step),
+                         ("calibration", "acting",
+                          "equipment.town.await-confirmation"))
+        self.assertIsNone(policy._decision_declaration_mismatch)
+
     def test_town_page_declarations_do_not_change_keys_with_s33_switch(self):
         outcomes = []
         for enforced in (False, True):

@@ -2119,13 +2119,14 @@ class EquipmentMixin:
     def _equipment_town_outcome(self, key: str | None, *, label: str,
                                 effect: str = "transaction-progress") -> str | None:
         work_id = f"equipment:town:{label}"
+        producer = "calibration" if self._calibration_session_owned() else "equipment-txn"
         if key is None:
             self._offer_execution_no_step(
-                producer="equipment-txn", work_id=work_id, cause=label,
+                producer=producer, work_id=work_id, cause=label,
             )
         else:
             self._offer_execution(
-                key, producer="equipment-txn", work_id=work_id,
+                key, producer=producer, work_id=work_id,
                 next_step=f"equipment.town.{label}", expected_effect=effect,
                 continuation="equipment.next-action",
             )
@@ -2162,7 +2163,8 @@ class EquipmentMixin:
             operation_ref = session.posted_command_id
             if operation_ref is not None:
                 self._offer_execution(
-                    WAIT_KEY, producer="equipment-txn",
+                    WAIT_KEY, producer=("calibration" if self._calibration_session_owned()
+                                        else "equipment-txn"),
                     work_id=f"equipment:town:pending:{session.target_loadout_id}",
                     next_step="equipment.action.observe",
                     arguments=(operation_ref,),
