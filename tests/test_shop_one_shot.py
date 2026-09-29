@@ -514,6 +514,26 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertNotEqual((key, policy.last_reason),
                             ("", "shop:one-shot-in-flight"))
 
+    def test_live_released_one_shot_watch_keeps_its_visit_in_town_bar(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, price=20)
+        inside = self._inside(STORE_TEMPLE, [], [ware])
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        policy.choose_key(inside)
+        outside = self._outside(policy, inside)
+        self.assertEqual(policy.choose_key(outside), "5")
+        posted = replace(inside, turn=inside.turn + 2)
+        self.assertEqual(policy.choose_key(posted), "pa\r\x1b")
+        self.assertIsNotNone(policy._store_buy_inflight)
+        policy._store_visit.operation_released = True
+        identity = policy._store_visit.claim_operation_identity
+        key = policy.choose_key(replace(inside, turn=inside.turn + 3))
+        self.assertEqual((key, policy.last_reason),
+                         ("", "shop:one-shot-in-flight"))
+        self.assertIsNotNone(policy._store_visit)
+        self.assertEqual(policy._store_visit.claim_operation_identity,
+                         identity)
+
     def test_lagged_surface_inside_live_macro_confirms_exactly_one_buy(self):
         """ecf55de produced ['5', '\\x1b', '5pa\\r\\x1b'] (reviewer-measured):
         the lagged page dropped the latch, a foreign ESC entered the live

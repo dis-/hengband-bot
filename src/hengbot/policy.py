@@ -2854,11 +2854,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         ("shop:approach", "shop:travel")))
             )
         )
+        visit = self._store_visit
+        posted_shop_observation_wait = bool(
+            getattr(self, "_town_claim_bar_enforced", False)
+            and key == ""
+            and self.last_reason == "shop:one-shot-in-flight"
+            and visit is not None
+            and visit.operation_posted
+            and not visit.operation_effect_observed
+            and visit.claim_operation_identity is not None
+            and (not visit.operation_released
+                 or self._store_buy_inflight is not None
+                 or (self._batch_sell_pending is not None
+                     and self._batch_sell_pending.get("phase") == "await-sale"))
+        )
         if (
             in_town
             and not town_kill_owns_visible_target
             and not town_order_owns_step4
             and not held_claim_decision
+            and not posted_shop_observation_wait
             and not arbiter.preview_may_select(
                 self.last_reason, vector, retirement_key=current_retirement_key
             )
@@ -2954,12 +2969,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             reason=self.last_reason,
             progress_vector=vector,
             terminal=terminal,
-            observation_wait=bool(
+            observation_wait=(posted_shop_observation_wait or bool(
                 key == ""
                 and self._store_visit is not None
                 and self._store_visit.operation_posted
                 and not self._store_visit.operation_released
-            ),
+            )),
             close_visit=self._arbiter_close_store_visit,
             retirement_key=self._town_retirement_clearance_key(
                 snapshot, arbiter.owner_for_reason(self.last_reason),
