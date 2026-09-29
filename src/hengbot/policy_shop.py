@@ -327,6 +327,18 @@ class ShopMixin:
             return None
         visit.transition(StoreVisitPhase.OPERATING)
         visit.operation_released = True
+        if visit.operation_producer_family in {"shop-buy", "shop-sell"}:
+            self._offer_execution(
+                visit.operation_key,
+                producer=visit.operation_producer_family,
+                work_id=(f"shop-operation:{visit.opened_sequence}:"
+                         f"{visit.store_type}:{visit.operation_key}"),
+                next_step="shop.one-shot.send",
+                arguments=(visit.store_type, visit.operation_key),
+                expected_effect="inventory/gold-effect",
+                continuation="shop.one-shot.observe",
+                budget_ref="shop-one-shot-existing-budget",
+            )
         return visit.operation_key
 
     @staticmethod
@@ -4819,10 +4831,25 @@ class ShopMixin:
                 if inner.startswith(BUY_KEY)
                 else "shop:one-shot-sell"
             )
+            operation_family = (
+                "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
+            )
+            opened_sequence = (
+                self._store_visit.opened_sequence
+                if self._store_visit is not None else generation
+            )
+            self._offer_execution(
+                key, producer=operation_family,
+                work_id=(f"shop-operation:{opened_sequence}:"
+                         f"{observed_store.store_type}:{operation_key}"),
+                next_step="shop.one-shot.dispatch",
+                arguments=(observed_store.store_type, operation_key),
+                expected_effect="store-page-open",
+                continuation="shop.one-shot.send",
+                budget_ref="shop-one-shot-existing-budget",
+                post_on_emit=False,
+            )
             if self._store_visit is not None:
-                operation_family = (
-                    "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
-                )
                 self._open_execution_delegation(
                     operation_family, operation_family,
                     ("shop-operation", self._store_visit.opened_sequence,

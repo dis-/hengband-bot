@@ -3321,7 +3321,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                          continuation: str | None = None,
                          budget_ref: str | None = None,
                          state: str = "acting", evidence: str | None = None,
-                         cause: str | None = None) -> None:
+                         cause: str | None = None,
+                         post_on_emit: bool = True) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
         offers = getattr(self, "_execution_offers", None)
         if offers is None:
@@ -3330,6 +3331,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         offers.append((
             key, producer, work_id, next_step, tuple(arguments),
             expected_effect, continuation, budget_ref, state, evidence, cause,
+            post_on_emit,
         ))
 
     def _offer_home_scan_leave(self) -> None:
@@ -3352,7 +3354,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                       and claim.owner.value == candidate[1]), None)
         if offer is not None:
             (_, producer, work_id, step, args, effect, continuation, budget,
-             state, evidence, cause) = offer
+             state, evidence, cause, post_on_emit) = offer
             register.declare_execution(
                 claim.claim_id, work_id=work_id, producer=producer,
                 state=state, next_step=step, arguments=args,
@@ -3360,7 +3362,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref=budget, evidence=evidence, cause=cause,
             )
             # The driver alone can turn an emitted command into a posted wait.
-            if state == "acting" and key not in (None, ""):
+            if state == "acting" and post_on_emit and key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")

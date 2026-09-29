@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import gzip
 import json
 from unittest.mock import patch
+from dataclasses import replace
 
 from hengbot.claim_register import (
     ClaimRegister, declaration_mismatch, observe, reach,
@@ -15,6 +16,7 @@ from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
+from hengbot.policy_types import StoreVisit
 from test_policy import (
     Snapshot, StoreState, STORE_ALCHEMIST, SV_SCROLL_REMOVE_CURSE,
     STORE_HOME, TVAL_CHAOS_BOOK, TVAL_SCROLL, grid, item, player, store_item,
@@ -140,6 +142,41 @@ class ExecutionDeclarationTest(unittest.TestCase):
         declaration = policy._claim_register.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("pa\r", "shop-buy", "shop.purchase.send"))
+
+    def test_shop_one_shot_composition_wait_is_not_a_posted_purchase(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)
+        observed = StoreState(STORE_ALCHEMIST, [ware], page_top=0)
+        outside = Snapshot(
+            player(10, 10),
+            {Position(10, 10): replace(
+                grid(10, 10), store_number=STORE_ALCHEMIST)},
+            [], floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=None,
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 45
+        policy._shop_observation = (observed, 45)
+        policy._store_visit = StoreVisit(
+            "town-errand", "shopping", STORE_ALCHEMIST)
+        with (patch.object(policy, "_next_purchase", return_value=ware),
+              patch.object(policy, "_purchase_quantity", return_value=1)):
+            wait_key = policy._atomic_shop_transaction_key(outside)
+        claim = policy._claim_register.declare(
+            "shop-buy", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, wait_key, policy.last_reason)
+        self.assertEqual(policy._claim_register.current.execution.next_step,
+                         "shop.one-shot.dispatch")
+        policy.confirm_key_posted(wait_key)
+        self.assertEqual(policy._claim_register.current.execution.state,
+                         "acting")
+        self.assertIsNone(policy._claim_register.current.execution.operation_ref)
+        operation_key = policy._release_staged_store_operation(
+            replace(outside, store=observed))
+        self.assertEqual(operation_key, "pa\r\x1b")
+        policy._record_execution_declaration(
+            policy._claim_register.current, operation_key, policy.last_reason)
+        self.assertEqual(policy._claim_register.current.execution.next_step,
+                         "shop.one-shot.send")
 
     def test_home_errand_filing_leave_names_its_request(self):
         board = Snapshot(
