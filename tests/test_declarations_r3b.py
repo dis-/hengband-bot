@@ -258,5 +258,22 @@ class EquipmentTxnDeclarationTest(unittest.TestCase):
                           "equipment.restore-blocked-stop"))
 
 
+class EquipmentOptDeclarationTest(unittest.TestCase):
+    def test_optimizer_outside_town_declares_no_step(self):
+        policy = HengbotPolicy()
+        board = SimpleNamespace(
+            in_town=False, player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
+        )
+        self.assertIsNone(policy._prepare_equipment_optimization(board))
+        claim = policy._claim_register.declare(
+            "equipment-opt", observe(("loadout",), 8, "optimizer"))
+        policy._record_execution_declaration(claim, None, "equipment:optimizer")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.cause),
+                         ("equipment-opt", "releasing",
+                          "optimizer-context-unavailable"))
+
+
 if __name__ == "__main__":
     unittest.main()

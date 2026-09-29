@@ -596,6 +596,10 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "stale-republished"
+            self._offer_execution_no_step(
+                producer="equipment-opt", work_id="equipment:optimizer",
+                cause="optimizer-context-unavailable",
+            )
             return None
         if (
             self._equipment_transaction_session is not None
@@ -607,6 +611,13 @@ class EquipmentMixin:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "current-inputs"
+            self._offer_execution(
+                None, producer="equipment-opt",
+                work_id="equipment:optimizer:in-flight-session",
+                next_step="equipment.next-action",
+                expected_effect="equipment-session-progress",
+                continuation="equipment.optimize",
+            )
             return self._equipment_optimization_preparation
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
@@ -627,6 +638,13 @@ class EquipmentMixin:
             )
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = preparation
+            self._offer_execution(
+                None, producer="equipment-opt",
+                work_id="equipment:optimizer:calibration",
+                next_step="calibration.acquire",
+                expected_effect="character-calibration-valid",
+                continuation="equipment.optimize",
+            )
             return preparation
         live_current = current_loadout(self._equipment_catalog.items)
         retired_worn_item_ids = getattr(
