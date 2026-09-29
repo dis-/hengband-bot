@@ -2187,6 +2187,7 @@ class HomeMixin:
         if getattr(self, "_home_pending_take_confirmed", None) == signature:
             self._home_pending_take_confirmed = None
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
     ) -> tuple[str, int, int] | None:
