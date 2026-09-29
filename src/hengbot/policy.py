@@ -6354,10 +6354,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "equipment-txn"
                 )
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
-                return self._shopping_approach_key(
+                key = self._shopping_approach_key(
                     snapshot, snapshot.player.position,
                     "equipment-transaction:travel-home",
                 )
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="equipment:acquire-home-catalog",
+                        next_step="home.approach-for-equipment-catalog",
+                        expected_effect="home-catalog-available",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="equipment-txn",
+                        work_id="equipment:acquire-home-catalog",
+                        cause="home-approach-unavailable",
+                    )
+                return key
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -9691,9 +9705,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = snapshot.player.position
             if step is not None and self._shopping_approach_store_type == STORE_HOME:
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
-                return self._shopping_approach_key(
+                key = self._shopping_approach_key(
                     snapshot, step, "equipment-transaction:travel-home"
                 )
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="equipment:acquire-home-catalog",
+                        next_step="home.approach-for-equipment-catalog",
+                        expected_effect="home-catalog-available",
+                    )
+                else:
+                    self._offer_execution_no_step(
+                        producer="equipment-txn",
+                        work_id="equipment:acquire-home-catalog",
+                        cause="home-approach-unavailable",
+                    )
+                return key
 
         if not (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
