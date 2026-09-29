@@ -1,6 +1,7 @@
 """Pins for the record-only first-divergence declaration summary."""
 
 import unittest
+import tests  # noqa: F401
 
 from first_divergence_s3_3 import _declaration_counts
 
@@ -28,6 +29,15 @@ class DeclarationSummaryTest(unittest.TestCase):
         self.assertEqual(counts["missing_declaration_by_family"],
                          {"calibration": 2})
         self.assertEqual(counts["declaration_decisions_measured"], 3)
+        self.assertEqual(counts["declaration_gap_rows"], [
+            {"kind": "mismatch", "decision_sequence": 1,
+             "reason": "reason", "key": "x", "family": "home-visit",
+             "inferred": "awaiting", "declared": "acting"},
+            {"kind": "missing", "decision_sequence": 2,
+             "reason": "reason", "key": None, "family": "calibration"},
+            {"kind": "missing", "decision_sequence": 3,
+             "reason": "reason", "key": "y", "family": "calibration"},
+        ])
 
 
 if __name__ == "__main__":
