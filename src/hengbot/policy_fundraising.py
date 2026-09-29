@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -18,6 +19,9 @@ from hengbot.model import (
     STORE_TEMPLE,
     SV_SCROLL_STAR_REMOVE_CURSE,
     TVAL_SCROLL,
+    TVAL_STAFF,
+    TVAL_WAND,
+    TVAL_FOOD,
     InventoryItem,
     MonsterState,
     Position,
@@ -30,6 +34,7 @@ from hengbot.policy_constants import (
     DIGGER_WIELD_LIMIT,
     EAT_KEY,
     ExplorationPathOutcome,
+    FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
     FUNDRAISING_DETECTION_BASE_PRICE,
     FUNDRAISING_DIGGER_BASE_PRICE,
@@ -57,7 +62,82 @@ from hengbot.policy_constants import (
 )
 
 
+@dataclass(frozen=True)
+class FundraisingPurpose:
+    identity: int
+    mode: str
+    first_run_food_waiver: bool
+
+
+@dataclass(frozen=True)
+class FundraisingFacts:
+    carried_edible: bool
+    hungry: bool
+    light_ready: bool
+    pack_full: bool
+    objective_achieved: bool
+    procurement_exhausted: bool
+    first_run: bool
+
+
+@dataclass(frozen=True)
+class FundraisingVerdict:
+    may_depart: bool
+    may_continue: bool
+    must_return: bool
+    needs_procurement: bool
+
+
+def fundraising_run_verdict(
+    facts: FundraisingFacts, purpose: FundraisingPurpose | None
+) -> FundraisingVerdict:
+    """One food and survival decision for town admission and income floors."""
+    waiver = (purpose.first_run_food_waiver if purpose is not None else
+              facts.first_run and facts.procurement_exhausted)
+    food_admitted = facts.carried_edible or waiver
+    survival_return = facts.hungry and not facts.carried_edible
+    must_return = (survival_return or facts.pack_full
+                   or facts.objective_achieved or not facts.light_ready)
+    return FundraisingVerdict(
+        may_depart=food_admitted and facts.light_ready and not facts.pack_full
+        and not facts.hungry,
+        may_continue=food_admitted and not must_return,
+        must_return=must_return,
+        needs_procurement=not facts.carried_edible and not waiver,
+    )
+
+
 class FundraisingMixin:
+
+    def _fundraising_facts(self, snapshot: Snapshot) -> FundraisingFacts:
+        food_store = (STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA
+                      else STORE_GENERAL)
+        home_known = (not self._home_available_for_probe(snapshot)
+                      or self._home_knowledge_current)
+        home_edible = (self._home_mana_food_candidate() is not None
+                       if snapshot.player.food_type == FOOD_TYPE_MANA
+                       else any(item.is_food and item.aware
+                                and item.sval >= FOOD_MIN_SVAL
+                                for item in self._home_knowledge_items))
+        store = snapshot.store
+        shop_affordable = bool(store is not None
+            and store.store_type == food_store
+            and any(item.price <= snapshot.player.gold and (
+                item.tval in {TVAL_STAFF, TVAL_WAND}
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+            ) for item in store.items))
+        exhausted = (home_known and not home_edible and not shop_affordable
+                     and food_store in self._town_store_attempted)
+        return FundraisingFacts(
+            carried_edible=self._find_edible(snapshot) is not None,
+            hungry=snapshot.player.hungry,
+            light_ready=self._fundraising_light_ready(snapshot),
+            pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
+            objective_achieved=snapshot.player.gold >= FUNDRAISING_GOLD_TARGET,
+            procurement_exhausted=exhausted,
+            first_run=getattr(self, "_fundraising_runs_started", 0) == 0,
+        )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
         """Whether the minimum mining kit is physically in the pack/equipment."""
@@ -97,6 +177,10 @@ class FundraisingMixin:
 
     def _fundraising_food_ready(self, snapshot: Snapshot) -> bool:
         """Allow a shallow cash run when town cannot sell the preferred reserve."""
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            return not fundraising_run_verdict(
+                self._fundraising_facts(snapshot), None
+            ).needs_procurement
         if self._food_ready(snapshot):
             return True
         food_store = (
@@ -192,6 +276,10 @@ class FundraisingMixin:
         return ware
 
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            facts = self._fundraising_facts(snapshot)
+            if not fundraising_run_verdict(facts, None).may_depart:
+                return False
         player = snapshot.player
         base_ready = (
             self._fundraising_light_ready(snapshot)
@@ -804,10 +892,19 @@ class FundraisingMixin:
             self._returning_to_town = True
             return self._leave_fundraising_floor(snapshot)
 
-        no_food_left = self._find_edible(snapshot) is None and snapshot.player.food_state not in {
-            "full",
-            "gorged",
-        }
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            purpose = getattr(self, "_fundraising_run_purpose", None)
+            if purpose is None:
+                self.last_reason = "ownership:contract-conflict:fundraising:missing-purpose"
+                return WAIT_KEY
+            facts = self._fundraising_facts(snapshot)
+            no_food_left = not fundraising_run_verdict(
+                facts, purpose
+            ).may_continue
+        else:
+            no_food_left = self._find_edible(snapshot) is None and snapshot.player.food_state not in {
+                "full", "gorged",
+            }
         if no_food_left:
             return self._leave_fundraising_floor(snapshot)
         if not self._expedition_light_ready(snapshot):

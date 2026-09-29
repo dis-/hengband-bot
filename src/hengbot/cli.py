@@ -396,6 +396,9 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 
 
 def _policy_final_stop_banner(reason: str) -> str:
+    if reason.startswith("ownership:contract-conflict:fundraising:"):
+        return (f"<{reason}> fundraising has no valid purpose continuation; "
+                "stopping the bot for investigation")
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
@@ -3990,7 +3993,8 @@ def _run_follow(
                         return incident_stop("loop-detected", snapshot)
                     if (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
-                                "ownership:holder-silent:")):
+                                ("ownership:holder-silent:",
+                                 "ownership:contract-conflict:fundraising:"))):
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, repeating_reason_count,

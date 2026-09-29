@@ -429,7 +429,7 @@ from hengbot.town_arbiter import (
 )
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_identification import IdentificationMixin
-from hengbot.policy_fundraising import FundraisingMixin
+from hengbot.policy_fundraising import FundraisingMixin, FundraisingPurpose
 from hengbot.policy_supply import SupplyMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
 from hengbot.quest_knowledge import (
@@ -1821,6 +1821,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A restored checkpoint may predate this attribute; readers use
         # getattr(..., False) until its first decision.
         self._town_claim_bar_enforced = False
+        self._crossarea_fundraising_enforced = False
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2093,6 +2094,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
+        self._fundraising_run_purpose: FundraisingPurpose | None = None
+        self._fundraising_runs_started = 0
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
         self._identify_staff_mining_plan = False
@@ -9659,6 +9662,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         ):
             self.last_reason = "descend"
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and snapshot.in_town
+                    and self._fundraising_mode in {"mine", "scavenge"}):
+                facts = self._fundraising_facts(snapshot)
+                self._fundraising_run_purpose = FundraisingPurpose(
+                    identity=self._decision_sequence,
+                    mode=self._fundraising_mode,
+                    first_run_food_waiver=(
+                        not facts.carried_edible and facts.first_run
+                        and facts.procurement_exhausted
+                    ),
+                )
+                self._fundraising_runs_started += 1
             return (
                 ENTER_DUNGEON_MACRO
                 if static_entrance_here or (here is not None and here.has_entrance)
