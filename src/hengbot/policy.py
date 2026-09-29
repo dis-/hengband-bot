@@ -5715,7 +5715,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._decision_no_step_release = True
             self.last_reason = f"ownership:holder-released:{holder.owner.value}"
             return None
-        self.last_reason = f"ownership:holder-silent:{holder.owner.value}"
+        return self._silent_holder_stop(holder.owner.value)
+
+    def _silent_holder_stop(self, family: str) -> None:
+        self.last_reason = f"ownership:holder-silent:{family}"
         return None
 
     def _enforce_town_claim_result(self, snapshot: Snapshot, key):
@@ -6836,6 +6839,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._equipment_transaction_session is not None:
             session = self._equipment_transaction_session
             pending = session.pending_action
+            posted_command = session.posted_command_id
             operation_outcome = getattr(
                 self, "_equipment_transaction_operation_outcome", None
             )
@@ -6850,6 +6854,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # The confirmed transaction moved an item into or out of Home.
                 self._observe_home_operation_effect()
+            if advanced and pending is not None:
+                visit = self._store_visit
+                if (visit is not None
+                        and visit.store_type == STORE_HOME
+                        and visit.operation_posted
+                        and visit.operation_producer_family == "equipment-txn"
+                        and visit.operation_key == posted_command):
+                    # The session and the visit describe the same posted
+                    # action. Its observed effect completes both ledgers so
+                    # the next action can run on this Home board.
+                    visit.operation_effect_observed = True
+                    visit.operation_released = True
             if advanced and pending is not None:
                 if (
                     pending.kind == "takeoff"
@@ -7406,8 +7422,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and session is not None
                     and getattr(self._store_visit, "operation_posted", False)
                     and not getattr(self._store_visit, "operation_released", False)):
-                self.last_reason = "equipment-transaction:atomic-deposit"
-                key = WAIT_KEY
+                # A bare CR on an open Home page cannot change the pack or
+                # equipment. If the posted command has not produced its effect
+                # on this board, waiting with CR would repeat forever.
+                key = self._silent_holder_stop("equipment-txn")
             elif (rearm := self._home_rearm_key(snapshot)) is not None:
                 key = rearm
             elif (
@@ -7713,6 +7731,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
         else:
             key = self._decide(snapshot)
+        if (key == "\r" and snapshot.store is not None
+                and self._equipment_transaction_session is not None
+                and (self._equipment_transaction_session.pending_action is not None
+                     or (self._store_visit is not None
+                         and self._store_visit.operation_posted
+                         and not self._store_visit.operation_released))):
+            # An unchanged store command loop cannot turn CR into evidence of
+            # an equipment mutation or a successful leave. Do not spend the
+            # visit budget repeating this no-effect continuation.
+            key = self._silent_holder_stop("equipment-txn")
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -7730,6 +7758,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-unbound-deposit"
             key = LEAVE_STORE_KEY
         self._remember_swarm_distances(snapshot)
+        if key is None and (self.last_reason or "").startswith(
+            "ownership:holder-silent:"
+        ):
+            return None
         if key is None and self._warning_prompt_stops_decision:
             return None
         key = self._flee_sustain_key(snapshot, key)
@@ -11750,6 +11782,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return mutation_committed
         session = self._equipment_transaction_session
         committed = session is not None and session.confirm_posted(key)
+        if committed and session is not None:
+            visit = self._store_visit
+            if (visit is not None and visit.store_type == STORE_HOME
+                    and visit.operation_posted
+                    and (visit.operation_key in (None, key)
+                         or (visit.operation_effect_observed
+                             and visit.operation_released
+                             and visit.operation_producer_family == "equipment-txn"))
+                    and visit.operation_producer_family in (None, "equipment-txn")
+                    and session.pending_action is not None):
+                visit.operation_key = key
+                visit.operation_producer_family = "equipment-txn"
+                visit.operation_effect_observed = False
+                visit.operation_released = False
+                visit.claim_operation_identity = (
+                    STORE_HOME, visit.opened_sequence,
+                    session.target_loadout_id, session.index, key,
+                )
         if committed and self._equipment_transaction_prepared_catalog_update is not None:
             kind, item, intent = self._equipment_transaction_prepared_catalog_update
             if kind == "deposit":
