@@ -26,7 +26,8 @@ equipment transaction: the Home withdrawal composer is in
 in `src/hengbot/policy_home.py:2338-2353`. The route to the entrance is
 emitted at `src/hengbot/policy.py:13277`.
 
-Replay limit: the live capture has 2,132 state rows and 231 decision rows,
+Replay limit: the live capture has 2,132 state rows and 231 decision-log
+rows (including its process header),
 but its `policy-state.json` is a projection. It omits the claim register,
 arbiter, equipment transaction session, and other policy history. The
 snapshot ring is truncated. Therefore a faithful OFF/ON replay of this
