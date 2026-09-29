@@ -3401,6 +3401,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The driver alone can turn an emitted command into a posted wait.
             if key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
+        claim = register.current
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
             else "unposted-await" if reason == "stair:await-observation"
