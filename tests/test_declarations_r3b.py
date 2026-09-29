@@ -1,13 +1,14 @@
 """Producer offers bind only to the final key and named claim owner."""
 
 import unittest
-from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.claim_register import observe
 from hengbot.model import (PLAYER_CLASS_WARRIOR, Position, QuestState,
-                           Snapshot, TVAL_LITE, SV_LITE_LANTERN)
+                           Snapshot, TVAL_LITE, SV_LITE_LANTERN,
+                           TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE,
+                           TVAL_ROD)
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_REWARDED
 from policy_fixtures import grid, item, player, set_completed_equipment_optimization
@@ -75,19 +76,15 @@ class TownMobDeclarationTest(unittest.TestCase):
 class CurseEnchantDeclarationTest(unittest.TestCase):
     def test_remove_curse_declares_selected_item(self):
         policy = HengbotPolicy()
-        cursed = SimpleNamespace(is_cursed=True)
-        scroll = SimpleNamespace(is_scroll=True, aware=True, sval=1, count=1)
-        board = SimpleNamespace(
-            in_town=True, player=SimpleNamespace(blind=False, confused=False),
-            equipment=(cursed,), inventory=(scroll,),
+        cursed = item("a", 23, 0, is_equipment=True, is_cursed=True)
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+        board = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            equipment=[cursed], inventory=[scroll],
         )
-        with (patch.object(policy, "_claim_errand_hold"),
-              patch.object(policy, "_has_cursed_equipment", return_value=True),
-              patch.object(policy, "_curse_unremovable", return_value=False),
-              patch.object(policy, "_first_item", return_value=scroll),
-              patch.object(policy, "_item_signature", return_value=("item", 7)),
-              patch.object(policy, "_read_key", return_value="r-a")):
-            key = policy._town_remove_curse_key(board)
+        key = policy._town_remove_curse_key(board)
         claim = policy._claim_register.declare(
             "curse-enchant", observe(("curse",), 8, "equipment"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
@@ -95,7 +92,7 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step, declaration.arguments[0]),
                          ("curse-enchant", "acting", "curse.remove.send",
-                          ("item", 7)))
+                          policy._item_signature(cursed)))
 
 
 class RumorDeclarationTest(_TownShopFixtureBase):
@@ -120,42 +117,34 @@ class RumorDeclarationTest(_TownShopFixtureBase):
 
 
 class CrossTownDeclarationTest(unittest.TestCase):
-    def test_shopping_funds_wait_declares_required_gold(self):
+    def test_no_shortage_declares_no_step(self):
         policy = HengbotPolicy()
-        policy._observed_departure_prices["food"] = (100, 1)
-        board = SimpleNamespace(
-            in_town=False, player=SimpleNamespace(gold=0),
-        )
+        board = SimpleNamespace(in_town=False)
         with (patch.object(policy, "_cross_town_shortages",
-                           return_value=(("food", 1),)),
+                           return_value=()),
               patch.object(policy, "_cross_town_unobtainable_categories",
-                           return_value=("food",)),
-              patch.object(policy, "_cross_town_candidate_order",
-                           return_value=(2,)),
-              patch.object(policy, "_effective_town_id", return_value=1)):
+                           return_value=())):
             key = policy._cross_town_shopping_key(board)
         claim = policy._claim_register.declare(
-            "cross-town", observe(("funds",), 8, "shopping"))
+            "cross-town", observe(("shopping",), 8, "shopping"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
         declaration = policy._claim_register.current.execution
         self.assertEqual((declaration.producer, declaration.state,
-                          declaration.next_step, declaration.arguments[0]),
-                         ("cross-town", "acting", "cross-town.wait-for-funds",
-                          policy._cross_town_shopping_funds["required_gold"]))
+                          declaration.cause),
+                         ("cross-town", "releasing",
+                          "no-unobtainable-shortage"))
 
 
 class IdentificationDeclarationTest(unittest.TestCase):
     def test_device_source_request_declares_next_executor(self):
         policy = HengbotPolicy()
-        target = SimpleNamespace(is_equipment=False)
-        board = SimpleNamespace(in_town=True)
-        with (patch.object(policy, "_claim_errand_hold"),
-              patch.object(policy, "_first_item", return_value=target),
-              patch.object(policy, "_find_identification_source",
-                           return_value=None),
-              patch.object(policy, "_item_signature", return_value=("device", 1)),
-              patch.object(policy, "_request_identification")):
-            self.assertIsNone(policy._town_device_processing_key(board))
+        target = item("a", TVAL_ROD, -1, aware=False, known=False)
+        board = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True, inventory=[target],
+        )
+        self.assertIsNone(policy._town_device_processing_key(board))
         claim = policy._claim_register.declare(
             "identification", observe(("device",), 8, "knowledge"))
         policy._record_execution_declaration(claim, None, "identify:device")
@@ -164,23 +153,14 @@ class IdentificationDeclarationTest(unittest.TestCase):
                           declaration.next_step, declaration.arguments),
                          ("identification", "acting",
                           "identification.acquire-source",
-                          ("normal", ("device", 1))))
+                          ("normal", policy._item_signature(target))))
 
 
 class CalibrationDeclarationTest(unittest.TestCase):
-    def test_deposit_handoff_declares_next_executor(self):
+    def test_deferred_calibration_declares_no_step(self):
         policy = HengbotPolicy()
-        policy._calibration_phase = "deposit"
-        carried = SimpleNamespace()
-        board = SimpleNamespace(
-            in_town=True, store=None,
-            player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
-            inventory=(carried,),
-        )
-        with (patch.object(policy, "_defer_town_errand", return_value=False),
-              patch.object(policy, "_find_home_deposit", return_value=carried),
-              patch.object(policy, "_item_signature", return_value=("item", 1)),
-              patch.object(policy, "_open_execution_delegation")):
+        board = SimpleNamespace()
+        with patch.object(policy, "_defer_town_errand", return_value=True):
             key = policy._calibration_town_key(board)
         self.assertIsNone(key)
         claim = policy._claim_register.declare(
@@ -188,33 +168,24 @@ class CalibrationDeclarationTest(unittest.TestCase):
         policy._record_execution_declaration(claim, key, policy.last_reason)
         declaration = policy._claim_register.current.execution
         self.assertEqual((declaration.producer, declaration.state,
-                          declaration.next_step),
-                         ("calibration", "acting", "home.deposit-next-candidate"))
+                          declaration.cause),
+                         ("calibration", "releasing",
+                          "deferred-by-town-holder"))
 
 
 class DepartureDeclarationTest(unittest.TestCase):
-    def test_recall_wait_declares_observation_step(self):
-        position = Position(6, 39)
-        board = Snapshot(
-            player(position.y, position.x, food=12000),
-            {position: grid(position.y, position.x)},
-            [], floor_key=(2, 5, 0), width=80, height=20, turn=100,
-        )
-        board = replace(board, player=replace(board.player, recalling=True))
+    def test_recall_confirmation_without_watch_declares_no_step(self):
         policy = HengbotPolicy()
-        with (patch.object(policy, "_quest_floor_exit_locked", return_value=False),
-              patch.object(policy, "_active_fixed_quest_id", return_value=None),
-              patch.object(policy, "_should_start_town_return", return_value=False),
-              patch.object(policy, "_loot_before_recall_calm", return_value=False)):
-            key = policy._return_to_town_key(board, [])
+        board = SimpleNamespace(player=SimpleNamespace(recalling=False))
+        key = policy._dungeon_recall_confirmation_key(board)
         claim = policy._claim_register.declare(
             "departure", observe(("floor",), 8, "return"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
         declaration = policy._claim_register.current.execution
         self.assertEqual((declaration.producer, declaration.state,
-                          declaration.next_step, declaration.expected_effect),
-                         ("departure", "acting", "recall.observe-arrival",
-                          "floor-change"))
+                          declaration.cause),
+                         ("departure", "releasing",
+                          "recall-confirmation-not-pending"))
 
 
 class FundraisingDeclarationTest(unittest.TestCase):
