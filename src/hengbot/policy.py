@@ -3315,7 +3315,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             family if family is not None else self._claim_family_of(self.last_reason)
         )
 
-    def _offer_execution(self, key: str, *, producer: str, work_id: str,
+    def _offer_execution(self, key: str | None, *, producer: str, work_id: str,
                          next_step: str, arguments: tuple = (),
                          expected_effect: str | None = None,
                          continuation: str | None = None,
@@ -3325,9 +3325,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if offers is None:
             offers = []
             self._execution_offers = offers
+        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
+        self._execution_offer_sequence = sequence
         offers.append((
             key, producer, work_id, next_step, tuple(arguments),
-            expected_effect, continuation, budget_ref,
+            expected_effect, continuation, budget_ref, sequence,
         ))
 
     def _offer_execution_no_step(self, *, producer: str, cause: str,
@@ -3337,7 +3339,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if offers is None:
             offers = []
             self._execution_no_step_offers = offers
-        offers.append((producer, work_id, cause))
+        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
+        self._execution_offer_sequence = sequence
+        offers.append((producer, work_id, cause, sequence))
 
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
@@ -3348,8 +3352,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         offer = next((candidate for candidate in reversed(offers)
                       if key == candidate[0]
                       and claim.owner.value == candidate[1]), None)
-        if offer is not None and key is not None:
-            _, producer, work_id, step, args, effect, continuation, budget = offer
+        no_step = (
+            next((candidate for candidate in reversed(no_steps)
+                  if claim.owner.value == candidate[0]), None)
+            if key is None else None
+        )
+        if no_step is not None and (offer is None or no_step[3] > offer[8]):
+            producer, work_id, cause, _ = no_step
+            register.declare_execution(
+                claim.claim_id, work_id=work_id, producer=producer,
+                state="releasing", cause=cause,
+            )
+            offer = None
+        if offer is not None:
+            _, producer, work_id, step, args, effect, continuation, budget, _ = offer
             register.declare_execution(
                 claim.claim_id, work_id=work_id, producer=producer,
                 state="acting", next_step=step, arguments=args,
@@ -3357,17 +3373,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref=budget,
             )
             # The driver alone can turn an emitted command into a posted wait.
-            if key != "":
+            if key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
-        elif key is None:
-            no_step = next((candidate for candidate in reversed(no_steps)
-                            if claim.owner.value == candidate[0]), None)
-            if no_step is not None:
-                producer, work_id, cause = no_step
-                register.declare_execution(
-                    claim.claim_id, work_id=work_id, producer=producer,
-                    state="releasing", cause=cause,
-                )
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
             else "unposted-await" if reason == "stair:await-observation"
@@ -6166,6 +6173,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _choose_key(self, snapshot: Snapshot) -> str | None:
         self._execution_offers = []
+        self._execution_no_step_offers = []
         self._execution_pending_post = None
         self._staged_shop_approach = None
         self._read_binding = None
@@ -10664,6 +10672,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         ):
             self.last_reason = "inventory:destroy-deferred-equipment-mutation"
+            self._offer_execution_no_step(
+                producer="identification", work_id="verified-destroy",
+                cause="equipment-mutation-pending",
+            )
             return None
 
         candidate_snapshot = snapshot
@@ -10671,6 +10683,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         refused_superior = False
         while disposable is not None:
             if not self._entire_stack_is_surplus(candidate_snapshot, disposable):
+                self._offer_execution_no_step(
+                    producer="identification", work_id="verified-destroy",
+                    cause="stack-not-surplus",
+                )
                 return None
             if self._destroy_would_discard_superior_item(snapshot, disposable):
                 self.last_reason = "inventory:destroy-refused-superior-item"
@@ -10706,9 +10722,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if refused_superior
                 else reason
             )
-            return self._destroy_item_key(disposable)
+            key = self._destroy_item_key(disposable)
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"verified-destroy:{self._item_signature(disposable)}",
+                next_step="inventory.destroy.send",
+                arguments=(self._item_signature(disposable), disposable.count),
+                expected_effect="surplus-stack-removed",
+            )
+            return key
         self._destroy_watch = None
         self._destroy_fail_streak = 0
+        self._offer_execution_no_step(
+            producer="identification", work_id="verified-destroy",
+            cause="no-disposable-target",
+        )
         return None
 
     def _destroy_would_discard_superior_item(

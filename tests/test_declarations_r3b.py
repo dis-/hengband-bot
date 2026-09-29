@@ -143,5 +143,28 @@ class CrossTownDeclarationTest(unittest.TestCase):
                           policy._cross_town_shopping_funds["required_gold"]))
 
 
+class IdentificationDeclarationTest(unittest.TestCase):
+    def test_device_source_request_declares_next_executor(self):
+        policy = HengbotPolicy()
+        target = SimpleNamespace(is_equipment=False)
+        board = SimpleNamespace(in_town=True)
+        with (patch.object(policy, "_claim_errand_hold"),
+              patch.object(policy, "_first_item", return_value=target),
+              patch.object(policy, "_find_identification_source",
+                           return_value=None),
+              patch.object(policy, "_item_signature", return_value=("device", 1)),
+              patch.object(policy, "_request_identification")):
+            self.assertIsNone(policy._town_device_processing_key(board))
+        claim = policy._claim_register.declare(
+            "identification", observe(("device",), 8, "knowledge"))
+        policy._record_execution_declaration(claim, None, "identify:device")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step, declaration.arguments),
+                         ("identification", "acting",
+                          "identification.acquire-source",
+                          ("normal", ("device", 1))))
+
+
 if __name__ == "__main__":
     unittest.main()

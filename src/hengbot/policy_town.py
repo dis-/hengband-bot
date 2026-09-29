@@ -1799,6 +1799,10 @@ class TownMixin:
         if snapshot.in_town:
             self._claim_errand_hold("identification")
         if not snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:device",
+                cause="outside-town",
+            )
             return None
         target = self._first_item(
             snapshot,
@@ -1807,6 +1811,10 @@ class TownMixin:
             and self._item_signature(item) not in self._deferred_device_items,
         )
         if target is None:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:device",
+                cause="no-device-target",
+            )
             return None
         source = self._find_identification_source(
             snapshot, full=False, reliable_only=True
@@ -1814,6 +1822,12 @@ class TownMixin:
         if source is None:
             self._request_identification("normal")
             self._device_identification_candidate = self._item_signature(target)
+            self._offer_execution(
+                None, producer="identification", work_id="identify:device",
+                next_step="identification.acquire-source",
+                arguments=("normal", self._device_identification_candidate),
+                expected_effect="reliable-identification-source-ready",
+            )
             return None
         # Verify the identify lands: if the same device is still unknown and the
         # unknown-device count has not moved, the staff/scroll use did not take
@@ -1831,6 +1845,10 @@ class TownMixin:
                 self._deferred_device_items.add(self._item_signature(target))
                 self._device_identify_watch = None
                 self._device_identify_fail_streak = 0
+                self._offer_execution_no_step(
+                    producer="identification", work_id="identify:device",
+                    cause="device-identification-stalled",
+                )
                 return None
         else:
             self._device_identify_watch = watch
@@ -1840,8 +1858,17 @@ class TownMixin:
         self._device_identification_candidate = None
         self.last_reason = "identify:device"
         if command == READ_KEY:
-            return self._read_key(snapshot, item, target.slot)
-        return command + item.slot + target.slot
+            key = self._read_key(snapshot, item, target.slot)
+        else:
+            key = command + item.slot + target.slot
+        self._offer_execution(
+            key, producer="identification",
+            work_id=f"identify:device:{self._item_signature(target)}",
+            next_step="identification.use-source",
+            arguments=(self._item_signature(target), self._item_signature(item)),
+            expected_effect="device-identified",
+        )
+        return key
 
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:

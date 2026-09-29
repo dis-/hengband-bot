@@ -2228,6 +2228,10 @@ class EquipmentMixin:
         if snapshot.in_town:
             self._claim_errand_hold("identification")
         if not snapshot.in_town or snapshot.store is not None:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:equipped",
+                cause="town-equipment-context-unavailable",
+            )
             return None
         target = next(
             (
@@ -2240,6 +2244,10 @@ class EquipmentMixin:
             None,
         )
         if target is None:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:equipped",
+                cause="no-equipped-target",
+            )
             return None
         full = target.known
         source = self._find_identification_source(
@@ -2252,6 +2260,13 @@ class EquipmentMixin:
             else:
                 self._identification_candidate = signature
                 self._request_identification("full" if full else "normal")
+            self._offer_execution(
+                None, producer="identification",
+                work_id=f"identify:equipped:{signature}",
+                next_step="identification.acquire-source",
+                arguments=("full" if full else "normal", signature),
+                expected_effect="reliable-identification-source-ready",
+            )
             return None
         command, source_item = source
         self._identification_need = None
@@ -2259,13 +2274,21 @@ class EquipmentMixin:
         self.last_reason = (
             "identify:full-equipped" if full else "identify:normal-equipped"
         )
-        return (
+        key = (
             command
             + source_item.slot
             + "/"
             + EQUIPMENT_SLOT_KEY[target.slot]
             + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
         )
+        self._offer_execution(
+            key, producer="identification",
+            work_id=f"identify:equipped:{self._item_signature(target)}",
+            next_step="identification.use-source",
+            arguments=(self._item_signature(target), full),
+            expected_effect="equipped-item-identified",
+        )
+        return key
 
     def _find_weapon_sale(self, snapshot: Snapshot) -> InventoryItem | None:
         no_teleport = self._first_item(
