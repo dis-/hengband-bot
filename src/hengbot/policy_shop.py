@@ -3425,7 +3425,7 @@ class ShopMixin:
             )
         if family in {"shop-buy", "shop-sell", "home-visit", "home-errand"} and not any(
             offer[0] == key and offer[1] == family
-            for offer in getattr(self, "_execution_offers", ())
+            for offer in self._execution_offers_for()
         ):
             store_type = getattr(snapshot.store, "store_type", None)
             work_id = f"store-page:{store_type}:{self._decision_sequence}:{self.last_reason}"

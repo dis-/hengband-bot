@@ -10,6 +10,24 @@ import re
 from enum import Enum
 from typing import Callable, Iterable, Literal, Mapping
 from pathlib import Path
+from weakref import WeakKeyDictionary
+
+
+@dataclass
+class _DecisionOffers:
+    """Transient producer proposals, consumed only by the claim exit."""
+
+    steps: list = field(default_factory=list)
+    no_steps: list = field(default_factory=list)
+    waits: list = field(default_factory=list)
+    sequence: int = 0
+
+    def next_sequence(self) -> int:
+        self.sequence += 1
+        return self.sequence
+
+
+_decision_offers: WeakKeyDictionary = WeakKeyDictionary()
 
 
 @dataclass
@@ -3324,39 +3342,37 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                          cause: str | None = None,
                          post_on_emit: bool = True) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
-        offers = getattr(self, "_execution_offers", None)
-        if offers is None:
-            offers = []
-            self._execution_offers = offers
-        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
-        self._execution_offer_sequence = sequence
-        offers.append((
+        buffer = self._decision_offer_buffer()
+        buffer.steps.append((
             key, producer, work_id, next_step, tuple(arguments),
             expected_effect, continuation, budget_ref, state, evidence, cause,
-            post_on_emit, sequence,
+            post_on_emit, buffer.next_sequence(),
         ))
+
+    def _decision_offer_buffer(self) -> _DecisionOffers:
+        buffer = _decision_offers.get(self)
+        if buffer is None:
+            buffer = _DecisionOffers()
+            _decision_offers[self] = buffer
+        return buffer
+
+    def _execution_offers_for(self) -> tuple:
+        buffer = _decision_offers.get(self)
+        return tuple(buffer.steps) if buffer is not None else ()
 
     def _offer_execution_no_step(self, *, producer: str, cause: str,
                                  work_id: str) -> None:
         """A producer explicitly reports that it has no command to issue."""
-        offers = getattr(self, "_execution_no_step_offers", None)
-        if offers is None:
-            offers = []
-            self._execution_no_step_offers = offers
-        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
-        self._execution_offer_sequence = sequence
-        offers.append((producer, work_id, cause, sequence, "releasing"))
+        buffer = self._decision_offer_buffer()
+        buffer.no_steps.append((producer, work_id, cause,
+                                buffer.next_sequence(), "releasing"))
 
     def _offer_execution_done(self, *, producer: str, evidence: str,
                               work_id: str) -> None:
         """A producer reports observed completion without emitting a key."""
-        offers = getattr(self, "_execution_no_step_offers", None)
-        if offers is None:
-            offers = []
-            self._execution_no_step_offers = offers
-        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
-        self._execution_offer_sequence = sequence
-        offers.append((producer, work_id, evidence, sequence, "done"))
+        buffer = self._decision_offer_buffer()
+        buffer.no_steps.append((producer, work_id, evidence,
+                                buffer.next_sequence(), "done"))
 
     def _offer_execution_awaiting(
         self, key: str | None, *, producer: str, work_id: str,
@@ -3364,15 +3380,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         continuation: str | None = None,
     ) -> None:
         """A producer names an already accepted operation it is observing."""
-        offers = getattr(self, "_execution_wait_offers", None)
-        if offers is None:
-            offers = []
-            self._execution_wait_offers = offers
-        sequence = getattr(self, "_execution_offer_sequence", 0) + 1
-        self._execution_offer_sequence = sequence
-        offers.append((
+        buffer = self._decision_offer_buffer()
+        buffer.waits.append((
             key, producer, work_id, operation_ref, expected_effect,
-            continuation, sequence,
+            continuation, buffer.next_sequence(),
         ))
 
     def _offer_home_scan_leave(self) -> None:
@@ -3388,12 +3399,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
-        offers = getattr(self, "_execution_offers", None) or ()
-        self._execution_offers = []
-        no_steps = getattr(self, "_execution_no_step_offers", None) or ()
-        self._execution_no_step_offers = []
-        waits = getattr(self, "_execution_wait_offers", None) or ()
-        self._execution_wait_offers = []
+        buffer = _decision_offers.pop(self, None)
+        offers = buffer.steps if buffer is not None else ()
+        no_steps = buffer.no_steps if buffer is not None else ()
+        waits = buffer.waits if buffer is not None else ()
         offer = next((candidate for candidate in reversed(offers)
                       if key == candidate[0]
                       and claim.owner.value == candidate[1]), None)
@@ -6292,9 +6301,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return key
 
     def _choose_key(self, snapshot: Snapshot) -> str | None:
-        self._execution_offers = []
-        self._execution_no_step_offers = []
-        self._execution_wait_offers = []
+        _decision_offers.pop(self, None)
         self._execution_pending_post = None
         self._staged_shop_approach = None
         self._read_binding = None
