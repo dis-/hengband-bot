@@ -277,6 +277,7 @@ class ExecutionDeclaration:
     budget_ref: str | None = None
     evidence: str | None = None
     cause: str | None = None
+    producer_entry: str | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -289,6 +290,7 @@ class ExecutionDeclaration:
             "continuation": self.continuation,
             "budget_ref": self.budget_ref, "evidence": self.evidence,
             "cause": self.cause,
+            "producer_entry": self.producer_entry,
         }
 
 
@@ -559,7 +561,8 @@ class ClaimRegister:
                           continuation: str | None = None,
                           budget_ref: str | None = None,
                           evidence: str | None = None,
-                          cause: str | None = None) -> ExecutionDeclaration | None:
+                          cause: str | None = None,
+                          producer_entry: str | None = None) -> ExecutionDeclaration | None:
         """Replace the named current/child declaration without altering the claim."""
         if state not in {"acting", "awaiting", "done", "releasing"}:
             raise ValueError(state)
@@ -571,7 +574,7 @@ class ClaimRegister:
         declaration = ExecutionDeclaration(
             claim_id, str(work_id), revision, str(producer), state,
             next_step, tuple(arguments), operation_ref, expected_effect,
-            continuation, budget_ref, evidence, cause,
+            continuation, budget_ref, evidence, cause, producer_entry,
         )
         self._claim = replace(claim, execution=declaration)
         return declaration

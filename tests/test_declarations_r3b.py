@@ -1,6 +1,7 @@
 """Producer offers bind only to the final key and named claim owner."""
 
 import unittest
+import pickle
 import tests  # noqa: F401
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -94,6 +95,45 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
                           declaration.next_step, declaration.arguments[0]),
                          ("curse-enchant", "acting", "curse.remove.send",
                           policy._item_signature(cursed)))
+
+    def test_acting_holder_reenters_its_producer_and_defers_other_family(self):
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        cursed = item("a", 23, 0, is_equipment=True, is_cursed=True)
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+        board = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            equipment=[cursed], inventory=[scroll],
+        )
+        key = policy._town_remove_curse_key(board)
+        claim = policy._claim_register.declare(
+            "curse-enchant", observe(("curse",), 8, "equipment"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual(declaration.producer_entry, "_town_remove_curse_key")
+        self.assertEqual(pickle.loads(pickle.dumps(declaration)).producer_entry,
+                         "_town_remove_curse_key")
+        self.assertTrue(policy._defer_town_errand("home-scan", "competing-scan"))
+        self.assertFalse(policy._defer_town_errand(
+            "curse-enchant", "own-operation"))
+        self.assertEqual(policy._town_holder_wait_key(
+            policy._claim_register.current, board), key)
+        self.assertEqual(policy.last_reason, "town:remove-curse")
+
+        cleared = Snapshot(
+            player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            equipment=[], inventory=[scroll],
+        )
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, cleared))
+        self.assertEqual(policy._claim_register.current.closed_reason,
+                         "no-step:no-town-curse-work")
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-released:curse-enchant")
 
 
 class RumorDeclarationTest(policy_shop_fixture._TownShopFixtureBase):

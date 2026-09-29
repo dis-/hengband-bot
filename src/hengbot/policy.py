@@ -7,6 +7,7 @@ from itertools import count
 from math import ceil
 import json
 import re
+import sys
 from enum import Enum
 from typing import Callable, Iterable, Literal, Mapping
 from pathlib import Path
@@ -3343,10 +3344,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                          post_on_emit: bool = True) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
         buffer = self._decision_offer_buffer()
+        # Keep the producer's board entry with the declaration.  A holder can
+        # call that same producer on the next board without interpreting each
+        # of its many next_step names in the ownership layer.
+        entry = None
+        frame = sys._getframe().f_back
+        while frame is not None:
+            code = frame.f_code
+            if (frame.f_locals.get("self") is self
+                    and "snapshot" in frame.f_locals
+                    and code.co_argcount == 2):
+                method = getattr(self, code.co_name, None)
+                if getattr(method, "__code__", None) is code:
+                    entry = code.co_name
+                    break
+            frame = frame.f_back
         buffer.steps.append((
             key, producer, work_id, next_step, tuple(arguments),
             expected_effect, continuation, budget_ref, state, evidence, cause,
-            post_on_emit, buffer.next_sequence(),
+            post_on_emit, buffer.next_sequence(), entry,
         ))
 
     def _decision_offer_buffer(self) -> _DecisionOffers:
@@ -3454,12 +3470,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             offer = None
         if offer is not None:
             (_, producer, work_id, step, args, effect, continuation, budget,
-             state, evidence, cause, post_on_emit, _) = offer
+             state, evidence, cause, post_on_emit, _, entry) = offer
             register.declare_execution(
                 claim.claim_id, work_id=work_id, producer=producer,
                 state=state, next_step=step, arguments=args,
                 expected_effect=effect, continuation=continuation,
                 budget_ref=budget, evidence=evidence, cause=cause,
+                producer_entry=entry,
             )
             # The driver alone can turn an emitted command into a posted wait.
             if state == "acting" and post_on_emit and key not in (None, ""):
@@ -5842,8 +5859,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_declared_producer_result(self, holder, snapshot: Snapshot,
                                        key: str | None,
-                                       since_sequence: int) -> str | None:
+                                       since_sequence: int,
+                                       *, require_offer: bool = False) -> str | None:
         if key is not None:
+            if require_offer:
+                buffer = _decision_offers.get(self)
+                matching = buffer is not None and any(
+                    offer[0] == key and offer[1] == holder.owner.value
+                    and offer[12] > since_sequence
+                    for offer in buffer.steps
+                )
+                if not matching:
+                    return self._silent_holder_stop(holder.owner.value)
             return key
         buffer = _decision_offers.get(self)
         endings = () if buffer is None else buffer.no_steps
@@ -6017,7 +6044,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "home.operation.observe", "store.entry.observe"}:
             # An acting observation without a posted operation is not a wait.
             return self._town_declaration_stop(family, "stale")
-        return self._town_declaration_stop(family, "stale")
+        entry = getattr(declaration, "producer_entry", None)
+        producer = getattr(self, entry, None) if entry else None
+        if producer is None:
+            return self._silent_holder_stop(family)
+        since = self._decision_offer_buffer().sequence
+        key = producer(snapshot)
+        return self._town_declared_producer_result(
+            holder, snapshot, key, since, require_offer=True)
 
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
