@@ -609,7 +609,11 @@ class EquipmentMixin:
                 cause=f"{source}:no-preparation",
             )
             return
-        blockers = tuple(getattr(preparation, "blockers", ()) or ())
+        blockers = getattr(preparation, "blockers", ())
+        # A preparation owns a tuple of blockers.  A mocked optimizer result
+        # has no such field; Mock synthesizes an attribute that is not iterable.
+        if not isinstance(blockers, tuple):
+            blockers = ()
         if blockers:
             self._offer_execution_no_step(
                 producer="equipment-opt", work_id=work_id,
