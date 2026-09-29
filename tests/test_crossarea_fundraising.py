@@ -13,15 +13,18 @@ import tests  # noqa: F401 -- isolate runtime files
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_fundraising import (
     FundraisingFacts, FundraisingPurpose, FundraisingPurposeRecord,
+    FundraisingTransportChild,
     fundraising_run_verdict,
 )
 from hengbot.model import (
     DUNGEON_YEEK_CAVE, Position, Snapshot, STORE_HOME, STORE_MAGIC,
-    StoreState,
+    StoreState, parse_snapshot,
 )
 from hengbot.policy_constants import FOOD_TYPE_MANA
 from policy_fixtures import grid, item, player, store_item
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from test_esp_threat_rest_recorded import EDIT
 
 
 CAPTURE = Path(r"C:\hengband\bot-client\jsonlog") / (
@@ -59,6 +62,30 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertTrue(admitted.may_depart)
         self.assertTrue(admitted.may_continue)
         self.assertFalse(admitted.must_return)
+
+    def test_captured_floor_does_not_immediately_ascend_with_active_purpose(self):
+        with gzip.open(str(CAPTURE) + ".state.jsonl.gz", "rt",
+                       encoding="utf-8") as source:
+            states = [json.loads(row) for row in source]
+        floor = parse_snapshot(
+            states[1819], load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        )
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        policy._fundraising_mode = "mine"
+        policy._fundraising_run_purpose = self.purpose
+        policy._fundraising_purpose_record = FundraisingPurposeRecord(
+            self.purpose
+        )
+        policy._fundraising_purpose_record = replace(
+            policy._fundraising_purpose_record,
+            child=FundraisingTransportChild(
+                self.purpose.identity, "depart", (0, 0, 0), 29,
+                state="complete",
+            ),
+        )
+        key = policy.choose_key(floor)
+        self.assertNotEqual(key, "<")
 
     def test_waiver_is_first_run_only_and_hunger_still_returns(self):
         self.assertFalse(fundraising_run_verdict(
