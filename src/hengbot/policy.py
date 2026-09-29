@@ -4740,6 +4740,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim_declaration_mismatch(finished, "awaiting", reason)
             if (finished is not None and finished.execution is not None
                 and finished.execution.state == "done"
+                and (claim.claim_id == finished.claim_id
+                     or claim.execution is None)
                 and finished.owner.value in {
                     "home-visit", "equipment-txn", "calibration"
                 }

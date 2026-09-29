@@ -108,6 +108,32 @@ class AtomicHomeRows(unittest.TestCase):
 
 
 class CalibrationRows(unittest.TestCase):
+    def test_overweight_new_deposit_does_not_flag_completed_old_claim(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 3738
+        policy.last_reason = "home:atomic-deposit"
+        register = policy._claim_register
+        old = register.declare(
+            "calibration", observe(("old-deposit",), 8, "calibration"))
+        register.declare_execution(
+            old.claim_id, work_id="old-deposit", producer="calibration",
+            state="acting", next_step="home.operation.send")
+        register.complete("old-deposit-observed")
+        policy._store_visit = StoreVisit(
+            "town-errand", "deposit", STORE_HOME, operation_posted=True,
+            operation_released=False, posted_sequence=3738,
+            operation_producer_family="calibration")
+        policy._offer_execution(
+            "5", producer="calibration", work_id="new-deposit",
+            next_step="home.tail.send")
+        self.assertEqual(policy._execution_offers_for()[-1][:2],
+                         ("5", "calibration"))
+        policy._record_decision_claim(town_board(), "5")
+        self.assertNotEqual(policy.decision_claim["claim_id"], old.claim_id)
+        self.assertEqual(policy.decision_claim["execution"]["work_id"],
+                         "new-deposit")
+        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
+
     def test_overweight_calibration_tail_keeps_calibration_owner(self):
         policy = HengbotPolicy()
         visit = StoreVisit("town-errand", "calibration", STORE_HOME,
