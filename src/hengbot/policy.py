@@ -3357,6 +3357,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                   if claim.owner.value == candidate[0]), None)
             if key is None else None
         )
+        posted_wait = (
+            key is None and claim.execution is not None
+            and claim.execution.state == "awaiting"
+            and claim.execution.operation_ref is not None
+        )
+        if posted_wait:
+            # A producer's no-key result cannot settle an unresolved send.
+            offer = None
+            no_step = None
         if no_step is not None and (offer is None or no_step[3] > offer[8]):
             producer, work_id, cause, _ = no_step
             register.declare_execution(
