@@ -11,6 +11,7 @@ from unittest.mock import patch
 import tests  # noqa: F401 -- isolate runtime files
 
 from hengbot.policy import HengbotPolicy
+from hengbot.claim_register import ClaimOwner, observe
 from hengbot.policy_fundraising import (
     FundraisingFacts, FundraisingPurpose, FundraisingPurposeRecord,
     FundraisingTransportChild,
@@ -63,6 +64,63 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertTrue(admitted.may_depart)
         self.assertTrue(admitted.may_continue)
         self.assertFalse(admitted.must_return)
+
+    def test_live_1710_to_1712_posts_departure_only_after_final_arbitration(self):
+        capture = Path(r"C:\hengband\bot-client\jsonlog") / (
+            "incident-20260929-2134-crossarea-live-stair-await-after-town-actions"
+        )
+        with gzip.open(str(capture) + ".state.jsonl.gz", "rt",
+                       encoding="utf-8") as source:
+            states = [json.loads(row) for row in source]
+        with gzip.open(str(capture) + ".decisions.jsonl.gz", "rt",
+                       encoding="utf-8") as source:
+            decisions = [json.loads(row) for row in source]
+        before, stopped = states[1498:1500]
+        self.assertEqual([before["turn"], stopped["turn"]],
+                         [231461, 231466])
+        self.assertEqual([(row["decision_sequence"], row["key"])
+                          for row in decisions[-3:]],
+                         [(1709, "wga"), (1710, "tb"), (1712, "")])
+        self.assertEqual((stopped["player"]["y"], stopped["player"]["x"]),
+                         (31, 150))
+        snapshot = parse_snapshot(
+            stopped, load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        )
+        self.assertTrue(snapshot.grid_at(snapshot.player.position).has_down_stairs)
+
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        policy._crossarea_fundraising_enforced = True
+        policy._fundraising_mode = "mine"
+        policy._fundraising_run_purpose = self.purpose
+        policy._fundraising_purpose_record = FundraisingPurposeRecord(self.purpose)
+        policy._decision_sequence = 1710
+        policy.consume_skill_knowledge(states[1496])
+        policy._claim_register.declare(
+            ClaimOwner.EQUIPMENT_TXN,
+            observe(("transaction",), 10, "transaction"),
+            opened_sequence=1709, opened_turn=231452, floor=snapshot.floor_key,
+        )
+        passes = []
+
+        def decide(_snapshot):
+            policy._decision_sequence += 1
+            passes.append(policy._decision_sequence)
+            policy.last_reason = "descend"
+            return ">\ry"
+
+        with patch.object(policy, "_choose_key_with_latch_capture",
+                          side_effect=decide):
+            key = policy.choose_key(snapshot)
+        self.assertEqual(passes, [1711, 1712])
+        self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
+        self.assertEqual(policy._pending_stair_command[0], ">")
+        claim = policy._claim_register.current
+        self.assertEqual((claim.owner.value, claim.goal.source, claim.state.value),
+                         ("departure", "floor-change", "active"))
+        child = policy._fundraising_purpose_record.child
+        self.assertEqual((child.direction, child.state, child.posted_sequence),
+                         ("depart", "posted", 1712))
 
     def test_captured_floor_does_not_immediately_ascend_with_active_purpose(self):
         with gzip.open(str(CAPTURE) + ".state.jsonl.gz", "rt",

@@ -3088,6 +3088,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
         self._release_rewritten_store_posting(decided_visit, decided_key, key)
         self._release_rewritten_prompt_chain(key)
+        # A candidate can be discarded by town arbitration and retried on the
+        # same board. Only the final envelope has a posted stair identity.
+        self._remember_stair_command(snapshot, key)
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            if key and key[0] == UP_STAIRS_KEY and self.last_reason == "fundraise:ascend":
+                self._post_fundraising_transport(snapshot, "return")
+            elif (key and key[0] == DOWN_STAIRS_KEY
+                  and self.last_reason == "descend" and snapshot.in_town
+                  and self._fundraising_mode in {"mine", "scavenge"}):
+                self._fundraising_runs_started = (
+                    (self._fundraising_runs_started or 0) + 1
+                )
+                self._post_fundraising_transport(snapshot, "depart")
         self._record_decision_claim(snapshot, key)
         return key
 
@@ -7881,9 +7894,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
         key = self._forbid_wait_on_town_entrance(snapshot, key)
         key = self._suppress_pending_stair_command(snapshot, key)
-        self._remember_stair_command(
-            snapshot, key, observation=latest_snapshot
-        )
         self._update_combat_outcome(snapshot)
         self._update_navigation_progress(snapshot)
         if (
@@ -9796,10 +9806,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         ),
                     )
                 )
-                self._fundraising_runs_started = (
-                    (self._fundraising_runs_started or 0) + 1
-                )
-                self._post_fundraising_transport(snapshot, "depart")
             return (
                 ENTER_DUNGEON_MACRO
                 if static_entrance_here or (here is not None and here.has_entrance)

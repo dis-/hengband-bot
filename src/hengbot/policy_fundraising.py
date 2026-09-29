@@ -481,8 +481,6 @@ class FundraisingMixin:
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
-            if getattr(self, "_crossarea_fundraising_enforced", False):
-                self._post_fundraising_transport(snapshot, "return")
             return UP_STAIRS_KEY
         # The remembered route to a distant staircase can change as mining
         # reveals terrain, making BFS alternate between two equally short first
