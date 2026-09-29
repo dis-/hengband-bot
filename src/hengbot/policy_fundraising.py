@@ -468,6 +468,12 @@ class FundraisingMixin:
         if allow_recall and snapshot.dungeon_level >= RECALL_MIN_DEPTH:
             if player.recalling:
                 self.last_reason = "fundraise:wait-recall"
+                self._offer_execution(
+                    WAIT_KEY, producer="fundraising",
+                    work_id="fundraise:return:recall-wait",
+                    next_step="fundraising.observe-recall-arrival",
+                    expected_effect="floor-change",
+                )
                 return WAIT_KEY
             recall = self._find_recall_scroll(snapshot)
             if (
@@ -477,10 +483,25 @@ class FundraisingMixin:
                 and self._can_read_scrolls(snapshot)
             ):
                 self.last_reason = "fundraise:recall"
-                return self._read_key(snapshot, recall)
+                key = self._read_key(snapshot, recall)
+                self._offer_execution(
+                    key, producer="fundraising",
+                    work_id="fundraise:return:recall",
+                    next_step="fundraising.recall.send",
+                    arguments=(recall.slot,), expected_effect="recall-activated",
+                    continuation="fundraising.observe-recall-arrival",
+                )
+                return key
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
+            self._offer_execution(
+                UP_STAIRS_KEY, producer="fundraising",
+                work_id=f"fundraise:return:ascend:{snapshot.floor_key}",
+                next_step="fundraising.ascend.send",
+                expected_effect="floor-change",
+                continuation="fundraising.observe-town-arrival",
+            )
             return UP_STAIRS_KEY
         # The remembered route to a distant staircase can change as mining
         # reveals terrain, making BFS alternate between two equally short first
@@ -561,6 +582,12 @@ class FundraisingMixin:
                     self.last_reason = "fundraise:tunnel-out"
                     return dig
         self.last_reason = "fundraise:upstairs-not-found"
+        self._offer_execution(
+            WAIT_KEY, producer="fundraising",
+            work_id="fundraise:return:no-upstairs",
+            next_step="fundraising.wait-for-exit-route",
+            expected_effect="exit-route-available",
+        )
         return WAIT_KEY
 
     def _tunnel_step_toward(self, snapshot: Snapshot, target: Position) -> str | None:

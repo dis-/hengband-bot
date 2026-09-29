@@ -217,5 +217,25 @@ class DepartureDeclarationTest(unittest.TestCase):
                           "floor-change"))
 
 
+class FundraisingDeclarationTest(unittest.TestCase):
+    def test_shallow_ascent_declares_town_arrival(self):
+        position = Position(6, 39)
+        board = Snapshot(
+            player(position.y, position.x, food=12000),
+            {position: grid(position.y, position.x, upstairs=True)},
+            [], floor_key=(2, 1, 0), width=80, height=20, turn=100,
+        )
+        policy = HengbotPolicy()
+        key = policy._leave_fundraising_floor(board, allow_recall=False)
+        claim = policy._claim_register.declare(
+            "fundraising", observe(("floor",), 8, "fundraising"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step, declaration.continuation),
+                         ("fundraising", "acting", "fundraising.ascend.send",
+                          "fundraising.observe-town-arrival"))
+
+
 if __name__ == "__main__":
     unittest.main()
