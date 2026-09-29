@@ -5877,7 +5877,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         outcome = next((entry for entry in reversed(endings)
                         if entry[0] == holder.owner.value
                         and entry[3] > since_sequence), None)
-        if outcome is None or holder is not self._claim_register.current:
+        if outcome is None:
+            return self._silent_holder_stop(holder.owner.value)
+        if holder is not self._claim_register.current:
             return self._town_declaration_stop(holder.owner.value, "stale")
         _, work_id, fact, _, state = outcome
         if state == "done":

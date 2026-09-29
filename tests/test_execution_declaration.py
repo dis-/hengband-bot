@@ -600,6 +600,25 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertFalse(_declaration_requires_no_send(
             "5", policy.last_reason))
 
+    def test_acting_producer_without_an_offer_is_holder_silent(self):
+        class SilentPolicy(HengbotPolicy):
+            def _silent_owner_probe(self, snapshot):
+                return None
+
+        board = short_route_board()
+        policy = SilentPolicy()
+        policy._town_claim_bar_enforced = True
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:probe", producer="store-router",
+            state="acting", next_step="store.leave.send",
+            producer_entry="_silent_owner_probe")
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:holder-silent:store-router")
+
     def test_unposted_await_is_stale_and_cannot_emit_wait(self):
         board = short_route_board()
         policy = HengbotPolicy()
