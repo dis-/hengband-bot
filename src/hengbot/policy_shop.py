@@ -339,6 +339,17 @@ class ShopMixin:
                 continuation="shop.one-shot.observe",
                 budget_ref="shop-one-shot-existing-budget",
             )
+        elif visit.store_type == STORE_HOME:
+            self._offer_execution(
+                visit.operation_key,
+                producer=visit.operation_producer_family or "home-visit",
+                work_id=f"home-operation:{visit.opened_sequence}:{visit.operation_key}",
+                next_step="home.operation.send",
+                arguments=(visit.opened_sequence, visit.operation_key),
+                expected_effect="home-inventory-effect",
+                continuation="home.operation.observe",
+                budget_ref="home-operation-existing-budget",
+            )
         return visit.operation_key
 
     @staticmethod

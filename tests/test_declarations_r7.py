@@ -104,5 +104,22 @@ class HomeScanRows(unittest.TestCase):
                          ("home-scan", "home.page.advance"))
 
 
+class AtomicHomeRows(unittest.TestCase):
+    def test_tour_staged_home_deposit_binds_final_key(self):
+        policy = HengbotPolicy()
+        visit = StoreVisit("town-errand", "deposit", STORE_HOME,
+                           opened_sequence=5, posted_turn=20,
+                           operation_posted=True, operation_key="db1\r\x1b",
+                           operation_producer_family="home-visit")
+        policy._store_visit = visit
+        board = replace(town_board(), turn=20,
+                        store=StoreState(STORE_HOME, []))
+        key = policy._release_staged_store_operation(board)
+        self.assertEqual(key, "db1\r\x1b")
+        declaration = bind(policy, "home-visit", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("home-visit", "home.operation.send"))
+
+
 if __name__ == "__main__":
     unittest.main()
