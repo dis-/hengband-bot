@@ -11,6 +11,8 @@ import tests  # noqa: F401 -- isolate runtime files
 
 from hengbot.model import STORE_HOME
 from hengbot.policy import HengbotPolicy
+from hengbot.model import Position, Snapshot
+from policy_fixtures import grid, player
 
 
 CAPTURE = Path(r"C:\hengband\bot-client\jsonlog") / (
@@ -61,12 +63,11 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
         policy._calibration_restore_signatures = [signature]
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
         policy._calibration_home_rearm_eligible = False
-        with (patch.object(policy, "_release_cured_calibration_deferral"),
-              patch.object(policy, "_restore_calibration_redress_obligation"),
-              patch.object(policy, "_calibration_redress_observe"),
-              patch.object(policy, "_calibration_redress_accounting",
-                           return_value=([], [], []))):
-            policy._calibration_observe(SimpleNamespace(in_town=True))
+        snapshot = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            town_flag=True,
+        )
+        policy._calibration_observe(snapshot)
         self.assertEqual(
             policy.last_reason,
             "town:blocked:calibration-restore-home-visit-exhausted",

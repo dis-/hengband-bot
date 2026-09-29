@@ -15,9 +15,12 @@ from hengbot.policy_fundraising import (
     FundraisingFacts, FundraisingPurpose, FundraisingPurposeRecord,
     fundraising_run_verdict,
 )
-from hengbot.model import DUNGEON_YEEK_CAVE, STORE_MAGIC
+from hengbot.model import (
+    DUNGEON_YEEK_CAVE, Position, Snapshot, STORE_HOME, STORE_MAGIC,
+    StoreState,
+)
 from hengbot.policy_constants import FOOD_TYPE_MANA
-from policy_fixtures import store_item
+from policy_fixtures import grid, item, player, store_item
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 
 
@@ -85,35 +88,23 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_knowledge_current = True
         policy._town_store_attempted[STORE_MAGIC] = 1
-        snapshot = SimpleNamespace(
-            in_town=True, inventory=[], store=None,
-            player=SimpleNamespace(food_type=FOOD_TYPE_MANA,
-                                   gold=136, hungry=False),
+        home_device = item("a", 55, 1, charges=20)
+        policy._home_knowledge_items = [home_device]
+        home_grid = replace(grid(10, 11), store_number=STORE_HOME)
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA, gold=136, food=5000),
+            {Position(10, 10): grid(10, 10), home_grid.position: home_grid},
+            [], town_flag=True,
         )
-        with (patch.object(policy, "_home_available_for_probe",
-                           return_value=True),
-              patch.object(policy, "_find_edible", return_value=None),
-              patch.object(policy, "_fundraising_light_ready",
-                           return_value=True),
-              patch.object(policy, "_home_mana_food_candidate",
-                           return_value=object())):
-            facts = policy._fundraising_facts(snapshot)
+        facts = policy._fundraising_facts(snapshot)
         self.assertFalse(facts.procurement_exhausted)
         self.assertFalse(facts.first_run)
         self.assertFalse(fundraising_run_verdict(facts, None).may_depart)
-        policy._home_knowledge_current = True
-        snapshot.store = SimpleNamespace(
-            store_type=STORE_MAGIC,
-            items=[store_item("a", 55, 1, price=100)],
-        )
-        with (patch.object(policy, "_home_available_for_probe",
-                           return_value=True),
-              patch.object(policy, "_find_edible", return_value=None),
-              patch.object(policy, "_fundraising_light_ready",
-                           return_value=True),
-              patch.object(policy, "_home_mana_food_candidate",
-                           return_value=None)):
-            facts = policy._fundraising_facts(snapshot)
+        policy._home_knowledge_items = []
+        snapshot = replace(snapshot, store=StoreState(
+            STORE_MAGIC, [store_item("a", 55, 1, price=100)]
+        ))
+        facts = policy._fundraising_facts(snapshot)
         self.assertFalse(facts.procurement_exhausted)
         self.assertFalse(fundraising_run_verdict(facts, None).may_depart)
 
@@ -121,25 +112,19 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_knowledge_current = True
         policy._town_store_attempted[STORE_MAGIC] = 1
-        snapshot = SimpleNamespace(
-            in_town=True, inventory=[], store=None, protocol_version=3,
-            visited_town_ids=(0,),
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA, gold=136, food=5000),
+            {Position(10, 10): grid(10, 10)}, [], town_flag=True,
+            inventory=[item("a", 39, 0, fuel=5000)],
+            protocol_version=3, visited_town_ids=(0,),
             entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            player=SimpleNamespace(food_type=FOOD_TYPE_MANA,
-                                   gold=136, hungry=False),
         )
-        with (patch.object(policy, "_home_available_for_probe",
-                           return_value=False),
-              patch.object(policy, "_find_edible", return_value=None),
-              patch.object(policy, "_fundraising_light_ready",
-                           return_value=True),
-              patch.object(policy, "_home_mana_food_candidate",
-                           return_value=None)):
-            facts = policy._fundraising_facts(snapshot)
-            self.assertFalse(facts.first_run)
-            self.assertFalse(fundraising_run_verdict(facts, None).may_depart)
-            snapshot.entered_dungeon_ids = ()
-            facts = policy._fundraising_facts(snapshot)
+        facts = policy._fundraising_facts(snapshot)
+        self.assertFalse(facts.first_run)
+        self.assertFalse(fundraising_run_verdict(facts, None).may_depart)
+        facts = policy._fundraising_facts(
+            replace(snapshot, entered_dungeon_ids=())
+        )
         self.assertTrue(facts.first_run)
         self.assertTrue(fundraising_run_verdict(facts, None).may_depart)
 
@@ -149,28 +134,21 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
         policy._home_knowledge_current = True
         ware = store_item("a", 55, 1, price=100)
-        snapshot = SimpleNamespace(
-            store=SimpleNamespace(store_type=STORE_MAGIC, items=[ware]),
-            player=SimpleNamespace(food_type=FOOD_TYPE_MANA, gold=136),
+        home_device = item("a", 55, 1, charges=20)
+        policy._home_knowledge_items = [home_device]
+        home_grid = replace(grid(10, 11), store_number=STORE_HOME)
+        snapshot = Snapshot(
+            player(10, 10, food_type=FOOD_TYPE_MANA, gold=136, food=5000),
+            {Position(10, 10): grid(10, 10), home_grid.position: home_grid},
+            [], town_flag=True, store=StoreState(STORE_MAGIC, [ware]),
         )
-        with (patch.object(policy, "_find_edible", return_value=None),
-              patch.object(policy, "_home_available_for_probe",
-                           return_value=True),
-              patch.object(policy, "_home_mana_food_candidate",
-                           return_value=object()),
-              patch.object(policy, "_item_signature",
-                           return_value=("food staff", 55, 1))):
-            self.assertIsNone(policy._legacy_next_purchase_unreserved(snapshot))
-        self.assertEqual(policy._home_pending_item, ("food staff", 55, 1))
+        self.assertIsNone(policy._legacy_next_purchase_unreserved(snapshot))
+        self.assertEqual(policy._home_pending_item,
+                         policy._item_signature(home_device))
         self.assertTrue(policy._fundraising_affordable_food_seen)
         policy._home_pending_item = None
-        with (patch.object(policy, "_find_edible", return_value=None),
-              patch.object(policy, "_home_available_for_probe",
-                           return_value=True),
-              patch.object(policy, "_home_mana_food_candidate",
-                           return_value=None),
-              patch.object(policy, "_mana_food_purchase", return_value=ware)):
-            self.assertIs(policy._legacy_next_purchase_unreserved(snapshot), ware)
+        policy._home_knowledge_items = []
+        self.assertIs(policy._legacy_next_purchase_unreserved(snapshot), ware)
 
     def test_suppressed_restock_still_checks_shared_admission(self):
         policy = HengbotPolicy()
