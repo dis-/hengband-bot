@@ -116,7 +116,8 @@ def fundraising_run_verdict(
     facts: FundraisingFacts, purpose: FundraisingPurpose | None
 ) -> FundraisingVerdict:
     """One food and survival decision for town admission and income floors."""
-    waiver = (purpose.first_run_food_waiver if purpose is not None else
+    waiver = ((purpose.first_run_food_waiver and facts.first_run)
+              if purpose is not None else
               facts.first_run and facts.procurement_exhausted)
     food_admitted = facts.carried_edible or waiver
     survival_return = facts.hungry and not facts.carried_edible
@@ -201,7 +202,10 @@ class FundraisingMixin:
             pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
             objective_achieved=snapshot.player.gold >= FUNDRAISING_GOLD_TARGET,
             procurement_exhausted=exhausted,
-            first_run=getattr(self, "_fundraising_runs_started", 0) == 0,
+            first_run=(
+                getattr(self, "_fundraising_runs_started", 0)
+                == (0 if snapshot.in_town else 1)
+            ),
         )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:

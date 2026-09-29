@@ -74,6 +74,18 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
         self.assertEqual(policy._calibration_restore_signatures, [signature])
         self.assertEqual(policy._calibration_phase, "restore-supplies")
 
+    def test_orphaned_restore_queue_reopens_its_phase(self):
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        signature = ("food staff", 55, 1)
+        policy._calibration_restore_signatures = [signature]
+        with (patch.object(policy, "_release_cured_calibration_deferral"),
+              patch.object(policy, "_restore_calibration_redress_obligation"),
+              patch.object(policy, "_calibration_redress_observe")):
+            policy._calibration_observe(SimpleNamespace(in_town=True))
+        self.assertEqual(policy._calibration_phase, "restore-supplies")
+        self.assertEqual(policy._calibration_restore_signatures, [signature])
+
 
 if __name__ == "__main__":
     unittest.main()

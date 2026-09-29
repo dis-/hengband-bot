@@ -836,6 +836,10 @@ class CalibrationMixin:
         """Advance the calibration state machine from each new snapshot."""
         self._release_cured_calibration_deferral(snapshot)
         self._restore_calibration_redress_obligation(snapshot)
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self._calibration_phase is None
+                and self._calibration_restore_signatures):
+            self._calibration_phase = "restore-supplies"
         phase = self._calibration_phase
         if (
             phase is not None

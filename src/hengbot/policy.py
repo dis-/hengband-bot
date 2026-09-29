@@ -9716,13 +9716,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and snapshot.in_town
                     and self._fundraising_mode in {"mine", "scavenge"}):
                 facts = self._fundraising_facts(snapshot)
-                self._fundraising_run_purpose = FundraisingPurpose(
-                    identity=self._decision_sequence,
-                    mode=self._fundraising_mode,
-                    first_run_food_waiver=(
-                        not facts.carried_edible and facts.first_run
-                        and facts.procurement_exhausted
-                    ),
+                prior = self._fundraising_purpose_record
+                self._fundraising_run_purpose = (
+                    prior.purpose
+                    if prior is not None and prior.status == "active"
+                    else FundraisingPurpose(
+                        identity=self._decision_sequence,
+                        mode=self._fundraising_mode,
+                        first_run_food_waiver=(
+                            not facts.carried_edible and facts.first_run
+                            and facts.procurement_exhausted
+                        ),
+                    )
                 )
                 self._fundraising_runs_started += 1
                 self._post_fundraising_transport(snapshot, "depart")

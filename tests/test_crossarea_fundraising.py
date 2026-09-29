@@ -70,6 +70,9 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertTrue(fundraising_run_verdict(
             replace(self.facts, carried_edible=True, first_run=False), None
         ).may_depart)
+        self.assertFalse(fundraising_run_verdict(
+            replace(self.facts, first_run=False), self.purpose
+        ).may_continue)
 
     def test_suppressed_restock_still_checks_shared_admission(self):
         policy = HengbotPolicy()
