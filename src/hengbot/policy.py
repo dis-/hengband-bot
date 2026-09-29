@@ -5972,11 +5972,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             session = self._equipment_transaction_session
             if session is None or session.current_action is None:
                 return self._town_declaration_stop(family, "stale")
-            if declaration.arguments and (
-                declaration.arguments[0] not in {"strip", "restore", "deposit"}
-                and declaration.arguments[0] != session.current_action.kind
-            ):
-                return self._town_declaration_stop(family, "stale")
+            args = declaration.arguments
+            if args:
+                action = session.current_action
+                if args[0] in {"strip", "restore", "deposit"} and len(args) == 1:
+                    if family != "calibration":
+                        return self._town_declaration_stop(family, "stale")
+                elif (args[0] != action.kind
+                      or args[-1] != action.item_identity
+                      or (len(args) == 3
+                          and args[1] != action.target_slot)):
+                    return self._town_declaration_stop(family, "stale")
             since = self._decision_offer_buffer().sequence
             key = (self._equipment_transaction_home_key(snapshot)
                    if snapshot.store is not None

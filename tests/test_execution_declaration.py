@@ -504,7 +504,8 @@ class ExecutionDeclarationTest(unittest.TestCase):
         board = short_route_board()
         policy = HengbotPolicy()
         policy._town_claim_bar_enforced = True
-        action = SimpleNamespace(kind="takeoff", item_identity="armour-a")
+        action = SimpleNamespace(kind="takeoff", target_slot="body",
+                                 item_identity="armour-a")
         policy._equipment_transaction_session = SimpleNamespace(
             current_action=action, pending_action=None, complete=False)
         claim = policy._claim_register.declare(
@@ -526,6 +527,15 @@ class ExecutionDeclarationTest(unittest.TestCase):
                           return_value="ta"):
             self.assertIsNone(policy._town_holder_wait_key(
                 policy._claim_register.current, board))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:equipment-txn")
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="equipment:wrong-item",
+            producer="equipment-txn", state="acting",
+            next_step="equipment.next-action",
+            arguments=("takeoff", "armour-b"))
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board))
         self.assertEqual(policy.last_reason,
                          "ownership:declaration-stale:equipment-txn")
 
