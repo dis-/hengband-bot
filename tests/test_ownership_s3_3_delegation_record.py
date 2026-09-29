@@ -58,6 +58,14 @@ class DelegationRecordTest(unittest.TestCase):
         )
         policy._store_entry_posted_owner = STORE_HOME
         policy._store_entry_wait_owner = STORE_HOME
+        decisions.register.declare_execution(
+            held["claim_id"], work_id="route:home-entry",
+            producer="store-router", state="awaiting",
+            next_step="route.resume", arguments=("store", tuple(decisions.cell(4))),
+            operation_ref=f"decision:{policy._decision_sequence}",
+            expected_effect="store-page-open",
+            continuation="store.entry.observe",
+        )
         policy.last_reason = "store:entry-await-observation"
         self.assertEqual(policy._enforce_town_claim_result(
             decisions.board, ""), "")
@@ -67,8 +75,8 @@ class DelegationRecordTest(unittest.TestCase):
         policy._store_visit.posted_sequence = None
         with patch.object(policy, "_town_holder_wait_key", return_value="8") as route:
             self.assertEqual(policy._enforce_town_claim_result(
-                decisions.board, ""), "8")
-        route.assert_called_once()
+                decisions.board, ""), "")
+        route.assert_not_called()
 
     def test_unrestored_obligation_has_visible_stop_without_a_key(self):
         from hengbot.cli import _policy_final_stop_banner
@@ -81,7 +89,7 @@ class DelegationRecordTest(unittest.TestCase):
         holder = policy._claim_errand_hold("__none__")
         self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:calibration")
+                         "ownership:declaration-missing:calibration")
         self.assertIn("stopping the bot", _policy_final_stop_banner(
             policy.last_reason))
         self.assertTrue(decisions.register.current.is_open)
@@ -99,7 +107,7 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(holder.claim_id, held["claim_id"])
         self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
         self.assertEqual(policy.last_reason,
-                         "ownership:holder-silent:home-visit")
+                         "ownership:declaration-missing:home-visit")
         self.assertTrue(decisions.register.current.is_open)
 
     def test_no_step_owner_releases_and_bars_its_durable_work(self):
@@ -110,6 +118,11 @@ class DelegationRecordTest(unittest.TestCase):
         policy._map_predicate_snapshot = decisions.board
         owner = policy._claim_errand_hold("__none__")
         self.assertEqual(owner.claim_id, held["claim_id"])
+        decisions.register.declare_execution(
+            owner.claim_id, work_id="home:unposted-deposit",
+            producer="home-visit", state="releasing", cause="unposted",
+        )
+        owner = decisions.register.current
         self.assertIsNone(policy._town_holder_wait_key(owner, decisions.board))
         self.assertEqual(policy.last_reason,
                          "ownership:holder-released:home-visit")

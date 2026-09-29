@@ -22,7 +22,10 @@ EXPECTED_FIRST = {
     # planned deposit (pack:055751ff10eb08e9, slot l) is dispatched.
     "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
     "overweight": (3724, 3723, "3", "shop:approach"),
-    "withdraw": None,
+    # Ruling #5 review item 7: after the Home operation releases, the plan's
+    # next stop is store 3 (shop-buy). The free-standing enchant rung yields
+    # to the router for that stop on recorded decision 20.
+    "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
     "recall": None,
     "stuck": None,
 }
@@ -53,7 +56,8 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
             "tour": (2703, 2701, "7", "shop:approach"),
             "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
             "overweight": (3724, 3723, "3", "shop:approach"),
-            "withdraw": None, "recall": None, "stuck": None,
+            "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
+            "recall": None, "stuck": None,
         })
 
     def test_early_difference_is_a_defect_not_an_accepted_row(self):
@@ -64,7 +68,7 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
         self.assertEqual(trajectory_defect("withdraw", {
             "list_index": 3, "historical_sequence": 3,
             "on": ["5", "ownership:holder-complete"],
-        }), "unexpected-divergence")
+        }), "early-divergence")
 
     def test_only_exact_designed_result_passes(self):
         for case, expected in EXPECTED_FIRST.items():

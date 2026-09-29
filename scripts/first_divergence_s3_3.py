@@ -62,7 +62,15 @@ def _state(policy):
     parent = getattr(register, "current", None)
     session = getattr(policy, "_equipment_transaction_session", None)
     visit = getattr(policy, "_store_visit", None)
+    plan = getattr(policy, "_town_errand_plan", None)
     return {
+        "plan": None if plan is None else {
+            "stops": list(plan.stops), "index": plan.index,
+            "requester_families": {
+                str(key): sorted(value)
+                for key, value in plan.requester_families.items()
+            },
+        },
         "parent": None if parent is None else {
             "claim_id": parent.claim_id, "family": parent.owner.value,
             "state": parent.state.value, "goal": parent.goal.as_dict(),
@@ -127,6 +135,10 @@ def _declaration_counts(calls):
                 rows.append({"kind": "missing", "decision_sequence": sequence,
                              "reason": reason, "key": key, "family": family})
     return {
+        "gate_final_count": sum(
+            (decision or {}).get("gate_final_count", 0)
+            for _key, _reason, _sequence, _before, decision in calls
+        ),
         "declaration_gap_rows": rows,
         "declaration_mismatch_counts": [
             {"family": family, "inferred": inferred, "declared": declared,
@@ -187,6 +199,8 @@ def measure(case, mode="s33"):
                 "fixture_sha256": module.FIXTURE_SHA256,
                 "off_sha256": digest, "off_rows": len(stream),
                 "first_divergence": None,
+                "off_gate_final_count": _declaration_counts(off_calls)[
+                    "gate_final_count"],
                 **_declaration_counts(off_calls)}
 
     def enforced_init(policy, *args, **kwargs):
@@ -221,6 +235,8 @@ def measure(case, mode="s33"):
     result = {"case": case, "mode": mode,
               "fixture_sha256": module.FIXTURE_SHA256,
               "off_sha256": digest, "off_rows": len(stream),
+              "off_gate_final_count": _declaration_counts(off_calls)[
+                  "gate_final_count"],
               "off_declarations": _declaration_counts(off_calls),
               **_declaration_counts(on_calls)}
     expected = (EXPECTED_FIRST if mode == "s33"

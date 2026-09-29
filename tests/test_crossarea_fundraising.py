@@ -5,6 +5,7 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -25,6 +26,7 @@ from hengbot.policy_constants import FOOD_TYPE_MANA
 from policy_fixtures import grid, item, player, store_item
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.home_entry_capture import HomeEntryCapture
 from test_esp_threat_rest_recorded import EDIT
 
 
@@ -96,23 +98,46 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy._fundraising_purpose_record = FundraisingPurposeRecord(self.purpose)
         policy._decision_sequence = 1710
         policy.consume_skill_knowledge(states[1496])
-        policy._claim_register.declare(
+        equipment_claim = policy._claim_register.declare(
             ClaimOwner.EQUIPMENT_TXN,
             observe(("transaction",), 10, "transaction"),
             opened_sequence=1709, opened_turn=231452, floor=snapshot.floor_key,
+        )
+        policy._claim_register.declare_execution(
+            equipment_claim.claim_id, work_id="equipment:completed:1709",
+            producer="equipment-txn", state="releasing",
+            cause="transaction-complete",
         )
         passes = []
 
         def decide(_snapshot):
             policy._decision_sequence += 1
             passes.append(policy._decision_sequence)
+            if len(passes) == 1:
+                self.assertTrue(policy._defer_town_errand(
+                    "departure", "entry:stair.post"))
+                return None
             policy.last_reason = "descend"
             return ">\ry"
 
-        with patch.object(policy, "_choose_key_with_latch_capture",
-                          side_effect=decide):
-            key = policy.choose_key(snapshot)
-        self.assertEqual(passes, [1711, 1712])
+        class CountingCapture(HomeEntryCapture):
+            calls = 0
+
+            def choose_key(self, subject, board):
+                self.calls += 1
+                return super().choose_key(subject, board)
+
+        with TemporaryDirectory() as directory:
+            capture = CountingCapture(Path(directory) / "home-entry.jsonl")
+            policy._home_entry_capture = capture
+            with patch.object(policy, "_choose_key_with_latch_capture",
+                              side_effect=decide):
+                key = policy.choose_key(snapshot)
+        self.assertEqual(passes, [1711, 1712],
+                         (key, policy.last_reason,
+                          policy._decision_errand_deferred,
+                          policy._claim_register.current))
+        self.assertEqual(capture.calls, 2)
         self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
         self.assertEqual(policy._pending_stair_command[0], ">")
         claim = policy._claim_register.current

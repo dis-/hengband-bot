@@ -128,7 +128,8 @@ class TownTurnArbiter:
             registration("home-scan", ("home:request-knowledge", "home:scan", "home:seek-"), "home scan completion"),
             registration("home-visit", ("home:", "home-visit:", "home-disposal:"), "addressed Home state delta"),
             registration("shop-sell", ("shop:sale", "shop:sell-", "shop:batch-sale", "shop:batch-sell", "shop:batch-inscribe", "shop:one-shot-sale", "shop:one-shot-sell", "shop:unsellable-", "shop:defective-target-leave", "shop:leave", "shop:stuck-leave", "shop:invalid", "shop:retain-standing-digging-tool", "town:destroy-overflow", "equipment:sale"), "gold up and inventory delta"),
-            registration("shop-buy", ("shop:one-shot-buy", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta"),
+            registration("shop-buy", ("shop:one-shot-buy", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
+                ("shop:purchase-deferred",)),
             registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global", "bounty:approach"), "distance to store goal"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
             registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta",
@@ -146,7 +147,8 @@ class TownTurnArbiter:
                 # S2a census: the dungeon's own way down is the same owner as
                 # ``descend`` and ``stair:``.  It only ever runs outside town,
                 # which is why it was never registered.
-                ("seek-downstairs", "approach-descent", "clear-descent")),
+                ("seek-downstairs", "approach-descent", "clear-descent",
+                 "town:ascend", "town:descend")),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
             registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off", "bounty:leave"), "quest request or phase advance"),
@@ -273,11 +275,20 @@ class TownTurnArbiter:
     def owner_for_reason(self, reason: str) -> str:
         """The **arbitration** family: whose budget bucket this reason spends.
 
-        Reads ``reason_prefixes`` only, so a census-only family (empty
-        arbitration prefixes, design 6/S2a) can never be returned here and
-        the answer is the one this method has always given.
+        Reads ``reason_prefixes`` plus the exact declaration continuations
+        introduced after the frozen S2a table. Census-only families remain
+        outside arbitration.
         """
         normalized = reason or "policy:none"
+        # Declaration continuations added after the frozen S2a registration
+        # table still spend their producing family's arbitration budget.
+        explicit = {
+            "shop:purchase-deferred": "shop-buy",
+            "town:ascend": "departure",
+            "town:descend": "departure",
+        }
+        if normalized in explicit:
+            return explicit[normalized]
         for entry in self._ordered:
             if entry.reason_prefixes and normalized.startswith(entry.reason_prefixes):
                 return entry.name

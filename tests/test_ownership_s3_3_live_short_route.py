@@ -58,6 +58,15 @@ class LiveShortRouteTest(unittest.TestCase):
             opened_turn=board.turn - 1,
         )
         policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
+        # The fixture predates serialized declarations. Rebuild the posted
+        # route identity from decision 223, as the live declaration writer does.
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:entrance:31:150",
+            producer="store-router", state="awaiting",
+            next_step="route.resume", arguments=("entrance", (31, 150)),
+            operation_ref="decision:223", expected_effect="store-page-open",
+            continuation="route.resume", budget_ref="route-existing-budget",
+        )
         policy._town_travel_state = TownTravelProgress(
             Position(31, 150), prior["claim"]["distance"], 0, 0,
             prior["turn"],
@@ -90,6 +99,13 @@ class LiveShortRouteTest(unittest.TestCase):
             "store-router", reach((31, 119)), floor=board.floor_key,
         )
         policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id="route:store:31:119",
+            producer="store-router", state="awaiting",
+            next_step="route.resume", arguments=("store", (31, 119)),
+            operation_ref="decision:219", expected_effect="store-page-open",
+            continuation="route.resume", budget_ref="route-existing-budget",
+        )
         key = policy._town_holder_wait_key(policy._claim_register.current, board)
         self.assertIn(key, "12346789")
         self.assertEqual(policy.last_reason, "shop:approach")

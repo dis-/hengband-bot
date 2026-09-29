@@ -239,6 +239,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("shop:one-shot-in-flight", O, STORE_OPERATION),
         ("shop:one-shot-page-not-zero", T, EFFECT),
         ("shop:buy", O, STORE_OPERATION),
+        ("shop:purchase-deferred", T, EFFECT),
         ("shop:await-", O, STORE_OPERATION),
         ("shop:observe", T, EFFECT),
         # Rev 9.2 (T2): ``shop:observe-and-leave`` emits the leave key inside
@@ -401,6 +402,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         "departure",
         ("depart", T, EFFECT),
         ("descend", O, FLOOR_CHANGE),
+        ("town:ascend", O, FLOOR_CHANGE),
+        ("town:descend", O, FLOOR_CHANGE),
         ("recall", O, FLOOR_CHANGE),
         ("return:", T, EFFECT),
         ("return:recall", O, FLOOR_CHANGE),
