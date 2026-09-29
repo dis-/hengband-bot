@@ -6398,7 +6398,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else "home:request-knowledge-scan"
             )
             self._offer_execution(
-                HOME_KNOWLEDGE_MACRO, producer="home-scan",
+                HOME_KNOWLEDGE_MACRO,
+                producer=("home-errand" if self._home_errand.needs_knowledge
+                          else "home-scan"),
                 work_id=f"home-knowledge:{self._town_visit_epoch}",
                 next_step="home.knowledge.request",
                 expected_effect="catalogue-adopted",
@@ -7350,7 +7352,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 self.last_reason = "home:request-knowledge-scan"
             self._offer_execution(
-                "~9\x1b\x1b", producer="home-scan",
+                "~9\x1b\x1b",
+                producer=("home-errand" if self._home_errand.needs_knowledge
+                          else "home-scan"),
                 work_id=f"home-knowledge:{self._town_visit_epoch}",
                 next_step="home.knowledge.request",
                 expected_effect="catalogue-adopted",

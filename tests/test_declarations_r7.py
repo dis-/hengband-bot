@@ -71,5 +71,22 @@ class BookkeepingRows(unittest.TestCase):
                          ("bookkeeping", "character.dump-before-departure"))
 
 
+class HomeErrandRows(unittest.TestCase):
+    def test_town_1941_knowledge_request_uses_errand_owner(self):
+        policy = HengbotPolicy()
+        board = town_board()
+        request = HomeErrandRequest(("weapon", 23, 0), 1,
+                                    "home-page", "combat-weapon")
+        self.assertTrue(policy._file_home_errand(
+            board, request, knowledge_current=False))
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",))
+        key = policy._choose_key(board)
+        self.assertEqual(policy.last_reason,
+                         "home-errand:request-knowledge:combat-weapon")
+        declaration = bind(policy, "home-errand", key)
+        self.assertEqual(declaration.next_step, "home.knowledge.request")
+
+
 if __name__ == "__main__":
     unittest.main()
