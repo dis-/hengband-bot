@@ -5737,6 +5737,24 @@ class TownMixin:
         # there abandoned deep dives far too eagerly.
         return False
 
+    def _return_route_key(
+        self, key: str | None, *, step: str, work_id: str,
+        expected_effect: str = "return-route-progress",
+    ) -> str | None:
+        """The return producer names its selected movement or search step."""
+        if key is None:
+            self._offer_execution_no_step(
+                producer="departure", work_id=work_id,
+                cause=f"{step}-unavailable",
+            )
+        else:
+            self._offer_execution(
+                key, producer="departure", work_id=work_id,
+                next_step=step, expected_effect=expected_effect,
+                continuation="return.seek-exit",
+            )
+        return key
+
     @claims(ClaimOwner.DEPARTURE)
     def _return_to_town_key(
         self,
@@ -5815,6 +5833,13 @@ class TownMixin:
                     seek_reason="return:seek-loot",
                 )
                 if collecting is not None:
+                    self._offer_execution(
+                        collecting, producer="departure",
+                        work_id="return:collect-before-recall",
+                        next_step="return.collect-visible-loot",
+                        expected_effect="visible-loot-collected",
+                        continuation="recall.observe-arrival",
+                    )
                     return collecting
             self.last_reason = "return:wait-recall"
             self._offer_execution(
@@ -5831,9 +5856,22 @@ class TownMixin:
         if not player.confused:
             darkness_recovery = self._darkness_recovery_key(snapshot)
             if darkness_recovery is not None:
+                self._offer_execution(
+                    darkness_recovery, producer="departure",
+                    work_id="return:darkness-recovery",
+                    next_step="return.restore-light",
+                    expected_effect="light-restored",
+                    continuation="return.seek-exit",
+                )
                 return darkness_recovery
         dark_locomotion = self._dark_locomotion_key(snapshot)
         if dark_locomotion is not None:
+            self._offer_execution(
+                dark_locomotion, producer="departure",
+                work_id="return:dark-locomotion",
+                next_step="return.move-in-darkness",
+                expected_effect="return-route-progress",
+            )
             return dark_locomotion
 
         recall = self._find_recall_scroll(snapshot)
@@ -5891,7 +5929,11 @@ class TownMixin:
                     if self._escape_state.owner != "disengage":
                         self._escape_state.enter("return", self.last_reason)
                     self._declare_reach(upstairs_step_target)
-                    return self._step_toward(snapshot, upstairs_step)
+                    return self._return_route_key(
+                        self._step_toward(snapshot, upstairs_step),
+                        step="return.seek-upstairs",
+                        work_id="return:upstairs-route",
+                    )
 
             # A temporary occupant can split a one-tile corridor in the
             # remembered movement graph for one decision. Once that hands the
@@ -5905,7 +5947,11 @@ class TownMixin:
                 if self._undersearched_walls(player.position):
                     self._record_wall_search(player.position)
                     self.last_reason = "return:search-upstairs"
-                    return SEARCH_KEY
+                    return self._return_route_key(
+                        SEARCH_KEY, step="return.search-wall",
+                        work_id="return:wall-search",
+                        expected_effect="wall-observation",
+                    )
                 self._claim_target_capture = []
                 try:
                     step = self._secret_wall_search_step(snapshot)
@@ -5914,7 +5960,11 @@ class TownMixin:
                 if step is not None:
                     self.last_reason = "return:seek-secret-wall"
                     self._declare_reach(step_target)
-                    return self._step_toward(snapshot, step)
+                    return self._return_route_key(
+                        self._step_toward(snapshot, step),
+                        step="return.seek-secret-wall",
+                        work_id="return:secret-wall-route",
+                    )
 
             # No wall-search budget remains reachable. Release ownership so the
             # normal return rungs (including a currently valid stair path) can
@@ -5926,7 +5976,10 @@ class TownMixin:
             if self._escape_state.owner != "disengage":
                 self._escape_state.enter("return", self.last_reason)
             self._declare_reach(upstairs_step_target)
-            return self._step_toward(snapshot, upstairs_step)
+            return self._return_route_key(
+                self._step_toward(snapshot, upstairs_step),
+                step="return.seek-upstairs", work_id="return:upstairs-route",
+            )
 
         if self._is_oscillating():
             # The ordinary exploration owner has an oscillation breakout below,
@@ -5937,7 +5990,10 @@ class TownMixin:
             if step is not None:
                 self._clear_explore_path(ExplorationPathOutcome.PAUSE)
                 self.last_reason = "return:probe"
-                return self._step_toward(snapshot, step)
+                return self._return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="return.probe-route", work_id="return:probe",
+                )
             if (
                 not self._is_forgetting_maze(snapshot)
                 and not player.blind
@@ -5947,13 +6003,21 @@ class TownMixin:
                 self._record_wall_search(player.position)
                 self._clear_explore_path(ExplorationPathOutcome.PAUSE)
                 self.last_reason = "return:search-upstairs"
-                return SEARCH_KEY
+                return self._return_route_key(
+                    SEARCH_KEY, step="return.search-wall",
+                    work_id="return:wall-search",
+                    expected_effect="wall-observation",
+                )
         else:
             step = self._explore_step(snapshot)
             if step is not None:
                 self.last_reason = "return:explore"
                 self._declare_explore_goal()
-                return self._step_toward(snapshot, step)
+                return self._return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="return.explore-for-exit",
+                    work_id="return:explore",
+                )
 
         # Returning without a recall scroll requires an up-stair, which may be
         # hidden behind a secret door. This cannot use the ordinary secret-wall
@@ -5968,7 +6032,11 @@ class TownMixin:
             if self._undersearched_walls(player.position):
                 self._record_wall_search(player.position)
                 self.last_reason = "return:search-upstairs"
-                return SEARCH_KEY
+                return self._return_route_key(
+                    SEARCH_KEY, step="return.search-wall",
+                    work_id="return:wall-search",
+                    expected_effect="wall-observation",
+                )
             self._claim_target_capture = []
             try:
                 step = self._secret_wall_search_step(snapshot)
@@ -5979,12 +6047,19 @@ class TownMixin:
                 self._declare_reach(step_target)
                 if self._escape_state.owner != "disengage":
                     self._escape_state.enter("return", self.last_reason)
-                return self._step_toward(snapshot, step)
+                return self._return_route_key(
+                    self._step_toward(snapshot, step),
+                    step="return.seek-secret-wall",
+                    work_id="return:secret-wall-route",
+                )
 
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "return:wander"
-            return self._step_toward(snapshot, step)
+            return self._return_route_key(
+                self._step_toward(snapshot, step),
+                step="return.wander-for-exit", work_id="return:wander",
+            )
 
         self.last_reason = "return:wait"
         self._offer_execution(
