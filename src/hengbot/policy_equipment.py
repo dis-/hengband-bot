@@ -2766,12 +2766,24 @@ class EquipmentMixin:
             or snapshot.player.blind
             or snapshot.player.confused
         ):
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="enchant-launcher",
+                cause="enchant-context-unavailable",
+            )
             return None
         launcher = self._equipped_launcher(snapshot)
         if launcher is None:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="enchant-launcher",
+                cause="launcher-unavailable",
+            )
             return None
         slot_key = EQUIPMENT_SLOT_KEY.get(launcher.slot)
         if slot_key is None:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="enchant-launcher",
+                cause="launcher-slot-unavailable",
+            )
             return None
         for sval in self._launcher_enchant_needed_svals(snapshot):
             scroll = self._first_item(
@@ -2814,7 +2826,18 @@ class EquipmentMixin:
                 ),
             }
             self._declare_non_discardable()
+            self._offer_execution(
+                key, producer="curse-enchant",
+                work_id=f"enchant-launcher:{sval}",
+                next_step="launcher.enchant.send",
+                arguments=(self._item_signature(launcher), sval),
+                expected_effect="launcher-enchantment-changed",
+            )
             return key
+        self._offer_execution_no_step(
+            producer="curse-enchant", work_id="enchant-launcher",
+            cause="enchant-scroll-unavailable",
+        )
         return None
 
     @staticmethod

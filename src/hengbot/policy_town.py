@@ -4296,9 +4296,17 @@ class TownMixin:
         if snapshot.in_town:
             self._claim_errand_hold("curse-enchant")
         if not snapshot.in_town or not self._has_cursed_equipment(snapshot):
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="remove-curse",
+                cause="no-town-curse-work",
+            )
             return None
         player = snapshot.player
         if player.blind or player.confused:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="remove-curse",
+                cause="cannot-read-scroll",
+            )
             return None
         cursed = next(
             (
@@ -4321,12 +4329,24 @@ class TownMixin:
             and it.sval == SV_SCROLL_REMOVE_CURSE,
         )
         if scroll is None:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="remove-curse",
+                cause="no-remove-curse-scroll",
+            )
             return None
         if cursed is None and scroll.sval != SV_SCROLL_STAR_REMOVE_CURSE:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="remove-curse",
+                cause="ordinary-scroll-cannot-remove-curse",
+            )
             return None
         if cursed is None:
             cursed = next((item for item in snapshot.equipment if item.is_cursed), None)
         if cursed is None:
+            self._offer_execution_no_step(
+                producer="curse-enchant", work_id="remove-curse",
+                cause="cursed-item-unavailable",
+            )
             return None
         self._remove_curse_watch = (
             self._item_signature(cursed),
@@ -4339,7 +4359,14 @@ class TownMixin:
         if scroll.sval == SV_SCROLL_STAR_REMOVE_CURSE:
             self._star_remove_curse_reserve_withdraw_pending = False
         self.last_reason = "town:remove-curse"
-        return self._read_key(snapshot, scroll)
+        key = self._read_key(snapshot, scroll)
+        self._offer_execution(
+            key, producer="curse-enchant", work_id="remove-curse",
+            next_step="curse.remove.send",
+            arguments=(self._item_signature(cursed), scroll.sval),
+            expected_effect="equipped-curse-removed",
+        )
+        return key
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_random_teleport_suppression_key(

@@ -67,5 +67,31 @@ class TownMobDeclarationTest(unittest.TestCase):
                          ("acting", "town-monster.attack-friendly", (7, 33)))
 
 
+class CurseEnchantDeclarationTest(unittest.TestCase):
+    def test_remove_curse_declares_selected_item(self):
+        policy = HengbotPolicy()
+        cursed = SimpleNamespace(is_cursed=True)
+        scroll = SimpleNamespace(is_scroll=True, aware=True, sval=1, count=1)
+        board = SimpleNamespace(
+            in_town=True, player=SimpleNamespace(blind=False, confused=False),
+            equipment=(cursed,), inventory=(scroll,),
+        )
+        with (patch.object(policy, "_claim_errand_hold"),
+              patch.object(policy, "_has_cursed_equipment", return_value=True),
+              patch.object(policy, "_curse_unremovable", return_value=False),
+              patch.object(policy, "_first_item", return_value=scroll),
+              patch.object(policy, "_item_signature", return_value=("item", 7)),
+              patch.object(policy, "_read_key", return_value="r-a")):
+            key = policy._town_remove_curse_key(board)
+        claim = policy._claim_register.declare(
+            "curse-enchant", observe(("curse",), 8, "equipment"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step, declaration.arguments[0]),
+                         ("curse-enchant", "acting", "curse.remove.send",
+                          ("item", 7)))
+
+
 if __name__ == "__main__":
     unittest.main()
