@@ -4053,6 +4053,16 @@ class TownMixin:
             )
         self.last_reason = reason
         self._declare_reach(goal)
+        family = self._claim_family_of(reason)
+        route_kind = "entrance" if reason == "town:travel-entrance" else "store"
+        self._offer_execution(
+            macro, producer=family,
+            work_id=f"route:{route_kind}:{goal.y},{goal.x}",
+            next_step="route.resume",
+            arguments=(route_kind, (goal.y, goal.x)),
+            expected_effect=f"arrive:{goal.y},{goal.x}",
+            continuation="route.resume", budget_ref="town-travel",
+        )
         return macro
 
     def _town_clear_traveler_key(

@@ -26,13 +26,18 @@ class ExecutionDelegation:
     budget_reference: str
     lifecycle: str = "reserved"
     ending: str | None = None
+    execution: object = None
 
     def as_dict(self) -> dict[str, object]:
-        return {name: getattr(self, name) for name in (
+        row = {name: getattr(self, name) for name in (
             "parent_claim_id", "parent_family", "delegate_family",
             "work_identity", "purpose_identity", "opening_decision",
             "expected_effect", "budget_reference", "lifecycle", "ending",
         )}
+        row["execution"] = (
+            self.execution.as_dict() if self.execution is not None else None
+        )
+        return row
 
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
@@ -109,6 +114,8 @@ from hengbot.claim_register import (
     SUSPENDED_EXPIRED as CLAIM_SUSPENDED_EXPIRED,
     Bar as ClaimBar,
     ClaimOwner,
+    ClaimState,
+    ExecutionDeclaration,
     ClaimRegister,
     ClaimScope,
     Goal,
@@ -3307,6 +3314,59 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             family if family is not None else self._claim_family_of(self.last_reason)
         )
 
+    def _offer_execution(self, key: str, *, producer: str, work_id: str,
+                         next_step: str, arguments: tuple = (),
+                         expected_effect: str | None = None,
+                         continuation: str | None = None,
+                         budget_ref: str | None = None) -> None:
+        """Producer's plain-data step; the exit accepts only its final key."""
+        offers = getattr(self, "_execution_offers", None)
+        if offers is None:
+            offers = []
+            self._execution_offers = offers
+        offers.append((
+            key, producer, work_id, next_step, tuple(arguments),
+            expected_effect, continuation, budget_ref,
+        ))
+
+    def _record_execution_declaration(self, claim, key, reason: str) -> None:
+        register = self._claim_register
+        offers = getattr(self, "_execution_offers", None) or ()
+        self._execution_offers = []
+        offer = next((candidate for candidate in reversed(offers)
+                      if key == candidate[0]
+                      and claim.owner.value == candidate[1]), None)
+        if offer is not None and key is not None:
+            _, producer, work_id, step, args, effect, continuation, budget = offer
+            register.declare_execution(
+                claim.claim_id, work_id=work_id, producer=producer,
+                state="acting", next_step=step, arguments=args,
+                expected_effect=effect, continuation=continuation,
+                budget_ref=budget,
+            )
+            # The driver alone can turn an emitted command into a posted wait.
+            if key != "":
+                self._execution_pending_post = (claim.claim_id, key, work_id)
+        declaration = register.current.execution
+        inferred = (
+            "silent" if reason.startswith("ownership:holder-silent:")
+            else "unposted-await" if reason == "stair:await-observation"
+                and self._pending_stair_command is None
+            else "awaiting" if claim.state == ClaimState.AWAITING
+            else "done" if claim.state == ClaimState.COMPLETE
+            else "acting"
+        )
+        self._decision_declaration_mismatch = (
+            {"claim_id": claim.claim_id, "inferred": inferred,
+             "declared": (declaration.as_dict() if declaration else None),
+             "reason": reason}
+            if claim.owner.value in {
+                "store-router", "home-visit", "equipment-txn",
+                "calibration", "departure", "fundraising",
+            } and (declaration is None or inferred != declaration.state)
+            else None
+        )
+
     def _claim_refresh_non_discardable(self, owner) -> None:
         """Refresh the producer's per-decision slot from its live obligation."""
         family = owner.value
@@ -4558,6 +4618,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         self._bind_execution_delegations(claim)
         self._observe_execution_delegations()
+        self._record_execution_declaration(claim, key, reason)
+        claim = register.current
         self.decision_claim = {
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
@@ -4672,6 +4734,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ] or None,
             "cancelled_home_reservation": getattr(
                 self, "_decision_cancelled_home_reservation", None
+            ),
+            "declaration_mismatch": getattr(
+                self, "_decision_declaration_mismatch", None
             ),
         }
         if isinstance(key, DecisionCandidate):
@@ -5374,6 +5439,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 record.parent_claim_id = claim.claim_id
                 record.lifecycle = "open"
+                record.execution = ExecutionDeclaration(
+                    claim.claim_id, str(record.work_identity), 1,
+                    record.delegate_family, "acting",
+                    next_step="delegate.dispatch",
+                    arguments=record.work_identity,
+                    expected_effect=record.expected_effect,
+                    continuation="parent.resume",
+                    budget_ref=record.budget_reference,
+                )
             else:
                 record.lifecycle = "released"
                 record.ending = "exit-owner-mismatch"
@@ -5471,6 +5545,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ):
                     record.lifecycle = "released"
                     record.ending = "parent-claim-ended"
+        for record in self._delegation_records():
+            declaration = getattr(record, "execution", None)
+            if declaration is None or record.lifecycle == "open":
+                continue
+            state = "done" if record.lifecycle == "completed" else "releasing"
+            if declaration.state != state:
+                record.execution = replace(
+                    declaration, revision=declaration.revision + 1,
+                    state=state, next_step=None, arguments=(),
+                    evidence=record.ending if state == "done" else None,
+                    cause=record.ending if state == "releasing" else None,
+                )
 
     def _defer_town_errand(
         self, family: str, reason: str, *, work_identity: tuple | None = None,
@@ -5596,6 +5682,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and holder.goal.kind == CLAIM_GOAL_REACH
                 and holder.goal.cell is not None):
             goal = Position(*holder.goal.cell)
+            previous = holder.execution
+            if (previous is not None and previous.state == "awaiting"
+                    and previous.continuation == "route.resume"
+                    and snapshot.player.position != goal
+                    and holder is getattr(self._claim_register, "current", None)):
+                self._claim_register.declare_execution(
+                    holder.claim_id, work_id=previous.work_id,
+                    producer=previous.producer, state="acting",
+                    next_step="route.resume", arguments=previous.arguments,
+                    expected_effect=previous.expected_effect,
+                    continuation="route.resume", budget_ref=previous.budget_ref,
+                )
             store_type = (
                 self._shopping_approach_store_type
                 if self._shopping_approach_goal == goal else None
@@ -6036,6 +6134,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return key
 
     def _choose_key(self, snapshot: Snapshot) -> str | None:
+        self._execution_offers = []
+        self._execution_pending_post = None
         self._staged_shop_approach = None
         self._read_binding = None
         self.read_telemetry = {}
@@ -11710,6 +11810,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def confirm_key_posted(self, key: str) -> bool:
         """Commit policy state whose command was successfully posted by CLI."""
+        pending_execution = getattr(self, "_execution_pending_post", None)
+        self._execution_pending_post = None
+        if pending_execution is not None and pending_execution[1] == key:
+            claim = getattr(self._claim_register, "current", None)
+            if (claim is not None and claim.claim_id == pending_execution[0]
+                    and claim.execution is not None
+                    and claim.execution.work_id == pending_execution[2]):
+                declaration = claim.execution
+                self._claim_register.declare_execution(
+                    claim.claim_id, work_id=declaration.work_id,
+                    producer=declaration.producer, state="awaiting",
+                    arguments=declaration.arguments,
+                    operation_ref=f"decision:{self._decision_sequence}:{key}",
+                    expected_effect=declaration.expected_effect,
+                    continuation=declaration.continuation or declaration.next_step,
+                    budget_ref=declaration.budget_ref,
+                )
         self._confirm_staged_shopping_approach(key)
         if (
             self._store_visit is not None
@@ -11872,6 +11989,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
+        self._execution_pending_post = None
         # The posting contract correctly refuses an identical key/effect pair.
         # Interleave the existing look probe while the issuing progress core is
         # frozen so a recovered modal cannot make that refusal absorbing.

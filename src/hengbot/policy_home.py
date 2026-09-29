@@ -2671,6 +2671,15 @@ class HomeMixin:
         self._store_entry_wait_key = composed_key
         self._store_entry_wait_turn = None
         self._intentional_entrance_activation = True
+        self._offer_execution(
+            composed_key, producer=producer_family or "home-visit",
+            work_id=f"home-operation:{visit.opened_sequence}:{operation_key}",
+            next_step="home.operation.send",
+            arguments=(visit.opened_sequence, operation_key),
+            expected_effect="home-inventory-effect",
+            continuation="home.operation.observe",
+            budget_ref="home-operation-existing-budget",
+        )
         return True
 
     def _stage_home_operation(
@@ -2724,6 +2733,15 @@ class HomeMixin:
         self._store_entry_wait_key = WAIT_KEY
         self._store_entry_wait_turn = None
         self._intentional_entrance_activation = True
+        self._offer_execution(
+            WAIT_KEY, producer=producer_family or "home-visit",
+            work_id=f"home-operation:{visit.opened_sequence}:{operation_key}",
+            next_step="home.tail.send",
+            arguments=(visit.opened_sequence, operation_key),
+            expected_effect="home-inventory-effect",
+            continuation="home.operation.observe",
+            budget_ref="home-operation-existing-budget",
+        )
         return True
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:

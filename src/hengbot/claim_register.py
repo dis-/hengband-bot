@@ -379,6 +379,7 @@ class Claim:
             "state": self.state.value,
             "closed": self.closed,
             "closed_reason": self.closed_reason,
+            "execution": self.execution.as_dict() if self.execution else None,
         }
 
     @property
@@ -561,6 +562,21 @@ class ClaimRegister:
         self._claim = replace(claim, execution=declaration)
         return declaration
 
+    @staticmethod
+    def _execution_ending(claim: Claim, closed: str | None,
+                          label: str | None) -> Claim:
+        declaration = claim.execution
+        if declaration is None or closed is None:
+            return claim
+        state = "done" if closed == CLOSED_BY_COMPLETE else "releasing"
+        ending = replace(
+            declaration, revision=declaration.revision + 1, state=state,
+            next_step=None, arguments=(), operation_ref=None,
+            evidence=label if state == "done" else None,
+            cause=label if state == "releasing" else None,
+        )
+        return replace(claim, execution=ending)
+
     # -- declaration -----------------------------------------------------
 
     def continues(
@@ -727,7 +743,9 @@ class ClaimRegister:
                 continue
             del stack[position]
             self._suspended = stack
-            ended = replace(claim, closed=closed, closed_reason=label)
+            ended = self._execution_ending(
+                replace(claim, closed=closed, closed_reason=label), closed, label
+            )
             self._note_ended(ended)
             record = {**ended.closing_dict(), **recorded}
             closings = list(getattr(self, "_suspended_closings", None) or ())
@@ -780,8 +798,9 @@ class ClaimRegister:
         claim = self._claim
         if claim is None:
             return None
-        self._claim = replace(
-            claim, state=state, closed=closed, closed_reason=label
+        self._claim = self._execution_ending(
+            replace(claim, state=state, closed=closed, closed_reason=label),
+            closed, label,
         )
         self._closing = self._claim
         return self._claim
@@ -822,8 +841,13 @@ class ClaimRegister:
 
     def retire(self) -> Claim | None:
         """Out of budget: the claim emits nothing further (design 3.3)."""
+        claim = self._transition(ClaimState.RETIRED, CLOSED_BY_RETIRED)
+        if claim is not None:
+            self._claim = self._execution_ending(
+                claim, CLOSED_BY_RETIRED, "retired"
+            )
         return self._note_ended(
-            self._transition(ClaimState.RETIRED, CLOSED_BY_RETIRED)
+            self._claim
         )
 
     def release(self, label: str | None = None) -> Claim | None:

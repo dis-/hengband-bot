@@ -4498,6 +4498,17 @@ class ShopMixin:
         # Record-only (S2a.1): the entrance this approach step heads for,
         # stamped with the family whose errand the router runs (rev 9.2 C).
         self._declare_reach(self._shopping_approach_goal, family=claim_family)
+        goal = self._shopping_approach_goal
+        if goal is not None and key not in {None, ""}:
+            family = claim_family or self._claim_family_of(self.last_reason)
+            self._offer_execution(
+                key, producer=family,
+                work_id=f"route:store:{goal.y},{goal.x}",
+                next_step="route.resume",
+                arguments=("store", (goal.y, goal.x)),
+                expected_effect=f"arrive:{goal.y},{goal.x}",
+                continuation="route.resume", budget_ref="town-travel",
+            )
         provenance = object()
         self._staged_shop_approach = (
             provenance,

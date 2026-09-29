@@ -1364,6 +1364,19 @@ class EquipmentMixin:
         ):
             return False
         self._equipment_transaction_prepared_key = key
+        producer = (
+            "calibration" if self._calibration_session_owned()
+            else "equipment-txn"
+        )
+        self._offer_execution(
+            key, producer=producer,
+            work_id=f"equipment:{session.target_loadout_id}:{session.index}",
+            next_step="equipment.next-action",
+            arguments=(action.kind, action.target_slot, action.item_identity),
+            expected_effect=f"equipment-effect:{action.kind}:{action.target_slot}",
+            continuation="equipment.next-action",
+            budget_ref="equipment-session",
+        )
         return True
 
     def _abandon_blocked_equipment_transaction(

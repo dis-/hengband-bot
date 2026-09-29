@@ -1058,6 +1058,15 @@ class CalibrationMixin:
                 if phase in {"strip", "capture"}:
                     if self._install_calibration_strip_session(snapshot):
                         self.last_reason = "calibration:strip-resumed"
+                        self._offer_execution(
+                            WAIT_KEY, producer="calibration",
+                            work_id=f"calibration:{self._calibration_session_target}:strip",
+                            next_step="equipment.next-action",
+                            arguments=("strip",),
+                            expected_effect="worn-item-removed",
+                            continuation="calibration.capture",
+                            budget_ref="calibration-session",
+                        )
                         return WAIT_KEY
                     self._abort_character_calibration(
                         snapshot,
@@ -1111,6 +1120,15 @@ class CalibrationMixin:
                 # fit, otherwise the observation cannot be made this visit.
                 if self._install_calibration_strip_session(snapshot):
                     self.last_reason = "calibration:strip-installed"
+                    self._offer_execution(
+                        WAIT_KEY, producer="calibration",
+                        work_id=f"calibration:{self._calibration_session_target}:strip",
+                        next_step="equipment.next-action",
+                        arguments=("strip",),
+                        expected_effect="worn-item-removed",
+                        continuation="calibration.capture",
+                        budget_ref="calibration-session",
+                    )
                     return WAIT_KEY
                 self._abort_character_calibration(snapshot, "no-pack-space")
                 return WAIT_KEY

@@ -230,6 +230,23 @@ class NavigationMixin:
                 self.last_reason = "stair:observation-timeout-probe"
                 return probe
             self.last_reason = "stair:await-observation"
+            current = getattr(self._claim_register, "current", None)
+            declaration = None if current is None else current.execution
+            if (declaration is None or declaration.state != "awaiting"
+                    or not declaration.work_id.startswith("stair:")):
+                direction = self._pending_stair_command[0]
+                position = self._pending_stair_command[2]
+                self._offer_execution(
+                    "", producer="departure",
+                    work_id=(f"stair:{direction}:{snapshot.floor_key}:"
+                             f"{position.y},{position.x}"),
+                    next_step="stair.post",
+                    arguments=(direction, snapshot.floor_key,
+                               (position.y, position.x)),
+                    expected_effect="floor-change",
+                    continuation="stair.observe-arrival",
+                    budget_ref="stair-observation",
+                )
             return ""
         return key
 
@@ -251,6 +268,16 @@ class NavigationMixin:
         self._stair_observation_waits = 0
         self._post_owner_expectation(
             snapshot, "stair-command", "turn", "floor", "position"
+        )
+        self._offer_execution(
+            key, producer=self._claim_family_of(self.last_reason),
+            work_id=(f"stair:{direction}:{snapshot.floor_key}:"
+                     f"{position.y},{position.x}"),
+            next_step="stair.post",
+            arguments=(direction, snapshot.floor_key, (position.y, position.x)),
+            expected_effect="floor-change",
+            continuation="stair.observe-arrival",
+            budget_ref="stair-observation",
         )
 
     def _cell_readable_if_stood(
