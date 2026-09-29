@@ -3315,11 +3315,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             family if family is not None else self._claim_family_of(self.last_reason)
         )
 
-    def _offer_execution(self, key: str, *, producer: str, work_id: str,
-                         next_step: str, arguments: tuple = (),
+    def _offer_execution(self, key: str | None, *, producer: str, work_id: str,
+                         next_step: str | None = None, arguments: tuple = (),
                          expected_effect: str | None = None,
                          continuation: str | None = None,
-                         budget_ref: str | None = None) -> None:
+                         budget_ref: str | None = None,
+                         state: str = "acting", evidence: str | None = None,
+                         cause: str | None = None) -> None:
         """Producer's plain-data step; the exit accepts only its final key."""
         offers = getattr(self, "_execution_offers", None)
         if offers is None:
@@ -3327,7 +3329,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._execution_offers = offers
         offers.append((
             key, producer, work_id, next_step, tuple(arguments),
-            expected_effect, continuation, budget_ref,
+            expected_effect, continuation, budget_ref, state, evidence, cause,
         ))
 
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
@@ -3337,16 +3339,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         offer = next((candidate for candidate in reversed(offers)
                       if key == candidate[0]
                       and claim.owner.value == candidate[1]), None)
-        if offer is not None and key is not None:
-            _, producer, work_id, step, args, effect, continuation, budget = offer
+        if offer is not None:
+            (_, producer, work_id, step, args, effect, continuation, budget,
+             state, evidence, cause) = offer
             register.declare_execution(
                 claim.claim_id, work_id=work_id, producer=producer,
-                state="acting", next_step=step, arguments=args,
+                state=state, next_step=step, arguments=args,
                 expected_effect=effect, continuation=continuation,
-                budget_ref=budget,
+                budget_ref=budget, evidence=evidence, cause=cause,
             )
             # The driver alone can turn an emitted command into a posted wait.
-            if key != "":
+            if state == "acting" and key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
@@ -5804,6 +5807,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._home_knowledge_scan_requested):
             if holder is getattr(self._claim_register, "current", None):
                 self.last_reason = "home:scan-await-observation"
+                self._offer_execution(
+                    WAIT_KEY, producer="home-scan",
+                    work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                    next_step="home.knowledge.observe",
+                    expected_effect="catalogue-adopted",
+                    continuation="home.knowledge.observe",
+                    budget_ref="home-knowledge-existing-epoch",
+                )
                 return WAIT_KEY
             # A suspended scan cannot be safely released while posted.
             knowledge_unresolved = True
@@ -6233,6 +6244,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._home_errand.reason("request-knowledge")
                 if self._home_errand.needs_knowledge
                 else "home:request-knowledge-scan"
+            )
+            self._offer_execution(
+                HOME_KNOWLEDGE_MACRO, producer="home-scan",
+                work_id=f"home-knowledge:{self._town_visit_epoch}",
+                next_step="home.knowledge.request",
+                expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch",
             )
             return HOME_KNOWLEDGE_MACRO
         if (
@@ -7164,6 +7183,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = self._home_errand.reason("request-knowledge")
             else:
                 self.last_reason = "home:request-knowledge-scan"
+            self._offer_execution(
+                "~9\x1b\x1b", producer="home-scan",
+                work_id=f"home-knowledge:{self._town_visit_epoch}",
+                next_step="home.knowledge.request",
+                expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch",
+            )
             return "~9\x1b\x1b"
         leaving_home = (
             self._store_leave_inflight is not None
@@ -7753,11 +7780,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ):
                     self.last_reason = "home:request-knowledge-scan"
                     key = HOME_KNOWLEDGE_MACRO
+                    self._offer_execution(
+                        key, producer="home-scan",
+                        work_id=f"home-knowledge:{self._town_visit_epoch}",
+                        next_step="home.knowledge.request",
+                        expected_effect="catalogue-adopted",
+                        continuation="home.knowledge.observe",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
                 else:
                     # A visible page of a multi-page (or metadata-poor) Home is
                     # useful evidence, but it cannot replace the complete ~9 list.
                     self.last_reason = "home:scan-incomplete-open-page"
                     key = LEAVE_STORE_KEY
+                    self._offer_execution(
+                        key, producer="home-scan",
+                        work_id=f"home-knowledge-leave:{self._decision_sequence}",
+                        next_step="store.leave.send",
+                        expected_effect="outside-store",
+                        continuation="home.knowledge.request",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
             elif (
                 not self._calibration_active()
                 and self._home_atomic_deposit_pending is None

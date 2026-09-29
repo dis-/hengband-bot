@@ -26,6 +26,24 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
+    def test_home_scan_holder_wait_declares_named_observation(self):
+        policy = HengbotPolicy()
+        board = short_route_board()
+        policy.prime(board)
+        policy._decision_sequence = 41
+        policy._home_knowledge_scan_requested = True
+        policy._home_knowledge_scan_epoch = 7
+        claim = policy._claim_register.declare(
+            "home-scan", observe(("home-knowledge-current",), 8, "knowledge"))
+        key = policy._town_holder_wait_key(claim, board)
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual(key, "5")
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.work_id),
+                         ("home-scan", "home.knowledge.observe",
+                          "home-knowledge:7"))
+
     def test_direct_home_page_deposit_declares_exact_item_and_count(self):
         policy = HengbotPolicy()
         policy._decision_sequence = 31
