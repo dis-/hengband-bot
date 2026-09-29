@@ -4742,6 +4742,14 @@ class ShopMixin:
                 self._store_visit.operation_posted = True
                 self._store_visit.operation_producer_family = operation_family
                 self._store_visit.operation_key = operation_key
+                # The posted one-shot's observation wait needs the immutable
+                # operation identity captured at composition, including while
+                # the store page has not appeared yet.
+                self._store_visit.claim_operation_identity = (
+                    observed_store.store_type,
+                    self._store_visit.opened_sequence,
+                    operation_key,
+                )
                 self._store_visit.operation_released = False
                 self._store_visit.composed_key = key
                 self._store_visit.posted_sequence = generation

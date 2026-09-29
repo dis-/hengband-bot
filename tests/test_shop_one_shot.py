@@ -490,6 +490,9 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(outside), "5")
         intermediate = replace(inside, turn=inside.turn + 2)
         self.assertEqual(policy.choose_key(intermediate), "pa\r\x1b")
+        self.assertEqual(policy._store_visit.claim_operation_identity, (
+            STORE_TEMPLE, policy._store_visit.opened_sequence, "pa\r\x1b",
+        ))
         intermediate = replace(inside, turn=inside.turn + 3)
         self.assertEqual(policy.choose_key(intermediate), "")
         self.assertEqual(policy.last_reason, "shop:one-shot-in-flight")
