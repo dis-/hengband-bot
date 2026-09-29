@@ -2706,6 +2706,15 @@ class HomeMixin:
             if self._inventory_overweight(snapshot)
             else "home:atomic-deposit"
         )
+        self._offer_execution(
+            operation_key, producer=visit.operation_producer_family,
+            work_id=f"home-operation:{visit.opened_sequence}:{operation_key}",
+            next_step="home.operation.send",
+            arguments=(visit.opened_sequence, operation_key),
+            expected_effect="home-inventory-effect",
+            continuation="home.operation.observe",
+            budget_ref="home-operation-existing-budget",
+        )
         return operation_key
 
     def _home_operation_visit(

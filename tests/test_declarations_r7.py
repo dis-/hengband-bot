@@ -72,6 +72,25 @@ class BookkeepingRows(unittest.TestCase):
 
 
 class AtomicHomeRows(unittest.TestCase):
+    def test_open_home_page_deposit_offers_composed_key(self):
+        policy = HengbotPolicy()
+        policy._store_visit = StoreVisit("town-errand", "deposit", STORE_HOME,
+                                         opened_sequence=5)
+        board = replace(town_board(), store=StoreState(STORE_HOME, []))
+        deposit = board.inventory[0]
+        policy._find_home_deposit = lambda _: deposit
+        policy._prepare_home_visit_operation = lambda *args: True
+        policy._home_deposit_batch = lambda *args: ((deposit, 1),)
+        policy._home_deposit_key = lambda *args, **kwargs: "dr1\r"
+        key = policy._open_home_deposit_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("dr1\r\x1b", "home:atomic-deposit"))
+        self.assertEqual(policy._execution_offers_for()[-1][:2],
+                         (key, "home-visit"))
+        declaration = bind(policy, "home-visit", key)
+        self.assertEqual((declaration.state, declaration.next_step),
+                         ("acting", "home.operation.send"))
+
     def test_tour_staged_home_deposit_binds_final_key(self):
         policy = HengbotPolicy()
         visit = StoreVisit("town-errand", "deposit", STORE_HOME,
