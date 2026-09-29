@@ -13,7 +13,7 @@ from hengbot.model import (PLAYER_CLASS_WARRIOR, Position, QuestState,
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_REWARDED
 from policy_fixtures import grid, item, player, set_completed_equipment_optimization
-from policy_shop_fixture import _TownShopFixtureBase
+import policy_shop_fixture
 
 
 class BookkeepingDeclarationTest(unittest.TestCase):
@@ -96,7 +96,7 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
                           policy._item_signature(cursed)))
 
 
-class RumorDeclarationTest(_TownShopFixtureBase):
+class RumorDeclarationTest(policy_shop_fixture._TownShopFixtureBase):
     def test_inn_batch_declares_read_count(self):
         board = Snapshot(
             player(10, 10, gold=900, class_id=PLAYER_CLASS_WARRIOR),
