@@ -9728,6 +9728,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or not self._temporary_status_clear(snapshot)
             ) and player.food_state in {"normal", "full", "gorged"}:
                 self.last_reason = "town:recover"
+                self._offer_execution(
+                    REST_MACRO, producer="survival", work_id="town:recover",
+                    next_step="player.rest", expected_effect="hp/mp/status-recovered",
+                )
                 return REST_MACRO
 
         # An already-required combat-weapon restoration is an equipment safety
@@ -9754,10 +9758,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return victory_loot
 
         conquest_loot = self._conquest_loot_key(snapshot)
-                self._offer_execution(
-                    REST_MACRO, producer="survival", work_id="town:recover",
-                    next_step="player.rest", expected_effect="hp/mp/status-recovered",
-                )
         if conquest_loot is not None:
             return conquest_loot
 
@@ -10219,6 +10219,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # over-resting.
                 self._rest_count += 1
                 self.last_reason = "rest"
+                self._offer_execution(
+                    REST_MACRO, producer="survival", work_id="rest",
+                    next_step="player.rest", expected_effect="hp/mp-recovered",
+                )
                 return REST_MACRO
         else:
             # S2b.1b, record-only: the rest gate is closed, so the rest slot's
@@ -10245,10 +10249,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and here.has_entrance
                 and self._is_active_dungeon_entrance(here)
             )
-                self._offer_execution(
-                    REST_MACRO, producer="survival", work_id="rest",
-                    next_step="player.rest", expected_effect="hp/mp-recovered",
-                )
             else snapshot.dungeon_level + 1
             if snapshot.dungeon_level > 0
             and here is not None

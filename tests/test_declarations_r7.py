@@ -71,39 +71,6 @@ class BookkeepingRows(unittest.TestCase):
                          ("bookkeeping", "character.dump-before-departure"))
 
 
-class HomeErrandRows(unittest.TestCase):
-    def test_town_1941_knowledge_request_uses_errand_owner(self):
-        policy = HengbotPolicy()
-        board = town_board()
-        request = HomeErrandRequest(("weapon", 23, 0), 1,
-                                    "home-page", "combat-weapon")
-        self.assertTrue(policy._file_home_errand(
-            board, request, knowledge_current=False))
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",))
-        key = policy._choose_key(board)
-        self.assertEqual(policy.last_reason,
-                         "home-errand:request-knowledge:combat-weapon")
-        declaration = bind(policy, "home-errand", key)
-        self.assertEqual(declaration.next_step, "home.knowledge.request")
-
-
-class HomeScanRows(unittest.TestCase):
-    def test_town_1185_page_seek_has_home_scan_offer(self):
-        policy = HengbotPolicy()
-        policy._no_teleport_rearm_pending = True
-        board = replace(town_board(), store=StoreState(STORE_HOME, []),
-                        inventory=[], equipment=[
-                            item("main_hand", TVAL_DIGGING, 1,
-                                 is_equipment=True)])
-        key = policy._home_rearm_key(board)
-        self.assertEqual((key, policy.last_reason),
-                         (" ", "home:seek-combat-weapon-page"))
-        declaration = bind(policy, "home-scan", key)
-        self.assertEqual((declaration.producer, declaration.next_step),
-                         ("home-scan", "home.page.advance"))
-
-
 class AtomicHomeRows(unittest.TestCase):
     def test_tour_staged_home_deposit_binds_final_key(self):
         policy = HengbotPolicy()
@@ -135,6 +102,39 @@ class CalibrationRows(unittest.TestCase):
         declaration = bind(policy, "calibration", key)
         self.assertEqual((declaration.producer, declaration.next_step),
                          ("calibration", "home.operation.send"))
+
+
+class HomeErrandRows(unittest.TestCase):
+    def test_town_1941_knowledge_request_uses_errand_owner(self):
+        policy = HengbotPolicy()
+        board = town_board()
+        request = HomeErrandRequest(("weapon", 23, 0), 1,
+                                    "home-page", "combat-weapon")
+        self.assertTrue(policy._file_home_errand(
+            board, request, knowledge_current=False))
+        policy._equipment_optimization_preparation = SimpleNamespace(
+            blockers=("home-scan-incomplete",))
+        key = policy._choose_key(board)
+        self.assertEqual(policy.last_reason,
+                         "home-errand:request-knowledge:combat-weapon")
+        declaration = bind(policy, "home-errand", key)
+        self.assertEqual(declaration.next_step, "home.knowledge.request")
+
+
+class HomeScanRows(unittest.TestCase):
+    def test_town_1185_page_seek_has_home_scan_offer(self):
+        policy = HengbotPolicy()
+        policy._no_teleport_rearm_pending = True
+        board = replace(town_board(), store=StoreState(STORE_HOME, []),
+                        inventory=[], equipment=[
+                            item("main_hand", TVAL_DIGGING, 1,
+                                 is_equipment=True)])
+        key = policy._home_rearm_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         (" ", "home:seek-combat-weapon-page"))
+        declaration = bind(policy, "home-scan", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("home-scan", "home.page.advance"))
 
 
 class EquipmentTransactionRows(unittest.TestCase):
