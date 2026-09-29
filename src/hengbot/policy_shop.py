@@ -4646,6 +4646,17 @@ class ShopMixin:
             self._store_entry_wait_key = WAIT_KEY
             self._store_entry_wait_turn = None
             self._intentional_entrance_activation = True
+            if self._shopping_approach_goal is not None:
+                goal = self._shopping_approach_goal
+                self._offer_execution(
+                    WAIT_KEY, producer="store-router",
+                    work_id=f"store-entry:{self._shopping_approach_store_type}:{goal.y},{goal.x}",
+                    next_step="store.entry.observe",
+                    arguments=(self._shopping_approach_store_type, (goal.y, goal.x)),
+                    expected_effect="store-page-open",
+                    continuation="store.entry.observe",
+                    budget_ref="town-travel",
+                )
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
             return self._stage_shopping_approach_key(

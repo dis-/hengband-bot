@@ -5735,7 +5735,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if step is not None:
                     self.last_reason = "shop:approach"
                     self._declare_reach(goal, family="store-router")
-                    return self._direction_key(snapshot.player.position, step)
+                    key = self._direction_key(snapshot.player.position, step)
+                    self._offer_execution(
+                        key, producer="store-router",
+                        work_id=f"route:entrance:{goal.y},{goal.x}",
+                        next_step="route.resume",
+                        arguments=("entrance", (goal.y, goal.x)),
+                        expected_effect=f"arrive:{goal.y},{goal.x}",
+                        continuation="route.resume", budget_ref="town-travel",
+                    )
+                    return key
             if store_type is not None:
                 step = self._shopping_approach_step(
                     snapshot, store_type, requester="store-router"
@@ -5762,7 +5771,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if step is not None:
                 self.last_reason = "shop:approach"
                 self._declare_reach(goal, family="store-router")
-                return self._direction_key(snapshot.player.position, step)
+                key = self._direction_key(snapshot.player.position, step)
+                self._offer_execution(
+                    key, producer="store-router",
+                    work_id=f"route:store:{goal.y},{goal.x}",
+                    next_step="route.resume",
+                    arguments=("store", (goal.y, goal.x)),
+                    expected_effect=f"arrive:{goal.y},{goal.x}",
+                    continuation="route.resume", budget_ref="town-travel",
+                )
+                return key
             # A Reach still en route cannot be released as a no-step errand.
             # The final §3 branch reports an unresolved route consistently.
             route_unresolved = True

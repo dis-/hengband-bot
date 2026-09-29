@@ -168,6 +168,23 @@ class ExecutionDeclarationTest(unittest.TestCase):
                           mismatch["declared"]["next_step"]),
                          ("silent", "acting", "route.resume"))
 
+    def test_store_router_short_entrance_walk_declares_final_direction(self):
+        board = short_route_board()
+        policy = HengbotPolicy()
+        policy.prime(board)
+        policy._decision_sequence = 224
+        policy._town_travel_key = lambda *args: None
+        policy._town_map_goal_step = lambda *args: Position(32, 145)
+        claim = policy._claim_register.declare(
+            "store-router", reach((31, 150)), floor=board.floor_key)
+        key = policy._town_holder_wait_key(claim, board)
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.arguments),
+                         ("store-router", "route.resume",
+                          ("entrance", (31, 150))))
+
     def test_1904_home_withdraw_effect_closes_named_operation(self):
         # The recorded Home transfer was observed before visit state retired.
         policy = HengbotPolicy()
