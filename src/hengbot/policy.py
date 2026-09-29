@@ -13318,6 +13318,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
         self.last_reason = "town:identify-staff-stockout-mining"
+        self._offer_execution(
+            WAIT_KEY, producer="fundraising",
+            work_id="fundraise:identify-staff-stockout",
+            next_step="fundraising.prepare-one-mining-run",
+            expected_effect="identify-staff-suppliers-rearmed",
+        )
         return WAIT_KEY
 
 
