@@ -16,6 +16,7 @@ from hengbot.equipment_optimizer import (
     Loadout,
     OptimizationResult,
     OwnedEquipment,
+    SLOT_BODY,
     SLOT_LIGHT,
     current_loadout,
     equipment_identity,
@@ -774,6 +775,12 @@ def prepare_warrior_optimization(
         and usable_light_candidate(item)
         for item in items
     )
+    require_body = any(
+        item.id not in search_excluded_item_ids
+        and item.exploration_legal
+        and slot_for(item.item) == SLOT_BODY
+        for item in items
+    )
     candidate_loadouts = search_factory(
         items,
         current_item_ids=current.item_ids,
@@ -792,6 +799,7 @@ def prepare_warrior_optimization(
         timeout_seconds=timeout_seconds,
         candidate_loadouts=candidate_loadouts,
         require_light=require_light,
+        require_body=require_body,
         identification_exempt_item_ids=identification_exempt_item_ids,
         obtainable_ammunition=(
             tuple(snapshot.inventory)

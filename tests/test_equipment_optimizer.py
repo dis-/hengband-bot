@@ -1206,6 +1206,114 @@ class EquipmentOptimizerTest(unittest.TestCase):
             {"light", "current", "candidate"},
         )
 
+    def test_recorded_chain_mail_stays_on_across_visit_reset(self):
+        # loadout-report.jsonl 28901-28903: the AC 2 naked set had a 1.4718
+        # turn survival estimate and 21.3689 AC100 damage; the AC 16 chain
+        # mail set had 1.5322 turns and 20.9214 damage. The existing margin
+        # band used to choose nakedness again after the Home withdrawal.
+        weapon = gear("weapon", 23, equipped_slot=SLOT_MAIN_HAND)
+        home_body = gear("home:523d457d37cb5b14:0", 36)
+
+        def evaluate(loadout):
+            if loadout.item_at(SLOT_BODY) is None:
+                return metrics(-27.6254, dps=21.3689, survival=1.4718)
+            return metrics(-28.1873, dps=20.9214, survival=1.5322)
+
+        first = optimize_loadout(
+            (self.light, weapon, home_body), evaluate, depth=1,
+            current_item_ids=frozenset({"light", "weapon"}),
+        )
+        self.assertEqual(first.best.loadout.item_at(SLOT_BODY), home_body)
+
+        worn_body = gear("equipped:523d457d37cb5b14:0", 36,
+                         equipped_slot=SLOT_BODY)
+        second = optimize_loadout(
+            (self.light, weapon, worn_body), evaluate, depth=1,
+            current_item_ids=frozenset({"light", "weapon", worn_body.id}),
+        )
+        self.assertEqual(second.best.loadout.item_at(SLOT_BODY), worn_body)
+        actions = plan_equipment_transactions(
+            (self.light, weapon, worn_body),
+            Loadout((("light", self.light), (SLOT_MAIN_HAND, weapon),
+                     (SLOT_BODY, worn_body)), "one_handed"),
+            second.best.loadout, current_pack_items=0,
+            home_scan_complete=True,
+        ).actions
+        self.assertFalse(any(
+            action.target_slot == SLOT_BODY or action.item_id == worn_body.id
+            for action in actions
+        ))
+
+    def test_body_requirement_still_selects_better_nonempty_set(self):
+        old = gear("old-body", 36, equipped_slot=SLOT_BODY)
+        better = gear("better-body", 36)
+        result = optimize_loadout(
+            (self.light, old, better),
+            lambda loadout: metrics(
+                120 if loadout.item_at(SLOT_BODY) == better else 100
+            ),
+            depth=1, current_item_ids=frozenset({"light", old.id}),
+        )
+        self.assertEqual(result.best.loadout.item_at(SLOT_BODY), better)
+
+    def test_body_requirement_does_not_override_depth_resistance(self):
+        chaos = gear("chaos-body", 36, flags=(62,))
+        high_ac = gear("high-ac-body", 36)
+        result = optimize_loadout(
+            (self.light, chaos, high_ac),
+            lambda loadout: metrics(
+                120 if loadout.item_at(SLOT_BODY) == high_ac else 100
+            ),
+            depth=31,
+            intrinsic_abilities=required_abilities(31) - {"resist_chaos"},
+            current_item_ids=frozenset({"light"}),
+        )
+        self.assertEqual(result.best.loadout.item_at(SLOT_BODY), chaos)
+
+    def test_body_requirement_falls_back_when_no_body_candidate_passes_depth_gate(self):
+        body = gear("body", 36)
+        chaos = gear("chaos-ring", 45, flags=(62,))
+        body_set = Loadout((("light", self.light), (SLOT_BODY, body)), "empty")
+        naked_set = Loadout((("light", self.light), (SLOT_MAIN_RING, chaos)), "empty")
+        result = optimize_loadout(
+            (self.light, body, chaos), lambda loadout: metrics(100),
+            depth=31, candidate_loadouts=(body_set, naked_set),
+            require_body=True,
+            intrinsic_abilities=required_abilities(31) - {"resist_chaos"},
+        )
+        self.assertFalse(result.timed_out)
+        self.assertEqual(result.best.loadout, naked_set)
+        self.assertEqual(result.combinations_evaluated, 1)
+
+    def test_body_requirement_rejects_naked_set_when_body_passes_depth_gate(self):
+        body = gear("body", 36)
+        chaos = gear("chaos-ring", 45, flags=(62,))
+        body_set = Loadout(
+            (("light", self.light), (SLOT_BODY, body),
+             (SLOT_MAIN_RING, chaos)), "empty",
+        )
+        naked_set = Loadout((("light", self.light), (SLOT_MAIN_RING, chaos)), "empty")
+        result = optimize_loadout(
+            (self.light, body, chaos),
+            lambda loadout: metrics(200 if loadout == naked_set else 100),
+            depth=31, candidate_loadouts=(naked_set, body_set),
+            require_body=True,
+            intrinsic_abilities=required_abilities(31) - {"resist_chaos"},
+        )
+        self.assertEqual(result.best.loadout, body_set)
+        self.assertEqual(result.combinations_evaluated, 1)
+        self.assertEqual(result.invalid_combinations, 1)
+
+    def test_unknown_or_cursed_body_does_not_create_requirement(self):
+        unknown = gear("unknown-body", 36, known=False)
+        cursed = gear("cursed-body", 36, cursed=True)
+        result = optimize_loadout(
+            (self.light, unknown, cursed), lambda loadout: metrics(100),
+            depth=1, current_item_ids=frozenset({"light"}),
+        )
+        self.assertIsNotNone(result.best)
+        self.assertIsNone(result.best.loadout.item_at(SLOT_BODY))
+
     def test_one_percent_band_still_keeps_equally_full_current_loadout(self):
         current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)
         candidate = gear("candidate", 23)

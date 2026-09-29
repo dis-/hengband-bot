@@ -1781,8 +1781,13 @@ class EquipmentTransactionQuarantineInvariantTest(unittest.TestCase):
             preparation = policy._prepare_equipment_optimization(snapshot)
 
         self.assertIsNotNone(preparation.result.best)
-        self.assertTrue(
-            free_action_ids.issubset(policy._equipment_transaction_failed_items)
+        # The sole usable body slot must get one retry, while its other
+        # quarantined source stays failed for this town visit.
+        self.assertEqual(
+            len(free_action_ids - policy._equipment_transaction_failed_items), 1
+        )
+        self.assertEqual(
+            len(free_action_ids & policy._equipment_transaction_failed_items), 1
         )
         self.assertNotIn("no-valid-loadout", preparation.blockers)
 
