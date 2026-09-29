@@ -1232,6 +1232,30 @@ def optimize_loadout(
     considered = evaluated_count = invalid = 0
     evaluated_by_metrics: dict[tuple[object, ...], EvaluatedLoadout] = {}
     timed_out = False
+    body_static_valid = False
+    deferred_bodyless: list[Loadout] = []
+
+    def evaluate_candidate(loadout: Loadout) -> None:
+        nonlocal evaluated_count, invalid
+        metrics = evaluator(loadout)
+        if not _meets_requirements(
+            loadout,
+            metrics,
+            depth=depth,
+            intrinsic_abilities=intrinsic_abilities,
+            has_destruction=has_destruction,
+            require_light=require_light,
+        ):
+            invalid += 1
+            return
+        entry = EvaluatedLoadout(loadout, metrics)
+        evaluated_count += 1
+        equivalence_key = _selection_equivalence_key(entry, current_item_ids)
+        incumbent = evaluated_by_metrics.get(equivalence_key)
+        if incumbent is None or _prefer(
+            entry, incumbent, current_item_ids, launcher_damage
+        ):
+            evaluated_by_metrics[equivalence_key] = entry
 
     if candidate_loadouts is None:
         pinned = {
@@ -1249,12 +1273,6 @@ def optimize_loadout(
             timed_out = True
             break
         considered += 1
-        # A legal body armour source makes an empty body slot inadmissible.
-        # Apply this before the existing combat bands so a small margin
-        # difference cannot select nakedness or remove armour next visit.
-        if require_body and loadout.item_at(SLOT_BODY) is None:
-            invalid += 1
-            continue
         if not _meets_static_requirements(
             loadout,
             depth=depth,
@@ -1264,25 +1282,24 @@ def optimize_loadout(
         ):
             invalid += 1
             continue
-        metrics = evaluator(loadout)
-        if not _meets_requirements(
-            loadout,
-            metrics,
-            depth=depth,
-            intrinsic_abilities=intrinsic_abilities,
-            has_destruction=has_destruction,
-            require_light=require_light,
-        ):
-            invalid += 1
+        # Body armour is mandatory only when a body-filled candidate passes
+        # the same static depth gates.  Defer bodyless candidates until that
+        # fact is known, without paying for their combat evaluation if it is.
+        if require_body and loadout.item_at(SLOT_BODY) is None:
+            deferred_bodyless.append(loadout)
             continue
-        entry = EvaluatedLoadout(loadout, metrics)
-        evaluated_count += 1
-        equivalence_key = _selection_equivalence_key(entry, current_item_ids)
-        incumbent = evaluated_by_metrics.get(equivalence_key)
-        if incumbent is None or _prefer(
-            entry, incumbent, current_item_ids, launcher_damage
-        ):
-            evaluated_by_metrics[equivalence_key] = entry
+        if require_body:
+            body_static_valid = True
+        evaluate_candidate(loadout)
+
+    if body_static_valid:
+        invalid += len(deferred_bodyless)
+    elif not timed_out:
+        for loadout in deferred_bodyless:
+            if monotonic() - started > timeout_seconds:
+                timed_out = True
+                break
+            evaluate_candidate(loadout)
 
     evaluated = list(evaluated_by_metrics.values())
     chosen_depth = None

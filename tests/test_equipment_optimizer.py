@@ -1270,6 +1270,40 @@ class EquipmentOptimizerTest(unittest.TestCase):
         )
         self.assertEqual(result.best.loadout.item_at(SLOT_BODY), chaos)
 
+    def test_body_requirement_falls_back_when_no_body_candidate_passes_depth_gate(self):
+        body = gear("body", 36)
+        chaos = gear("chaos-ring", 45, flags=(62,))
+        body_set = Loadout((("light", self.light), (SLOT_BODY, body)), "empty")
+        naked_set = Loadout((("light", self.light), (SLOT_MAIN_RING, chaos)), "empty")
+        result = optimize_loadout(
+            (self.light, body, chaos), lambda loadout: metrics(100),
+            depth=31, candidate_loadouts=(body_set, naked_set),
+            require_body=True,
+            intrinsic_abilities=required_abilities(31) - {"resist_chaos"},
+        )
+        self.assertFalse(result.timed_out)
+        self.assertEqual(result.best.loadout, naked_set)
+        self.assertEqual(result.combinations_evaluated, 1)
+
+    def test_body_requirement_rejects_naked_set_when_body_passes_depth_gate(self):
+        body = gear("body", 36)
+        chaos = gear("chaos-ring", 45, flags=(62,))
+        body_set = Loadout(
+            (("light", self.light), (SLOT_BODY, body),
+             (SLOT_MAIN_RING, chaos)), "empty",
+        )
+        naked_set = Loadout((("light", self.light), (SLOT_MAIN_RING, chaos)), "empty")
+        result = optimize_loadout(
+            (self.light, body, chaos),
+            lambda loadout: metrics(200 if loadout == naked_set else 100),
+            depth=31, candidate_loadouts=(naked_set, body_set),
+            require_body=True,
+            intrinsic_abilities=required_abilities(31) - {"resist_chaos"},
+        )
+        self.assertEqual(result.best.loadout, body_set)
+        self.assertEqual(result.combinations_evaluated, 1)
+        self.assertEqual(result.invalid_combinations, 1)
+
     def test_unknown_or_cursed_body_does_not_create_requirement(self):
         unknown = gear("unknown-body", 36, known=False)
         cursed = gear("cursed-body", 36, cursed=True)
