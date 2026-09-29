@@ -63,6 +63,7 @@ policy.py:_bounty_cashout_key  # quest-request cash-out that travels as store-ro
 policy_observation.py:_resolve_observed_uncomposable_stop  # names the shop-buy operation inside a town-plan stop
 policy.py:_recall_restock_key  # fundraising wait that relays the shop-buy restock reason
 policy.py:_town_holder_wait_key  # relays the open town claim's route key or its observation wait
+policy.py:_silent_holder_stop  # relays the unresolved holder's own family into the typed town stop
 
 # -- 2. relays ---------------------------------------------------------------
 policy.py:__init__  # initialises last_reason to design 4's idle default before any producer runs
