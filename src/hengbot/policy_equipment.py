@@ -2459,8 +2459,9 @@ class EquipmentMixin:
         are held unused in the pack (see the 2026-07-15 town deadlock, whose
         dominant blocker was exactly this: a worn, unidentified Bastard Sword).
         """
-        if snapshot.in_town:
-            self._claim_errand_hold("identification")
+        if (snapshot.in_town and self._defer_town_errand(
+                "identification", "equipped-identification")):
+            return None
         if not snapshot.in_town or snapshot.store is not None:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:equipped",
@@ -3079,8 +3080,9 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.CURSE_ENCHANT)
     def _town_enchant_launcher_key(self, snapshot: Snapshot) -> str | None:
-        if snapshot.in_town:
-            self._claim_errand_hold("curse-enchant")
+        if (snapshot.in_town and self._defer_town_errand(
+                "curse-enchant", "enchant-launcher")):
+            return None
         if (
             not snapshot.in_town
             or snapshot.store is not None

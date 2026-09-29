@@ -1817,8 +1817,9 @@ class TownMixin:
 
     @claims(ClaimOwner.IDENTIFICATION)
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:
-        if snapshot.in_town:
-            self._claim_errand_hold("identification")
+        if (snapshot.in_town and self._defer_town_errand(
+                "identification", "device-processing")):
+            return None
         if not snapshot.in_town:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:device",
@@ -4468,8 +4469,9 @@ class TownMixin:
     def _town_remove_curse_key(self, snapshot: Snapshot) -> str | None:
         """Read a Remove Curse scroll during town prep when a cursed item is worn,
         so it can be swapped/upgraded and its penalties lifted before diving."""
-        if snapshot.in_town:
-            self._claim_errand_hold("curse-enchant")
+        if (snapshot.in_town and self._defer_town_errand(
+                "curse-enchant", "remove-curse")):
+            return None
         if not snapshot.in_town or not self._has_cursed_equipment(snapshot):
             self._offer_execution_no_step(
                 producer="curse-enchant", work_id="remove-curse",
@@ -5288,7 +5290,8 @@ class TownMixin:
             self._rumor_unlock_pending and not snapshot.angband_recall_unlocked
         ) or self._town_travel_rumor_pending is not None
         if rumor_needed:
-            self._claim_errand_hold("rumor")
+            if self._defer_town_errand("rumor", "read-rumor"):
+                return None
             # Revealing a destination is a town prerequisite, not an expedition.
             # Do not require a complete dive loadout before reading the rumors
             # needed to make the inn's travel destination selectable.
