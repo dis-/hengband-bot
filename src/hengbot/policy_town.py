@@ -5043,11 +5043,21 @@ class TownMixin:
                 and not self._town_departure_ready(snapshot)
             ):
                 self.last_reason = "town:rumor-wait-supplies"
+                self._offer_execution(
+                    WAIT_KEY, producer="rumor", work_id="rumor:supplies",
+                    next_step="rumor.wait-for-supplies",
+                    expected_effect="departure-supplies-ready",
+                )
                 return WAIT_KEY
             if player.gold < RUMOR_GOLD_RESERVE + RUMOR_COST:
                 self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
                 self.last_reason = "town:rumor-needs-funds"
+                self._offer_execution(
+                    WAIT_KEY, producer="rumor", work_id="rumor:funds",
+                    next_step="rumor.wait-for-funds",
+                    expected_effect="rumor-funds-available",
+                )
                 return WAIT_KEY
             self._claim_target_capture = []
             try:
@@ -5085,16 +5095,37 @@ class TownMixin:
                         max(1, (player.gold - RUMOR_GOLD_RESERVE) // RUMOR_COST),
                     )
                     self.last_reason = "town:rumor-batch"
-                    return self._step_toward(
+                    key = self._step_toward(
                         snapshot,
                         step,
                         tail=RUMOR_READ_KEY * reads + LEAVE_STORE_KEY,
                     )
-                return self._step_toward(snapshot, step)
+                    if key is not None:
+                        self._offer_execution(
+                            key, producer="rumor", work_id="rumor:inn-batch",
+                            next_step="rumor.read-batch",
+                            arguments=(reads,),
+                            expected_effect="rumor-batch-observed",
+                        )
+                    return key
+                key = self._step_toward(snapshot, step)
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="rumor", work_id="rumor:inn-route",
+                        next_step="rumor.approach-inn",
+                        arguments=(step_target.y, step_target.x),
+                        expected_effect="inn-reached",
+                    )
+                return key
             # Inn unreachable, or we are already standing on it. Do NOT latch a
             # sticky WAIT block — that froze the bot on the inn tile forever
             # (town "5-loop"). Fall through to the recall logic below so the run
             # continues (dive again) instead of waiting on an unreachable rumor.
+
+            self._offer_execution_no_step(
+                producer="rumor", work_id="rumor:inn-route",
+                cause="inn-route-unavailable",
+            )
 
         # Return to the dungeon by Word of Recall once we have depth to justify it:
         # to Angband once its recall is unlocked (Yeek Cave conquered), otherwise

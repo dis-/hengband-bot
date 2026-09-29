@@ -5,8 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.claim_register import observe
-from hengbot.model import Position
+from hengbot.model import (PLAYER_CLASS_WARRIOR, Position, QuestState,
+                           Snapshot, TVAL_LITE, SV_LITE_LANTERN)
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import QUEST_STATUS_REWARDED
+from policy_fixtures import grid, item, player, set_completed_equipment_optimization
+from policy_shop_fixture import _TownShopFixtureBase
 
 
 class BookkeepingDeclarationTest(unittest.TestCase):
@@ -91,6 +95,27 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
                           declaration.next_step, declaration.arguments[0]),
                          ("curse-enchant", "acting", "curse.remove.send",
                           ("item", 7)))
+
+
+class RumorDeclarationTest(_TownShopFixtureBase):
+    def test_inn_batch_declares_read_count(self):
+        board = Snapshot(
+            player(10, 10, gold=900, class_id=PLAYER_CLASS_WARRIOR),
+            {Position(10, 10): grid(10, 10),
+             Position(10, 11): grid(10, 11, building_type=0)},
+            [], inventory=self._strict_supplies(recall=3),
+            equipment=[item("light", TVAL_LITE, SV_LITE_LANTERN,
+                            fuel=5000, is_equipment=True)],
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
+        )
+        policy = HengbotPolicy()
+        set_completed_equipment_optimization(policy)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:rumor-batch")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.arguments),
+                         ("rumor", "rumor.read-batch", (40,)))
 
 
 if __name__ == "__main__":
