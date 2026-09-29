@@ -5917,8 +5917,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not getattr(session, "complete", False)):
             if session.pending_action is not None:
                 self.last_reason = "equipment-transaction:await-confirmation"
-                return (LEAVE_STORE_KEY if snapshot.store is not None
-                        else WAIT_KEY)
+                key = LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+                self._offer_execution(
+                    key, producer=holder.owner.value,
+                    work_id=f"equipment:pending:{session.target_loadout_id}",
+                    next_step="equipment.action.observe",
+                    expected_effect="equipment-action-confirmed",
+                    continuation="equipment.next-action",
+                )
+                return key
             if getattr(session, "current_action", None) is not None:
                 key = (self._equipment_transaction_home_key(snapshot)
                        if snapshot.store is not None
@@ -7602,7 +7609,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
             self._offer_execution(
-                key, producer="home-visit", work_id="home:leave-after-one-operation",
+                key, producer=(
+                    self._store_visit.operation_producer_family
+                    if self._store_visit is not None
+                    and self._store_visit.operation_producer_family in {
+                        "equipment-txn", "calibration", "home-visit"
+                    } else "equipment-txn"
+                    if self._equipment_transaction_session is not None
+                    else "home-visit"
+                ), work_id="home:leave-after-one-operation",
                 next_step="store.leave.send", arguments=(STORE_HOME,),
                 expected_effect="outside-store",
             )
@@ -7772,6 +7787,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and not getattr(self._store_visit, "operation_released", False)):
                 self.last_reason = "equipment-transaction:atomic-deposit"
                 key = WAIT_KEY
+                self._offer_execution(
+                    key, producer="equipment-txn",
+                    work_id="equipment:atomic-deposit-pending",
+                    next_step="home.operation.observe",
+                    expected_effect="home-inventory-effect",
+                    continuation="equipment.next-action",
+                )
             elif (rearm := self._home_rearm_key(snapshot)) is not None:
                 key = rearm
             elif (

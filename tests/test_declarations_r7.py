@@ -137,5 +137,35 @@ class CalibrationRows(unittest.TestCase):
                          ("calibration", "home.operation.send"))
 
 
+class EquipmentTransactionRows(unittest.TestCase):
+    def test_town_1907_pending_action_has_owner_matched_offer(self):
+        policy = HengbotPolicy()
+        holder = policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "transaction"))
+        policy._equipment_transaction_session = SimpleNamespace(
+            pending_action=object(), complete=False,
+            target_loadout_id="recorded-town-1907")
+        key = policy._town_holder_wait_key(holder, town_board())
+        self.assertEqual((key, policy.last_reason),
+                         ("5", "equipment-transaction:await-confirmation"))
+        declaration = bind(policy, "equipment-txn", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("equipment-txn", "equipment.action.observe"))
+
+    def test_tour_2654_home_leave_uses_operation_owner(self):
+        policy = HengbotPolicy()
+        board = replace(town_board(), store=StoreState(STORE_HOME, []))
+        policy._store_visit = StoreVisit(
+            "equipment-transaction", "equipment-work", STORE_HOME,
+            operation_producer_family="equipment-txn")
+        policy._home_atomic_withdraw_pending = (("weapon", 23, 0), 0, 20, 0)
+        key = policy._shop(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "home:leave-after-one-operation"))
+        declaration = bind(policy, "equipment-txn", key)
+        self.assertEqual((declaration.producer, declaration.next_step),
+                         ("equipment-txn", "store.leave.send"))
+
+
 if __name__ == "__main__":
     unittest.main()

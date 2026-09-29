@@ -3704,6 +3704,19 @@ class ShopMixin:
 
             if self._home_atomic_withdraw_pending is not None:
                 self.last_reason = "home:leave-after-one-operation"
+                self._offer_execution(
+                    LEAVE_STORE_KEY,
+                    producer=(
+                        self._store_visit.operation_producer_family
+                        if self._store_visit is not None
+                        and self._store_visit.operation_producer_family in {
+                            "equipment-txn", "calibration", "home-visit"
+                        } else "home-visit"
+                    ),
+                    work_id="home:leave-after-one-operation",
+                    next_step="store.leave.send",
+                    arguments=(STORE_HOME,), expected_effect="outside-store",
+                )
                 return LEAVE_STORE_KEY
 
             # Prefer owned Identify charges to buying another staff.  Once the
