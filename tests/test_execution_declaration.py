@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import gzip
 import json
+from unittest.mock import patch
 
 from hengbot.claim_register import (
     ClaimRegister, declaration_mismatch, observe, reach,
@@ -13,6 +14,10 @@ from hengbot.claim_register import (
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
+from test_policy import (
+    Snapshot, StoreState, STORE_ALCHEMIST, SV_SCROLL_REMOVE_CURSE,
+    TVAL_SCROLL, grid, player, store_item,
+)
 
 
 SHORT_ROUTE = Path(__file__).parent / "fixtures/s33-live-short-entrance-224.json.gz"
@@ -77,6 +82,38 @@ class ExecutionDeclarationTest(unittest.TestCase):
         declaration = policy._claim_register.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("\x1b", "home-visit", "store.leave.send"))
+
+    def test_shop_invalid_page_declares_leave_under_shop_seller(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 44
+        key = policy._shop(SimpleNamespace(store=None))
+        claim = policy._claim_register.declare(
+            "shop-sell", observe(("store",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step,
+                          declaration.expected_effect),
+                         ("\x1b", "shop-sell", "store.leave.send",
+                          "outside-store"))
+
+    def test_shop_buy_declares_exact_page_command(self):
+        ware = store_item("a", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE, price=100)
+        board = Snapshot(
+            player(10, 10), {Position(10, 10): grid(10, 10)}, [],
+            floor_key=(0, 0, 0), town_flag=True,
+            inventory=[], store=StoreState(STORE_ALCHEMIST, [ware]),
+        )
+        policy = HengbotPolicy()
+        policy._decision_sequence = 45
+        with (patch.object(policy, "_next_purchase", return_value=ware),
+              patch.object(policy, "_purchase_quantity", return_value=1)):
+            key = policy._shop(board)
+        claim = policy._claim_register.declare(
+            "shop-buy", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((key, declaration.producer, declaration.next_step),
+                         ("pa\r", "shop-buy", "shop.purchase.send"))
 
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()

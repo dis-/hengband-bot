@@ -3341,6 +3341,42 @@ class ShopMixin:
         }
 
     def _shop(self, snapshot: Snapshot) -> str:
+        """Declare the final direct store-page command produced by this page."""
+        key = self._shop_core(snapshot)
+        family = self._claim_family_of(self.last_reason)
+        if family in {"shop-buy", "shop-sell", "home-visit"} and not any(
+            offer[0] == key and offer[1] == family
+            for offer in getattr(self, "_execution_offers", ())
+        ):
+            store_type = getattr(snapshot.store, "store_type", None)
+            work_id = f"store-page:{store_type}:{self._decision_sequence}:{self.last_reason}"
+            if key is None:
+                self._offer_execution(
+                    None, producer=family, work_id=work_id,
+                    state="releasing", cause=self.last_reason,
+                )
+            else:
+                step = (
+                    "shop.purchase.send" if key.startswith(BUY_KEY)
+                    else "shop.sale.send" if key.startswith(SELL_KEY)
+                    else "store.leave.send" if key == LEAVE_STORE_KEY
+                    else "shop.page.send"
+                )
+                self._offer_execution(
+                    key, producer=family, work_id=work_id,
+                    next_step=step, arguments=(store_type,),
+                    expected_effect=(
+                        "outside-store" if key == LEAVE_STORE_KEY
+                        else "inventory/gold-effect" if step in {
+                            "shop.purchase.send", "shop.sale.send"
+                        } else "store-page-effect"
+                    ),
+                    continuation="shop.page.observe",
+                    budget_ref="store-visit-existing-budget",
+                )
+        return key
+
+    def _shop_core(self, snapshot: Snapshot) -> str:
         store = snapshot.store
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         if store is None:
