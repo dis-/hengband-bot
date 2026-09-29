@@ -392,6 +392,20 @@ class Claim:
         )
 
 
+def declaration_mismatch(claim: Claim, inferred: str,
+                         reason: str) -> dict | None:
+    """Record a disagreement without changing either execution authority."""
+    declared = claim.execution
+    if declared is not None and declared.state == inferred:
+        return None
+    return {
+        "claim_id": claim.claim_id,
+        "inferred": inferred,
+        "declared": declared.as_dict() if declared is not None else None,
+        "reason": reason,
+    }
+
+
 # -- S2b.2: the bar table (design 3.2, 3.3, 5.4.1) ---------------------------
 
 # A preemptor barred by the 50-turn safety rule (design 3.2): the owner is one

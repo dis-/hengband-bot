@@ -7,7 +7,9 @@ from types import SimpleNamespace
 import gzip
 import json
 
-from hengbot.claim_register import ClaimRegister, observe, reach
+from hengbot.claim_register import (
+    ClaimRegister, declaration_mismatch, observe, reach,
+)
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ENTRANCE_TRAVEL_MACRO, HengbotPolicy
@@ -86,6 +88,12 @@ class ExecutionDeclarationTest(unittest.TestCase):
                          "acting")
         self.assertEqual(policy._claim_register.current.execution.next_step,
                          "route.resume")
+        mismatch = declaration_mismatch(
+            policy._claim_register.current, "silent",
+            "ownership:holder-silent:store-router")
+        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
+                          mismatch["declared"]["next_step"]),
+                         ("silent", "acting", "route.resume"))
 
     def test_1904_home_withdraw_effect_closes_named_operation(self):
         # The recorded Home transfer was observed before visit state retired.
@@ -110,6 +118,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
         closed = policy._claim_register.complete("home-withdraw-observed")
         self.assertEqual((closed.execution.state, closed.execution.evidence),
                          ("done", "home-withdraw-observed"))
+        mismatch = declaration_mismatch(
+            closed, "awaiting", "equipment-transaction:atomic-deposit")
+        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
+                          mismatch["declared"]["evidence"]),
+                         ("awaiting", "done", "home-withdraw-observed"))
 
     def test_2322_calibration_takeoff_retains_posted_action(self):
         # Recorded 42/43: 'ta' under calibration #30, then holder-silent.
@@ -167,6 +180,12 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual(policy._decision_declaration_mismatch["inferred"],
                          "awaiting")
         self.assertIsNone(getattr(policy, "_execution_pending_post", None))
+        mismatch = declaration_mismatch(
+            policy._claim_register.current, "unposted-await",
+            "stair:await-observation")
+        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
+                          mismatch["declared"]["operation_ref"]),
+                         ("unposted-await", "acting", None))
 
 
 if __name__ == "__main__":

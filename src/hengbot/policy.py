@@ -120,6 +120,7 @@ from hengbot.claim_register import (
     ClaimScope,
     Goal,
     bar_after_board as claim_bar_after_board,
+    declaration_mismatch as claim_declaration_mismatch,
     claims,
     observe as claim_observe,
     owner_of as claim_owner_of,
@@ -3347,7 +3348,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The driver alone can turn an emitted command into a posted wait.
             if key != "":
                 self._execution_pending_post = (claim.claim_id, key, work_id)
-        declaration = register.current.execution
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
             else "unposted-await" if reason == "stair:await-observation"
@@ -3357,13 +3357,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else "acting"
         )
         self._decision_declaration_mismatch = (
-            {"claim_id": claim.claim_id, "inferred": inferred,
-             "declared": (declaration.as_dict() if declaration else None),
-             "reason": reason}
+            claim_declaration_mismatch(claim, inferred, reason)
             if claim.owner.value in {
                 "store-router", "home-visit", "equipment-txn",
                 "calibration", "departure", "fundraising",
-            } and (declaration is None or inferred != declaration.state)
+            }
             else None
         )
 
@@ -4620,6 +4618,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._observe_execution_delegations()
         self._record_execution_declaration(claim, key, reason)
         claim = register.current
+        closed_declaration_mismatch = (
+            claim_declaration_mismatch(finished, "awaiting", reason)
+            if (finished is not None and finished.execution is not None
+                and finished.execution.state == "done"
+                and finished.owner.value in {
+                    "home-visit", "equipment-txn", "calibration"
+                }
+                and visit is not None and visit.operation_posted
+                and not visit.operation_released)
+            else None
+        )
         self.decision_claim = {
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
@@ -4737,7 +4746,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
             "declaration_mismatch": getattr(
                 self, "_decision_declaration_mismatch", None
-            ),
+            ) or closed_declaration_mismatch,
         }
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
