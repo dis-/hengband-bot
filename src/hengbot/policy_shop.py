@@ -4798,6 +4798,8 @@ class ShopMixin:
                 return WAIT_KEY
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
+            self._declare_reach(self._shopping_approach_goal,
+                                family="store-router")
             self.last_reason = "store:entry-failed-step-off"
             if not neighbors:
                 self._offer_execution(
