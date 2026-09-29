@@ -157,6 +157,20 @@ class HomeScanRows(unittest.TestCase):
 
 
 class EquipmentTransactionRows(unittest.TestCase):
+    def test_town_1919_stale_home_action_offers_store_noop_key(self):
+        policy = HengbotPolicy()
+        policy.last_reason = (
+            "equipment-transaction:stale-identity-invalidated:"
+            "deposit:eda4854047084365")
+        key = policy._equipment_home_outcome(
+            "5", label="deposit-stale-worn", effect="transaction-replanned")
+        self.assertEqual(key, "5")
+        self.assertEqual(policy._execution_offers_for()[-1][:2],
+                         ("\r", "equipment-txn"))
+        declaration = bind(policy, "equipment-txn", "\r")
+        self.assertEqual((declaration.state, declaration.next_step),
+                         ("acting", "equipment.home.deposit-stale-worn"))
+
     def test_town_1907_posted_action_wait_is_an_acting_wait_command(self):
         policy = HengbotPolicy()
         policy._prepare_equipment_optimization = lambda _: None

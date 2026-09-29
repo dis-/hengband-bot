@@ -1768,7 +1768,8 @@ class EquipmentMixin:
             )
         else:
             self._offer_execution(
-                key, producer="equipment-txn", work_id=work_id,
+                "\r" if key == WAIT_KEY else key,
+                producer="equipment-txn", work_id=work_id,
                 next_step=f"equipment.home.{label}", expected_effect=effect,
                 continuation="equipment.next-action",
             )
