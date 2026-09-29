@@ -1253,6 +1253,10 @@ class QuestMixin:
         if snapshot.in_town:
             self._claim_errand_hold("cross-town")
         if not snapshot.in_town or snapshot.store is not None:
+            self._offer_execution_no_step(
+                producer="cross-town", work_id="morivant-full-identify",
+                cause="town-route-context-unavailable",
+            )
             return None
         targets = self._carried_full_identify_targets(snapshot)
         home_targets = self._home_full_identify_targets()
@@ -1270,6 +1274,10 @@ class QuestMixin:
                 or snapshot.player.gold
                 < MORIVANT_FULL_IDENTIFY_COST + 2 * TOWN_TELEPORT_COST
             ):
+                self._offer_execution_no_step(
+                    producer="cross-town", work_id="morivant-full-identify",
+                    cause="expedition-not-actionable",
+                )
                 return None
             home_signatures = tuple(
                 sorted(self._item_signature(item) for item in home_targets)
@@ -1290,6 +1298,10 @@ class QuestMixin:
                 self._identification_need = None
 
         if expedition.phase in {"prepare-home", "return-home", "restore-home"}:
+            self._offer_execution_no_step(
+                producer="cross-town", work_id="morivant-full-identify",
+                cause=f"home-handoff:{expedition.phase}",
+            )
             return None
 
         current = self._effective_town_id(snapshot)
@@ -1299,8 +1311,16 @@ class QuestMixin:
                     expedition.phase = "return-home"
                     self._home_candidate_waiting = True
                     self._rearm_town_store_for_new_work(STORE_HOME)
+                    self._offer_execution_no_step(
+                        producer="cross-town", work_id="morivant-full-identify",
+                        cause="return-home-handoff",
+                    )
                     return None
                 self._finish_morivant_full_identify()
+                self._offer_execution_no_step(
+                    producer="cross-town", work_id="morivant-full-identify",
+                    cause="expedition-complete",
+                )
                 return None
             destination = (
                 expedition.origin_town_id
@@ -1311,10 +1331,21 @@ class QuestMixin:
             if key is not None:
                 self.last_reason = f"town:morivant-full-identify:travel-{destination}"
                 self._adopt_decision_goal()
+                self._offer_execution(
+                    key, producer="cross-town",
+                    work_id=f"morivant-full-identify:travel:{destination}",
+                    next_step="cross-town.travel",
+                    arguments=(destination,),
+                    expected_effect=f"arrive-town:{destination}",
+                )
                 return key
             # A missing Inn route is terminal for this attempt, not a departure
             # claim.  Preserve today's deferral behavior and never spin here.
             self._finish_morivant_full_identify()
+            self._offer_execution_no_step(
+                producer="cross-town", work_id="morivant-full-identify",
+                cause="inn-route-unavailable",
+            )
             return None
 
         affordable = max(
@@ -1359,10 +1390,27 @@ class QuestMixin:
                         + FULL_IDENTIFY_DISMISS_SUFFIX
                         for item in chosen
                     )
-                    return self._step_toward(
+                    key = self._step_toward(
                         snapshot, step, tail=selectors + LEAVE_STORE_KEY
                     )
-                return self._step_toward(snapshot, step)
+                    if key is not None:
+                        self._offer_execution(
+                            key, producer="cross-town",
+                            work_id="morivant-full-identify:library",
+                            next_step="library.identify-batch",
+                            arguments=(len(chosen),),
+                            expected_effect="items-fully-identified",
+                        )
+                    return key
+                key = self._step_toward(snapshot, step)
+                if key is not None:
+                    self._offer_execution(
+                        key, producer="cross-town",
+                        work_id="morivant-full-identify:library-route",
+                        next_step="library.approach",
+                        expected_effect="library-reached",
+                    )
+                return key
 
         # No affordable/remaining target or no Library route: return home if
         # possible; otherwise resolve this optional attempt immediately.
@@ -1372,8 +1420,19 @@ class QuestMixin:
             if key is not None:
                 self.last_reason = "town:morivant-full-identify:return"
                 self._adopt_decision_goal()
+                self._offer_execution(
+                    key, producer="cross-town",
+                    work_id=f"morivant-full-identify:return:{expedition.origin_town_id}",
+                    next_step="cross-town.travel",
+                    arguments=(expedition.origin_town_id,),
+                    expected_effect=f"arrive-town:{expedition.origin_town_id}",
+                )
                 return key
         self._finish_morivant_full_identify()
+        self._offer_execution_no_step(
+            producer="cross-town", work_id="morivant-full-identify",
+            cause="expedition-ended-without-route",
+        )
         return None
 
     @staticmethod

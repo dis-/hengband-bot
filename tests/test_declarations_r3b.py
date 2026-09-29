@@ -118,5 +118,30 @@ class RumorDeclarationTest(_TownShopFixtureBase):
                          ("rumor", "rumor.read-batch", (40,)))
 
 
+class CrossTownDeclarationTest(unittest.TestCase):
+    def test_shopping_funds_wait_declares_required_gold(self):
+        policy = HengbotPolicy()
+        policy._observed_departure_prices["food"] = (100, 1)
+        board = SimpleNamespace(
+            in_town=False, player=SimpleNamespace(gold=0),
+        )
+        with (patch.object(policy, "_cross_town_shortages",
+                           return_value=(("food", 1),)),
+              patch.object(policy, "_cross_town_unobtainable_categories",
+                           return_value=("food",)),
+              patch.object(policy, "_cross_town_candidate_order",
+                           return_value=(2,)),
+              patch.object(policy, "_effective_town_id", return_value=1)):
+            key = policy._cross_town_shopping_key(board)
+        claim = policy._claim_register.declare(
+            "cross-town", observe(("funds",), 8, "shopping"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.producer, declaration.state,
+                          declaration.next_step, declaration.arguments[0]),
+                         ("cross-town", "acting", "cross-town.wait-for-funds",
+                          policy._cross_town_shopping_funds["required_gold"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1411,6 +1411,10 @@ class ShopMixin:
         expedition = self._cross_town_shopping
         if expedition is None:
             if not unobtainable:
+                self._offer_execution_no_step(
+                    producer="cross-town", work_id="cross-town-shopping",
+                    cause="no-unobtainable-shortage",
+                )
                 return None
             costs: dict[str, int] = {}
             for category, quantity in shortages:
@@ -1426,11 +1430,19 @@ class ShopMixin:
                         ),
                         "tried_towns": [],
                     }
+                    self._offer_execution_no_step(
+                        producer="cross-town", work_id="cross-town-shopping",
+                        cause=f"price-unobserved:{category}",
+                    )
                     return None
                 price, units = observed
                 costs[category] = ceil(quantity / units) * price
             candidates = self._cross_town_candidate_order(snapshot)
             if not candidates:
+                self._offer_execution_no_step(
+                    producer="cross-town", work_id="cross-town-shopping",
+                    cause="no-candidate-town",
+                )
                 return None
             required_gold = sum(costs.values()) + CROSS_TOWN_SHOPPING_RESERVE
             self._cross_town_shopping_funds = {
@@ -1451,6 +1463,13 @@ class ShopMixin:
                 self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
                 self.last_reason = "town:cross-town-shopping-needs-funds"
+                self._offer_execution(
+                    WAIT_KEY, producer="cross-town",
+                    work_id="cross-town-shopping:funds",
+                    next_step="cross-town.wait-for-funds",
+                    arguments=(required_gold,),
+                    expected_effect="travel-funds-available",
+                )
                 return WAIT_KEY
             expedition = CrossTownShoppingExpedition(
                 trigger_town_id=self._effective_town_id(snapshot),
@@ -1478,6 +1497,13 @@ class ShopMixin:
             if key is not None:
                 self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
                 self._adopt_decision_goal()
+                self._offer_execution(
+                    key, producer="cross-town",
+                    work_id=f"cross-town-shopping:travel:{next_town}",
+                    next_step="cross-town.travel",
+                    arguments=(next_town,),
+                    expected_effect=f"arrive-town:{next_town}",
+                )
                 return key
             # A refused or unroutable trip is terminal for this visit.  Do not
             # approach another Inn destination on the following decision.
@@ -1486,7 +1512,15 @@ class ShopMixin:
                 if town_id not in expedition.tried_towns
             )
             expedition.target_town_id = None
+            self._offer_execution_no_step(
+                producer="cross-town", work_id="cross-town-shopping",
+                cause="travel-route-refused",
+            )
             return None
+        self._offer_execution_no_step(
+            producer="cross-town", work_id="cross-town-shopping",
+            cause="candidate-towns-exhausted",
+        )
         return None
 
     def _set_town_store_attempted(
