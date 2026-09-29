@@ -255,7 +255,7 @@ class TestTreeFakeryLint(unittest.TestCase):
     }
     EXPECTED_UNDECLARED_INSTANCES = 13
     # Six scan-only exception sites were deleted with their mechanism.
-    DECLARED_FINDING_RATCHET = 126
+    DECLARED_FINDING_RATCHET = 127
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
         bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'

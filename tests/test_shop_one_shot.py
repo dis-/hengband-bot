@@ -510,6 +510,8 @@ class ShopOneShotTest(unittest.TestCase):
         self.assertTrue(policy._store_visit.operation_posted)
         self.assertIsNotNone(policy._store_buy_inflight)
         policy._store_visit.operation_released = True
+        # TEST_FAKERY_LINT_ALLOW: private-state-injected: isolate a released
+        # visit whose purchase watch was cleared before the next shop page.
         policy._store_buy_inflight = None
         key = policy.choose_key(replace(inside, turn=inside.turn + 3))
         self.assertNotEqual((key, policy.last_reason),
