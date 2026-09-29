@@ -1292,7 +1292,18 @@ class HomeMixin:
                 self._inventory_signature_count(snapshot, signature),
             )
         quantity = f"{deposit_count}\r" if deposit.count > 1 else ""
-        return SELL_KEY + deposit.slot + quantity
+        key = SELL_KEY + deposit.slot + quantity
+        self._offer_execution(
+            key, producer="home-visit",
+            work_id=f"home-page-deposit:{self._decision_sequence}:{deposit.slot}",
+            next_step="home.deposit.send",
+            arguments=(deposit.slot, deposit_count,
+                       self._item_signature(deposit)),
+            expected_effect="inventory-decreased/home-stock-increased",
+            continuation="home.deposit.observe",
+            budget_ref="home-visit-existing-budget",
+        )
+        return key
 
     def _atomic_home_withdraw_key(
         self, snapshot: Snapshot, step: Position

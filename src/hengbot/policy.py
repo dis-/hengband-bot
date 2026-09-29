@@ -11501,6 +11501,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Install a plan; the plan may request but never re-arm a Home visit."""
         previous = self._equipment_transaction_session
         self._equipment_transaction_session = session
+        if session is not None and session is not previous:
+            action = session.current_action
+            if action is not None:
+                self._offer_execution(
+                    "", producer="equipment-txn",
+                    work_id=f"equipment-session:{self._decision_sequence}",
+                    next_step="equipment.next-action",
+                    arguments=(action.kind, action.item_identity),
+                    expected_effect=f"equipment-effect:{action.kind}",
+                    continuation="equipment.next-action",
+                    budget_ref="equipment-session",
+                )
         if session is not previous:
             self._equipment_atomic_withdraw_leave_count = 0
         if (
@@ -12000,7 +12012,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def refuse_key_posting(self, owner: str, key: str) -> None:
         """Make a sender-side refusal actionable on the next policy decision."""
+        pending_execution = getattr(self, "_execution_pending_post", None)
         self._execution_pending_post = None
+        if pending_execution is not None and pending_execution[1] == key:
+            claim = getattr(self._claim_register, "current", None)
+            if (claim is not None and claim.claim_id == pending_execution[0]
+                    and claim.execution is not None
+                    and claim.execution.work_id == pending_execution[2]
+                    and claim.execution.state == "acting"):
+                declaration = claim.execution
+                self._claim_register.declare_execution(
+                    claim.claim_id, work_id=declaration.work_id,
+                    producer=declaration.producer, state="acting",
+                    next_step="transport.resolve-refusal",
+                    arguments=(owner, key),
+                    expected_effect=declaration.expected_effect,
+                    continuation=declaration.continuation,
+                    budget_ref=declaration.budget_ref,
+                    evidence="posting-refused",
+                )
         # The posting contract correctly refuses an identical key/effect pair.
         # Interleave the existing look probe while the issuing progress core is
         # frozen so a recovered modal cannot make that refusal absorbing.

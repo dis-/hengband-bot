@@ -26,6 +26,61 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
+    def test_direct_home_page_deposit_declares_exact_item_and_count(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 31
+        policy._item_signature = lambda item: ("torch", 39, 0)
+        policy._retention_surplus = lambda board, item: 3
+        item = SimpleNamespace(slot="h", count=5, charges=0, tval=39, sval=0)
+        board = SimpleNamespace(inventory=(item,), player=SimpleNamespace(gold=42))
+        key = policy._home_deposit_key(board, item)
+        claim = policy._claim_register.declare(
+            "home-visit", observe(("inventory",), 8, "store-operation"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        declaration = policy._claim_register.current.execution
+        self.assertEqual(key, "dh3\r")
+        self.assertEqual((declaration.state, declaration.next_step,
+                          declaration.arguments),
+                         ("acting", "home.deposit.send",
+                          ("h", 3, ("torch", 39, 0))))
+
+    def test_refused_transport_remains_named_acting_work(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 32
+        claim = policy._claim_register.declare(
+            "home-visit", observe(("inventory",), 8, "store-operation"))
+        policy._offer_execution(
+            "dh3\r", producer="home-visit", work_id="deposit:torch",
+            next_step="home.deposit.send", expected_effect="inventory-decreased",
+        )
+        policy._record_execution_declaration(claim, "dh3\r", "home:deposit")
+        policy.refuse_key_posting("home:deposit", "dh3\r")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.state, declaration.next_step,
+                          declaration.operation_ref, declaration.evidence),
+                         ("acting", "transport.resolve-refusal", None,
+                          "posting-refused"))
+        self.assertIsNone(policy._execution_pending_post)
+        policy.confirm_key_posted("dh3\r")
+        self.assertEqual(policy._claim_register.current.execution.state,
+                         "acting")
+
+    def test_session_installation_offers_first_action_before_send(self):
+        policy = HengbotPolicy()
+        policy._decision_sequence = 33
+        action = SimpleNamespace(kind="takeoff", item_identity="armour-a")
+        session = SimpleNamespace(current_action=action, executable=True,
+                                  required_context="legacy")
+        policy._set_equipment_transaction_session(session)
+        claim = policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "equipment"))
+        policy._record_execution_declaration(claim, "", "equipment:session-installed")
+        declaration = policy._claim_register.current.execution
+        self.assertEqual((declaration.state, declaration.next_step,
+                          declaration.arguments, declaration.operation_ref),
+                         ("acting", "equipment.next-action",
+                          ("takeoff", "armour-a"), None))
+
     def test_revision_and_checkpoint_round_trip(self):
         register = ClaimRegister()
         claim = register.declare("store-router", reach((31, 150)))

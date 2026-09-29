@@ -1166,8 +1166,26 @@ class CalibrationMixin:
                 # confirm_key_posted owns the request.
                 self._calibration_naked_dump_prepared = True
                 self.last_reason = "calibration:request-naked-character"
-                return HOME_CHARACTER_DUMP_MACRO if in_home else CHARACTER_DUMP_MACRO
+                key = (HOME_CHARACTER_DUMP_MACRO if in_home
+                       else CHARACTER_DUMP_MACRO)
+                self._offer_execution(
+                    key, producer="calibration",
+                    work_id=f"calibration:{self._calibration_session_target}:capture",
+                    next_step="calibration.capture.send",
+                    expected_effect="naked-character-captured",
+                    continuation="calibration.restore",
+                    budget_ref="calibration-session",
+                )
+                return key
             self.last_reason = "calibration:await-capture"
+            self._offer_execution(
+                WAIT_KEY, producer="calibration",
+                work_id=f"calibration:{self._calibration_session_target}:capture",
+                next_step="calibration.capture.observe",
+                expected_effect="naked-character-captured",
+                continuation="calibration.restore",
+                budget_ref="calibration-session",
+            )
             return WAIT_KEY
         if phase == "restore-supplies":
             if (getattr(self, "_crossarea_fundraising_enforced", False)
@@ -1195,8 +1213,24 @@ class CalibrationMixin:
                         "catalogue-adopted", "home-knowledge-existing-epoch",
                     )
                     self.last_reason = "calibration:request-restore-knowledge"
+                    self._offer_execution(
+                        HOME_KNOWLEDGE_MACRO, producer="calibration",
+                        work_id=f"calibration:{self._calibration_session_target}:restore-scan",
+                        next_step="home.knowledge.send",
+                        expected_effect="catalogue-adopted",
+                        continuation="calibration.restore-supplies",
+                        budget_ref="home-knowledge-existing-epoch",
+                    )
                     return HOME_KNOWLEDGE_MACRO
                 self.last_reason = "calibration:await-restore-knowledge"
+                self._offer_execution(
+                    WAIT_KEY, producer="calibration",
+                    work_id=f"calibration:{self._calibration_session_target}:restore-scan",
+                    next_step="home.knowledge.observe",
+                    expected_effect="catalogue-adopted",
+                    continuation="calibration.restore-supplies",
+                    budget_ref="home-knowledge-existing-epoch",
+                )
                 return WAIT_KEY
             # Calibration is only a requester.  The Home visit executor owns
             # filing and approach just as it does for every other Home visit.
