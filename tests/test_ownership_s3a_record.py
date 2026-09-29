@@ -103,6 +103,11 @@ class S3aRecordTest(unittest.TestCase):
         policy._town_claim_bar_enforced = True
         self.assertIsNone(policy._enforce_town_claim_result(
             decisions.board, "~9\x1b\x1b"))
+        # Enforcement drops the competing result; the ladder's final branch
+        # diagnoses the holder after all eligible producers have run.
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        self.assertIsNone(policy._town_holder_ladder_result(
+            policy._claim_errand_hold("__none__"), decisions.board))
         self.assertEqual(policy.last_reason,
                          "ownership:declaration-missing:store-router")
         self.assertEqual(policy._decision_errand_deferred[-1]["holder_claim_id"],
@@ -228,6 +233,9 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNone(
             policy._enforce_town_claim_result(decisions.board, "5")
         )
+        self.assertEqual(policy.last_reason, "town:blocked:owner-retired")
+        self.assertIsNone(policy._town_holder_ladder_result(
+            policy._claim_errand_hold("__none__"), decisions.board))
         self.assertEqual(policy.last_reason,
                          "ownership:declaration-missing:store-router")
         self.assertEqual(policy._claim_errand_hold("shop-buy").claim_id,

@@ -96,7 +96,7 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
                          ("curse-enchant", "acting", "curse.remove.send",
                           policy._item_signature(cursed)))
 
-    def test_acting_holder_reenters_its_producer_and_defers_other_family(self):
+    def test_acting_holder_uses_normal_producer_and_defers_other_family(self):
         policy = HengbotPolicy()
         policy._town_claim_bar_enforced = True
         cursed = item("a", 23, 0, is_equipment=True, is_cursed=True)
@@ -118,8 +118,7 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
         self.assertTrue(policy._defer_town_errand("home-scan", "competing-scan"))
         self.assertFalse(policy._defer_town_errand(
             "curse-enchant", "own-operation"))
-        self.assertEqual(policy._town_holder_wait_key(
-            policy._claim_register.current, board), key)
+        self.assertEqual(policy._town_remove_curse_key(board), key)
         self.assertEqual(policy.last_reason, "town:remove-curse")
 
         cleared = Snapshot(
@@ -128,7 +127,8 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
             floor_key=(0, 0, 0), town_flag=True,
             equipment=[], inventory=[scroll],
         )
-        self.assertIsNone(policy._town_holder_wait_key(
+        self.assertIsNone(policy._town_remove_curse_key(cleared))
+        self.assertIsNone(policy._town_holder_ladder_result(
             policy._claim_register.current, cleared))
         self.assertEqual(policy._claim_register.current.closed_reason,
                          "no-step:no-town-curse-work")
@@ -155,8 +155,9 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
         claim = policy._claim_register.declare(
             "curse-enchant", observe(("curse",), 8, "equipment"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        self.assertIsNone(policy._town_holder_wait_key(
-            policy._claim_register.current, board(replacement)))
+        changed = board(replacement)
+        key = policy._town_remove_curse_key(changed)
+        self.assertIsNone(policy._enforce_town_claim_result(changed, key))
         self.assertEqual(policy.last_reason,
                          "ownership:declaration-stale:curse-enchant")
 

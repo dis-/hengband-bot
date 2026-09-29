@@ -3422,6 +3422,8 @@ class ShopMixin:
     def _shop(self, snapshot: Snapshot) -> str:
         """Declare the final direct store-page command produced by this page."""
         key = self._shop_core(snapshot)
+        if self.last_reason == "shop:purchase-deferred":
+            return None
         family = self._claim_family_of(self.last_reason)
         request = getattr(self._home_errand, "request", None)
         if (key == LEAVE_STORE_KEY and self._home_errand.active
@@ -4181,6 +4183,9 @@ class ShopMixin:
 
         item = self._next_purchase(snapshot)
         if item is not None:
+            if self._defer_town_errand("shop-buy", "purchase"):
+                self.last_reason = "shop:purchase-deferred"
+                return None
             live_matches = self._matching_live_purchase_rungs(snapshot, item)
             if not live_matches:
                 self._shop_selector_diagnostics["purchase_provenance"] = (

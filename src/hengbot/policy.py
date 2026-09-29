@@ -6288,9 +6288,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             offers = () if buffer is None else buffer.steps
             own = tuple(offer for offer in offers
                         if offer[0] == key and offer[1] == family)
-            if own and not any(
+            delegated = any(
+                record.lifecycle == "open"
+                and record.parent_claim_id == route.claim_id
+                and record.delegate_family == family
+                and getattr(record, "execution", None) is not None
+                and record.execution.work_id == declaration.work_id
+                and record.work_identity[-1:] == (key,)
+                for record in self._delegation_records()
+            )
+            if own and not delegated and not any(
                 offer[2] == declaration.work_id
-                and offer[3] == declaration.next_step
+                and offer[3] in {declaration.next_step,
+                                 declaration.continuation}
                 and offer[4] == declaration.arguments
                 for offer in own
             ):

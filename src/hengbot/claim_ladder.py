@@ -119,6 +119,8 @@ S3_FAMILIES = frozenset({
     "calibration",
     "identification",
     "curse-enchant",
+    "cross-town",
+    "rumor",
 })
 # Rev 10.1 item 9: the families whose Reach/Observe claims record the monsters
 # that triggered them.
