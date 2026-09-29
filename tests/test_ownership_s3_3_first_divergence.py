@@ -16,9 +16,11 @@ import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 # after its posted travel releases, so the tour row is index 2703.
 EXPECTED_FIRST = {
     "tour": (2703, 2701, "7", "shop:approach"),
-    # Ruling 2026-09-29 #2, design #8 §3: the Home page command boundary
-    # sends CR for the equipment deposit continuation.
-    "town": (1179, 1177, "\r", "equipment-transaction:atomic-deposit"),
+    # Ruling 2026-09-29 #4 (supersedes #2 for this row), design #8 section 3
+    # 'ready child/action executes': the posted `dm` deposit's effect is
+    # observed on this board (s3-town-1179-live2.md), so the session's next
+    # planned deposit (pack:055751ff10eb08e9, slot l) is dispatched.
+    "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
     "overweight": (3724, 3723, "3", "shop:approach"),
     "withdraw": None,
     "recall": None,
@@ -49,7 +51,7 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
     def test_expected_rows_are_fixed_by_design(self):
         self.assertEqual(EXPECTED_FIRST, {
             "tour": (2703, 2701, "7", "shop:approach"),
-            "town": (1179, 1177, "\r", "equipment-transaction:atomic-deposit"),
+            "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
             "overweight": (3724, 3723, "3", "shop:approach"),
             "withdraw": None, "recall": None, "stuck": None,
         })
