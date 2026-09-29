@@ -3330,10 +3330,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             expected_effect, continuation, budget_ref,
         ))
 
+    def _offer_execution_no_step(self, *, producer: str, cause: str,
+                                 work_id: str) -> None:
+        """A producer explicitly reports that it has no command to issue."""
+        offers = getattr(self, "_execution_no_step_offers", None)
+        if offers is None:
+            offers = []
+            self._execution_no_step_offers = offers
+        offers.append((producer, work_id, cause))
+
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
         register = self._claim_register
         offers = getattr(self, "_execution_offers", None) or ()
         self._execution_offers = []
+        no_steps = getattr(self, "_execution_no_step_offers", None) or ()
+        self._execution_no_step_offers = []
         offer = next((candidate for candidate in reversed(offers)
                       if key == candidate[0]
                       and claim.owner.value == candidate[1]), None)
@@ -3348,6 +3359,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The driver alone can turn an emitted command into a posted wait.
             if key != "":
                 self._execution_pending_post = (claim.claim_id, key, work_id)
+        elif key is None:
+            no_step = next((candidate for candidate in reversed(no_steps)
+                            if claim.owner.value == candidate[0]), None)
+            if no_step is not None:
+                producer, work_id, cause = no_step
+                register.declare_execution(
+                    claim.claim_id, work_id=work_id, producer=producer,
+                    state="releasing", cause=cause,
+                )
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
             else "unposted-await" if reason == "stair:await-observation"
@@ -8198,11 +8218,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
         """Request ~f while a protocol-3 board lacks the skill list values."""
         if getattr(snapshot, "protocol_version", 2) < 3:
+            self._offer_execution_no_step(
+                producer="bookkeeping", work_id="skill-exp-knowledge",
+                cause="skill-list-protocol-unavailable",
+            )
             return None
         if (
             snapshot.player.two_weapon_skill is not None
             and snapshot.player.shield_skill is not None
         ):
+            self._offer_execution_no_step(
+                producer="bookkeeping", work_id="skill-exp-knowledge",
+                cause="skill-list-already-known",
+            )
             return None
         if any(
             home_page_message_body(message).startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
@@ -8210,6 +8238,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             # An open TR_WARNING [y/n] prompt would consume the request keys;
             # its handler (which needs no evaluator) owns this board.
+            self._offer_execution_no_step(
+                producer="bookkeeping", work_id="skill-exp-knowledge",
+                cause="warning-prompt-open",
+            )
             return None
         if getattr(self, "_skill_exp_request_inflight", False):
             # The emitter writes the skill list before the viewer opens,
@@ -8219,6 +8251,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "the requested ~f skill list did not arrive before the next board"
             )
         self.last_reason = "periodic:skill-exp-knowledge"
+        self._offer_execution(
+            SKILL_KNOWLEDGE_MACRO, producer="bookkeeping",
+            work_id="skill-exp-knowledge", next_step="knowledge.skill-exp.request",
+            expected_effect="skill-exp-list-observed",
+            continuation="bookkeeping.resume",
+        )
         return SKILL_KNOWLEDGE_MACRO
 
     def consume_skill_knowledge(self, data: Mapping[str, object]) -> None:
@@ -8274,6 +8312,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         self._periodic_save_requested = False
         self.last_reason = "periodic:game-save"
+        self._offer_execution(
+            "\x13", producer="bookkeeping", work_id="periodic-game-save",
+            next_step="game.save.send", expected_effect="game-save-confirmed",
+        )
         return "\x13"
 
     @claims(ClaimOwner.BOOKKEEPING)
@@ -8287,6 +8329,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         self._periodic_dump_requested = False
         self.last_reason = "periodic:character-dump"
+        self._offer_execution(
+            CHARACTER_DUMP_MACRO, producer="bookkeeping",
+            work_id="periodic-character-dump", next_step="character.dump.send",
+            expected_effect="character-dump-confirmed",
+        )
         return CHARACTER_DUMP_MACRO
 
     def prime(self, snapshot: Snapshot) -> None:
