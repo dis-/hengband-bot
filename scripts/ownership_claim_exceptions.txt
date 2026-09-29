@@ -32,7 +32,7 @@
 policy.py:_decide  # the ladder itself: sixteen families' rungs, re-evaluated top-down every board (design 3.2)
 policy.py:_choose_key  # the town/dungeon split above the ladder: nine families
 policy.py:choose_key  # the post-decision rewrites of design 3.3.1, which are claims of their own (detectors, town-plan)
-policy_shop.py:_shop  # in-store dispatcher: buy, sell, home, home-scan, survival and town-plan pages share one page reader
+policy_shop.py:_shop_core  # in-store dispatcher: buy, sell, home, home-scan, survival and town-plan pages share one page reader
 policy_quest.py:_quest_execute_key  # fixed-quest driver: quest-request travel and quest-sweep execution interleave per phase
 policy_quest.py:_q2_phase_key  # Q2 phase machine: quest-request re-entry and quest-sweep phases
 policy_quest.py:_q2_breach_key  # Q2 breach: quest-request equipment legs inside a quest-sweep phase
