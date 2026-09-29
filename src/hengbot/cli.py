@@ -2891,6 +2891,10 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         help="path to strategy/quests (auto-located near the state file if omitted)",
     )
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--enforce-town-claims", action="store_true",
+        help="enforce S3.3 town claim ownership (default: off)",
+    )
     parser.add_argument("--poll-interval", type=float, default=0.02)
     parser.add_argument("--send-to-window", action="store_true")
     parser.add_argument("--window-title")
@@ -3149,6 +3153,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.argv if argv is None else argv,
             input_delays=input_delays,
             prompt_japanese=prompt_japanese,
+            enforce_town_claims=args.enforce_town_claims,
         )
         # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6),
         # plus the S1 claim ledger it writes beside itself.  Their own files:
@@ -3281,6 +3286,9 @@ def main(argv: list[str] | None = None) -> int:
         exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),
         baseitem_costs=baseitem_costs,
     )
+    policy._town_claim_bar_enforced = args.enforce_town_claims
+    print(f"hengbot startup enforce_town_claims={args.enforce_town_claims}",
+          file=sys.stderr, flush=True)
     policy._prompt_gated_posting = shadow_client is not None
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations

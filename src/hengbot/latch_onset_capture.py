@@ -226,6 +226,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     # off, as it is in every checkpoint this change can meet.
     restored.__dict__.setdefault("_decision_bar_skips", None)
     restored.__dict__.setdefault("_claim_bar_enforced", False)
+    restored.__dict__.setdefault("_town_claim_bar_enforced", False)
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.
