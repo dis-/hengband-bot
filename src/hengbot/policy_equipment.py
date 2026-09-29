@@ -704,6 +704,33 @@ class EquipmentMixin:
                     self._equipment_quarantine_burned_ids, item
                 )
             )
+        # A bodyless warrior must be able to retry the last usable armour
+        # source.  A failed physical action may quarantine a source, but it
+        # cannot turn an otherwise legal body slot into an empty target.
+        if live_current.item_at(SLOT_BODY) is None and not any(
+            slot_for(item.item) == SLOT_BODY
+            and item.exploration_legal
+            and not self._equipment_memory_contains(
+                self._equipment_transaction_failed_items, item
+            )
+            for item in eligible_catalog
+        ):
+            body_sources = sorted(
+                (
+                    item for item in eligible_catalog
+                    if slot_for(item.item) == SLOT_BODY
+                    and item.exploration_legal
+                    and self._equipment_memory_contains(
+                        self._equipment_transaction_failed_items, item
+                    )
+                    and not self._equipment_memory_contains(
+                        self._equipment_quarantine_burned_ids, item
+                    )
+                ),
+                key=lambda item: item.id,
+            )
+            if body_sources:
+                released_failed_ids.add(body_sources[0].id)
         if released_failed_ids:
             for item in eligible_catalog:
                 if item.id in released_failed_ids:

@@ -32,6 +32,7 @@ from policy_fixtures import (
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from hengbot.equipment_optimizer import equipment_move_identity
+from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from support.lost_substrate import needs_fresh_live_capture
 import test_policy as fixture
 from test_policy import FOOD, REAL_QUEST_DEFINITIONS
@@ -5338,7 +5339,11 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
             name="Leather Scale Mail [14,+0]", known=True,
             fully_known=True, is_equipment=True, ac=14,
         )
-        policy = HengbotPolicy()
+        policy = HengbotPolicy(monrace_knowledge={1: MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=1, armor_class=0, rarity=1,
+            blows=(MonsterBlow("HIT", "HURT", 1, 4),),
+        )})
         seed_character_calibration(policy, snapshot)
         policy.consume_home_knowledge((armour,))
         policy._equipment_catalog.refresh_carried(
@@ -5350,10 +5355,25 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         )
         policy._equipment_transaction_failed_items.add(home_owned.id)
 
-        with patch.object(policy, "_prepare_equipment_optimization") as select:
-            policy._request_priority_body_rearm(snapshot)
-            select.assert_called_once_with(snapshot)
-        self.assertIsNone(policy._equipment_transaction_session)
+        policy._request_priority_body_rearm(snapshot)
+        preparation = policy._equipment_optimization_preparation
+        self.assertIsNotNone(preparation)
+        self.assertIsNotNone(preparation.result, preparation.blockers)
+        self.assertIsNotNone(preparation.result.best)
+        self.assertEqual(
+            preparation.result.best.loadout.item_at("body").id,
+            home_owned.id,
+        )
+        self.assertEqual(preparation.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id, action.target_slot)
+             for action in preparation.transaction.actions
+             if action.item_id == home_owned.id],
+            [("withdraw", home_owned.id, None),
+             ("equip", home_owned.id, "body")],
+        )
+        self.assertIsNotNone(policy._equipment_transaction_session)
+        self.assertNotIn(home_owned.id, policy._equipment_transaction_failed_items)
 
     def test_boxed_breakout_uses_distinct_landmark_travel_not_wait(self):
         position = Position(119, 31)
