@@ -353,8 +353,16 @@ class IdentificationMixin:
         unaware, non-food item — command + source slot + target slot.
         """
         if snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:pack-pressure",
+                cause="town-identification-handled-elsewhere",
+            )
             return None
         if PACK_CAPACITY - len(snapshot.inventory) > IDENTIFY_PRESSURE_FREE_SLOTS:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:pack-pressure",
+                cause="pack-pressure-absent",
+            )
             return None
         return self._identify_carried_item_key(
             snapshot,
@@ -377,9 +385,17 @@ class IdentificationMixin:
     ) -> str | None:
         """Compose identification while retaining each prompt-gated segment."""
         if not self._prompt_gated_posting:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:carried",
+                cause="prompt-gated-posting-unavailable",
+            )
             return None
         source = self._find_identification_source(snapshot, full=False)
         if source is None:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:carried",
+                cause="source-unavailable",
+            )
             return None
         command, src = source
         target = self._first_item(
@@ -387,6 +403,10 @@ class IdentificationMixin:
             lambda item: item.slot != src.slot and target_predicate(item),
         )
         if target is None:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:carried",
+                cause="target-unavailable",
+            )
             return None
         # Verify the previous attempt landed: if the pack's unknown count is
         # unchanged when the same target comes up again, the device use did not
@@ -402,6 +422,10 @@ class IdentificationMixin:
                 self._unidentifiable_sigs.add(self._item_signature(target))
                 self._identify_watch = None
                 self._identify_fail_streak = 0
+                self._offer_execution_no_step(
+                    producer="identification", work_id="identify:carried",
+                    cause="identification-stalled",
+                )
                 return None
         else:
             self._identify_watch = watch
@@ -412,6 +436,10 @@ class IdentificationMixin:
             else command + src.slot + target.slot
         )
         if len(key) != 3:
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:carried",
+                cause="source-command-shape-invalid",
+            )
             return None
         self.last_reason = reason
         self._staged_prompt_chain = {
@@ -425,6 +453,13 @@ class IdentificationMixin:
             ),
         }
         self._declare_non_discardable()
+        self._offer_execution(
+            key, producer="identification",
+            work_id=f"identify:carried:{self._item_signature(target)}",
+            next_step="identification.use-carried-source",
+            arguments=(self._item_signature(src), self._item_signature(target)),
+            expected_effect="carried-item-identified",
+        )
         return key
 
     def _dungeon_equipment_identify_key(
@@ -441,9 +476,17 @@ class IdentificationMixin:
             or player.stunned
             or self._escape_state.owner is not None
         ):
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:dungeon-equipment",
+                cause="dungeon-identification-context-unavailable",
+            )
             return None
         source = self._find_identification_source(snapshot, full=False)
         if source is None or (source[0] == READ_KEY and self._is_dark(snapshot)):
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:dungeon-equipment",
+                cause="reliable-source-unavailable",
+            )
             return None
         return self._identify_carried_item_key(
             snapshot,
