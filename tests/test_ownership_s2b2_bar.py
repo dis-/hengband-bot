@@ -695,7 +695,33 @@ class SwitchTest(unittest.TestCase):
             # skipped means "not called": the rung is only in the else branch
             self.assertIsInstance(node.body, ast.Constant)
             self.assertIsNone(node.body.value)
-            self.assertEqual(node.orelse.func.attr, name)
+            # The town entry helper receives a lazy callback.  The callback's
+            # body is the rung call, so constructing it cannot run the rung
+            # before _claim_bar_skips has chosen the else branch.
+            entry = node.orelse
+            self.assertIsInstance(entry, ast.Call)
+            self.assertIsInstance(entry.func, ast.Attribute)
+            self.assertIsInstance(entry.func.value, ast.Name)
+            self.assertEqual(entry.func.value.id, "self")
+            self.assertEqual(entry.func.attr, "_town_producer_entry")
+            self.assertEqual(len(entry.args), 2)
+            self.assertFalse(entry.keywords)
+            self.assertIsInstance(entry.args[0], ast.Constant)
+            self.assertEqual(entry.args[0].value, name)
+            callback = entry.args[1]
+            self.assertIsInstance(callback, ast.Lambda)
+            self.assertFalse(callback.args.posonlyargs)
+            self.assertFalse(callback.args.args)
+            self.assertIsNone(callback.args.vararg)
+            self.assertFalse(callback.args.kwonlyargs)
+            self.assertFalse(callback.args.kw_defaults)
+            self.assertIsNone(callback.args.kwarg)
+            self.assertFalse(callback.args.defaults)
+            self.assertIsInstance(callback.body, ast.Call)
+            self.assertIsInstance(callback.body.func, ast.Attribute)
+            self.assertIsInstance(callback.body.func.value, ast.Name)
+            self.assertEqual(callback.body.func.value.id, "self")
+            self.assertEqual(callback.body.func.attr, name)
             gated.append((node.lineno, name))
         self.assertEqual([name for _line, name in sorted(gated)], list(GATED))
         self.assertEqual(set(GATED), BAR_GATED_RUNGS)
