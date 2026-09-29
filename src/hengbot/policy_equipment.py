@@ -2160,12 +2160,14 @@ class EquipmentMixin:
             self.last_reason = "equipment-transaction:await-confirmation"
             operation_ref = session.posted_command_id
             if operation_ref is not None:
-                self._offer_execution_awaiting(
+                self._offer_execution(
                     WAIT_KEY, producer="equipment-txn",
                     work_id=f"equipment:town:pending:{session.target_loadout_id}",
-                    operation_ref=operation_ref,
+                    next_step="equipment.action.observe",
+                    arguments=(operation_ref,),
                     expected_effect="equipment-action-confirmed",
                     continuation="equipment.next-action",
+                    post_on_emit=False,
                 )
             return WAIT_KEY
         if session.required_context == "home":

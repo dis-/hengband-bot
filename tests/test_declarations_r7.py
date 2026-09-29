@@ -157,6 +157,26 @@ class HomeScanRows(unittest.TestCase):
 
 
 class EquipmentTransactionRows(unittest.TestCase):
+    def test_town_1907_posted_action_wait_is_an_acting_wait_command(self):
+        policy = HengbotPolicy()
+        policy._prepare_equipment_optimization = lambda _: None
+        policy._equipment_transaction_session = SimpleNamespace(
+            executable=True, pending_action=object(),
+            posted_command_id="posted-1907", target_loadout_id="town-1907",
+            unconfirmed_observations=0)
+        policy._claim_register.declare(
+            "equipment-txn", observe(("transaction",), 8, "transaction"))
+        board = town_board()
+        key = policy._equipment_transaction_town_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("5", "equipment-transaction:await-confirmation"))
+        self.assertEqual(policy._execution_offers_for()[-1][:2],
+                         ("5", "equipment-txn"))
+        policy._record_decision_claim(board, key)
+        self.assertEqual(policy.decision_claim["execution"]["state"], "acting")
+        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
+        self.assertIsNone(getattr(policy, "_execution_pending_post", None))
+
     def test_town_1904_leave_uses_visit_owner_without_operation_family(self):
         policy = HengbotPolicy()
         policy._store_visit = StoreVisit(
