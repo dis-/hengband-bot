@@ -63,6 +63,8 @@ class LiveShortRouteTest(unittest.TestCase):
         self.assertEqual(policy._town_travel_state.best_distance, 5)
         self.assertEqual(policy._claim_register.current.claim_id, 140)
         self.assertEqual(policy._claim_register.current.goal.cell, (31, 150))
+        self.assertEqual(policy._claim_register.current.budget,
+                         claim_row["budget"])
         self.assertTrue(policy._claim_register.current.is_open)
         self.assertNotEqual(policy.last_reason, "ownership:holder-silent:store-router")
 
