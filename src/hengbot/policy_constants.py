@@ -274,6 +274,8 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         "town:blocked:departure-unsatisfiable",
         "town:blocked:overweight-home-unreachable",
         "town:blocked:owner-retired",
+        "town:blocked:calibration-restore-home-visit-exhausted",
+        "town:blocked:calibration-restore-target-absent",
         "town:blocked:home-known-empty-withdrawal",
         "town:blocked:home-withdraw-failed-stock-present",
         "town:blocked:procurement-home-unavailable",

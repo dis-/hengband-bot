@@ -1866,6 +1866,12 @@ class ShopMixin:
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self._fundraising_mode in {"mine", "scavenge"}
+                and self._find_edible(snapshot) is None
+                and snapshot.player.food_type == FOOD_TYPE_MANA
+                and item.tval in {TVAL_WAND, TVAL_STAFF}):
+            return item
         if (
             self._opening_q34_torch_shortage(snapshot) > 0
             and item.tval == TVAL_LITE
@@ -2254,7 +2260,7 @@ class ShopMixin:
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
             add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
-        add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and not self._food_ready(snapshot), lambda i: i.tval in {TVAL_WAND, TVAL_STAFF}))
+        add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: i.tval in {TVAL_WAND, TVAL_STAFF}))
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
@@ -2466,6 +2472,24 @@ class ShopMixin:
         store = snapshot.store
         if store is None:
             return None
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self._fundraising_mode in {"mine", "scavenge"}
+                and snapshot.player.food_type == FOOD_TYPE_MANA
+                and self._find_edible(snapshot) is None
+                and store.store_type == STORE_MAGIC):
+            if any(ware.tval in {TVAL_WAND, TVAL_STAFF}
+                   and ware.price <= snapshot.player.gold
+                   for ware in store.items):
+                self._fundraising_affordable_food_seen = True
+            if self._home_available_for_probe(snapshot):
+                if not self._home_knowledge_current:
+                    return None
+                home_food = self._home_mana_food_candidate()
+                if home_food is not None:
+                    self._home_pending_item = self._item_signature(home_food)
+                    self._home_pending_quantity = 1
+                    return None
+            return self._mana_food_purchase(snapshot)
         gold = snapshot.player.gold
         if snapshot.player.class_id < 0:
             if not self._owns_lantern(snapshot):

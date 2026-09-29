@@ -429,7 +429,9 @@ from hengbot.town_arbiter import (
 )
 from hengbot.policy_calibration import CalibrationMixin
 from hengbot.policy_identification import IdentificationMixin
-from hengbot.policy_fundraising import FundraisingMixin
+from hengbot.policy_fundraising import (
+    FundraisingMixin, FundraisingPurpose, FundraisingPurposeRecord,
+)
 from hengbot.policy_supply import SupplyMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
 from hengbot.quest_knowledge import (
@@ -1821,6 +1823,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A restored checkpoint may predate this attribute; readers use
         # getattr(..., False) until its first decision.
         self._town_claim_bar_enforced = False
+        self._crossarea_fundraising_enforced = False
         self._owner_expectations = OwnerExpectationRegistry()
         self._town_turn_arbiter = _new_town_turn_arbiter()
         self._unviable_quest_floor: tuple[int, int, int] | None = None
@@ -2093,6 +2096,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
         self._fundraising_mode: str | None = None
+        self._fundraising_run_purpose: FundraisingPurpose | None = None
+        self._fundraising_purpose_record: FundraisingPurposeRecord | None = None
+        # Unknown on a fresh attachment until save-backed progress proves that
+        # Yeek Cave has never been entered.  A restart is not a new character.
+        self._fundraising_runs_started: int | None = None
+        self._fundraising_affordable_food_seen = False
         self._mining_runs_completed = 0
         self._planned_mining_runs: int | None = None
         self._identify_staff_mining_plan = False
@@ -2949,6 +2958,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and key == WAIT_KEY
+                    and self.last_reason == "town:blocked:owner-retired"
+                    and self._calibration_restore_signatures):
+                self._town_blocked_reason = (
+                    "calibration-restore-home-visit-exhausted"
+                )
+                self.last_reason = (
+                    "town:blocked:calibration-restore-home-visit-exhausted"
+                )
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         if snapshot.store is not None and key in DIRECTION_KEYS.values():
             # This is the final policy emission seam.  No producer or
@@ -4531,6 +4550,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
             "reason": reason,
+            "fundraising_purpose": (
+                {
+                    "register_kind": "separate-purpose-ledger",
+                    "id": purpose_record.purpose.identity,
+                    "mode": purpose_record.purpose.mode,
+                    "first_run_food_waiver": (
+                        purpose_record.purpose.first_run_food_waiver
+                    ),
+                    "status": purpose_record.status,
+                    "failure": purpose_record.failure,
+                    "child": (
+                        None if purpose_record.child is None else {
+                            "direction": purpose_record.child.direction,
+                            "state": purpose_record.child.state,
+                            "posted_sequence": (
+                                purpose_record.child.posted_sequence
+                            ),
+                        }
+                    ),
+                }
+                if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and (purpose_record := getattr(
+                        self, "_fundraising_purpose_record", None
+                    )) is not None)
+                else None
+            ),
             "closed_claim": closed,
             "goal_missing": goal_missing,
             "goal_note": goal_note,
@@ -5547,6 +5592,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (store_type is None and visit is not None
                     and visit.goal == goal):
                 store_type = visit.store_type
+            if (store_type is None and snapshot.store is None
+                    and (entrance := snapshot.grids.get(goal)) is not None
+                    and self._is_active_dungeon_entrance(entrance)):
+                # The entrance is a store-router Reach without a store visit.
+                # Native travel may release short of it; continue toward the
+                # recorded cell under the same claim and travel stall budget.
+                key = self._town_travel_key(
+                    snapshot, goal, ENTRANCE_TRAVEL_MACRO,
+                    "town:travel-entrance",
+                )
+                if key is not None:
+                    return key
+                step = (self._town_map_goal_step(snapshot, goal)
+                        or self._nearest_goal_step(
+                            snapshot, lambda grid: grid.position == goal
+                        ))
+                if step is not None:
+                    self.last_reason = "shop:approach"
+                    self._declare_reach(goal, family="store-router")
+                    return self._direction_key(snapshot.player.position, step)
             if store_type is not None:
                 step = self._shopping_approach_step(
                     snapshot, store_type, requester="store-router"
@@ -5563,6 +5628,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         # one-cell fallback did not write a fresh goal slot.
                         self._declare_reach(goal, family="store-router")
                     return key
+            # A store plan may cease returning its old route after the posted
+            # action ends short. The open Reach still names its destination;
+            # keep walking there rather than treating the holder as silent.
+            step = (self._town_map_goal_step(snapshot, goal)
+                    or self._nearest_goal_step(
+                        snapshot, lambda grid: grid.position == goal
+                    ))
+            if step is not None:
+                self.last_reason = "shop:approach"
+                self._declare_reach(goal, family="store-router")
+                return self._direction_key(snapshot.player.position, step)
             # A Reach still en route cannot be released as a no-step errand.
             # The final §3 branch reports an unresolved route consistently.
             route_unresolved = True
@@ -6473,10 +6549,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if signature == self._home_pending_item:
                     self._home_pending_take_confirmed = signature
-                if signature in self._calibration_restore_signatures:
-                    self._calibration_restore_signatures.remove(signature)
-                self._calibration_restore_move_identities.pop(signature, None)
-                self._calibration_restore_item_ids.pop(signature, None)
+                if getattr(self, "_crossarea_fundraising_enforced", False):
+                    restore_owner = next((
+                        owner for owner in self._calibration_restore_signatures
+                        if owner == signature or owner[1:] == signature[1:]
+                    ), None)
+                    if restore_owner is not None:
+                        self._calibration_restore_signatures.remove(restore_owner)
+                        self._calibration_restore_move_identities.pop(
+                            restore_owner, None
+                        )
+                        self._calibration_restore_item_ids.pop(
+                            restore_owner, None
+                        )
+                else:
+                    if signature in self._calibration_restore_signatures:
+                        self._calibration_restore_signatures.remove(signature)
+                    self._calibration_restore_move_identities.pop(signature, None)
+                    self._calibration_restore_item_ids.pop(signature, None)
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
                 self._home_pending_quantities.pop(signature, None)
@@ -6825,7 +6915,37 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         )
                         self._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self._calibration_observe(snapshot)
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self.last_reason in {
+                    "town:blocked:calibration-restore-home-visit-exhausted",
+                    "town:blocked:calibration-restore-target-absent",
+                }):
+            return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
+        if not self._observe_fundraising_transport(snapshot):
+            purpose_record = self._fundraising_purpose_record
+            if purpose_record is not None:
+                self._claim_register.set_bar(ClaimBar(
+                    owner=ClaimOwner.FUNDRAISING,
+                    goal=claim_observe(
+                        ("fundraising-purpose",
+                         str(purpose_record.purpose.identity)), None,
+                        source="fundraising-purpose",
+                    ),
+                    kind=CLAIM_BAR_ERRAND,
+                    clearance=self._claim_errand_clearance(
+                        snapshot, "fundraising", None
+                    ),
+                    rung="fundraising",
+                    since_turn=snapshot.turn,
+                    since_sequence=self._decision_sequence,
+                    claim_id=purpose_record.purpose.identity,
+                    ending=f"failed:{purpose_record.failure}",
+                ))
+            self.last_reason = (
+                "ownership:contract-conflict:fundraising:wrong-destination"
+            )
+            return WAIT_KEY
         self._nav_ledger.begin_decision()
         self.escape_ladder_telemetry = None
         self.town_teleport_refusal = None
@@ -9628,6 +9748,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         ):
             self.last_reason = "descend"
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and snapshot.in_town
+                    and self._fundraising_mode in {"mine", "scavenge"}):
+                facts = self._fundraising_facts(snapshot)
+                prior = self._fundraising_purpose_record
+                self._fundraising_run_purpose = (
+                    prior.purpose
+                    if prior is not None and prior.status == "active"
+                    else FundraisingPurpose(
+                        identity=self._decision_sequence,
+                        mode=self._fundraising_mode,
+                        first_run_food_waiver=(
+                            not facts.carried_edible and facts.first_run
+                            and facts.procurement_exhausted
+                        ),
+                    )
+                )
+                self._fundraising_runs_started = (
+                    (self._fundraising_runs_started or 0) + 1
+                )
+                self._post_fundraising_transport(snapshot, "depart")
             return (
                 ENTER_DUNGEON_MACRO
                 if static_entrance_here or (here is not None and here.has_entrance)

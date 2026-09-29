@@ -836,6 +836,10 @@ class CalibrationMixin:
         """Advance the calibration state machine from each new snapshot."""
         self._release_cured_calibration_deferral(snapshot)
         self._restore_calibration_redress_obligation(snapshot)
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self._calibration_phase is None
+                and self._calibration_restore_signatures):
+            self._calibration_phase = "restore-supplies"
         phase = self._calibration_phase
         if (
             phase is not None
@@ -853,6 +857,15 @@ class CalibrationMixin:
             # The floor changed under a live phase (death reload, forced move):
             # drop the phase; the calibration cache itself stays untouched and
             # the next town visit re-runs the phase from the start.
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and self._calibration_restore_signatures):
+                # Deposited supplies remain an outstanding physical debt even
+                # when calibration itself was interrupted by a floor change.
+                self._calibration_phase = "restore-supplies"
+                if self._calibration_session_owned():
+                    self._equipment_transaction_session = None
+                self._calibration_session_target = None
+                return
             self._calibration_phase = None
             self._calibration_restore_signatures.clear()
             self._calibration_restore_move_identities.clear()
@@ -969,6 +982,15 @@ class CalibrationMixin:
                     # An absent stripped identity remains a durable debt and is
                     # therefore a visible terminal, never an undressed release.
                     _, _, lost = self._calibration_redress_accounting(snapshot)
+                    if (getattr(self, "_crossarea_fundraising_enforced", False)
+                            and self._calibration_restore_signatures):
+                        self._town_blocked_reason = (
+                            "calibration-restore-home-visit-exhausted"
+                        )
+                        self.last_reason = (
+                            "town:blocked:calibration-restore-home-visit-exhausted"
+                        )
+                        return
                     if lost:
                         self._town_blocked_reason = (
                             "calibration-redress-home-visit-exhausted:"
@@ -1130,6 +1152,11 @@ class CalibrationMixin:
             self.last_reason = "calibration:await-capture"
             return WAIT_KEY
         if phase == "restore-supplies":
+            if (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and self._inventory_overweight(snapshot)):
+                # Free pack capacity through the ordinary Home deposit path;
+                # the restore signatures remain owed after that effect.
+                return None
             # Each successful Home withdrawal invalidates its page-relative
             # addresses.  Calibration still owns the next decision, so renew
             # that address space before allowing its open visit to enter Home.

@@ -396,6 +396,9 @@ TOWN_RESIDENCE_STOP_LIMIT = 1500
 
 
 def _policy_final_stop_banner(reason: str) -> str:
+    if reason.startswith("ownership:contract-conflict:fundraising:"):
+        return (f"<{reason}> fundraising has no valid purpose continuation; "
+                "stopping the bot for investigation")
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
@@ -407,6 +410,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:overweight-home-unreachable": "the overweight character cannot reach Home to deposit surplus",
         "town:blocked:home-withdraw-failed-stock-present": "Home still records the requested item after its bounded withdrawal failed",
         "town:blocked:owner-retired": "the town arbiter exhausted the selected owner's visit budget",
+        "town:blocked:calibration-restore-home-visit-exhausted": "calibration deposits remain at Home after the bounded restore visit failed",
+        "town:blocked:calibration-restore-target-absent": "a deposited calibration item could not be found at Home",
         "town:blocked:home-known-empty-withdrawal": "current Home knowledge proves the requested withdrawal is absent",
         "town:blocked:procurement-home-unavailable": "required Home procurement is unavailable",
         "town:blocked:procurement-home-unroutable": "required Home procurement has no route",
@@ -3990,7 +3995,8 @@ def _run_follow(
                         return incident_stop("loop-detected", snapshot)
                     if (policy.last_reason in POLICY_FINAL_STOP_REASONS
                             or (policy.last_reason or "").startswith(
-                                "ownership:holder-silent:")):
+                                ("ownership:holder-silent:",
+                                 "ownership:contract-conflict:fundraising:"))):
                         _write_decision(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, repeating_reason_count,

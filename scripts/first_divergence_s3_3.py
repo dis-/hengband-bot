@@ -29,6 +29,14 @@ OFF_SHA = {
     "stuck": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
 }
 
+# Frozen before the cross-area policy switch was implemented.  These six S3.3
+# fixtures contain no accepted fundraising run, so its first difference is
+# expected to be absent.  The 09-29 stair pair is pinned separately from its
+# recorded pre-decision facts; it is not an action-consistent replay of this
+# six-fixture stream.
+CROSSAREA_EXPECTED_FIRST = {case: None for case in OFF_SHA}
+MODES = {"off", "s33", "crossarea"}
+
 
 def _identity(value):
     if value is None:
@@ -90,7 +98,9 @@ class FirstDifference(Exception):
         self.row = row
 
 
-def measure(case):
+def measure(case, mode="s33"):
+    if mode not in MODES:
+        raise ValueError(f"unknown mode {mode!r}; choose {sorted(MODES)}")
     module = importlib.import_module(CASES[case][0])
     fixture = getattr(module, CASES[case][1])
     fixture.setUpClass()
@@ -121,9 +131,18 @@ def measure(case):
     # are used again for the second independent policy instance.
     fixture.replay = None
 
+    if mode == "off":
+        return {"case": case, "mode": mode,
+                "fixture_sha256": module.FIXTURE_SHA256,
+                "off_sha256": digest, "off_rows": len(stream),
+                "first_divergence": None}
+
     def enforced_init(policy, *args, **kwargs):
         original_init(policy, *args, **kwargs)
-        policy._town_claim_bar_enforced = True
+        if mode == "s33":
+            policy._town_claim_bar_enforced = True
+        else:
+            policy._crossarea_fundraising_enforced = True
 
     def observe_on(policy, snapshot):
         before = _state(policy)
@@ -146,12 +165,16 @@ def measure(case):
     finally:
         HengbotPolicy.__init__ = original_init
         HengbotPolicy.choose_key = original_choose
-    result = {"case": case, "fixture_sha256": module.FIXTURE_SHA256,
+    result = {"case": case, "mode": mode,
+              "fixture_sha256": module.FIXTURE_SHA256,
               "off_sha256": digest, "off_rows": len(stream)}
+    expected = (EXPECTED_FIRST if mode == "s33"
+                else CROSSAREA_EXPECTED_FIRST)
     if difference is None:
         result["first_divergence"] = None
-        result["expected_first"] = EXPECTED_FIRST[case]
-        result["trajectory_defect"] = trajectory_defect(case, None)
+        result["expected_first"] = expected[case]
+        result["trajectory_defect"] = (trajectory_defect(case, None)
+                                       if mode == "s33" else None)
         return result
     index, off, on = difference
     historical = None
@@ -179,12 +202,14 @@ def measure(case):
         "pre_decision_off": off[3] if off else None,
         "pre_decision_on": on[3],
     }
-    result["expected_first"] = EXPECTED_FIRST[case]
-    result["trajectory_defect"] = trajectory_defect(
-        case, result["first_divergence"]
+    result["expected_first"] = expected[case]
+    result["trajectory_defect"] = (
+        trajectory_defect(case, result["first_divergence"])
+        if mode == "s33" else "unexpected-divergence"
     )
     return result
 
 
 if __name__ == "__main__":
-    print(json.dumps(measure(sys.argv[1]), sort_keys=True, default=str))
+    print(json.dumps(measure(sys.argv[1], sys.argv[2] if len(sys.argv) > 2
+                             else "s33"), sort_keys=True, default=str))

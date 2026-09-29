@@ -450,16 +450,18 @@ class HomeMixin:
         self._home_candidate_waiting = False
         self._identification_source_reservation = None
         if calibration_owner_signature is not None:
-            if calibration_owner_signature in self._calibration_restore_signatures:
+            if (calibration_owner_signature in self._calibration_restore_signatures
+                    and not getattr(self, "_crossarea_fundraising_enforced", False)):
                 self._calibration_restore_signatures.remove(
                     calibration_owner_signature
                 )
-            self._calibration_restore_move_identities.pop(
-                calibration_owner_signature, None
-            )
-            self._calibration_restore_item_ids.pop(
-                calibration_owner_signature, None
-            )
+            if not getattr(self, "_crossarea_fundraising_enforced", False):
+                self._calibration_restore_move_identities.pop(
+                    calibration_owner_signature, None
+                )
+                self._calibration_restore_item_ids.pop(
+                    calibration_owner_signature, None
+                )
             self._home_pending_quantities.pop(calibration_owner_signature, None)
             if self._home_pending_item == calibration_owner_signature:
                 self._home_pending_item = None
@@ -476,8 +478,13 @@ class HomeMixin:
             ):
                 self._calibration_phase = None
                 self._calibration_home_rearm_eligible = False
-        self._town_blocked_reason = "home-withdraw-target-absent"
-        self.last_reason = "town:blocked:home-withdraw-target-absent"
+        self._town_blocked_reason = (
+            "calibration-restore-target-absent"
+            if (calibration_owner_signature is not None
+                and getattr(self, "_crossarea_fundraising_enforced", False))
+            else "home-withdraw-target-absent"
+        )
+        self.last_reason = f"town:blocked:{self._town_blocked_reason}"
         return WAIT_KEY
 
     @staticmethod
@@ -1888,6 +1895,7 @@ class HomeMixin:
                 item.tval == TVAL_STAFF
                 and item.sval == SV_STAFF_IDENTIFY
             )
+            and not getattr(self, "_crossarea_fundraising_enforced", False)
         ):
             self._calibration_restore_signatures.remove(restore_owner_signature)
             self._calibration_restore_move_identities.pop(
@@ -1949,12 +1957,19 @@ class HomeMixin:
         self._home_atomic_withdraw_index = None
         self._home_entry_operation_posted = False
         for signature, before_count, withdrawn, quantity, _index in succeeded:
-            if signature in self._calibration_restore_signatures:
-                self._calibration_restore_signatures.remove(signature)
+            owner_signature = (
+                next((owner for owner in self._calibration_restore_signatures
+                      if owner == signature or owner[1:] == signature[1:]), None)
+                if getattr(self, "_crossarea_fundraising_enforced", False)
+                else signature
+            )
+            if owner_signature in self._calibration_restore_signatures:
+                self._calibration_restore_signatures.remove(owner_signature)
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            self._calibration_restore_move_identities.pop(signature, None)
-            self._calibration_restore_item_ids.pop(signature, None)
+            if owner_signature is not None:
+                self._calibration_restore_move_identities.pop(owner_signature, None)
+                self._calibration_restore_item_ids.pop(owner_signature, None)
             self._home_pending_quantities.pop(signature, None)
             self._equipment_catalog.record_home_withdrawal(
                 withdrawn,
@@ -2179,6 +2194,7 @@ class HomeMixin:
         if getattr(self, "_home_pending_take_confirmed", None) == signature:
             self._home_pending_take_confirmed = None
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _defer_unobserved_home_withdrawal(
         self, signature: tuple[str, int, int] | None = None
     ) -> tuple[str, int, int] | None:
@@ -2202,10 +2218,18 @@ class HomeMixin:
             self._defer_home_item(signature, "unobserved-home-withdrawal")
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            if signature in self._calibration_restore_signatures:
+            calibration_debt = (
+                signature in self._calibration_restore_signatures
+                and getattr(self, "_crossarea_fundraising_enforced", False)
+            )
+            if signature in self._calibration_restore_signatures and not calibration_debt:
                 self._calibration_restore_signatures.remove(signature)
-            self._calibration_restore_move_identities.pop(signature, None)
-            self._calibration_restore_item_ids.pop(signature, None)
+            if not calibration_debt:
+                self._calibration_restore_move_identities.pop(signature, None)
+                self._calibration_restore_item_ids.pop(signature, None)
+            else:
+                self._town_blocked_reason = "calibration-restore-target-absent"
+                self.last_reason = "town:blocked:calibration-restore-target-absent"
             self._home_pending_quantities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass, replace
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -18,6 +19,9 @@ from hengbot.model import (
     STORE_TEMPLE,
     SV_SCROLL_STAR_REMOVE_CURSE,
     TVAL_SCROLL,
+    TVAL_STAFF,
+    TVAL_WAND,
+    TVAL_FOOD,
     InventoryItem,
     MonsterState,
     Position,
@@ -30,6 +34,7 @@ from hengbot.policy_constants import (
     DIGGER_WIELD_LIMIT,
     EAT_KEY,
     ExplorationPathOutcome,
+    FOOD_MIN_SVAL,
     FOOD_TYPE_MANA,
     FUNDRAISING_DETECTION_BASE_PRICE,
     FUNDRAISING_DIGGER_BASE_PRICE,
@@ -57,7 +62,159 @@ from hengbot.policy_constants import (
 )
 
 
+@dataclass(frozen=True)
+class FundraisingPurpose:
+    identity: int
+    mode: str
+    first_run_food_waiver: bool
+
+
+@dataclass(frozen=True)
+class FundraisingTransportChild:
+    purpose_id: int
+    direction: str
+    from_floor: tuple[int, int, int]
+    posted_sequence: int
+    state: str = "posted"
+
+
+@dataclass(frozen=True)
+class FundraisingPurposeRecord:
+    """Separate purpose ledger: floor-change claims cannot own economic work.
+
+    The claim register holds only the currently selected Reach/Observe child.
+    This record survives that child's completion; failed purposes retain their
+    identity for the fundraising admission bar to read on the next town row.
+    """
+
+    purpose: FundraisingPurpose
+    status: str = "active"
+    child: FundraisingTransportChild | None = None
+    failure: str | None = None
+
+
+@dataclass(frozen=True)
+class FundraisingFacts:
+    carried_edible: bool
+    hungry: bool
+    light_ready: bool
+    pack_full: bool
+    objective_achieved: bool
+    procurement_exhausted: bool
+    first_run: bool
+
+
+@dataclass(frozen=True)
+class FundraisingVerdict:
+    may_depart: bool
+    may_continue: bool
+    must_return: bool
+    needs_procurement: bool
+
+
+def fundraising_run_verdict(
+    facts: FundraisingFacts, purpose: FundraisingPurpose | None
+) -> FundraisingVerdict:
+    """One food and survival decision for town admission and income floors."""
+    waiver = ((purpose.first_run_food_waiver and facts.first_run)
+              if purpose is not None else
+              facts.first_run and facts.procurement_exhausted)
+    food_admitted = facts.carried_edible or waiver
+    survival_return = facts.hungry and not facts.carried_edible
+    must_return = (survival_return or facts.pack_full
+                   or facts.objective_achieved or not facts.light_ready)
+    return FundraisingVerdict(
+        may_depart=food_admitted and facts.light_ready and not facts.pack_full
+        and not facts.hungry,
+        may_continue=food_admitted and not must_return,
+        must_return=must_return,
+        needs_procurement=not facts.carried_edible and not waiver,
+    )
+
+
 class FundraisingMixin:
+
+    def _post_fundraising_transport(
+        self, snapshot: Snapshot, direction: str
+    ) -> None:
+        purpose = getattr(self, "_fundraising_run_purpose", None)
+        if purpose is None:
+            return
+        record = getattr(self, "_fundraising_purpose_record", None)
+        if record is None or record.purpose != purpose:
+            record = FundraisingPurposeRecord(purpose)
+        self._fundraising_purpose_record = replace(
+            record, child=FundraisingTransportChild(
+                purpose.identity, direction, tuple(snapshot.floor_key),
+                self._decision_sequence,
+            ),
+        )
+
+    def _observe_fundraising_transport(self, snapshot: Snapshot) -> bool:
+        """Complete only the matching transport child, never its purpose."""
+        if not getattr(self, "_crossarea_fundraising_enforced", False):
+            return True
+        record = getattr(self, "_fundraising_purpose_record", None)
+        if record is None:
+            return True
+        child = record.child
+        if child is not None and child.state == "posted":
+            if tuple(snapshot.floor_key) != child.from_floor:
+                expected = (snapshot.in_town if child.direction == "return"
+                            else snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
+                            and snapshot.dungeon_level == 1)
+                if not expected or child.purpose_id != record.purpose.identity:
+                    self._fundraising_purpose_record = replace(
+                        record, status="failed", failure="wrong-destination",
+                    )
+                    return False
+                record = replace(record, child=replace(child, state="complete"))
+        if (record.status == "active"
+                and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET):
+            record = replace(record, status="complete")
+        self._fundraising_purpose_record = record
+        return record.status != "failed"
+
+    def _fundraising_facts(self, snapshot: Snapshot) -> FundraisingFacts:
+        food_store = (STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA
+                      else STORE_GENERAL)
+        home_known = (not self._home_available_for_probe(snapshot)
+                      or self._home_knowledge_current)
+        home_edible = (self._home_mana_food_candidate() is not None
+                       if snapshot.player.food_type == FOOD_TYPE_MANA
+                       else any(item.is_food and item.aware
+                                and item.sval >= FOOD_MIN_SVAL
+                                for item in self._home_knowledge_items))
+        store = snapshot.store
+        shop_affordable = (getattr(
+            self, "_fundraising_affordable_food_seen", False
+        ) or bool(store is not None
+            and store.store_type == food_store
+            and any(item.price <= snapshot.player.gold and (
+                item.tval in {TVAL_STAFF, TVAL_WAND}
+                if snapshot.player.food_type == FOOD_TYPE_MANA
+                else item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+            ) for item in store.items)))
+        exhausted = (home_known and not home_edible and not shop_affordable
+                     and food_store in self._town_store_attempted)
+        runs_started = getattr(self, "_fundraising_runs_started", None)
+        first_departure_proven = (
+            runs_started == 0
+            or (runs_started is None
+                and getattr(snapshot, "protocol_version", 0) >= 3
+                and getattr(snapshot, "visited_town_ids", None) is not None
+                and DUNGEON_YEEK_CAVE not in snapshot.entered_dungeon_ids)
+        )
+        return FundraisingFacts(
+            carried_edible=self._find_edible(snapshot) is not None,
+            hungry=snapshot.player.hungry,
+            light_ready=self._fundraising_light_ready(snapshot),
+            pack_full=len(snapshot.inventory) >= PACK_CAPACITY,
+            objective_achieved=snapshot.player.gold >= FUNDRAISING_GOLD_TARGET,
+            procurement_exhausted=exhausted,
+            first_run=(first_departure_proven if snapshot.in_town
+                       else runs_started == 1),
+        )
 
     def _fundraising_kit_secured(self, snapshot: Snapshot) -> bool:
         """Whether the minimum mining kit is physically in the pack/equipment."""
@@ -97,6 +254,10 @@ class FundraisingMixin:
 
     def _fundraising_food_ready(self, snapshot: Snapshot) -> bool:
         """Allow a shallow cash run when town cannot sell the preferred reserve."""
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            return not fundraising_run_verdict(
+                self._fundraising_facts(snapshot), None
+            ).needs_procurement
         if self._food_ready(snapshot):
             return True
         food_store = (
@@ -192,6 +353,13 @@ class FundraisingMixin:
         return ware
 
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            record = getattr(self, "_fundraising_purpose_record", None)
+            if record is not None and record.status == "failed":
+                return False
+            facts = self._fundraising_facts(snapshot)
+            if not fundraising_run_verdict(facts, None).may_depart:
+                return False
         player = snapshot.player
         base_ready = (
             self._fundraising_light_ready(snapshot)
@@ -216,9 +384,13 @@ class FundraisingMixin:
                 if snapshot.player.food_type == FOOD_TYPE_MANA
                 else STORE_GENERAL
             )
-            food_ready = self._food_ready(snapshot) or (
-                food_store in self._town_store_attempted
-                and not snapshot.player.hungry
+            food_ready = (
+                True
+                if getattr(self, "_crossarea_fundraising_enforced", False)
+                else self._food_ready(snapshot) or (
+                    food_store in self._town_store_attempted
+                    and not snapshot.player.hungry
+                )
             )
             digger_ready = self._has_digging_tool(snapshot) or (
                 STORE_HOME in self._town_store_attempted
@@ -303,6 +475,8 @@ class FundraisingMixin:
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "fundraise:ascend"
+            if getattr(self, "_crossarea_fundraising_enforced", False):
+                self._post_fundraising_transport(snapshot, "return")
             return UP_STAIRS_KEY
         # The remembered route to a distant staircase can change as mining
         # reveals terrain, making BFS alternate between two equally short first
@@ -771,6 +945,23 @@ class FundraisingMixin:
             or snapshot.dungeon_level != 1
         ):
             return None
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            purpose = getattr(self, "_fundraising_run_purpose", None)
+            record = getattr(self, "_fundraising_purpose_record", None)
+            child = None if record is None else record.child
+            if (purpose is None or record is None
+                    or record.purpose != purpose or record.status == "failed"
+                    or child is None or child.purpose_id != purpose.identity
+                    or not ((child.direction == "depart"
+                             and child.state == "complete")
+                            or (child.direction == "return"
+                                and child.state == "posted"))):
+                if snapshot.player.hungry and self._find_edible(snapshot) is None:
+                    return self._leave_fundraising_floor(snapshot)
+                self.last_reason = (
+                    "ownership:contract-conflict:fundraising:missing-purpose"
+                )
+                return WAIT_KEY
         mining_hostiles = self._physical_hostiles(snapshot)
         combat_equip = self._fundraising_combat_equipment_key(
             snapshot, mining_hostiles
@@ -804,10 +995,15 @@ class FundraisingMixin:
             self._returning_to_town = True
             return self._leave_fundraising_floor(snapshot)
 
-        no_food_left = self._find_edible(snapshot) is None and snapshot.player.food_state not in {
-            "full",
-            "gorged",
-        }
+        if getattr(self, "_crossarea_fundraising_enforced", False):
+            facts = self._fundraising_facts(snapshot)
+            no_food_left = not fundraising_run_verdict(
+                facts, purpose
+            ).may_continue
+        else:
+            no_food_left = self._find_edible(snapshot) is None and snapshot.player.food_state not in {
+                "full", "gorged",
+            }
         if no_food_left:
             return self._leave_fundraising_floor(snapshot)
         if not self._expedition_light_ready(snapshot):

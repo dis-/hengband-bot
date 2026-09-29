@@ -2292,6 +2292,17 @@ class TownMixin:
                     if STORE_ALCHEMIST not in self._town_store_attempted:
                         add(STORE_ALCHEMIST, "fundraising-detection")
             if not self._fundraising_food_ready(snapshot):
+                if (getattr(self, "_crossarea_fundraising_enforced", False)
+                        and self._home_available_for_probe(snapshot)
+                        and STORE_HOME not in self._town_store_attempted):
+                    if not self._home_knowledge_current:
+                        add(STORE_HOME, "fundraising-food", "home-first")
+                    else:
+                        home_food = self._home_mana_food_candidate()
+                        if home_food is not None:
+                            self._home_pending_item = self._item_signature(home_food)
+                            self._home_pending_quantity = 1
+                            add(STORE_HOME, "fundraising-food", "home-first")
                 food_store = STORE_MAGIC if snapshot.player.food_type == FOOD_TYPE_MANA else STORE_GENERAL
                 if food_store not in self._town_store_attempted:
                     add(food_store, "fundraising-food")
@@ -5457,6 +5468,17 @@ class TownMixin:
         if snapshot.player.hungry and self._find_edible(snapshot) is None:
             self._last_return_trigger = "food-hungry"
             return True
+        if (getattr(self, "_crossarea_fundraising_enforced", False)
+                and self._fundraising_mode in {"mine", "scavenge"}):
+            from hengbot.policy_fundraising import fundraising_run_verdict
+            purpose = getattr(self, "_fundraising_run_purpose", None)
+            if purpose is not None:
+                verdict = fundraising_run_verdict(
+                    self._fundraising_facts(snapshot), purpose
+                )
+                if verdict.must_return:
+                    self._last_return_trigger = "fundraising-run-exhausted"
+                    return True
         # Income dives own their completion/return policy in _fundraising_key.
         # Ordinary expedition supply thresholds must not bounce a freshly
         # launched scavenge or mining run straight back to town.

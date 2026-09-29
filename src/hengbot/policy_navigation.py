@@ -922,6 +922,10 @@ class NavigationMixin:
             return True
         if snapshot.in_town:
             if self._fundraising_mode in {"mine", "scavenge"}:
+                if (getattr(self, "_crossarea_fundraising_enforced", False)
+                        and not self._fundraising_departure_ready(snapshot)):
+                    self._descent_refusal_reason = "fundraising-departure-not-ready"
+                    return True
                 if (
                     not self._town_restock_suppressed
                     and not self._fundraising_departure_ready(snapshot)
