@@ -5868,13 +5868,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is not None:
             if require_offer:
                 buffer = _decision_offers.get(self)
-                matching = buffer is not None and any(
-                    offer[0] == key and offer[1] == holder.owner.value
+                offered = () if buffer is None else tuple(
+                    offer for offer in buffer.steps
+                    if offer[0] == key and offer[1] == holder.owner.value
                     and offer[12] > since_sequence
-                    for offer in buffer.steps
+                )
+                matching = any(
+                    offer[2] == holder.execution.work_id
+                    and offer[3] == holder.execution.next_step
+                    and offer[4] == holder.execution.arguments
+                    for offer in offered
                 )
                 if not matching:
-                    return self._silent_holder_stop(holder.owner.value)
+                    if not offered:
+                        return self._silent_holder_stop(holder.owner.value)
+                    return self._town_declaration_stop(
+                        holder.owner.value, "stale")
             return key
         buffer = _decision_offers.get(self)
         endings = () if buffer is None else buffer.no_steps
@@ -5883,6 +5892,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         and entry[3] > since_sequence), None)
         if outcome is None:
             return self._silent_holder_stop(holder.owner.value)
+        if require_offer and outcome[1] != holder.execution.work_id:
+            return self._town_declaration_stop(holder.owner.value, "stale")
         if holder is not self._claim_register.current:
             return self._town_declaration_stop(holder.owner.value, "stale")
         _, work_id, fact, _, state = outcome

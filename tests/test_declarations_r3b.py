@@ -135,6 +135,31 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
         self.assertEqual(policy.last_reason,
                          "ownership:holder-released:curse-enchant")
 
+    def test_acting_holder_cannot_switch_to_another_cursed_item(self):
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        original = item("a", 23, 0, is_equipment=True, is_cursed=True)
+        replacement = item("b", 23, 1, is_equipment=True, is_cursed=True)
+        scroll = item("s", TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)
+
+        def board(equipped):
+            return Snapshot(
+                player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
+                {Position(10, 10): grid(10, 10)}, [],
+                floor_key=(0, 0, 0), town_flag=True,
+                equipment=[equipped], inventory=[scroll],
+            )
+
+        first = board(original)
+        key = policy._town_remove_curse_key(first)
+        claim = policy._claim_register.declare(
+            "curse-enchant", observe(("curse",), 8, "equipment"))
+        policy._record_execution_declaration(claim, key, policy.last_reason)
+        self.assertIsNone(policy._town_holder_wait_key(
+            policy._claim_register.current, board(replacement)))
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-stale:curse-enchant")
+
 
 class RumorDeclarationTest(policy_shop_fixture._TownShopFixtureBase):
     def test_inn_batch_declares_read_count(self):
