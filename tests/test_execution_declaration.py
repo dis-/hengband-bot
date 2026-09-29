@@ -178,7 +178,7 @@ class ExecutionDeclarationTest(unittest.TestCase):
                           declaration.operation_ref),
                          ("acting", "stair.post", None))
         self.assertEqual(policy._decision_declaration_mismatch["inferred"],
-                         "awaiting")
+                         "unposted-await")
         self.assertIsNone(getattr(policy, "_execution_pending_post", None))
         mismatch = declaration_mismatch(
             policy._claim_register.current, "unposted-await",

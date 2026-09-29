@@ -3351,7 +3351,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         inferred = (
             "silent" if reason.startswith("ownership:holder-silent:")
             else "unposted-await" if reason == "stair:await-observation"
-                and self._pending_stair_command is None
+                and (register.current.execution is None
+                     or register.current.execution.operation_ref is None)
             else "awaiting" if claim.state == ClaimState.AWAITING
             else "done" if claim.state == ClaimState.COMPLETE
             else "acting"
