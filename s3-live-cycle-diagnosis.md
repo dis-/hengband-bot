@@ -18,13 +18,13 @@ the descent/ascent or equipment cycle. It did introduce the final stop:
 decision 224 treated the still-open entrance Reach as a silent holder.
 
 The alternating owners are the departure descent producer at
-`src/hengbot/policy.py:9650` and the fundraising return producer at
+`src/hengbot/policy.py:9661` and the fundraising return producer at
 `src/hengbot/policy_fundraising.py:305`. Each town visit also starts an
 equipment transaction: the Home withdrawal composer is in
 `src/hengbot/policy_home.py:1760-1810`, equip/takeoff dispatch in
 `src/hengbot/policy_equipment.py:1668-1691`, and the Home deposit composer
 in `src/hengbot/policy_home.py:2338-2353`. The route to the entrance is
-emitted at `src/hengbot/policy.py:13277`.
+emitted at `src/hengbot/policy.py:13288`.
 
 Replay limit: the live capture has 2,132 state rows and 231 decision-log
 rows (including its process header),
