@@ -7384,7 +7384,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 snapshot, step, self.last_reason
                             )
                 if entry_observation_pending:
-                    self.last_reason = "store:entry-await-observation"
+                    self.last_reason = (
+                        "shop:one-shot-in-flight"
+                        if visit is not None and visit.operation_posted
+                        and visit.operation_producer_family in {"shop-buy", "shop-sell"}
+                        else "store:entry-await-observation"
+                    )
                     return ""
         pending_store_transaction = (
             self._town_visit_ledger.pending_store_transaction
