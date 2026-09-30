@@ -5764,6 +5764,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             )
                         return True
         holder = self._claim_errand_hold(family)
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and self._calibration_restore_signatures):
+            # S3.4: strip/restore is a non-discardable equipment transaction.
+            # Its own producer outranks ordinary town errands until restored;
+            # another non-discardable operation still owns its atomic step.
+            if family == "calibration" and (
+                    holder is None or not holder.non_discardable):
+                return False
+            if holder is None and family != "calibration":
+                self._decision_errand_deferred.append({
+                    "holder_family": "calibration", "holder_claim_id": None,
+                    "deferred_family": family,
+                    "deferred_reason": f"restore-debt:{reason}",
+                    "token_would_admit": False, "token_work_identity": None,
+                })
+                return True
         if holder is None:
             return False
         token = self._recorded_execution_token(
@@ -5853,7 +5869,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if plan is not None and plan.index < len(plan.stops):
                 next_stop = plan.stops[plan.index]
                 next_families = tuple(plan.requester_families.get(next_stop, ()))
-                if (rung.family not in next_families
+                if (not (rung.family == "calibration"
+                         and self._calibration_restore_signatures)
+                        and rung.family not in next_families
                         and rung.family != "store-router"):
                     deferred = getattr(self, "_decision_errand_deferred", None)
                     if deferred is None:
@@ -6494,9 +6512,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
         if (enforced and self._calibration_restore_signatures
-                and any(row["deferred_family"] == "calibration"
-                        and row["deferred_reason"].startswith("plan-next:")
-                        for row in self._decision_errand_deferred)
+                and self._claim_family_of(self.last_reason or "")
+                    != "calibration"
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
                 and not self._town_gate_exempt(
