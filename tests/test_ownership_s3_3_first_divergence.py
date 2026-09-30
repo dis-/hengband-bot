@@ -24,7 +24,8 @@ EXPECTED_FIRST = {
     # observed on this board (s3-town-1179-live2.md), so the session's next
     # planned deposit (pack:055751ff10eb08e9, slot l) is dispatched.
     "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
-    "overweight": (3724, 3723, "3", "shop:approach"),
+    # Ruling 2026-09-30 #8: identification hijacked the open Home tail; ON continues its exit.
+    "overweight": (3715, 3714, "\x1b", "home:leave-after-one-operation"),
     # Ruling #5 review item 7: after the Home operation releases, the plan's
     # next stop is store 3 (shop-buy). The free-standing enchant rung yields
     # to the router for that stop on recorded decision 20.
@@ -58,7 +59,7 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
         self.assertEqual(EXPECTED_FIRST, {
             "tour": (2048, 2047, "\x1b`n(.", "shop:travel"),
             "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
-            "overweight": (3724, 3723, "3", "shop:approach"),
+            "overweight": (3715, 3714, "\x1b", "home:leave-after-one-operation"),
             "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
             "recall": None, "stuck": None,
         })
