@@ -65,5 +65,6 @@
     }
   },
   "expected_first_changed": false,
-  "scope": "No full suite or forbidden gates; no live bot/game actions; sources read-only."
+  "scope": "No full suite or forbidden gates; no live bot/game actions; sources read-only.",
+  "step2_commit": "3d749f86"
 }
