@@ -107,9 +107,14 @@ class Live8RestoreTest(unittest.TestCase):
                 board.player.position: replace(board.grid_at(board.player.position),
                                                store_number=STORE_HOME)})
             policy._shopping_approach_store_type = STORE_HOME
-            policy._atomic_home_withdraw_key(board, board.player.position)
+            key = policy._atomic_home_withdraw_key(board, board.player.position)
             self.assertEqual(policy._town_blocked_reason,
                              "calibration-restore-target-absent")
+            self.assertEqual(policy._calibration_restore_signatures, debt)
+            self.assertIsNotNone(key)
+            self.assertIsNone(policy._enforce_town_claim_result(board, key))
+            self.assertEqual(policy.last_reason,
+                             "ownership:declaration-unrestored:calibration")
             self.assertEqual(policy._calibration_restore_signatures, debt)
 
     def test_off_keeps_recorded_key(self):
