@@ -18,7 +18,7 @@ EXPECTED_FIRST = {
     # Ruling 2026-09-30 #7: the store-4 one-shot purchase (2044) released and no entry
     # is posted, so the OFF entry wait has no live identity (ruling #1); the plan's
     # next stop is store 3 (「実行順は予定表」, ruling #5 review item 7).
-    "tour": (2048, 2046, "\x1b`n(.", "shop:travel"),
+    "tour": (2048, 2047, "\x1b`n(.", "shop:travel"),
     # Ruling 2026-09-29 #4 (supersedes #2 for this row), design #8 section 3
     # 'ready child/action executes': the posted `dm` deposit's effect is
     # observed on this board (s3-town-1179-live2.md), so the session's next
@@ -56,7 +56,7 @@ def trajectory_defect(case, measured):
 class FirstDivergenceExpectationTest(unittest.TestCase):
     def test_expected_rows_are_fixed_by_design(self):
         self.assertEqual(EXPECTED_FIRST, {
-            "tour": (2048, 2046, "\x1b`n(.", "shop:travel"),
+            "tour": (2048, 2047, "\x1b`n(.", "shop:travel"),
             "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
             "overweight": (3724, 3723, "3", "shop:approach"),
             "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
