@@ -10,6 +10,7 @@ from hengbot.model import Position, STORE_HOME, STORE_MAGIC
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import TownErrandPlan
 from test_execution_declaration import short_route_board
+from test_ownership_s2b1_ladder import _Decisions
 
 
 class DeclarationR11Test(unittest.TestCase):
@@ -53,6 +54,42 @@ class DeclarationR11Test(unittest.TestCase):
         self.assertIsNone(on._enforce_town_claim_result(board, "R"))
         self.assertEqual(on.last_reason, "ownership:gate-missing:rumor")
         self.assertEqual(on._decision_gate_final_count, 1)
+
+    def test_2_recorded_672_to_673_town_kill_suspends_store_route(self):
+        # 2026-09-30 incident: seq 672 held store 5 at (38, 106), key 7;
+        # seq 673 selected town:kill-mob-approach under that holder.
+        decisions = _Decisions()
+        policy = decisions.policy
+        held = decisions.decide("shop:approach", cell=(38, 106), key="7")
+        self.assertEqual((held["owner"], held["goal"]["cell"], held["state"]),
+                         ("store-router", [38, 106], "active"))
+        policy._town_claim_bar_enforced = True
+        policy.last_reason = "town:kill-mob-approach"
+        emitted = policy._town_producer_entry(
+            "_town_kill_mob_key", lambda: "1")
+        self.assertEqual(emitted, "1")
+        self.assertEqual(policy._enforce_town_claim_result(
+            decisions.board, emitted), "1")
+        self.assertEqual(getattr(policy, "_decision_gate_final_count", 0), 0)
+        fight = decisions.decide(policy.last_reason, key=emitted)
+        self.assertEqual((fight["owner"], fight["survival"],
+                          fight["closed_claim"]["claim_id"],
+                          fight["closed_claim"]["state"]),
+                         ("survival", True, held["claim_id"], "suspended"))
+        self.assertIsNone(fight["violation"])
+
+    def test_2_non_exempt_final_leak_still_stops(self):
+        decisions = _Decisions()
+        held = decisions.decide("shop:approach", cell=(38, 106), key="7")
+        policy = decisions.policy
+        policy._town_claim_bar_enforced = True
+        policy.last_reason = "town:rumor-batch"
+        self.assertIsNone(policy._enforce_town_claim_result(
+            decisions.board, "R"))
+        self.assertEqual(policy.last_reason, "ownership:gate-missing:rumor")
+        self.assertEqual(policy._decision_gate_final_count, 1)
+        self.assertEqual(policy._decision_errand_deferred[-1]["holder_claim_id"],
+                         held["claim_id"])
 
     def test_3_gate_leak_never_runs_second_ladder_pass(self):
         board = short_route_board()
