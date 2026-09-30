@@ -900,6 +900,8 @@ def _decision_record(
         # The ownership contract's S1 attribution, written by ``choose_key``
         # as plain data.  Absent on a row no ``choose_key`` produced.
         **({"claim": claim} if claim else {}),
+        **({"s33_shadow": claim["s33_shadow"]}
+           if claim and "s33_shadow" in claim else {}),
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
