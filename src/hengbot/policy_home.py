@@ -16,6 +16,52 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
 class HomeMixin:
+    def _calibration_keep_in_home(self, signature: tuple, quantity: int) -> None:
+        """Discharge excess locally, without scheduling another family's take."""
+        kept = dict(getattr(self, "_calibration_restore_kept_home", {}))
+        kept[signature] = kept.get(signature, 0) + quantity
+        self._calibration_restore_kept_home = kept
+
+    def _plan_calibration_supply_restore(self, snapshot: Snapshot) -> None:
+        if (not self._calibration_restore_enforced()
+                or self._calibration_phase != "restore-supplies"
+                or not self._home_knowledge_current):
+            return
+        # Reserve against the complete owed pack, so duplicate stacks share
+        # the same supply target and ammo sees the actual character/loadout.
+        projected = list(snapshot.inventory)
+        candidates = []
+        for owner in self._calibration_restore_signatures:
+            shelf = next((item for item in self._home_knowledge_items
+                          if self._calibration_restore_item_matches(owner, item)), None)
+            if shelf is None:
+                continue  # Missing physical debt still receives its typed stop.
+            owed = self._home_pending_quantities.get(owner, 1)
+            carried = replace(shelf, slot=f"restore:{len(candidates)}", count=owed)
+            projected.append(carried)
+            candidates.append((owner, carried, owed))
+        board = replace(snapshot, inventory=projected)
+        for owner, carried, owed in candidates:
+            # Utility/identification devices and spare equipment retain their
+            # physical debt. Supplies use the existing retention authority.
+            if not (carried.is_ammo or carried.is_torch or carried.is_oil
+                    or carried.is_recall_scroll or carried.is_teleport_scroll
+                    or (carried.aware and (carried.is_potion or carried.is_food))):
+                continue
+            required = min(owed, self._retention_reservation(board, carried))
+            if required == owed:
+                continue
+            self._calibration_keep_in_home(owner, owed - required)
+            if required:
+                self._home_pending_quantities[owner] = required
+            else:
+                self._calibration_restore_signatures.remove(owner)
+                self._home_pending_quantities.pop(owner, None)
+                self._calibration_restore_move_identities.pop(owner, None)
+                self._calibration_restore_item_ids.pop(owner, None)
+                if owner in self._home_pending_batch:
+                    self._home_pending_batch.remove(owner)
+
     def _protect_calibration_restore_items(self) -> None:
         # Retain the original restore identities after their debt is discharged.
         # Older checkpoints acquire this field from their still-outstanding debt.
@@ -1315,13 +1361,23 @@ class HomeMixin:
         )
         if self._calibration_phase == "deposit":
             signature = self._item_signature(deposit)
-            if signature not in self._calibration_restore_signatures:
+            restore_count = deposit_count
+            if self._calibration_restore_enforced() and self._inventory_overweight(snapshot):
+                # Weight disposal can run under calibration's deposit holder.
+                # Its surplus was intentionally stashed, not temporarily stripped.
+                retained = self._retention_reservation(snapshot, deposit)
+                restore_count = max(0, min(deposit_count,
+                                          retained - (deposit.count - deposit_count)))
+                if deposit_count > restore_count:
+                    self._calibration_keep_in_home(signature, deposit_count - restore_count)
+            if restore_count and signature not in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.append(signature)
             self._protect_calibration_restore_items()
-            self._calibration_restore_move_identities[signature] = (
-                equipment_move_identity(deposit)
-            )
-            self._home_pending_quantities[signature] = deposit_count
+            if restore_count:
+                self._calibration_restore_move_identities[signature] = (
+                    equipment_move_identity(deposit)
+                )
+                self._home_pending_quantities[signature] = restore_count
         if (
             deposit.tval == TVAL_SCROLL
             and deposit.sval == SV_SCROLL_STAR_REMOVE_CURSE
@@ -1441,6 +1497,7 @@ class HomeMixin:
             self._offer_home_atomic_no_step("withdraw", "await-page-size")
             return None
 
+        self._plan_calibration_supply_restore(snapshot)
         signature: tuple[str, int, int] | None = None
         selecting_branch: str | None = None
         restore_owner_signature: tuple[str, int, int] | None = None

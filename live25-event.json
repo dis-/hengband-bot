@@ -1,0 +1,105 @@
+{
+  "topic": "live25",
+  "implementer": "gpt-6.1-sol",
+  "base": "70b9772b",
+  "evidence_commit": "e3944ad0",
+  "assertion_audit": "CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertEqual(torch[2].count, 57)\n  after: self.assertFalse(any(e[2].is_torch for e in entries))\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertEqual(torch[3], 5)\n  after: self.assertEqual(torch.count, 57)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertIn(\"py5\\r\", key)\n  after: self.assertEqual(policy._calibration_restore_kept_home[\n            policy._item_signature(torch)], 5)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertIsNotNone(key)\n  after: self.assertNotIn(\"py\", key)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertEqual(quantity, owed[signature])\n  after: self.assertIsNotNone(key)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertLessEqual(quantity, withdrawn.count)\n  after: self.assertEqual(quantity, retained.get(signature[1:], owed[signature]))\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertLessEqual(constrained._inventory_weight(heavy) + sum(\n                item.weight * quantity for _, _, item, quantity, _ in entries\n            ), constrained._inventory_weight_limit(heavy))\n  after: self.assertLessEqual(quantity, withdrawn.count)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight\n  before: self.assertEqual(constrained.last_reason,\n                             \"town:blocked:calibration-restore-weight-limit\")\n  after: self.assertLessEqual(constrained._inventory_weight(heavy) + sum(\n                item.weight * quantity for _, _, item, quantity, _ in entries\n            ), constrained._inventory_weight_limit(heavy))\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch\n  before: self.assertEqual(torch[3], 5 if crossarea or s33 else 57)\n  after: self.assertEqual(policy._defer_town_errand(\"shop-buy\", \"purchase\"),\n                                     crossarea or s33)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch\n  before: self.assertIn(\"py5\\r\" if crossarea or s33 else \"py57\\r\", key)\n  after: self.assertIsNone(torch)\nCHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch\n  before: self.assertEqual(policy._defer_town_errand(\"shop-buy\", \"purchase\"),\n                                     crossarea or s33)\n  after: self.assertEqual(next(n for sig, n in\n                            policy._calibration_restore_kept_home.items()\n                            if sig[1] == 39), 5)\n",
+  "assertion_audit_exit": 0,
+  "changed_preexisting_assertions": [
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertEqual(torch[2].count, 57)",
+      "after": "self.assertFalse(any(e[2].is_torch for e in entries))",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertEqual(torch[3], 5)",
+      "after": "self.assertEqual(torch.count, 57)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertIn(\"py5\\r\", key)",
+      "after": "self.assertEqual(policy._calibration_restore_kept_home[\n            policy._item_signature(torch)], 5)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertIsNotNone(key)",
+      "after": "self.assertNotIn(\"py\", key)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertEqual(quantity, owed[signature])",
+      "after": "self.assertIsNotNone(key)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertLessEqual(quantity, withdrawn.count)",
+      "after": "self.assertEqual(quantity, retained.get(signature[1:], owed[signature]))",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertLessEqual(constrained._inventory_weight(heavy) + sum(\n                item.weight * quantity for _, _, item, quantity, _ in entries\n            ), constrained._inventory_weight_limit(heavy))",
+      "after": "self.assertLessEqual(quantity, withdrawn.count)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight",
+      "before": "self.assertEqual(constrained.last_reason,\n                             \"town:blocked:calibration-restore-weight-limit\")",
+      "after": "self.assertLessEqual(constrained._inventory_weight(heavy) + sum(\n                item.weight * quantity for _, _, item, quantity, _ in entries\n            ), constrained._inventory_weight_limit(heavy))",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch",
+      "before": "self.assertEqual(torch[3], 5 if crossarea or s33 else 57)",
+      "after": "self.assertEqual(policy._defer_town_errand(\"shop-buy\", \"purchase\"),\n                                     crossarea or s33)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch",
+      "before": "self.assertIn(\"py5\\r\" if crossarea or s33 else \"py57\\r\", key)",
+      "after": "self.assertIsNone(torch)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    },
+    {
+      "location": "tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch",
+      "before": "self.assertEqual(policy._defer_town_errand(\"shop-buy\", \"purchase\"),\n                                     crossarea or s33)",
+      "after": "self.assertEqual(next(n for sig, n in\n                            policy._calibration_restore_kept_home.items()\n                            if sig[1] == 39), 5)",
+      "quoted_clause": "restore min(owed, required/retained quantity) for supply items and release the debt for the rest as \"kept in Home\""
+    }
+  ],
+  "assertion_audit_note": "AST traversal indexes shift when assertions are added. No assertion was deleted; shelf count 57, kept quantity 5, stock/cumulative weight bounds, capacity terminal, foreign-family deferral and OFF whole-stack assertions remain explicit. Enforced quantities now assert exact retained counts instead of entire original debt.",
+  "decisions": [
+    {
+      "quote": "???????????????????????",
+      "result": "Production observation seeds recorded recall depth18; restore retains recall8, teleport13, cure10, bullets72."
+    },
+    {
+      "quote": "????????????????????????????????????",
+      "result": "One calibration restore batch completes at weight1229/1700; excess stays in Home, no re-deposit queued."
+    },
+    {
+      "quote": "?????????????????????????????",
+      "result": "Required debt alone cannot fit: typed calibration-restore-weight-limit retained; required oil quantity5 unchanged."
+    }
+  ],
+  "ui_classification_changes": false,
+  "revert_check": "live25-revert-check.txt",
+  "requested_tests": {
+    "ran": 330,
+    "skipped": 4,
+    "failed": 0
+  },
+  "extra_fixture_module_tests": 10,
+  "fixture_off_hashes": {
+    "stuck": "c63d582c",
+    "withdraw": "a9b34420"
+  },
+  "withdraw_s33": "pre-existing main early-divergence at index3; EXPECTED_FIRST untouched",
+  "blockers": []
+}

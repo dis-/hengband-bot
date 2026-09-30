@@ -12900,6 +12900,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         }
         if self._calibration_last_abort is not None:
             state["last_abort"] = self._calibration_last_abort
+        kept = getattr(self, "_calibration_restore_kept_home", {})
+        if kept:
+            state["kept_in_home"] = [
+                {"signature": list(signature), "quantity": quantity}
+                for signature, quantity in sorted(kept.items())
+            ]
         return state
 
     def equipment_transaction_entry_state(

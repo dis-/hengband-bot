@@ -366,6 +366,7 @@ class CalibrationMixin:
 
     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
         self._calibration_restore_protected = set()
+        self._calibration_restore_kept_home = {}
         self._town_order_operation = "calibration"
         self._town_order_expected_observation = "home-deposit"
         self._calibration_phase = "deposit"
