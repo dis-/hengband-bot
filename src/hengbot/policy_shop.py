@@ -5160,6 +5160,14 @@ class ShopMixin:
                     )
                     if key is not None:
                         self.last_reason = reason
+                        if reason == "town:restore-combat-weapon":
+                            self._offer_execution(
+                                key, producer="equipment-txn",
+                                work_id="restore-combat-weapon",
+                                next_step="equipment.restore-takeoff",
+                                arguments=(target_slot, equipment_identity(equipped)),
+                                expected_effect="digger-removed",
+                                continuation="equipment.restore-observe")
                     return key
                 continue
             replacement = self._first_item(
@@ -5193,6 +5201,14 @@ class ShopMixin:
                     )
                     if key is not None:
                         self.last_reason = reason
+                        if reason == "town:restore-combat-weapon":
+                            self._offer_execution(
+                                key, producer="equipment-txn",
+                                work_id="restore-combat-weapon",
+                                next_step="equipment.restore-takeoff",
+                                arguments=(target_slot, equipment_identity(equipped)),
+                                expected_effect="digger-removed",
+                                continuation="equipment.restore-observe")
                     return key
                 continue
             self._digger_wield_attempts += 1
@@ -5205,6 +5221,14 @@ class ShopMixin:
             )
             if key is not None:
                 self.last_reason = reason
+                if reason == "town:restore-combat-weapon":
+                    self._offer_execution(
+                        key, producer="equipment-txn",
+                        work_id="restore-combat-weapon",
+                        next_step="equipment.restore-wield",
+                        arguments=(target_slot, equipment_identity(replacement)),
+                        expected_effect="combat-weapon-equipped",
+                        continuation="equipment.restore-observe")
             return key
         self._digger_wield_attempts = 0
         self._mining_combat_loadout_remembered = False

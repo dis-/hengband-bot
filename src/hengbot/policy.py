@@ -6182,6 +6182,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     continuation="route.resume", budget_ref=declaration.budget_ref)
                 holder = self._claim_register.current
                 declaration = holder.execution
+            elif declaration.continuation == "equipment.restore-observe":
+                if family != "equipment-txn" or len(declaration.arguments) != 2:
+                    return self._town_declaration_stop(family, "stale")
+                slot, identity = declaration.arguments
+                equipped = next((item for item in snapshot.equipment
+                                 if item.slot == slot), None)
+                if declaration.expected_effect == "digger-removed":
+                    observed = (equipped is None and any(
+                        equipment_identity(item) == identity
+                        for item in snapshot.inventory))
+                else:
+                    observed = (equipped is not None
+                                and equipment_identity(equipped) == identity)
+                if not observed:
+                    return self._town_declaration_stop(family, "stale")
+                since = self._decision_offer_buffer().sequence
+                key = self._town_restore_weapon_key(snapshot)
+                return self._town_declared_producer_result(
+                    holder, snapshot, key, since)
             elif declaration.continuation == "equipment.next-action":
                 session = self._equipment_transaction_session
                 if session is None:

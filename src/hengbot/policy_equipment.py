@@ -2922,12 +2922,6 @@ class EquipmentMixin:
                 snapshot, "town:restore-combat-weapon"
             )
             if restore is not None:
-                self._offer_execution(
-                    restore, producer="equipment-txn",
-                    work_id="restore-combat-weapon",
-                    next_step="equipment.restore-combat-hand",
-                    expected_effect="combat-weapon-equipped",
-                )
                 return restore
         replacing_no_teleport = current is not None and self._blocks_teleport(current)
         if replacing_no_teleport:
@@ -3022,8 +3016,9 @@ class EquipmentMixin:
                 key, producer="equipment-txn",
                 work_id="restore-combat-weapon",
                 next_step="equipment.wield-combat-weapon",
-                arguments=(self._item_signature(weapon),),
+                arguments=("main_hand", equipment_identity(weapon)),
                 expected_effect="combat-weapon-equipped",
+                continuation="equipment.restore-observe",
             )
         else:
             self._offer_execution_no_step(
