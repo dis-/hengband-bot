@@ -5,13 +5,15 @@ import hashlib
 import json
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import tests  # noqa: F401
 from hengbot.claim_register import observe
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.policy import HengbotPolicy
+from policy_fixtures import grid
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "torch-predicate-20260929-30.json.gz"
@@ -104,6 +106,37 @@ class TorchPredicateRecordedTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "ownership:holder-released:home-visit")
         self.assertEqual(policy._claim_register.current.closed_reason,
                          "no-step:entrance-cell-cleared")
+
+    def test_recorded_ten_torch_board_cancels_stale_home_take(self):
+        case = self.cases[1]
+        before = parse_snapshot(case["before_state"])
+        position = before.player.position
+        entrance = replace(grid(position.y, position.x), store_number=STORE_HOME)
+        before = replace(before, store=None,
+                         grids={**before.grids, position: entrance})
+        torch = next(item for item in before.inventory if item.is_torch)
+        self.assertEqual(torch.count, 10)
+        policy = HengbotPolicy()
+        signature = policy._item_signature(torch)
+        policy._shopping_approach_store_type = STORE_HOME
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [torch]
+        policy._home_knowledge_valid_before = 1
+        policy._home_page_size = 52
+        policy._home_pending_item = signature
+        policy._home_pending_quantity = 5
+        policy._home_pending_quantities[signature] = 5
+        policy._home_withdrawal_queued = True
+        strategy = SimpleNamespace(required_force={"throwing_items": {"lit_torch": 5}})
+        with (patch.object(policy, "_carry_procurement_strategy", return_value=strategy),
+              patch.object(policy, "_town_entrance_step_off_key", return_value="6")
+              as step_off):
+            self.assertEqual(policy._atomic_home_withdraw_key(before, position), "6")
+        step_off.assert_called_once_with(
+            before, "home:atomic-withdraw-no-longer-needed")
+        self.assertIsNone(policy._home_pending_item)
+        self.assertNotIn(signature, policy._home_pending_quantities)
+        self.assertFalse(policy._home_withdrawal_queued)
 
 
 if __name__ == "__main__":
