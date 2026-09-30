@@ -13,6 +13,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import STORE_HOME
+from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit
 from test_ownership_s2b1_ladder import _Decisions
@@ -49,34 +50,49 @@ class DelegationRecordTest(unittest.TestCase):
 
     def test_posted_entry_wait_keeps_route_child_until_observation(self):
         decisions = _Decisions()
-        held = decisions.decide("shop:approach", cell=decisions.cell(4))
         policy = decisions.policy
         policy._town_claim_bar_enforced = True
+        policy._decision_sequence += 1
         policy._store_visit = StoreVisit(
             owner="store-router", purpose="approach", store_type=STORE_HOME,
-            opened_sequence=1, posted_sequence=policy._decision_sequence,
+            opened_sequence=policy._decision_sequence,
         )
-        policy._store_entry_posted_owner = STORE_HOME
+        policy._request_store_trip(STORE_HOME, "home-visit")
         policy._store_entry_wait_owner = STORE_HOME
-        decisions.register.declare_execution(
-            held["claim_id"], work_id="route:home-entry",
-            producer="store-router", state="awaiting",
-            next_step="route.resume", arguments=("store", tuple(decisions.cell(4))),
-            operation_ref=f"decision:{policy._decision_sequence}",
+        policy._store_entry_wait_key = WAIT_KEY
+        policy._offer_execution(
+            WAIT_KEY, producer="store-router", work_id="store-entry:home",
+            next_step="store.entry.observe",
+            arguments=(STORE_HOME, decisions.cell(4)),
             expected_effect="store-page-open",
             continuation="store.entry.observe",
+            budget_ref="town-travel",
         )
+        policy.last_reason = "shop:approach:await-entry"
+        policy._record_decision_claim(decisions.board, WAIT_KEY)
+        held = dict(policy.decision_claim)
+        self.assertTrue(policy.confirm_key_posted(WAIT_KEY))
+        route_child = next(record for record in policy._execution_delegations
+                           if record.work_identity[:1] == ("route",))
+        self.assertEqual((route_child.parent_claim_id, route_child.lifecycle),
+                         (held["claim_id"], "open"))
+        self.assertEqual(policy._store_entry_posted_owner, STORE_HOME)
+        self.assertEqual(decisions.register.current.execution.operation_ref,
+                         f"decision:{policy._decision_sequence}:{WAIT_KEY}")
         policy.last_reason = "store:entry-await-observation"
         self.assertEqual(policy._enforce_town_claim_result(
             decisions.board, ""), "")
         self.assertEqual(policy.last_reason, "store:entry-await-observation")
         self.assertEqual(decisions.register.current.claim_id, held["claim_id"])
         self.assertTrue(decisions.register.current.is_open)
+        self.assertEqual(route_child.lifecycle, "open")
         policy._store_visit.posted_sequence = None
         with patch.object(policy, "_town_holder_wait_key", return_value="8") as route:
-            self.assertEqual(policy._enforce_town_claim_result(
-                decisions.board, ""), "")
+            self.assertIsNone(policy._enforce_town_claim_result(
+                decisions.board, ""))
         route.assert_not_called()
+        self.assertEqual(policy.last_reason,
+                         "ownership:declaration-missing:store-router")
 
     def test_unrestored_obligation_has_visible_stop_without_a_key(self):
         from hengbot.cli import _policy_final_stop_banner
