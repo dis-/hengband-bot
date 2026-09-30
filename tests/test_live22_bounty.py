@@ -154,14 +154,15 @@ class Live22BountyTest(unittest.TestCase):
         self.assertEqual(policy._decision_offer_buffer().no_steps[-1][4], "done")
         self.assertEqual(policy._town_order_operation, None)
 
-    def test_missing_office_route_is_a_typed_visible_stop(self):
+    def test_missing_office_route_skips_without_latching_after_restore(self):
         policy = HengbotPolicy()
         board = replace(boards()[0], grids={})  # supplemental route-failure unit
         policy._map_predicate_snapshot = board
-        self.assertEqual(policy._town_order_step4_key(board), "5")
-        self.assertEqual(policy.last_reason, "town:blocked:bounty-office-route-unavailable")
+        self.assertIsNone(policy._town_order_step4_key(board))
+        self.assertIsNone(policy._town_blocked_reason)
         restored = pickle.loads(pickle.dumps(policy))
-        self.assertEqual(restored._town_blocked_reason, "bounty-office-route-unavailable")
+        self.assertIsNone(restored._town_blocked_reason)
+        self.assertIsNone(restored._town_order_step4_key(board))
 
 
 if __name__ == "__main__":
