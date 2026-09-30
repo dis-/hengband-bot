@@ -6201,11 +6201,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
             elif (family == "calibration"
                   and declaration.continuation == "calibration.capture.observe"):
-                # Observe the posted dump, then run the phase it installs.
-                since = self._decision_offer_buffer().sequence
-                key = self._calibration_town_key(snapshot)
-                return self._town_declared_producer_result(
-                    holder, snapshot, key, since)
+                # Capture installs the restore session from observed gear.
+                if (self._calibration_phase == "restore-equip"
+                        and self._calibration_session_owned()):
+                    self._claim_register.declare_execution(
+                        holder.claim_id, work_id=declaration.work_id,
+                        producer=family, state="acting",
+                        next_step="equipment.next-action", arguments=("restore",),
+                        expected_effect="observed-equips",
+                        continuation="equipment.next-action",
+                        budget_ref="calibration-session")
+                    holder = self._claim_register.current
+                    declaration = holder.execution
+                else:
+                    since = self._decision_offer_buffer().sequence
+                    key = self._calibration_town_key(snapshot)
+                    return self._town_declared_producer_result(
+                        holder, snapshot, key, since)
             elif declaration.continuation in {
                 "home.knowledge.observe", "store.entry.observe",
                 "home.operation.observe", "shop.one-shot.dispatch",
@@ -6527,9 +6539,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._claim_family_of(self.last_reason or ""),
                     self.last_reason or "", snapshot)):
             # Debt is expected while this holder measures and restores.
-            key = self._town_holder_declared_key(holder, snapshot)
-            if key is None:
-                return None
+            return self._town_holder_declared_key(holder, snapshot)
         if (enforced and self._calibration_restore_signatures
                 and self._claim_family_of(self.last_reason or "")
                     != "calibration"

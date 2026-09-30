@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import tests  # noqa: F401 -- isolate runtime files
 from hengbot.model import Position, STORE_HOME, parse_snapshot
+from hengbot.equipment_optimizer import equipment_identity
 from hengbot.claim_register import observe
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, TownErrandPlan
@@ -125,6 +126,67 @@ class Live8RestoreTest(unittest.TestCase):
         policy.last_reason = "shop:travel:await-entry"
         self.assertEqual(policy._enforce_town_claim_result(
             SimpleNamespace(in_town=True, store=None), "5"), "5")
+
+
+class Live9CalibrationTest(unittest.TestCase):
+    def test_recorded_dump_continues_capture_and_restore_after_checkpoint(self):
+        log = Path(r"C:\hengband\bot-client\jsonlog") / (
+            "incident-20260930-2106-s33-live-calibration-naked-unrestored-stop")
+        with gzip.open(str(log) + ".decisions.jsonl.gz", "rt", encoding="utf-8") as f:
+            rows = {r["decision_sequence"]: r for r in map(json.loads, f) if "decision_sequence" in r}
+        self.assertEqual(rows[44]["reason"], "calibration:request-naked-character")
+        self.assertEqual(rows[45]["reason"], "ownership:declaration-unrestored:calibration")
+        self.assertEqual(rows[45]["equipment_optimization"]["calibration"]["phase"],
+                         "restore-equip")
+        with gzip.open(str(log) + ".state.jsonl.gz", "rt", encoding="utf-8") as f:
+            raw = next(r for r in map(json.loads, f)
+                       if r.get("turn") == rows[44]["turn"] and "character" not in r)
+        board = parse_snapshot(raw, {})
+        # The isolated board has no preceding ~f skill-cache observation.
+        board = replace(board, player=replace(board.player, shield_skill=0))
+        for checkpoint in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = True
+            policy._crossarea_fundraising_enforced = True
+            policy._calibration_phase = "capture"
+            policy._calibration_restore_signatures = [("oil", 77, 0)]
+            policy._last_snapshot_was_store = False
+            policy._decision_sequence = 44
+            key = policy._calibration_town_key(board)
+            self.assertEqual(key, rows[44]["key"])
+            claim = policy._claim_register.declare(
+                "calibration", observe(("transaction",), 10, "transaction"),
+                non_discardable=True)
+            policy._record_execution_declaration(claim, key, policy.last_reason)
+            policy.confirm_key_posted(key)
+            self.assertEqual(policy._claim_register.current.execution.state, "awaiting")
+            self.assertEqual(policy._claim_register.current.execution.continuation,
+                             "calibration.capture.observe")
+            if checkpoint:
+                policy = pickle.loads(pickle.dumps(policy))
+            policy._calibration_observe(board)
+            self.assertEqual(policy._calibration_phase, "capture")
+            policy.last_reason = "shop:approach"
+            self.assertEqual(policy._enforce_town_claim_result(board, "6"), "5")
+            self.assertEqual(policy.last_reason, "calibration:await-capture")
+            # Recover the strip-start slot from the same capture, so capture
+            # installs a real restore transaction for a recorded carried item.
+            with gzip.open(str(log) + ".state.jsonl.gz", "rt", encoding="utf-8") as f:
+                dressed = next(parse_snapshot(r, {}) for r in map(json.loads, f)
+                               if r.get("equipment") and "character" not in r)
+            carried = {equipment_identity(i) for i in board.inventory}
+            policy._calibration_worn_before = [
+                (i.slot, equipment_identity(i)) for i in dressed.equipment
+                if equipment_identity(i) in carried]
+            self.assertTrue(policy._calibration_worn_before)
+            policy._calibration_observe(board)
+            self.assertIsNotNone(policy._character_calibration)
+            self.assertEqual(policy._calibration_phase, "restore-equip")
+            policy.last_reason = "shop:approach"
+            key = policy._enforce_town_claim_result(board, "6")
+            self.assertIsNotNone(key, policy.last_reason)
+            self.assertTrue(policy.last_reason.startswith("equipment-transaction:"))
+            self.assertEqual(policy._calibration_restore_signatures, [("oil", 77, 0)])
 
 
 class Live8OneShotTest(unittest.TestCase):
