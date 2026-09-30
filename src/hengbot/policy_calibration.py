@@ -360,6 +360,7 @@ class CalibrationMixin:
         self._home_withdrawal_queued = True
 
     def _begin_character_calibration(self, snapshot: Snapshot) -> None:
+        self._calibration_restore_protected = set()
         self._town_order_operation = "calibration"
         self._town_order_expected_observation = "home-deposit"
         self._calibration_phase = "deposit"
@@ -1281,7 +1282,38 @@ class CalibrationMixin:
             return WAIT_KEY
         if phase == "restore-supplies":
             if self._inventory_overweight(snapshot):
-                return self._calibration_restore_terminal("weight-limit")
+                self._protect_calibration_restore_items()
+                if self._home_atomic_deposit_pending is not None:
+                    self.last_reason = "calibration:await-excess-deposit"
+                    self._offer_execution(
+                        None, producer="calibration",
+                        work_id="calibration:restore-excess",
+                        next_step="calibration.await-home-deposit",
+                        expected_effect="inventory-decreased/home-stock-increased",
+                        continuation="calibration.restore-supplies",
+                    )
+                    return None
+                if self._find_home_deposit(snapshot) is None:
+                    return self._calibration_restore_terminal("weight-limit")
+                entrance = snapshot.grid_at(snapshot.player.position)
+                if in_home or (entrance is not None
+                               and entrance.store_number == STORE_HOME):
+                    key = (self._open_home_deposit_key(snapshot) if in_home
+                           else self._atomic_home_deposit_key(
+                               snapshot, snapshot.player.position,
+                               calibration_restore_excess=True))
+                    if key is None:
+                        return self._calibration_restore_terminal("deposit-failed")
+                    self.last_reason = "calibration:restore-excess-deposit"
+                    self._offer_execution(
+                        key, producer="calibration",
+                        work_id="calibration:restore-excess",
+                        next_step="home.deposit-excess",
+                        expected_effect="inventory-decreased/home-stock-increased",
+                        continuation="calibration.restore-supplies",
+                        budget_ref="home-visit-existing-budget",
+                    )
+                    return key
             # Each successful Home withdrawal invalidates its page-relative
             # addresses.  Calibration still owns the next decision, so renew
             # that address space before allowing its open visit to enter Home.

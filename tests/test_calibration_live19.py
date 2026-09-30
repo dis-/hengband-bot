@@ -43,7 +43,7 @@ def catalogue(policy, raw, turn):
     policy._home_page_size = home["store"]["page_size"]
 
 
-def deposited_policy(raw):
+def deposited_policy(raw, *, supplies_only=False):
     policy = HengbotPolicy()
     policy.observe_town_visit_epoch(True, 549266)
     policy.consume_skill_knowledge(next(r for r in raw
@@ -53,6 +53,8 @@ def deposited_policy(raw):
     policy._calibration_phase = "deposit"
     initial = outside(raw, 549266)
     for carried in initial.inventory:
+        if supplies_only and carried.is_equipment:
+            continue
         policy._home_deposit_key(initial, carried, forced_count=carried.count)
     policy._calibration_phase = "restore-supplies"
     policy._shopping_approach_store_type = STORE_HOME
@@ -60,6 +62,101 @@ def deposited_policy(raw):
 
 
 class Live19CalibrationTest(unittest.TestCase):
+    def test_overweight_unrelated_excess_deposit_then_restore_completes(self):
+        raw = rows()
+        for enforced in (False, True):
+            for restored in (False, True):
+                with self.subTest(s33=enforced, checkpoint=restored):
+                    # Synthetic debt contains the recorded supplies, without the
+                    # historical missing glove that has its own terminal pin.
+                    policy = deposited_policy(raw, supplies_only=True)
+                    policy._town_claim_bar_enforced = enforced
+                    catalogue(policy, raw, 549401)
+                    board = outside(raw, 549401)
+                    loot = replace(outside(raw, 549266).inventory[0], slot="z",
+                                   name="unrelated cursed loot", tval=23, sval=99,
+                                   count=1, is_equipment=True, is_cursed=True,
+                                   weight=policy._inventory_weight_limit(board) + 100)
+                    heavy = replace(board, inventory=[*board.inventory, loot])
+                    debt = policy._calibration_restore_signatures.copy()
+                    quantities = policy._home_pending_quantities.copy()
+                    if restored:
+                        policy = pickle.loads(pickle.dumps(policy))
+                    key = policy._calibration_town_key(heavy)
+                    self.assertEqual(key, "5")
+                    self.assertEqual(policy.last_reason, "calibration:restore-excess-deposit")
+                    self.assertEqual(policy._store_visit.operation_producer_family, "calibration")
+                    self.assertEqual(policy._store_visit.operation_key, "dz\x1b")
+                    self.assertEqual(policy._home_atomic_deposit_pending[0],
+                                     ((policy._item_signature(loot), 1, 1),))
+                    self.assertEqual(policy._calibration_restore_signatures, debt)
+                    self.assertEqual(policy._home_pending_quantities, quantities)
+                    key = policy._enforce_town_claim_result(heavy, key)
+                    self.assertEqual(key, "5")
+                    policy.confirm_key_posted(key)
+                    home = parse_snapshot(next(row for row in raw
+                        if row.get("store", {}).get("store_type") == STORE_HOME), {})
+                    page = replace(heavy, turn=heavy.turn + 1, store=home.store)
+                    tail = policy.choose_key(page)
+                    self.assertEqual(tail, "dz\x1b")
+                    self.assertEqual((policy.decision_claim or {}).get("owner"), "calibration")
+                    policy.confirm_key_posted(tail)
+                    # Synthetic command response: only the composed loot deposit
+                    # landed. The historical boards are not its response.
+                    after = replace(board, turn=heavy.turn + 2)
+                    scan = policy.choose_key(after)
+                    self.assertEqual(policy.last_reason, "calibration:request-restore-knowledge")
+                    policy.confirm_key_posted(scan)
+                    self.assertIsNone(policy._home_atomic_deposit_pending)
+                    self.assertEqual(policy._calibration_restore_signatures, debt)
+                    catalogue(policy, raw, 549401)
+                    after = replace(after, turn=after.turn + 1)
+                    key = policy.choose_key(after)
+                    self.assertIsNotNone(key, (policy.last_reason, policy._store_visit,
+                                               policy._shopping_approach_store_type))
+                    pending = policy._home_atomic_withdraw_pending
+                    self.assertIsNotNone(pending)
+                    carried = [replace(withdrawn, slot=chr(ord("a") + index), count=amount)
+                               for index, (_, _, withdrawn, amount, _) in enumerate(pending[4])]
+                    response = replace(after, turn=after.turn + 1, inventory=carried)
+                    policy._observe_calibration_restore_batch(response, pending)
+                    self.assertEqual(policy._calibration_restore_signatures, [])
+                    policy._calibration_observe(response)
+                    self.assertIsNone(policy._calibration_phase)
+
+    def test_restore_protects_successful_batch_and_refused_excess(self):
+        raw = rows()
+        policy = deposited_policy(raw)
+        catalogue(policy, raw, 549401)
+        board = outside(raw, 549401)
+        policy._atomic_home_withdraw_key(board, board.player.position)
+        pending = policy._home_atomic_withdraw_pending
+        # A partial response leaves one debt, while a restored torch stack is
+        # too heavy. It must never be deposited again to make room for that debt.
+        torch_entry = next(entry for entry in pending[4] if entry[2].is_torch)
+        signature, before, torch, amount, index = torch_entry
+        heavy = replace(board, inventory=[replace(torch, slot="a", count=57)])
+        policy._observe_calibration_restore_batch(heavy, (*pending[:4], (torch_entry,)))
+        frozen = pickle.dumps(policy)
+        for restored in (False, True):
+            with self.subTest(checkpoint=restored):
+                current = pickle.loads(frozen) if restored else policy
+                self.assertNotIn(signature, current._calibration_restore_signatures)
+                self.assertTrue(current._inventory_overweight(heavy))
+                self.assertIsNone(current._find_home_deposit(heavy))
+                key = current._calibration_town_key(heavy)
+                self.assertIsNone(current._enforce_town_claim_result(heavy, key))
+                self.assertEqual(current.last_reason,
+                                 "town:blocked:calibration-restore-weight-limit")
+        rejected = deposited_policy(raw)
+        loot = replace(torch, slot="z", name="refused loot", tval=23, sval=99,
+                       count=1, weight=2000, is_equipment=True, is_cursed=True)
+        rejected._home_rejected_deposits.add(rejected._item_signature(loot))
+        refused = replace(board, inventory=[loot])
+        key = rejected._calibration_town_key(refused)
+        self.assertIsNone(rejected._enforce_town_claim_result(refused, key))
+        self.assertEqual(rejected.last_reason, "town:blocked:calibration-restore-weight-limit")
+
     def test_fixture_and_missing_target_are_recorded_facts(self):
         with gzip.open(FIXTURE, "rb") as source:
             frozen = source.read()

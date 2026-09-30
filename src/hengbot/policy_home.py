@@ -16,6 +16,13 @@ from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
 
 class HomeMixin:
+    def _protect_calibration_restore_items(self) -> None:
+        # Retain the original restore identities after their debt is discharged.
+        # Older checkpoints acquire this field from their still-outstanding debt.
+        protected = set(getattr(self, "_calibration_restore_protected", ()))
+        protected.update(self._calibration_restore_signatures)
+        self._calibration_restore_protected = protected
+
     def _calibration_restore_item_matches(
         self, owner_signature: tuple[str, int, int], item: StoreItem
     ) -> bool:
@@ -1063,6 +1070,9 @@ class HomeMixin:
             for item in snapshot.inventory
             if item.weight > 0
             and self._retention_surplus(snapshot, item) > 0
+            and not (self._calibration_phase == "restore-supplies" and any(
+                self._calibration_restore_item_matches(signature, item)
+                for signature in getattr(self, "_calibration_restore_protected", ())))
             # Finish an immediately actionable identification before shedding
             # its Home withdrawal.  Otherwise the overweight owner puts the
             # same item straight back and the catalogue owner takes it again.
@@ -1303,6 +1313,7 @@ class HomeMixin:
             signature = self._item_signature(deposit)
             if signature not in self._calibration_restore_signatures:
                 self._calibration_restore_signatures.append(signature)
+            self._protect_calibration_restore_items()
             self._calibration_restore_move_identities[signature] = (
                 equipment_move_identity(deposit)
             )
@@ -1372,6 +1383,8 @@ class HomeMixin:
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
         """Bind one catalogued Home take to fresh entry, operation, and exit."""
+        if self._calibration_phase == "restore-supplies":
+            self._protect_calibration_restore_items()
         if (
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME
@@ -2060,6 +2073,8 @@ class HomeMixin:
         self, snapshot: Snapshot, pending: tuple
     ) -> None:
         """Reconcile one same-page calibration restore macro outside Home."""
+        self._protect_calibration_restore_items()
+        self._calibration_restore_protected.update(entry[0] for entry in pending[4])
         succeeded = []
         failed = []
         for entry in pending[4]:
@@ -2395,11 +2410,14 @@ class HomeMixin:
         self._home_errand.observe_knowledge(False)
 
     def _atomic_home_deposit_key(
-        self, snapshot: Snapshot, step: Position
+        self, snapshot: Snapshot, step: Position, *,
+        calibration_restore_excess: bool = False,
     ) -> str | None:
         """Bind one Home deposit to its stay-entry and exit."""
         if (self._calibration_owns_town_sequence()
-                and self._calibration_phase != "deposit"):
+                and self._calibration_phase != "deposit"
+                and not (calibration_restore_excess
+                         and self._calibration_phase == "restore-supplies")):
             self._offer_home_atomic_no_step("deposit", "calibration-restoration-owned")
             return None
         if (
@@ -2611,7 +2629,7 @@ class HomeMixin:
         self._stage_home_operation(
             snapshot, "".join(operations) + LEAVE_STORE_KEY,
             producer_family=(
-                "calibration" if self._calibration_phase == "deposit"
+                "calibration" if self._calibration_phase in {"deposit", "restore-supplies"}
                 else "home-visit"
             ),
         )
@@ -2728,7 +2746,7 @@ class HomeMixin:
                 )
         visit.operation_posted = True
         visit.operation_producer_family = (
-            "calibration" if self._calibration_phase == "deposit"
+            "calibration" if self._calibration_phase in {"deposit", "restore-supplies"}
             else "home-visit"
         )
         visit.operation_key = operation_key
@@ -2904,6 +2922,13 @@ class HomeMixin:
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_deposit_abandoned:
+            return None
+        if self._calibration_phase == "restore-supplies":
+            # Use the ordinary overweight/retention selector, but never offer a
+            # restore stack, including a successful take from an earlier batch.
+            candidate = self._overweight_home_deposit(snapshot)
+            if candidate is not None and self._retention_surplus(snapshot, candidate) > 0:
+                return candidate
             return None
         if self._calibration_phase == "deposit":
             # The unequipped calibration phase deposits the whole pack (the
