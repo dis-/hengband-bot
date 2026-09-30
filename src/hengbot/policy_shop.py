@@ -3420,7 +3420,7 @@ class ShopMixin:
             "sell": SELL_KEY + tag + quantity_answer + "y",
         }
 
-    def _shop(self, snapshot: Snapshot) -> str:
+    def _shop(self, snapshot: Snapshot) -> str | None:
         """Declare the final direct store-page command produced by this page."""
         key = self._shop_core(snapshot)
         if self.last_reason == "shop:purchase-deferred":
@@ -4986,6 +4986,11 @@ class ShopMixin:
         # the composition boundary; no cached item candidate is trusted.
         reason_before_composition = self.last_reason
         inner = self._shop(replace(snapshot, store=observed_store))
+        if inner is None:
+            # A held purchase legitimately has no command to compose. Keep the
+            # observed page for the holder's continuation or a later purchase.
+            offer_outcome(None, "purchase-deferred")
+            return None
         if inner.startswith((BUY_KEY, SELL_KEY)):
             operation_key = inner + LEAVE_STORE_KEY
             key = WAIT_KEY

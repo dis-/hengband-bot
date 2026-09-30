@@ -1,0 +1,132 @@
+{
+  "minutes": 33.06666666666667,
+  "decisions": 4425,
+  "shadow_decisions": 1716,
+  "would_stop": [
+    {
+      "reason": "ownership:declaration-stale:calibration",
+      "family": "calibration",
+      "count": 1
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "bookkeeping",
+      "count": 11
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "calibration",
+      "count": 1
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "equipment-txn",
+      "count": 6
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "home-visit",
+      "count": 1353
+    }
+  ],
+  "first_stops": [
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "equipment-txn",
+      "producer_reason": "equipment-transaction:travel-home:await-entry",
+      "decision_sequence": 3027,
+      "time": "2026-10-01T02:58:55+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "equipment-txn",
+      "producer_reason": "equipment-transaction:withdraw",
+      "decision_sequence": 3028,
+      "time": "2026-10-01T02:58:56+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "equipment-txn",
+      "producer_reason": "home:store-context-exit",
+      "decision_sequence": 3029,
+      "time": "2026-10-01T02:58:56+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "equipment-txn",
+      "producer_reason": "equipment-transaction:equip",
+      "decision_sequence": 3031,
+      "time": "2026-10-01T02:58:58+0900"
+    },
+    {
+      "reason": "ownership:declaration-stale:calibration",
+      "family": "calibration",
+      "producer_reason": "home:weight-overload-deposit",
+      "decision_sequence": 3035,
+      "time": "2026-10-01T02:59:02+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "calibration",
+      "producer_reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+      "decision_sequence": 3038,
+      "time": "2026-10-01T02:59:04+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "home-visit",
+      "producer_reason": "home:store-context-exit",
+      "decision_sequence": 3040,
+      "time": "2026-10-01T02:59:06+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "home-visit",
+      "producer_reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+      "decision_sequence": 3041,
+      "time": "2026-10-01T02:59:07+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "bookkeeping",
+      "producer_reason": "periodic:game-save",
+      "decision_sequence": 3104,
+      "time": "2026-10-01T03:00:04+0900"
+    },
+    {
+      "reason": "ownership:declaration-unrestored:calibration",
+      "family": "bookkeeping",
+      "producer_reason": "periodic:character-dump",
+      "decision_sequence": 3348,
+      "time": "2026-10-01T03:03:08+0900"
+    }
+  ],
+  "declaration_gaps": {
+    "combat": 2,
+    "detectors": 128,
+    "floor-loot": 13,
+    "quest-request": 44
+  },
+  "mismatches": {
+    "home-visit": 446
+  },
+  "gate_leaks": {},
+  "would_skip": {
+    "calibration": 158,
+    "cross-town": 1567,
+    "curse-enchant": 1567,
+    "departure": 1567,
+    "equipment-opt": 1567,
+    "equipment-txn": 1476,
+    "explore": 1567,
+    "fundraising": 1567,
+    "home-errand": 1567,
+    "home-scan": 1567,
+    "home-visit": 1488,
+    "identification": 1567,
+    "rumor": 1567,
+    "shop-buy": 1552,
+    "shop-sell": 1562,
+    "store-router": 1411
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "base": "adf8f3e1",
+  "branch": "decl-r3b",
+  "step1_commit": "eacb335d",
+  "modules": {
+    "tests.test_calibration_live19": 6,
+    "tests.test_calibration_crossarea_debt": 5,
+    "tests.test_live8": 11,
+    "tests.test_declarations_r11": 10,
+    "tests.test_test_fakery_lint": 13,
+    "tests.test_town_producer_purity_part1": 1
+  },
+  "passed": 46,
+  "failures": 0,
+  "single_revert": {
+    "base": "eacb335d",
+    "module": "tests.test_calibration_live19",
+    "tests": 6,
+    "assertion_failures": 8,
+    "errors": 0,
+    "before_reason": "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
+    "before_key": "9",
+    "after_key": null,
+    "after_reason": "town:blocked:calibration-restore-target-absent",
+    "production_bytes_restored": true
+  },
+  "fixtures": {
+    "stuck": {
+      "off": {
+        "off_rows": 4,
+        "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+        "first_divergence": null,
+        "trajectory_defect": null
+      },
+      "s33": {
+        "off_rows": 4,
+        "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+        "first_divergence": null,
+        "trajectory_defect": null
+      }
+    },
+    "withdraw": {
+      "off": {
+        "off_rows": 34,
+        "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+        "first_divergence": null,
+        "trajectory_defect": null
+      },
+      "s33": {
+        "off_rows": 34,
+        "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+        "first_divergence": {
+          "list_index": 20,
+          "off": [
+            "rkc",
+            "town:enchant-launcher-todam"
+          ],
+          "on": [
+            "\u001b`n%.",
+            "shop:travel"
+          ]
+        },
+        "trajectory_defect": null
+      }
+    }
+  },
+  "expected_first_changed": false,
+  "scope": "No full suite or forbidden gates; no live bot/game actions; sources read-only.",
+  "step2_commit": "3d749f86"
+}

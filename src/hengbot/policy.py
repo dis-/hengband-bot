@@ -5796,7 +5796,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _defer_town_errand(
         self, family: str, reason: str, *, work_identity: tuple | None = None,
     ) -> bool:
-        """Record a competing producer and enforce the hold only when ON."""
+        """Protect physical calibration ownership, then apply the S3.3 hold."""
+        if not self._calibration_town_family_allowed(family):
+            if getattr(self, "_decision_errand_deferred", None) is None:
+                self._decision_errand_deferred = []
+            self._decision_errand_deferred.append({
+                "holder_family": "calibration", "holder_claim_id": None,
+                "deferred_family": family,
+                "deferred_reason": f"restore-debt:{reason}",
+                "token_would_admit": False, "token_work_identity": None,
+            })
+            return True
         enforced = getattr(self, "_town_claim_bar_enforced", False)
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
@@ -5872,7 +5882,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         test precedes any reservation, visit mutation, or execution offer in
         the producer.  Survival and detectors remain outside the errand hold.
         """
-        if not getattr(self, "_town_claim_bar_enforced", False):
+        if (not getattr(self, "_town_claim_bar_enforced", False)
+                and not self._calibration_owns_town_sequence()):
             return call()
         board = getattr(self, "_map_predicate_snapshot", None)
         if (board is not None
@@ -5887,6 +5898,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._defer_town_errand(
                     rung.family, f"entry:{rung_name}")):
             return None
+        if not getattr(self, "_town_claim_bar_enforced", False):
+            return call()
         if self._town_plan_defers(rung.family):
             plan = self._town_errand_plan
             if getattr(self, "_decision_errand_deferred", None) is None:
@@ -6816,6 +6829,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
+        if (not enforced and (self.last_reason or "").startswith(
+                "town:blocked:calibration-restore-")):
+            return None
         holder = self._claim_errand_hold("__none__") if enforced else None
         if enforced:
             stop = self._town_unrestored_stop(snapshot, holder, target_only=True)
@@ -9670,6 +9686,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (
             snapshot.in_town
             and admitted_session is not None
+            and self._calibration_town_family_allowed("equipment-txn")
             and admitted_session.executable
             and admitted_session.required_context == "home"
             and admitted_session.physical_context == "home"

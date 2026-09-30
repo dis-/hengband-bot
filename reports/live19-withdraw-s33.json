@@ -1,0 +1,858 @@
+{
+  "case": "withdraw",
+  "declaration_decisions_measured": 21,
+  "declaration_gap_rows": [],
+  "declaration_mismatch_counts": [],
+  "expected_first": [
+    20,
+    20,
+    "\u001b`n%.",
+    "shop:travel"
+  ],
+  "first_divergence": {
+    "historical": {
+      "key": "rkc",
+      "reason": "town:enchant-launcher-todam"
+    },
+    "historical_sequence": 20,
+    "historical_sequence_source": "fixture",
+    "list_index": 20,
+    "new_sequence": 20,
+    "off": [
+      "rkc",
+      "town:enchant-launcher-todam"
+    ],
+    "off_sequence": 20,
+    "on": [
+      "\u001b`n%.",
+      "shop:travel"
+    ],
+    "pre_decision_off": {
+      "delegates": [
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 2,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "equipment-txn",
+            "recovered-shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            1,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 4,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "recovered-shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            1,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 5,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            null,
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            5,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 6,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-scan",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            6,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 8,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            6,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 11,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 10, 5)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 10,
+          "parent_claim_id": 11,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            null,
+            "shopping",
+            5
+          ],
+          "work_identity": [
+            "route",
+            10,
+            5
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "observed-transaction",
+            5
+          ],
+          "work_identity": [
+            "route",
+            12,
+            5
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "observed-transaction",
+            5
+          ],
+          "work_identity": [
+            "route",
+            12,
+            5
+          ]
+        },
+        {
+          "budget_reference": "shop-one-shot-existing-budget",
+          "delegate_family": "shop-sell",
+          "ending": "parent-claim-ended",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "shop-one-shot-existing-budget",
+            "cause": "parent-claim-ended",
+            "claim_id": 14,
+            "continuation": "parent.resume",
+            "evidence": null,
+            "expected_effect": "inventory/gold-effect",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "shop-sell",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "releasing",
+            "work_id": "('shop-operation', 12, 5, 'd0y\\x1b')"
+          },
+          "expected_effect": "inventory/gold-effect",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": 14,
+          "parent_family": "shop-sell",
+          "purpose_identity": [
+            "plan-stop-operation",
+            5,
+            [
+              "home-visit",
+              "shop-buy",
+              "shop-sell"
+            ]
+          ],
+          "work_identity": [
+            "shop-operation",
+            12,
+            5,
+            "d0y\u001b"
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 15,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 15, 4)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 15,
+          "parent_claim_id": 15,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            4
+          ],
+          "work_identity": [
+            "route",
+            15,
+            4
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 17,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 17, 7)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 17,
+          "parent_claim_id": 17,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            17,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 18,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            17,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 19,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            19,
+            7
+          ]
+        }
+      ],
+      "operation": {
+        "claim_id": 19,
+        "identity": [
+          7,
+          19,
+          "pl\u001b"
+        ],
+        "phase": "approaching",
+        "posted": true,
+        "producer": "home-visit",
+        "purpose": "shopping",
+        "released": true,
+        "store_type": 7
+      },
+      "parent": {
+        "claim_id": 19,
+        "family": "home-visit",
+        "goal": {
+          "expectation": [
+            "19",
+            "7",
+            "pl\u001b"
+          ],
+          "kind": "Observe",
+          "source": "store-operation",
+          "within": 8
+        },
+        "state": "active"
+      },
+      "plan": {
+        "index": 1,
+        "requester_families": {
+          "3": [
+            "shop-buy"
+          ],
+          "4": [
+            "shop-buy"
+          ],
+          "6": [
+            "shop-buy"
+          ]
+        },
+        "stops": [
+          4,
+          3,
+          6
+        ]
+      },
+      "session": null
+    },
+    "pre_decision_on": {
+      "delegates": [
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 2,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "equipment-txn",
+            "recovered-shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            1,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 4,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "recovered-shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            1,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 5,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            null,
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            5,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 6,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-scan",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            6,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 8,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            6,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 11,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 10, 5)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 10,
+          "parent_claim_id": 11,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            null,
+            "shopping",
+            5
+          ],
+          "work_identity": [
+            "route",
+            10,
+            5
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "observed-transaction",
+            5
+          ],
+          "work_identity": [
+            "route",
+            12,
+            5
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "observed-transaction",
+            5
+          ],
+          "work_identity": [
+            "route",
+            12,
+            5
+          ]
+        },
+        {
+          "budget_reference": "shop-one-shot-existing-budget",
+          "delegate_family": "shop-sell",
+          "ending": "parent-claim-ended",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "shop-one-shot-existing-budget",
+            "cause": "parent-claim-ended",
+            "claim_id": 14,
+            "continuation": "parent.resume",
+            "evidence": null,
+            "expected_effect": "inventory/gold-effect",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "shop-sell",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "releasing",
+            "work_id": "('shop-operation', 12, 5, 'd0y\\x1b')"
+          },
+          "expected_effect": "inventory/gold-effect",
+          "lifecycle": "released",
+          "opening_decision": 13,
+          "parent_claim_id": 14,
+          "parent_family": "shop-sell",
+          "purpose_identity": [
+            "plan-stop-operation",
+            5,
+            [
+              "home-visit",
+              "shop-buy",
+              "shop-sell"
+            ]
+          ],
+          "work_identity": [
+            "shop-operation",
+            12,
+            5,
+            "d0y\u001b"
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 15,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 15, 4)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 15,
+          "parent_claim_id": 15,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            4
+          ],
+          "work_identity": [
+            "route",
+            15,
+            4
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "route-arrived",
+          "execution": {
+            "arguments": [],
+            "budget_ref": "town-travel-progress-budget",
+            "cause": null,
+            "claim_id": 17,
+            "continuation": "parent.resume",
+            "evidence": "route-arrived",
+            "expected_effect": "arrived-or-entered",
+            "next_step": null,
+            "operation_ref": null,
+            "producer": "store-router",
+            "producer_entry": null,
+            "revision": 2,
+            "state": "done",
+            "work_id": "('route', 17, 7)"
+          },
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "completed",
+          "opening_decision": 17,
+          "parent_claim_id": 17,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            17,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 18,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            17,
+            7
+          ]
+        },
+        {
+          "budget_reference": "town-travel-progress-budget",
+          "delegate_family": "store-router",
+          "ending": "exit-owner-mismatch",
+          "execution": null,
+          "expected_effect": "arrived-or-entered",
+          "lifecycle": "released",
+          "opening_decision": 19,
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "purpose_identity": [
+            "trip",
+            "shop-buy",
+            "shopping",
+            7
+          ],
+          "work_identity": [
+            "route",
+            19,
+            7
+          ]
+        }
+      ],
+      "operation": {
+        "claim_id": 19,
+        "identity": [
+          7,
+          19,
+          "pl\u001b"
+        ],
+        "phase": "approaching",
+        "posted": true,
+        "producer": "home-visit",
+        "purpose": "shopping",
+        "released": true,
+        "store_type": 7
+      },
+      "parent": {
+        "claim_id": 19,
+        "family": "home-visit",
+        "goal": {
+          "expectation": [
+            "19",
+            "7",
+            "pl\u001b"
+          ],
+          "kind": "Observe",
+          "source": "store-operation",
+          "within": 8
+        },
+        "state": "active"
+      },
+      "plan": {
+        "index": 1,
+        "requester_families": {
+          "3": [
+            "shop-buy"
+          ],
+          "4": [
+            "shop-buy"
+          ],
+          "6": [
+            "shop-buy"
+          ]
+        },
+        "stops": [
+          4,
+          3,
+          6
+        ]
+      },
+      "session": null
+    }
+  },
+  "fixture_sha256": "041b395d5882c9eeee2232fb82ce98686bb955a0250b23f0c2f8c7b06330019a",
+  "gate_final_count": 0,
+  "missing_declaration_by_family": {
+    "detectors": 1
+  },
+  "missing_declaration_decisions": 1,
+  "mode": "s33",
+  "off_declarations": {
+    "declaration_decisions_measured": 34,
+    "declaration_gap_rows": [],
+    "declaration_mismatch_counts": [],
+    "gate_final_count": 20,
+    "missing_declaration_by_family": {
+      "detectors": 2
+    },
+    "missing_declaration_decisions": 2
+  },
+  "off_gate_final_count": 20,
+  "off_rows": 34,
+  "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+  "trajectory_defect": null
+}
