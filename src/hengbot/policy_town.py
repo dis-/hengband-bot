@@ -1176,7 +1176,12 @@ class TownMixin:
             and self._home_atomic_withdraw_pending is not None
         ):
             return key
-        if proposed_reason == "breakout:least-visited":
+        plan = getattr(self, "_town_errand_plan", None)
+        plan_stop_pending = bool(
+            getattr(self, "_town_claim_bar_enforced", False)
+            and plan is not None and plan.index < len(plan.stops)
+        )
+        if proposed_reason == "breakout:least-visited" and not plan_stop_pending:
             self._boxed_town_breakout_key(snapshot)
             committed = self._commit_boxed_town_breakout_key(snapshot)
             if committed is not None:

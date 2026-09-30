@@ -2712,6 +2712,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if standing is not None and standing.is_open:
                 self._claim_exit_completion(snapshot, standing, [])
             self._observe_execution_delegations()
+            self._retire_finished_home_errand_plan_stop()
         home_capture = self._home_entry_capture
         def choose_ladder():
             chosen = (home_capture.choose_key(self, snapshot)
@@ -3151,6 +3152,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (self._fundraising_runs_started or 0) + 1
                 )
                 self._post_fundraising_transport(snapshot, "depart")
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and self._town_unbound_entry_wait(key)):
+            # The holder check above gave procurement a chance to replace the
+            # empty wait.  If no route exists, stop visibly rather than emit
+            # an undeclared observation from an unposted visit.
+            self.last_reason = "ownership:declaration-missing:store-router"
+            self._record_decision_claim(snapshot, None)
+            return None
         self._record_decision_claim(snapshot, key)
         return key
 
@@ -5782,6 +5791,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
         return deferred_now
 
+    def _retire_finished_home_errand_plan_stop(self) -> None:
+        """Drop a Home stop whose sole requester has already finished."""
+        plan = getattr(self, "_town_errand_plan", None)
+        if plan is None or plan.index >= len(plan.stops):
+            return
+        stop = plan.stops[plan.index]
+        if (stop != STORE_HOME
+                or set(plan.requester_families.get(stop, ())) != {"home-errand"}
+                or self._home_errand.active
+                or self._home_errand.request is not None):
+            return
+        plan.completed_this_visit.append(stop)
+        plan.current_stop_passes = 0
+        plan.index += 1
+
     def _town_producer_entry(self, rung_name: str, call,
                              *, family: str | None = None):
         """Ask the town holder before running a ladder producer.
@@ -5806,7 +5830,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     rung.family, f"entry:{rung_name}")):
             return None
         if (rung.family in CLAIM_TOWN_ERRAND_FAMILIES | {
-                "departure", "fundraising"}
+                "departure", "fundraising", "explore"}
                 and self._claim_errand_hold("__none__") is None):
             plan = getattr(self, "_town_errand_plan", None)
             if plan is not None and plan.index < len(plan.stops):
@@ -5834,12 +5858,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (not getattr(self, "_town_claim_bar_enforced", False)
                 or key is None):
             return None
+        if self._town_unbound_entry_wait(key):
+            # An entry sequence can be armed without a store operation.  Let
+            # the downstream progress invariant route that unbound wait.
+            return None
         holder = self._claim_errand_hold("__none__")
         if (holder is not None
                 and self._claim_family_of(self.last_reason or "")
                 == holder.owner.value):
             return holder
         return None
+
+    def _town_unbound_entry_wait(self, key) -> bool:
+        visit = getattr(self, "_store_visit", None)
+        return bool(
+            key == ""
+            and self.last_reason == "store:entry-await-observation"
+            and visit is not None
+            and not visit.operation_posted
+            and visit.claim_operation_identity is None
+        )
 
     def _town_shop_entry_family(self) -> str:
         """The shop family authorized by the current visit or its holder."""
@@ -6413,8 +6451,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 return self._town_declaration_stop(family, "stale")
         if enforced and reason == "store:entry-await-observation" and key == "":
-            # A posted entry is an identity-bound observation wait. Visit
-            # flags alone cannot authorize this empty output.
+            # Check the entry declaration first.  An entry can be armed before
+            # its store operation exists; the final emit seam rejects an
+            # unbound empty wait if procurement cannot replace it.
             declaration = getattr(route, "execution", None)
             visit = getattr(self, "_store_visit", None)
             if (route is not None and declaration is not None
