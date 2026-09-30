@@ -42,7 +42,10 @@ class Live23HomeCycleTest(unittest.TestCase):
     def test_recorded_entry_completes_catalogue_before_other_errand(self):
         provenance = json.loads((FIXTURE / "provenance.json").read_text(encoding="utf8"))
         for name, digest in provenance["fixture_sha256"].items():
-            self.assertEqual(hashlib.sha256((FIXTURE / name).read_bytes()).hexdigest(), digest)
+            data = (FIXTURE / name).read_bytes()
+            if name.endswith(".json"):
+                data = data.replace(b"\r\n", b"\n")
+            self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
         for enforced, crossarea in ((False, True), (True, False), (True, True)):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):

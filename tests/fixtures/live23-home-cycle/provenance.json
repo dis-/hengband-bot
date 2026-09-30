@@ -22,9 +22,9 @@
   "prior_home_page_source_index_zero_based": 2259,
   "fixture_sha256": {
     "decisions.jsonl.gz": "52202c8deb813d8ddb0259cb13f22e667846126a2085423db39c41b562d27fd8",
-    "partial-home-page.json": "a9ba6075a96c70c1868da4e9a07f9df09873a582c2159e97dd5a2ce459d7d03a",
-    "prior-home-page.json": "86cd6e21e254e8750d27e95c371d5c2a20ffe03b309f7159849ed83fc4ff3893",
-    "skill-knowledge.json": "93cba3c1b62a3e99cbe090551f168148ba19f6c6500d5df6d451cdce2b8aeecb",
+    "partial-home-page.json": "a440cf791c639ab8cd8b7419f392d010bff31ecd61b2c44ec49cba7c0e44e304",
+    "prior-home-page.json": "93de349ad5cbc62ba213317247e54974019c8e5fa22ff9e7f86caa29d6f8698a",
+    "skill-knowledge.json": "ab26a1de47380105ffbfe02d72054e508ea0d1973cf5f79e7e68548f41cfba39",
     "state.jsonl.gz": "5d069eb100bc6102d709fdbed0ddb03f73842b316afb4359bd1ff87087af792a"
   },
   "skill_knowledge_source_index_zero_based": 2232,
@@ -33,5 +33,6 @@
     "source_index_zero_based": 6,
     "source_sha256": "041b395d5882c9eeee2232fb82ce98686bb955a0250b23f0c2f8c7b06330019a",
     "attachment": "Independent registered-work continuation on a recorded 131-item/52-item-page Home UI; not a consequence of live23 keys."
-  }
+  },
+  "fixture_hash_encoding": "gzip raw bytes; JSON text with LF newlines"
 }

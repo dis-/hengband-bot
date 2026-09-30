@@ -159,5 +159,7 @@ Assertion audit (verbatim, base ca369103):
 No changed pre-existing assertions or forbidden test edits.
 ```
 
-`git diff --check` also passed. The evidence commit is `f424d3b4`; the fix and
-final reporting commits are recorded below after their creation.
+`git diff --check` also passed. Commits: evidence `f424d3b4`; root fix and pins
+`ddebaf64`. The subsequent reporting commit adds `LIVE23-EVENT.json` (one JSON
+line) and makes textual fixture hash checks portable across Git's LF/CRLF
+checkout conversion; compressed capture hashes remain exact byte hashes.
