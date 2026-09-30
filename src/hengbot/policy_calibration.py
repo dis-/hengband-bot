@@ -1224,7 +1224,7 @@ class CalibrationMixin:
                     work_id=f"calibration:{self._calibration_session_target}:capture",
                     next_step="calibration.capture.send",
                     expected_effect="naked-character-captured",
-                    continuation="calibration.restore",
+                    continuation="calibration.capture.observe",
                     budget_ref="calibration-session",
                 )
                 return key

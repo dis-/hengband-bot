@@ -6199,6 +6199,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else:
                     self.last_reason = "equipment-transaction:await-confirmation"
                     return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
+            elif (family == "calibration"
+                  and declaration.continuation == "calibration.capture.observe"):
+                # Observe the posted dump, then run the phase it installs.
+                since = self._decision_offer_buffer().sequence
+                key = self._calibration_town_key(snapshot)
+                return self._town_declared_producer_result(
+                    holder, snapshot, key, since)
             elif declaration.continuation in {
                 "home.knowledge.observe", "store.entry.observe",
                 "home.operation.observe", "shop.one-shot.dispatch",
@@ -6513,6 +6520,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
+        holder = self._claim_errand_hold("__none__") if enforced else None
+        if (holder is not None and holder.owner.value == "calibration"
+                and self._claim_family_of(self.last_reason or "") != "calibration"
+                and not self._town_gate_exempt(
+                    self._claim_family_of(self.last_reason or ""),
+                    self.last_reason or "", snapshot)):
+            # Debt is expected while this holder measures and restores.
+            key = self._town_holder_declared_key(holder, snapshot)
+            if key is None:
+                return None
         if (enforced and self._calibration_restore_signatures
                 and self._claim_family_of(self.last_reason or "")
                     != "calibration"
