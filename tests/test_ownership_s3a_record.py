@@ -351,6 +351,9 @@ class S3aRecordTest(unittest.TestCase):
         self.assertIsNotNone(
             home.policy._claim_errand_hold("store-router"), home_claim
         )
+        # Present a competing router candidate; the holder's own reason/key
+        # must pass through unchanged (live8 ef071d3d).
+        home.policy.last_reason = "shop:approach"
         self.assertIsNone(home.policy._town_procurement_decision(home.board, "k"))
         self.assertEqual(home.policy._decision_errand_deferred[-1], {
             "holder_family": "calibration",
