@@ -72,10 +72,12 @@ class DeclarationR11Test(unittest.TestCase):
             decisions.board, emitted), "1")
         self.assertEqual(getattr(policy, "_decision_gate_final_count", 0), 0)
         fight = decisions.decide(policy.last_reason, key=emitted)
+        # The S3.3 gate admits the chase. S2b.1 keeps its own survival list;
+        # this suspension follows the ladder rank, not that exemption.
         self.assertEqual((fight["owner"], fight["survival"],
                           fight["closed_claim"]["claim_id"],
                           fight["closed_claim"]["state"]),
-                         ("survival", True, held["claim_id"], "suspended"))
+                         ("survival", False, held["claim_id"], "suspended"))
         self.assertIsNone(fight["violation"])
 
     def test_2_non_exempt_final_leak_still_stops(self):

@@ -4371,7 +4371,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # return began -- never ``_last_return_trigger``, which outlives it.
         survival = claim_is_survival(
             reason, getattr(self, "_survival_return_trigger", None)
-        ) or reason.startswith("town:kill-mob") or (
+        ) or reason == "town:kill-mob" or (
             snapshot.in_town and reason == "melee"
             and any(
                 not monster.pet
