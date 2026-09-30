@@ -5806,6 +5806,23 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         plan.current_stop_passes = 0
         plan.index += 1
 
+    def _town_gate_exempt(self, family: str, reason: str = "",
+                          snapshot: Snapshot | None = None) -> bool:
+        """Families and survival outputs outside the town errand hold."""
+        if family in {"survival", "detectors", "bookkeeping"}:
+            return True
+        if (claim_is_survival(reason, self._survival_return_trigger)
+                or reason.startswith("town:kill-mob")):
+            return True
+        return bool(
+            snapshot is not None and reason == "melee"
+            and any(
+                not monster.pet
+                and snapshot.player.position.distance_to(monster.position) <= 1
+                for monster in snapshot.visible_monsters
+            )
+        )
+
     def _town_producer_entry(self, rung_name: str, call,
                              *, family: str | None = None):
         """Ask the town holder before running a ladder producer.
@@ -5825,7 +5842,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
-        if (rung.family not in {"survival", "detectors"}
+        if (not self._town_gate_exempt(rung.family)
                 and self._defer_town_errand(
                     rung.family, f"entry:{rung_name}")):
             return None
@@ -6531,18 +6548,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 route.owner.value if route is not None else "store-router")
         if reason.startswith(("ownership:holder-", "ownership:declaration-")):
             return key
-        if (claim_is_survival(reason, self._survival_return_trigger)
-                or reason == "town:kill-mob"
-                or (reason == "melee" and any(
-                    not monster.pet
-                    and snapshot.player.position.distance_to(
-                        monster.position) <= 1
-                    for monster in snapshot.visible_monsters
-                ))):
-            return key
-        # Bookkeeping and safety detector rewrites own higher ladder rungs.
-        # They are outside the town holder's errand comparison.
-        if family in {"bookkeeping", "detectors"}:
+        if self._town_gate_exempt(family, reason, snapshot):
             return key
         holder = self._claim_errand_hold(family)
         if holder is None:
