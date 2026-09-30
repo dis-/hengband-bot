@@ -218,6 +218,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
     def test_executor_port_uses_existing_long_rest_deadline(self):
         class CapturingExecutor:
             client = object()
+            ready_board = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -234,6 +235,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
     def test_executor_port_uses_existing_long_deadline_for_prompt_chain(self):
         class CapturingExecutor:
             client = object()
+            ready_board = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -252,6 +254,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
     def test_single_segment_keeps_pre_ack_budget_and_carries_post_ack_grace(self):
         class CapturingExecutor:
             client = object()
+            ready_board = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -270,6 +273,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
     def test_town_character_dump_submits_existing_command_response_grace(self):
         class CapturingExecutor:
             client = object()
+            ready_board = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -291,6 +295,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
     def test_executor_port_preserves_player_death_outcome(self):
         class DeathExecutor:
             client = object()
+            ready_board = None
 
             def submit(self, operation, *, deadline):
                 return SimpleNamespace(
