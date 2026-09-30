@@ -86,9 +86,14 @@ class CalibrationMixin:
             or self._calibration_suspended_phase is not None
         )
 
+    def _calibration_restore_enforced(self) -> bool:
+        """Enable live19 restoration under cross-area or S3.3 enforcement."""
+        return bool(getattr(self, "_crossarea_fundraising_enforced", False)
+                    or getattr(self, "_town_claim_bar_enforced", False))
+
     def _calibration_owns_town_sequence(self) -> bool:
-        """Physical restoration belongs to calibration even with S3.3 off."""
-        return bool(self._calibration_active()
+        """Protect calibration's physical sequence only under enforcement."""
+        return self._calibration_restore_enforced() and bool(self._calibration_active()
                     or self._calibration_stripped_unrestored
                     or self._calibration_restore_signatures)
 
@@ -877,7 +882,8 @@ class CalibrationMixin:
         """Advance the calibration state machine from each new snapshot."""
         self._release_cured_calibration_deferral(snapshot)
         self._restore_calibration_redress_obligation(snapshot)
-        if (self._calibration_phase is None
+        if (self._calibration_restore_enforced()
+                and self._calibration_phase is None
                 and self._calibration_restore_signatures):
             self._calibration_phase = "restore-supplies"
         phase = self._calibration_phase
@@ -897,7 +903,8 @@ class CalibrationMixin:
             # The floor changed under a live phase (death reload, forced move):
             # drop the phase; the calibration cache itself stays untouched and
             # the next town visit re-runs the phase from the start.
-            if self._calibration_restore_signatures:
+            if (self._calibration_restore_enforced()
+                    and self._calibration_restore_signatures):
                 # Deposited supplies remain an outstanding physical debt even
                 # when calibration itself was interrupted by a floor change.
                 self._calibration_phase = "restore-supplies"
@@ -1021,7 +1028,8 @@ class CalibrationMixin:
                     # An absent stripped identity remains a durable debt and is
                     # therefore a visible terminal, never an undressed release.
                     _, _, lost = self._calibration_redress_accounting(snapshot)
-                    if self._calibration_restore_signatures:
+                    if (self._calibration_restore_enforced()
+                            and self._calibration_restore_signatures):
                         self._town_blocked_reason = (
                             "calibration-restore-home-visit-exhausted"
                         )
@@ -1056,7 +1064,8 @@ class CalibrationMixin:
     @claims(ClaimOwner.CALIBRATION)
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
-        if (snapshot.in_town and self._calibration_restore_signatures
+        if (self._calibration_restore_enforced()
+                and snapshot.in_town and self._calibration_restore_signatures
                 and self._equipment_transaction_session is not None
                 and not self._calibration_session_owned()):
             return self._calibration_restore_terminal("foreign-session")
@@ -1281,7 +1290,8 @@ class CalibrationMixin:
             )
             return WAIT_KEY
         if phase == "restore-supplies":
-            if self._inventory_overweight(snapshot):
+            if (self._calibration_restore_enforced()
+                    and self._inventory_overweight(snapshot)):
                 self._protect_calibration_restore_items()
                 if self._home_atomic_deposit_pending is not None:
                     self.last_reason = "calibration:await-excess-deposit"
