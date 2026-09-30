@@ -238,7 +238,8 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
     if row0.endswith(("Enchant which item?", "どのアイテムを強化しますか?")):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
-    if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?")):
+    if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?",
+                      "*Identify* which item?", "どのアイテムを*鑑定*しますか?")):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
     if row0.startswith("(Items ") and "ESC to exit)" in row0:
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
@@ -1128,7 +1129,62 @@ class OperationExecutor:
                 )
                 for feature in expected_features if feature is not None
             )
+            equipped_full = self.active.owner == "identify:full-equipped"
+            if equipped_full and match.kind is ScreenKind.ITEM_TARGET \
+                    and ScreenKind.ITEM_TARGET in continuation.kinds:
+                feature_matches = feature_matches or match.feature.endswith((
+                    "*Identify* which item?", "どのアイテムを*鑑定*しますか?",
+                ))
             if match.kind in continuation.kinds and feature_matches:
+                if equipped_full:
+                    prompt_state = self._request("state", deadline, map=True)
+                    if prompt_state is None:
+                        return self._terminal(
+                            self.active, "state", "prompt binding failed", match, outcome)
+                    self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
+                    if match.kind is ScreenKind.ITEM_SOURCE:
+                        before = self.active.observation
+                        old_items = before.get("inventory", ()) if isinstance(before, Mapping) else ()
+                        old = next((item for item in old_items
+                                    if isinstance(item, Mapping)
+                                    and item.get("slot") == continuation.keys), None)
+                        identity_fields = ("tval", "sval", "name")
+                        sources = [item for item in prompt_state.get("inventory", ())
+                                   if isinstance(item, Mapping) and old is not None
+                                   and all(item.get(field) == old.get(field)
+                                           for field in identity_fields)]
+                        if len(sources) != 1:
+                            break
+                        answer = str(sources[0].get("slot", ""))
+                        if not re.fullmatch(r"[a-z]", answer):
+                            break
+                    elif match.kind is ScreenKind.ITEM_TARGET:
+                        if match.feature.startswith(("(Inven:", "(持ち物:")):
+                            return self._post_and_barrier(
+                                "/", deadline, role="auxiliary-request")
+                        if not match.feature.startswith(("(Equip:", "(装備品:")):
+                            break
+                        from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
+                        slot = next((slot for slot, label in EQUIPMENT_SLOT_KEY.items()
+                                     if label == continuation.keys), None)
+                        target = next((item for item in prompt_state.get("equipment", ())
+                                       if isinstance(item, Mapping) and item.get("slot") == slot), None)
+                        before = self.active.observation
+                        old_targets = before.get("equipment", ()) if isinstance(before, Mapping) else ()
+                        old_target = next((item for item in old_targets
+                                           if isinstance(item, Mapping) and item.get("slot") == slot), None)
+                        if target is None or old_target is None or any(
+                                target.get(field) != old_target.get(field)
+                                for field in ("tval", "sval", "name")):
+                            break
+                        answer = EQUIPMENT_SLOT_KEY[slot]
+                        if not any(re.search(r"(?<![a-z])" + re.escape(answer) + r"\) ", str(row))
+                                   for row in screen_value.get("lines", ())[1:]):
+                            break
+                    else:
+                        break
+                    self.active.continuations.pop(0)
+                    return self._post_and_barrier(answer, deadline, role="answer")
                 if self.active.owner.startswith("town:enchant-launcher-") \
                         and match.feature.endswith((
                             "Enchant which item?", "どのアイテムを強化しますか?",

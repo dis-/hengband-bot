@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hengbot.claim_register import ClaimOwner, claims
+from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan
 
 from collections import Counter, deque
@@ -2512,10 +2513,18 @@ class EquipmentMixin:
         key = (
             command
             + source_item.slot
-            + "/"
+            + ("" if full else "/")
             + EQUIPMENT_SLOT_KEY[target.slot]
-            + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
         )
+        if full:
+            # Each answer is bound at its own observed prompt, rather than
+            # assuming the chooser opens in inventory and queuing blind ESCs.
+            self._staged_prompt_chain = {
+                "owner": self.last_reason, "key": key,
+                "sequence": self._decision_sequence, "turn": snapshot.turn,
+                "gates": ((1, SOURCE_PROMPT[command]), (2, IDENTIFY_ITEM_PROMPT)),
+            }
+            self._declare_non_discardable()
         self._offer_execution(
             key, producer="identification",
             work_id=f"identify:equipped:{self._item_signature(target)}",

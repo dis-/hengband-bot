@@ -1,0 +1,64 @@
+{
+  "topic": "live13",
+  "implementer": "gpt-6.1-sol",
+  "base": "56ca3272277fa7da843f4cb1c541db46ee3af9a3",
+  "diagnosis_commit": "85c8ba20",
+  "fix_commit": "this commit",
+  "evidence": {
+    "state_before_purchase": "turn 513463: f,55,5, identification staff",
+    "state_after_purchase": "turn 513463 and 513470: f,70,13,*Identify* scroll; g,55,5, identification staff",
+    "posted_seq87": "'rf/a\\x1b\\x1b\\x1b\\x1b\\x1b\\x1b\\x1b\\x1b'",
+    "screen_row0": "(\\u88c5\\u5099\\u54c1:a-i,'(',')', ESC) \\u3069\\u306e\\u30a2\\u30a4\\u30c6\\u30e0\\u3092*\\u9451\\u5b9a*\\u3057\\u307e\\u3059\\u304b?",
+    "posting_semantics": "cli.py:3320-3331: accepted segments; not per-character consumption"
+  },
+  "fix": [
+    "policy_equipment.py:2513-2530: current snapshot source letter, staged full-equipped source/target gates, no blind slash or ESC suffix",
+    "input_executor.py:241-243: exact Japanese/English full-identify prompt recognition",
+    "input_executor.py:1132-1191: bind source identity to fresh inventory, switch only from inventory chooser, verify current equipped target identity and visible label before answering"
+  ],
+  "pin": "tests.test_live13_full_equipped_identify.Live13FullEquippedPin.test_recorded_town_surface_composer_and_owned_target",
+  "fixture": "tests/fixtures/live-screens/live13-star-identify-equipment-prompt.json",
+  "fixture_sha256": "c167a4cad302d106ba392ddf00ca2c2cc5de440da292bcc9eccc1f769303c66b",
+  "fixture_verbatim_equal": true,
+  "state_fixture_provenance": "last state record from incident-20260930-2332-live-star-identify-equipped-stuck-prompt.state.jsonl.gz, turn 513470",
+  "revert_check": {
+    "runs": 1,
+    "exit": 1,
+    "failure": "composer returned rf/a plus eight ESC instead of rfa"
+  },
+  "tests": {
+    "new_pin": {
+      "run": 1,
+      "passed": 1
+    },
+    "tests.test_policy_equipment": {
+      "run": 192,
+      "passed": 192
+    },
+    "tests.test_input_executor": {
+      "run": 73,
+      "passed": 72,
+      "errors": 1,
+      "error": "missing pre-existing jsonlog/incident-20260919-2230-recall-depth-prompt.jsonl"
+    },
+    "tests.test_test_fakery_lint": {
+      "run": 13,
+      "passed": 13
+    }
+  },
+  "changed_preexisting_assertions": [],
+  "assertion_audit": "No changed pre-existing assertions or forbidden test edits.",
+  "new_policy_attributes": [],
+  "user_decisions": [
+    {
+      "clause": "full-identify of an equipped item selects by what is on screen; recomputes letters from the current board; recognises this prompt",
+      "printed_pin_result": "Ran 1 test; OK; accepted [rf,a] on the recorded equipment chooser; composer rfa"
+    }
+  ],
+  "limits": [
+    "Posted characters prove acceptance, not individual input consumption or why the ESC tail was not consumed by the stopped chooser.",
+    "R4: pin ends at first new target answer a; no recorded post-divergence board exists, so full identification completion is not claimed.",
+    "Input executor module has one missing recorded substrate; jsonlog remains read-only."
+  ],
+  "blockers": []
+}
