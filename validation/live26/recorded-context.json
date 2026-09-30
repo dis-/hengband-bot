@@ -1,0 +1,143 @@
+[
+  {
+    "list_index": 2657,
+    "historical_key_reason": [
+      "\u001b`n%.",
+      "town-progress-invariant:defect:equipment-transaction:travel-home:await-entry=>town-progress-invariant:approach"
+    ],
+    "input_boards": [
+      {
+        "type": "player_turn",
+        "turn": 4393048,
+        "store": null,
+        "visible_items": null
+      }
+    ]
+  },
+  {
+    "list_index": 2658,
+    "historical_key_reason": [
+      "\u001b",
+      "town-progress-invariant:continue-observed-shop"
+    ],
+    "input_boards": [
+      {
+        "type": "player_turn",
+        "turn": 4393048,
+        "store": null,
+        "visible_items": null
+      },
+      {
+        "type": "player_turn",
+        "turn": 4393281,
+        "store": null,
+        "visible_items": null
+      },
+      {
+        "type": "store",
+        "turn": 4393281,
+        "store": {
+          "max_cost": 30000,
+          "owner_name": "質素なドムリ",
+          "owner_race": "ドワーフ",
+          "page_size": 52,
+          "page_top": 0,
+          "stock_num": 20,
+          "store_name": "錬金術の店",
+          "store_type": 4
+        },
+        "visible_items": 20
+      }
+    ]
+  },
+  {
+    "list_index": 2659,
+    "historical_key_reason": [
+      "\u001b`n(.",
+      "equipment-transaction:travel-home"
+    ],
+    "input_boards": [
+      {
+        "type": "player_turn",
+        "turn": 4393290,
+        "store": null,
+        "visible_items": null
+      }
+    ]
+  },
+  {
+    "list_index": 2660,
+    "historical_key_reason": [
+      "~9\u001b",
+      "home:request-knowledge-scan"
+    ],
+    "input_boards": [
+      {
+        "type": "player_turn",
+        "turn": 4393290,
+        "store": null,
+        "visible_items": null
+      },
+      {
+        "type": "player_turn",
+        "turn": 4393530,
+        "store": null,
+        "visible_items": null
+      },
+      {
+        "type": "store",
+        "turn": 4393530,
+        "store": {
+          "capacity": 240,
+          "page_size": 52,
+          "page_top": 0,
+          "stock_num": 116,
+          "store_type": 7
+        },
+        "visible_items": 52
+      }
+    ]
+  },
+  {
+    "list_index": 2661,
+    "historical_key_reason": [
+      "\u001b",
+      "home:route-claim-unfulfilled"
+    ],
+    "input_boards": [
+      {
+        "type": "knowledge",
+        "turn": 4393530,
+        "store": null,
+        "visible_items": null
+      },
+      {
+        "type": "store",
+        "turn": 4393530,
+        "store": {
+          "capacity": 240,
+          "page_size": 52,
+          "page_top": 0,
+          "stock_num": 116,
+          "store_type": 7
+        },
+        "visible_items": 52
+      }
+    ]
+  },
+  {
+    "list_index": 2662,
+    "historical_key_reason": [
+      "\u001b`n%.",
+      "shop:travel"
+    ],
+    "input_boards": [
+      {
+        "type": "player_turn",
+        "turn": 4393535,
+        "store": null,
+        "visible_items": null
+      }
+    ]
+  }
+]
