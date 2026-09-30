@@ -128,6 +128,7 @@ def _volatile_free(record: dict) -> dict:
     every ``elapsed_seconds``), and nothing else -- except the ``claim`` block,
     which by construction only one of the two runs has.  The comparison of the
     claim block is its own assertion below, so it is not being hidden here.
+    The s33_shadow block is also derived from the claim register.
     """
 
     def strip(value):
@@ -135,7 +136,7 @@ def _volatile_free(record: dict) -> dict:
             return {
                 name: strip(item)
                 for name, item in value.items()
-                if name not in ("elapsed_seconds", "claim")
+                if name not in ("elapsed_seconds", "claim", "s33_shadow")
             }
         if isinstance(value, list):
             return [strip(item) for item in value]
@@ -332,6 +333,18 @@ class NeutralityTest(unittest.TestCase):
             self.assertEqual(
                 [row["claim"] for row in _rows(one)],
                 [row["claim"] for row in _rows(two)],
+            )
+
+
+    def test_two_town_runs_with_the_register_have_the_same_shadow(self):
+        skill, boards = _Replay.town_boards()
+        with tempfile.TemporaryDirectory(prefix="shadow-a-") as first, \
+                tempfile.TemporaryDirectory(prefix="shadow-b-") as second:
+            _, one = _Replay.run(Path(first), skill, boards, register=True)
+            _, two = _Replay.run(Path(second), skill, boards, register=True)
+            self.assertEqual(
+                [row["s33_shadow"] for row in _rows(one)],
+                [row["s33_shadow"] for row in _rows(two)],
             )
 
 
