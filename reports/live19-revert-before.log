@@ -1,0 +1,106 @@
+live19 capture continuation: [('wf', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wa(', 'equipment-transaction:equip', 'calibration'), ('wa', 'equipment-transaction:equip', 'calibration'), ('~9\x1b', 'calibration:request-restore-knowledge', 'calibration')]
+live19 recorded recovery: '9' town:entrance-step-off:home:atomic-withdraw-target-unobserved
+live19 recorded recovery: '9' town:entrance-step-off:home:atomic-withdraw-target-unobserved
+FF..FFFFFF
+======================================================================
+FAIL: test_absent_restore_and_overweight_are_typed_with_all_switches_off (tests.test_calibration_live19.Live19CalibrationTest.test_absent_restore_and_overweight_are_typed_with_all_switches_off)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 226, in test_absent_restore_and_overweight_are_typed_with_all_switches_off
+    self.assertIsNone(policy._enforce_town_claim_result(final, key))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9' is not None
+
+======================================================================
+FAIL: test_batch_uses_deposit_quantities_and_cumulative_weight (tests.test_calibration_live19.Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 131, in test_batch_uses_deposit_quantities_and_cumulative_weight
+    self.assertEqual(quantity, owed[signature])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 81 != 83
+
+======================================================================
+FAIL: test_recorded_restore_observation_resolves_to_terminal_not_step_off (tests.test_calibration_live19.Live19CalibrationTest.test_recorded_restore_observation_resolves_to_terminal_not_step_off) (checkpoint=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 115, in test_recorded_restore_observation_resolves_to_terminal_not_step_off
+    self.assertIsNone(decision)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+AssertionError: '9' is not None
+
+======================================================================
+FAIL: test_recorded_restore_observation_resolves_to_terminal_not_step_off (tests.test_calibration_live19.Live19CalibrationTest.test_recorded_restore_observation_resolves_to_terminal_not_step_off) (checkpoint=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 115, in test_recorded_restore_observation_resolves_to_terminal_not_step_off
+    self.assertIsNone(decision)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+AssertionError: '9' is not None
+
+======================================================================
+FAIL: test_restore_excludes_foreign_producers_off_and_on_after_checkpoint (tests.test_calibration_live19.Live19CalibrationTest.test_restore_excludes_foreign_producers_off_and_on_after_checkpoint) (s33=False, checkpoint=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 172, in test_restore_excludes_foreign_producers_off_and_on_after_checkpoint
+    self.assertIsNone(policy._town_producer_entry(
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "_equipment_transaction_town_key", lambda: self.fail(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "foreign town producer entered restore"), family=family))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-decl-r3b\src\hengbot\policy.py", line 5876, in _town_producer_entry
+    return call()
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 173, in <lambda>
+    "_equipment_transaction_town_key", lambda: self.fail(
+                                               ~~~~~~~~~^
+        "foreign town producer entered restore"), family=family))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: foreign town producer entered restore
+
+======================================================================
+FAIL: test_restore_excludes_foreign_producers_off_and_on_after_checkpoint (tests.test_calibration_live19.Live19CalibrationTest.test_restore_excludes_foreign_producers_off_and_on_after_checkpoint) (s33=False, checkpoint=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 172, in test_restore_excludes_foreign_producers_off_and_on_after_checkpoint
+    self.assertIsNone(policy._town_producer_entry(
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "_equipment_transaction_town_key", lambda: self.fail(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "foreign town producer entered restore"), family=family))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-decl-r3b\src\hengbot\policy.py", line 5876, in _town_producer_entry
+    return call()
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 173, in <lambda>
+    "_equipment_transaction_town_key", lambda: self.fail(
+                                               ~~~~~~~~~^
+        "foreign town producer entered restore"), family=family))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: foreign town producer entered restore
+
+======================================================================
+FAIL: test_restore_excludes_foreign_producers_off_and_on_after_checkpoint (tests.test_calibration_live19.Live19CalibrationTest.test_restore_excludes_foreign_producers_off_and_on_after_checkpoint) (s33=True, checkpoint=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 175, in test_restore_excludes_foreign_producers_off_and_on_after_checkpoint
+    self.assertIsNone(policy._prepare_equipment_optimization(
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        outside(raw, 549376)))
+        ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: WarriorOptimizationPreparation(current=Loadout(slots=(), hand_mode='empty'), result=None, transaction=None, blockers=('calibration-required',), encounters_total=0, encounters_evaluated=0) is not None
+
+======================================================================
+FAIL: test_restore_excludes_foreign_producers_off_and_on_after_checkpoint (tests.test_calibration_live19.Live19CalibrationTest.test_restore_excludes_foreign_producers_off_and_on_after_checkpoint) (s33=True, checkpoint=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live19.py", line 175, in test_restore_excludes_foreign_producers_off_and_on_after_checkpoint
+    self.assertIsNone(policy._prepare_equipment_optimization(
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        outside(raw, 549376)))
+        ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: WarriorOptimizationPreparation(current=Loadout(slots=(), hand_mode='empty'), result=None, transaction=None, blockers=('calibration-required',), encounters_total=0, encounters_evaluated=0) is not None
+
+----------------------------------------------------------------------
+Ran 6 tests in 11.942s
+
+FAILED (failures=8)

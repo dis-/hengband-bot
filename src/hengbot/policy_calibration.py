@@ -4,6 +4,7 @@ from collections import Counter
 import json
 
 from hengbot.claim_register import ClaimOwner, claims
+from hengbot.claim_ladder import TOWN_ERRAND_FAMILIES
 from hengbot.equipment_optimizer import (
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
@@ -84,6 +85,45 @@ class CalibrationMixin:
             self._calibration_phase is not None
             or self._calibration_suspended_phase is not None
         )
+
+    def _calibration_owns_town_sequence(self) -> bool:
+        """Physical restoration belongs to calibration even with S3.3 off."""
+        return bool(self._calibration_active()
+                    or self._calibration_stripped_unrestored
+                    or self._calibration_restore_signatures)
+
+    def _calibration_town_family_allowed(self, family: str) -> bool:
+        if not self._calibration_owns_town_sequence():
+            return True
+        if family not in TOWN_ERRAND_FAMILIES | {"departure", "fundraising", "explore"}:
+            return True
+        if family == "calibration" or self._town_gate_exempt(family):
+            return True
+        if family == "equipment-txn":
+            return self._calibration_session_owned()
+        # During restore the calibration producer calls its physical route and
+        # Home composer directly. Generic routing/disposal must keep waiting.
+        if family == "store-router":
+            # Restore travel is called by calibration itself.  The generic
+            # town router must not rebuild a different errand in its place.
+            return self._calibration_phase == "deposit"
+        if family == "home-visit":
+            return self._calibration_phase == "deposit"
+        if family == "home-scan":
+            return (self._calibration_phase == "restore-supplies"
+                    and self._home_atomic_withdraw_pending is None
+                    and self._home_atomic_deposit_pending is None)
+        return False
+
+    def _calibration_restore_terminal(self, cause: str) -> str:
+        """Keep the debt and expose an uncomposable restore, without movement."""
+        self._town_blocked_reason = f"calibration-restore-{cause}"
+        self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        self._offer_execution_no_step(
+            producer="calibration", work_id="calibration:restore-supplies",
+            cause=self._town_blocked_reason,
+        )
+        return WAIT_KEY
 
     def _persist_calibration_redress_obligation(self) -> None:
         """Store the strip debt in the existing calibration record."""
@@ -836,8 +876,7 @@ class CalibrationMixin:
         """Advance the calibration state machine from each new snapshot."""
         self._release_cured_calibration_deferral(snapshot)
         self._restore_calibration_redress_obligation(snapshot)
-        if (getattr(self, "_crossarea_fundraising_enforced", False)
-                and self._calibration_phase is None
+        if (self._calibration_phase is None
                 and self._calibration_restore_signatures):
             self._calibration_phase = "restore-supplies"
         phase = self._calibration_phase
@@ -857,8 +896,7 @@ class CalibrationMixin:
             # The floor changed under a live phase (death reload, forced move):
             # drop the phase; the calibration cache itself stays untouched and
             # the next town visit re-runs the phase from the start.
-            if (getattr(self, "_crossarea_fundraising_enforced", False)
-                    and self._calibration_restore_signatures):
+            if self._calibration_restore_signatures:
                 # Deposited supplies remain an outstanding physical debt even
                 # when calibration itself was interrupted by a floor change.
                 self._calibration_phase = "restore-supplies"
@@ -982,8 +1020,7 @@ class CalibrationMixin:
                     # An absent stripped identity remains a durable debt and is
                     # therefore a visible terminal, never an undressed release.
                     _, _, lost = self._calibration_redress_accounting(snapshot)
-                    if (getattr(self, "_crossarea_fundraising_enforced", False)
-                            and self._calibration_restore_signatures):
+                    if self._calibration_restore_signatures:
                         self._town_blocked_reason = (
                             "calibration-restore-home-visit-exhausted"
                         )
@@ -1018,6 +1055,10 @@ class CalibrationMixin:
     @claims(ClaimOwner.CALIBRATION)
     def _calibration_town_key(self, snapshot: Snapshot) -> str | None:
         """Own the calibration phase while outside stores in town."""
+        if (snapshot.in_town and self._calibration_restore_signatures
+                and self._equipment_transaction_session is not None
+                and not self._calibration_session_owned()):
+            return self._calibration_restore_terminal("foreign-session")
         if self._defer_town_errand("calibration", "town-key"):
             self._offer_execution_no_step(
                 producer="calibration", work_id="calibration:town",
@@ -1239,18 +1280,8 @@ class CalibrationMixin:
             )
             return WAIT_KEY
         if phase == "restore-supplies":
-            if (getattr(self, "_crossarea_fundraising_enforced", False)
-                    and self._inventory_overweight(snapshot)):
-                # Free pack capacity through the ordinary Home deposit path;
-                # the restore signatures remain owed after that effect.
-                self._offer_execution(
-                    None, producer="calibration",
-                    work_id="calibration:restore-overweight",
-                    next_step="home.deposit-overweight",
-                    expected_effect="pack-weight-reduced",
-                    continuation="calibration.restore-supplies",
-                )
-                return None
+            if self._inventory_overweight(snapshot):
+                return self._calibration_restore_terminal("weight-limit")
             # Each successful Home withdrawal invalidates its page-relative
             # addresses.  Calibration still owns the next decision, so renew
             # that address space before allowing its open visit to enter Home.

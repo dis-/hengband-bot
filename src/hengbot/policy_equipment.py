@@ -653,6 +653,12 @@ class EquipmentMixin:
                 source="in-flight-session",
             )
             return self._equipment_optimization_preparation
+        if self._calibration_owns_town_sequence():
+            self._offer_execution_no_step(
+                producer="equipment-opt", work_id="equipment:optimizer",
+                cause="calibration-restoration-owned",
+            )
+            return None
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
         # the town execution layer owns running the calibration phase — the

@@ -1396,6 +1396,10 @@ class HomeMixin:
             taken = self._home_pending_take_confirmed = None
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
+        calibration_restore = (self._calibration_phase == "restore-supplies"
+                               and bool(self._calibration_restore_signatures))
+        if calibration_restore and session is not None and not self._calibration_session_owned():
+            return self._calibration_restore_terminal("foreign-session")
         withdrawal_requested = bool(
             self._calibration_restore_signatures
             or self._home_errand.active
@@ -1449,6 +1453,7 @@ class HomeMixin:
                 reason = "equipment-transaction:atomic-withdraw"
         if (
             not transaction_withdraw_pending
+            and not calibration_restore
             and self._home_errand.active
             and self._home_errand.request is not None
         ):
@@ -1463,6 +1468,7 @@ class HomeMixin:
         # forever in the captured 34-item Home.
         if (
             not transaction_withdraw_pending
+            and not calibration_restore
             and signature is None
             and taken is None
             and self._home_pending_item in observed_signatures
@@ -1566,6 +1572,7 @@ class HomeMixin:
                     break
         if (
             not transaction_withdraw_pending
+            and not calibration_restore
             and signature is None
             and self._home_pending_batch
         ):
@@ -1640,6 +1647,11 @@ class HomeMixin:
                 # whichever source the catalogue came.  Only work absent from
                 # the complete catalogue is an unobserved withdrawal target.
                 catalogued_beyond_prefix = any(
+                    self._calibration_restore_item_matches(owner, item)
+                    for owner in self._calibration_restore_signatures
+                    for index, item in enumerate(self._home_knowledge_items)
+                    if index >= self._home_knowledge_valid_before
+                ) if calibration_restore else any(
                     self._item_signature(item) in unaddressable_signatures
                     or (
                         action is not None
@@ -1672,7 +1684,12 @@ class HomeMixin:
                         snapshot, "home:atomic-withdraw-complete"
                     )
                 self.last_reason = "home:atomic-withdraw-target-unobserved"
-                deferred = self._defer_unobserved_home_withdrawal()
+                deferred = self._defer_unobserved_home_withdrawal(
+                    self._calibration_restore_signatures[0]
+                    if calibration_restore else None
+                )
+                if deferred in self._calibration_restore_signatures:
+                    return self._calibration_restore_terminal("target-absent")
                 self._record_digger_home_withdraw_failure(deferred)
                 plan = self._town_errand_plan
                 categories = (
@@ -1808,6 +1825,13 @@ class HomeMixin:
             else 1
         )
         take_count = max(1, min(item.count, requested_quantity))
+        if restore_owner_signature is not None:
+            if item.count < requested_quantity:
+                return self._calibration_restore_terminal("stock-shortfall")
+            limit = self._inventory_weight_limit(snapshot)
+            if (limit is not None and self._inventory_weight(snapshot)
+                    + max(0, item.weight) * take_count > limit):
+                return self._calibration_restore_terminal("weight-limit")
         self._home_atomic_withdraw_telemetry = {
             "decision_sequence": self._decision_sequence,
             "selecting_branch": selecting_branch,
@@ -1858,14 +1882,27 @@ class HomeMixin:
                 if match is not None:
                     page_candidates.append((owner_signature, *match))
             page_candidates.sort(key=lambda entry: entry[1], reverse=True)
-            page_candidates = page_candidates[:free_slots]
+            # A merged Home stack is not the deposit debt.  Restore exactly the
+            # recorded quantities, reserving weight across the complete macro.
+            limit = self._inventory_weight_limit(snapshot)
+            weight = self._inventory_weight(snapshot)
+            admitted = []
+            for entry in page_candidates:
+                owner_signature, _owner_index, owner_item = entry
+                owed = self._home_pending_quantities.get(owner_signature, 1)
+                added = max(0, owner_item.weight) * owed
+                if (owner_item.count >= owed and len(admitted) < free_slots
+                        and (limit is None or weight + added <= limit)):
+                    admitted.append(entry)
+                    weight += added
+            page_candidates = admitted
             if not any(
                 owner_signature == restore_owner_signature
                 for owner_signature, _owner_index, _owner_item in page_candidates
             ):
-                page_candidates[-1:] = [
-                    (restore_owner_signature, catalogue_index, item)
-                ]
+                # The selected take was checked above.  If later shelf entries
+                # used its capacity, send this take alone and rescan afterwards.
+                page_candidates = [(restore_owner_signature, catalogue_index, item)]
                 page_candidates.sort(key=lambda entry: entry[1], reverse=True)
             if len(page_candidates) > 1:
                 batch_entries = tuple(
@@ -1873,17 +1910,18 @@ class HomeMixin:
                         owner_signature,
                         self._inventory_signature_count(snapshot, owner_signature),
                         owner_item,
-                        owner_item.count,
+                        self._home_pending_quantities.get(owner_signature, 1),
                         owner_index,
                     )
                     for owner_signature, owner_index, owner_item in page_candidates
                 )
                 commands = []
-                for _owner_signature, owner_index, owner_item in page_candidates:
+                for owner_signature, owner_index, owner_item in page_candidates:
                     page_pos = owner_index % self._home_page_size
                     owner_letter = self._home_page_letter(page_pos)
                     owner_quantity = (
-                        f"{owner_item.count}\r" if owner_item.count > 1 else ""
+                        f"{self._home_pending_quantities.get(owner_signature, 1)}\r"
+                        if owner_item.count > 1 else ""
                     )
                     commands.append(BUY_KEY + owner_letter + owner_quantity)
                 operation_key = (
@@ -1996,24 +2034,11 @@ class HomeMixin:
                 "home-errand-posted", owners=("home-errand",),
                 sources=("store-operation",),
             )
-        if (
-            restore_owner_signature is not None
-            and not batch_entries
-            and not (
-                item.tval == TVAL_STAFF
-                and item.sval == SV_STAFF_IDENTIFY
-            )
-            and not getattr(self, "_crossarea_fundraising_enforced", False)
-        ):
-            self._calibration_restore_signatures.remove(restore_owner_signature)
-            self._calibration_restore_move_identities.pop(
-                restore_owner_signature, None
-            )
-            self._calibration_restore_item_ids.pop(
-                restore_owner_signature, None
-            )
+        # Posting is not restoration. Keep the debt until the outside observer
+        # proves this take, including a single-item restore with S3.3 off.
         self._home_pending_quantity = None
-        getattr(self, "_home_pending_quantities", {}).pop(signature, None)
+        if restore_owner_signature is None:
+            getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False
         self._home_withdrawal_queued = False
         self._home_entry_operation_posted = True
@@ -2326,12 +2351,7 @@ class HomeMixin:
             self._defer_home_item(signature, "unobserved-home-withdrawal")
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            calibration_debt = (
-                signature in self._calibration_restore_signatures
-                and getattr(self, "_crossarea_fundraising_enforced", False)
-            )
-            if signature in self._calibration_restore_signatures and not calibration_debt:
-                self._calibration_restore_signatures.remove(signature)
+            calibration_debt = signature in self._calibration_restore_signatures
             if not calibration_debt:
                 self._calibration_restore_move_identities.pop(signature, None)
                 self._calibration_restore_item_ids.pop(signature, None)
@@ -2378,6 +2398,10 @@ class HomeMixin:
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
         """Bind one Home deposit to its stay-entry and exit."""
+        if (self._calibration_owns_town_sequence()
+                and self._calibration_phase != "deposit"):
+            self._offer_home_atomic_no_step("deposit", "calibration-restoration-owned")
+            return None
         if (
             snapshot.store is not None
             or self._shopping_approach_store_type != STORE_HOME

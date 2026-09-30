@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import tests  # noqa: F401 -- isolate runtime files
 
-from hengbot.model import STORE_HOME
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.model import Position, Snapshot
 from policy_fixtures import grid, item, player
@@ -88,7 +88,7 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
         self.assertEqual(policy._calibration_phase, "restore-supplies")
         self.assertEqual(policy._calibration_restore_signatures, [signature])
 
-    def test_overweight_home_deposit_precedes_restore_scan_without_erasing_debt(self):
+    def test_overweight_restore_stops_without_foreign_deposit_or_erasing_debt(self):
         policy = HengbotPolicy()
         policy._crossarea_fundraising_enforced = True
         policy._calibration_phase = "restore-supplies"
@@ -96,12 +96,17 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
         policy._calibration_restore_signatures = [signature]
         carried = replace(item("a", 65, 6), weight=10000)
         snapshot = Snapshot(
-            replace(player(10, 10), stat_index=(0,)),
+            replace(player(10, 10, class_id=PLAYER_CLASS_WARRIOR), stat_index=(0,)),
             {Position(10, 10): grid(10, 10)}, [],
             inventory=[carried], town_flag=True,
         )
         self.assertTrue(policy._inventory_overweight(snapshot))
-        self.assertIsNone(policy._calibration_town_key(snapshot))
+        key = policy._calibration_town_key(snapshot)
+        self.assertEqual(key, "5")
+        self.assertIsNone(policy._enforce_town_claim_result(snapshot, key))
+        self.assertEqual(policy.last_reason,
+                         "town:blocked:calibration-restore-weight-limit")
+        self.assertIsNone(policy._home_atomic_deposit_pending)
         self.assertEqual(policy._calibration_restore_signatures, [signature])
         self.assertEqual(policy._calibration_phase, "restore-supplies")
 

@@ -1,0 +1,9 @@
+{
+  "source": "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-0317-town-loop-calibration-unrestored-home-withdraw.decisions.jsonl.gz",
+  "decision_sequence": [
+    3008,
+    3040
+  ],
+  "rows": 33,
+  "decompressed_sha256": "652a7b065f0192910808fcbe62e0b47e12a7d14ee39794593957d29e2a60e69a"
+}
