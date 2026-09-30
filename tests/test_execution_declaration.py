@@ -189,9 +189,14 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._record_execution_declaration(claim, wait_key, policy.last_reason)
         self.assertEqual(policy._claim_register.current.execution.next_step,
                          "shop.one-shot.dispatch")
-        policy.confirm_key_posted(wait_key)
         self.assertEqual(policy._claim_register.current.execution.state,
                          "acting")
+        self.assertIsNone(policy._claim_register.current.execution.operation_ref)
+        policy.confirm_key_posted(wait_key)
+        # tests/test_live11.py:57-63; Claude ruling 2026-10-01 05:10:
+        # posted entry awaits the store page, not the unposted purchase tail.
+        self.assertEqual(policy._claim_register.current.execution.state,
+                         "awaiting")
         self.assertIsNone(policy._claim_register.current.execution.operation_ref)
         operation_key = policy._release_staged_store_operation(
             replace(outside, store=observed))
