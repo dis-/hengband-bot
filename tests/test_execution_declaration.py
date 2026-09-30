@@ -200,6 +200,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
             policy._claim_register.current, operation_key, policy.last_reason)
         self.assertEqual(policy._claim_register.current.execution.next_step,
                          "shop.one-shot.send")
+        policy.confirm_key_posted(operation_key)
+        self.assertEqual(policy._claim_register.current.execution.state,
+                         "awaiting")
+        self.assertEqual(policy._claim_register.current.execution.operation_ref,
+                         f"decision:45:{operation_key}")
 
     def test_home_errand_filing_leave_names_its_request(self):
         board = Snapshot(
