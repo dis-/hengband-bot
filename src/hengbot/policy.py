@@ -4336,10 +4336,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         their goal are barred (``bars_set``).  With ``_claim_bar_enforced``
         off -- the default and the only shipped setting -- that is all.
         """
-        shadow = (self._s33_shadow_verdict(snapshot, key)
-                  if (snapshot.in_town or snapshot.store is not None)
-                  and not getattr(self, "_town_claim_bar_enforced", False)
-                  else None)
         registry = getattr(self, "_owner_expectations", None)
         pops = (
             registry.drain_pops()
@@ -4371,6 +4367,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # ends -- a floor change, or a goal the board shows met.
         self._claim_suspended_exit(snapshot, register)
         self._claim_home_knowledge_observed = False
+        # Judge the holder after the recording seam's existing observed
+        # completions, but before it consumes offers or declares this winner.
+        shadow = (self._s33_shadow_verdict(snapshot, key)
+                  if (snapshot.in_town or snapshot.store is not None)
+                  and not getattr(self, "_town_claim_bar_enforced", False)
+                  else None)
         # Rev 9.2 (S): the danger trigger of *this* return, recorded where the
         # return began -- never ``_last_return_trigger``, which outlives it.
         survival = claim_is_survival(
@@ -6247,6 +6249,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if len(declaration.arguments) != 2:
                 return f"ownership:declaration-stale:{family}"
             route_kind, cell = declaration.arguments
+            if route_kind not in {"entrance", "store"}:
+                return f"ownership:declaration-stale:{family}"
             if not isinstance(cell, (tuple, list)) or len(cell) != 2:
                 return f"ownership:declaration-stale:{family}"
             goal = Position(*cell)
@@ -6303,9 +6307,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 holder, snapshot, declaration.cause or declaration.evidence
                 or "producer-complete")
         if declaration.state == "awaiting":
-            operation_ref = declaration.operation_ref
-            if not operation_ref or not operation_ref.startswith("decision:"):
-                return self._town_declaration_stop(family, "stale")
             # A posted native route can end short of its destination. The
             # declaration itself carries its next route step and destination.
             if declaration.continuation == "route.resume":
@@ -6403,8 +6404,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "town:travel-entrance")
                 if key is not None:
                     return key
-            elif route_kind != "store":
-                return self._town_declaration_stop(family, "stale")
             next_cell = (self._town_map_goal_step(snapshot, goal)
                          or self._nearest_goal_step(
                              snapshot, lambda grid: grid.position == goal))
