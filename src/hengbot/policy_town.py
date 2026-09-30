@@ -167,6 +167,10 @@ class TownMixin:
                 declaration.destination_town_id, declaration.goal,
                 declaration.bfs_rank,
             ),)
+        elif owner == "quest-request" and (reason or self.last_reason or "").startswith("bounty:"):
+            slot = getattr(self, "_decision_goal", None)
+            if slot is not None and slot[0] == owner and slot[1].cell is not None:
+                goal = Position(*slot[1].cell)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -800,6 +804,12 @@ class TownMixin:
         if direction is not None and (self.last_reason or "").endswith("home:scan-step-off") and not self._equipment_catalog.home_scan_complete:
             return True
         goal = self._shopping_approach_goal
+        slot = getattr(self, "_decision_goal", None)
+        if (slot is not None and slot[0] == self._claim_family_of(self.last_reason)
+                and slot[1].kind == "Reach" and slot[1].cell is not None):
+            # The producer's declared destination is authoritative.  A shop
+            # route left by an earlier errand cannot judge this owner's walk.
+            goal = Position(*slot[1].cell)
         if direction is not None:
             if goal is not None:
                 before = snapshot.player.position.distance_to(goal)
@@ -1168,11 +1178,29 @@ class TownMixin:
                 # posting confirmation separately records request/in-flight.
                 self._home_scan_source = "~9"
             return key
-        claims_active = self._town_claims_active(snapshot)
+        slot = getattr(self, "_decision_goal", None)
         movement_key = key in DIRECTION_KEYS.values()
         allow_members = self._town_progress_allow_members(snapshot)
         if allow_members:
             return key
+
+        if (movement_key and slot is not None
+                and slot[0] == self._claim_family_of(proposed_reason)
+                and slot[1].kind == "Reach" and slot[1].cell is not None
+                and self._town_progress_fingerprint(snapshot)
+                    in self._town_progress_history()):
+            # A repeated, ineffective step toward a declared destination must
+            # resolve that route.  Replacing it with another errand's approach
+            # re-arms the first producer and defeats both owners' bounds.
+            self._town_blocked_reason = f"route-nonprogress:{slot[0]}"
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            self._offer_execution(
+                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
+                state="releasing", cause=self._town_blocked_reason,
+            )
+            return WAIT_KEY
+
+        claims_active = self._town_claims_active(snapshot)
 
         # Durable session ownership survives reason relabelling and blockers.
         if self._equipment_transaction_owns_town_relocation(snapshot):
@@ -1719,8 +1747,14 @@ class TownMixin:
     @claims(ClaimOwner.QUEST_REQUEST)
     def _town_order_step4_key(self, snapshot: Snapshot) -> str | None:
         """Select normal-order step 4 through the permanent town owner."""
+        if self._defer_town_errand("quest-request", "bounty-order-step4"):
+            return None
         if not self._town_order_step4_pending(snapshot):
             if self._town_order_operation == "normal-step4-bounty":
+                self._offer_execution_done(
+                    producer="quest-request", work_id="normal-step4-bounty",
+                    evidence="bounty-removed",
+                )
                 self._town_order_operation = None
                 self._town_order_expected_observation = None
             return None
@@ -1733,6 +1767,12 @@ class TownMixin:
             # without saving it for the step-5 one-shot continuation.
             self._shop_observation = None
             self.last_reason = "bounty:leave-supplier"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="quest-request",
+                work_id="normal-step4-bounty", state="releasing",
+                cause=f"nothing-to-do-here:supplier:{snapshot.store.store_type}",
+                expected_effect="outside-store",
+            )
             return LEAVE_STORE_KEY
         return self._bounty_cashout_key(snapshot)
 

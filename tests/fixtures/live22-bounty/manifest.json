@@ -1,0 +1,21 @@
+{
+  "source": "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-0625-town-loop-bounty-approach",
+  "state_turns": [
+    647164,
+    647173,
+    647181
+  ],
+  "decision_sequences": [
+    5123,
+    5124,
+    5125,
+    5126
+  ],
+  "first_divergent_decision": 5124,
+  "recorded_key": "3",
+  "fixed_key": "7",
+  "sha256": {
+    "decisions.jsonl.gz": "401a5b8f718742dd0e96bbd9151f6918f017191ef2d74bb5cfd69596136d3622",
+    "state.jsonl.gz": "0f9d1d18077a66a461f390e2a9614064ce07cbe9b350531c233eac04f5dfcd71"
+  }
+}

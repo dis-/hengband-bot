@@ -271,7 +271,6 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("wilderness:enter-town", T, EFFECT),
         ("wilderness:global-travel", R, WALK_TARGET),
         ("wilderness:enter-global", T, EFFECT),
-        ("bounty:approach", R, ENTRANCE),
     ),
     *_rows(
         "equipment-opt",
@@ -482,6 +481,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest:regen:descend", O, FLOOR_CHANGE),
         ("opening-q34:", T, EFFECT),
         ("bounty:cashout", T, EFFECT),
+        ("bounty:approach", R, ENTRANCE),
         ("bounty:step-off", R, WALK_TARGET),
         ("bounty:leave", T, EFFECT),
     ),

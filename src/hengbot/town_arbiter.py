@@ -130,7 +130,7 @@ class TownTurnArbiter:
             registration("shop-sell", ("shop:sale", "shop:sell-", "shop:batch-sale", "shop:batch-sell", "shop:batch-inscribe", "shop:one-shot-sale", "shop:one-shot-sell", "shop:unsellable-", "shop:defective-target-leave", "shop:leave", "shop:stuck-leave", "shop:invalid", "shop:retain-standing-digging-tool", "town:destroy-overflow", "equipment:sale"), "gold up and inventory delta"),
             registration("shop-buy", ("shop:one-shot-buy", "shop:one-shot-in-flight", "shop:one-shot-page-not-zero", "shop:buy", "shop:await-", "shop:observe", "shop:home-first-before-purchase", "shop:store-context-exit", "town:wait-restock"), "gold down and inventory delta",
                 ("shop:purchase-deferred",)),
-            registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global", "bounty:approach"), "distance to store goal"),
+            registration("store-router", ("shop:approach", "shop:travel", "store:", "town:travel", "town-travel:", "town:teleport", "wilderness:enter-town", "wilderness:global-travel", "wilderness:enter-global"), "distance to store goal"),
             registration("equipment-opt", ("equipment-optimization:", "equipment:opt", "optimizer:"), "optimization signature delta"),
             registration("equipment-txn", ("equipment-transaction:", "equipment-mutation:", "equipment:", "town:restore-combat-weapon", "town:remove-no-teleport-weapon", "wield-light"), "equipment session or slot delta",
                 # S2a census: the replacement half of the same producer
@@ -151,7 +151,7 @@ class TownTurnArbiter:
                  "town:ascend", "town:descend")),
             registration("town-plan", ("town:blocked", "town:procurement", "procurement:", "town-plan:", "quest:readiness", "town:repetition-required-shopping"), "completed plan or claim delta"),
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
-            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:cashout", "bounty:step-off", "bounty:leave"), "quest request or phase advance"),
+            registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "bounty:"), "quest request or phase advance"),
             registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:", "ownership:"), "block release or visible stop"),
             # -- S2a: the families behind the two catch-alls -----------------
             #

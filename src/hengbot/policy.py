@@ -5563,12 +5563,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         state. ON also restores a town errand suspended by a higher owner
         before a different errand can displace it.
         """
+        def town_errand(claim):
+            execution = getattr(claim, "execution", None)
+            return claim.owner.value in CLAIM_S3_FAMILIES or (
+                claim.owner.value == "quest-request"
+                and execution is not None
+                and execution.work_id == "normal-step4-bounty"
+            )
+
         register = getattr(self, "_claim_register", None)
         standing = getattr(register, "current", None)
         if (
             standing is not None
             and standing.is_open
-            and standing.owner.value in CLAIM_S3_FAMILIES
+            and town_errand(standing)
             and standing.owner.value != family
             and standing.goal.kind in {CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE}
         ):
@@ -5579,7 +5587,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for claim in reversed(register.suspended):
                 if (claim.closed is None
                         and claim.state.value == "suspended"
-                        and claim.owner.value in CLAIM_S3_FAMILIES
+                        and town_errand(claim)
                         and claim.owner.value != family
                         and claim.goal.kind in {
                             CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE
@@ -6250,6 +6258,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 declaration = replace(declaration, arguments=())
             elif continuation == "route.resume":
                 step = "route.resume"
+            elif family == "quest-request" and continuation == "bounty.resume":
+                step = "bounty.resume"
             elif family == "calibration" and continuation == "calibration.capture.observe":
                 return None
             elif continuation in {"home.knowledge.observe", "store.entry.observe",
@@ -6275,6 +6285,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             goal = Position(*cell)
             if (holder.goal.kind != CLAIM_GOAL_REACH
                     or holder.goal.cell != tuple(cell)):
+                return f"ownership:declaration-stale:{family}"
+        elif step == "bounty.resume":
+            if (family != "quest-request"
+                    or declaration.work_id != "normal-step4-bounty"):
                 return f"ownership:declaration-stale:{family}"
         elif step == "equipment.next-action":
             session = self._equipment_transaction_session
@@ -6337,6 +6351,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     continuation="route.resume", budget_ref=declaration.budget_ref)
                 holder = self._claim_register.current
                 declaration = holder.execution
+            elif family == "quest-request" and declaration.continuation == "bounty.resume":
+                since = self._decision_offer_buffer().sequence
+                key = self._town_order_step4_key(snapshot)
+                return self._town_declared_producer_result(holder, snapshot, key, since)
             elif declaration.continuation == "equipment.restore-observe":
                 since = self._decision_offer_buffer().sequence
                 key = self._town_restore_weapon_key(snapshot)
@@ -6414,6 +6432,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if declaration.state != "acting" or not declaration.next_step:
             return self._town_declaration_stop(family, "stale")
         step = declaration.next_step
+        if family == "quest-request" and step == "bounty.resume":
+            since = self._decision_offer_buffer().sequence
+            key = self._town_order_step4_key(snapshot)
+            return self._town_declared_producer_result(holder, snapshot, key, since)
         if step == "route.resume":
             route_kind, cell = declaration.arguments
             goal = Position(*cell)
@@ -6704,7 +6726,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         elif holder is not None and not self._home_tail_leave_ready(holder, snapshot):
             stop = self._town_holder_structural_stop(holder, snapshot)
             if (stop is None and declaration.state == "acting"
-                    and declaration.next_step not in {"route.resume", "equipment.next-action",
+                    and declaration.next_step not in {"route.resume", "bounty.resume", "equipment.next-action",
                                                        "stair.post"}
                     and not (holder.owner.value == "calibration"
                              and declaration.next_step.startswith("calibration."))):
@@ -16043,6 +16065,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if not bounties:
             return None
 
+        def offer(key):
+            self._offer_execution(
+                key, producer="quest-request", work_id="normal-step4-bounty",
+                next_step="bounty.resume", continuation="bounty.resume",
+                expected_effect="bounty-removed", budget_ref="quest-request",
+            )
+            return key
+
         office_pos = (
             self._town_map.building_position(HUNTER_OFFICE_BUILDING_TYPE)
             if self._town_map_active(snapshot)
@@ -16061,8 +16091,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if neighbors:
                 self.last_reason = "bounty:step-off"
                 self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
-                return self._step_toward(snapshot, neighbors[0])
-            return None
+                return offer(self._step_toward(snapshot, neighbors[0]))
+            self._town_blocked_reason = "bounty-office-step-off-unavailable"
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            self._offer_execution(
+                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
+                state="releasing", cause=self._town_blocked_reason,
+            )
+            return WAIT_KEY
 
         self._claim_target_capture = []
         try:
@@ -16075,10 +16111,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is None and office_pos is not None:
             step = self._town_map_goal_step(snapshot, office_pos)
         if step is None:
-            # Cannot route to the office right now — skip cashing out rather than
-            # latching a sticky town block that strands the bot even after the
-            # bounties are gone. The remains keep; other errands proceed.
-            return None
+            self._town_blocked_reason = "bounty-office-route-unavailable"
+            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+            self._offer_execution(
+                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
+                state="releasing", cause=self._town_blocked_reason,
+            )
+            return WAIT_KEY
 
         self.last_reason = "bounty:approach"
         self._declare_reach(office_pos if office_pos is not None else step_target)
@@ -16089,12 +16128,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ) or (office_pos is not None and step == office_pos)
         if enters_office:
             self.last_reason = "bounty:cashout"
-            return self._step_toward(
+            return offer(self._step_toward(
                 snapshot,
                 step,
                 tail="c" + ("y" * len(bounties)) + LEAVE_STORE_KEY,
-            )
-        return self._step_toward(snapshot, step)
+            ))
+        return offer(self._step_toward(snapshot, step))
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:
         """Charge a committed loot goal on every decision until it expires."""
