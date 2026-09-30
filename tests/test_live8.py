@@ -169,6 +169,11 @@ class Live9CalibrationTest(unittest.TestCase):
             policy.last_reason = "shop:approach"
             self.assertEqual(policy._enforce_town_claim_result(board, "6"), "5")
             self.assertEqual(policy.last_reason, "calibration:await-capture")
+            policy._record_execution_declaration(
+                policy._claim_register.current, "5", policy.last_reason)
+            policy.confirm_key_posted("5")
+            if checkpoint:
+                policy = pickle.loads(pickle.dumps(policy))
             # Recover the strip-start slot from the same capture, so capture
             # installs a real restore transaction for a recorded carried item.
             with gzip.open(str(log) + ".state.jsonl.gz", "rt", encoding="utf-8") as f:
