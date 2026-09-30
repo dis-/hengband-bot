@@ -1290,6 +1290,11 @@ class CalibrationMixin:
             )
             return WAIT_KEY
         if phase == "restore-supplies":
+            if (not self._calibration_restore_enforced()
+                    and self._inventory_overweight(snapshot)):
+                # The live19 recorded OFF pin proves this loop too. Preserve
+                # its terminal, while excess-deposit recovery remains gated.
+                return self._calibration_restore_terminal("weight-limit")
             if (self._calibration_restore_enforced()
                     and self._inventory_overweight(snapshot)):
                 self._protect_calibration_restore_items()

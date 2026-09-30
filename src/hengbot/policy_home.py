@@ -1703,6 +1703,13 @@ class HomeMixin:
                     return self._town_entrance_step_off_key(
                         snapshot, "home:atomic-withdraw-complete"
                     )
+                if (self._calibration_phase == "restore-supplies"
+                        and self._calibration_restore_signatures
+                        and not transaction_withdraw_pending
+                        and not self._home_errand.active):
+                    # live19 records this absent-target loop even with both
+                    # switches OFF. Stop without dropping its physical debt.
+                    return self._calibration_restore_terminal("target-absent")
                 self.last_reason = "home:atomic-withdraw-target-unobserved"
                 deferred = self._defer_unobserved_home_withdrawal(
                     self._calibration_restore_signatures[0]
