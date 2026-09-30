@@ -1,0 +1,22 @@
+{
+  "source": "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-0720-town-cycle-equipment-txn-vs-digger-withdraw",
+  "state_indices_zero_based": [
+    2262,
+    2263,
+    2265,
+    2266
+  ],
+  "decision_sequences": [
+    1972,
+    1973,
+    1974,
+    1975
+  ],
+  "source_sha256": {
+    "state": "78c2dd014b7563a3d5b98c9afbd54e9373ce52fba5c61880836776a9c6bdaf61",
+    "decisions": "21d8fc14ecd91385db72f31038e9dc8cd9df6025e418399c8507a3769167ec24",
+    "ownership-claims": "e155b90453d72b0901acb7d290d2b6259758c4cd59ca55f9455884988ad11c1a",
+    "posted-characters": "337c8a5f2256ba1948e00406b2c4b08f0006bab0767bf57da6133f8a7e7ad682"
+  },
+  "attachment": "Independent outside/store pair at 1972; stop replay at first different key. Later rows document historical alternation only."
+}
