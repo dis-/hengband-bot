@@ -6533,6 +6533,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
         holder = self._claim_errand_hold("__none__") if enforced else None
+        if (enforced and self._calibration_restore_signatures
+                and self._town_blocked_reason == "calibration-restore-target-absent"):
+            return self._town_declaration_stop("calibration", "unrestored")
         if (holder is not None and holder.owner.value == "calibration"
                 and self._claim_family_of(self.last_reason or "") != "calibration"
                 and not self._town_gate_exempt(

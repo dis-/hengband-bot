@@ -117,6 +117,20 @@ class Live8RestoreTest(unittest.TestCase):
             self.assertEqual(policy.last_reason,
                              "ownership:declaration-unrestored:calibration")
             self.assertEqual(policy._calibration_restore_signatures, debt)
+            # Even a live capture holder cannot override a completed scan's
+            # proof that its restore target is absent.
+            claim = policy._claim_register.declare(
+                "calibration", observe(("transaction",), 10, "transaction"),
+                non_discardable=True)
+            policy._claim_register.declare_execution(
+                claim.claim_id, work_id="calibration:capture", producer="calibration",
+                state="awaiting", operation_ref="decision:44:dump",
+                expected_effect="naked-character-captured",
+                continuation="calibration.capture.observe")
+            policy.last_reason = "shop:approach"
+            self.assertIsNone(policy._enforce_town_claim_result(board, "6"))
+            self.assertEqual(policy.last_reason,
+                             "ownership:declaration-unrestored:calibration")
 
     def test_off_keeps_recorded_key(self):
         policy = HengbotPolicy()
