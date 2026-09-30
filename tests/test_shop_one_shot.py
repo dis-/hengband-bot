@@ -528,7 +528,11 @@ class ShopOneShotTest(unittest.TestCase):
         posted = replace(inside, turn=inside.turn + 2)
         self.assertEqual(policy.choose_key(posted), "pa\r\x1b")
         self.assertIsNotNone(policy._store_buy_inflight)
-        policy._store_visit.operation_released = True
+        # Follow the production sender acknowledgement: it releases the tail
+        # and records the awaiting declaration for this exact posted operation.
+        policy.confirm_key_posted("pa\r\x1b")
+        self.assertTrue(policy._store_visit.operation_released)
+        self.assertEqual(policy._claim_register.current.execution.state, "awaiting")
         identity = policy._store_visit.claim_operation_identity
         key = policy.choose_key(replace(inside, turn=inside.turn + 3))
         self.assertEqual((key, policy.last_reason),
