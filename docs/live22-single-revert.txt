@@ -1,0 +1,75 @@
+FE.FFEEF
+======================================================================
+ERROR: test_obsolete_bounty_reports_done_to_its_holder_after_restore (tests.test_live22_bounty.Live22BountyTest.test_obsolete_bounty_reports_done_to_its_holder_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 139, in test_obsolete_bounty_reports_done_to_its_holder_after_restore
+    self.assertEqual(policy._decision_offer_buffer().no_steps[-1][:3],
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_recorded_supplier_asks_family_gate_off_and_on_after_restore (tests.test_live22_bounty.Live22BountyTest.test_recorded_supplier_asks_family_gate_off_and_on_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 87, in test_recorded_supplier_asks_family_gate_off_and_on_after_restore
+    deferred = policy._decision_errand_deferred[-1]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'HengbotPolicy' object has no attribute '_decision_errand_deferred'
+
+======================================================================
+ERROR: test_recorded_supplier_entry_has_typed_nothing_to_do_release (tests.test_live22_bounty.Live22BountyTest.test_recorded_supplier_entry_has_typed_nothing_to_do_release)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 70, in test_recorded_supplier_entry_has_typed_nothing_to_do_release
+    offer = policy._execution_offers_for()[-1]
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^
+IndexError: tuple index out of range
+
+======================================================================
+FAIL: test_missing_office_route_is_a_typed_visible_stop (tests.test_live22_bounty.Live22BountyTest.test_missing_office_route_is_a_typed_visible_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 148, in test_missing_office_route_is_a_typed_visible_stop
+    self.assertEqual(policy._town_order_step4_key(board), "5")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != '5'
+
+======================================================================
+FAIL: test_recorded_production_path_first_divergence_is_office_walk (tests.test_live22_bounty.Live22BountyTest.test_recorded_production_path_first_divergence_is_office_walk)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 60, in test_recorded_production_path_first_divergence_is_office_walk
+    self.assertEqual(bounty_result(policy, recorded[1]), ("7", "bounty:approach"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('3', 'town-progress-invariant:defect:bounty:approach=>bounty:approach') != ('7', 'bounty:approach')
+
+First differing element 0:
+'3'
+'7'
+
+- ('3', 'town-progress-invariant:defect:bounty:approach=>bounty:approach')
++ ('7', 'bounty:approach')
+
+======================================================================
+FAIL: test_recorded_route_has_bound_continuation_after_restore (tests.test_live22_bounty.Live22BountyTest.test_recorded_route_has_bound_continuation_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 110, in test_recorded_route_has_bound_continuation_after_restore
+    self.assertEqual(policy._town_holder_structural_stop(holder, board), None)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'ownership:declaration-missing:quest-request' != None
+
+======================================================================
+FAIL: test_repeated_ineffective_declared_route_stops_instead_of_other_errand (tests.test_live22_bounty.Live22BountyTest.test_repeated_ineffective_declared_route_stops_instead_of_other_errand)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live22_bounty.py", line 126, in test_repeated_ineffective_declared_route_stops_instead_of_other_errand
+    self.assertEqual(policy._town_procurement_decision(board, "7"), "5")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3' != '5'
+
+----------------------------------------------------------------------
+Ran 8 tests in 10.066s
+
+FAILED (failures=4, errors=3)

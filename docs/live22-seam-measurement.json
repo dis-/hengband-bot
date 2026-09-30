@@ -1,0 +1,118 @@
+{
+  "rows": [
+    {
+      "decision_sequence": 5123,
+      "live_key": "7",
+      "new_key": "7",
+      "reason": "bounty:approach",
+      "owner": "quest-request",
+      "goal": {
+        "kind": "Reach",
+        "cell": [
+          25,
+          71
+        ]
+      },
+      "execution": {
+        "claim_id": 1,
+        "work_id": "normal-step4-bounty",
+        "revision": 1,
+        "producer": "quest-request",
+        "state": "acting",
+        "next_step": "bounty.resume",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "bounty-removed",
+        "continuation": "bounty.resume",
+        "budget_ref": "quest-request",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_town_order_step4_key"
+      },
+      "shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "quest-request",
+        "holder_claim_id": 1,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    },
+    {
+      "decision_sequence": 5124,
+      "live_key": "3",
+      "new_key": "7",
+      "reason": "bounty:approach",
+      "owner": "quest-request",
+      "goal": {
+        "kind": "Reach",
+        "cell": [
+          25,
+          71
+        ]
+      },
+      "execution": {
+        "claim_id": 1,
+        "work_id": "normal-step4-bounty",
+        "revision": 2,
+        "producer": "quest-request",
+        "state": "acting",
+        "next_step": "bounty.resume",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "bounty-removed",
+        "continuation": "bounty.resume",
+        "budget_ref": "quest-request",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_town_order_step4_key"
+      },
+      "shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "quest-request",
+        "holder_claim_id": 1,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      }
+    }
+  ],
+  "gate_missing_quest_request": 0,
+  "stopped_at_first_divergence": true
+}
