@@ -118,8 +118,12 @@ ARBITRATING_FAMILIES = (
 # S3.3 adds the detector-owned ``ownership:holder-silent`` stop prefix to the
 # arbitration table.  The hash pins that one intentional extension; existing
 # family prefixes and their order remain covered by the table assertion.
+# live22 (2026-10-01, Claude review): ``bounty:approach`` moves from the
+# store-router rows to the quest-request family, so the bounty errand's
+# walk is owned by the family that cashes the bounty out (recorded incident
+# incident-20261001-0625-town-loop-bounty-approach, shadow gate leak).
 ARBITRATION_TABLE_SHA256 = (
-    "02975525ecea1685f8b50ed6f1e6d20011c270ff362a69ab8d4b481094c806a8"
+    "acdb85f4f5b46cb2d997246f3850398a2dd09e2179f9e5084121d4324ba1b59c"
 )
 
 # The ten families S2a adds, each named after what it owns.  They are
