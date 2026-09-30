@@ -2140,7 +2140,10 @@ class _ExecutorInputPort:
             decision.get("sequence"),
             str(decision.get("reason", "unknown")),
             _transport_key(key, self.tunnel_macros_ready),
-            decision.get("observation"),
+            # Live decision metadata carries no board. Bind the admitted
+            # operation to the executor's current observed command boundary;
+            # prompt-time state must be compared with this pre-command state.
+            decision.get("observation", self.executor.ready_board),
             continuations=list(continuations or ()),
             response_grace=COMMAND_RESPONSE_GRACE,
             transport=(Transport.TCP if self.executor.client is not None
