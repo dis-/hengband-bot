@@ -6064,10 +6064,57 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     holder, snapshot, None, 0, require_offer=True)
         return self._town_holder_declared_key(holder, snapshot)
 
+    def _home_tail_leave_continuation(self, holder, snapshot: Snapshot) -> str | None:
+        """Continue the bound Home exit while its posted effect is unresolved."""
+        if holder is None:
+            return None
+        family = holder.owner.value
+        visit = self._store_visit
+        if (family == "home-visit"
+                and snapshot.store is None
+                and visit is not None
+                and visit.store_type == STORE_HOME
+                and visit.phase == StoreVisitPhase.LEAVING
+                and visit.operation_posted
+                and visit.operation_released
+                and not visit.operation_effect_observed
+                and visit.claim_id == holder.claim_id
+                and visit.claim_operation_identity is not None
+                and getattr(self._home_visit, "state", None)
+                == HomeVisitState.EXIT_PENDING
+                and any(
+                    record.lifecycle == "open"
+                    and record.parent_claim_id == holder.claim_id
+                    and record.parent_family == family
+                    and record.delegate_family == "home-tail"
+                    and record.work_identity == (
+                        "staged-tail", *visit.claim_operation_identity)
+                    for record in self._delegation_records()
+                )):
+            # The staged operation has left its Home page, but its effect has
+            # not been observed.  Keep the visit's own exit continuation in
+            # control until that exact operation settles.
+            self.last_reason = "home:leave-after-one-operation"
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer=family,
+                work_id=(f"home:leave:{visit.opened_sequence}:"
+                         f"{visit.operation_key}"),
+                next_step="store.leave.send",
+                arguments=visit.claim_operation_identity,
+                expected_effect="home-inventory-effect",
+                continuation="home.operation.observe",
+                budget_ref="home-operation-existing-budget",
+            )
+            return LEAVE_STORE_KEY
+        return None
+
     def _town_holder_declared_key(self, holder, snapshot: Snapshot) -> str | None:
         """Dispatch the holder's bound producer step; never reconstruct work."""
         family = holder.owner.value
         declaration = getattr(holder, "execution", None)
+        home_tail = self._home_tail_leave_continuation(holder, snapshot)
+        if home_tail is not None:
+            return home_tail
         if (declaration is None or declaration.claim_id != holder.claim_id
                 or declaration.producer != family):
             return self._town_declaration_stop(family)
@@ -8103,7 +8150,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = self._decide(snapshot)
         elif self._store_leave_inflight is not None:
             leave_generation, leave_turn, leave_store = self._store_leave_inflight
-            if snapshot.store is None:
+            home_tail = (
+                self._home_tail_leave_continuation(
+                    getattr(self._claim_register, "current", None), snapshot)
+                if getattr(self, "_town_claim_bar_enforced", False)
+                else None
+            )
+            if home_tail is not None:
+                key = home_tail
+            elif snapshot.store is None:
                 self._store_leave_inflight = None
                 # Visit A has just produced its authoritative page and left.
                 # Give the derived address first ownership of this adjacent
