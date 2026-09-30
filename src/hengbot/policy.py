@@ -6178,6 +6178,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if declaration.state == "awaiting" and (
                 not declaration.operation_ref
                 or not declaration.operation_ref.startswith("decision:")):
+            # Confirmed entry has no purchase operation reference yet.
+            if (declaration.operation_ref is None
+                    and family in {"shop-buy", "shop-sell"}
+                    and declaration.continuation == "shop.one-shot.send"
+                    and declaration.expected_effect == "store-page-open"):
+                return None
             return f"ownership:declaration-stale:{family}"
         return None
 
@@ -6746,14 +6752,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and declaration.claim_id == route.claim_id
                 and declaration.producer == route.owner.value
                 and declaration.state == "awaiting"
-                and declaration.operation_ref
-                and declaration.operation_ref.startswith(
-                    f"decision:{visit.posted_sequence}:")
-                and declaration.operation_ref in {
-                    f"decision:{visit.posted_sequence}:{posted_key}"
-                    for posted_key in (visit.operation_key, visit.composed_key)
-                    if posted_key
-                }
+                and (
+                    (declaration.operation_ref is None
+                     and declaration.expected_effect == "store-page-open"
+                     and declaration.continuation == "shop.one-shot.send"
+                     and visit.composed_key
+                     and self._town_holder_structural_stop(route, snapshot) is None)
+                    or (declaration.operation_ref
+                        and declaration.operation_ref in {
+                            f"decision:{visit.posted_sequence}:{posted_key}"
+                            for posted_key in (visit.operation_key, visit.composed_key)
+                            if posted_key
+                        })
+                )
                 and declaration.expected_effect
                 and (snapshot.store is None
                      or snapshot.store.store_type == visit.store_type)
@@ -13132,7 +13143,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     claim.claim_id, work_id=declaration.work_id,
                     producer=declaration.producer, state="awaiting",
                     arguments=declaration.arguments,
-                    operation_ref=f"decision:{self._decision_sequence}:{key}",
+                    # Entry dispatch waits for the page without posting the
+                    # staged purchase/sale operation.
+                    operation_ref=(
+                        None if declaration.next_step == "shop.one-shot.dispatch"
+                        else f"decision:{self._decision_sequence}:{key}"
+                    ),
                     expected_effect=declaration.expected_effect,
                     continuation=declaration.continuation or declaration.next_step,
                     budget_ref=declaration.budget_ref,
