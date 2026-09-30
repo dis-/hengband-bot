@@ -336,8 +336,10 @@ class S3aRecordTest(unittest.TestCase):
             policy._calibration_phase,
         ))
         rows = policy._decision_errand_deferred
+        # Ruling #5 review items 1/7: non-holder town families are skipped
+        # at entry, including the shop-buy procurement composition.
         self.assertEqual({row["deferred_family"] for row in rows}, {
-            "equipment-txn", "calibration", "home-errand",
+            "equipment-txn", "calibration", "home-errand", "shop-buy",
         })
         self.assertTrue(all(row["holder_claim_id"] == holder["claim_id"] for row in rows))
 
