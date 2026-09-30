@@ -1072,7 +1072,10 @@ class HomeMixin:
             and self._retention_surplus(snapshot, item) > 0
             and not (self._calibration_phase == "restore-supplies" and any(
                 self._calibration_restore_item_matches(signature, item)
-                for signature in getattr(self, "_calibration_restore_protected", ())))
+                or (getattr(self, "_crossarea_fundraising_enforced", False)
+                    and signature[1:] == self._item_signature(item)[1:])
+                for signature in (set(getattr(self, "_calibration_restore_protected", ()))
+                                  | set(self._calibration_restore_signatures))))
             # Finish an immediately actionable identification before shedding
             # its Home withdrawal.  Otherwise the overweight owner puts the
             # same item straight back and the catalogue owner takes it again.

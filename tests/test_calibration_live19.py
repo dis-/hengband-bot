@@ -157,6 +157,20 @@ class Live19CalibrationTest(unittest.TestCase):
         self.assertIsNone(rejected._enforce_town_claim_result(refused, key))
         self.assertEqual(rejected.last_reason, "town:blocked:calibration-restore-weight-limit")
 
+    def test_older_checkpoint_acquires_restore_protection_without_depositing_debt(self):
+        raw = rows()
+        policy = deposited_policy(raw)
+        heavy = outside(raw, 549413)
+        del policy._calibration_restore_protected
+        restored = pickle.loads(pickle.dumps(policy))
+        debt = restored._calibration_restore_signatures.copy()
+        key = restored._calibration_town_key(heavy)
+        self.assertIsNone(restored._enforce_town_claim_result(heavy, key))
+        self.assertEqual(restored.last_reason, "town:blocked:calibration-restore-weight-limit")
+        self.assertEqual(restored._calibration_restore_protected, set(debt))
+        self.assertEqual(restored._calibration_restore_signatures, debt)
+        self.assertIsNone(restored._home_atomic_deposit_pending)
+
     def test_fixture_and_missing_target_are_recorded_facts(self):
         with gzip.open(FIXTURE, "rb") as source:
             frozen = source.read()
