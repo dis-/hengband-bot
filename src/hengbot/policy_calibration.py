@@ -1298,6 +1298,10 @@ class CalibrationMixin:
                 entrance = snapshot.grid_at(snapshot.player.position)
                 if in_home or (entrance is not None
                                and entrance.store_number == STORE_HOME):
+                    if (not in_home and self._shopping_approach_store_type != STORE_HOME
+                            and self._shopping_approach_step(
+                                snapshot, STORE_HOME, requester="calibration") is None):
+                        return self._calibration_restore_terminal("deposit-home-unavailable")
                     key = (self._open_home_deposit_key(snapshot) if in_home
                            else self._atomic_home_deposit_key(
                                snapshot, snapshot.player.position,

@@ -70,6 +70,7 @@ class Live19CalibrationTest(unittest.TestCase):
                     # Synthetic debt contains the recorded supplies, without the
                     # historical missing glove that has its own terminal pin.
                     policy = deposited_policy(raw, supplies_only=True)
+                    policy._shopping_approach_store_type = None
                     policy._town_claim_bar_enforced = enforced
                     catalogue(policy, raw, 549401)
                     board = outside(raw, 549401)
