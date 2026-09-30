@@ -6511,6 +6511,44 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
         route = self._claim_errand_hold("__none__")
+        if enforced and key == "" and reason == "shop:one-shot-in-flight":
+            visit = self._store_visit
+            declaration = getattr(route, "execution", None)
+            identity = getattr(visit, "claim_operation_identity", None)
+            if not (
+                route is not None and declaration is not None
+                and visit is not None and identity is not None
+                and visit.operation_posted and not visit.operation_effect_observed
+                and visit.posted_sequence is not None
+                and identity == (visit.store_type, visit.opened_sequence,
+                                 visit.operation_key)
+                and route.owner.value == visit.operation_producer_family
+                and route.goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and route.goal.expectation == tuple(sorted(map(str, identity)))
+                and declaration.claim_id == route.claim_id
+                and declaration.producer == route.owner.value
+                and declaration.state == "awaiting"
+                and declaration.operation_ref
+                and declaration.operation_ref.startswith(
+                    f"decision:{visit.posted_sequence}:")
+                and declaration.operation_ref in {
+                    f"decision:{visit.posted_sequence}:{posted_key}"
+                    for posted_key in (visit.operation_key, visit.composed_key)
+                    if posted_key
+                }
+                and declaration.expected_effect
+                and (snapshot.store is None
+                     or snapshot.store.store_type == visit.store_type)
+            ):
+                return self._town_declaration_stop(family, "stale")
+            self._offer_execution_awaiting(
+                key, producer=declaration.producer,
+                work_id=declaration.work_id,
+                operation_ref=declaration.operation_ref,
+                expected_effect=declaration.expected_effect,
+                continuation=declaration.continuation,
+            )
+            return key
         if (route is not None and route.owner.value == family
                 and enforced and key is not None
                 and not reason.startswith("ownership:")
