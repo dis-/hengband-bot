@@ -87,3 +87,4 @@ policy_quest.py:_fixed_quest_building_candidate  # relays the candidate's own re
 policy_quest.py:_fixed_quest_building_unavailable_candidate  # relays the candidate's own reason
 policy_shop.py:_publish_purchase_home_block  # relays the home-first block reason it publishes
 policy_town.py:_town_travel_key  # relays the travel reason its caller composed
+policy_calibration.py:_calibration_restore_terminal  # typed calibration restore terminal selected by its calibration-owned callers (restore/home composers)
