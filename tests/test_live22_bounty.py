@@ -5,6 +5,7 @@ import pickle
 from pathlib import Path
 import unittest
 from dataclasses import replace
+from unittest.mock import patch
 
 import tests  # noqa: F401
 from hengbot.claim_register import reach
@@ -154,6 +155,34 @@ class Live22BountyTest(unittest.TestCase):
         self.assertEqual(policy._decision_offer_buffer().no_steps[-1][4], "done")
         self.assertEqual(policy._town_order_operation, None)
 
+    def test_other_routes_keep_their_supplier_progress_after_restore(self):
+        for restored in (False, True):
+            policy, recorded = attached_policy()
+            board = recorded[1]
+            policy.last_reason = "shop:approach"
+            policy._shopping_approach_goal = Position(25, 71)
+            policy._declare_reach(Position(37, 91))
+            policy._town_begin_progress_decision(board)
+            if restored:
+                policy = pickle.loads(pickle.dumps(policy))
+            self.assertTrue(policy._town_result_makes_progress(board, "7"))
+            self.assertEqual(policy._town_procurement_decision(board, "7"), "7")
+            self.assertEqual(policy.last_reason, "shop:approach")
+
+    def test_other_ineffective_routes_keep_the_existing_resolution(self):
+        for restored in (False, True):
+            policy, recorded = attached_policy()
+            board = recorded[1]
+            policy.last_reason = "shop:approach"
+            policy._declare_reach(Position(37, 91))
+            policy._town_begin_progress_decision(board)
+            if restored:
+                policy = pickle.loads(pickle.dumps(policy))
+            with patch.object(policy, "_town_result_makes_progress", return_value=False):
+                self.assertEqual(policy._town_procurement_decision(board, "7"), "7")
+            self.assertEqual(policy.last_reason, "shop:approach")
+            self.assertIsNone(policy._town_blocked_reason)
+
     def test_missing_office_route_skips_without_latching_after_restore(self):
         policy = HengbotPolicy()
         board = replace(boards()[0], grids={})  # supplemental route-failure unit
@@ -163,6 +192,39 @@ class Live22BountyTest(unittest.TestCase):
         restored = pickle.loads(pickle.dumps(policy))
         self.assertIsNone(restored._town_blocked_reason)
         self.assertIsNone(restored._town_order_step4_key(board))
+
+    def test_missing_office_releases_existing_bounty_holder_after_restore(self):
+        policy, recorded = attached_policy()
+        board = recorded[0]
+        policy._town_claim_bar_enforced = True
+        policy._map_predicate_snapshot = board
+        key = policy._town_order_step4_key(board)
+        policy._record_decision_claim(board, key)
+        policy = pickle.loads(pickle.dumps(policy))
+        missing = replace(board, grids={})
+        policy._map_predicate_snapshot = missing
+        self.assertIsNone(policy._town_holder_declared_key(
+            policy._claim_register.current, missing))
+        self.assertEqual(policy.last_reason, "ownership:holder-released:quest-request")
+        self.assertEqual(policy._claim_register.current.closed, "release")
+        self.assertEqual(policy._claim_register.current.closed_reason,
+                         "no-step:bounty-office-route-unavailable")
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_unavailable_office_step_off_skips_without_a_block_after_restore(self):
+        board = boards()[0]
+        office = Position(25, 71)
+        # Supplemental closed-in office board, no invented replay continuation.
+        board = replace(board, player=replace(board.player, position=office),
+                        grids={office: board.grids[office]})
+        policy = HengbotPolicy()
+        policy.prime(board)
+        policy = pickle.loads(pickle.dumps(policy))
+        self.assertIsNone(policy._bounty_cashout_key(board))
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy._decision_offer_buffer().no_steps[-1][:3],
+                         ("quest-request", "normal-step4-bounty",
+                          "bounty-office-step-off-unavailable"))
 
 
 if __name__ == "__main__":

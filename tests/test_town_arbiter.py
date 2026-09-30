@@ -533,7 +533,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
             )
             locomotion = (
                 isinstance(vector[-1], tuple)
-                and vector[-1][:2] == ("locomotion", "store-router")
+                and vector[-1][:2] == ("locomotion", "quest-request")
             )
             distances.append(vector[-1][-1] if locomotion else None)
             step_distances.append(vector[-1][-2] if locomotion else None)

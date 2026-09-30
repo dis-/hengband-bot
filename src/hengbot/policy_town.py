@@ -126,9 +126,6 @@ class TownMixin:
             and (reason or self.last_reason) == "equipment-transaction:approach-home"
         ):
             goal = self._shopping_approach_goal
-            if owner == "store-router" and (reason or self.last_reason) == "bounty:approach":
-                goal = next((position for position, grid in snapshot.grids.items()
-                             if grid.building_type == 13), None)
             if owner == "store-router" and (
                 reason or self.last_reason
             ) == "town:travel-entrance":
@@ -171,6 +168,11 @@ class TownMixin:
             slot = getattr(self, "_decision_goal", None)
             if slot is not None and slot[0] == owner and slot[1].cell is not None:
                 goal = Position(*slot[1].cell)
+            elif (reason or self.last_reason) == "bounty:approach":
+                # Read-only callers may have no decision slot. Use the office
+                # itself, never a previous supplier's destination.
+                goal = next((position for position, grid in snapshot.grids.items()
+                             if grid.building_type == 13), None)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -805,7 +807,8 @@ class TownMixin:
             return True
         goal = self._shopping_approach_goal
         slot = getattr(self, "_decision_goal", None)
-        if (slot is not None and slot[0] == self._claim_family_of(self.last_reason)
+        if ((self.last_reason or "").startswith("bounty:")
+                and slot is not None and slot[0] == "quest-request"
                 and slot[1].kind == "Reach" and slot[1].cell is not None):
             # The producer's declared destination is authoritative.  A shop
             # route left by an earlier errand cannot judge this owner's walk.
@@ -1184,8 +1187,8 @@ class TownMixin:
         if allow_members:
             return key
 
-        if (movement_key and slot is not None
-                and slot[0] == self._claim_family_of(proposed_reason)
+        if (movement_key and proposed_reason.startswith("bounty:")
+                and slot is not None and slot[0] == "quest-request"
                 and slot[1].kind == "Reach" and slot[1].cell is not None
                 and self._town_progress_fingerprint(snapshot)
                     in self._town_progress_history()):

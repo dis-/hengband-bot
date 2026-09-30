@@ -16194,6 +16194,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "bounty:step-off"
                 self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return offer(self._step_toward(snapshot, neighbors[0]))
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-step-off-unavailable",
+            )
             return None
 
         self._claim_target_capture = []
@@ -16209,6 +16213,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is None:
             # The remains keep. An unavailable office must not strand other
             # town errands behind a sticky block, even after the bounty goes.
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-route-unavailable",
+            )
             return None
 
         self.last_reason = "bounty:approach"

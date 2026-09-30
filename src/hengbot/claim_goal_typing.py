@@ -480,6 +480,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("quest:regen:ascend", O, FLOOR_CHANGE),
         ("quest:regen:descend", O, FLOOR_CHANGE),
         ("opening-q34:", T, EFFECT),
+        ("bounty:", T, EFFECT),
         ("bounty:cashout", T, EFFECT),
         ("bounty:approach", R, ENTRANCE),
         ("bounty:step-off", R, WALK_TARGET),
