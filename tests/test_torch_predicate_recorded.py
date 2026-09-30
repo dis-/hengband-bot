@@ -9,12 +9,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import tests  # noqa: F401
+from hengbot.claim_register import observe
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "torch-predicate-20260929-30.json.gz"
-FIXTURE_SHA256 = "25d254c015ad03fbe7e7155f05e8db25fa31148791f589b2ab31f8d44edd41f0"
+FIXTURE_SHA256 = "91a2bdff6260ed1735b18b37ed4e5209de92c8b087d9dc5312b94718f4d76d2b"
 
 
 class TorchPredicateRecordedTest(unittest.TestCase):
@@ -72,6 +73,37 @@ class TorchPredicateRecordedTest(unittest.TestCase):
                     self.assertEqual(prior.count, 10)
                     with patch.object(policy, "_carry_procurement_strategy", return_value=strategy):
                         self.assertEqual(policy._procurement_missing_amount(before, prior), 0)
+
+    def test_recorded_step_off_completes_home_visit_declaration(self):
+        case = self.cases[0]
+        step, stopped = case["rows"][-2:]
+        self.assertEqual(step["claim"]["execution"]["next_step"],
+                         "departure.step-off-entrance")
+        awaiting = stopped["claim"]["execution"]
+        self.assertEqual((awaiting["state"], awaiting["continuation"],
+                          awaiting["arguments"]),
+                         ("awaiting", "departure.step-off-entrance", [45, 124]))
+        snapshot = parse_snapshot(case["after_step_state"])
+        self.assertEqual((snapshot.player.position.y, snapshot.player.position.x),
+                         (45, 124))
+        policy = HengbotPolicy()
+        claim = policy._claim_register.declare(
+            "home-visit", observe(("store-operation",), 8, "store-operation")
+        )
+        policy._claim_register.declare_execution(
+            claim.claim_id, work_id=awaiting["work_id"],
+            producer="home-visit", state="awaiting",
+            arguments=tuple(awaiting["arguments"]),
+            operation_ref=awaiting["operation_ref"],
+            expected_effect=awaiting["expected_effect"],
+            continuation=awaiting["continuation"],
+        )
+        self.assertIsNone(policy._town_holder_declared_key(
+            policy._claim_register.current, snapshot))
+        self.assertTrue(policy._decision_no_step_release)
+        self.assertEqual(policy.last_reason, "ownership:holder-released:home-visit")
+        self.assertEqual(policy._claim_register.current.closed_reason,
+                         "no-step:entrance-cell-cleared")
 
 
 if __name__ == "__main__":

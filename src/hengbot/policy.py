@@ -6172,6 +6172,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     declaration.continuation == "store.entry.observe"
                     else "shop:one-shot-in-flight")
                 return WAIT_KEY
+            elif declaration.continuation == "departure.step-off-entrance":
+                if (
+                    len(declaration.arguments) == 2
+                    and snapshot.player.position
+                    == Position(*declaration.arguments)
+                    and snapshot.store is None
+                ):
+                    return self._town_release_declared_holder(
+                        holder, snapshot, "entrance-cell-cleared"
+                    )
+                return self._town_declaration_stop(family, "stale")
             else:
                 return self._town_declaration_stop(family, "stale")
         if declaration.state != "acting" or not declaration.next_step:
