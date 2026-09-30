@@ -82,6 +82,18 @@ def _char_at_cell(row: str, column: int) -> str | None:
     return None
 
 
+def _text_at_cell(row: str, column: int) -> str:
+    """Slice at a display column, rejecting the interior of a wide glyph."""
+    cell = 0
+    for index, char in enumerate(row):
+        if cell == column:
+            return row[index:]
+        cell += _cell_width(char)
+        if cell > column:
+            return ""
+    return ""
+
+
 _LEVEL_UP_ROW = re.compile(
     r"^.*?([a-f])\)\s+[^()]+\s*\([^()]+?\s+(18/\d+|\d+)\)\s*$"
 )
@@ -250,14 +262,14 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # perception/identification.cpp:762-799. prt() starts at x=15 and the
     # heading literal itself begins with five spaces, so its text starts at 20.
     attr_rows = [(y, line) for y, line in enumerate(lines)
-                 if line.startswith(" " * 20 + "Item Attributes:") or
-                 line.startswith(" " * 20 + "アイテムの能力:")]
+                 if _text_at_cell(line, 20).startswith(("Item Attributes:", "アイテムの能力:"))]
     if attr_rows:
         for y, line in enumerate(lines):
-            if line.startswith(" " * 15 + "-- more --") or line.startswith(" " * 15 + "-- 続く --"):
-                return ScreenMatch(ScreenKind.IDENTIFY_VIEWER_PAGE, line.strip(), y, 15)
-            if line.startswith(" " * 15 + "[Press any key to continue]") or line.startswith(" " * 15 + "[何かキーを押すとゲームに戻ります]"):
-                return ScreenMatch(ScreenKind.IDENTIFY_VIEWER_FINAL, line.strip(), y, 15)
+            text = _text_at_cell(line, 15)
+            if text.startswith(("-- more --", "-- 続く --")):
+                return ScreenMatch(ScreenKind.IDENTIFY_VIEWER_PAGE, text, y, 15)
+            if text.startswith(("[Press any key to continue]", "[何かキーを押すとゲームに戻ります]")):
+                return ScreenMatch(ScreenKind.IDENTIFY_VIEWER_FINAL, text, y, 15)
         return ScreenMatch(ScreenKind.UNKNOWN, "incomplete-identify-viewer")
 
     # cmd-knowledge.cpp:32 centers the 80x24 logical term in both directions;
