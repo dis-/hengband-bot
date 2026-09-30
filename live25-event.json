@@ -101,5 +101,101 @@
     "withdraw": "a9b34420"
   },
   "withdraw_s33": "pre-existing main early-divergence at index3; EXPECTED_FIRST untouched",
-  "blockers": []
+  "blockers": [],
+  "implementation_commit": "d3b17a15",
+  "evidence_commit_assertion_audit": "Manual: evidence commit changes only the new report and recorded fixture; no existing test assertions changed.",
+  "printed_replay_result": {
+    "s33": false,
+    "checkpoint": false,
+    "live_key": "5pQ72\rpMpLpKpApopnpl8\rpb\u001b",
+    "live_reason": "calibration:atomic-restore-withdraw",
+    "new_key": "5pQ72\rpMpLpopl8\rpk13\rpi4\rph10\rpgpc5\r\u001b",
+    "phase": null,
+    "weight": 1229,
+    "limit": 1700,
+    "debt": [],
+    "kept_in_home": [
+      {
+        "signature": [
+          "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3)",
+          22,
+          17
+        ],
+        "quantity": 1
+      },
+      {
+        "signature": [
+          "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)",
+          37,
+          18
+        ],
+        "quantity": 1
+      },
+      {
+        "signature": [
+          "ショート・テレポートの巻物",
+          70,
+          8
+        ],
+        "quantity": 1
+      },
+      {
+        "signature": [
+          "帰還のロッド",
+          66,
+          3
+        ],
+        "quantity": 1
+      },
+      {
+        "signature": [
+          "松明(2500ターンの寿命) {明}",
+          39,
+          0
+        ],
+        "quantity": 5
+      },
+      {
+        "signature": [
+          "致命傷の治癒の薬",
+          75,
+          36
+        ],
+        "quantity": 4
+      },
+      {
+        "signature": [
+          "鑑定の杖 (2x 4回分)",
+          55,
+          5
+        ],
+        "quantity": 2
+      },
+      {
+        "signature": [
+          "鑑定の杖 (2x 9回分)",
+          55,
+          5
+        ],
+        "quantity": 2
+      },
+      {
+        "signature": [
+          "青いキノコ",
+          80,
+          -1
+        ],
+        "quantity": 1
+      },
+      {
+        "signature": [
+          "黄色いキノコ",
+          80,
+          -1
+        ],
+        "quantity": 1
+      }
+    ]
+  },
+  "report": "live25-report.md"
 }
