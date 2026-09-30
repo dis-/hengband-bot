@@ -16200,13 +16200,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "bounty:step-off"
                 self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
                 return offer(self._step_toward(snapshot, neighbors[0]))
-            self._town_blocked_reason = "bounty-office-step-off-unavailable"
-            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-            self._offer_execution(
-                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
-                state="releasing", cause=self._town_blocked_reason,
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-step-off-unavailable",
             )
-            return WAIT_KEY
+            return None
 
         self._claim_target_capture = []
         try:
@@ -16219,13 +16217,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if step is None and office_pos is not None:
             step = self._town_map_goal_step(snapshot, office_pos)
         if step is None:
-            self._town_blocked_reason = "bounty-office-route-unavailable"
-            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-            self._offer_execution(
-                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
-                state="releasing", cause=self._town_blocked_reason,
+            # The remains keep. An unavailable office must not strand other
+            # town errands behind a sticky block, even after the bounty goes.
+            self._offer_execution_no_step(
+                producer="quest-request", work_id="normal-step4-bounty",
+                cause="bounty-office-route-unavailable",
             )
-            return WAIT_KEY
+            return None
 
         self.last_reason = "bounty:approach"
         self._declare_reach(office_pos if office_pos is not None else step_target)
