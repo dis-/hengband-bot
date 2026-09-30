@@ -6416,11 +6416,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # A posted entry is an identity-bound observation wait. Visit
             # flags alone cannot authorize this empty output.
             declaration = getattr(route, "execution", None)
+            visit = getattr(self, "_store_visit", None)
             if (route is not None and declaration is not None
                     and declaration.claim_id == route.claim_id
                     and declaration.state == "awaiting"
                     and declaration.operation_ref
-                    and declaration.expected_effect == "store-page-open"):
+                    and declaration.expected_effect == "store-page-open"
+                    and visit is not None
+                    and route.goal.source == CLAIM_OBSERVE_STORE_ENTRY
+                    and str(visit.store_type) in route.goal.expectation
+                    and visit.posted_sequence is not None
+                    and declaration.operation_ref.startswith(
+                        f"decision:{visit.posted_sequence}:")
+                    and self._store_entry_posted_owner == visit.store_type):
                 return key
             return self._town_declaration_stop(
                 route.owner.value if route is not None else "store-router")
@@ -10879,7 +10887,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         #    so normal directed exploration is unaffected. Wall bumps are harmless
         #    and bounded by PROBE_LIMIT.
         if self._is_oscillating():
-            step = self._probe_unknown_step(snapshot)
+            step = self._town_producer_entry(
+                "oscillating-probe", lambda: self._probe_unknown_step(snapshot),
+                family="explore")
             if step is not None:
                 self._release_explore_walk("explore-oscillating:probe")
                 self.last_reason = "probe"
@@ -10963,7 +10973,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for dy, dx in NEIGHBOR_OFFSETS
         )
         if frontier_here or probed_wall_here:
-            step = self._probe_unknown_step(snapshot)
+            step = self._town_producer_entry(
+                "frontier-probe", lambda: self._probe_unknown_step(snapshot),
+                family="explore")
             if step is not None:
                 self.last_reason = "probe"
                 return self._step_toward(snapshot, step)
