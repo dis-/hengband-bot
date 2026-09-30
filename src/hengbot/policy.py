@@ -10795,7 +10795,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not self._fundraising_supplies_ready(snapshot)
         ):
-            equipped_identification = self._town_producer_entry("_town_equipped_identification_key", lambda: self._town_equipped_identification_key(snapshot))
+            equipped_identification = self._town_producer_entry("_town_equipped_identification_key", lambda: self._town_equipped_identification_key(snapshot, macro=True))
             if equipped_identification is not None:
                 return equipped_identification
 

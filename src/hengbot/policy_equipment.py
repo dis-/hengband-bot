@@ -2446,7 +2446,7 @@ class EquipmentMixin:
         return False
 
     @claims(ClaimOwner.IDENTIFICATION)
-    def _town_equipped_identification_key(self, snapshot: Snapshot) -> str | None:
+    def _town_equipped_identification_key(self, snapshot: Snapshot, *, macro: bool = False) -> str | None:
         """Identify worn gear that the equipment optimizer counts incomplete.
 
         Two cases, mirroring OwnedEquipment.identification_incomplete in
@@ -2459,6 +2459,12 @@ class EquipmentMixin:
         weapon can sit blocking departure forever even while Identify scrolls
         are held unused in the pack (see the 2026-07-15 town deadlock, whose
         dominant blocker was exactly this: a worn, unidentified Bastard Sword).
+
+        ``macro`` preserves the public decision's historical route and result
+        dismissal notation. Its staged target is interpreted by the executor:
+        switch collections only on an inventory chooser, and dismiss result
+        pages only when they are observed. Direct prompt-step callers use the
+        compact source/target notation.
         """
         if (snapshot.in_town and self._defer_town_errand(
                 "identification", "equipped-identification")):
@@ -2513,12 +2519,13 @@ class EquipmentMixin:
         key = (
             command
             + source_item.slot
-            + ("" if full else "/")
+            + ("" if full and not macro else "/")
             + EQUIPMENT_SLOT_KEY[target.slot]
+            + (FULL_IDENTIFY_DISMISS_SUFFIX if full and macro else "")
         )
         if full:
-            # Each answer is bound at its own observed prompt, rather than
-            # assuming the chooser opens in inventory and queuing blind ESCs.
+            # Each answer is bound at its own observed prompt. The macro's
+            # slash and ESC tail describe a route, not an atomic key posting.
             self._staged_prompt_chain = {
                 "owner": self.last_reason, "key": key,
                 "sequence": self._decision_sequence, "turn": snapshot.turn,

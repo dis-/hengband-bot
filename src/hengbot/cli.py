@@ -2547,6 +2547,12 @@ def _send_prompt_gated_decision_key(
                 else ScreenKind.ITEM_SOURCE
             )
             segment = key[index:next_index]
+            if (decision is not None
+                    and decision.get("reason") == "identify:full-equipped"
+                    and kind is ScreenKind.ITEM_TARGET):
+                # The macro describes the inventory-to-equipment route. The
+                # executor chooses whether '/' is needed from the actual page.
+                segment = segment.removeprefix("/")
             if (
                 decision is not None
                 and str(decision.get("reason", "")).startswith("identify:full")
