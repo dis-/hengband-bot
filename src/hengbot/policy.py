@@ -6493,6 +6493,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
+        if (enforced and self._calibration_restore_signatures
+                and any(row["deferred_family"] == "calibration"
+                        and row["deferred_reason"].startswith("plan-next:")
+                        for row in self._decision_errand_deferred)
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and not self._town_gate_exempt(
+                    self._claim_family_of(self.last_reason or ""),
+                    self.last_reason or "", snapshot)):
+            # The plan cannot defer the producer that owes deposited items
+            # and then send another errand's key. Keep the debt for recovery.
+            return self._town_declaration_stop("calibration", "unrestored")
         register = getattr(self, "_claim_register", None)
         if enforced and register is not None and register.suspended:
             self._claim_suspended_exit(snapshot, register)
