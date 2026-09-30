@@ -1372,9 +1372,7 @@ class HomeMixin:
         family = (
             "equipment-txn" if action is not None and action.kind == operation
             else "home-errand" if operation == "withdraw" and self._home_errand.active
-            else "calibration" if (self._calibration_phase == "deposit"
-                                  or (self._calibration_restore_enforced()
-                                      and self._calibration_phase == "restore-supplies"))
+            else "calibration" if self._calibration_phase in {"deposit", "restore-supplies"}
             else "home-visit"
         )
         pending = (self._home_atomic_withdraw_pending if operation == "withdraw"
@@ -1709,7 +1707,7 @@ class HomeMixin:
                         and not self._home_errand.active
                         and (self._calibration_restore_enforced() or all(
                             any(self._calibration_restore_item_matches(owner, item)
-                                for item in (*snapshot.inventory, *snapshot.equipment))
+                                for item in snapshot.equipment)
                             for owner in self._calibration_restore_signatures))):
                     # live19 records this absent-target loop even with both
                     # switches OFF. Stop without dropping its physical debt.
