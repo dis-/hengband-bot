@@ -975,7 +975,11 @@ class TownMixin:
 
         # An observed ordinary-shop shelf is paired with current gold at this
         # boundary.  It is the strongest counterfactual and composes first.
-        transaction = self._atomic_shop_transaction_key(snapshot)
+        transaction = self._town_producer_entry(
+            "_atomic_shop_transaction_key",
+            lambda: self._atomic_shop_transaction_key(snapshot),
+            family=self._town_shop_entry_family(),
+        )
         if transaction is not None:
             return transaction, self.last_reason
 
@@ -1106,6 +1110,12 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
+        holder = self._town_held_decision(key)
+        if holder is not None:
+            # Direct callers must honor the same refusal as the public seam,
+            # before progress composition can mutate the visit or its offer.
+            self._town_refuse_rewrite("procurement", holder)
+            return key
         if getattr(self, "_town_claim_bar_enforced", False):
             holder = self._claim_errand_hold("store-router")
             if (holder is not None

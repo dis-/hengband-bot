@@ -12,6 +12,7 @@ from hengbot.model import Position, STORE_HOME
 from hengbot.claim_register import observe
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, TownErrandPlan
+from test_execution_declaration import short_route_board
 
 
 LOG = Path(r"C:\hengband\bot-client\jsonlog") / (
@@ -129,6 +130,45 @@ class Live8OneShotTest(unittest.TestCase):
                         self.assertIsNone(key)
                         self.assertEqual(policy.last_reason,
                                          "ownership:declaration-stale:shop-buy")
+
+
+class Live8RewriteTest(unittest.TestCase):
+    def test_recorded_219_rewrite_changed_owner_and_bound_wrong_store(self):
+        row = recorded_rows()[219]
+        self.assertEqual((row["key"], row["reason"], row["claim"]["owner"]),
+                         ("5", "town-progress-invariant:defect:"
+                          "town:wait-restock:temple=>shop:one-shot-buy", "detectors"))
+        self.assertEqual((row["store_visit"]["store_type"],
+                          row["store_visit"]["operation_posted"]), (STORE_HOME, True))
+
+    def test_holder_key_and_reason_pass_through_progress_seam(self):
+        for checkpoint in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = True
+            claim = policy._claim_register.declare(
+                "shop-buy", observe((5, 219, "pj2\r\r\x1b"), 8,
+                                    "store-operation"))
+            policy.last_reason = "town:wait-restock:temple"
+            if checkpoint:
+                policy = pickle.loads(pickle.dumps(policy))
+            board = short_route_board()
+            self.assertEqual(policy._town_procurement_decision(board, "R300\r"),
+                             "R300\r")
+            self.assertEqual(policy.last_reason, "town:wait-restock:temple")
+            self.assertEqual(policy._decision_rewrite_refused[-1], {
+                "stage": "procurement", "holder_family": "shop-buy",
+                "holder_claim_id": claim.claim_id})
+
+    def test_progress_composer_cannot_bypass_home_plan_gate(self):
+        policy = HengbotPolicy()
+        policy._town_claim_bar_enforced = True
+        policy._town_errand_plan = TownErrandPlan(
+            [STORE_HOME], requester_families={STORE_HOME: ("home-visit",)})
+        board = short_route_board()
+        self.assertIsNone(policy._town_procurement_progress_key(board))
+        self.assertTrue(any(row["deferred_family"] == "shop-buy"
+                            and row["deferred_reason"].startswith("plan-next:7:")
+                            for row in policy._decision_errand_deferred))
 
 
 if __name__ == "__main__":
