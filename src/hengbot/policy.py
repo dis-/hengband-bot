@@ -5773,6 +5773,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     holder is None or not holder.non_discardable):
                 return False
             if holder is None and family != "calibration":
+                if getattr(self, "_decision_errand_deferred", None) is None:
+                    self._decision_errand_deferred = []
                 self._decision_errand_deferred.append({
                     "holder_family": "calibration", "holder_claim_id": None,
                     "deferred_family": family,

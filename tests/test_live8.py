@@ -4,11 +4,12 @@ import gzip
 import json
 import pickle
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import tests  # noqa: F401 -- isolate runtime files
-from hengbot.model import Position, STORE_HOME
+from hengbot.model import Position, STORE_HOME, parse_snapshot
 from hengbot.claim_register import observe
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, TownErrandPlan
@@ -41,29 +42,75 @@ class Live8RestoreTest(unittest.TestCase):
                        "token_would_admit": False, "token_work_identity": None},
                       rows[211]["claim"]["errand_deferred"])
 
-    def test_plan_refusal_stops_with_restore_debt_after_checkpoint(self):
-        board = SimpleNamespace(in_town=True, store=None,
-                                visible_monsters=(),
-                                player=SimpleNamespace(position=Position(45, 123)))
+    def test_recorded_empty_pack_runs_restore_scan_before_plan_after_checkpoint(self):
+        rows = recorded_rows()
+        with gzip.open(str(LOG) + ".state.jsonl.gz", "rt", encoding="utf-8") as source:
+            raw = next(row for row in map(json.loads, source)
+                       if row.get("turn") == rows[211]["turn"]
+                       and not row.get("inventory") and not row.get("store"))
+        board = parse_snapshot(raw, {})
+        self.assertEqual(board.player.position, Position(45, 123))
+        self.assertEqual(board.inventory, [])
         for checkpoint in (False, True):
             policy = HengbotPolicy()
             policy._town_claim_bar_enforced = True
             policy._crossarea_fundraising_enforced = True
-            policy._calibration_phase = "deposit"
+            policy._calibration_phase = "restore-supplies"
             debt = [("oil", 77, 0), ("recall", 70, 11)]
             policy._calibration_restore_signatures = debt.copy()
             policy._town_errand_plan = TownErrandPlan(
                 [STORE_HOME], requester_families={STORE_HOME: ("home-visit",)})
             if checkpoint:
                 policy = pickle.loads(pickle.dumps(policy))
+            key = policy._town_producer_entry(
+                "_calibration_town_key", lambda: policy._calibration_town_key(board))
+            self.assertEqual(key, "~9\x1b")
+            self.assertEqual(policy.last_reason, "calibration:request-restore-knowledge")
+            self.assertEqual(policy._enforce_town_claim_result(board, key), key)
             self.assertIsNone(policy._town_producer_entry(
-                "_calibration_town_key", lambda: self.fail("deferred producer ran")))
-            policy.last_reason = "shop:travel:await-entry"
-            self.assertIsNone(policy._enforce_town_claim_result(board, "5"))
-            self.assertEqual(policy.last_reason,
-                             "ownership:declaration-unrestored:calibration")
+                "_shopping_approach_key", lambda: self.fail("another errand ran"),
+                family="store-router"))
             self.assertEqual(policy._calibration_restore_signatures, debt)
-            self.assertEqual(policy._calibration_phase, "deposit")
+            self.assertEqual(policy._calibration_phase, "restore-supplies")
+
+    def test_restore_still_uncomposable_stops_after_checkpoint(self):
+        for checkpoint in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = True
+            policy._calibration_restore_signatures = [("oil", 77, 0)]
+            if checkpoint:
+                policy = pickle.loads(pickle.dumps(policy))
+            policy.last_reason = "shop:travel:await-entry"
+            self.assertIsNone(policy._enforce_town_claim_result(short_route_board(), "5"))
+            self.assertEqual(policy.last_reason, "ownership:declaration-unrestored:calibration")
+            self.assertEqual(policy._calibration_restore_signatures, [("oil", 77, 0)])
+
+    def test_completed_empty_home_scan_keeps_absent_restore_debt_and_typed_stop(self):
+        for checkpoint in (False, True):
+            policy = HengbotPolicy()
+            policy._town_claim_bar_enforced = True
+            policy._crossarea_fundraising_enforced = True
+            policy._calibration_phase = "restore-supplies"
+            debt = [("oil", 77, 0)]
+            policy._calibration_restore_signatures = debt.copy()
+            # A completed scan of empty Home, with a usable page address space.
+            policy._home_knowledge_current = True
+            policy._home_knowledge_invalidated = False
+            policy._home_knowledge_items = []
+            policy._home_knowledge_valid_before = 0
+            policy._home_scan_item_count = 0
+            policy._home_page_size = 12
+            if checkpoint:
+                policy = pickle.loads(pickle.dumps(policy))
+            board = short_route_board()
+            board = replace(board, grids={**board.grids,
+                board.player.position: replace(board.grid_at(board.player.position),
+                                               store_number=STORE_HOME)})
+            policy._shopping_approach_store_type = STORE_HOME
+            policy._atomic_home_withdraw_key(board, board.player.position)
+            self.assertEqual(policy._town_blocked_reason,
+                             "calibration-restore-target-absent")
+            self.assertEqual(policy._calibration_restore_signatures, debt)
 
     def test_off_keeps_recorded_key(self):
         policy = HengbotPolicy()
