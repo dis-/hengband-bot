@@ -11,7 +11,8 @@ from pathlib import Path
 from hengbot.cli import _ExecutorInputPort, _send_prompt_gated_decision_key
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame
+import tests.test_input_executor as input_executor_tests
+from tests.test_input_executor import FaithfulHookGame
 
 FIXTURES = Path(__file__).with_name("fixtures") / "live-screens"
 
@@ -24,7 +25,7 @@ class StopAfterTargetGame(FaithfulHookGame):
         return super().hook(request)
 
 
-class Live15IdentifySourcePin(ProductionHarness):
+class Live15IdentifySourcePin(input_executor_tests.ProductionHarness):
     def test_recorded_source_and_equipment_through_cli(self):
         for japanese in (False, True):
             with self.subTest(prompt_japanese=japanese):

@@ -5,7 +5,8 @@ import json
 import time
 from pathlib import Path
 
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame
+import tests.test_input_executor as input_executor_tests
+from tests.test_input_executor import FaithfulHookGame
 from hengbot.input_executor import Continuation, Operation, ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
@@ -22,7 +23,7 @@ class StopAfterTargetGame(FaithfulHookGame):
         return super().hook(request)
 
 
-class Live13FullEquippedPin(ProductionHarness):
+class Live13FullEquippedPin(input_executor_tests.ProductionHarness):
     def load(self):
         screen = json.loads((FIXTURES / "live13-star-identify-equipment-prompt.json").read_text(encoding="utf-8"))
         state = json.loads((FIXTURES / "live13-before-identify-state.json").read_text(encoding="utf-8"))
