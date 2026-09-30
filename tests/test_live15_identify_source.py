@@ -53,3 +53,37 @@ class Live15IdentifySourcePin(input_executor_tests.ProductionHarness):
                 self.assertEqual(port.last_result.outcome, "stuck-prompt")
                 self.assertEqual(port.last_result.operation.continuations, [])
                 self.assertIn("phase=screen", port.last_result.reason)
+
+    def test_macro_target_is_bound_to_observed_collection(self):
+        for inventory_first in (False, True):
+            with self.subTest(inventory_first=inventory_first):
+                state = json.loads((FIXTURES / "live13-before-identify-state.json").read_text(encoding="utf-8"))
+                source = json.loads((FIXTURES / "live15-read-scroll-prompt.json").read_text(encoding="utf-8"))
+                target = json.loads((FIXTURES / "live13-star-identify-equipment-prompt.json").read_text(encoding="utf-8"))
+                policy = ConservativePolicy()
+                key = policy._town_equipped_identification_key(parse_snapshot(state, {}), macro=True)
+                self.assertEqual(key, "rf/a" + "\x1b" * 8)
+                game = StopAfterTargetGame()
+                game.state = copy.deepcopy(state)
+                game.screens = [source, target]
+                if inventory_first:
+                    # Counterfactual chooser wall: the captured equipment page
+                    # follows a source-derived inventory chooser and '/' answer.
+                    # This is not evidence of an additional recorded live step.
+                    inventory = copy.deepcopy(target)
+                    inventory["lines"][0] = "(Inven:a-z,'/' for Equip, ESC) *Identify* which item?"
+                    game.screens.insert(1, inventory)
+                game.states = [copy.deepcopy(state) for _ in game.screens]
+                _, client, executor = self.make(game)
+                self.assertEqual(executor.observe_boundary(deadline=time.monotonic() + 1).outcome, "ready")
+                port = _ExecutorInputPort(executor, tunnel_macros_ready=False, request_budget=0.2)
+                _send_prompt_gated_decision_key(
+                    port, "recorded", key, None, set(), policy.peek_staged_prompt_chain(),
+                    shadow_client=client, file=None, deadline=time.monotonic() + 1,
+                    poll_interval=0, prompt_japanese=False,
+                    decision={"sequence": 1, "reason": policy.last_reason, "observation": state},
+                    snapshot=None, posting_contract=None,
+                )
+                self.assertEqual(game.accepted, ["r", "f"] + (["/"] if inventory_first else []) + ["a"])
+                self.assertEqual(port.last_result.outcome, "stuck-prompt")
+                self.assertEqual(port.last_result.operation.continuations, [])

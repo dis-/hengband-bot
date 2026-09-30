@@ -2140,7 +2140,10 @@ class _ExecutorInputPort:
             decision.get("sequence"),
             str(decision.get("reason", "unknown")),
             _transport_key(key, self.tunnel_macros_ready),
-            decision.get("observation"),
+            # Live decision metadata carries no board. Bind the admitted
+            # operation to the executor's current observed command boundary;
+            # prompt-time state must be compared with this pre-command state.
+            decision.get("observation", self.executor.ready_board),
             continuations=list(continuations or ()),
             response_grace=COMMAND_RESPONSE_GRACE,
             transport=(Transport.TCP if self.executor.client is not None
@@ -2547,6 +2550,12 @@ def _send_prompt_gated_decision_key(
                 else ScreenKind.ITEM_SOURCE
             )
             segment = key[index:next_index]
+            if (decision is not None
+                    and decision.get("reason") == "identify:full-equipped"
+                    and kind is ScreenKind.ITEM_TARGET):
+                # The macro describes the inventory-to-equipment route. The
+                # executor chooses whether '/' is needed from the actual page.
+                segment = segment.removeprefix("/")
             if (
                 decision is not None
                 and str(decision.get("reason", "")).startswith("identify:full")
