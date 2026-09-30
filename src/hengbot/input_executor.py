@@ -1158,8 +1158,13 @@ class OperationExecutor:
                         answer = str(sources[0].get("slot", ""))
                         if not re.fullmatch(r"[a-z]", answer):
                             break
+                        if not any(re.search(r"(?<![a-z])" + re.escape(answer) + r"\) ", str(row))
+                                   for row in screen_value.get("lines", ())[1:]):
+                            break
                     elif match.kind is ScreenKind.ITEM_TARGET:
                         if match.feature.startswith(("(Inven:", "(持ち物:")):
+                            if "'/'" not in match.feature:
+                                break
                             return self._post_and_barrier(
                                 "/", deadline, role="auxiliary-request")
                         if not match.feature.startswith(("(Equip:", "(装備品:")):

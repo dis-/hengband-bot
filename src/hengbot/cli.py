@@ -2554,6 +2554,10 @@ def _send_prompt_gated_decision_key(
                 # never bundle the historical blind ESC dismissal tail with
                 # the target selection.
                 segment = segment[:1]
+            if decision is not None and decision.get("reason") == "identify:full-equipped":
+                # The current screen is authoritative, including its language.
+                # A resumed process may have a different prompt_japanese setting.
+                prompt = prompts
             continuations.append(Continuation(frozenset({kind}), segment, prompt))
         sent = send.submit_operation(
             prefix, decision=decision, continuations=continuations
