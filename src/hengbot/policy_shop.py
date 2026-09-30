@@ -5009,6 +5009,19 @@ class ShopMixin:
             if arbiter is None:
                 arbiter = _new_town_turn_arbiter()
                 self._town_turn_arbiter = arbiter
+            previous_visit = self._store_visit
+            if (
+                previous_visit is not None
+                and previous_visit.phase == StoreVisitPhase.LEAVING
+                and previous_visit.composed_key == LEAVE_STORE_KEY
+                and not previous_visit.operation_posted
+                and previous_visit.posted_turn is not None
+                and snapshot.turn >= previous_visit.posted_turn
+            ):
+                # This composable outside page confirms the prior ESC left
+                # the shop. Its old posted exit cannot bar this shelf's entry,
+                # even when the town plan has already moved to another stop.
+                self._close_store_visit("completed")
             visit = arbiter.acquire_store_visit(
                 store_type=store_type, owner="shop-one-shot",
                 purpose="observed-transaction",
