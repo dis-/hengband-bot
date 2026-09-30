@@ -24,7 +24,8 @@ from hengbot.policy_constants import (
     PACK_CAPACITY, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
-    TORCH_REFILL_FUEL, UP_STAIRS_KEY, USE_DEVICE_MIN, WAIT_KEY,
+    TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
+    WAIT_KEY,
     permitted_dive_depth, required_destruction_uses,
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
@@ -722,6 +723,9 @@ class SupplyMixin:
             # requirement publishes.
             return self._missing_destruction_uses(snapshot)
         strategy = self._carry_procurement_strategy(snapshot)
+        if item_class == (TVAL_LITE, SV_LITE_TORCH):
+            target, carried = self._torch_carry_requirement(snapshot, item, strategy)
+            return max(0, target - carried)
         target = self._quest_carry_target_for_item(
             snapshot, item, strategy.required_force if strategy is not None else {}
         )
@@ -749,8 +753,6 @@ class SupplyMixin:
         if kind is not None:
             status = self._supply_ledger(snapshot, self._planned_depth())[kind]
             return max(0, status.required_departure - status.count)
-        if item_class == (TVAL_LITE, SV_LITE_TORCH):
-            return max(0, FOOD_STOCK_TARGET - self._count_usable_torches(snapshot))
         if item.is_treasure_detection_scroll:
             requirements = self._fundraising_mining_requirements(snapshot)
             if requirements is None:
@@ -766,6 +768,20 @@ class SupplyMixin:
                 return 0
             return max(0, requirements[1] - self._digging_tool_count(snapshot))
         return 1
+
+    def _torch_carry_requirement(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem,
+        strategy: StrategyProfile | None,
+    ) -> tuple[int, int]:
+        """The Home withdrawal and pack retention target for usable torches."""
+        quest = self._quest_carry_target_for_item(
+            snapshot, item, strategy.required_force if strategy is not None else {}
+        )
+        if quest is not None:
+            return quest[2], quest[1]
+        if self._matching_ammo(snapshot) is None:
+            return TORCH_THROW_TARGET, self._count_throwing_torches(snapshot)
+        return FOOD_STOCK_TARGET, self._count_usable_torches(snapshot)
 
     def _carry_strategy_potion_target(
         self,

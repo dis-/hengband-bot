@@ -1268,7 +1268,7 @@ class RetentionAuthorityTest(unittest.TestCase):
         self.assertEqual(policy._find_home_deposit(snap), torches)
         self.assertEqual(policy._home_deposit_key(snap, torches), "dj4\r")
 
-    def test_matching_launcher_ammo_replaces_throwing_torches(self):
+    def test_matching_launcher_ammo_keeps_light_stock_and_sheds_only_surplus(self):
         torches = item(
             "j", TVAL_LITE, SV_LITE_TORCH,
             count=10, name="Wooden Torches", fuel=5000,
@@ -1284,9 +1284,10 @@ class RetentionAuthorityTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy._retention_reservation(snap, torches), 0)
+        self.assertEqual(policy._retention_reservation(snap, torches), 5)
+        self.assertEqual(policy._retention_surplus(snap, torches), 5)
         self.assertEqual(policy._find_home_deposit(snap), torches)
-        self.assertEqual(policy._home_deposit_key(snap, torches), "dj10\r")
+        self.assertEqual(policy._home_deposit_key(snap, torches), "dj5\r")
 
     def test_matching_ammo_keeps_plain_and_single_highest_power_stack(self):
         sling = item(

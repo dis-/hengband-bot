@@ -761,15 +761,13 @@ class HomeMixin:
             )
             branch = "supply-ledger:food"
         elif item.is_torch:
-            if self._matching_ammo(snapshot) is not None:
-                return 0, None
             if not item.known or item.fuel <= 0:
                 return 0, None
-            target = TORCH_THROW_TARGET
+            target, _ = self._torch_carry_requirement(snapshot, item, strategy)
             matches = lambda candidate: (
                 candidate.is_torch and candidate.known and candidate.fuel > 0
             )
-            branch = "torch-throw"
+            branch = "torch-carry"
         elif (
             potion_target := self._carry_strategy_potion_target(
                 snapshot, item, strategy
@@ -1749,6 +1747,22 @@ class HomeMixin:
             self._offer_unaddressed_home_withdraw(LEAVE_STORE_KEY, signature)
             return LEAVE_STORE_KEY
         catalogue_index, item = selected
+        if (
+            selecting_branch == "home-pending-item"
+            and item.is_torch
+            and self._procurement_missing_amount(snapshot, item) <= 0
+        ):
+            # A queued Home take can outlive another torch acquisition.  Do
+            # not take a now-surplus stack and hand it straight to disposal.
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_quantities.pop(signature, None)
+            self._home_procurement_probe = None
+            self._home_withdrawal_queued = False
+            return self._town_entrance_step_off_key(
+                snapshot, "home:atomic-withdraw-no-longer-needed"
+            )
         observed_address = self._home_observed_addresses.get(signature)
         self._home_withdraw_page_probe = None
         page, page_pos = divmod(catalogue_index, self._home_page_size)
