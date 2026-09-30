@@ -1291,6 +1291,10 @@ class CalibrationMixin:
             return WAIT_KEY
         if phase == "restore-supplies":
             if (not self._calibration_restore_enforced()
+                    and self._calibration_restore_signatures
+                    and all(any(self._calibration_restore_item_matches(owner, item)
+                                for item in (*snapshot.inventory, *snapshot.equipment))
+                            for owner in self._calibration_restore_signatures)
                     and self._inventory_overweight(snapshot)):
                 # The live19 recorded OFF pin proves this loop too. Preserve
                 # its terminal, while excess-deposit recovery remains gated.

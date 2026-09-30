@@ -1706,7 +1706,11 @@ class HomeMixin:
                 if (self._calibration_phase == "restore-supplies"
                         and self._calibration_restore_signatures
                         and not transaction_withdraw_pending
-                        and not self._home_errand.active):
+                        and not self._home_errand.active
+                        and (self._calibration_restore_enforced() or all(
+                            any(self._calibration_restore_item_matches(owner, item)
+                                for item in (*snapshot.inventory, *snapshot.equipment))
+                            for owner in self._calibration_restore_signatures))):
                     # live19 records this absent-target loop even with both
                     # switches OFF. Stop without dropping its physical debt.
                     return self._calibration_restore_terminal("target-absent")
