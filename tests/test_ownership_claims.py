@@ -338,6 +338,21 @@ class NeutralityTest(unittest.TestCase):
 class PreS1CheckpointTest(unittest.TestCase):
     """S1-2: what was pickled before this change still restores and decides."""
 
+    def test_legacy_town_plan_restores_requester_defaults(self):
+        from hengbot.policy_types import TownErrandPlan
+
+        legacy = TownErrandPlan([1], need_categories={1: ("food",)})
+        del legacy.requester_families
+        restored = pickle.loads(pickle.dumps(legacy))
+        self.assertEqual(restored.requester_families, {})
+        self.assertEqual(restored.stops, [1])
+        self.assertEqual(restored.need_categories, {1: ("food",)})
+        current = TownErrandPlan([1], requester_families={1: frozenset({"restock"})})
+        self.assertEqual(pickle.loads(pickle.dumps(current)).requester_families,
+                         current.requester_families)
+        restored.requester_families[1] = frozenset({"restock"})
+        self.assertEqual(pickle.loads(pickle.dumps(legacy)).requester_families, {})
+
     def test_a_pre_s1_decision_candidate_payload_still_loads(self):
         identity = object()
         decision_identity = object()

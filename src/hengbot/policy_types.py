@@ -566,6 +566,11 @@ class TownErrandPlan:
     current_stop_passes: int = 0
     requester_families: dict[int, frozenset[str]] = field(default_factory=dict)
 
+    def __setstate__(self, state: dict) -> None:
+        """Migrate plans captured before requester attribution existed."""
+        self.__dict__.update(state)
+        self.__dict__.setdefault("requester_families", {})
+
     def __post_init__(self) -> None:
         if self.inserted_this_visit is None:
             self.inserted_this_visit = []
