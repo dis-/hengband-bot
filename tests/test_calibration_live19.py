@@ -62,6 +62,30 @@ def deposited_policy(raw, *, supplies_only=False):
 
 
 class Live19CalibrationTest(unittest.TestCase):
+    def test_recorded_restore_switches_preserve_legacy_or_enforced_batch(self):
+        raw = rows()
+        board = outside(raw, 549401)
+        for crossarea, s33 in ((False, False), (True, False), (False, True)):
+            for checkpoint in (False, True):
+                with self.subTest(crossarea=crossarea, s33=s33, checkpoint=checkpoint):
+                    policy = deposited_policy(raw)
+                    policy._crossarea_fundraising_enforced = crossarea
+                    policy._town_claim_bar_enforced = s33
+                    catalogue(policy, raw, 549401)
+                    if checkpoint:
+                        policy = pickle.loads(pickle.dumps(policy))
+                    key = policy._atomic_home_withdraw_key(board, board.player.position)
+                    self.assertIsNotNone(key)
+                    entries = policy._home_atomic_withdraw_pending[4]
+                    torch = next(entry for entry in entries if entry[2].is_torch)
+                    # This recorded merged shelf has 57 torches; the actual
+                    # deposit debt is five. OFF retains the pre-live19 macro.
+                    self.assertEqual(torch[3], 5 if crossarea or s33 else 57)
+                    self.assertIn("py5\r" if crossarea or s33 else "py57\r", key)
+                    policy._map_predicate_snapshot = board
+                    self.assertEqual(policy._defer_town_errand("shop-buy", "purchase"),
+                                     crossarea or s33)
+
     def test_overweight_unrelated_excess_deposit_then_restore_completes(self):
         raw = rows()
         for enforced in (False, True):
