@@ -5046,6 +5046,9 @@ class ShopMixin:
                 expected_effect="store-page-open",
                 continuation="shop.one-shot.send",
                 budget_ref="shop-one-shot-existing-budget",
+                # This key dispatches the staged entry; the purchase tail
+                # becomes posted only when shop.one-shot.send is confirmed.
+                post_on_emit=False,
             )
             if self._store_visit is not None:
                 self._open_execution_delegation(
