@@ -75,6 +75,7 @@ policy.py:_issue_emergency_consumable  # relays the emergency reason its caller 
 policy.py:_current_floor_item_key  # relays the floor-item reason of the loot producer it calls
 policy.py:_town_declaration_stop  # relays the missing or stale holder family into a typed stop
 policy.py:_town_release_declared_holder  # relays the released holder family into its named release
+policy.py:_home_tail_leave_continuation  # relays the open Home visit family into its identity-bound exit continuation
 policy_calibration.py:_abort_character_calibration  # relays the abort reason its caller composed
 policy_combat.py:_esp_threat_leave_key  # relays the departure reason the leave producer built
 policy_equipment.py:_equipment_wield  # relays the equipment-mutation report of the wield it issued
