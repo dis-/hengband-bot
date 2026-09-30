@@ -77,18 +77,11 @@ class Live19CalibrationTest(unittest.TestCase):
                     key = policy._atomic_home_withdraw_key(board, board.player.position)
                     self.assertIsNotNone(key)
                     entries = policy._home_atomic_withdraw_pending[4]
-                    torch = next((entry for entry in entries if entry[2].is_torch), None)
+                    torch = next(entry for entry in entries if entry[2].is_torch)
                     # This recorded merged shelf has 57 torches; the actual
                     # deposit debt is five. OFF retains the pre-live19 macro.
-                    if crossarea or s33:
-                        self.assertIsNone(torch)
-                        self.assertEqual(next(n for sig, n in
-                            policy._calibration_restore_kept_home.items()
-                            if sig[1] == 39), 5)
-                        self.assertNotIn("py", key)
-                    else:
-                        self.assertEqual(torch[3], 57)
-                        self.assertIn("py57\r", key)
+                    self.assertEqual(torch[3], 5 if crossarea or s33 else 57)
+                    self.assertIn("py5\r" if crossarea or s33 else "py57\r", key)
                     policy._map_predicate_snapshot = board
                     self.assertEqual(policy._defer_town_errand("shop-buy", "purchase"),
                                      crossarea or s33)
@@ -165,11 +158,7 @@ class Live19CalibrationTest(unittest.TestCase):
         pending = policy._home_atomic_withdraw_pending
         # A partial response leaves one debt, while a restored torch stack is
         # too heavy. It must never be deposited again to make room for that debt.
-        # Historical whole-stack response still has to be protected, even
-        # though live25 planning now leaves these unneeded torches in Home.
-        index, torch = next((i, item) for i, item in
-                            enumerate(policy._home_knowledge_items) if item.is_torch)
-        torch_entry = (policy._item_signature(torch), 0, torch, 5, index)
+        torch_entry = next(entry for entry in pending[4] if entry[2].is_torch)
         signature, before, torch, amount, index = torch_entry
         heavy = replace(board, inventory=[replace(torch, slot="a", count=57)])
         policy._observe_calibration_restore_batch(heavy, (*pending[:4], (torch_entry,)))
@@ -274,19 +263,16 @@ class Live19CalibrationTest(unittest.TestCase):
         key = policy._atomic_home_withdraw_key(board, board.player.position)
         self.assertIsNotNone(key)
         entries = policy._home_atomic_withdraw_pending[4]
-        retained = {(77, 0): 5, (75, 36): 1, (70, 9): 1, (70, 11): 3}
         for signature, _before, withdrawn, quantity, _index in entries:
-            self.assertEqual(quantity, retained.get(signature[1:], owed[signature]))
+            self.assertEqual(quantity, owed[signature])
             self.assertLessEqual(quantity, withdrawn.count)
         self.assertLessEqual(policy._inventory_weight(board) + sum(
             withdrawn.weight * quantity for _, _, withdrawn, quantity, _ in entries
         ), policy._inventory_weight_limit(board))
-        self.assertFalse(any(e[2].is_torch for e in entries))
-        torch = next(i for i in policy._home_knowledge_items if i.is_torch and i.count == 57)
-        self.assertEqual(torch.count, 57)
-        self.assertEqual(policy._calibration_restore_kept_home[
-            policy._item_signature(torch)], 5)
-        self.assertNotIn("py", key)
+        torch = next(e for e in entries if e[2].is_torch)
+        self.assertEqual(torch[2].count, 57)
+        self.assertEqual(torch[3], 5)
+        self.assertIn("py5\r", key)
         # Capacity changes select a smaller whole-debt batch or stop visibly.
         heavy = replace(board, inventory=[replace(
             outside(raw, 549266).inventory[0], count=1,

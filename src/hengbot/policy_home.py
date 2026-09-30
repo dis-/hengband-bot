@@ -41,6 +41,15 @@ class HomeMixin:
             projected.append(carried)
             candidates.append((owner, carried, owed))
         board = replace(snapshot, inventory=projected)
+        limit = self._inventory_weight_limit(board)
+        if limit is None or self._inventory_weight(board) <= limit:
+            return  # Fitting debt is restored in full, including spare supplies.
+        # Process supply surplus in retention disposal order: greatest removable
+        # weight first, with the projected slot as the stable tie breaker.
+        candidates.sort(key=lambda entry: (
+            -entry[1].weight * self._retention_surplus(board, entry[1]),
+            entry[1].slot,
+        ))
         for owner, carried, owed in candidates:
             # Utility/identification devices and spare equipment retain their
             # physical debt. Supplies use the existing retention authority.

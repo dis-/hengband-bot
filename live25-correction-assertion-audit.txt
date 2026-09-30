@@ -1,0 +1,109 @@
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertFalse(any(e[2].is_torch for e in entries))
+  after: self.assertEqual(torch[2].count, 57)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertEqual(torch.count, 57)
+  after: self.assertEqual(torch[3], 5)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertEqual(policy._calibration_restore_kept_home[
+            policy._item_signature(torch)], 5)
+  after: self.assertIn("py5\r", key)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertNotIn("py", key)
+  after: self.assertIsNotNone(key)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertIsNotNone(key)
+  after: self.assertEqual(quantity, owed[signature])
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertEqual(quantity, retained.get(signature[1:], owed[signature]))
+  after: self.assertLessEqual(quantity, withdrawn.count)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertLessEqual(quantity, withdrawn.count)
+  after: self.assertLessEqual(constrained._inventory_weight(heavy) + sum(
+                item.weight * quantity for _, _, item, quantity, _ in entries
+            ), constrained._inventory_weight_limit(heavy))
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertLessEqual(constrained._inventory_weight(heavy) + sum(
+                item.weight * quantity for _, _, item, quantity, _ in entries
+            ), constrained._inventory_weight_limit(heavy))
+  after: self.assertEqual(constrained.last_reason,
+                             "town:blocked:calibration-restore-weight-limit")
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_batch_uses_deposit_quantities_and_cumulative_weight
+  before: self.assertEqual(constrained.last_reason,
+                             "town:blocked:calibration-restore-weight-limit")
+  after: <removed>
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertEqual(policy._defer_town_errand("shop-buy", "purchase"),
+                                     crossarea or s33)
+  after: self.assertEqual(torch[3], 5 if crossarea or s33 else 57)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertIsNone(torch)
+  after: self.assertIn("py5\r" if crossarea or s33 else "py57\r", key)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertEqual(next(n for sig, n in
+                            policy._calibration_restore_kept_home.items()
+                            if sig[1] == 39), 5)
+  after: self.assertEqual(policy._defer_town_errand("shop-buy", "purchase"),
+                                     crossarea or s33)
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertNotIn("py", key)
+  after: <removed>
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertEqual(torch[3], 57)
+  after: <removed>
+CHANGED tests/test_calibration_live19.py:Live19CalibrationTest.test_recorded_restore_switches_preserve_legacy_or_enforced_batch
+  before: self.assertIn("py57\r", key)
+  after: <removed>
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(key, "5pQ72\rpMpLpopl8\rpk13\rpi4\rph10\rpgpc5\r\x1b")
+  after: self.assertEqual(key, "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\x1b")
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(policy._inventory_weight(board), 1229)
+  after: self.assertEqual(policy._inventory_weight(board), 1379)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertIsNone(policy._calibration_phase)
+  after: self.assertEqual(next(i.count for i in board.inventory if i.is_torch), 5)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertIsNone(policy._home_atomic_deposit_pending)
+  after: self.assertIsNone(policy._calibration_phase)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(policy.calibration_entry_state(board)["kept_in_home"],
+                        [{"signature": list(sig), "quantity": n} for sig, n in sorted(kept.items())])
+  after: self.assertIsNone(policy._home_atomic_deposit_pending)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(sum(n for sig, n in kept.items() if sig[1] in {21, 22, 37}), 2)
+  after: self.assertEqual(policy.calibration_entry_state(board)["kept_in_home"],
+                        [{"signature": list(sig), "quantity": n} for sig, n in sorted(kept.items())])
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(sum(i.weight * i.count for i in policy._home_knowledge_items
+                                         if i.tval in {22, 37} and any(
+                                             policy._item_signature(i) == sig for sig in kept)), 630)
+  after: self.assertEqual(sum(n for sig, n in kept.items() if sig[1] in {21, 22, 37}), 2)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(next(i.count for i in board.inventory if i.is_ammo), 72)
+  after: self.assertEqual(sum(i.weight * i.count for i in policy._home_knowledge_items
+                                         if i.tval in {22, 37} and any(
+                                             policy._item_signature(i) == sig for sig in kept)), 630)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(next(i.count for i in board.inventory if i.is_recall_scroll), 8)
+  after: self.assertEqual(next(i.count for i in board.inventory if i.is_ammo), 72)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(next(i.count for i in board.inventory if i.is_teleport_scroll), 13)
+  after: self.assertEqual(next(i.count for i in board.inventory if i.is_recall_scroll), 8)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(next(i.count for i in board.inventory
+                                          if i.tval == 75 and i.sval == 36), 10)
+  after: self.assertEqual(next(i.count for i in board.inventory if i.is_teleport_scroll), 13)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertIsNotNone(key, policy.last_reason)
+  after: self.assertEqual(next(i.count for i in board.inventory
+                                          if i.tval == 75 and i.sval == 36), 10)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+  after: self.assertIsNotNone(key, policy.last_reason)
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertLessEqual(policy._inventory_weight(board), 1700)
+  after: self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
+CHANGED tests/test_calibration_live25.py:Live25CalibrationTest.test_recorded_deposits_restore_completes_with_excess_kept_home
+  before: self.assertEqual(pickle.loads(pickle.dumps(policy))._calibration_restore_kept_home, kept)
+  after: self.assertLessEqual(policy._inventory_weight(board), 1700)

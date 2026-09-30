@@ -1,0 +1,38 @@
+python.exe : .............
+発生場所 行:2 文字:501
++ ... ule+'.txt'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.............:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+----------------------------------------------------------------------
+Ran 13 tests in 70.462s
+
+OK
+
+Repository-idiom evasion matrix:
+Mock assignment | CAUGHT | public-path-replaced
+mock.patch.object | CAUGHT | public-path-replaced
+module constant patch target | CAUGHT | public-path-replaced
+counted drive with aliased literal | CAUGHT | literal-success-predicate
+renamed invariant | CAUGHT | invariant-input-overwritten
+Mock collaborator wall | CAUGHT | collaborator-wall
+
+Seven-rewrite evasion matrix:
+setattr replacement | CAUGHT | public-path-replaced
+string patch target | CAUGHT | public-path-replaced
+injection moved to helper | CAUGHT | private-state-injected
+assert delegated to helper | CAUGHT | public-path-replaced
+wall split patch plus assignment | CAUGHT | collaborator-wall
+success literal hoisted | CAUGHT | literal-success-predicate
+historical test renamed | CAUGHT | subject-precompleted
+
+Historical acceptance table (real git blobs):
+shape | revision | real site | fires | declared
+optimizer precompletion | 594053f | tests/test_policy.py:test_mining_walk_in_is_the_only_zero_recall_entry | YES | NO
+fundraising premise overwrite | 0de8159 | tests/test_policy.py:test_incomplete_optimizer_blocks_normal_direct_entrance | YES | NO
+best/loadout fabrication | 43726bb | tests/test_policy.py:test_unactionable_suppression_keeps_confirmed_loadout | YES | NO
+literal success predicate | b57957f | tests/test_policy.py:test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window | YES | NO
+frozen 105-decision drive | HEAD | tests/test_policy_town.py:test_live_home_door_block_replay_never_posts_stay_publicly | YES | NO
+helper state injection | 5f49d7a | tests/test_policy.py:_catalogued_withdrawal_policy | YES | NO
+all collaborators mocked | 534b4be^ | tests/test_policy.py:test_live_block_replay_continues_alchemist_plan_publicly | YES | NO

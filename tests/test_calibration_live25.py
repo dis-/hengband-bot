@@ -114,8 +114,9 @@ class Live25CalibrationTest(unittest.TestCase):
                             break
                     self.assertEqual(policy._calibration_restore_signatures, [])
                     self.assertEqual(batch, 0)
-                    self.assertEqual(key, "5pQ72\rpMpLpopl8\rpk13\rpi4\rph10\rpgpc5\r\x1b")
-                    self.assertEqual(policy._inventory_weight(board), 1229)
+                    self.assertEqual(key, "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\x1b")
+                    self.assertEqual(policy._inventory_weight(board), 1379)
+                    self.assertEqual(next(i.count for i in board.inventory if i.is_torch), 5)
                     policy._calibration_observe(board)
                     self.assertIsNone(policy._calibration_phase)
                     self.assertIsNone(policy._home_atomic_deposit_pending)
@@ -158,6 +159,11 @@ class Live25CalibrationTest(unittest.TestCase):
         policy._home_pending_quantities[signature] = 14
         policy = pickle.loads(pickle.dumps(policy))
         board = outside(raw, 688636)
+        # Explicit capacity counterfactual: full old-checkpoint debt is 1395;
+        # an additional 400 equipment weight makes supply capping necessary.
+        equipment = list(board.equipment)
+        equipment[0] = replace(equipment[0], weight=equipment[0].weight + 400)
+        board = replace(board, equipment=equipment)
         self.assertIsNotNone(policy._atomic_home_withdraw_key(board, board.player.position))
         self.assertEqual(next(n for sig, n in policy._calibration_restore_kept_home.items()
                               if sig[1:] == (75, 36)), 4)
@@ -175,6 +181,45 @@ class Live25CalibrationTest(unittest.TestCase):
         self.assertEqual(next(n for sig, n in policy._home_pending_quantities.items()
                               if sig[1:] == (77, 0)), 5)
         self.assertIsNone(policy._home_atomic_withdraw_pending)
+
+    def test_full_owed_restore_at_limit_and_one_over_after_checkpoint(self):
+        raw = rows()
+        for s33 in (False, True):
+            for checkpoint in (False, True):
+                for extra in (321, 322):
+                    with self.subTest(s33=s33, checkpoint=checkpoint, extra=extra):
+                        policy = deposited(raw, s33)
+                        board = outside(raw, 688636)
+                        # Capacity counterfactual on the recorded equipment;
+                        # full debt weighs 1379, so these straddle limit 1700.
+                        equipment = list(board.equipment)
+                        equipment[0] = replace(equipment[0],
+                            weight=equipment[0].weight + extra)
+                        board = replace(board, equipment=equipment)
+                        owed = policy._home_pending_quantities.copy()
+                        kept = policy._calibration_restore_kept_home.copy()
+                        if checkpoint:
+                            policy = pickle.loads(pickle.dumps(policy))
+                        key = policy._atomic_home_withdraw_key(board, board.player.position)
+                        self.assertIsNotNone(key)
+                        entries = policy._home_atomic_withdraw_pending[4]
+                        torches = [e for e in entries if e[2].is_torch]
+                        if extra == 321:
+                            self.assertEqual(len(torches), 1)
+                            self.assertEqual(torches[0][3], 5)
+                            self.assertEqual(policy._calibration_restore_kept_home, kept)
+                            for sig, _, _, quantity, _ in entries:
+                                self.assertEqual(quantity, owed[sig])
+                            self.assertEqual(policy._inventory_weight(board) + sum(
+                                i.weight * n for _, _, i, n, _ in entries), 1700)
+                        else:
+                            self.assertEqual(torches, [])
+                            torch_sig = next(sig for sig in owed if sig[1] == 39)
+                            self.assertEqual(policy._calibration_restore_kept_home[torch_sig], 5)
+                            self.assertNotIn(torch_sig, policy._calibration_restore_signatures)
+                            self.assertEqual(policy._inventory_weight(board) + sum(
+                                i.weight * n for _, _, i, n, _ in entries), 1551)
+                        self.assertIsNone(policy._home_atomic_deposit_pending)
 
     def test_next_calibration_resets_kept_home_accounting(self):
         raw = rows()
