@@ -4782,6 +4782,8 @@ class ShopMixin:
         # Record-only (rev 9.2 C): the walk below runs the errand that
         # ``travel_reason`` names, whatever reason the decision still carries.
         writer_family = self._claim_family_of(travel_reason)
+        if self._defer_town_errand(writer_family, "shopping-approach"):
+            return None
         if (
             self._equipment_transaction_owns_town_relocation(snapshot)
             and self._shopping_approach_store_type != STORE_HOME

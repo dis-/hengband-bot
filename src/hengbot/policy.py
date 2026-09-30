@@ -3898,6 +3898,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if reason.startswith("town:entrance-step-off:"):
             reason = reason.split(":", 2)[2]
+        # Catalogue acquisition owns its observed result across entry and
+        # scan steps. Opening the page alone cannot discharge that work.
+        if any(offer[0] == key and offer[1] == owner.value
+               and offer[5] == "home-catalog-available"
+               for offer in self._execution_offers_for()):
+            if (standing is not None and standing.is_open
+                    and standing.owner == owner
+                    and (standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE
+                         or (standing.goal.source == CLAIM_OBSERVE_STORE_ENTRY
+                             and standing.execution is not None
+                             and standing.execution.expected_effect == "home-catalog-available"))):
+                return standing.goal, False, None
+            return claim_observe(
+                (STORE_HOME, "knowledge", self._town_visit_epoch),
+                STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_KNOWLEDGE,
+            ), False, None
         if (
             standing is not None and standing.is_open
             and standing.owner == owner
@@ -4249,10 +4265,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_close("expire", "within-exceeded", owners=own)
             return
         if goal.source == CLAIM_OBSERVE_STORE_ENTRY:
+            # Restored pre-live23 declarations also named catalogue work,
+            # although their goal was typed as entry. Honor the named effect.
+            declaration = getattr(standing, "execution", None)
+            catalogue_work = (declaration is not None
+                              and declaration.expected_effect == "home-catalog-available")
+            if catalogue_work and self._home_knowledge_current:
+                self._complete_claim_goal("home-knowledge-current", owners=own)
+                return
             visit = getattr(self, "_store_visit", None)
             entrance = getattr(visit, "goal", None)
             if (
-                snapshot.store is not None
+                not catalogue_work
+                and snapshot.store is not None
                 and str(snapshot.store.store_type) in goal.expectation
                 and (
                     entrance is None
@@ -5815,7 +5840,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "token_would_admit": False, "token_work_identity": None,
             })
             return True
-        enforced = getattr(self, "_town_claim_bar_enforced", False)
+        enforced = (getattr(self, "_town_claim_bar_enforced", False)
+                    or self._home_sequence_has_holder())
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
             work_identity=work_identity, enforced=enforced)
@@ -5891,7 +5917,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         the producer.  Survival and detectors remain outside the errand hold.
         """
         if (not getattr(self, "_town_claim_bar_enforced", False)
-                and not self._calibration_owns_town_sequence()):
+                and not self._calibration_owns_town_sequence()
+                and not self._home_sequence_has_holder()):
             return call()
         board = getattr(self, "_map_predicate_snapshot", None)
         if (board is not None
@@ -6218,6 +6245,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if declaration.state in {"done", "releasing"}:
             return None
         step = declaration.next_step
+        if (declaration.expected_effect == "home-catalog-available"
+                and declaration.work_id == "equipment:acquire-home-catalog"
+                and (step == "home.approach-for-equipment-catalog"
+                     or declaration.continuation == "home.catalogue.acquire")):
+            return None
         if declaration.state == "awaiting":
             continuation = declaration.continuation
             if continuation == "equipment.restore-observe":
@@ -6324,6 +6356,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Dispatch the holder's bound producer step; never reconstruct work."""
         family = holder.owner.value
         declaration = getattr(holder, "execution", None)
+        if holder is self._home_catalogue_work_holder():
+            return self._home_catalogue_work_key(snapshot)
         home_tail = self._home_tail_leave_continuation(holder, snapshot)
         if home_tail is not None:
             return home_tail
@@ -6685,6 +6719,69 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _silent_holder_stop(self, family: str) -> None:
         self.last_reason = f"ownership:holder-silent:{family}"
         return None
+
+    def _home_catalogue_sequence_enforced(self) -> bool:
+        """Protect physical Home work under cross-area or S3.3 enforcement."""
+        return bool(getattr(self, "_crossarea_fundraising_enforced", False)
+                    or getattr(self, "_town_claim_bar_enforced", False))
+
+    def _home_catalogue_work_holder(self):
+        holder = self._claim_errand_hold("__none__", enforced=True)
+        declaration = getattr(holder, "execution", None)
+        if (declaration is not None
+                and declaration.work_id == "equipment:acquire-home-catalog"
+                and declaration.expected_effect == "home-catalog-available"):
+            return holder
+        return None
+
+    def _home_sequence_has_holder(self) -> bool:
+        if not self._home_catalogue_sequence_enforced():
+            return False
+        holder = self._claim_errand_hold("__none__", enforced=True)
+        visit = getattr(self, "_store_visit", None)
+        return bool(holder is not None and (
+            self._home_catalogue_work_holder() is not None
+            or (visit is not None and visit.store_type == STORE_HOME)
+            or (holder.goal.source == CLAIM_OBSERVE_STORE_OPERATION
+                and str(STORE_HOME) in holder.goal.expectation)))
+
+    @claims(ClaimOwner.EQUIPMENT_TXN)
+    def _home_catalogue_work_key(self, snapshot: Snapshot) -> str | None:
+        """Advance registered catalogue work before a later Home errand."""
+        holder = self._home_catalogue_work_holder()
+        if holder is None:
+            return None
+        family = holder.owner.value
+        if snapshot.store is not None:
+            if snapshot.store.store_type != STORE_HOME:
+                self._release_claim_goal("catalogue-wrong-store", owners=(family,))
+                return None
+            if self._open_home_page_is_complete(snapshot):
+                self._adopt_home_catalogue(tuple(
+                    self._inventory_item_from_store_item(item)
+                    for item in snapshot.store.items))
+                self._claim_exit_completion(snapshot, holder, [])
+                self.last_reason = "equipment-transaction:home-catalog-acquired"
+                self._offer_execution(
+                    LEAVE_STORE_KEY, producer=family,
+                    work_id="equipment:home-catalog-acquired",
+                    next_step="store.leave.send", arguments=(STORE_HOME,),
+                    expected_effect="outside-store",
+                )
+                return LEAVE_STORE_KEY
+            # A partial page is not catalogue evidence. Exit under the same
+            # work, then request the complete ~9 list from outside the UI.
+            self.last_reason = "equipment-transaction:catalogue-leave-for-scan"
+            key = LEAVE_STORE_KEY
+        else:
+            self.last_reason = "equipment-transaction:catalogue-request-knowledge"
+            key = HOME_KNOWLEDGE_MACRO
+        self._offer_execution(
+            key, producer=family, work_id="equipment:acquire-home-catalog",
+            next_step="home.catalogue.acquire", expected_effect="home-catalog-available",
+            continuation="home.catalogue.acquire", budget_ref="home-knowledge-existing-epoch",
+        )
+        return key
 
     def _s33_shadow_verdict(self, snapshot, key):
         """Resolve ON admission for the decided OFF board, without dispatch."""
@@ -7287,6 +7384,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._home_entry_operation_posted
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
+            and not self._defer_town_errand("equipment-txn", "acquire-home-catalog")
         ):
             here = snapshot.grid_at(snapshot.player.position)
             if (
@@ -8660,7 +8758,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_errand_hold("__none__")
                 if getattr(self, "_town_claim_bar_enforced", False) else None
             )
-            if (active_holder is not None
+            if (self._home_catalogue_sequence_enforced()
+                    and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None):
+                key = catalogue_key
+            elif (active_holder is not None
                     and active_holder.owner.value == "equipment-txn"
                     and session is not None
                     and getattr(self._store_visit, "operation_posted", False)
@@ -10810,6 +10911,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._home_entry_operation_posted
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
+            and not self._defer_town_errand("equipment-txn", "acquire-home-catalog")
             and self._ensure_home_visit_request(snapshot)
         ):
             step = self._shopping_approach_step(

@@ -504,7 +504,12 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.HOME_VISIT)
     def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
-        """Bind Home stock needed by the standing two-digger carry target."""
+        """Bind Home stock for a mining departure's two-digger carry target."""
+        if (self._home_catalogue_sequence_enforced()
+                and self._fundraising_mode not in {"prepare", "mine", "scavenge"}):
+            return None
+        if self._defer_town_errand("home-visit", "queue-digging-tool-withdraw"):
+            return None
         store = snapshot.store
         if (
             store is None
