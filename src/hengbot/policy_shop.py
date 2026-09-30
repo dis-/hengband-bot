@@ -328,6 +328,7 @@ class ShopMixin:
         visit.transition(StoreVisitPhase.OPERATING)
         visit.operation_released = True
         if visit.operation_producer_family in {"shop-buy", "shop-sell"}:
+            visit.posted_sequence = self._decision_sequence
             self._offer_execution(
                 visit.operation_key,
                 producer=visit.operation_producer_family,
@@ -5002,6 +5003,23 @@ class ShopMixin:
             operation_family = (
                 "shop-buy" if inner.startswith(BUY_KEY) else "shop-sell"
             )
+            # Selecting the purchase can advance the town plan and acquire
+            # its next stop. The entry and tail still belong to this shelf.
+            arbiter = self._town_turn_arbiter
+            if arbiter is None:
+                arbiter = _new_town_turn_arbiter()
+                self._town_turn_arbiter = arbiter
+            visit = arbiter.acquire_store_visit(
+                store_type=store_type, owner="shop-one-shot",
+                purpose="observed-transaction",
+                opened_sequence=self._decision_sequence,
+                opened_producer_family=operation_family,
+                opened_for_family=operation_family,
+                close_visit=self._close_store_visit,
+            )
+            if visit is None:
+                self.last_reason = "ownership:declaration-stale:" + operation_family
+                return None
             opened_sequence = (
                 self._store_visit.opened_sequence
                 if self._store_visit is not None else generation
@@ -5015,7 +5033,6 @@ class ShopMixin:
                 expected_effect="store-page-open",
                 continuation="shop.one-shot.send",
                 budget_ref="shop-one-shot-existing-budget",
-                post_on_emit=False,
             )
             if self._store_visit is not None:
                 self._open_execution_delegation(
@@ -5041,7 +5058,7 @@ class ShopMixin:
                 )
                 self._store_visit.operation_released = False
                 self._store_visit.composed_key = key
-                self._store_visit.posted_sequence = generation
+                self._store_visit.posted_sequence = self._decision_sequence
                 self._store_visit.posted_turn = snapshot.turn
                 self._store_entry_wait_owner = observed_store.store_type
                 self._store_entry_wait_key = key

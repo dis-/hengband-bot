@@ -6247,6 +6247,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     declaration.continuation == "store.entry.observe"
                     else "shop:one-shot-in-flight")
                 return WAIT_KEY
+            elif (family in {"shop-buy", "shop-sell"}
+                  and declaration.continuation == "shop.one-shot.send"):
+                visit = self._store_visit
+                if (visit is None
+                        or declaration.arguments != (visit.store_type, visit.operation_key)
+                        or declaration.work_id != (
+                            f"shop-operation:{visit.opened_sequence}:"
+                            f"{visit.store_type}:{visit.operation_key}")
+                        or (snapshot.store is not None
+                            and snapshot.store.store_type != visit.store_type)):
+                    return self._town_declaration_stop(family, "stale")
+                since = self._decision_offer_buffer().sequence
+                key = self._release_staged_store_operation(snapshot)
+                if key is None:
+                    self.last_reason = "shop:one-shot-in-flight"
+                    return ""
+                self.last_reason = ("shop:one-shot-buy" if family == "shop-buy"
+                                    else "shop:one-shot-sell")
+                return self._town_declared_producer_result(holder, snapshot, key, since)
             elif declaration.continuation == "departure.step-off-entrance":
                 if (
                     len(declaration.arguments) == 2
