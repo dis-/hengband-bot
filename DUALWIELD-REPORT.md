@@ -139,3 +139,6 @@ replays, town-producer purity sections, full-fixture first_divergence runs,
 and broad matching-module sweeps. The authorized stuck/withdraw exceptions
 were run. Also pending: recover the exact historical 7830-candidate catalog
 to establish the spear's original rank; the available report does not store it.
+
+Commits: `ab23a77a` (Step 1 evidence), `7410a5cb` (Step 2 implementation).
+Machine-readable event: `validation/dualwield/event.json`.
