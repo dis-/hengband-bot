@@ -157,4 +157,75 @@ retention cases :1278-1430), tests.test_policy_town, tests.test_policy_shop.
 - Remembered plain ammo of a new name on a store page changes the optimizer signature once
   (one re-optimization).
 
-{"topic":"xbow-pref","implementer":"opus-5.5","base":"f2bd447c","commits":["ed8aa833","95d34463"],"files":["src/hengbot/equipment_optimizer.py","src/hengbot/policy_equipment.py","tests/test_light_crossbow_preference.py","tests/extract_xbow_pref_fixture.py","tests/fixtures/xbow-pref-live-20261002-012442.json.gz"],"fail_before":{"optimizer":["test_live_ordinary_sling_yields_to_home_crossbow_with_store_bolts","test_pairwise_rule_precedes_damage_and_respects_unusable_crossbow"],"policy":["test_remembered_plain_store_bolts_are_obtainable_ammunition","test_open_store_page_counts_without_memory","test_ordinary_sling_never_marks_home_light_crossbow_disposable"]},"verified":{"test_light_crossbow_preference":10,"test_equipment_optimizer":93,"test_warrior_optimization":36,"test_warrior_equipment_evaluator":11,"test_dualwield_recorded":6,"test_policy_equipment":192,"test_ammo_surplus":4,"test_launcher_deferral":7,"test_quest_ammo_not_bought":8,"test_home_equipment_disposal":6,"test_test_fakery_lint":13},"new_attributes":[],"new_thresholds":[],"blockers":["entry-point requirement pin needs a recorded post-calibration town board with full ~9 Home list (page 52) and ~f reply"]}
+
+## Round 2 (review jsonlog/REVIEW-xbow-pref-sol.md in C:/hengband/bot-client, coordinator design)
+
+Commits: 4b23df1e (P1), 2bf665b1 (P2+P3). No new policy instance attribute (the supplier tuple
+`LAUNCHER_AMMO_SUPPLIERS` is a class attribute), so no restored-checkpoint normalisation.
+
+- P1 hysteresis (`equipment_optimizer.py:930-951`, `yields_to_light_crossbow`): the
+  missing-bolts exception only blocks swapping INTO a Light Crossbow. `crossbow.origin ==
+  "equipped"` (:948) keeps the grade rule regardless of ammunition evidence, so zero bolts or a
+  supplier page forgotten after a restart never swap back to an ordinary Sling/Short Bow. Bolts
+  are then procured as usual (or the bot departs with what it has, USER DECISION 2026-09-14/16).
+  A high-grade Sling/Short Bow is still compared by damage (user rule), unchanged.
+- P2 one supplier selection (`policy_equipment.py:486-574`):
+  `LAUNCHER_AMMO_SUPPLIERS = (STORE_WEAPON, STORE_GENERAL)`;
+  `_current_town_supplier_page` (open page, or remembered page observed in this town and younger
+  than STORE_RESTOCK_WAIT_TURNS, the same test as policy_town.py:3159-3168 / policy_quest.py
+  :842-850); `_launcher_ammo_offers` (plain = `is_plain_store_ammo`, affordable = count > 0 and
+  price <= gold, i.e. a positive purchasable quantity); `_launcher_ammo_errand_store` (first
+  supplier not attempted this visit and not observed this visit without offers; unobserved is
+  tried). Users:
+  - swap-in eligibility `_obtainable_launcher_ammunition` (offers only);
+  - ordinary ammo errand `policy_town.py:2621-2629` and `:2845-2855` (was `STORE_WEAPON` only at
+    :2627/:2848): Weapon Smith first, General Store when the Weapon Smith was attempted or shows no
+    affordable plain ammo; still bounded by `_town_store_attempted`;
+  - quest carry suppliers `policy_quest.py:807-830` (was static `(STORE_WEAPON,)` at :802-803):
+    for `QUEST_LAUNCHER_AMMO_CARRIES` (:407) the errand store; once every supplier is exhausted
+    the declared supplier stays the Weapon Smith, so the existing exhaustion/abandon path is
+    unchanged. Callers pass the snapshot (policy_town.py:2773, :2798; policy_quest.py:844).
+  - Probe on the recorded General Store board (row 44): `_next_purchase` selects the plain iron
+    shots via rung `tail:ammo` (shortage 51), so the General Store purchase path exists.
+- P3 freshness: only current-town, non-expired pages (above). Recorded turns show it matters:
+  the General Store page (2320759) is expired at the surface board (2321880, gap 1121 >= 1000)
+  but current at the Weapon Smith board (2321048).
+
+Round-2 pins (tests/test_light_crossbow_preference.py, 16 tests):
+
+| test | revert | after |
+|---|---|---|
+| equipped crossbow, zero bolts, empty supplier memory, ordinary sling in Home -> crossbow kept | FAIL (P1 line -> False) | pass |
+| sling equipped, no bolts obtainable anywhere -> swap-in blocked | pass | pass |
+| ammo errand: Weapon Smith stocked -> Weapon Smith; Weapon Smith stock-out (derived page) -> General Store; Weapon Smith attempted -> General Store; both attempted -> none | FAIL | pass |
+| bolts remembered in another town -> sling kept; same town -> crossbow | FAIL | pass |
+| other-town and expired pages are no evidence | FAIL | pass |
+| unaffordable store ammo is no offer | ERROR | pass |
+
+(`test_remembered_plain_store_bolts_are_obtainable_ammunition`, added in round 1, now records
+observations the way policy.py:10058-10062 does and evaluates on the Weapon Smith board where both
+pages are current.) Derived inputs, stated in the tests: the shot stack cut from 99 to the 48
+recorded at rows 29-56 so the ordinary ammo errand is live, and the row-56 Weapon Smith page with
+its plain shots removed (stock-out). Revert checks: P1 by replacing the equipped clause with False
+(1 fail), P2/P3 by stashing the three policy files (3 fail, 1 error).
+
+Round-2 risks:
+- Observations are cleared on every fresh town visit, so swap-in needs a supplier page observed
+  in this visit; if Home is visited before the Weapon Smith the swap waits for a later Home trip
+  in the same visit (the optimizer signature changes when the page is observed).
+- With the Weapon Smith attempted and ammo still below target (stock limit, weight cap, or the
+  two-stack rule refusing a merge) the errand now adds one General Store trip; bounded by
+  `_town_store_attempted`.
+- Quest launcher ammo can now be routed to the General Store after the Weapon Smith is exhausted;
+  `_quest_carry_obtainability` then treats the untried General Store as obtainable instead of
+  abandoning the carry immediately.
+- Not run here (DO-NOT-RUN): tests.test_policy_town and tests.test_policy_shop exercise the
+  changed errand/quest routing most directly; tests.test_policy_home as before.
+
+Round-2 verification (one module per process, at 2bf665b1): test_light_crossbow_preference 16 OK,
+test_equipment_optimizer 93 OK, test_policy_equipment 192 OK, test_warrior_optimization 36 OK,
+test_ammo_surplus 4 OK, test_launcher_deferral 7 OK, test_quest_ammo_not_bought 8 OK,
+test_home_equipment_disposal 6 OK, test_town_restock_trajectory 21 OK, test_test_fakery_lint 13 OK.
+assertion_change_audit --base f2bd447c: no changed pre-existing assertions.
+
+{"topic":"xbow-pref","implementer":"opus-5.5","round":2,"base":"f2bd447c","commits":["ed8aa833","95d34463","4b23df1e","2bf665b1"],"review_items":{"P1":"equipped Light Crossbow keeps the grade rule regardless of ammo evidence (equipment_optimizer.py:948)","P2":"one supplier selection LAUNCHER_AMMO_SUPPLIERS=(Weapon Smith, General Store) for swap-in eligibility, ordinary ammo errand (policy_town.py:2621-2629,2845-2855) and quest launcher-ammo suppliers (policy_quest.py:807-830); affordable plain offers only","P3":"only pages observed in the current town and younger than STORE_RESTOCK_WAIT_TURNS"},"new_attributes":[],"new_thresholds":[],"verified":{"test_light_crossbow_preference":16,"test_equipment_optimizer":93,"test_policy_equipment":192,"test_warrior_optimization":36,"test_ammo_surplus":4,"test_launcher_deferral":7,"test_quest_ammo_not_bought":8,"test_home_equipment_disposal":6,"test_town_restock_trajectory":21,"test_test_fakery_lint":13},"not_run":["test_policy_town","test_policy_shop","test_policy_home","test_cli","test_absorbing_states","full suite"],"blockers":["entry-point requirement pin still needs a recorded post-calibration town board with full ~9 Home list (page 52) and ~f reply"]}
