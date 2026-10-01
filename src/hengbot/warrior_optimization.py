@@ -570,10 +570,8 @@ def weapon_expected_dps(
 ) -> float | None:
     """Score both wielded hands against a visible, non-immune neutral target.
 
-    P1: the natural stats come from the unequipped calibration observation —
-    the same mandatory input the loadout selector uses — never from inverting
-    the geared ``stat_use``.  Without a calibration the score is unknowable
-    and the caller must fail closed (defer the sale / readiness decision).
+    Use the same single-application stat inputs as the loadout selector.
+    Without a calibration the expected score is unavailable.
     The worn slot layout itself is a legitimate physical input here: the
     question asked is "this weapon in MY current off-hand configuration".
     """
@@ -591,8 +589,10 @@ def weapon_expected_dps(
     current = current_loadout(equipped)
     inputs = WarriorCombatInputs(
         level=snapshot.player.level,
-        natural_str=calibration.base_stats[0],
-        natural_dex=calibration.base_stats[3],
+        natural_str=(calibration.natural_stats or calibration.base_stats)[0],
+        natural_dex=(calibration.natural_stats or calibration.base_stats)[3],
+        intrinsic_str=calibration.intrinsic_adjustments[0] if calibration.natural_stats else 0,
+        intrinsic_dex=calibration.intrinsic_adjustments[3] if calibration.natural_stats else 0,
         melee_skill=snapshot.player.melee_skill,
         two_weapon_skill=snapshot.player.two_weapon_skill,
     )
