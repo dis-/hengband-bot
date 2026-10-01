@@ -1,0 +1,1 @@
+{"topic":"live31","implementer":"gpt-6.1-sol","step":1,"base":"dcb3fed7","assertion_audit":"No changed pre-existing assertions or forbidden test edits.","changed_preexisting_assertions":[],"diagnosis":"Home wand stack pooled from 3 wands / 25 charges to 4 wands / 28 charges; exact movement digest misses it","blockers":[]}
