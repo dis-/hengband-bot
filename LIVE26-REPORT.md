@@ -87,3 +87,44 @@ stops at its explicit decision boundary; both original tour failures remain.
 Bisect evidence is in `validation/live26/bisect-result.json`,
 `pre-live23-prefix.json`, and `main-prefix.json`, with direct-process logs.
 Historical source extractions were automatically removed after each process.
+
+## Step 3: authorized verification and final status
+
+All seven requested modules ran separately, using the normal installed
+Python 3.13 executable, never the WindowsApps stub. No prohibited runner,
+gate, long replay other than the authorized tour, or producer-purity sweep
+was executed. No new attributes or tests were introduced.
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| `tests.test_unaffordable_claim_tour_recorded` | 7 | 2 original failures reproduced |
+| `tests.test_live23_home_cycle` | 6 | pass |
+| `tests.test_live22_bounty` | 12 | pass |
+| `tests.test_policy_home` | 184 | pass, 4 existing skips |
+| `tests.test_town_progress_invariant` | 22 | pass |
+| `tests.test_ownership_s2a_classification` | 16 | pass |
+| `tests.test_test_fakery_lint` | 13 | pass |
+
+Total: 260 tests run, 254 passed, 4 skipped, 2 unresolved failures.
+Logs and `validation/live26/test-results.json` preserve the results. Log
+encoding and line endings are normalized for review; assertion text and
+measurements are unchanged.
+
+Authorized fixture measurements were run in OFF and S3.3 modes, one fixture
+and mode per process:
+
+| Fixture | OFF rows | OFF SHA256 | S3.3 first difference |
+| --- | ---: | --- | --- |
+| stuck | 4 | `c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5` | none |
+| withdraw | 34 | `a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9` | index/sequence 3: `~9 ESC / home:request-knowledge-scan` -> `ESC / equipment-transaction:catalogue-leave-for-scan` |
+
+The withdraw difference matches the previously disclosed live23 partial-page
+correction: 52 of 131 items were visible. Measurement stops at the first
+changed key; no later board is treated as its confirmed effect. The script
+still labels it `early-divergence` against unchanged `EXPECTED_FIRST` row 20.
+Neither this discrepancy nor the tour failures are reported as passing gates.
+
+Commits: reproduction `66602343`; bisect and decision evidence `0189decc`;
+the final reporting commit contains this verification and `LIVE26-EVENT.json`.
+There is **no fix commit**, because the dispatch's evidence-based stop
+condition was met. Only reporting and bounded diagnostic artifacts changed.
