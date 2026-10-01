@@ -2301,6 +2301,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._character_calibration: CharacterCalibration | None = None
         self._character_calibration_path: Path | None = None
         self._character_calibration_loaded = False
+        self._character_dump_path: Path | None = None
+        self._calibration_dump_prepared = None
+        self._calibration_dump_pending = None
+        self._calibration_unavailable_reason = None
+        self._calibration_rejection = None
+        import uuid
+        self._calibration_session_id = uuid.uuid4().hex
+        self._character_response_sequence = None
         self._confirmed_loadout: ConfirmedLoadoutRecord | None = None
         self._confirmed_loadout_path: Path | None = None
         self._confirmed_loadout_loaded = False
@@ -2432,6 +2440,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
+        self._policy_state_version = 2
+        self._decision_goal = None
+        self._decision_expectation = None
+        self._decision_triggers = None
+        self._decision_bar_skips = None
+        self._hunt_step_target = None
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        from hengbot.policy_state import normalize_policy_state
+        normalize_policy_state(self)
 
     # ------------------------------------------------------------------ core
     def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
@@ -2515,6 +2534,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        from hengbot.policy_state import normalize_policy_state
+        normalize_policy_state(self)
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
         self._cancel_unbound_execution_delegations()
@@ -2596,50 +2617,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ),
             identity=self._decision_sequence + 1,
         )
-        if not hasattr(self, "_town_supplier_stock"):
-            self._town_supplier_stock = {}
-        if not hasattr(self, "_town_supplier_stock_observations"):
-            self._town_supplier_stock_observations = {}
-        if not hasattr(self, "_town_visit_sale_signatures"):
-            self._town_visit_sale_signatures = set()
-        if not hasattr(self, "_calibration_entry_refusal"):
-            self._calibration_entry_refusal = None
-        if not hasattr(self, "_calibration_restore_move_identities"):
-            self._calibration_restore_move_identities = {}
-        if not hasattr(self, "_calibration_restore_items"):
-            self._calibration_restore_items = {}
-        if not hasattr(self, "_calibration_restore_outcomes"):
-            self._calibration_restore_outcomes = {}
-        if not hasattr(self, "_calibration_restore_item_ids"):
-            self._calibration_restore_item_ids = {}
-        if not hasattr(self, "_equipment_transaction_route_abandonment"):
-            self._equipment_transaction_route_abandonment = None
-        if not hasattr(self, "_equipment_transaction_route_terminal_pending"):
-            self._equipment_transaction_route_terminal_pending = False
-        if not hasattr(self, "_equipment_transaction_route_terminal"):
-            self._equipment_transaction_route_terminal = None
-        if not hasattr(self, "_home_gate_telemetry"):
-            self._home_gate_telemetry = {}
-        if not hasattr(self, "_home_procurement_withdraw_failure"):
-            self._home_procurement_withdraw_failure = None
-        if not hasattr(self, "_retried_deferred_home_items"):
-            self._retried_deferred_home_items = set()
-        if not hasattr(self, "_home_atomic_withdraw_procurement_class"):
-            self._home_atomic_withdraw_procurement_class = None
-        if not hasattr(self, "_home_latch_active"):
-            self._home_latch_active = None
-        if not hasattr(self, "_home_latch_history"):
-            self._home_latch_history = []
-        if not hasattr(self, "_home_claim_uncomposable_signature"):
-            self._home_claim_uncomposable_signature = None
-        if not hasattr(self, "_equipment_fresh_search_target_ids"):
-            self._equipment_fresh_search_target_ids = frozenset()
-        # Restored checkpoints predate the protocol-3 skill list cache:
-        # absent means unknown (protocol 2 never reads it).
-        if not hasattr(self, "_skill_exp_cache"):
-            self._skill_exp_cache = None
-        if not hasattr(self, "_skill_exp_request_inflight"):
-            self._skill_exp_request_inflight = False
         snapshot = self._with_cached_skill_exp(snapshot)
         # Protocol 3: before any evaluator needs the two-weapon / shield
         # skill_exp, read them off the ~f skill list.  Like the look probe
@@ -9696,6 +9673,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return key
         self._periodic_dump_requested = False
         self.last_reason = "periodic:character-dump"
+        self._prepare_character_sheet_dump()
         self._offer_execution(
             CHARACTER_DUMP_MACRO, producer="bookkeeping",
             work_id="periodic-character-dump", next_step="character.dump.send",
@@ -13467,10 +13445,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key == SKILL_KNOWLEDGE_MACRO:
             self._skill_exp_request_inflight = True
             return True
-        if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO} and self._calibration_naked_dump_prepared:
-            self._calibration_naked_dump_prepared = False
-            self._calibration_naked_dump_requested = True
-            self._calibration_naked_dump_inflight = True
+        if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO}:
+            self._calibration_dump_pending = {
+                "baseline": self._calibration_dump_prepared,
+                "sequence": self._character_response_sequence,
+            }
             return True
         if key != self._equipment_transaction_prepared_key:
             return mutation_committed

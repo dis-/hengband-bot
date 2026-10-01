@@ -1,0 +1,6 @@
+{
+ "source": "C:\\hengband\\bot-client\\jsonlog\\incident-20260917-2019-stale-scan-recurrence.state.jsonl",
+ "line": 24,
+ "sha256": "74cea9e0c30816e7a35cfc561d85adcdfff1ee61e1c817a9ea1a91f12a269275",
+ "table": "synthesized-from-raw; test fixture only; runtime rejects absent visible table"
+}

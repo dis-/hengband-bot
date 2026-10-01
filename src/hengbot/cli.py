@@ -2878,6 +2878,9 @@ def _stall_recovery_action(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-file", type=Path, required=True)
+    parser.add_argument("--character-dump-file", type=Path,
+                        default=Path(__file__).resolve().parents[3] / "lib/user/bot-test.txt",
+                        help="existing game character dump written by the periodic C command")
     parser.add_argument(
         "--control-port",
         type=int,
@@ -3084,6 +3087,7 @@ def _make_jsonl_barrier_drain(path: Path):
 
 
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
+    policy._character_dump_path = getattr(args, "character_dump_file", None)
     if args.decision_log is None:
         return None
     home_entry_capture = (
@@ -3107,6 +3111,8 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"
     )
+    from hengbot.policy_calibration import refuse_legacy_calibration_debt
+    refuse_legacy_calibration_debt(policy.__dict__, policy._character_calibration_path)
     policy._confirmed_loadout_path = args.decision_log.with_name(
         "confirmed-loadout.json"
     )
@@ -4964,7 +4970,7 @@ def _dispatch_response_lines(
                 # carries the mutation id set and the characteristics table.
                 # The policy records the observation; no nudge, no request
                 # state beyond the capture-phase latch it owns itself.
-                policy.observe_character_snapshot(character)
+                policy.observe_character_snapshot(character, envelope=data)
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)
         if is_home9 and outstanding_at_arrival:

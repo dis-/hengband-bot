@@ -25,7 +25,7 @@ class ObservationMixin:
             self._home_knowledge_scan_retries_remaining = 1
             self._home_knowledge_scan_leave_turn = None
 
-    def observe_character_snapshot(self, character) -> None:
+    def observe_character_snapshot(self, character, *, envelope=None) -> None:
         """Consume a `C` character snapshot (naked capture or periodic dump).
 
         Always refreshes the mutation signature from ``mutations`` — the
@@ -45,18 +45,20 @@ class ObservationMixin:
                 )
             except (TypeError, ValueError):
                 pass
-        if (
-            self._calibration_naked_dump_inflight
-            and self._calibration_phase == "capture"
-        ):
-            self._calibration_naked_flags = character_intrinsic_flags(
-                character.get("characteristics")
-            )
-            self._calibration_naked_dump_inflight = False
+        if envelope is not None:
+            # Older emitters have no response sequence. The ordered CLI
+            # dispatch supplies a local sequence without changing the game.
+            envelope = dict(envelope)
+            envelope.setdefault("sequence", (self._character_response_sequence or 0) + 1)
+        self._consume_equipped_character_sheet(character, envelope)
+        if envelope is not None:
+            self._character_response_sequence = envelope["sequence"]
 
     def _observe(
         self, snapshot: Snapshot, *, observation: Snapshot | None = None
     ) -> None:
+        from hengbot.policy_state import normalize_policy_state
+        normalize_policy_state(self)
         self.observe_town_visit_epoch(snapshot.in_town, snapshot.turn)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             self._record_observed_home_addresses(snapshot)

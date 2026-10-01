@@ -151,6 +151,12 @@ class CharacterCalibration:
     natural_stats: tuple[int, ...] = ()
     intrinsic_adjustments: tuple[int, ...] = ()
     hp_floor: int = 1
+    evidence_hash: str = ""
+    response_sequence: int | str | None = None
+    protocol_version: int = 0
+    stat_key_kind: str = "legacy"
+    visible_stat_key: tuple[int, ...] = ()
+    session_id: str = ""
 
     def stale_reason(
         self,
@@ -178,7 +184,10 @@ class CharacterCalibration:
             return "character-identity"
         if player.level != self.level:
             return "level"
-        if player.stat_cur is not None:
+        if self.schema_version == 2:
+            if player.printed_stat_cur_key != self.visible_stat_key:
+                return "visible-stat-key"
+        elif player.stat_cur is not None:
             if tuple(player.stat_cur) != self.stat_cur:
                 return "stat_cur"
         elif player.printed_stat_cur_key != self.stat_cur:
@@ -361,10 +370,16 @@ def character_intrinsic_flags(characteristics) -> frozenset[int]:
             flag_id = int(row.get("flag_id"))
         except (TypeError, ValueError):
             continue
-        if bool(row.get("player")) or bool(row.get("immunity")) or bool(
-            row.get("vulnerability")
-        ):
+        if bool(row.get("player")):
             flags.add(flag_id)
+        if bool(row.get("immunity")):
+            immunity = {48: 40, 49: 41, 50: 42, 51: 43}.get(flag_id)
+            if immunity is not None:
+                flags.add(immunity)
+        if bool(row.get("vulnerability")):
+            vulnerability = {48: 152, 49: 154, 50: 155, 51: 153}.get(flag_id)
+            if vulnerability is not None:
+                flags.add(vulnerability)
     return frozenset(flags)
 
 
@@ -450,9 +465,14 @@ def save_character_calibration(path: Path, calibration: CharacterCalibration) ->
     data["intrinsic_tr_flags"] = sorted(calibration.intrinsic_tr_flags)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        # Never erase an old physical obligation while publishing observations.
+        from hengbot.policy_calibration import refuse_legacy_calibration_debt
+        refuse_legacy_calibration_debt({}, path)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(
             json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8"
         )
+        temporary.replace(path)
     except OSError:
         # Persistence is an optimization; the in-memory calibration stays valid.
         return
@@ -489,6 +509,17 @@ def load_character_calibration(path: Path) -> CharacterCalibration | None:
             intrinsic_tr_flags=frozenset(
                 int(v) for v in data.get("intrinsic_tr_flags", [])
             ),
+            schema_version=int(data.get("schema_version", 1)),
+            source=str(data.get("source", "legacy-strip")),
+            natural_stats=tuple(int(v) for v in data.get("natural_stats", ())),
+            intrinsic_adjustments=tuple(int(v) for v in data.get("intrinsic_adjustments", ())),
+            hp_floor=int(data.get("hp_floor", 1)),
+            evidence_hash=str(data.get("evidence_hash", "")),
+            response_sequence=data.get("response_sequence"),
+            protocol_version=int(data.get("protocol_version", 0)),
+            stat_key_kind=str(data.get("stat_key_kind", "legacy")),
+            visible_stat_key=tuple(int(v) for v in data.get("visible_stat_key", ())),
+            session_id=str(data.get("session_id", "")),
         )
     except (KeyError, TypeError, ValueError):
         return None
