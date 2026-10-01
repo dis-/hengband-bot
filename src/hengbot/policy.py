@@ -6969,6 +6969,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             pass
         return key
 
+    @claims(ClaimOwner.HOME_VISIT)
     def _observe_home_atomic_withdrawal_outside(self, snapshot: Snapshot) -> None:
         """Reconcile one posted single-item Home take on its outside board."""
         pending_withdrawal = self._home_atomic_withdraw_pending
