@@ -1,0 +1,9 @@
+CLASS C SAME BOARD food_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD light_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD teleport_ready 'R300\r' town:wait-restock:alchemist
+CLASS C SAME BOARD cure_critical_ready 'R300\r' town:wait-restock:temple
+.
+----------------------------------------------------------------------
+Ran 1 test in 8.938s
+
+OK

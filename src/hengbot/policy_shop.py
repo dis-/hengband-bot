@@ -1289,8 +1289,9 @@ class ShopMixin:
             supplier = self._departure_supplier_counterfactual(snapshot)
             if supplier is not None:
                 return supplier
-            self._town_blocked_reason = "departure-unsatisfiable"
-            return None
+            # An exhausted shop route does not exhaust non-shop remedies.
+            # Settle existing restock/fundraising/identification owners below;
+            # the departure evaluator alone may issue the no-owner verdict.
 
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
@@ -1331,14 +1332,6 @@ class ShopMixin:
                         ):
                             self._town_restock_waiting_for = ()
                         return store_type
-        if live_needs and all(
-            need.store_type != STORE_HOME
-            and need.store_type
-            in self._town_visit_ledger.nonhome_attempted_without_effect
-            for need in live_needs
-        ):
-            if self._departure_supplier_counterfactual(snapshot) is None:
-                self._town_blocked_reason = "departure-unsatisfiable"
         return None
 
     def _release_blocked_store_latches(self, store_type: int) -> None:

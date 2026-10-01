@@ -1,0 +1,6 @@
+replay=('rca', 'town:recall-to-angband') live=('1', 'town:blocked:departure-unsatisfiable')
+....
+----------------------------------------------------------------------
+Ran 4 tests in 12.338s
+
+OK

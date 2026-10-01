@@ -3323,21 +3323,22 @@ class TownMixin:
         retired_worn_item_ids = getattr(
             self, "_equipment_retired_worn_item_ids", frozenset()
         )
-        if retired_worn_item_ids or (
+        # Exhaustion belongs to the equipment owner. Independent supplies and
+        # safe deposits still get their remedy before a departure verdict.
+        equipment_exhausted = bool(retired_worn_item_ids) or (
             self._equipment_failure_unexecutable_this_visit(
                 snapshot,
                 self._equipment_optimization_preparation,
                 require_confirmed=False,
                 include_launcher_enchant=False,
             )
-        ):
-            return None, True
+        )
         retired = set(getattr(self._town_turn_arbiter, "_retired", ()))
         for need in candidates:
             if not self._town_need_supplier_reachable(snapshot, need):
                 continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
-                retired_worn_item_ids
+                equipment_exhausted
                 or "equipment-opt" in retired
                 or "equipment-txn" in retired
             ):
@@ -3352,8 +3353,8 @@ class TownMixin:
                 or need.store_type == STORE_HOME
                 or remembered_affordable
             ):
-                return need.store_type, False
-        return None, False
+                return need.store_type, equipment_exhausted
+        return None, equipment_exhausted
 
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
@@ -5169,6 +5170,18 @@ class TownMixin:
             guardian_bounced_dungeon=dungeon_id,
         ) is not None
 
+    @claims(ClaimOwner.SHOP_BUY)
+    def _town_restock_wait_key(self, snapshot: Snapshot) -> str | None:
+        """Offer a live stock-turnover remedy, including one installed now."""
+        if (
+            not self._town_restock_suppressed
+            and self._town_restock_wait_until is not None
+            and snapshot.turn < self._town_restock_wait_until
+        ):
+            self.last_reason = self._restock_wait_reason(snapshot)
+            return RESTOCK_WAIT_MACRO
+        return None
+
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         full_identify_trip = self._morivant_full_identify_key(snapshot)
         if full_identify_trip is not None:
@@ -5274,13 +5287,9 @@ class TownMixin:
         ):
             return self._identify_staff_stockout_key(snapshot)
 
-        if (
-            not self._town_restock_suppressed
-            and self._town_restock_wait_until is not None
-            and snapshot.turn < self._town_restock_wait_until
-        ):
-            self.last_reason = self._restock_wait_reason(snapshot)
-            return RESTOCK_WAIT_MACRO
+        restock = self._town_restock_wait_key(snapshot)
+        if restock is not None:
+            return restock
 
         if (
             self._fundraising_mode == "mine"
@@ -5732,6 +5741,12 @@ class TownMixin:
 
         if recall_dest is not None and not departure_ok:
             blocker = self._terminal_equipment_blocker(snapshot)
+            # Equipment evaluation can exhaust the shop plan and install a
+            # supply remedy. Offer it even when another hard leaf also fails;
+            # replenishing supplies does not authorise dungeon departure.
+            restock = self._town_restock_wait_key(snapshot)
+            if restock is not None:
+                return restock
             if blocker is not None:
                 self._town_blocked_reason = blocker
                 return self._town_blocked_key(snapshot)
@@ -5757,6 +5772,12 @@ class TownMixin:
                     # prepare mode is not yet the one-run stockout time-pass;
                     # install that plan before declaring departure impossible.
                     return self._identify_staff_stockout_key(snapshot)
+                # The supplier/terminal evaluators above can install a remedy
+                # on this very board, after the early restock check already ran.
+                # Offer its existing producer before declaring no owner left.
+                restock = self._town_restock_wait_key(snapshot)
+                if restock is not None:
+                    return restock
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         # Destination safety is a departure assertion, not an errand-router

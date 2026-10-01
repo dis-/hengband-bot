@@ -1,0 +1,79 @@
+[
+  {
+    "module": "tests.test_classC_departure_remedies",
+    "exit": 0,
+    "tests": 5,
+    "skipped": 0,
+    "seconds": 47.75
+  },
+  {
+    "module": "tests.test_live36_weight",
+    "exit": 0,
+    "tests": 7,
+    "skipped": 0,
+    "seconds": 36.73
+  },
+  {
+    "module": "tests.test_identify_staff_live27_recorded",
+    "exit": 0,
+    "tests": 1,
+    "skipped": 0,
+    "seconds": 50.49
+  },
+  {
+    "module": "tests.test_departure_unsatisfiable_weight_recorded",
+    "exit": 0,
+    "tests": 7,
+    "skipped": 0,
+    "seconds": 26.72
+  },
+  {
+    "module": "tests.test_town_progress_invariant",
+    "exit": 0,
+    "tests": 22,
+    "skipped": 0,
+    "seconds": 70.51
+  },
+  {
+    "module": "tests.test_policy_home",
+    "exit": 0,
+    "tests": 184,
+    "skipped": 4,
+    "seconds": 123.26
+  },
+  {
+    "module": "tests.test_quest_carry_departure_recorded",
+    "exit": 0,
+    "tests": 4,
+    "skipped": 0,
+    "seconds": 13.91
+  },
+  {
+    "module": "tests.test_recall_stockout_set_end_recorded",
+    "exit": 0,
+    "tests": 5,
+    "skipped": 0,
+    "seconds": 202.32
+  },
+  {
+    "module": "tests.test_recall_stockout_surplus_pins",
+    "exit": 0,
+    "tests": 8,
+    "skipped": 0,
+    "seconds": 58.43
+  },
+  {
+    "module": "tests.test_ownership_s2a_classification",
+    "exit": 0,
+    "tests": 16,
+    "skipped": 0,
+    "seconds": 37.58
+  },
+  {
+    "module": "tests.test_test_fakery_lint",
+    "exit": 0,
+    "tests": 13,
+    "skipped": 0,
+    "seconds": 63.07
+  }
+]
