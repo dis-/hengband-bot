@@ -47,6 +47,29 @@ def log(event: dict) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 
 
+def bot_pids() -> list[int]:
+    """Live bot processes found by command line, not by bot.pid.
+
+    The skill's Set-Content of bot.pid can fail with a sharing violation while
+    the new bot starts (2026-10-02 06:00), leaving a stale pid; trusting it made
+    the supervisor declare a running bot dead.  Also rewrites bot.pid so the
+    skill's status/stop see the real process.
+    """
+    script = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and "
+              "$_.CommandLine -match '-m hengbot' -and $_.CommandLine -match 'bot-state-fixed' } | "
+              "ForEach-Object { $_.ProcessId }")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                         capture_output=True, text=True, timeout=60)
+    pids = [int(x) for x in out.stdout.split() if x.isdigit()]
+    if len(pids) == 1:
+        try:
+            if (J / "bot.pid").read_text().strip() != str(pids[0]):
+                (J / "bot.pid").write_text(str(pids[0]))
+        except OSError:
+            pass
+    return pids
+
+
 def pid_alive(path: Path) -> bool:
     try:
         pid = int(path.read_text().strip())
@@ -123,7 +146,7 @@ def resume() -> bool:
     deadline = time.time() + 120
     while time.time() < deadline:
         time.sleep(5)
-        if pid_alive(J / "bot.pid"):
+        if bot_pids():
             return True
     return False
 
@@ -157,11 +180,8 @@ def town_cycle() -> str | None:
 
 
 def stop_bot() -> None:
-    try:
-        pid = int((J / "bot.pid").read_text().strip())
+    for pid in bot_pids():
         subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
-    except (OSError, ValueError):
-        pass
     time.sleep(3)
 
 
@@ -173,7 +193,7 @@ def main() -> int:
         if HOLD.exists():
             continue
         cycle = None
-        if pid_alive(J / "bot.pid"):
+        if bot_pids():
             cycle = town_cycle()
             if cycle is None:
                 continue
@@ -196,6 +216,9 @@ def main() -> int:
             log({"event": "escalate", "why": f"same-reason-x{repeats}-in-30min", "reason": reason,
                  "captured": captured})
             return 3
+        if bot_pids():
+            log({"event": "skip", "why": "bot-still-running-after-stop", "reason": reason})
+            continue
         esc_game()
         ok = resume()
         log({"event": "restart", "reason": reason, "captured": captured, "repeats_in_window": repeats,
