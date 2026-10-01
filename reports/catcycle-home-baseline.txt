@@ -1,0 +1,50 @@
+<stuck-prompt> owner=home:atomic-deposit phase=continuation transport=accepted request_id=6 reason=expected prompt absent
+FFF
+======================================================================
+FAIL: test_production_executor_home_atomic_deposit_enters_then_posts_once (tests.test_policy_home.HomeOneOperationPerEntryTest.test_production_executor_home_atomic_deposit_enters_then_posts_once)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_policy_home.py", line 3348, in test_production_executor_home_atomic_deposit_enters_then_posts_once
+    self.assertTrue(sent)
+    ~~~~~~~~~~~~~~~^^^^^^
+AssertionError: <SendResult.TERMINAL: 'terminal'> is not true
+
+======================================================================
+FAIL: test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo (tests.test_policy_home.WeightOverloadTownTest.test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_policy_home.py", line 497, in test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        [policy._retention_reservation(snapshot, item) for item in snapshot.inventory[1:4]],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        [72, 0, 27],
+        ^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: [14, 0, 27] != [72, 0, 27]
+
+First differing element 0:
+14
+72
+
+- [14, 0, 27]
+?  ^^
+
++ [72, 0, 27]
+?  ^^
+
+
+======================================================================
+FAIL: test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit (tests.test_policy_home.WeightOverloadTownTest.test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_policy_home.py", line 709, in test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit
+    self.assertEqual(passes, 4)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: 3 != 4
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.150s
+
+FAILED (failures=3)

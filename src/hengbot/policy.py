@@ -6830,8 +6830,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "equipment-transaction:catalogue-leave-for-scan"
             key = LEAVE_STORE_KEY
         else:
-            self.last_reason = "equipment-transaction:catalogue-request-knowledge"
-            key = HOME_KNOWLEDGE_MACRO
+            if self._home_knowledge_scan_inflight:
+                self.last_reason = "equipment-transaction:catalogue-await-knowledge"
+                # '5' on the Home entrance activates entry. Observe the
+                # already posted scan without sending another game command.
+                self._offer_execution_awaiting(
+                    "", producer=family, work_id="equipment:acquire-home-catalog",
+                    operation_ref=holder.execution.operation_ref,
+                    expected_effect="home-catalog-available",
+                    continuation="home.catalogue.acquire",
+                )
+                return ""
+            else:
+                self.last_reason = "equipment-transaction:catalogue-request-knowledge"
+                key = HOME_KNOWLEDGE_MACRO
         self._offer_execution(
             key, producer=family, work_id="equipment:acquire-home-catalog",
             next_step="home.catalogue.acquire", expected_effect="home-catalog-available",
@@ -7383,6 +7395,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 continuation="recall.observe-arrival",
             )
             return LEAVE_STORE_KEY
+        if (snapshot.store is None and snapshot.in_town
+                and (catalogue_holder := self._home_catalogue_work_holder()) is not None
+                and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
+            # The posted partial-page exit owns its outside continuation, even
+            # with S3.3 OFF. Dispatch it before entrance acquisition can replace
+            # the same work with another approach. A returned catalogue closes
+            # this work before any subsequent Home operation is considered.
+            self._store_leave_inflight = None
+            if self._home_knowledge_current and not self._home_knowledge_invalidated:
+                self._claim_exit_completion(snapshot, catalogue_holder, [])
+            else:
+                return self._home_catalogue_work_key(snapshot)
         if (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME

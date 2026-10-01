@@ -1,0 +1,156 @@
+{
+  "case": "withdraw",
+  "mode": "s33",
+  "fixture_sha256": "041b395d5882c9eeee2232fb82ce98686bb955a0250b23f0c2f8c7b06330019a",
+  "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+  "off_rows": 34,
+  "off_gate_final_count": 20,
+  "off_declarations": {
+    "gate_final_count": 20,
+    "declaration_gap_rows": [],
+    "declaration_mismatch_counts": [],
+    "missing_declaration_decisions": 2,
+    "missing_declaration_by_family": {
+      "detectors": 2
+    },
+    "declaration_decisions_measured": 34
+  },
+  "gate_final_count": 0,
+  "declaration_gap_rows": [],
+  "declaration_mismatch_counts": [],
+  "missing_declaration_decisions": 0,
+  "missing_declaration_by_family": {},
+  "declaration_decisions_measured": 4,
+  "first_divergence": {
+    "list_index": 3,
+    "historical_sequence": 3,
+    "historical": {
+      "key": "~9\u001b",
+      "reason": "home:request-knowledge-scan"
+    },
+    "historical_sequence_source": "fixture",
+    "off_sequence": 3,
+    "new_sequence": 3,
+    "off": [
+      "~9\u001b",
+      "home:request-knowledge-scan"
+    ],
+    "on": [
+      "\u001b",
+      "equipment-transaction:catalogue-leave-for-scan"
+    ],
+    "pre_decision_off": {
+      "plan": null,
+      "parent": {
+        "claim_id": 3,
+        "family": "equipment-txn",
+        "state": "active",
+        "goal": {
+          "kind": "Observe",
+          "expectation": [
+            "5550750",
+            "7",
+            "knowledge"
+          ],
+          "within": 8,
+          "source": "knowledge"
+        }
+      },
+      "session": null,
+      "operation": {
+        "claim_id": 3,
+        "phase": "entering",
+        "purpose": "recovered-shopping",
+        "store_type": 7,
+        "posted": false,
+        "identity": null,
+        "producer": null,
+        "released": false
+      },
+      "delegates": [
+        {
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "delegate_family": "store-router",
+          "work_identity": [
+            "route",
+            1,
+            7
+          ],
+          "purpose_identity": [
+            "trip",
+            "equipment-txn",
+            "recovered-shopping",
+            7
+          ],
+          "opening_decision": 2,
+          "expected_effect": "arrived-or-entered",
+          "budget_reference": "town-travel-progress-budget",
+          "lifecycle": "released",
+          "ending": "exit-owner-mismatch",
+          "execution": null
+        }
+      ]
+    },
+    "pre_decision_on": {
+      "plan": null,
+      "parent": {
+        "claim_id": 3,
+        "family": "equipment-txn",
+        "state": "active",
+        "goal": {
+          "kind": "Observe",
+          "expectation": [
+            "5550750",
+            "7",
+            "knowledge"
+          ],
+          "within": 8,
+          "source": "knowledge"
+        }
+      },
+      "session": null,
+      "operation": {
+        "claim_id": 3,
+        "phase": "entering",
+        "purpose": "recovered-shopping",
+        "store_type": 7,
+        "posted": false,
+        "identity": null,
+        "producer": null,
+        "released": false
+      },
+      "delegates": [
+        {
+          "parent_claim_id": null,
+          "parent_family": "store-router",
+          "delegate_family": "store-router",
+          "work_identity": [
+            "route",
+            1,
+            7
+          ],
+          "purpose_identity": [
+            "trip",
+            "equipment-txn",
+            "recovered-shopping",
+            7
+          ],
+          "opening_decision": 2,
+          "expected_effect": "arrived-or-entered",
+          "budget_reference": "town-travel-progress-budget",
+          "lifecycle": "released",
+          "ending": "exit-owner-mismatch",
+          "execution": null
+        }
+      ]
+    }
+  },
+  "expected_first": [
+    3,
+    3,
+    "\u001b",
+    "equipment-transaction:catalogue-leave-for-scan"
+  ],
+  "trajectory_defect": null
+}

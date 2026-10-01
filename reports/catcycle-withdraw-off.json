@@ -1,0 +1,17 @@
+{
+  "case": "withdraw",
+  "mode": "off",
+  "fixture_sha256": "041b395d5882c9eeee2232fb82ce98686bb955a0250b23f0c2f8c7b06330019a",
+  "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+  "off_rows": 34,
+  "first_divergence": null,
+  "off_gate_final_count": 20,
+  "gate_final_count": 20,
+  "declaration_gap_rows": [],
+  "declaration_mismatch_counts": [],
+  "missing_declaration_decisions": 2,
+  "missing_declaration_by_family": {
+    "detectors": 2
+  },
+  "declaration_decisions_measured": 34
+}
