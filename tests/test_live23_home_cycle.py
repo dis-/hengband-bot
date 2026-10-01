@@ -128,7 +128,7 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertIsNone(policy._equipment_transaction_session)
 
     def test_recorded_off_scan_continues_registered_catalogue(self):
-        # Only the four unchanged entry/scan actions of the withdraw capture.
+        # The unchanged entry/scan actions and their recorded knowledge response.
         # Never consume a historical board after a changed key.
         from tempfile import TemporaryDirectory
         from hengbot.cli import _consume_response_sequence
@@ -140,7 +140,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                 directory = Path(raw)
                 policy = _policy(directory, Capture.monrace)
                 policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
-                for index in range(4):
+                for index in range(5):
                     if restored and index == 3:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
                     _, boards = _consume_response_sequence(
@@ -160,6 +160,12 @@ class Live23HomeCycleTest(unittest.TestCase):
                                          "equipment:acquire-home-catalog")
                         self.assertEqual(policy._claim_register.current.execution.continuation,
                                          "home.catalogue.acquire")
+                    if index == 4:
+                        closed = policy.decision_claim["closed_claim"]
+                        self.assertEqual(closed["claim_id"], holder_id)
+                        self.assertEqual(closed["closed"], "complete")
+                        self.assertEqual(closed["closed_reason"], "home-knowledge-current")
+                        self.assertTrue(policy._home_knowledge_current)
                     policy.confirm_key_posted(key)
 
     def test_restored_legacy_entry_declaration_still_requires_catalogue_evidence(self):
