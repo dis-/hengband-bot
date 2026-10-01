@@ -26,10 +26,11 @@ EXPECTED_FIRST = {
     "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
     # Ruling 2026-09-30 #8: identification hijacked the open Home tail; ON continues its exit.
     "overweight": (3715, 3714, "\x1b", "home:leave-after-one-operation"),
-    # Ruling #5 review item 7: after the Home operation releases, the plan's
-    # next stop is store 3 (shop-buy). The free-standing enchant rung yields
-    # to the router for that stop on recorded decision 20.
-    "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
+    # Ruling 2026-10-01 #9 (supersedes #6): live23 keeps the registered Home
+    # catalogue claim through a partial page (52 of 131 items); ON leaves to
+    # request the complete list under the same owner instead of handing the UI
+    # to a later knowledge scan (「目的の重複＝登録済み優先」).
+    "withdraw": (3, 3, "\x1b", "equipment-transaction:catalogue-leave-for-scan"),
     "recall": None,
     "stuck": None,
 }
@@ -60,7 +61,7 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
             "tour": (2048, 2047, "\x1b`n(.", "shop:travel"),
             "town": (1179, 1177, "dl", "equipment-transaction:deposit"),
             "overweight": (3715, 3714, "\x1b", "home:leave-after-one-operation"),
-            "withdraw": (20, 20, "\x1b`n%.", "shop:travel"),
+            "withdraw": (3, 3, "\x1b", "equipment-transaction:catalogue-leave-for-scan"),
             "recall": None, "stuck": None,
         })
 
@@ -70,7 +71,7 @@ class FirstDivergenceExpectationTest(unittest.TestCase):
             "on": ["5", "ownership:holder-complete"],
         }), "early-divergence")
         self.assertEqual(trajectory_defect("withdraw", {
-            "list_index": 3, "historical_sequence": 3,
+            "list_index": 2, "historical_sequence": 2,
             "on": ["5", "ownership:holder-complete"],
         }), "early-divergence")
 
