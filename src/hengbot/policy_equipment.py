@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
-from hengbot.ammo_carry import ammo_carry_plan
+from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -38,6 +38,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipmentCatalog,
     current_loadout,
     divable_depth,
+    ordinary_launcher_yields_to_light_crossbow,
     equipment_identity,
     equipment_move_identity,
     operational_equipment_candidate,
@@ -478,6 +479,32 @@ class EquipmentMixin:
                 if owned[1] not in replacements
                 or owned[0] in replacements[owned[1]]
             ]
+
+    def _obtainable_launcher_ammunition(
+        self, snapshot: Snapshot
+    ) -> tuple[InventoryItem | StoreItem, ...]:
+        """Ammunition the optimizer counts as obtainable for a launcher.
+
+        Carried and Home stacks, plus remembered store stock that the ordinary
+        ammo purchase rung would buy (``tail:ammo`` in policy_shop accepts only
+        ``is_plain_store_ammo``).  A launcher without any of these has no
+        obtainable ammunition and is never preferred over one that can shoot.
+        """
+        supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            supplier_pages[snapshot.store.store_type] = snapshot.store
+        owned = tuple(
+            item
+            for item in (*snapshot.inventory, *self._home_knowledge_items)
+            if item.is_ammo and item.count > 0
+        )
+        stocked = tuple(
+            item
+            for _store_type, page in sorted(supplier_pages.items())
+            for item in page.items
+            if item.is_ammo and item.count > 0 and is_plain_store_ammo(item)
+        )
+        return owned + stocked
 
     @staticmethod
     def _launcher_average_damage(item: InventoryItem | StoreItem | None) -> float:
@@ -998,8 +1025,7 @@ class EquipmentMixin:
             )),
             tuple(sorted(
                 self._item_signature(item)
-                for item in (*snapshot.inventory, *self._home_knowledge_items)
-                if item.is_ammo and item.count > 0
+                for item in self._obtainable_launcher_ammunition(snapshot)
             )),
         )
         if (
@@ -1220,11 +1246,7 @@ class EquipmentMixin:
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
-            obtainable_ammunition=tuple(
-                item
-                for item in (*snapshot.inventory, *self._home_knowledge_items)
-                if item.is_ammo and item.count > 0
-            ),
+            obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
         )
         result = getattr(preparation, "result", None)
         if result is not None:
@@ -2688,6 +2710,10 @@ class EquipmentMixin:
             )
             or self._equipment_disposal_reserved(snapshot, candidate)
         ):
+            return False
+        # The user launcher rule ranks a Light Crossbow above an ordinary
+        # Sling/Short Bow regardless of damage, so it is never their spare.
+        if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
             return False
 
         equipped_damage = self._launcher_average_damage(equipped)

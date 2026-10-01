@@ -17,6 +17,7 @@ from pathlib import Path
 import unittest
 
 from hengbot.equipment_optimizer import (
+    SLOT_BOW,
     EvaluatedLoadout,
     Loadout,
     LoadoutMetrics,
@@ -24,6 +25,7 @@ from hengbot.equipment_optimizer import (
     _prefer,
     optimize_loadout,
 )
+from hengbot.equipment_transaction_planner import plan_equipment_transactions
 from hengbot.launcher_damage import best_obtainable_launcher_damage
 from hengbot.model import (
     STORE_GENERAL,
@@ -38,6 +40,7 @@ from hengbot.model import (
     StoreItem,
     parse_snapshot,
 )
+from hengbot.policy import HengbotPolicy
 
 FIXTURE = (
     Path(__file__).parent / "fixtures" / "xbow-pref-live-20261002-012442.json.gz"
@@ -182,6 +185,99 @@ class LiveLightCrossbowPreferenceTest(unittest.TestCase):
         no_bolts = {self.sling.id: 24.0, self.crossbow.id: 0.0}
         self.assertFalse(_prefer(crossbow, sling, current, no_bolts, sling_only))
         self.assertTrue(_prefer(sling, crossbow, current, no_bolts, sling_only))
+
+
+class LivePolicyLauncherEvidenceTest(unittest.TestCase):
+    """Policy seams fed with the recorded 012442 boards (no hand-built items)."""
+
+    def setUp(self):
+        self.rows = live_rows()
+        self.surface = self.rows[95]
+        self.home_items = (
+            *self.rows[29].store.items, *self.rows[30].store.items
+        )
+        self.crossbow = next(
+            item for item in self.rows[30].store.items
+            if item.tval == 19 and item.sval == SV_BOW_LIGHT_XBOW
+        )
+
+    def policy(self):
+        policy = HengbotPolicy()
+        policy._home_knowledge_items = self.home_items
+        policy._home_knowledge_current = True
+        return policy
+
+    def test_remembered_plain_store_bolts_are_obtainable_ammunition(self):
+        fresh = self.policy()
+        self.assertFalse(any(
+            item.tval == TVAL_BOLT
+            for item in fresh._obtainable_launcher_ammunition(self.surface)
+        ))
+
+        policy = self.policy()
+        policy._town_supplier_stock[STORE_GENERAL] = self.rows[44].store
+        policy._town_supplier_stock[STORE_WEAPON] = self.rows[56].store
+        obtainable = policy._obtainable_launcher_ammunition(self.surface)
+
+        self.assertEqual(
+            sorted(
+                (item.tval, item.count, item.to_h, item.to_d)
+                for item in obtainable if item.tval == TVAL_BOLT
+            ),
+            [(TVAL_BOLT, 99, 0, 0), (TVAL_BOLT, 99, 0, 0)],
+        )
+        # Enchanted store shots are not what the ammo rung buys.
+        self.assertNotIn(
+            (TVAL_SHOT, 27, 2, 3),
+            [(item.tval, item.count, item.to_h, item.to_d) for item in obtainable],
+        )
+        sling = next(item for item in self.surface.equipment if item.slot == "bow")
+        self.assertEqual(best_obtainable_launcher_damage(self.crossbow, obtainable), 18.0)
+        self.assertEqual(best_obtainable_launcher_damage(sling, obtainable), 24.0)
+
+    def test_open_store_page_counts_without_memory(self):
+        policy = self.policy()
+        obtainable = policy._obtainable_launcher_ammunition(self.rows[44])
+        self.assertTrue(any(
+            item.tval == TVAL_BOLT and item.count == 99 for item in obtainable
+        ))
+
+    def test_ordinary_sling_never_marks_home_light_crossbow_disposable(self):
+        board = self.rows[30]
+        self.assertEqual(
+            next(item for item in board.equipment if item.slot == "bow").sval,
+            SV_BOW_SLING,
+        )
+        policy = self.policy()
+        self.assertFalse(
+            policy._is_disposable_dominated_launcher(board, self.crossbow)
+        )
+
+    def test_swap_plan_withdraws_home_crossbow_and_shelves_the_sling(self):
+        sling_item = next(
+            item for item in self.surface.equipment if item.slot == "bow"
+        )
+        sling = OwnedEquipment(
+            "equipped:live-sling", sling_item, "equipped", equipped_slot=SLOT_BOW
+        )
+        crossbow = OwnedEquipment("home:live-crossbow", self.crossbow, "home")
+        plan = plan_equipment_transactions(
+            (sling, crossbow),
+            Loadout(((SLOT_BOW, sling),), "empty"),
+            Loadout(((SLOT_BOW, crossbow),), "empty"),
+            current_pack_items=len(self.surface.inventory),
+            home_scan_complete=True,
+        )
+        self.assertEqual(plan.blockers, ())
+        self.assertEqual(
+            [(action.kind, action.item_id) for action in plan.actions],
+            [
+                ("withdraw", crossbow.id),
+                ("takeoff", sling.id),
+                ("equip", crossbow.id),
+                ("deposit", sling.id),
+            ],
+        )
 
 
 class ShortBowRuleTest(unittest.TestCase):

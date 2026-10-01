@@ -915,6 +915,18 @@ def launcher_is_high_grade(item: EquipmentItem) -> bool:
 _YIELDS_TO_LIGHT_XBOW_SVALS = frozenset({SV_BOW_SLING, SV_BOW_SHORT})
 
 
+def ordinary_launcher_yields_to_light_crossbow(
+    launcher: EquipmentItem, crossbow: EquipmentItem
+) -> bool:
+    """The user grade rule: ordinary Sling/Short Bow < Light Crossbow."""
+    return (
+        crossbow.tval == launcher.tval
+        and crossbow.sval == SV_BOW_LIGHT_XBOW
+        and launcher.sval in _YIELDS_TO_LIGHT_XBOW_SVALS
+        and not launcher_is_high_grade(launcher)
+    )
+
+
 def yields_to_light_crossbow(
     launcher: OwnedEquipment,
     crossbow: OwnedEquipment,
@@ -927,14 +939,11 @@ def yields_to_light_crossbow(
     never displaces a launcher that can shoot; when neither has ammunition
     evidence the rule applies unchanged.
     """
-    return (
-        crossbow.item.sval == SV_BOW_LIGHT_XBOW
-        and launcher.item.sval in _YIELDS_TO_LIGHT_XBOW_SVALS
-        and not launcher_is_high_grade(launcher.item)
-        and (
-            crossbow.id in usable_launcher_ids
-            or launcher.id not in usable_launcher_ids
-        )
+    return ordinary_launcher_yields_to_light_crossbow(
+        launcher.item, crossbow.item
+    ) and (
+        crossbow.id in usable_launcher_ids
+        or launcher.id not in usable_launcher_ids
     )
 
 
