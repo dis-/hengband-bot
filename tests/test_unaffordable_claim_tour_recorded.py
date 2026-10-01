@@ -190,7 +190,10 @@ S2A1_ENDINGS = {
     # calibration operation family, so they leave Home visit's completions.
     "home-visit/Observe": {"complete": 2, "release": 0,
                            "expired": 3, "abandoned": 0},
-    "equipment-txn/Observe": {"complete": 6, "abandoned": 0},
+    # live26 (2026-10-01, Claude ruling): the Home catalogue claim at 2657 is
+    # an Observe that now completes on the adopted catalogue (ddebaf64,
+    # 8c7bbd71) instead of being displaced by a home-scan at 2658.
+    "equipment-txn/Observe": {"complete": 7, "abandoned": 0},
     # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
     # paralyzer-avoid steps) are counted apart; the totals are unchanged
     # (floor-loot 70 complete, positioning 15 complete).
