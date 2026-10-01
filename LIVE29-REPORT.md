@@ -46,3 +46,24 @@ Bisect:
   remain required after the fix. See `reports/live29-bisect.txt`.
 
 No code, assertion, or frozen expectation was changed in step 1.
+
+## Step 2: fix and pin
+
+`policy_shop.py:4787` now applies `_town_gate_exempt` before its errand gate,
+matching the other town producer entry gates. Detectors/bookkeeping/survival
+stay outside the town-holder judgement, as ruling #5 requires. Ordinary
+errands remain gated. The parent's already-declared posted entry observation
+is preserved; no replacement declaration is invented from the route child.
+No persistent attribute, threshold or EXPECTED_FIRST entry was added/changed.
+
+The new short pin in `tests.test_declarations_r14` loads an immutable compressed
+checkpoint of the actual pre-confirmation 3705 boundary and the 3706 board.
+It proves the parent's own awaiting declaration, OFF/ON result `2` with the
+existing invariant reason, post-confirmation checkpoint restoration, and zero
+ON final gate escape. Provenance is committed beside the fixture. The original
+full r14 first-divergence pin is unchanged.
+
+The single revert (`scripts/live29_revert_check.py`) restores only the old
+shopping-approach gate, runs that short pin once, and restores source in finally.
+Both ON subcases fail with `None != '2'`; OFF subcases pass.
+See `reports/live29-revert.txt`. The fixed short pin passes all four subcases.

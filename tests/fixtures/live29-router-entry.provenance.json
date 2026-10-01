@@ -1,0 +1,11 @@
+{
+  "source_revision": "028434ccccebbd6515c4a9a55ebd09d7d5eb7ea9",
+  "source_run": "tests.test_declarations_r14 via scripts/live29_bisect_probe.py, S3.3 ON",
+  "fixture": "overweight-home-unreachable-20260925.jsonl.gz",
+  "fixture_sha256": "f0eee9ea489edb276f7deed60696140ace323c301a465ec88201a89d5f8dae9a",
+  "checkpoint_boundary": "After choose_key at sequence 3705, immediately before confirm_key_posted('5')",
+  "snapshot_boundary": "Before choose_key at sequence 3706, fixture list_index 3707",
+  "walls": "Inherited unchanged from tests.test_overweight_home_unreachable_recorded: recorded loadout, loot observation, CLI completion binding, periodic requests, caster boundary. Capture wrappers only serialized state and did not change decisions.",
+  "attachment_limit": "Entry confirmation plus one next board; no subsequent historical board is driven after a changed key.",
+  "live29-router-entry.json.gz_sha256": "54b0c6fd3148d869e66cf390a7b66cad25a5d97bfe6288a52297e5beb287d10f"
+}

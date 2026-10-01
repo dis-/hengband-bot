@@ -4782,7 +4782,10 @@ class ShopMixin:
         # Record-only (rev 9.2 C): the walk below runs the errand that
         # ``travel_reason`` names, whatever reason the decision still carries.
         writer_family = self._claim_family_of(travel_reason)
-        if self._defer_town_errand(writer_family, "shopping-approach"):
+        # Progress-invariant repairs use this route producer as detectors;
+        # apply the same exemptions as the other town producer entry gates.
+        if (not self._town_gate_exempt(writer_family, travel_reason, snapshot)
+                and self._defer_town_errand(writer_family, "shopping-approach")):
             return None
         if (
             self._equipment_transaction_owns_town_relocation(snapshot)

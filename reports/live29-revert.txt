@@ -1,0 +1,21 @@
+FF
+======================================================================
+FAIL: test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair) (enforced=True, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_declarations_r14.py", line 46, in test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair
+    self.assertEqual(policy.choose_key(snapshot), '2')
+AssertionError: None != '2'
+
+======================================================================
+FAIL: test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair (tests.test_declarations_r14.DeclarationR14Test.test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair) (enforced=True, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_declarations_r14.py", line 46, in test_recorded_router_entry_keeps_its_declared_wait_through_detector_repair
+    self.assertEqual(policy.choose_key(snapshot), '2')
+AssertionError: None != '2'
+
+----------------------------------------------------------------------
+Ran 1 test in 10.881s
+
+FAILED (failures=2)
