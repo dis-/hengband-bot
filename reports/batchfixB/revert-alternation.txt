@@ -1,0 +1,29 @@
+python.exe : test_first_divergence_preserves_identification_then_clears_weight (tests.test_home_withdraw_deposit_altern
+ation_recorded.HomeWithdrawDepositAlternationRecordedTest.test_first_divergence_preserves_identification_then_clears_we
+ight) ... FAIL
+発生場所 行:2 文字:198
++ ... ration.txt; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_first_dive...eight) ... FAIL:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+======================================================================
+FAIL: test_first_divergence_preserves_identification_then_clears_weight (tests.test_home_withdraw_deposit_alternation_r
+ecorded.HomeWithdrawDepositAlternationRecordedTest.test_first_divergence_preserves_identification_then_clears_weight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_home_withdraw_deposit_alternation_recorded.py", line 92, in test_first_div
+ergence_preserves_identification_then_clears_weight
+    self.assertEqual(selected.slot, "b")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'k' != 'b'
+- k
++ b
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.400s
+
+FAILED (failures=1)
+REVERT alternation detected True

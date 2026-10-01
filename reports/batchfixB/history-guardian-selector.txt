@@ -1,0 +1,39 @@
+HISTORICAL 7410a5cb tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing
+python.exe : test_g1_fallback_does_not_choose_a_blocked_guardian_landing (tests.test_guardian_recall_pingpong_recorded.
+GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing) ... FAIL
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_g1_fallbac...nding) ... FAIL:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+======================================================================
+FAIL: test_g1_fallback_does_not_choose_a_blocked_guardian_landing (tests.test_guardian_recall_pingpong_recorded.Guardia
+nRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_guardian_recall_pingpong_recorded.py", line 404, in test_g1_fallback_does_
+not_choose_a_blocked_guardian_landing
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        decided,
+        ^^^^^^^^
+    ...<3 lines>...
+        ],
+        ^^
+    )
+    ^
+AssertionError: Lists differ: [('~f[90 chars]x1b`n(.', 'equipment-transaction:travel-home')[369 chars]ch')] != [('~f[90
+ chars]x1b`n%.', 'shop:travel'), ('\x1b', 'town-progr[443 chars]mp')]
+
+First differing element 2:
+('\x1b`n(.', 'equipment-transaction:travel-home')
+('\x1b`n%.', 'shop:travel')
+
+Diff is 978 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 1 test in 20.156s
+
+FAILED (failures=1)

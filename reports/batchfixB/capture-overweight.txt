@@ -1,0 +1,47 @@
+python.exe : test_a_genuinely_failing_approach_still_reaches_the_terminal (tests.test_overweight_home_unreachable_recor
+ded.HomeSuccessResetsTheVisitBoundTest.test_a_genuinely_failing_approach_still_reaches_the_terminal) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_a_genuinel...erminal) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+test_an_observed_effect_releases_the_block_its_passes_installed (tests.test_overweight_home_unreachable_recorded.HomeSu
+ccessResetsTheVisitBoundTest.test_an_observed_effect_releases_the_block_its_passes_installed) ... ok
+test_approach_failures_before_an_observed_effect_are_released (tests.test_overweight_home_unreachable_recorded.HomeSucc
+essResetsTheVisitBoundTest.test_approach_failures_before_an_observed_effect_are_released) ... ok
+test_passes_without_an_observed_effect_still_exhaust_the_bound (tests.test_overweight_home_unreachable_recorded.HomeSuc
+cessResetsTheVisitBoundTest.test_passes_without_an_observed_effect_still_exhaust_the_bound) ... ok
+test_successful_home_operations_leave_the_bound_to_a_later_need (tests.test_overweight_home_unreachable_recorded.HomeSu
+ccessResetsTheVisitBoundTest.test_successful_home_operations_leave_the_bound_to_a_later_need) ... ok
+CAPTURED b437811b322cc93d0ac2b0540975aeb22f947e563ade5047f91485db854bb0be [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED b51c8b179dac3c940cb6ff04cd2521bf0c5803828295f50dc5884ea5f28fe6a7 [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 35e98a7c5d30b266cbdac97037fdf9cdc836c88f3555a91d818bc8fbe6c8b7eb [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 79a0fb39f40ca49ba4b7cba78466ef34242e957fe6edd4e02bac43ad2e5eba6c [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 6521bf035e06ca597161d390e9f83b2167277e95a537845c49ef49f91a25031b [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED dbecc3e73b181f22de35870733fd5c21bd3f02de8e1d4c2d1a340fee8a47fd14 [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 9d20cb794da78ba637582b4888d107d31da68a1db0d6a99471506696a018604a [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 0b40e29b498bf22df1cfac732ddb107c2fc6009cad7babb0fa8a69c0254c8324 [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 871bbc042f43602e2d7d5422ed6c51b7e370e7619c54dd1c1eef97892f57717d [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED 8065a7d8e9b8485c86c62f84a56cced78b8b865eb19669de2b044d6786b6c16c [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+CAPTURED a2d3e8192cbc7b9f8f74e0a5291ab84b3342c283b13bb71702e13b1088031fe6 [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:d41cdd36cfec492e:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:bc4c0b6a592823d4:0')]
+test_calibration_transaction_observes_still_complete (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnr
+eachableRecordedTest.test_calibration_transaction_observes_still_complete) ... ok
+test_h1_every_observed_home_effect_resets_the_pass_count (tests.test_overweight_home_unreachable_recorded.OverweightHom
+eUnreachableRecordedTest.test_h1_every_observed_home_effect_resets_the_pass_count) ... ok
+test_h1_stop_board_proceeds_to_the_home_deposit (tests.test_overweight_home_unreachable_recorded.OverweightHomeUnreacha
+bleRecordedTest.test_h1_stop_board_proceeds_to_the_home_deposit) ... ok
+test_production_loot_route_changes_at_the_recorded_boundary (tests.test_overweight_home_unreachable_recorded.Overweight
+HomeUnreachableRecordedTest.test_production_loot_route_changes_at_the_recorded_boundary) ... ok
+test_recorded_home_passes_outlived_observed_home_effects (tests.test_overweight_home_unreachable_recorded.OverweightHom
+eUnreachableRecordedTest.test_recorded_home_passes_outlived_observed_home_effects) ... ok
+test_replay_reproduces_every_recorded_decision_before_the_stop (tests.test_overweight_home_unreachable_recorded.Overwei
+ghtHomeUnreachableRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop) ... ok
+test_s2b2_the_bar_table_records_the_hunts_it_would_bar (tests.test_overweight_home_unreachable_recorded.OverweightHomeU
+nreachableRecordedTest.test_s2b2_the_bar_table_records_the_hunts_it_would_bar) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 410.290s
+
+OK
+CAPTURE overweight 11 True

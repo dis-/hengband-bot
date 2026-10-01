@@ -1,0 +1,13 @@
+python.exe : .........
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.........:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 9 tests in 131.105s
+
+OK
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '5' town:unsafe-recall-fallback target 3
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '5' town:unsafe-recall-fallback target 3

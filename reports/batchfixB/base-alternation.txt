@@ -1,0 +1,25 @@
+python.exe : F.
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (F.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+======================================================================
+FAIL: test_first_divergence_preserves_identification_then_clears_weight (tests.test_home_withdraw_deposit_alternation_r
+ecorded.HomeWithdrawDepositAlternationRecordedTest.test_first_divergence_preserves_identification_then_clears_weight)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_home_withdraw_deposit_alternation_recorded.py", line 92, in test_first_div
+ergence_preserves_identification_then_clears_weight
+    self.assertEqual(selected.slot, "b")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'k' != 'b'
+- k
++ b
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.315s
+
+FAILED (failures=1)

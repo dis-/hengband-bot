@@ -85,6 +85,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_equipment_decisions import recorded_equipment_decisions
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -153,6 +154,10 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
     def setUp(self):
+        # batchfixB / approved dual-wield half-max-melee selection, ruling #9:
+        # guardian/bounce ownership is the subject. Later captured boards
+        # confirm the old gear choice; only that collaborator is an input.
+        self.enterContext(recorded_equipment_decisions("guardian"))
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.directory = Path(directory.name)

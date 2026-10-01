@@ -1,0 +1,3 @@
+0 live '~f\x1b' periodic:skill-exp-knowledge replay '~f\x1b' periodic:skill-exp-knowledge
+1 live '~9\x1b\x1b' home:request-knowledge-scan replay '~9\x1b\x1b' home:request-knowledge-scan
+2 live '\x1b`n(.' shop:travel replay '\x1b`n(.' shop:travel

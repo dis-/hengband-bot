@@ -1,0 +1,28 @@
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertEqual((str(key), policy.last_reason), (
+                "5  pe\x1b", "equipment-transaction:atomic-withdraw",
+            ))
+  after: self.assertEqual((str(key), policy.last_reason), (
+                "5pb1\r\x1b", "home:atomic-withdraw",
+            ))
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertAlmostEqual(shield_hand.hit_chance_ac100, 0.74)
+  after: self.assertAlmostEqual(shield_hand.hit_chance_ac100, 0.72)
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertAlmostEqual(empty_hand.hit_chance_ac100, 0.76)
+  after: self.assertAlmostEqual(empty_hand.hit_chance_ac100, 0.74)
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertAlmostEqual(shield_hand.expected_damage_per_hit,
+                                   35.49950111042539)
+  after: self.assertAlmostEqual(shield_hand.expected_damage_per_hit,
+                                   27.378331183077933)
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertAlmostEqual(empty_hand.expected_damage_per_hit,
+                                   37.62067103777284)
+  after: self.assertAlmostEqual(empty_hand.expected_damage_per_hit,
+                                   29.499501110425385)
+CHANGED tests/test_home_withdraw_failed_stock_present_recorded.py:HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board
+  before: self.assertEqual(selection.best.loadout.item_ids,
+                             theoden_empty.item_ids)
+  after: self.assertEqual(selection.best.loadout.item_ids,
+                             avabia_shield.item_ids)
