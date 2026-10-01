@@ -1,0 +1,15 @@
+live33 first divergence '5' home:atomic-deposit live None ownership:declaration-unrestored:calibration shadow None
+F.
+======================================================================
+FAIL: test_recorded_deposit_continues_and_shadow_agrees (tests.test_calibration_live33.Live33CalibrationTest.test_recorded_deposit_continues_and_shadow_agrees)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_calibration_live33.py", line 57, in test_recorded_deposit_continues_and_shadow_agrees
+    self.assertEqual(key, "5")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+AssertionError: None != '5'
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.401s
+
+FAILED (failures=1)
