@@ -1121,6 +1121,13 @@ def _stable_operational_best(
             or launcher_damage.get(bow.id, 0.0) == best_launcher_damage
         ]
 
+    # Apply the existing half-melee limit within the already requirement-valid
+    # field before survival can reward optional resistance coverage. Otherwise
+    # a low-DPS tank becomes both the winner and its own melee_free baseline.
+    max_melee = max(entry.metrics.expected_dps for entry in pool)
+    if max_melee > 0:
+        pool = [entry for entry in pool if entry.metrics.expected_dps * 2 >= max_melee]
+
     # Survival-sufficiency gate.  Loadouts that survive at least
     # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
     # and margin filters below choose offense-first among them (this is why a
@@ -1311,7 +1318,7 @@ def optimize_loadout(
         )
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
-        melee_free = free_best.metrics.expected_dps
+        melee_free = max(entry.metrics.expected_dps for entry in evaluated)
         for band in (81, 80, 49, 39, 30, 25, 20, 19):
             satisfying = [
                 entry

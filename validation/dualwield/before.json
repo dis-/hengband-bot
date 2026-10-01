@@ -1,0 +1,199 @@
+﻿{
+  "turn": 1493274,
+  "catalog_size": 40,
+  "inputs": {
+    "level": 25,
+    "natural_str": 155,
+    "natural_dex": 69,
+    "melee_skill": 175,
+    "shooting_skill": 130,
+    "two_weapon_skill": 4556,
+    "valour_hit_bonus": 0,
+    "lazy_personality": false
+  },
+  "considered": 6588,
+  "evaluated": 6588,
+  "chosen_band": 20,
+  "bands": [
+    {
+      "band": 81,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 80,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 49,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 39,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 30,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 25,
+      "satisfying_set_existed": false,
+      "melee": null,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": "no-set",
+      "ratio": null
+    },
+    {
+      "band": 20,
+      "satisfying_set_existed": true,
+      "melee": 16.816407183591124,
+      "melee_free": 16.816407183591124,
+      "refusal_reason": null,
+      "ratio": 1.0
+    }
+  ],
+  "loadouts": {
+    "spear_two_handed": {
+      "slots": {
+        "arms": "equipped:aa2dc39428972b1c:0",
+        "body": "equipped:264166cee058ac24:0",
+        "bow": "equipped:9ac78bf75ce376f6:0",
+        "light": "equipped:cf9cbd9f667b29b6:0",
+        "main_hand": "equipped:0b36c2bb2a1bf7fa:0",
+        "main_ring": "equipped:d505049098c29136:0",
+        "neck": "equipped:8486b7fecf6c8c06:0",
+        "outer": "equipped:84b8e905728393f7:0",
+        "sub_ring": "equipped:088c46cfa1466f1c:0"
+      },
+      "melee": 110.50802295384614,
+      "survival": 6.971768672899432,
+      "margin": 1.3452495213196318,
+      "hands": [
+        {
+          "blows": 4,
+          "to_hit": 35,
+          "to_damage": 23,
+          "hit_reliability": 313,
+          "hit_chance_ac100": 0.74,
+          "expected_damage_per_hit": 37.33379153846153
+        }
+      ]
+    },
+    "scythe_two_handed": {
+      "slots": {
+        "arms": "equipped:aa2dc39428972b1c:0",
+        "body": "equipped:264166cee058ac24:0",
+        "bow": "equipped:9ac78bf75ce376f6:0",
+        "light": "equipped:cf9cbd9f667b29b6:0",
+        "main_hand": "equipped:3ab6c26319e92e77:0",
+        "main_ring": "equipped:d505049098c29136:0",
+        "neck": "equipped:8486b7fecf6c8c06:0",
+        "outer": "equipped:84b8e905728393f7:0",
+        "sub_ring": "equipped:088c46cfa1466f1c:0"
+      },
+      "melee": 178.3940894773091,
+      "survival": 5.914599384189424,
+      "margin": 2.429195190727497,
+      "hands": [
+        {
+          "blows": 4,
+          "to_hit": 35,
+          "to_damage": 23,
+          "hit_reliability": 304,
+          "hit_chance_ac100": 0.73,
+          "expected_damage_per_hit": 61.09386625935244
+        }
+      ]
+    },
+    "dual": {
+      "slots": {
+        "arms": "equipped:aa2dc39428972b1c:0",
+        "body": "equipped:264166cee058ac24:0",
+        "bow": "equipped:9ac78bf75ce376f6:0",
+        "light": "equipped:cf9cbd9f667b29b6:0",
+        "main_hand": "equipped:0b36c2bb2a1bf7fa:0",
+        "main_ring": "equipped:d505049098c29136:0",
+        "neck": "equipped:8486b7fecf6c8c06:0",
+        "outer": "equipped:84b8e905728393f7:0",
+        "sub_hand": "equipped:3ab6c26319e92e77:0",
+        "sub_ring": "equipped:088c46cfa1466f1c:0"
+      },
+      "melee": 16.816407183591124,
+      "survival": 7.329822524588722,
+      "margin": -29.644514547823675,
+      "hands": [
+        {
+          "blows": 5,
+          "to_hit": -53,
+          "to_damage": 15,
+          "hit_reliability": 49,
+          "hit_chance_ac100": 0.05,
+          "expected_damage_per_hit": 28.762048769230766
+        },
+        {
+          "blows": 4,
+          "to_hit": -79,
+          "to_damage": 13,
+          "hit_reliability": -38,
+          "hit_chance_ac100": 0.05,
+          "expected_damage_per_hit": 48.12947495641716
+        }
+      ]
+    },
+    "chosen": {
+      "slots": {
+        "main_ring": "equipped:d505049098c29136:0",
+        "sub_ring": "equipped:088c46cfa1466f1c:0",
+        "bow": "equipped:9ac78bf75ce376f6:0",
+        "neck": "equipped:8486b7fecf6c8c06:0",
+        "light": "equipped:cf9cbd9f667b29b6:0",
+        "body": "equipped:264166cee058ac24:0",
+        "outer": "equipped:84b8e905728393f7:0",
+        "arms": "equipped:aa2dc39428972b1c:0",
+        "main_hand": "equipped:0b36c2bb2a1bf7fa:0",
+        "sub_hand": "equipped:3ab6c26319e92e77:0"
+      },
+      "melee": 16.816407183591124,
+      "survival": 7.329822524588722,
+      "margin": -29.644514547823675,
+      "hands": [
+        {
+          "blows": 5,
+          "to_hit": -53,
+          "to_damage": 15,
+          "hit_reliability": 49,
+          "hit_chance_ac100": 0.05,
+          "expected_damage_per_hit": 28.762048769230766
+        },
+        {
+          "blows": 4,
+          "to_hit": -79,
+          "to_damage": 13,
+          "hit_reliability": -38,
+          "hit_chance_ac100": 0.05,
+          "expected_damage_per_hit": 48.12947495641716
+        }
+      ]
+    }
+  }
+}

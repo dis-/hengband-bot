@@ -1,0 +1,76 @@
+FFF.EF
+======================================================================
+ERROR: test_search_report_keeps_actual_combat_inputs_and_hand_terms (tests.test_dualwield_recorded.RecordedDualWieldTest.test_search_report_keeps_actual_combat_inputs_and_hand_terms)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_dualwield_recorded.py", line 109, in test_search_report_keeps_actual_combat_inputs_and_hand_terms
+    self.assertEqual(report["combat_inputs"]["two_weapon_skill"], 4556)
+                     ~~~~~~^^^^^^^^^^^^^^^^^
+KeyError: 'combat_inputs'
+
+======================================================================
+FAIL: test_corrected_four_loadouts_and_real_optimizer_entry (tests.test_dualwield_recorded.RecordedDualWieldTest.test_corrected_four_loadouts_and_real_optimizer_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_dualwield_recorded.py", line 69, in test_corrected_four_loadouts_and_real_optimizer_entry
+    self.assertEqual(result.best.loadout.hand_mode, "two_handed")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'dual_wield' != 'two_handed'
+- dual_wield
++ two_handed
+
+
+======================================================================
+FAIL: test_optional_resist_survival_cannot_erase_most_melee_at_fixed_depth (tests.test_dualwield_recorded.RecordedDualWieldTest.test_optional_resist_survival_cannot_erase_most_melee_at_fixed_depth)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_dualwield_recorded.py", line 89, in test_optional_resist_survival_cannot_erase_most_melee_at_fixed_depth
+    self.assertEqual(result.best.loadout.hand_mode, "two_handed")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'dual_wield' != 'two_handed'
+- dual_wield
++ two_handed
+
+
+======================================================================
+FAIL: test_per_hand_arithmetic_reproduces_game_and_dump (tests.test_dualwield_recorded.RecordedDualWieldTest.test_per_hand_arithmetic_reproduces_game_and_dump)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_dualwield_recorded.py", line 56, in test_per_hand_arithmetic_reproduces_game_and_dump
+    self.assertEqual([(h.to_hit, h.to_damage, h.blows) for h in hands],
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     [(-57, 11, 5), (-82, 10, 4)])
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [(-53, 15, 5), (-79, 13, 4)] != [(-57, 11, 5), (-82, 10, 4)]
+
+First differing element 0:
+(-53, 15, 5)
+(-57, 11, 5)
+
+- [(-53, 15, 5), (-79, 13, 4)]
+?     ^   ^        ^^   ^
+
++ [(-57, 11, 5), (-82, 10, 4)]
+?     ^   ^        ^^   ^
+
+
+======================================================================
+FAIL: test_two_handed_bonus_includes_both_rings (tests.test_dualwield_recorded.RecordedDualWieldTest.test_two_handed_bonus_includes_both_rings)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_dualwield_recorded.py", line 101, in test_two_handed_bonus_includes_both_rings
+    self.assertEqual((hand.to_hit - baseline.to_hit, hand.to_damage - baseline.to_damage), (2, 3))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (0, 0) != (2, 3)
+
+First differing element 0:
+0
+2
+
+- (0, 0)
++ (2, 3)
+
+----------------------------------------------------------------------
+Ran 6 tests in 5.651s
+
+FAILED (failures=4, errors=1)
