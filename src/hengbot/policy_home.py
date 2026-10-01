@@ -1990,7 +1990,7 @@ class HomeMixin:
         if signature is None:
             if self._home_pending_item is not None:
                 signature = self._home_pending_item
-            if self._home_pending_batch:
+            elif self._home_pending_batch:
                 signature = self._home_pending_batch[0]
         if self._home_random_teleport_withdrawal == signature:
             self._home_random_teleport_withdrawal = None

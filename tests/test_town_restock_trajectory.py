@@ -79,6 +79,24 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             "restock-store-unreachable"
         )
 
+    @staticmethod
+    def _released_route(fixture, index, seed=None):
+        """The released-restock producer's route on one recorded board."""
+        _row, policy_blob, snapshot_blob = checkpoint_row(fixture, index)
+        policy, snapshot = restore_incident_checkpoint(
+            HengbotPolicy, policy_blob, snapshot_blob
+        )
+        if snapshot.in_town and policy.__dict__.get("_town_visit_epoch") is None:
+            policy.__dict__["_town_visit_epoch"] = snapshot.turn
+        if seed is not None:
+            seed(policy)
+        snapshot = policy._with_grid_memory(snapshot)
+        policy._begin_map_predicate_cache(snapshot)
+        key = policy._released_restock_store_key(
+            snapshot, (STORE_TEMPLE, STORE_ALCHEMIST)
+        )
+        return policy.last_reason, key
+
     def test_hungry_character_escapes_recall_restock_owner_alternation(self):
         transcript = replay_checkpoint_trajectory(
             HengbotPolicy,
@@ -106,13 +124,19 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             forbidden_reasons={
                 "town:blocked:restock-store-unreachable",
             },
-            required_reason_prefix="shop:",
+            required_reason_prefix="wield-light",
         )
-        self.assertEqual(len(transcript), 4)
-        self.assertTrue(all(
-            reason == "shop:travel" and key == "\x1b`n&."
-            for reason, key in transcript
-        ))
+        # Equipped C-sheet calibration rework: these recorded boards keep an
+        # exhausted torch worn beside a pack lantern because the retired strip
+        # calibration held equipment changes (the base code re-armed its
+        # deposit phase on them).  Without the strip phase the public first
+        # decision is the ordinary light swap; the forbidden owner cycle still
+        # never recurs, and the routing producer is pinned on the same boards.
+        self.assertEqual(transcript, (("wield-light", "we"),) * 4)
+        for index in (220, 221, 223, 242):
+            with self.subTest(index=index):
+                self.assertEqual(self._released_route(fixture, index),
+                                 ("shop:travel", "\x1b`n&."))
 
     def test_recall_supplier_releases_stale_home_route(self):
         fixture = (
@@ -127,7 +151,7 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             forbidden_reasons={
                 "town:blocked:restock-store-unreachable",
             },
-            required_reason_prefix="shop:",
+            required_reason_prefix="wield-light",
             # This reviewer variant CAN occur through the released-restock
             # path, but was not naturally captured.  Preserve the real
             # pre-decision policy and seed only food readiness and the released
@@ -135,7 +159,15 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             # the real checkpoint.
             seed_policy=self._seed_recall_variant,
         )
-        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+        # Equipped C-sheet calibration rework: the recorded board's public
+        # first decision is the light swap the retired strip phase held
+        # (see test_mana_device_reserve_releases_stale_home_route); the
+        # routing producer is pinned on the same board below.
+        self.assertEqual(transcript, (("wield-light", "we"),))
+        self.assertEqual(
+            self._released_route(fixture, 220, self._seed_recall_variant),
+            ("shop:travel", "\x1b`n%."),
+        )
 
     def test_fresh_recall_requirement_routes_before_waiting(self):
         """R1 revert proof: removing the attempted-suppliers gate returns wait-restock."""
@@ -151,10 +183,20 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz",
             (220,),
             forbidden_reasons={"town:wait-restock:temple"},
-            required_reason_prefix="shop:",
+            required_reason_prefix="wield-light",
             seed_policy=seed,
         )
-        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+        # Equipped C-sheet calibration rework: the recorded board's public
+        # first decision is the light swap the retired strip phase held
+        # (see test_mana_device_reserve_releases_stale_home_route); the
+        # routing producer is pinned on the same board below.
+        self.assertEqual(transcript, (("wield-light", "we"),))
+        self.assertEqual(
+            self._released_route(
+                self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz",
+                220, seed),
+            ("shop:travel", "\x1b`n%."),
+        )
 
     def test_affordable_remembered_recall_stock_routes_to_supplier(self):
         """R2 revert proof: removing recall.obtainable restores the blocked terminal."""
@@ -181,10 +223,14 @@ class TownRestockStallTrajectoryTest(unittest.TestCase):
             self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz",
             (220,),
             forbidden_reasons={"town:blocked:restocked-recall-unavailable"},
-            required_reason_prefix="shop:",
+            required_reason_prefix="wield-light",
             seed_policy=seed,
         )
-        self.assertEqual(transcript, (("shop:travel", "\x1b`n%."),))
+        # Equipped C-sheet calibration rework: the recorded board's public
+        # first decision is the light swap the retired strip phase held
+        # (see test_mana_device_reserve_releases_stale_home_route); the
+        # recall restock producer is pinned on the same board below.
+        self.assertEqual(transcript, (("wield-light", "we"),))
         path = self.FIXTURE.parent / "recall-store-unreachable-checkpoints.jsonl.gz"
         _row, policy_blob, snapshot_blob = checkpoint_row(path, 220)
         policy, snapshot = restore_incident_checkpoint(

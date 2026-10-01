@@ -6026,7 +6026,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = "route.resume"
             elif family == "quest-request" and continuation == "bounty.resume":
                 step = "bounty.resume"
-            if continuation in {"home.knowledge.observe", "store.entry.observe",
+            elif continuation in {"home.knowledge.observe", "store.entry.observe",
                                   "home.operation.observe", "shop.one-shot.dispatch"}:
                 return None
             elif continuation == "departure.step-off-entrance":
@@ -6142,7 +6142,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else:
                     self.last_reason = "equipment-transaction:await-confirmation"
                     return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
-            if declaration.continuation in {
+            elif declaration.continuation in {
                 "home.knowledge.observe", "store.entry.observe",
                 "home.operation.observe", "shop.one-shot.dispatch",
             }:
@@ -12189,7 +12189,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         session needs to execute.
         """
         preparation = self._equipment_optimization_preparation
-        blockers = getattr(preparation, "blockers", ())
+        # R1: an unavailable calibration skips optimization; it is not work
+        # that owns a Home route or can exhaust one.
+        blockers = tuple(
+            blocker for blocker in getattr(preparation, "blockers", ())
+            if not (blocker == "calibration-required"
+                    or blocker.startswith("calibration-stale:"))
+        )
         optimization_already_applied = self._optimization_already_applied(preparation)
         return bool(blockers and (not optimization_already_applied) or self._equipment_transaction_session is not None or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None))
 
@@ -12985,25 +12991,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
         preparation = self._prepare_equipment_optimization(snapshot)
-        if preparation is not None and any(
+        # R1: unavailable calibration skips optimization; it never names a
+        # terminal equipment blocker.
+        calibration_unavailable = preparation is not None and any(
             blocker == "calibration-required" or blocker.startswith("calibration-stale:")
             for blocker in preparation.blockers
-        ):
-            return None
+        )
         if (
-            STORE_HOME in self._town_visit_ledger.blocked_stores
+            not calibration_unavailable
+            and STORE_HOME in self._town_visit_ledger.blocked_stores
             and (preparation is None or preparation.result is None)
         ):
             return "equipment-home-unavailable"
         if (
-            preparation is not None
+            not calibration_unavailable
+            and preparation is not None
             and "optimization-timeout" in preparation.blockers
             and not self._equipment_departure_ready(snapshot)
         ):
             return "equipment-optimization-timeout"
+        # The required-store evaluation also runs the town terminal
+        # transitions (a stock-out installs its restock wait), so it runs
+        # before the calibration return exactly as it did before R1.
         if (
             preparation is None
             or self._next_required_store_type(snapshot) is not None
+            or calibration_unavailable
         ):
             return None
         if "no-valid-loadout" in preparation.blockers:

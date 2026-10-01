@@ -121,12 +121,6 @@ def normalize_policy_state(restored, *, restart=False):
             import uuid
             restored._calibration_session_id = uuid.uuid4().hex
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
-    # Construct defaults separately; never rerun __init__ on restored physical
-    # state. Missing mutable values are independent, not shared across policies.
-    defaults = type(restored)(monrace_knowledge={})
-    for name, value in defaults.__dict__.items():
-        if name not in restored.__dict__:
-            restored.__dict__[name] = deepcopy(value)
     restored.__dict__.setdefault("_remembered_grid_sources", {})
     restored.__dict__.setdefault("_remembered_grid_signatures", {})
     restored.__dict__.setdefault("_threat_prediction_memo", {})
@@ -308,5 +302,15 @@ def normalize_policy_state(restored, *, restart=False):
                 registry._pending[owner] = replace(
                     pending, progress_core=upgraded
                 )
+    # Every remaining attribute of a fresh policy, last: the explicit legacy
+    # defaults above win (for example ``_town_turn_arbiter=None`` keeps a
+    # pre-arbiter checkpoint's ``_store_visit`` on its migration path, where
+    # a fresh arbiter would resurrect it after an explicit close).  Construct
+    # defaults separately; never rerun __init__ on restored physical state.
+    # Missing mutable values are independent, not shared across policies.
+    defaults = type(restored)(monrace_knowledge={})
+    for name, value in defaults.__dict__.items():
+        if name not in restored.__dict__:
+            restored.__dict__[name] = deepcopy(value)
     restored._policy_state_version = 3
     return restored

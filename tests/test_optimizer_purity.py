@@ -539,13 +539,17 @@ class CharacterCalibrationTest(unittest.TestCase):
     def test_character_intrinsic_flags_reads_the_naked_flag_table(self):
         from hengbot.warrior_optimization import character_intrinsic_flags
 
+        # The game prints the immunity/vulnerability columns on the elemental
+        # resistance rows (the calibration rework's reading of the visible
+        # table): RES_FIRE's vulnerability mark is TR_VUL_FIRE (155) and
+        # RES_ACID's immunity mark is TR_IM_ACID (40).
         rows = [
-            {"flag_id": 155, "player": False, "vulnerability": True},
-            {"flag_id": 40, "player": False, "immunity": True},
+            {"flag_id": 50, "player": False, "vulnerability": True},
+            {"flag_id": 48, "player": False, "immunity": True},
             {"flag_id": 36, "player": True},
-            {"flag_id": 48, "player": False},
+            {"flag_id": 49, "player": False},
             # Temporary effects must never contaminate the constants.
-            {"flag_id": 50, "player": False, "temporary": True,
+            {"flag_id": 51, "player": False, "temporary": True,
              "temporary_immunity": True},
             "garbage",
         ]

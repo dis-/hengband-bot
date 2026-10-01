@@ -2171,7 +2171,9 @@ class NewestSnapshotTest(unittest.TestCase):
         policy = SimpleNamespace(
             _home_knowledge_scan_inflight=False,
             _look_probe_inflight=False,
-            observe_character_snapshot=lambda _character: None,
+            # The dispatcher passes the response envelope (equipped C
+            # calibration correlates the dump with its response epoch).
+            observe_character_snapshot=lambda _character, **_envelope: None,
         )
         real_loads = json.loads
         with patch("hengbot.cli.json.loads", wraps=real_loads) as loads:
@@ -2201,7 +2203,7 @@ class NewestSnapshotTest(unittest.TestCase):
             _home_knowledge_scan_inflight=False,
             _look_probe_inflight=True,
             consume_look=lambda data: observed.append(("look", data)),
-            observe_character_snapshot=lambda data: observed.append(
+            observe_character_snapshot=lambda data, **_envelope: observed.append(
                 ("character", data)
             ),
         )
