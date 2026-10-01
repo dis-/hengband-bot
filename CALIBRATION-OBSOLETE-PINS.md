@@ -222,7 +222,14 @@ Additional preserved split methods: `test_s33_shadow.py:ShadowVerdictTest.test_d
 
 Restored (review P5): `test_policy_calibration.py:EquippedObservationLifecycleTest.test_mutation_change_invalidates_the_cached_calibration` replaces the retired `CharacterCalibrationPhaseTest` method around an equipped observation.
 
-Retired: `test_declarations_r7.py:CalibrationRows.test_overweight_new_deposit_does_not_flag_completed_old_claim` - it declares a claim of the retired `calibration` family.
+Retired (each pins a strip phase, the calibration family, or a recorded strip-session board):
+
+- `test_declarations_r7.py:CalibrationRows.test_overweight_new_deposit_does_not_flag_completed_old_claim` - declares a claim of the retired `calibration` family.
+- `test_town_unaffordable_supplies.py`: `test_restart_recording_finishes_started_calibration_before_fundraising`, `test_restart_replay_stops_at_the_first_live_key_divergence`, `test_recorded_board_keeps_calibration_owner_before_fundraising` - the strip deposit-all Home visit and `_town_order_operation == "calibration"`.
+- `test_overweight_home_unreachable_recorded.py:OverweightHomeUnreachableRecordedTest.test_calibration_transaction_observes_still_complete` - strip calibration transaction endings.
+- `test_policy_home.py:RecordedHomeStayReentryIncidentTest` (`test_p1_...`, `test_p2_...`, `test_p3_...`) - the `calibration:atomic-restore-withdraw` incident replay.
+- `test_policy_home.py:...test_live_route_claim_window_does_not_latch_under_reactive_drive` - pins the `claim-uncomposable:calibration-restore:...` attempt reason.
+- `test_policy_town.py:OrganizationDepartureRecordedTest.test_o4_refusal_producer_publishes_exact_failed_leaf` - its only failed leaf was the uncalibrated equipment gate, which R1 removes.
 
 Expectations changed as a direct result of removing the strip phases (each verified by running the base code with its strip state cleared and its re-arming disabled, which reproduces the new decision), with a comment at each site:
 
