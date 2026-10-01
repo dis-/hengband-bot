@@ -1,0 +1,5913 @@
+{
+  "revision": "70b9772b",
+  "rows": 2661,
+  "next_row_complete": 829,
+  "next_rows": [
+    [
+      2,
+      "shop:travel"
+    ],
+    [
+      4,
+      "shop:travel"
+    ],
+    [
+      8,
+      "shop:travel"
+    ],
+    [
+      18,
+      "shop:travel"
+    ],
+    [
+      39,
+      "explore"
+    ],
+    [
+      40,
+      "explore"
+    ],
+    [
+      41,
+      "explore"
+    ],
+    [
+      42,
+      "explore"
+    ],
+    [
+      43,
+      "explore"
+    ],
+    [
+      44,
+      "explore"
+    ],
+    [
+      45,
+      "explore"
+    ],
+    [
+      46,
+      "explore"
+    ],
+    [
+      47,
+      "explore"
+    ],
+    [
+      48,
+      "explore"
+    ],
+    [
+      49,
+      "explore"
+    ],
+    [
+      50,
+      "explore"
+    ],
+    [
+      51,
+      "explore"
+    ],
+    [
+      52,
+      "explore"
+    ],
+    [
+      53,
+      "explore"
+    ],
+    [
+      54,
+      "explore"
+    ],
+    [
+      55,
+      "explore"
+    ],
+    [
+      56,
+      "explore"
+    ],
+    [
+      57,
+      "explore"
+    ],
+    [
+      58,
+      "explore"
+    ],
+    [
+      59,
+      "explore"
+    ],
+    [
+      60,
+      "explore"
+    ],
+    [
+      61,
+      "explore"
+    ],
+    [
+      62,
+      "explore"
+    ],
+    [
+      63,
+      "explore"
+    ],
+    [
+      64,
+      "explore"
+    ],
+    [
+      65,
+      "explore"
+    ],
+    [
+      66,
+      "explore"
+    ],
+    [
+      67,
+      "explore"
+    ],
+    [
+      70,
+      "explore"
+    ],
+    [
+      71,
+      "explore"
+    ],
+    [
+      72,
+      "explore"
+    ],
+    [
+      73,
+      "explore"
+    ],
+    [
+      74,
+      "explore"
+    ],
+    [
+      75,
+      "explore"
+    ],
+    [
+      76,
+      "explore"
+    ],
+    [
+      77,
+      "explore"
+    ],
+    [
+      78,
+      "explore"
+    ],
+    [
+      79,
+      "explore"
+    ],
+    [
+      80,
+      "explore"
+    ],
+    [
+      81,
+      "explore"
+    ],
+    [
+      82,
+      "explore"
+    ],
+    [
+      83,
+      "explore"
+    ],
+    [
+      84,
+      "explore"
+    ],
+    [
+      85,
+      "explore"
+    ],
+    [
+      86,
+      "explore"
+    ],
+    [
+      87,
+      "explore"
+    ],
+    [
+      88,
+      "explore"
+    ],
+    [
+      89,
+      "explore"
+    ],
+    [
+      90,
+      "explore"
+    ],
+    [
+      91,
+      "explore"
+    ],
+    [
+      92,
+      "explore"
+    ],
+    [
+      93,
+      "explore"
+    ],
+    [
+      94,
+      "explore"
+    ],
+    [
+      95,
+      "explore"
+    ],
+    [
+      96,
+      "explore"
+    ],
+    [
+      97,
+      "explore"
+    ],
+    [
+      98,
+      "explore"
+    ],
+    [
+      99,
+      "explore"
+    ],
+    [
+      100,
+      "explore"
+    ],
+    [
+      101,
+      "explore"
+    ],
+    [
+      102,
+      "explore"
+    ],
+    [
+      103,
+      "explore"
+    ],
+    [
+      104,
+      "explore"
+    ],
+    [
+      105,
+      "explore"
+    ],
+    [
+      106,
+      "explore"
+    ],
+    [
+      107,
+      "explore"
+    ],
+    [
+      108,
+      "explore"
+    ],
+    [
+      109,
+      "explore"
+    ],
+    [
+      110,
+      "explore"
+    ],
+    [
+      111,
+      "explore"
+    ],
+    [
+      112,
+      "explore"
+    ],
+    [
+      113,
+      "explore"
+    ],
+    [
+      114,
+      "explore"
+    ],
+    [
+      115,
+      "explore"
+    ],
+    [
+      116,
+      "explore"
+    ],
+    [
+      117,
+      "explore"
+    ],
+    [
+      118,
+      "explore"
+    ],
+    [
+      119,
+      "explore"
+    ],
+    [
+      120,
+      "explore"
+    ],
+    [
+      121,
+      "explore"
+    ],
+    [
+      122,
+      "explore"
+    ],
+    [
+      123,
+      "explore"
+    ],
+    [
+      124,
+      "explore"
+    ],
+    [
+      125,
+      "explore"
+    ],
+    [
+      126,
+      "explore"
+    ],
+    [
+      127,
+      "explore"
+    ],
+    [
+      128,
+      "explore"
+    ],
+    [
+      129,
+      "explore"
+    ],
+    [
+      130,
+      "explore"
+    ],
+    [
+      131,
+      "explore"
+    ],
+    [
+      132,
+      "explore"
+    ],
+    [
+      133,
+      "explore"
+    ],
+    [
+      134,
+      "explore"
+    ],
+    [
+      135,
+      "explore"
+    ],
+    [
+      136,
+      "explore"
+    ],
+    [
+      137,
+      "explore"
+    ],
+    [
+      138,
+      "explore"
+    ],
+    [
+      139,
+      "explore"
+    ],
+    [
+      140,
+      "explore"
+    ],
+    [
+      141,
+      "explore"
+    ],
+    [
+      142,
+      "explore"
+    ],
+    [
+      143,
+      "explore"
+    ],
+    [
+      144,
+      "explore"
+    ],
+    [
+      145,
+      "explore"
+    ],
+    [
+      146,
+      "explore"
+    ],
+    [
+      345,
+      "explore"
+    ],
+    [
+      747,
+      "explore"
+    ],
+    [
+      749,
+      "explore"
+    ],
+    [
+      755,
+      "explore"
+    ],
+    [
+      756,
+      "explore"
+    ],
+    [
+      757,
+      "explore"
+    ],
+    [
+      758,
+      "explore"
+    ],
+    [
+      759,
+      "explore"
+    ],
+    [
+      760,
+      "explore"
+    ],
+    [
+      761,
+      "explore"
+    ],
+    [
+      762,
+      "explore"
+    ],
+    [
+      763,
+      "explore"
+    ],
+    [
+      764,
+      "explore"
+    ],
+    [
+      765,
+      "explore"
+    ],
+    [
+      766,
+      "explore"
+    ],
+    [
+      772,
+      "explore"
+    ],
+    [
+      773,
+      "explore"
+    ],
+    [
+      774,
+      "explore"
+    ],
+    [
+      775,
+      "explore"
+    ],
+    [
+      776,
+      "explore"
+    ],
+    [
+      777,
+      "explore"
+    ],
+    [
+      778,
+      "explore"
+    ],
+    [
+      779,
+      "explore"
+    ],
+    [
+      780,
+      "explore"
+    ],
+    [
+      781,
+      "explore"
+    ],
+    [
+      782,
+      "explore"
+    ],
+    [
+      783,
+      "explore"
+    ],
+    [
+      784,
+      "explore"
+    ],
+    [
+      785,
+      "explore"
+    ],
+    [
+      786,
+      "explore"
+    ],
+    [
+      787,
+      "explore"
+    ],
+    [
+      788,
+      "explore"
+    ],
+    [
+      789,
+      "explore"
+    ],
+    [
+      790,
+      "explore"
+    ],
+    [
+      791,
+      "explore"
+    ],
+    [
+      792,
+      "explore"
+    ],
+    [
+      793,
+      "explore"
+    ],
+    [
+      794,
+      "explore"
+    ],
+    [
+      795,
+      "explore"
+    ],
+    [
+      796,
+      "explore"
+    ],
+    [
+      797,
+      "explore"
+    ],
+    [
+      798,
+      "explore"
+    ],
+    [
+      799,
+      "explore"
+    ],
+    [
+      800,
+      "explore"
+    ],
+    [
+      801,
+      "explore"
+    ],
+    [
+      802,
+      "explore"
+    ],
+    [
+      803,
+      "explore"
+    ],
+    [
+      804,
+      "explore"
+    ],
+    [
+      805,
+      "explore"
+    ],
+    [
+      806,
+      "explore"
+    ],
+    [
+      807,
+      "explore"
+    ],
+    [
+      808,
+      "explore"
+    ],
+    [
+      809,
+      "explore"
+    ],
+    [
+      810,
+      "explore"
+    ],
+    [
+      811,
+      "explore"
+    ],
+    [
+      812,
+      "explore"
+    ],
+    [
+      813,
+      "explore"
+    ],
+    [
+      814,
+      "explore"
+    ],
+    [
+      815,
+      "explore"
+    ],
+    [
+      816,
+      "explore"
+    ],
+    [
+      817,
+      "explore"
+    ],
+    [
+      818,
+      "explore"
+    ],
+    [
+      819,
+      "explore"
+    ],
+    [
+      820,
+      "explore"
+    ],
+    [
+      821,
+      "explore"
+    ],
+    [
+      822,
+      "explore"
+    ],
+    [
+      823,
+      "explore"
+    ],
+    [
+      824,
+      "explore"
+    ],
+    [
+      825,
+      "explore"
+    ],
+    [
+      826,
+      "explore"
+    ],
+    [
+      827,
+      "explore"
+    ],
+    [
+      828,
+      "explore"
+    ],
+    [
+      829,
+      "explore"
+    ],
+    [
+      830,
+      "explore"
+    ],
+    [
+      831,
+      "explore"
+    ],
+    [
+      832,
+      "explore"
+    ],
+    [
+      833,
+      "explore"
+    ],
+    [
+      834,
+      "explore"
+    ],
+    [
+      835,
+      "explore"
+    ],
+    [
+      836,
+      "explore"
+    ],
+    [
+      837,
+      "explore"
+    ],
+    [
+      838,
+      "explore"
+    ],
+    [
+      839,
+      "explore"
+    ],
+    [
+      840,
+      "explore"
+    ],
+    [
+      841,
+      "explore"
+    ],
+    [
+      844,
+      "explore"
+    ],
+    [
+      845,
+      "explore"
+    ],
+    [
+      846,
+      "explore"
+    ],
+    [
+      847,
+      "explore"
+    ],
+    [
+      848,
+      "explore"
+    ],
+    [
+      849,
+      "explore"
+    ],
+    [
+      850,
+      "explore"
+    ],
+    [
+      851,
+      "explore"
+    ],
+    [
+      852,
+      "explore"
+    ],
+    [
+      853,
+      "explore"
+    ],
+    [
+      854,
+      "explore"
+    ],
+    [
+      855,
+      "explore"
+    ],
+    [
+      856,
+      "explore"
+    ],
+    [
+      857,
+      "explore"
+    ],
+    [
+      858,
+      "explore"
+    ],
+    [
+      859,
+      "explore"
+    ],
+    [
+      860,
+      "explore"
+    ],
+    [
+      861,
+      "explore"
+    ],
+    [
+      862,
+      "explore"
+    ],
+    [
+      863,
+      "explore"
+    ],
+    [
+      864,
+      "explore"
+    ],
+    [
+      865,
+      "explore"
+    ],
+    [
+      866,
+      "explore"
+    ],
+    [
+      867,
+      "explore"
+    ],
+    [
+      868,
+      "explore"
+    ],
+    [
+      869,
+      "explore"
+    ],
+    [
+      870,
+      "explore"
+    ],
+    [
+      871,
+      "explore"
+    ],
+    [
+      872,
+      "explore"
+    ],
+    [
+      873,
+      "explore"
+    ],
+    [
+      874,
+      "explore"
+    ],
+    [
+      875,
+      "explore"
+    ],
+    [
+      876,
+      "explore"
+    ],
+    [
+      877,
+      "explore"
+    ],
+    [
+      878,
+      "explore"
+    ],
+    [
+      879,
+      "explore"
+    ],
+    [
+      880,
+      "explore"
+    ],
+    [
+      881,
+      "explore"
+    ],
+    [
+      882,
+      "explore"
+    ],
+    [
+      883,
+      "explore"
+    ],
+    [
+      885,
+      "explore"
+    ],
+    [
+      896,
+      "explore"
+    ],
+    [
+      901,
+      "explore"
+    ],
+    [
+      902,
+      "explore"
+    ],
+    [
+      903,
+      "explore"
+    ],
+    [
+      904,
+      "explore"
+    ],
+    [
+      926,
+      "explore"
+    ],
+    [
+      929,
+      "seek-loot"
+    ],
+    [
+      935,
+      "explore"
+    ],
+    [
+      936,
+      "explore"
+    ],
+    [
+      1023,
+      "explore"
+    ],
+    [
+      1025,
+      "explore"
+    ],
+    [
+      1063,
+      "explore"
+    ],
+    [
+      1074,
+      "explore"
+    ],
+    [
+      1080,
+      "explore"
+    ],
+    [
+      1081,
+      "explore"
+    ],
+    [
+      1082,
+      "explore"
+    ],
+    [
+      1083,
+      "explore"
+    ],
+    [
+      1084,
+      "explore"
+    ],
+    [
+      1085,
+      "explore"
+    ],
+    [
+      1086,
+      "explore"
+    ],
+    [
+      1087,
+      "explore"
+    ],
+    [
+      1088,
+      "explore"
+    ],
+    [
+      1089,
+      "explore"
+    ],
+    [
+      1090,
+      "explore"
+    ],
+    [
+      1091,
+      "explore"
+    ],
+    [
+      1092,
+      "explore"
+    ],
+    [
+      1093,
+      "explore"
+    ],
+    [
+      1094,
+      "explore"
+    ],
+    [
+      1095,
+      "explore"
+    ],
+    [
+      1096,
+      "explore"
+    ],
+    [
+      1097,
+      "explore"
+    ],
+    [
+      1098,
+      "explore"
+    ],
+    [
+      1099,
+      "explore"
+    ],
+    [
+      1100,
+      "explore"
+    ],
+    [
+      1101,
+      "explore"
+    ],
+    [
+      1102,
+      "explore"
+    ],
+    [
+      1103,
+      "explore"
+    ],
+    [
+      1104,
+      "explore"
+    ],
+    [
+      1105,
+      "explore"
+    ],
+    [
+      1106,
+      "explore"
+    ],
+    [
+      1107,
+      "explore"
+    ],
+    [
+      1108,
+      "explore"
+    ],
+    [
+      1109,
+      "explore"
+    ],
+    [
+      1110,
+      "explore"
+    ],
+    [
+      1111,
+      "explore"
+    ],
+    [
+      1112,
+      "explore"
+    ],
+    [
+      1113,
+      "explore"
+    ],
+    [
+      1114,
+      "explore"
+    ],
+    [
+      1115,
+      "explore"
+    ],
+    [
+      1116,
+      "explore"
+    ],
+    [
+      1117,
+      "explore"
+    ],
+    [
+      1118,
+      "explore"
+    ],
+    [
+      1119,
+      "explore"
+    ],
+    [
+      1120,
+      "explore"
+    ],
+    [
+      1121,
+      "explore"
+    ],
+    [
+      1122,
+      "explore"
+    ],
+    [
+      1123,
+      "explore"
+    ],
+    [
+      1124,
+      "explore"
+    ],
+    [
+      1125,
+      "explore"
+    ],
+    [
+      1126,
+      "explore"
+    ],
+    [
+      1127,
+      "explore"
+    ],
+    [
+      1128,
+      "explore"
+    ],
+    [
+      1129,
+      "explore"
+    ],
+    [
+      1130,
+      "explore"
+    ],
+    [
+      1131,
+      "explore"
+    ],
+    [
+      1132,
+      "explore"
+    ],
+    [
+      1133,
+      "explore"
+    ],
+    [
+      1134,
+      "explore"
+    ],
+    [
+      1135,
+      "explore"
+    ],
+    [
+      1136,
+      "explore"
+    ],
+    [
+      1137,
+      "explore"
+    ],
+    [
+      1138,
+      "explore"
+    ],
+    [
+      1139,
+      "explore"
+    ],
+    [
+      1140,
+      "explore"
+    ],
+    [
+      1141,
+      "explore"
+    ],
+    [
+      1142,
+      "explore"
+    ],
+    [
+      1143,
+      "explore"
+    ],
+    [
+      1144,
+      "explore"
+    ],
+    [
+      1145,
+      "explore"
+    ],
+    [
+      1146,
+      "explore"
+    ],
+    [
+      1147,
+      "explore"
+    ],
+    [
+      1148,
+      "explore"
+    ],
+    [
+      1149,
+      "explore"
+    ],
+    [
+      1150,
+      "explore"
+    ],
+    [
+      1151,
+      "explore"
+    ],
+    [
+      1152,
+      "explore"
+    ],
+    [
+      1153,
+      "explore"
+    ],
+    [
+      1154,
+      "explore"
+    ],
+    [
+      1155,
+      "explore"
+    ],
+    [
+      1156,
+      "explore"
+    ],
+    [
+      1157,
+      "explore"
+    ],
+    [
+      1158,
+      "explore"
+    ],
+    [
+      1159,
+      "explore"
+    ],
+    [
+      1160,
+      "explore"
+    ],
+    [
+      1161,
+      "explore"
+    ],
+    [
+      1162,
+      "explore"
+    ],
+    [
+      1163,
+      "explore"
+    ],
+    [
+      1164,
+      "explore"
+    ],
+    [
+      1165,
+      "explore"
+    ],
+    [
+      1166,
+      "explore"
+    ],
+    [
+      1167,
+      "explore"
+    ],
+    [
+      1168,
+      "explore"
+    ],
+    [
+      1169,
+      "explore"
+    ],
+    [
+      1170,
+      "explore"
+    ],
+    [
+      1171,
+      "explore"
+    ],
+    [
+      1172,
+      "explore"
+    ],
+    [
+      1173,
+      "explore"
+    ],
+    [
+      1174,
+      "explore"
+    ],
+    [
+      1175,
+      "explore"
+    ],
+    [
+      1176,
+      "explore"
+    ],
+    [
+      1177,
+      "explore"
+    ],
+    [
+      1178,
+      "explore"
+    ],
+    [
+      1179,
+      "explore"
+    ],
+    [
+      1180,
+      "explore"
+    ],
+    [
+      1181,
+      "explore"
+    ],
+    [
+      1182,
+      "explore"
+    ],
+    [
+      1183,
+      "explore"
+    ],
+    [
+      1184,
+      "explore"
+    ],
+    [
+      1185,
+      "explore"
+    ],
+    [
+      1186,
+      "explore"
+    ],
+    [
+      1187,
+      "explore"
+    ],
+    [
+      1188,
+      "explore"
+    ],
+    [
+      1189,
+      "explore"
+    ],
+    [
+      1190,
+      "explore"
+    ],
+    [
+      1191,
+      "explore"
+    ],
+    [
+      1192,
+      "explore"
+    ],
+    [
+      1267,
+      "explore"
+    ],
+    [
+      1268,
+      "explore"
+    ],
+    [
+      1269,
+      "explore"
+    ],
+    [
+      1270,
+      "explore"
+    ],
+    [
+      1271,
+      "explore"
+    ],
+    [
+      1272,
+      "explore"
+    ],
+    [
+      1273,
+      "explore"
+    ],
+    [
+      1274,
+      "explore"
+    ],
+    [
+      1284,
+      "explore"
+    ],
+    [
+      1285,
+      "explore"
+    ],
+    [
+      1286,
+      "explore"
+    ],
+    [
+      1287,
+      "explore"
+    ],
+    [
+      1288,
+      "explore"
+    ],
+    [
+      1289,
+      "explore"
+    ],
+    [
+      1290,
+      "explore"
+    ],
+    [
+      1291,
+      "explore"
+    ],
+    [
+      1292,
+      "explore"
+    ],
+    [
+      1293,
+      "explore"
+    ],
+    [
+      1294,
+      "explore"
+    ],
+    [
+      1295,
+      "explore"
+    ],
+    [
+      1296,
+      "explore"
+    ],
+    [
+      1297,
+      "explore"
+    ],
+    [
+      1298,
+      "explore"
+    ],
+    [
+      1299,
+      "explore"
+    ],
+    [
+      1300,
+      "explore"
+    ],
+    [
+      1301,
+      "explore"
+    ],
+    [
+      1302,
+      "explore"
+    ],
+    [
+      1303,
+      "explore"
+    ],
+    [
+      1304,
+      "explore"
+    ],
+    [
+      1305,
+      "explore"
+    ],
+    [
+      1306,
+      "explore"
+    ],
+    [
+      1307,
+      "explore"
+    ],
+    [
+      1308,
+      "explore"
+    ],
+    [
+      1309,
+      "explore"
+    ],
+    [
+      1310,
+      "explore"
+    ],
+    [
+      1311,
+      "explore"
+    ],
+    [
+      1312,
+      "explore"
+    ],
+    [
+      1313,
+      "explore"
+    ],
+    [
+      1314,
+      "explore"
+    ],
+    [
+      1315,
+      "explore"
+    ],
+    [
+      1316,
+      "explore"
+    ],
+    [
+      1317,
+      "explore"
+    ],
+    [
+      1318,
+      "explore"
+    ],
+    [
+      1319,
+      "explore"
+    ],
+    [
+      1320,
+      "explore"
+    ],
+    [
+      1321,
+      "explore"
+    ],
+    [
+      1322,
+      "explore"
+    ],
+    [
+      1323,
+      "explore"
+    ],
+    [
+      1324,
+      "explore"
+    ],
+    [
+      1325,
+      "explore"
+    ],
+    [
+      1328,
+      "explore"
+    ],
+    [
+      1329,
+      "explore"
+    ],
+    [
+      1330,
+      "explore"
+    ],
+    [
+      1331,
+      "explore"
+    ],
+    [
+      1332,
+      "explore"
+    ],
+    [
+      1333,
+      "explore"
+    ],
+    [
+      1334,
+      "explore"
+    ],
+    [
+      1335,
+      "explore"
+    ],
+    [
+      1336,
+      "explore"
+    ],
+    [
+      1337,
+      "explore"
+    ],
+    [
+      1338,
+      "explore"
+    ],
+    [
+      1339,
+      "explore"
+    ],
+    [
+      1340,
+      "explore"
+    ],
+    [
+      1341,
+      "explore"
+    ],
+    [
+      1342,
+      "explore"
+    ],
+    [
+      1343,
+      "explore"
+    ],
+    [
+      1344,
+      "explore"
+    ],
+    [
+      1345,
+      "explore"
+    ],
+    [
+      1346,
+      "explore"
+    ],
+    [
+      1347,
+      "explore"
+    ],
+    [
+      1348,
+      "explore"
+    ],
+    [
+      1349,
+      "explore"
+    ],
+    [
+      1350,
+      "explore"
+    ],
+    [
+      1351,
+      "explore"
+    ],
+    [
+      1352,
+      "explore"
+    ],
+    [
+      1353,
+      "explore"
+    ],
+    [
+      1354,
+      "explore"
+    ],
+    [
+      1355,
+      "explore"
+    ],
+    [
+      1356,
+      "explore"
+    ],
+    [
+      1357,
+      "explore"
+    ],
+    [
+      1358,
+      "explore"
+    ],
+    [
+      1359,
+      "explore"
+    ],
+    [
+      1360,
+      "explore"
+    ],
+    [
+      1361,
+      "explore"
+    ],
+    [
+      1362,
+      "explore"
+    ],
+    [
+      1363,
+      "explore"
+    ],
+    [
+      1364,
+      "explore"
+    ],
+    [
+      1365,
+      "explore"
+    ],
+    [
+      1366,
+      "explore"
+    ],
+    [
+      1370,
+      "explore"
+    ],
+    [
+      1371,
+      "explore"
+    ],
+    [
+      1372,
+      "explore"
+    ],
+    [
+      1373,
+      "explore"
+    ],
+    [
+      1374,
+      "explore"
+    ],
+    [
+      1375,
+      "explore"
+    ],
+    [
+      1376,
+      "explore"
+    ],
+    [
+      1377,
+      "explore"
+    ],
+    [
+      1378,
+      "explore"
+    ],
+    [
+      1379,
+      "explore"
+    ],
+    [
+      1380,
+      "explore"
+    ],
+    [
+      1381,
+      "explore"
+    ],
+    [
+      1382,
+      "explore"
+    ],
+    [
+      1383,
+      "explore"
+    ],
+    [
+      1384,
+      "explore"
+    ],
+    [
+      1385,
+      "explore"
+    ],
+    [
+      1386,
+      "explore"
+    ],
+    [
+      1387,
+      "explore"
+    ],
+    [
+      1388,
+      "explore"
+    ],
+    [
+      1389,
+      "explore"
+    ],
+    [
+      1390,
+      "explore"
+    ],
+    [
+      1391,
+      "explore"
+    ],
+    [
+      1392,
+      "explore"
+    ],
+    [
+      1393,
+      "explore"
+    ],
+    [
+      1394,
+      "explore"
+    ],
+    [
+      1395,
+      "explore"
+    ],
+    [
+      1396,
+      "explore"
+    ],
+    [
+      1397,
+      "explore"
+    ],
+    [
+      1398,
+      "explore"
+    ],
+    [
+      1399,
+      "explore"
+    ],
+    [
+      1400,
+      "explore"
+    ],
+    [
+      1401,
+      "explore"
+    ],
+    [
+      1402,
+      "explore"
+    ],
+    [
+      1442,
+      "explore"
+    ],
+    [
+      1443,
+      "explore"
+    ],
+    [
+      1444,
+      "explore"
+    ],
+    [
+      1470,
+      "explore"
+    ],
+    [
+      1579,
+      "explore"
+    ],
+    [
+      1721,
+      "explore"
+    ],
+    [
+      1722,
+      "explore"
+    ],
+    [
+      1723,
+      "explore"
+    ],
+    [
+      1724,
+      "explore"
+    ],
+    [
+      1725,
+      "explore"
+    ],
+    [
+      1726,
+      "explore"
+    ],
+    [
+      1727,
+      "explore"
+    ],
+    [
+      1728,
+      "explore"
+    ],
+    [
+      1729,
+      "explore"
+    ],
+    [
+      1730,
+      "explore"
+    ],
+    [
+      1731,
+      "explore"
+    ],
+    [
+      1732,
+      "explore"
+    ],
+    [
+      1733,
+      "explore"
+    ],
+    [
+      1734,
+      "explore"
+    ],
+    [
+      1735,
+      "explore"
+    ],
+    [
+      1736,
+      "explore"
+    ],
+    [
+      1737,
+      "explore"
+    ],
+    [
+      1738,
+      "explore"
+    ],
+    [
+      1739,
+      "explore"
+    ],
+    [
+      1740,
+      "explore"
+    ],
+    [
+      1741,
+      "explore"
+    ],
+    [
+      1742,
+      "explore"
+    ],
+    [
+      1743,
+      "explore"
+    ],
+    [
+      1744,
+      "explore"
+    ],
+    [
+      1745,
+      "explore"
+    ],
+    [
+      1746,
+      "explore"
+    ],
+    [
+      1747,
+      "explore"
+    ],
+    [
+      1748,
+      "explore"
+    ],
+    [
+      1749,
+      "explore"
+    ],
+    [
+      1750,
+      "explore"
+    ],
+    [
+      1751,
+      "explore"
+    ],
+    [
+      1752,
+      "explore"
+    ],
+    [
+      1755,
+      "explore"
+    ],
+    [
+      1756,
+      "explore"
+    ],
+    [
+      1757,
+      "explore"
+    ],
+    [
+      1758,
+      "explore"
+    ],
+    [
+      1759,
+      "explore"
+    ],
+    [
+      1760,
+      "explore"
+    ],
+    [
+      1761,
+      "explore"
+    ],
+    [
+      1762,
+      "detected:prepare-choke"
+    ],
+    [
+      1839,
+      "explore"
+    ],
+    [
+      1840,
+      "explore"
+    ],
+    [
+      1841,
+      "explore"
+    ],
+    [
+      1847,
+      "detected:prepare-choke"
+    ],
+    [
+      1849,
+      "explore"
+    ],
+    [
+      1850,
+      "explore"
+    ],
+    [
+      1851,
+      "explore"
+    ],
+    [
+      1852,
+      "explore"
+    ],
+    [
+      1853,
+      "explore"
+    ],
+    [
+      1854,
+      "explore"
+    ],
+    [
+      1855,
+      "explore"
+    ],
+    [
+      1856,
+      "explore"
+    ],
+    [
+      1857,
+      "explore"
+    ],
+    [
+      1858,
+      "explore"
+    ],
+    [
+      1859,
+      "explore"
+    ],
+    [
+      1860,
+      "explore"
+    ],
+    [
+      1861,
+      "explore"
+    ],
+    [
+      1862,
+      "explore"
+    ],
+    [
+      1863,
+      "explore"
+    ],
+    [
+      1864,
+      "explore"
+    ],
+    [
+      1865,
+      "explore"
+    ],
+    [
+      1866,
+      "explore"
+    ],
+    [
+      1867,
+      "explore"
+    ],
+    [
+      1868,
+      "explore"
+    ],
+    [
+      1869,
+      "explore"
+    ],
+    [
+      1870,
+      "explore"
+    ],
+    [
+      1871,
+      "explore"
+    ],
+    [
+      1872,
+      "explore"
+    ],
+    [
+      1873,
+      "explore"
+    ],
+    [
+      1874,
+      "explore"
+    ],
+    [
+      1875,
+      "explore"
+    ],
+    [
+      1876,
+      "explore"
+    ],
+    [
+      1877,
+      "explore"
+    ],
+    [
+      1878,
+      "explore"
+    ],
+    [
+      1879,
+      "explore"
+    ],
+    [
+      1880,
+      "explore"
+    ],
+    [
+      1881,
+      "explore"
+    ],
+    [
+      1882,
+      "explore"
+    ],
+    [
+      1883,
+      "explore"
+    ],
+    [
+      1884,
+      "explore"
+    ],
+    [
+      1885,
+      "explore"
+    ],
+    [
+      1886,
+      "explore"
+    ],
+    [
+      1887,
+      "explore"
+    ],
+    [
+      1888,
+      "explore"
+    ],
+    [
+      1889,
+      "explore"
+    ],
+    [
+      1890,
+      "explore"
+    ],
+    [
+      1891,
+      "explore"
+    ],
+    [
+      1892,
+      "explore"
+    ],
+    [
+      1893,
+      "explore"
+    ],
+    [
+      1920,
+      "explore"
+    ],
+    [
+      1921,
+      "explore"
+    ],
+    [
+      1922,
+      "explore"
+    ],
+    [
+      1923,
+      "explore"
+    ],
+    [
+      1924,
+      "explore"
+    ],
+    [
+      1936,
+      "explore"
+    ],
+    [
+      1972,
+      "explore"
+    ],
+    [
+      1973,
+      "explore"
+    ],
+    [
+      1974,
+      "explore"
+    ],
+    [
+      1975,
+      "explore"
+    ],
+    [
+      1996,
+      "detected:prepare-choke"
+    ],
+    [
+      1998,
+      "detected:prepare-choke"
+    ],
+    [
+      2000,
+      "detected:prepare-choke"
+    ],
+    [
+      2002,
+      "detected:prepare-choke"
+    ],
+    [
+      2012,
+      "detected:prepare-choke"
+    ],
+    [
+      2042,
+      "shop:travel"
+    ],
+    [
+      2052,
+      "shop:travel"
+    ],
+    [
+      2099,
+      "explore"
+    ],
+    [
+      2110,
+      "seek-loot"
+    ],
+    [
+      2125,
+      "explore"
+    ],
+    [
+      2126,
+      "explore"
+    ],
+    [
+      2128,
+      "explore"
+    ],
+    [
+      2129,
+      "explore"
+    ],
+    [
+      2130,
+      "explore"
+    ],
+    [
+      2131,
+      "explore"
+    ],
+    [
+      2132,
+      "explore"
+    ],
+    [
+      2133,
+      "explore"
+    ],
+    [
+      2134,
+      "explore"
+    ],
+    [
+      2135,
+      "explore"
+    ],
+    [
+      2136,
+      "explore"
+    ],
+    [
+      2137,
+      "explore"
+    ],
+    [
+      2138,
+      "explore"
+    ],
+    [
+      2139,
+      "explore"
+    ],
+    [
+      2140,
+      "explore"
+    ],
+    [
+      2141,
+      "explore"
+    ],
+    [
+      2143,
+      "explore"
+    ],
+    [
+      2144,
+      "explore"
+    ],
+    [
+      2145,
+      "explore"
+    ],
+    [
+      2146,
+      "explore"
+    ],
+    [
+      2147,
+      "explore"
+    ],
+    [
+      2148,
+      "explore"
+    ],
+    [
+      2155,
+      "explore"
+    ],
+    [
+      2156,
+      "explore"
+    ],
+    [
+      2157,
+      "explore"
+    ],
+    [
+      2158,
+      "explore"
+    ],
+    [
+      2159,
+      "explore"
+    ],
+    [
+      2160,
+      "explore"
+    ],
+    [
+      2161,
+      "explore"
+    ],
+    [
+      2162,
+      "explore"
+    ],
+    [
+      2163,
+      "explore"
+    ],
+    [
+      2164,
+      "explore"
+    ],
+    [
+      2165,
+      "explore"
+    ],
+    [
+      2166,
+      "explore"
+    ],
+    [
+      2167,
+      "explore"
+    ],
+    [
+      2168,
+      "explore"
+    ],
+    [
+      2169,
+      "explore"
+    ],
+    [
+      2170,
+      "explore"
+    ],
+    [
+      2171,
+      "explore"
+    ],
+    [
+      2172,
+      "explore"
+    ],
+    [
+      2173,
+      "explore"
+    ],
+    [
+      2174,
+      "explore"
+    ],
+    [
+      2175,
+      "explore"
+    ],
+    [
+      2176,
+      "explore"
+    ],
+    [
+      2177,
+      "explore"
+    ],
+    [
+      2178,
+      "explore"
+    ],
+    [
+      2179,
+      "explore"
+    ],
+    [
+      2180,
+      "explore"
+    ],
+    [
+      2181,
+      "explore"
+    ],
+    [
+      2182,
+      "explore"
+    ],
+    [
+      2183,
+      "explore"
+    ],
+    [
+      2184,
+      "explore"
+    ],
+    [
+      2185,
+      "explore"
+    ],
+    [
+      2186,
+      "explore"
+    ],
+    [
+      2187,
+      "explore"
+    ],
+    [
+      2188,
+      "explore"
+    ],
+    [
+      2189,
+      "explore"
+    ],
+    [
+      2190,
+      "explore"
+    ],
+    [
+      2191,
+      "explore"
+    ],
+    [
+      2192,
+      "explore"
+    ],
+    [
+      2193,
+      "explore"
+    ],
+    [
+      2194,
+      "explore"
+    ],
+    [
+      2198,
+      "seek-loot"
+    ],
+    [
+      2201,
+      "explore"
+    ],
+    [
+      2202,
+      "explore"
+    ],
+    [
+      2203,
+      "explore"
+    ],
+    [
+      2204,
+      "explore"
+    ],
+    [
+      2205,
+      "explore"
+    ],
+    [
+      2206,
+      "explore"
+    ],
+    [
+      2207,
+      "explore"
+    ],
+    [
+      2208,
+      "explore"
+    ],
+    [
+      2209,
+      "explore"
+    ],
+    [
+      2210,
+      "explore"
+    ],
+    [
+      2211,
+      "explore"
+    ],
+    [
+      2212,
+      "explore"
+    ],
+    [
+      2214,
+      "explore"
+    ],
+    [
+      2215,
+      "explore"
+    ],
+    [
+      2216,
+      "explore"
+    ],
+    [
+      2220,
+      "explore"
+    ],
+    [
+      2231,
+      "seek-loot"
+    ],
+    [
+      2232,
+      "seek-loot"
+    ],
+    [
+      2233,
+      "seek-loot"
+    ],
+    [
+      2234,
+      "seek-loot"
+    ],
+    [
+      2235,
+      "seek-loot"
+    ],
+    [
+      2236,
+      "seek-loot"
+    ],
+    [
+      2240,
+      "seek-loot"
+    ],
+    [
+      2241,
+      "seek-loot"
+    ],
+    [
+      2242,
+      "seek-loot"
+    ],
+    [
+      2246,
+      "seek-loot"
+    ],
+    [
+      2247,
+      "explore"
+    ],
+    [
+      2250,
+      "explore"
+    ],
+    [
+      2251,
+      "explore"
+    ],
+    [
+      2252,
+      "explore"
+    ],
+    [
+      2255,
+      "explore"
+    ],
+    [
+      2256,
+      "explore"
+    ],
+    [
+      2257,
+      "explore"
+    ],
+    [
+      2258,
+      "explore"
+    ],
+    [
+      2259,
+      "explore"
+    ],
+    [
+      2260,
+      "explore"
+    ],
+    [
+      2261,
+      "explore"
+    ],
+    [
+      2262,
+      "explore"
+    ],
+    [
+      2265,
+      "explore"
+    ],
+    [
+      2266,
+      "explore"
+    ],
+    [
+      2267,
+      "explore"
+    ],
+    [
+      2268,
+      "explore"
+    ],
+    [
+      2269,
+      "explore"
+    ],
+    [
+      2270,
+      "explore"
+    ],
+    [
+      2271,
+      "explore"
+    ],
+    [
+      2272,
+      "explore"
+    ],
+    [
+      2273,
+      "explore"
+    ],
+    [
+      2274,
+      "explore"
+    ],
+    [
+      2275,
+      "explore"
+    ],
+    [
+      2276,
+      "explore"
+    ],
+    [
+      2277,
+      "explore"
+    ],
+    [
+      2278,
+      "explore"
+    ],
+    [
+      2279,
+      "explore"
+    ],
+    [
+      2280,
+      "explore"
+    ],
+    [
+      2281,
+      "explore"
+    ],
+    [
+      2282,
+      "explore"
+    ],
+    [
+      2283,
+      "explore"
+    ],
+    [
+      2284,
+      "explore"
+    ],
+    [
+      2285,
+      "explore"
+    ],
+    [
+      2286,
+      "explore"
+    ],
+    [
+      2287,
+      "explore"
+    ],
+    [
+      2288,
+      "explore"
+    ],
+    [
+      2289,
+      "explore"
+    ],
+    [
+      2290,
+      "explore"
+    ],
+    [
+      2291,
+      "explore"
+    ],
+    [
+      2292,
+      "explore"
+    ],
+    [
+      2293,
+      "explore"
+    ],
+    [
+      2294,
+      "explore"
+    ],
+    [
+      2295,
+      "explore"
+    ],
+    [
+      2296,
+      "explore"
+    ],
+    [
+      2297,
+      "explore"
+    ],
+    [
+      2298,
+      "explore"
+    ],
+    [
+      2299,
+      "explore"
+    ],
+    [
+      2300,
+      "explore"
+    ],
+    [
+      2301,
+      "explore"
+    ],
+    [
+      2302,
+      "explore"
+    ],
+    [
+      2303,
+      "explore"
+    ],
+    [
+      2304,
+      "explore"
+    ],
+    [
+      2305,
+      "explore"
+    ],
+    [
+      2306,
+      "explore"
+    ],
+    [
+      2307,
+      "explore"
+    ],
+    [
+      2308,
+      "explore"
+    ],
+    [
+      2309,
+      "explore"
+    ],
+    [
+      2310,
+      "explore"
+    ],
+    [
+      2311,
+      "explore"
+    ],
+    [
+      2312,
+      "explore"
+    ],
+    [
+      2313,
+      "explore"
+    ],
+    [
+      2314,
+      "explore"
+    ],
+    [
+      2315,
+      "explore"
+    ],
+    [
+      2316,
+      "explore"
+    ],
+    [
+      2317,
+      "explore"
+    ],
+    [
+      2318,
+      "explore"
+    ],
+    [
+      2319,
+      "explore"
+    ],
+    [
+      2320,
+      "explore"
+    ],
+    [
+      2321,
+      "explore"
+    ],
+    [
+      2322,
+      "explore"
+    ],
+    [
+      2323,
+      "explore"
+    ],
+    [
+      2324,
+      "explore"
+    ],
+    [
+      2325,
+      "explore"
+    ],
+    [
+      2326,
+      "explore"
+    ],
+    [
+      2327,
+      "explore"
+    ],
+    [
+      2328,
+      "explore"
+    ],
+    [
+      2329,
+      "explore"
+    ],
+    [
+      2330,
+      "explore"
+    ],
+    [
+      2331,
+      "explore"
+    ],
+    [
+      2332,
+      "explore"
+    ],
+    [
+      2333,
+      "explore"
+    ],
+    [
+      2334,
+      "explore"
+    ],
+    [
+      2335,
+      "explore"
+    ],
+    [
+      2336,
+      "explore"
+    ],
+    [
+      2337,
+      "explore"
+    ],
+    [
+      2338,
+      "explore"
+    ],
+    [
+      2339,
+      "explore"
+    ],
+    [
+      2340,
+      "explore"
+    ],
+    [
+      2341,
+      "explore"
+    ],
+    [
+      2342,
+      "explore"
+    ],
+    [
+      2343,
+      "explore"
+    ],
+    [
+      2344,
+      "explore"
+    ],
+    [
+      2345,
+      "explore"
+    ],
+    [
+      2346,
+      "explore"
+    ],
+    [
+      2347,
+      "explore"
+    ],
+    [
+      2348,
+      "explore"
+    ],
+    [
+      2349,
+      "explore"
+    ],
+    [
+      2350,
+      "explore"
+    ],
+    [
+      2351,
+      "explore"
+    ],
+    [
+      2352,
+      "explore"
+    ],
+    [
+      2353,
+      "explore"
+    ],
+    [
+      2354,
+      "explore"
+    ],
+    [
+      2355,
+      "explore"
+    ],
+    [
+      2356,
+      "explore"
+    ],
+    [
+      2357,
+      "explore"
+    ],
+    [
+      2358,
+      "explore"
+    ],
+    [
+      2400,
+      "explore"
+    ],
+    [
+      2401,
+      "explore"
+    ],
+    [
+      2402,
+      "explore"
+    ],
+    [
+      2403,
+      "explore"
+    ],
+    [
+      2404,
+      "explore"
+    ],
+    [
+      2405,
+      "explore"
+    ],
+    [
+      2426,
+      "explore"
+    ],
+    [
+      2495,
+      "explore"
+    ],
+    [
+      2496,
+      "explore"
+    ],
+    [
+      2497,
+      "explore"
+    ],
+    [
+      2498,
+      "explore"
+    ],
+    [
+      2499,
+      "explore"
+    ],
+    [
+      2500,
+      "explore"
+    ],
+    [
+      2506,
+      "explore"
+    ],
+    [
+      2507,
+      "explore"
+    ],
+    [
+      2508,
+      "explore"
+    ],
+    [
+      2509,
+      "explore"
+    ],
+    [
+      2510,
+      "explore"
+    ],
+    [
+      2511,
+      "explore"
+    ],
+    [
+      2512,
+      "explore"
+    ],
+    [
+      2513,
+      "explore"
+    ],
+    [
+      2514,
+      "explore"
+    ],
+    [
+      2515,
+      "explore"
+    ],
+    [
+      2516,
+      "explore"
+    ],
+    [
+      2517,
+      "explore"
+    ],
+    [
+      2518,
+      "explore"
+    ],
+    [
+      2519,
+      "explore"
+    ],
+    [
+      2520,
+      "explore"
+    ],
+    [
+      2533,
+      "seek-loot"
+    ],
+    [
+      2534,
+      "seek-loot"
+    ],
+    [
+      2535,
+      "seek-loot"
+    ],
+    [
+      2540,
+      "seek-loot"
+    ],
+    [
+      2544,
+      "seek-loot"
+    ],
+    [
+      2594,
+      "chest:approach"
+    ],
+    [
+      2602,
+      "chest:step-off"
+    ],
+    [
+      2604,
+      "chest:step-off"
+    ],
+    [
+      2640,
+      "shop:approach"
+    ]
+  ],
+  "incident": [
+    {
+      "claim_id": 2292,
+      "owner": "store-router",
+      "goal": {
+        "kind": "Reach",
+        "cell": [
+          45,
+          123
+        ]
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": 1,
+      "execution": {
+        "claim_id": 2292,
+        "work_id": "route:store:45,123",
+        "revision": 1,
+        "producer": "store-router",
+        "state": "acting",
+        "next_step": "route.resume",
+        "arguments": [
+          "store",
+          [
+            45,
+            123
+          ]
+        ],
+        "operation_ref": null,
+        "expected_effect": "arrive:45,123",
+        "continuation": "route.resume",
+        "budget_ref": "town-travel",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_town_space_deposit_key"
+      },
+      "decision_sequence": 2640,
+      "reason": "shop:approach",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_shopping_approach_key#2",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "home-visit",
+      "visit_operator": "store-router",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": [
+        {
+          "parent_claim_id": 2292,
+          "parent_family": "store-router",
+          "delegate_family": "store-router",
+          "work_identity": [
+            "route",
+            2640,
+            7
+          ],
+          "purpose_identity": [
+            "trip",
+            "home-visit",
+            "shopping",
+            7
+          ],
+          "opening_decision": 2640,
+          "expected_effect": "arrived-or-entered",
+          "budget_reference": "town-travel-progress-budget",
+          "lifecycle": "open",
+          "ending": null,
+          "execution": {
+            "claim_id": 2292,
+            "work_id": "('route', 2640, 7)",
+            "revision": 1,
+            "producer": "store-router",
+            "state": "acting",
+            "next_step": "delegate.dispatch",
+            "arguments": [
+              "route",
+              2640,
+              7
+            ],
+            "operation_ref": null,
+            "expected_effect": "arrived-or-entered",
+            "continuation": "parent.resume",
+            "budget_ref": "town-travel-progress-budget",
+            "evidence": null,
+            "cause": null,
+            "producer_entry": null
+          }
+        }
+      ],
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "store-router",
+        "holder_claim_id": 2292,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "1",
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "index": 2642
+    },
+    {
+      "claim_id": 2293,
+      "owner": "home-scan",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "4392817",
+          "7",
+          "knowledge"
+        ],
+        "within": 8,
+        "source": "knowledge"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 2293,
+        "work_id": "home-knowledge:4392817",
+        "revision": 1,
+        "producer": "home-scan",
+        "state": "acting",
+        "next_step": "home.knowledge.request",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "catalogue-adopted",
+        "continuation": "home.knowledge.observe",
+        "budget_ref": "home-knowledge-existing-epoch",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2641,
+      "reason": "home:request-knowledge-scan",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2292,
+        "owner": "store-router",
+        "goal_kind": "Reach",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "reached",
+        "execution": {
+          "claim_id": 2292,
+          "work_id": "route:store:45,123",
+          "revision": 3,
+          "producer": "store-router",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "arrive:45,123",
+          "continuation": "route.resume",
+          "budget_ref": "town-travel",
+          "evidence": "reached",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "town-errand:home-scan",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "home-scan",
+        "claim_id": 2293
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "home-visit",
+      "visit_operator": "home-scan",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "store-router",
+          "holder_claim_id": 2292,
+          "deferred_family": "home-visit",
+          "deferred_reason": "queue-digging-tool-withdraw",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "store-router",
+          "holder_claim_id": 2292,
+          "deferred_family": "home-scan",
+          "deferred_reason": "open-home-scan",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 2,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "home-scan",
+        "holder_claim_id": 2293,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "~9\u001b",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2643
+    },
+    {
+      "claim_id": 2294,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "2640",
+          "7",
+          "db1\r\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2294,
+        "work_id": "home-operation:2640:db1\r\u001b",
+        "revision": 1,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "home.operation.send",
+        "arguments": [
+          2640,
+          "db1\r\u001b"
+        ],
+        "operation_ref": null,
+        "expected_effect": "home-inventory-effect",
+        "continuation": "home.operation.observe",
+        "budget_ref": "home-operation-existing-budget",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_open_home_deposit_key"
+      },
+      "decision_sequence": 2642,
+      "reason": "home:atomic-deposit",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2293,
+        "owner": "home-scan",
+        "goal_kind": "Observe",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "home-knowledge-current",
+        "execution": {
+          "claim_id": 2293,
+          "work_id": "home-knowledge:4392817",
+          "revision": 3,
+          "producer": "home-scan",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "catalogue-adopted",
+          "continuation": "home.knowledge.observe",
+          "budget_ref": "home-knowledge-existing-epoch",
+          "evidence": "home-knowledge-current",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": "router-opens-family-operates",
+      "visit_requester": "home-visit",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 2294,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "db1\r\u001b",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2644
+    },
+    {
+      "claim_id": 2294,
+      "owner": "home-visit",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "2640",
+          "7",
+          "db1\r\u001b"
+        ],
+        "within": 8,
+        "source": "store-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2294,
+        "work_id": "home:store-context-exit",
+        "revision": 3,
+        "producer": "home-visit",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2643,
+      "reason": "home:store-context-exit",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_home_disposal_processing_key",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": "router-opens-family-operates",
+      "visit_requester": "home-visit",
+      "visit_operator": "home-visit",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "home-visit",
+          "holder_claim_id": 2294,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "equipment-txn",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "home-visit",
+        "holder_claim_id": 2294,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "\u001b",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2645
+    },
+    {
+      "claim_id": 2295,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2644"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2295,
+        "work_id": "equipment:f28c23d08168fa06:0",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "takeoff",
+          "sub_ring",
+          "bc4c0b6a592823d4"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:takeoff:sub_ring",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2644,
+      "reason": "equipment-transaction:takeoff",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2294,
+        "owner": "home-visit",
+        "goal_kind": "Observe",
+        "state": "active",
+        "closed": "expired",
+        "closed_reason": "completed-unobserved",
+        "execution": {
+          "claim_id": 2294,
+          "work_id": "home:store-context-exit",
+          "revision": 5,
+          "producer": "home-visit",
+          "state": "releasing",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "outside-store",
+          "continuation": "store.leave.send",
+          "budget_ref": null,
+          "evidence": null,
+          "cause": "completed-unobserved",
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": null,
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2295,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "te",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2646
+    },
+    {
+      "claim_id": 2295,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2644"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2295,
+        "work_id": "equipment:f28c23d08168fa06:1",
+        "revision": 3,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "equip",
+          "sub_ring",
+          "1b970248b2c12bcb"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:equip:sub_ring",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2645,
+      "reason": "equipment-transaction:equip",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": null,
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2295,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2295,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "wq)",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2647
+    },
+    {
+      "claim_id": 2295,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2644"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2295,
+        "work_id": "town:entrance-step-off",
+        "revision": 5,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "departure.step-off-entrance",
+        "arguments": [
+          45,
+          124
+        ],
+        "operation_ref": null,
+        "expected_effect": "entrance-cell-cleared",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2646,
+      "reason": "town:entrance-step-off:equipment-transaction:home-route-unavailable",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": null,
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2295,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2295,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "6",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2648
+    },
+    {
+      "claim_id": 2296,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "equipment-transaction:abandon-blocked"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2296,
+        "work_id": "equipment:town:abandon-blocked",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.town.abandon-blocked",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "transaction-progress",
+        "continuation": "equipment.next-action",
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2647,
+      "reason": "equipment-transaction:abandon-blocked",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2295,
+        "owner": "equipment-txn",
+        "goal_kind": "Observe",
+        "state": "active",
+        "closed": "release",
+        "closed_reason": "abandoned:session-replaced",
+        "execution": {
+          "claim_id": 2295,
+          "work_id": "town:entrance-step-off",
+          "revision": 7,
+          "producer": "equipment-txn",
+          "state": "releasing",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "entrance-cell-cleared",
+          "continuation": "departure.step-off-entrance",
+          "budget_ref": null,
+          "evidence": null,
+          "cause": "abandoned:session-replaced",
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": null,
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2295,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2296,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "5",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2649
+    },
+    {
+      "claim_id": 2297,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='equip', item_id='restore:a927bbb77c5ab396', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\",)",
+          "2648"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2297,
+        "work_id": "equipment:8d4df1ef9ec1174f:0",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "equip",
+          "sub_ring",
+          "bc4c0b6a592823d4"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:equip:sub_ring",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2648,
+      "reason": "equipment-transaction:equip",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": null,
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2297,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "wq)",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2650
+    },
+    {
+      "claim_id": 2298,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2649"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2298,
+        "work_id": "equipment:f28c23d08168fa06:0",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "takeoff",
+          "sub_ring",
+          "bc4c0b6a592823d4"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:takeoff:sub_ring",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2649,
+      "reason": "equipment-transaction:takeoff",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2297,
+        "owner": "equipment-txn",
+        "goal_kind": "Observe",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "equipment-transaction-complete",
+        "execution": {
+          "claim_id": 2297,
+          "work_id": "equipment:8d4df1ef9ec1174f:0",
+          "revision": 3,
+          "producer": "equipment-txn",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "equipment-effect:equip:sub_ring",
+          "continuation": "equipment.next-action",
+          "budget_ref": "equipment-session",
+          "evidence": "equipment-transaction-complete",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "equipment-txn",
+        "claim_id": 2298
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "home-visit",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": {
+        "previous_stops": [
+          7,
+          5,
+          4,
+          7,
+          3,
+          2,
+          6
+        ],
+        "previous_index": 0,
+        "new_stops": [
+          7,
+          4,
+          7,
+          3,
+          5
+        ],
+        "previous_stop": 7,
+        "new_stop": 7,
+        "previous_next_stop": 5,
+        "new_next_stop": 4,
+        "previous_categories": [
+          [
+            2,
+            [
+              "ammo"
+            ]
+          ],
+          [
+            3,
+            [
+              "recall"
+            ]
+          ],
+          [
+            4,
+            [
+              "recall",
+              "teleport",
+              "launcher-enchant"
+            ]
+          ],
+          [
+            5,
+            [
+              "organization-sale",
+              "device-sale"
+            ]
+          ],
+          [
+            6,
+            [
+              "black-market"
+            ]
+          ],
+          [
+            7,
+            [
+              "space-deposit",
+              "deposit",
+              "identification-withdrawal",
+              "equipment-work",
+              "equipment-transaction"
+            ]
+          ]
+        ],
+        "new_categories": [
+          [
+            3,
+            [
+              "recall"
+            ]
+          ],
+          [
+            4,
+            [
+              "identification-source",
+              "recall",
+              "teleport"
+            ]
+          ],
+          [
+            5,
+            [
+              "organization-sale",
+              "device-sale"
+            ]
+          ],
+          [
+            7,
+            [
+              "space-deposit",
+              "equipment-work",
+              "equipment-transaction"
+            ]
+          ]
+        ]
+      },
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2298,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "te",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2651
+    },
+    {
+      "claim_id": 2298,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2649"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2298,
+        "work_id": "equipment:town:pending:f28c23d08168fa06",
+        "revision": 3,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.action.observe",
+        "arguments": [
+          "te"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-action-confirmed",
+        "continuation": "equipment.next-action",
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2650,
+      "reason": "equipment-transaction:await-confirmation",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "equipment-txn",
+        "claim_id": 2298
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "home-visit",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "quest-request",
+          "deferred_reason": "bounty-order-step4",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "identification",
+          "deferred_reason": "equipped-identification",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "identification",
+          "deferred_reason": "device-processing",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "curse-enchant",
+          "deferred_reason": "remove-curse",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "curse-enchant",
+          "deferred_reason": "enchant-launcher",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "calibration",
+          "deferred_reason": "town-key",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2298,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "5",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2652
+    },
+    {
+      "claim_id": 2298,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2649"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2298,
+        "work_id": "equipment:f28c23d08168fa06:1",
+        "revision": 4,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "equip",
+          "sub_ring",
+          "1b970248b2c12bcb"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:equip:sub_ring",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2651,
+      "reason": "equipment-transaction:equip",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "equipment-txn",
+        "claim_id": 2298
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "home-visit",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-visit"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": "ownership:declaration-stale:equipment-txn",
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2298,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "wq)",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2653
+    },
+    {
+      "claim_id": 2298,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2649"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2298,
+        "work_id": "equipment:town:approach-home",
+        "revision": 6,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.town.approach-home",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "home-reached",
+        "continuation": "equipment.next-action",
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_town_key"
+      },
+      "decision_sequence": 2652,
+      "reason": "equipment-transaction:approach-home",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "equipment-txn",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2298,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "4",
+      "position": {
+        "y": 45,
+        "x": 124
+      },
+      "index": 2654
+    },
+    {
+      "claim_id": 2298,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "(\"EquipmentTransaction(phase='equip', kind='takeoff', item_id='equipped:bc4c0b6a592823d4:0', target_slot='sub_ring', item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\", \"EquipmentTransaction(phase='equip', kind='equip', item_id='pack:1b970248b2c12bcb:0', target_slot='sub_ring', item_identity='1b970248b2c12bcb', move_identity='620fb1781a52d8b8')\", \"EquipmentTransaction(phase='home_finalize', kind='deposit', item_id='equipped:bc4c0b6a592823d4:0', target_slot=None, item_identity='bc4c0b6a592823d4', move_identity='a927bbb77c5ab396')\")",
+          "2649"
+        ],
+        "within": 8,
+        "source": "transaction"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": true,
+      "distance": null,
+      "execution": {
+        "claim_id": 2298,
+        "work_id": "equipment:f28c23d08168fa06:2",
+        "revision": 8,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "equipment.next-action",
+        "arguments": [
+          "deposit",
+          null,
+          "bc4c0b6a592823d4"
+        ],
+        "operation_ref": null,
+        "expected_effect": "equipment-effect:deposit:None",
+        "continuation": "equipment.next-action",
+        "budget_ref": "equipment-session",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": "_equipment_transaction_home_key"
+      },
+      "decision_sequence": 2653,
+      "reason": "equipment-transaction:deposit",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 3,
+      "rung": "_equipment_transaction_town_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "equipment-txn",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2298,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2298,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "dq",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2655
+    },
+    {
+      "claim_id": 2299,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "home:leave-after-one-operation"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 2299,
+        "work_id": "home:leave-after-one-operation",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "store.leave.send",
+        "arguments": [
+          7
+        ],
+        "operation_ref": null,
+        "expected_effect": "outside-store",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2654,
+      "reason": "home:leave-after-one-operation",
+      "fundraising_purpose": null,
+      "closed_claim": {
+        "claim_id": 2298,
+        "owner": "equipment-txn",
+        "goal_kind": "Observe",
+        "state": "complete",
+        "closed": "complete",
+        "closed_reason": "equipment-transaction-complete",
+        "execution": {
+          "claim_id": 2298,
+          "work_id": "equipment:f28c23d08168fa06:2",
+          "revision": 10,
+          "producer": "equipment-txn",
+          "state": "done",
+          "next_step": null,
+          "arguments": [],
+          "operation_ref": null,
+          "expected_effect": "equipment-effect:deposit:None",
+          "continuation": "equipment.next-action",
+          "budget_ref": "equipment-session",
+          "evidence": "equipment-transaction-complete",
+          "cause": null,
+          "producer_entry": null
+        }
+      },
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_equipment_transaction_town_key#2",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": "equipment-txn",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "equipment-txn"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2299,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "\u001b",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2656
+    },
+    {
+      "claim_id": 2300,
+      "owner": "detectors",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "town-progress-invariant:defect:equipment-transaction:travel-home:await-entry=>town-progress-invariant:approach"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 2,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 2300,
+        "work_id": "route:store:37,91",
+        "revision": 1,
+        "producer": "detectors",
+        "state": "acting",
+        "next_step": "route.resume",
+        "arguments": [
+          "store",
+          [
+            37,
+            91
+          ]
+        ],
+        "operation_ref": null,
+        "expected_effect": "arrive:37,91",
+        "continuation": "route.resume",
+        "budget_ref": "town-travel",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2655,
+      "reason": "town-progress-invariant:defect:equipment-transaction:travel-home:await-entry=>town-progress-invariant:approach",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 0,
+      "rung": "_refuse_no_progress_cycle",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": "detectors",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "shop-buy"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "detectors",
+        "holder_claim_id": 2300,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "\u001b`n%.",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2657
+    },
+    {
+      "claim_id": 2301,
+      "owner": "detectors",
+      "goal": {
+        "kind": "Terminal",
+        "effect": "town-progress-invariant:continue-observed-shop"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 2,
+      "non_discardable": false,
+      "distance": null,
+      "execution": null,
+      "decision_sequence": 2656,
+      "reason": "town-progress-invariant:continue-observed-shop",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 0,
+      "rung": "_refuse_no_progress_cycle",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": null,
+      "visit_requester": null,
+      "visit_operator": "detectors",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": true,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "shop-buy"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "detectors",
+        "holder_claim_id": 2301,
+        "declaration_state": null,
+        "declaration_gap": true,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "\u001b",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "index": 2658
+    },
+    {
+      "claim_id": 2302,
+      "owner": "equipment-txn",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "4392817",
+          "7",
+          "knowledge"
+        ],
+        "within": 8,
+        "source": "knowledge"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 8,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 2302,
+        "work_id": "equipment:acquire-home-catalog",
+        "revision": 1,
+        "producer": "equipment-txn",
+        "state": "acting",
+        "next_step": "home.approach-for-equipment-catalog",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "home-catalog-available",
+        "continuation": null,
+        "budget_ref": null,
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2657,
+      "reason": "equipment-transaction:travel-home",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "_shopping_approach_key#1",
+      "violation": null,
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": {
+        "visit_owner": "store-router",
+        "claim_owner": "equipment-txn",
+        "claim_id": 2302
+      },
+      "visit_owner_structure": null,
+      "visit_requester": "home-scan",
+      "visit_operator": "equipment-txn",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": null,
+      "gate_final_count": 0,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-scan"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": null,
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2302,
+        "declaration_state": "acting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "\u001b`n(.",
+      "position": {
+        "y": 37,
+        "x": 91
+      },
+      "index": 2659
+    },
+    {
+      "claim_id": 2303,
+      "owner": "home-scan",
+      "goal": {
+        "kind": "Observe",
+        "expectation": [
+          "4392817",
+          "7",
+          "knowledge"
+        ],
+        "within": 8,
+        "source": "knowledge"
+      },
+      "state": "active",
+      "closed": null,
+      "closed_reason": null,
+      "budget": 300,
+      "non_discardable": false,
+      "distance": null,
+      "execution": {
+        "claim_id": 2303,
+        "work_id": "home-knowledge:4392817",
+        "revision": 1,
+        "producer": "home-scan",
+        "state": "acting",
+        "next_step": "home.knowledge.request",
+        "arguments": [],
+        "operation_ref": null,
+        "expected_effect": "catalogue-adopted",
+        "continuation": "home.knowledge.observe",
+        "budget_ref": "home-knowledge-existing-epoch",
+        "evidence": null,
+        "cause": null,
+        "producer_entry": null
+      },
+      "decision_sequence": 2658,
+      "reason": "home:request-knowledge-scan",
+      "fundraising_purpose": null,
+      "closed_claim": null,
+      "goal_missing": false,
+      "goal_note": null,
+      "survival": false,
+      "rank": 64,
+      "rung": "town-errand:home-scan",
+      "violation": {
+        "kind": "owner-change",
+        "from": "equipment-txn",
+        "to": "home-scan",
+        "claim_id": 2302,
+        "goal": {
+          "kind": "Observe",
+          "expectation": [
+            "4392817",
+            "7",
+            "knowledge"
+          ],
+          "within": 8,
+          "source": "knowledge"
+        },
+        "from_rank": 64,
+        "to_rank": 64,
+        "scope": "S3",
+        "survival": false
+      },
+      "purpose_duplicates": [],
+      "visit_owner_mismatch": null,
+      "visit_owner_structure": "router-opens-family-operates",
+      "visit_requester": "home-scan",
+      "visit_operator": "home-scan",
+      "barrier_provenance": null,
+      "leave_confirmation_interruption": null,
+      "leave_confirmation_pending": false,
+      "requester_missing": false,
+      "claim_verdict_conflict": null,
+      "scan-during-pending-atomic": false,
+      "plan_rebuild_deferred": 0,
+      "plan_change_evidence": null,
+      "displaced_non_discardable_producer": null,
+      "resumed": null,
+      "suspended_closed": null,
+      "suspended_depth": 0,
+      "trigger_monsters": null,
+      "last_perceived_turn": null,
+      "would_bar": null,
+      "would_skip": null,
+      "bars_set": null,
+      "bars_lifted": null,
+      "bars_active": 0,
+      "bar_skipped": null,
+      "errand_deferred": [
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2302,
+          "deferred_family": "home-scan",
+          "deferred_reason": "choose-key-scan",
+          "token_would_admit": false,
+          "token_work_identity": null
+        },
+        {
+          "holder_family": "equipment-txn",
+          "holder_claim_id": 2302,
+          "deferred_family": "store-router",
+          "deferred_reason": "procurement-decision",
+          "token_would_admit": false,
+          "token_work_identity": null
+        }
+      ],
+      "gate_final_count": 2,
+      "rewrite_refused": null,
+      "requester_families": [
+        "home-scan"
+      ],
+      "execution_delegations": null,
+      "cancelled_home_reservation": null,
+      "declaration_mismatch": null,
+      "s33_shadow": {
+        "would_stop": "ownership:gate-missing:home-scan",
+        "would_skip_families": [
+          "calibration",
+          "cross-town",
+          "curse-enchant",
+          "departure",
+          "equipment-opt",
+          "explore",
+          "fundraising",
+          "home-errand",
+          "home-scan",
+          "home-visit",
+          "identification",
+          "rumor",
+          "shop-buy",
+          "shop-sell",
+          "store-router"
+        ],
+        "holder_family": "equipment-txn",
+        "holder_claim_id": 2302,
+        "declaration_state": "awaiting",
+        "declaration_gap": false,
+        "mismatch": null
+      },
+      "kind": "claim",
+      "session": "tour",
+      "key": "~9\u001b",
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "index": 2660
+    }
+  ],
+  "violations": [
+    [
+      2658,
+      "owner-change",
+      "equipment-txn",
+      "home-scan"
+    ]
+  ]
+}

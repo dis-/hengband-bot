@@ -1,0 +1,28 @@
+python.exe : test_recorded_off_scan_continues_registered_catalogue (tests.test_live23_home_cycle.Live23HomeCycleTest.te
+st_recorded_off_scan_continues_registered_catalogue) ... FAIL
+発生場所 行:3 文字:1
++ & 'C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe'  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_recorded_o...logue) ... FAIL:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+======================================================================
+FAIL: test_recorded_off_scan_continues_registered_catalogue (tests.test_live23_home_cycle.Live23HomeCycleTest.test_reco
+rded_off_scan_continues_registered_catalogue)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live23_home_cycle.py", line 156, in test_recorded_off_scan_continues_r
+egistered_catalogue
+    self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'home-scan' != 'equipment-txn'
+- home-scan
++ equipment-txn
+
+
+----------------------------------------------------------------------
+Ran 1 test in 6.266s
+
+FAILED (failures=1)
+REVERT DETECTED: pre-fix source fails the OFF registered scan pin.

@@ -127,6 +127,47 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
             self.assertIsNone(policy._equipment_transaction_session)
 
+    def test_recorded_off_scan_continues_registered_catalogue(self):
+        # The unchanged entry/scan actions and their recorded knowledge response.
+        # Never consume a historical board after a changed key.
+        from tempfile import TemporaryDirectory
+        from hengbot.cli import _consume_response_sequence
+        from tests.test_home_withdraw_failed_stock_present_recorded import (
+            HomeWithdrawFailedStockPresentRecordedTest as Capture, _policy, CALIBRATION)
+        Capture.setUpClass()
+        for restored in (False, True):
+            with TemporaryDirectory() as raw:
+                directory = Path(raw)
+                policy = _policy(directory, Capture.monrace)
+                policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+                for index in range(5):
+                    if restored and index == 3:
+                        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+                    _, boards = _consume_response_sequence(
+                        Capture._board_lines(index), policy, lambda _key: True,
+                        Capture.monrace, knowledge_ledger_path=directory / "knowledge.jsonl")
+                    key = policy.choose_key(boards[-1])
+                    historical = Capture.recorded[index]
+                    self.assertEqual((str(key), policy.last_reason),
+                                     (historical["key"], historical["reason"]))
+                    if index == 2:
+                        holder_id = policy._claim_register.current.claim_id
+                    if index == 3:
+                        self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                        self.assertEqual(policy.decision_claim["claim_id"], holder_id)
+                        self.assertIsNone(policy.decision_claim["violation"])
+                        self.assertEqual(policy._claim_register.current.execution.work_id,
+                                         "equipment:acquire-home-catalog")
+                        self.assertEqual(policy._claim_register.current.execution.continuation,
+                                         "home.catalogue.acquire")
+                    if index == 4:
+                        closed = policy.decision_claim["closed_claim"]
+                        self.assertEqual(closed["claim_id"], holder_id)
+                        self.assertEqual(closed["closed"], "complete")
+                        self.assertEqual(closed["closed_reason"], "home-knowledge-current")
+                        self.assertTrue(policy._home_knowledge_current)
+                    policy.confirm_key_posted(key)
+
     def test_restored_legacy_entry_declaration_still_requires_catalogue_evidence(self):
         policy, boards = attachment()
         with gzip.open(FIXTURE / "decisions.jsonl.gz", "rt", encoding="utf8") as source:
@@ -151,22 +192,24 @@ class Live23HomeCycleTest(unittest.TestCase):
         partial = parse_snapshot(json.loads(
             (FIXTURE / "partial-home-page.json").read_text(encoding="utf8")), {})
         self.assertEqual((partial.store.stock_num, len(partial.store.items)), (131, 52))
-        policy, _ = attachment(enforced=True)
-        holder = policy._claim_register.declare("equipment-txn", observe(
-            goal["expectation"], goal["within"], goal["source"]))
-        policy._claim_register.declare_execution(
-            holder.claim_id, producer=execution["producer"], work_id=execution["work_id"],
-            state=execution["state"], next_step=execution["next_step"],
-            expected_effect=execution["expected_effect"], continuation=execution["continuation"])
-        self.assertEqual(policy._home_catalogue_work_key(partial), "\x1b")
-        self.assertEqual(policy.last_reason, "equipment-transaction:catalogue-leave-for-scan")
-        self.assertFalse(policy._home_knowledge_current)
-        policy._record_decision_claim(partial, "\x1b")
-        self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
-        policy.confirm_key_posted("\x1b")
-        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-        self.assertEqual(policy._claim_register.current.execution.continuation, "home.catalogue.acquire")
-        self.assertIsNone(policy._town_holder_structural_stop(policy._claim_register.current, partial))
+        for enforced in (False, True):
+            policy, _ = attachment(enforced=enforced, crossarea=False)
+            holder = policy._claim_register.declare("equipment-txn", observe(
+                goal["expectation"], goal["within"], goal["source"]))
+            policy._claim_register.declare_execution(
+                holder.claim_id, producer=execution["producer"], work_id=execution["work_id"],
+                state=execution["state"], next_step=execution["next_step"],
+                expected_effect=execution["expected_effect"], continuation=execution["continuation"])
+            self.assertEqual(policy._home_catalogue_work_key(partial), "\x1b")
+            self.assertEqual(policy.last_reason, "equipment-transaction:catalogue-leave-for-scan")
+            self.assertFalse(policy._home_knowledge_current)
+            policy._record_decision_claim(partial, "\x1b")
+            self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
+            policy.confirm_key_posted("\x1b")
+            policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+            self.assertEqual(policy._claim_register.current.execution.continuation, "home.catalogue.acquire")
+            self.assertIsNone(policy._town_holder_structural_stop(policy._claim_register.current, partial))
+
 
 
 if __name__ == "__main__":

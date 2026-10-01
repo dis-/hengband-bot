@@ -1,0 +1,21 @@
+python.exe : ............
+
+発生場所 行:2 文字:305
+
++ ... t('.')[-1]; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
+
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    + CategoryInfo          : NotSpecified: (............:String) [], RemoteException
+
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+
+----------------------------------------------------------------------
+
+Ran 12 tests in 33.695s
+
+
+
+OK

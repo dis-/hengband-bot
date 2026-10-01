@@ -1,0 +1,89 @@
+python.exe : ..FF...
+発生場所 行:7 文字:1
++ & 'C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe'  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (..FF...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+======================================================================
+FAIL: test_s2a1_observe_goals_complete_on_their_confirmed_effect (tests.test_unaffordable_claim_tour_recorded.Unafforda
+bleClaimTourRecordedTest.test_s2a1_observe_goals_complete_on_their_confirmed_effect)
+S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_unaffordable_claim_tour_recorded.py", line 593, in test_s2a1_observe_g
+oals_complete_on_their_confirmed_effect
+    self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'home-knowledge-current': 9, 'sale-observe[187 chars]': 3} != {'purchase-observed': 18, 'home-deposit-
+obs[188 chars]: 19}
+- {'entered-store': 2,
+?                   ^
+
++ {'entered-store': 5,
+?                   ^
+
+   'equipment-transaction-complete': 7,
+   'floor-changed': 10,
+   'home-deposit-observed': 6,
+-  'home-knowledge-current': 9,
+?                            ^
+
++  'home-knowledge-current': 11,
+?                            ^^
+
+   'home-withdraw-observed': 3,
+-  'purchase-observed': 16,
+?                        ^
+
++  'purchase-observed': 18,
+?                        ^
+
+   'sale-observed': 3,
+   'staged-tail-posted': 19}
+
+======================================================================
+FAIL: test_s3_new_code_replay_names_remaining_violations (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaim
+TourRecordedTest.test_s3_new_code_replay_names_remaining_violations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_unaffordable_claim_tour_recorded.py", line 308, in test_s3_new_code_re
+play_names_remaining_violations
+    self.assertEqual(actual, [
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+        (2701, "owner-change", "store-router", "home-scan"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        (3052, "owner-change", "store-router", "home-scan"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ])
+    ^^
+AssertionError: Lists differ: [(2659, 'owner-change', 'equipment-txn', 'un[386 chars]an')] != [(2701, 'owner-change', '
+store-router', 'hom[173 chars]an')]
+
+First differing element 0:
+(2659, 'owner-change', 'equipment-txn', 'unregistered')
+(2701, 'owner-change', 'store-router', 'home-scan')
+
+First list contains 4 additional elements.
+First extra element 4:
+(2716, 'owner-change', 'store-router', 'departure')
+
+- [(2659, 'owner-change', 'equipment-txn', 'unregistered'),
+-  (2680, 'retarget', 'equipment-txn', 'equipment-txn'),
+-  (2695, 'owner-change', 'shop-buy', 'detectors'),
+-  (2699, 'owner-change', 'store-router', 'home-scan'),
+? ^  ^^^
+
++ [(2701, 'owner-change', 'store-router', 'home-scan'),
+? ^  ^^^
+
+-  (2716, 'owner-change', 'store-router', 'departure'),
+   (3035, 'retarget', 'calibration', 'calibration'),
+   (3037, 'transaction-contention', 'calibration', 'equipment-txn'),
+   (3052, 'owner-change', 'store-router', 'home-scan')]
+
+----------------------------------------------------------------------
+Ran 7 tests in 570.921s
+
+FAILED (failures=2)

@@ -1,0 +1,48 @@
+python.exe : test_root_cause_claims_on_the_post_purchase_board (tests.test_unaffordable_claim_tour_recorded.Unaffordabl
+eClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board) ... ok
+発生場所 行:55 文字:1
++ & 'C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe'  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_root_cause...e_board) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_s0_replay_stops_at_first_changed_equipment_choice (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTo
+urRecordedTest.test_s0_replay_stops_at_first_changed_equipment_choice)
+Recorded boards are authoritative only until the first changed key. ... ok
+test_s2a1_observe_goals_complete_on_their_confirmed_effect (tests.test_unaffordable_claim_tour_recorded.UnaffordableCla
+imTourRecordedTest.test_s2a1_observe_goals_complete_on_their_confirmed_effect)
+S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime. ... FAIL
+test_s3_new_code_replay_names_remaining_violations (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRe
+cordedTest.test_s3_new_code_replay_names_remaining_violations) ... ok
+test_u1_after_the_healing_purchase_the_bot_departs (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRe
+cordedTest.test_u1_after_the_healing_purchase_the_bot_departs) ... ok
+test_u2_affordable_optional_purchases_still_happen (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRe
+cordedTest.test_u2_affordable_optional_purchases_still_happen) ... ok
+test_u3_required_supply_claims_are_not_released (tests.test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecor
+dedTest.test_u3_required_supply_claims_are_not_released) ... ok
+
+======================================================================
+FAIL: test_s2a1_observe_goals_complete_on_their_confirmed_effect (tests.test_unaffordable_claim_tour_recorded.Unafforda
+bleClaimTourRecordedTest.test_s2a1_observe_goals_complete_on_their_confirmed_effect)
+S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_unaffordable_claim_tour_recorded.py", line 651, in test_s2a1_observe_g
+oals_complete_on_their_confirmed_effect
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        {
+        ^
+    ...<6 lines>...
+        S2A1_ENDINGS,
+        ^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: {'sho[168 chars]te': 7, 'abandoned': 0}, 'floor-loot/Reach': {[254 chars]: 0}} != {'sho[168 chars]te': 
+6, 'abandoned': 0}, 'floor-loot/Reach': {[254 chars]: 0}}
+Diff is 764 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 7 tests in 544.731s
+
+FAILED (failures=1)
