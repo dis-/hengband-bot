@@ -1,0 +1,69 @@
+python.exe : .....FFxxxxxxxxF
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.....FFxxxxxxxxF:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+======================================================================
+FAIL: test_h10_completed_operations_continue_visit_without_attempt_reset (tests.test_equipment_in_home_stage1.Equipment
+InHomeBehaviorPins.test_h10_completed_operations_continue_visit_without_attempt_reset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 329, in test_h10_completed_operations_c
+ontinue_visit_without_attempt_reset
+    self._assert_completed_recorded_outer_plan(game, before, accepted, reasons)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 219, in _assert_completed_recorded_oute
+r_plan
+    self.assertTrue(any(key.startswith("t") for key in accepted),
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    ("recorded next takeoff was not posted", accepted, reasons))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : ('recorded next takeoff was not posted', ['5'], ['equipment-transaction:travel-home
+:await-entry', 'equipment-transaction:takeoff'])
+
+======================================================================
+FAIL: test_h1_incident_finishes_with_one_exit_and_zero_reentries (tests.test_equipment_in_home_stage1.EquipmentInHomeBe
+haviorPins.test_h1_incident_finishes_with_one_exit_and_zero_reentries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 247, in test_h1_incident_finishes_with_
+one_exit_and_zero_reentries
+    self._assert_completed_recorded_outer_plan(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        game, before, self._accepted(game), reasons,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 219, in _assert_completed_recorded_oute
+r_plan
+    self.assertTrue(any(key.startswith("t") for key in accepted),
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    ("recorded next takeoff was not posted", accepted, reasons))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : ('recorded next takeoff was not posted', ['5'], ['equipment-transaction:travel-home
+:await-entry', 'equipment-transaction:takeoff'])
+
+======================================================================
+FAIL: test_supplementary_planner_admits_pack_space_deposit_inside_home (tests.test_equipment_in_home_stage1.EquipmentIn
+HomeBehaviorPins.test_supplementary_planner_admits_pack_space_deposit_inside_home)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 357, in test_supplementary_planner_admi
+ts_pack_space_deposit_inside_home
+    self.assertEqual(accepted, ["do", "\x1b"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['do', '\x1b']
+
+Second list contains 2 additional elements.
+First extra element 0:
+'do'
+
+- []
++ ['do', '\x1b']
+
+----------------------------------------------------------------------
+Ran 16 tests in 26.768s
+
+FAILED (failures=3, expected failures=8)

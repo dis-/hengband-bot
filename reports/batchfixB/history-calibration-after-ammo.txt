@@ -1,0 +1,74 @@
+HISTORICAL 19a6fd1f tests.test_calibration_live25.Live25CalibrationTest.test_full_owed_restore_at_limit_and_one_over_after_checkpoint
+python.exe : test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25Calibra
+tionTest.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) ...
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_full_owed_...heckpoint) ... :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+  test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTest.te
+st_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=False, checkpoint=False, extra=322) ... FAIL
+  test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTest.te
+st_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=False, checkpoint=True, extra=322) ... FAIL
+  test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTest.te
+st_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=True, checkpoint=False, extra=322) ... FAIL
+  test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTest.te
+st_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=True, checkpoint=True, extra=322) ... FAIL
+
+======================================================================
+FAIL: test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTes
+t.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=False, checkpoint=False, extra=322)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_calibration_live25.py", line 220, in test_full_owed_restore_at_limit_and_o
+ne_over_after_checkpoint
+    self.assertEqual(policy._inventory_weight(board) + sum(
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        i.weight * n for _, _, i, n, _ in entries), 1551)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1546 != 1551
+
+======================================================================
+FAIL: test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTes
+t.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=False, checkpoint=True, extra=322)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_calibration_live25.py", line 220, in test_full_owed_restore_at_limit_and_o
+ne_over_after_checkpoint
+    self.assertEqual(policy._inventory_weight(board) + sum(
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        i.weight * n for _, _, i, n, _ in entries), 1551)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1546 != 1551
+
+======================================================================
+FAIL: test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTes
+t.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=True, checkpoint=False, extra=322)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_calibration_live25.py", line 220, in test_full_owed_restore_at_limit_and_o
+ne_over_after_checkpoint
+    self.assertEqual(policy._inventory_weight(board) + sum(
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        i.weight * n for _, _, i, n, _ in entries), 1551)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1546 != 1551
+
+======================================================================
+FAIL: test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25CalibrationTes
+t.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) (s33=True, checkpoint=True, extra=322)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_calibration_live25.py", line 220, in test_full_owed_restore_at_limit_and_o
+ne_over_after_checkpoint
+    self.assertEqual(policy._inventory_weight(board) + sum(
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        i.weight * n for _, _, i, n, _ in entries), 1551)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1546 != 1551
+
+----------------------------------------------------------------------
+Ran 1 test in 14.126s
+
+FAILED (failures=4)

@@ -1,0 +1,28 @@
+HISTORICAL 7410a5cb tests.test_calibration_live25
+python.exe : test_full_owed_restore_at_limit_and_one_over_after_checkpoint (tests.test_calibration_live25.Live25Calibra
+tionTest.test_full_owed_restore_at_limit_and_one_over_after_checkpoint) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_full_owed_...ckpoint) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+test_next_calibration_resets_kept_home_accounting (tests.test_calibration_live25.Live25CalibrationTest.test_next_calibr
+ation_resets_kept_home_accounting) ... ok
+test_old_checkpoint_has_no_new_field_until_it_keeps_excess (tests.test_calibration_live25.Live25CalibrationTest.test_ol
+d_checkpoint_has_no_new_field_until_it_keeps_excess) ... ok
+test_recorded_deposits_restore_completes_with_excess_kept_home (tests.test_calibration_live25.Live25CalibrationTest.tes
+t_recorded_deposits_restore_completes_with_excess_kept_home) ... ok
+test_recorded_weights_and_identical_redress (tests.test_calibration_live25.Live25CalibrationTest.test_recorded_weights_
+and_identical_redress) ... ok
+test_required_debt_alone_over_limit_still_stops_without_lowering_targets (tests.test_calibration_live25.Live25Calibrati
+onTest.test_required_debt_alone_over_limit_still_stops_without_lowering_targets) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 21.511s
+
+OK
+live25 restore: {"s33": false, "checkpoint": false, "live_key": "5pQ72\rpMpLpKpApopnpl8\rpb\u001b", "live_reason": "calibration:atomic-restore-withdraw", "new_key": "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\u001b", "phase": null, "weight": 1379, "limit": 1700, "debt": [], "kept_in_home": [{"signature": ["★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3)", 22, 17], "quantity": 1}, {"signature": ["オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)", 37, 18], "quantity": 1}, {"signature": ["ショート・テレポートの巻物", 70, 8], "quantity": 1}, {"signature": ["帰還のロッド", 66, 3], "quantity": 1}, {"signature": ["致命傷の治癒の薬", 75, 36], "quantity": 4}, {"signature": ["鑑定の杖 (2x 4回分)", 55, 5], "quantity": 2}, {"signature": ["鑑定の杖 (2x 9回分)", 55, 5], "quantity": 2}, {"signature": ["青いキノコ", 80, -1], "quantity": 1}, {"signature": ["黄色いキノコ", 80, -1], "quantity": 1}]}
+live25 restore: {"s33": false, "checkpoint": true, "live_key": "5pQ72\rpMpLpKpApopnpl8\rpb\u001b", "live_reason": "calibration:atomic-restore-withdraw", "new_key": "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\u001b", "phase": null, "weight": 1379, "limit": 1700, "debt": [], "kept_in_home": [{"signature": ["★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3)", 22, 17], "quantity": 1}, {"signature": ["オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)", 37, 18], "quantity": 1}, {"signature": ["ショート・テレポートの巻物", 70, 8], "quantity": 1}, {"signature": ["帰還のロッド", 66, 3], "quantity": 1}, {"signature": ["致命傷の治癒の薬", 75, 36], "quantity": 4}, {"signature": ["鑑定の杖 (2x 4回分)", 55, 5], "quantity": 2}, {"signature": ["鑑定の杖 (2x 9回分)", 55, 5], "quantity": 2}, {"signature": ["青いキノコ", 80, -1], "quantity": 1}, {"signature": ["黄色いキノコ", 80, -1], "quantity": 1}]}
+live25 restore: {"s33": true, "checkpoint": false, "live_key": "5pQ72\rpMpLpKpApopnpl8\rpb\u001b", "live_reason": "calibration:atomic-restore-withdraw", "new_key": "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\u001b", "phase": null, "weight": 1379, "limit": 1700, "debt": [], "kept_in_home": [{"signature": ["★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3)", 22, 17], "quantity": 1}, {"signature": ["オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)", 37, 18], "quantity": 1}, {"signature": ["ショート・テレポートの巻物", 70, 8], "quantity": 1}, {"signature": ["帰還のロッド", 66, 3], "quantity": 1}, {"signature": ["致命傷の治癒の薬", 75, 36], "quantity": 4}, {"signature": ["鑑定の杖 (2x 4回分)", 55, 5], "quantity": 2}, {"signature": ["鑑定の杖 (2x 9回分)", 55, 5], "quantity": 2}, {"signature": ["青いキノコ", 80, -1], "quantity": 1}, {"signature": ["黄色いキノコ", 80, -1], "quantity": 1}]}
+live25 restore: {"s33": true, "checkpoint": true, "live_key": "5pQ72\rpMpLpKpApopnpl8\rpb\u001b", "live_reason": "calibration:atomic-restore-withdraw", "new_key": "5pQ72\rpMpLpx5\rpopl8\rpk13\rpi4\rph10\rpgpc5\r\u001b", "phase": null, "weight": 1379, "limit": 1700, "debt": [], "kept_in_home": [{"signature": ["★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3)", 22, 17], "quantity": 1}, {"signature": ["オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)", 37, 18], "quantity": 1}, {"signature": ["ショート・テレポートの巻物", 70, 8], "quantity": 1}, {"signature": ["帰還のロッド", 66, 3], "quantity": 1}, {"signature": ["致命傷の治癒の薬", 75, 36], "quantity": 4}, {"signature": ["鑑定の杖 (2x 4回分)", 55, 5], "quantity": 2}, {"signature": ["鑑定の杖 (2x 9回分)", 55, 5], "quantity": 2}, {"signature": ["青いキノコ", 80, -1], "quantity": 1}, {"signature": ["黄色いキノコ", 80, -1], "quantity": 1}]}

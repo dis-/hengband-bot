@@ -1,0 +1,13 @@
+python.exe : .
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 1 test in 61.193s
+
+OK
+FIRST DIVERGENCE 104 live '5' town:blocked:departure-unsatisfiable replay '5' town:identify-staff-stockout-mining
+SHORTFALL 18 mode prepare planned 1 home_current True stores {}

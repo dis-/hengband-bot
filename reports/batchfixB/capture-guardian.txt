@@ -1,0 +1,29 @@
+CAPTURED 8d839a7a9ad71898dd183ee7c97ae37d40ef1b4e46b2abd55fcf6241eb98d96e [('body', 'equipped:d8ad0a70c041df39:0'), ('bow', 'equipped:9d0e5f4f4a86a850:0'), ('feet', 'equipped:88e6d9b556672fc9:0'), ('head', 'equipped:e339e50c60749854:0'), ('light', 'equipped:21b109e0d6b6382d:0'), ('main_hand', 'equipped:055751ff10eb08e9:0'), ('main_ring', 'equipped:cece0625c1832d34:0'), ('neck', 'equipped:7a506b5e8e56f2b1:0'), ('outer', 'equipped:dceeaad31f2254f4:0'), ('sub_hand', 'equipped:eda4854047084365:0'), ('sub_ring', 'equipped:1b970248b2c12bcb:0')]
+python.exe : test_g1_fallback_does_not_choose_a_blocked_guardian_landing (tests.test_guardian_recall_pingpong_recorded.
+GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_g1_fallbac...landing) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing (tests.test_guardian_recall_pingpong_recorded.GuardianR
+ecallPingPongRecordedTest.test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing)
+User decision 2026-09-25 「倒せない階でなければ深くても可」. ... ok
+test_g2_every_guardian_bounce_is_counted_and_the_valve_fires (tests.test_guardian_recall_pingpong_recorded.GuardianReca
+llPingPongRecordedTest.test_g2_every_guardian_bounce_is_counted_and_the_valve_fires) ... ok
+test_live_replay_reproduces_every_recorded_decision (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPon
+gRecordedTest.test_live_replay_reproduces_every_recorded_decision) ... ok
+test_r3_no_qualifying_alternate_stops_the_run_visibly (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingP
+ongRecordedTest.test_r3_no_qualifying_alternate_stops_the_run_visibly)
+User decision 2026-09-25 「見える形で停止する」. ... ok
+test_recorded_run_is_the_uncounted_guardian_bounce (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPong
+RecordedTest.test_recorded_run_is_the_uncounted_guardian_bounce) ... ok
+test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off (tests.test_guardian_recall_pingpong_recorded.Guardian
+RecallPingPongRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 222.200s
+
+OK
+CAPTURE guardian 1 True

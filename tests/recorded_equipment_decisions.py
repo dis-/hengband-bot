@@ -18,6 +18,8 @@ from unittest.mock import patch
 from hengbot import equipment_optimizer, model, warrior_optimization
 
 FIXTURE_SHA256 = {
+    "guardian": "42412bcdbcde27fdd94d93b1e46d85011506fdc1e025c670c0977192ff60fb56",
+    "overweight": "8ceeaf38f73218ea3aa96562c30fcf6173ad0b4d8573e70eccaf8cc2f991d516",
     "town": "8a8b62d1c8556b23782a0a9fa6f4a6c653f1f75001d2e7345f53dacc663e54bb",
     "live27": "eb8a8aa1fa6cbecad9d7e0b4541d8f86360cca9e966f981bde93af4e5e8eff53",
     "classC2": "ecfe01c2c70926975f8fde3e612f5380c27d80027cf4101018c939aabdfaa116",

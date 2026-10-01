@@ -277,8 +277,13 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
                 key = policy.choose_key(board)
                 policy.confirm_key_posted(key)
             self.assertEqual((str(key), policy.last_reason), (
-                "5  pe\x1b", "equipment-transaction:atomic-withdraw",
+                "5pb1\r\x1b", "home:atomic-withdraw",
             ))
+            # batchfixB: approved "dual-wield half-max-melee selection, ruling
+            # #9" and game-correct melee bonuses (7410a5cb). Removing the
+            # crossbow's +10/+8 from melee keeps Avabia/shield instead of
+            # withdrawing Theoden. This is the first changed decision; no
+            # subsequent historical board is used as its response.
             evaluator = policy._warrior_evaluator_cache.evaluator
             self.assertIsNotNone(evaluator)
             items = policy._equipment_catalog.items
@@ -370,12 +375,12 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
             (shield_hand,) = protected.melee.hands
             (empty_hand,) = empty.melee.hands
             self.assertEqual((shield_hand.blows, empty_hand.blows), (5, 5))
-            self.assertAlmostEqual(shield_hand.hit_chance_ac100, 0.74)
-            self.assertAlmostEqual(empty_hand.hit_chance_ac100, 0.76)
+            self.assertAlmostEqual(shield_hand.hit_chance_ac100, 0.72)
+            self.assertAlmostEqual(empty_hand.hit_chance_ac100, 0.74)
             self.assertAlmostEqual(shield_hand.expected_damage_per_hit,
-                                   35.49950111042539)
+                                   27.378331183077933)
             self.assertAlmostEqual(empty_hand.expected_damage_per_hit,
-                                   37.62067103777284)
+                                   29.499501110425385)
             self.assertGreater(empty.metrics.expected_dps,
                                protected.metrics.expected_dps * 1.05)
             self.assertGreater(empty.metrics.survival_turns,
@@ -386,16 +391,17 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
                 for entry in selection.pareto_frontier
             )
             self.assertAlmostEqual(max_survival, 13.302337777550207)
-            # The old weapon/shield misses the field-wide 95% band by 0.005
-            # turn. Theoden/empty survives it; Theoden/shield then misses the
-            # offense band by 4.61 DPS. These are the existing selector bands.
+            # Field-wide survival remains 13.302337777550207, but the approved
+            # half-max-melee filter precedes that band. Corrected DPS is
+            # 154.7946732249078 for Avabia/shield versus 109.14815410857393
+            # for Theoden/empty. The surviving offense pool keeps the worn kit.
             self.assertLess(old.metrics.survival_turns, max_survival * 0.95)
             self.assertGreaterEqual(empty.metrics.survival_turns,
                                     max_survival * 0.95)
             self.assertLess(protected.metrics.expected_dps,
                             empty.metrics.expected_dps * 0.95)
             self.assertEqual(selection.best.loadout.item_ids,
-                             theoden_empty.item_ids)
+                             avabia_shield.item_ids)
 
     def test_recorded_stop_followed_a_confirmed_take_never_a_shovel_take(self):
         recorded = self.recorded

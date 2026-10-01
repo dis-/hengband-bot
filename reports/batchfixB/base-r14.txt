@@ -1,0 +1,25 @@
+python.exe : F.
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (F.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+======================================================================
+FAIL: test_overweight_home_tail_keeps_its_operation_at_3715 (tests.test_declarations_r14.DeclarationR14Test.test_overwe
+ight_home_tail_keeps_its_operation_at_3715)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_declarations_r14.py", line 56, in test_overweight_home_tail_keeps_its_oper
+ation_at_3715
+    row = measure("overweight", "s33")["first_divergence"]
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-c2\scripts\first_divergence_s3_3.py", line 191, in measure
+    raise AssertionError(f"{case}: OFF hash {digest} != {OFF_SHA[case]}")
+AssertionError: overweight: OFF hash 8a1bd0b05855aa06378b01f93a10a839bbec0352f4a9dcb9552312e73307df19 != 8e76a2056d5877
+30d825bc367b0fc3812da13610809f96193b03445ef542758b
+
+----------------------------------------------------------------------
+Ran 2 tests in 296.685s
+
+FAILED (failures=1)

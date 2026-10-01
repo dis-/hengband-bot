@@ -990,7 +990,11 @@ class OperationExecutor:
         # a coherent Home board cannot authorize them at a STORE input wait.
         if self.ready_screen.kind is ScreenKind.STORE:
             first = operation.keys[:1]
-            store_producer = operation.owner.startswith((
+            # Policy-driven executors retain the policy: envelope in receipts.
+            # Interpret the enclosed producer for admission, preserving the
+            # original owner identity for confirmation and ownership telemetry.
+            producer = operation.owner.removeprefix("policy:")
+            store_producer = producer.startswith((
                 "shop:", "home:", "calibration:", "equipment-transaction:",
             ))
             if (first in "EqruazRfvkToDFl012346789\\<>+`"

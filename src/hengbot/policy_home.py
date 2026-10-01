@@ -62,6 +62,14 @@ class HomeMixin:
             if required == owed:
                 continue
             self._calibration_keep_in_home(owner, owed - required)
+            # Subsequent reservations must see the supplies already left at
+            # Home. Otherwise ammo fitting sheds ammo for an overload which
+            # the preceding torch/supply reduction has already cleared.
+            board = replace(board, inventory=[
+                replace(item, count=required) if item.slot == carried.slot else item
+                for item in board.inventory
+                if item.slot != carried.slot or required
+            ])
             if required:
                 self._home_pending_quantities[owner] = required
             else:
@@ -1204,6 +1212,21 @@ class HomeMixin:
         surplus_identify_staff = self._find_surplus_identify_staff(
             snapshot, for_weight_overload=True
         )
+        # A Home identification withdrawal owns the pending identification
+        # work until its usable source has been consumed. Do not retire its
+        # identification supply as weight surplus during that handoff.
+        if any(
+            self._identification_flow_owns(item)
+            and self._find_identification_source(
+                snapshot,
+                full=bool(item.known and item_requires_full_identification(item)
+                          and not item.fully_known),
+                reliable_only=True,
+                reservation_target=self._item_signature(item),
+            ) is not None
+            for item in snapshot.inventory
+        ):
+            surplus_identify_staff = None
 
         def required_supply(item: InventoryItem) -> bool:
             categories = set(self._cross_town_item_categories(item))

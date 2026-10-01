@@ -93,6 +93,7 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from recorded_loadout import recorded_loadout_replay
+from recorded_equipment_decisions import frozen_equipment_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -171,6 +172,11 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
 
     @classmethod
     @recorded_loadout_replay
+    # batchfixB / approved dual-wield half-max-melee selection, ruling #9:
+    # Home-ledger and ownership pins consume the captured equipment decision.
+    # The production optimizer changed it at index 2; later recorded boards
+    # cannot serve as responses to an unconfirmed new equipment transaction.
+    @frozen_equipment_replay("overweight")
     def _replay(cls):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:
@@ -237,6 +243,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         return replay
 
     @classmethod
+    @frozen_equipment_replay("overweight")
     def _live_loot_prefix(cls):
         """Replay only through the first loot change with production policy."""
         if cls.live_prefix is not None:

@@ -1,0 +1,35 @@
+python.exe : ..F...
+発生場所 行:2 文字:38
++ ... s;scripts'; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (..F...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+======================================================================
+FAIL: test_shield_and_weapon_survival_terms_on_first_changed_board (tests.test_home_withdraw_failed_stock_present_recor
+ded.HomeWithdrawFailedStockPresentRecordedTest.test_shield_and_weapon_survival_terms_on_first_changed_board)
+The shield protects; Theoden's CON and two-hand offense explain the swap.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_home_withdraw_failed_stock_present_recorded.py", line 279, in test_shield_
+and_weapon_survival_terms_on_first_changed_board
+    self.assertEqual((str(key), policy.last_reason), (
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "5  pe\x1b", "equipment-transaction:atomic-withdraw",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+AssertionError: Tuples differ: ('5pb1\r\x1b', 'home:atomic-withdraw') != ('5  pe\x1b', 'equipment-transaction:atomic-wi
+thdraw')
+
+First differing element 0:
+'5pb1\r\x1b'
+'5  pe\x1b'
+
+- ('5pb1\r\x1b', 'home:atomic-withdraw')
++ ('5  pe\x1b', 'equipment-transaction:atomic-withdraw')
+
+----------------------------------------------------------------------
+Ran 6 tests in 56.009s
+
+FAILED (failures=1)

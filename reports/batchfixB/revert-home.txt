@@ -1,0 +1,36 @@
+python.exe : test_h1_incident_finishes_with_one_exit_and_zero_reentries (tests.test_equipment_in_home_stage1.EquipmentI
+nHomeBehaviorPins.test_h1_incident_finishes_with_one_exit_and_zero_reentries) ... FAIL
+発生場所 行:2 文字:358
++ ... nation.txt; & 'C:\Users\user\AppData\Local\Programs\Python\Python313\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_h1_inciden...tries) ... FAIL:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+======================================================================
+FAIL: test_h1_incident_finishes_with_one_exit_and_zero_reentries (tests.test_equipment_in_home_stage1.EquipmentInHomeBe
+haviorPins.test_h1_incident_finishes_with_one_exit_and_zero_reentries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 247, in test_h1_incident_finishes_with_
+one_exit_and_zero_reentries
+    self._assert_completed_recorded_outer_plan(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        game, before, self._accepted(game), reasons,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\hengband\bot-client-c2\tests\test_equipment_in_home_stage1.py", line 219, in _assert_completed_recorded_oute
+r_plan
+    self.assertTrue(any(key.startswith("t") for key in accepted),
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    ("recorded next takeoff was not posted", accepted, reasons))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : ('recorded next takeoff was not posted', ['5'], ['equipment-transaction:travel-home
+:await-entry', 'equipment-transaction:takeoff'])
+
+----------------------------------------------------------------------
+Ran 1 test in 3.403s
+
+FAILED (failures=1)
+REVERT home detected True
