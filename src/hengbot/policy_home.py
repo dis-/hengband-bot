@@ -71,6 +71,42 @@ class HomeMixin:
                 if owner in self._home_pending_batch:
                     self._home_pending_batch.remove(owner)
 
+    def _reconcile_carried_calibration_restore(self, snapshot: Snapshot) -> None:
+        """Discharge missing Home debt only from positively observed possession."""
+        if (not self._calibration_restore_enforced()
+                or self._calibration_phase != "restore-supplies"
+                or self._home_atomic_withdraw_pending is not None):
+            return
+        self._protect_calibration_restore_items()
+        for owner in tuple(self._calibration_restore_signatures):
+            worn = sum(item.count for item in snapshot.equipment
+                       if self._calibration_restore_item_matches(owner, item))
+            carried = sum(item.count for item in snapshot.inventory
+                          if self._calibration_restore_item_matches(owner, item))
+            # A shelf still owing this identity must be withdrawn. Carried
+            # duplicates alone cannot prove a partial deposit was restored.
+            shelf_present = any(self._calibration_restore_item_matches(owner, item)
+                                for item in self._home_knowledge_items)
+            owed = self._home_pending_quantities.get(owner, 1)
+            if worn < owed and (shelf_present or carried + worn < owed):
+                continue
+            self._calibration_restore_signatures.remove(owner)
+            self._home_pending_quantities.pop(owner, None)
+            self._calibration_restore_move_identities.pop(owner, None)
+            self._calibration_restore_item_ids.pop(owner, None)
+            if owner in self._home_pending_batch:
+                self._home_pending_batch.remove(owner)
+            if self._home_pending_item == owner:
+                self._home_pending_item = None
+                self._home_pending_quantity = None
+            if self._town_blocked_reason == "calibration-restore-target-absent":
+                self._town_blocked_reason = None
+        if not self._calibration_restore_signatures:
+            self._complete_observed_effect(
+                "calibration-restore-observed", owners=("calibration",),
+                sources=("calibration",),
+            )
+
     def _protect_calibration_restore_items(self) -> None:
         # Retain the original restore identities after their debt is discharged.
         # Older checkpoints acquire this field from their still-outstanding debt.
@@ -1453,6 +1489,7 @@ class HomeMixin:
     ) -> str | None:
         """Bind one catalogued Home take to fresh entry, operation, and exit."""
         if self._calibration_phase == "restore-supplies":
+            self._reconcile_carried_calibration_restore(snapshot)
             self._protect_calibration_restore_items()
         if (
             snapshot.store is not None
@@ -1961,7 +1998,8 @@ class HomeMixin:
         batch_entries = ()
         if (
             restore_owner_signature is not None
-            and restore_owner_signature == signature
+            and (restore_owner_signature == signature
+                 or self._calibration_restore_enforced())
         ):
             free_slots = max(1, PACK_CAPACITY - len(snapshot.inventory))
             page_candidates = []
@@ -1970,7 +2008,9 @@ class HomeMixin:
                     (
                         (owner_index, owner_item)
                         for owner_index, owner_item in reversed(address_slots)
-                        if self._item_signature(owner_item) == owner_signature
+                        if (self._calibration_restore_item_matches(owner_signature, owner_item)
+                            if self._calibration_restore_enforced()
+                            else self._item_signature(owner_item) == owner_signature)
                         and owner_index // self._home_page_size == page
                     ),
                     None,
@@ -2015,7 +2055,10 @@ class HomeMixin:
                 batch_entries = tuple(
                     (
                         owner_signature,
-                        self._inventory_signature_count(snapshot, owner_signature),
+                        (sum(carried.count for carried in snapshot.inventory
+                             if self._calibration_restore_item_matches(owner_signature, carried))
+                         if self._calibration_restore_enforced()
+                         else self._inventory_signature_count(snapshot, owner_signature)),
                         owner_item,
                         (self._home_pending_quantities.get(owner_signature, 1)
                          if self._calibration_restore_enforced() else owner_item.count),
@@ -2187,7 +2230,10 @@ class HomeMixin:
         failed = []
         for entry in pending[4]:
             signature, before_count, _withdrawn, quantity, _index = entry
-            after_count = self._inventory_signature_count(snapshot, signature)
+            after_count = sum(
+                item.count for item in snapshot.inventory
+                if self._calibration_restore_item_matches(signature, item)
+            ) if self._calibration_restore_enforced() else self._inventory_signature_count(snapshot, signature)
             (succeeded if after_count >= before_count + quantity else failed).append(
                 entry
             )
@@ -2215,7 +2261,9 @@ class HomeMixin:
         for signature, before_count, withdrawn, quantity, _index in succeeded:
             owner_signature = (
                 next((owner for owner in self._calibration_restore_signatures
-                      if owner == signature or owner[1:] == signature[1:]), None)
+                      if owner == signature), None)
+                or next((owner for owner in self._calibration_restore_signatures
+                         if self._calibration_restore_item_matches(owner, withdrawn)), None)
                 if getattr(self, "_crossarea_fundraising_enforced", False)
                 else signature
             )

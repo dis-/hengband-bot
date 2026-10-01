@@ -7852,7 +7852,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if getattr(self, "_crossarea_fundraising_enforced", False):
                     restore_owner = next((
                         owner for owner in self._calibration_restore_signatures
-                        if owner == signature or owner[1:] == signature[1:]
+                        if owner == signature
+                    ), None) or next((
+                        owner for owner in self._calibration_restore_signatures
+                        if self._calibration_restore_item_matches(owner, withdrawn)
                     ), None)
                     if restore_owner is not None:
                         self._calibration_restore_signatures.remove(restore_owner)

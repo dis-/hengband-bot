@@ -213,7 +213,7 @@ class Live19CalibrationTest(unittest.TestCase):
         self.assertFalse(any(policy._calibration_restore_item_matches(
             policy._item_signature(gloves), i) for i in policy._home_knowledge_items))
 
-    def test_recorded_restore_observation_resolves_to_terminal_not_step_off(self):
+    def test_recorded_restore_observation_reconciles_worn_target(self):
         raw = rows()
         for restored in (False, True):
             with self.subTest(checkpoint=restored):
@@ -245,14 +245,46 @@ class Live19CalibrationTest(unittest.TestCase):
                 policy._observe_calibration_restore_batch(after, pending)
                 catalogue(policy, raw, 549419)
                 final = outside(raw, 549419)
+                glove = next(i for i in outside(raw, 549266).inventory if i.tval == 31)
+                glove_debt = policy._item_signature(glove)
+                remaining = [sig for sig in policy._calibration_restore_signatures
+                             if sig != glove_debt]
                 key = policy._atomic_home_withdraw_key(final, final.player.position)
                 decision = policy._enforce_town_claim_result(final, key)
                 print("live19 recorded recovery:", repr(decision), policy.last_reason)
                 self.assertIsNone(decision)
+                # live28 ruling (Claude, 2026-10-01 10:58): positively observed
+                # worn glove reconciles as calibration-restore-observed.
+                self.assertNotEqual(policy.last_reason,
+                                    "town:blocked:calibration-restore-target-absent")
+                self.assertNotIn(glove_debt, policy._calibration_restore_signatures)
+                self.assertEqual(policy._calibration_restore_signatures, remaining)
+                self.assertNotIn(glove_debt, policy._home_pending_quantities)
+                self.assertIsNone(policy._home_atomic_deposit_pending)
+
+    def test_truly_absent_target_remains_typed_terminal(self):
+        raw = rows()
+        for restored in (False, True):
+            with self.subTest(checkpoint=restored):
+                policy = deposited_policy(raw)
+                glove = next(i for i in outside(raw, 549266).inventory if i.tval == 31)
+                debt = policy._item_signature(glove)
+                policy._calibration_restore_signatures = [debt]
+                catalogue(policy, raw, 549419)
+                final = outside(raw, 549419)
+                # Counterfactual board removes the physically worn target; it
+                # is now absent from Home, inventory, and equipment alike.
+                final = replace(final, inventory=[i for i in final.inventory
+                    if not policy._calibration_restore_item_matches(debt, i)],
+                    equipment=[i for i in final.equipment
+                    if not policy._calibration_restore_item_matches(debt, i)])
+                if restored:
+                    policy = pickle.loads(pickle.dumps(policy))
+                key = policy._atomic_home_withdraw_key(final, final.player.position)
+                self.assertIsNone(policy._enforce_town_claim_result(final, key))
                 self.assertEqual(policy.last_reason,
                                  "town:blocked:calibration-restore-target-absent")
-                self.assertTrue(policy._calibration_restore_signatures)
-                self.assertIsNone(policy._home_atomic_deposit_pending)
+                self.assertEqual(policy._calibration_restore_signatures, [debt])
 
     def test_batch_uses_deposit_quantities_and_cumulative_weight(self):
         raw = rows()

@@ -1008,6 +1008,7 @@ class CalibrationMixin:
                     self._calibration_restore_exhausted(snapshot)
             return
         if phase == "restore-supplies":
+            self._reconcile_carried_calibration_restore(snapshot)
             if not self._calibration_restore_signatures:
                 self._calibration_restore_signatures.clear()
                 self._calibration_phase = None
