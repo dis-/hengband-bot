@@ -1,0 +1,1554 @@
+[
+  {
+    "signature": "28ca82fb6797f52d1d4fac6b810d6dc56533ae6d038c158a1856e1c7437f9071",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:055751ff10eb08e9:0",
+          "name": "★更正せるセオデン王のビークド・アックス (2d6) (+8,+10) (+3) {+賢耐;遅祝/竜~感}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 113.88679068986944,
+          "survival_turns": 16.80939145196051,
+          "combat_margin": 11.349798607288806,
+          "ranged_dps": 39.45903,
+          "speed_bonus": 4,
+          "secondary_value": -0.5617621769304373,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 157.90346946207768,
+          "survival_turns": 16.24382858668227,
+          "combat_margin": 12.306134819273556,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5410390535598344,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "29d2e7a0c99c18ed1daf3965a934018ca6f02f495579ddd7e2af6af6f39affb8",
+    "old": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "af1e365ac52a6adc66ce6b00247926b99719ba90b1736acb2d30fcdcf1af6682",
+    "old": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "fb59e9ccb646fdad80b19d496dcde995e44805e4559365c5a67dc3883ec56f38",
+    "old": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "fd57499aef9e057b964e7db3fb1efe2a2d27fb1e8701bf401b64ee3856dc0593",
+    "old": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "home:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "7f5cf9f3c6003bc2f99372a16ddcc97a5a4ff0cdfea60a755d97988ccdd21a53",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "sub_hand": {
+          "id": "home:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 157.90346946207768,
+          "survival_turns": 16.236590976872044,
+          "combat_margin": 12.29889720946333,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.542507094777489,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:1b970248b2c12bcb:0",
+          "name": "腕力の指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 215.1096314812448,
+          "survival_turns": 15.592834396438862,
+          "combat_margin": 12.702329200221056,
+          "ranged_dps": 40.030899999999995,
+          "speed_bonus": 4,
+          "secondary_value": -0.5590855934739715,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "fe9c15a44fa21aa72273e0e44d2f7a7a486c5a7c3fe494fe8ba0cb67ef3ee952",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "home:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "home:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "2504802ff01ce43b98db1492d3e3b0206dddd5348a921ae0c73a884e64efe898",
+    "old": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "pack:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 207.6096314812448,
+          "survival_turns": 15.726349693973855,
+          "combat_margin": 12.731423576544636,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5549409687998508,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        },
+        "main_hand": {
+          "id": "pack:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 207.6096314812448,
+          "survival_turns": 15.726349693973855,
+          "combat_margin": 12.731423576544636,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5549409687998508,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "88a41951cded66db44ca52df07e0653c82653190ee3fca8343a5b6322780871a",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "0a980b27753f03ce6bca50371ff11737fa4b1b4ae88d25e595b28b5b00fbb031",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "4e1af7e2c129d673d1b4dc48549efba4b4eac13959dd50370d67ef14d35530d5",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  },
+  {
+    "signature": "dccf520bdeea4a2f51d623a13b1b946c46794c79404251c2a9c3d47f34f9c256",
+    "old": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    },
+    "new_selector": {
+      "mode": "weapon_shield",
+      "slots": {
+        "body": {
+          "id": "equipped:d8ad0a70c041df39:0",
+          "name": "エルフのローブ [2,+6] (+3隠密) {+隠r酸電火冷沌, .}"
+        },
+        "bow": {
+          "id": "equipped:9d0e5f4f4a86a850:0",
+          "name": "ライト・クロスボウ (x3) (0.72turn) (+10,+10)"
+        },
+        "feet": {
+          "id": "equipped:88e6d9b556672fc9:0",
+          "name": "☆軟革ブーツ『ヴェアファナ』 [2,+4] (+4加速) {+速器隠r冷獄}"
+        },
+        "head": {
+          "id": "equipped:e339e50c60749854:0",
+          "name": "鋭敏の金の冠 [0,+4] (+2探索) {+探r盲;視, .}"
+        },
+        "light": {
+          "id": "equipped:21b109e0d6b6382d:0",
+          "name": "フェアノールのランプ {明}"
+        },
+        "main_hand": {
+          "id": "equipped:d41cdd36cfec492e:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃時;麻視明|電焼凍}"
+        },
+        "main_ring": {
+          "id": "equipped:cece0625c1832d34:0",
+          "name": "耐混乱の指輪"
+        },
+        "neck": {
+          "id": "equipped:7a506b5e8e56f2b1:0",
+          "name": "賢者のアミュレット [+5] (+2探索)"
+        },
+        "outer": {
+          "id": "equipped:dceeaad31f2254f4:0",
+          "name": "エルフのクローク [4,+10] (+1隠密)"
+        },
+        "sub_hand": {
+          "id": "equipped:eda4854047084365:0",
+          "name": "耐冷の革製スモール・シールド [3,+2] {r冷, .}"
+        },
+        "sub_ring": {
+          "id": "equipped:bc4c0b6a592823d4:0",
+          "name": "器用さの指輪 (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 154.98346946207766,
+          "survival_turns": 16.514590002733684,
+          "combat_margin": 12.502707253488769,
+          "ranged_dps": 39.65324999999999,
+          "speed_bonus": 4,
+          "secondary_value": -0.5383624701033685,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 49
+    }
+  }
+]
