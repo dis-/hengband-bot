@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_non_home_leave_blocks_reopened_out_of_stock_stop (tests.test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_policy_shop.py", line 6796, in test_non_home_leave_blocks_reopened_out_of_stock_stop
+    self.assertIsNone(policy._next_required_store_type(town))
+AssertionError: 4 is not None
+
+----------------------------------------------------------------------
+Ran 1 test in 0.012s
+
+FAILED (failures=1)

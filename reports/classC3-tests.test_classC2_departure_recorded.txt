@@ -1,0 +1,7 @@
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '5' town:unsafe-recall-fallback target 3
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '5' town:unsafe-recall-fallback target 3
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 162.958s
+
+OK

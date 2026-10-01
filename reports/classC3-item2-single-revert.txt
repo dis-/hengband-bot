@@ -1,0 +1,21 @@
+FF
+======================================================================
+FAIL: test_recorded_residual_weight_deposits_exactly_four_shots_after_restore (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classC2_departure_recorded.py", line 121, in test_recorded_residual_weight_deposits_exactly_four_shots_after_restore
+    self.assertIsNotNone(deposit)
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_next_visit_buys_only_fitting_count_and_leaves_deposit_home (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classC2_departure_recorded.py", line 151, in test_next_visit_buys_only_fitting_count_and_leaves_deposit_home
+    self.assertEqual(policy._purchase_quantity(board, ware), 5)
+AssertionError: 9 != 5
+
+----------------------------------------------------------------------
+Ran 2 tests in 17.361s
+
+FAILED (failures=2)
