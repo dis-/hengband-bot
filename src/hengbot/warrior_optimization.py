@@ -457,8 +457,11 @@ def save_character_calibration(path: Path, calibration: CharacterCalibration) ->
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Never erase an old physical obligation while publishing observations.
-        from hengbot.policy_calibration import refuse_legacy_calibration_debt
-        refuse_legacy_calibration_debt({}, path)
+        # Startup refuses such a file; this guard only keeps a file restored
+        # later intact, and never raises into response dispatch.
+        from hengbot.policy_calibration import legacy_calibration_file_debt
+        if legacy_calibration_file_debt(path):
+            return
         temporary = path.with_suffix(path.suffix + ".tmp")
         temporary.write_text(
             json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8"

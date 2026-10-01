@@ -2302,6 +2302,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._character_dump_path: Path | None = None
         self._calibration_dump_prepared = None
         self._calibration_dump_pending = None
+        # The correlated C response, held until its posted dump completes.
+        self._calibration_dump_response = None
         self._calibration_unavailable_reason = None
         self._calibration_rejection = None
         import uuid
@@ -2399,9 +2401,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._hunt_step_target = None
 
     def __setstate__(self, state):
+        # Direct unpickle and deepcopy: upgrade an older state; a current
+        # state is copied exactly, so a copy decides as its original does.
         self.__dict__.update(state)
         from hengbot.policy_state import normalize_policy_state
-        normalize_policy_state(self, restart=True)
+        normalize_policy_state(self)
 
     # ------------------------------------------------------------------ core
     def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
@@ -2487,6 +2491,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def choose_key(self, snapshot: Snapshot) -> str | None:
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
+        # A decision board is emitted only after the posted C macro returned
+        # to the main loop, so its dump file is complete: read it once now.
+        self._complete_character_dump()
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
         self._cancel_unbound_execution_delegations()
@@ -6960,6 +6967,219 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             pass
         return key
 
+    def _observe_home_atomic_withdrawal_outside(self, snapshot: Snapshot) -> None:
+        """Reconcile one posted single-item Home take on its outside board."""
+        pending_withdrawal = self._home_atomic_withdraw_pending
+        if (
+            pending_withdrawal is not None
+            and snapshot.store is None
+            and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+            and (
+                self._home_atomic_withdraw_posted_turn is None
+                or snapshot.turn > self._home_atomic_withdraw_posted_turn
+            )
+        ):
+            signature, before_count, withdrawn, quantity = pending_withdrawal
+            procurement_class = self._home_atomic_withdraw_procurement_class
+            move_identity = getattr(
+                self, "_home_atomic_withdraw_move_identity", None
+            )
+            after_count = (
+                self._inventory_move_identity_count(snapshot, move_identity)
+                if move_identity is not None
+                else self._inventory_signature_count(snapshot, signature)
+            )
+            if getattr(self, "_home_visit", None) is not None:
+                self._home_visit.observe_outside(
+                    effect_observed=after_count >= before_count + quantity
+                )
+            if (
+                self._home_errand.request is not None
+                and self._home_errand.request.signature == signature
+            ):
+                self._home_errand.observe_outside(after_count)
+            if after_count < before_count + quantity:
+                self._release_claim_goal(
+                    "target-unobserved", owners=("home-visit", "home-errand"),
+                    kinds=(CLAIM_GOAL_OBSERVE,),
+                    sources=(CLAIM_OBSERVE_STORE_OPERATION,),
+                )
+            self._home_atomic_withdraw_pending = None
+            self._home_atomic_withdraw_procurement_class = None
+            self._home_atomic_withdraw_move_identity = None
+            self._home_atomic_withdraw_posted_turn = None
+            self._home_entry_operation_posted = False
+            if after_count >= before_count + quantity:
+                # Design rev 9 item 3: the posted Home withdrawal's effect is
+                # confirmed.  Before ``_release_invalid_store_visit``, which
+                # can close the visit before the exit sees it.
+                self._complete_observed_effect(
+                    "home-withdraw-observed",
+                    owners=CLAIM_HOME_EFFECT_OWNERS,
+                    sources=CLAIM_HOME_EFFECT_SOURCES,
+                )
+                self._observe_home_operation_effect()
+                if (
+                    self._store_visit is not None
+                    and self._store_visit.store_type == STORE_HOME
+                ):
+                    self._store_visit.operation_effect_observed = True
+                    self._release_invalid_store_visit(snapshot)
+                failure = self._home_procurement_withdraw_failure
+                if (
+                    failure is not None
+                    and failure.get("item_class")
+                    == self._procurement_equivalence(
+                        self._procurement_class(withdrawn)
+                    )
+                ):
+                    self._home_procurement_withdraw_failure = None
+                tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
+                if tracked is not None and tracked[0] == signature:
+                    self._withdrawal_unsatisfied_for = None
+                self._confirm_home_withdrawal_address(
+                    signature, self._home_atomic_withdraw_index
+                )
+                if signature == self._home_pending_item:
+                    self._home_pending_take_confirmed = signature
+                if signature in self._home_pending_batch:
+                    self._home_pending_batch.remove(signature)
+                self._home_pending_quantities.pop(signature, None)
+                if withdrawn.is_digging_tool:
+                    # The queued operation, rather than the standing two-tool
+                    # optimization target, is the departure premise.  Its
+                    # observed inventory gain is confirmed completion.
+                    self._home_digger_withdraw_pending = False
+                suppression_withdrawal = (
+                    self._home_random_teleport_withdrawal == signature
+                )
+                self._equipment_catalog.record_home_withdrawal(
+                    withdrawn,
+                    intent=(snapshot.turn, signature, before_count, quantity),
+                )
+                self._refresh_carried_equipment_catalog(snapshot)
+                if suppression_withdrawal and self._home_pending_item == signature:
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_random_teleport_withdrawal = None
+                if suppression_withdrawal:
+                    # This atomic visit has no intervening store snapshot on
+                    # which the ordinary leave handler can close the owning
+                    # stop.  Report only this suppression withdrawal; other
+                    # atomic Home operations retain their existing owners.
+                    self._report_town_stop_pass(
+                        snapshot,
+                        STORE_HOME,
+                        goal_satisfied=not self._home_owner_goal_pending(snapshot),
+                        operation_completed=True,
+                    )
+                if (
+                    withdrawn.tval == TVAL_SCROLL
+                    and withdrawn.sval
+                    in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
+                    and (
+                        self._home_pending_item == signature
+                        or (
+                            self._home_errand.request is not None
+                            and self._home_errand.request.signature == signature
+                            and self._home_errand.request.purpose == "identification"
+                        )
+                    )
+                    and self._identification_need is not None
+                ):
+                    # This was the source transaction, not the downstream gear
+                    # transaction. Release its address and re-arm the original
+                    # candidate now that the source is physically carried.
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_candidate_waiting = True
+                if (
+                    withdrawn.tval == TVAL_STAFF
+                    and withdrawn.sval == SV_STAFF_IDENTIFY
+                ):
+                    if self._home_pending_item == signature:
+                        self._home_pending_item = None
+                        self._home_pending_slot = None
+                    self._home_pending_quantities.pop(signature, None)
+                    self._report_town_stop_pass(
+                        snapshot,
+                        STORE_HOME,
+                        goal_satisfied=self._identify_staff_ready(snapshot),
+                        operation_completed=True,
+                    )
+            else:
+                if self._home_random_teleport_withdrawal == signature:
+                    self._home_random_teleport_withdrawal = None
+                retry_digger = (
+                    withdrawn.is_digging_tool
+                    and self._digger_home_withdraw_failures < 1
+                )
+                if retry_digger:
+                    # The command failed against a page-relative address.  Do
+                    # not let the generic observed/uncomposable rule consume
+                    # the Home stop: retain the exact queued operation, discard
+                    # the stale address space, and make the next attempt earn a
+                    # fresh ~9 observation.  This is state based; the existing
+                    # visible two-failure fallback is the bound.
+                    self._home_pending_item = signature
+                    self._home_digger_withdraw_pending = True
+                    self._invalidate_home_observation()
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
+                else:
+                    self._defer_home_item(signature, "atomic-withdraw-observed-failure")
+                    if signature in self._home_pending_batch:
+                        self._home_pending_batch.remove(signature)
+                    self._home_pending_quantities.pop(signature, None)
+                    if self._home_pending_item == signature:
+                        self._home_pending_item = None
+                        self._home_pending_slot = None
+                    if withdrawn.is_digging_tool:
+                        # This is the bounded visible abandonment.  The
+                        # standing fallback purchase now owns procurement.
+                        self._home_digger_withdraw_pending = False
+                self.last_reason = (
+                    self._home_errand.reason("withdraw-failed")
+                    if (
+                        self._home_errand.request is not None
+                        and self._home_errand.request.signature == signature
+                    )
+                    else "home:atomic-withdraw-failed"
+                )
+                if withdrawn.is_digging_tool:
+                    self._digger_home_withdraw_failures += 1
+                terminal_failure = not retry_digger
+                if (
+                    terminal_failure
+                    and procurement_class is not None
+                ):
+                    self._home_procurement_withdraw_failure = {
+                        "item_class": self._procurement_equivalence(
+                            procurement_class
+                        ),
+                        "identity": signature,
+                        "reason": self.last_reason,
+                        "attempts": (
+                            self._digger_home_withdraw_failures
+                            if withdrawn.is_digging_tool else 1
+                        ),
+                        "turn": snapshot.turn,
+                    }
+                    # The failed command leaves the old catalogue unable to
+                    # distinguish a rejected take from concurrently vanished
+                    # stock.  Require the next gate decision to use a fresh
+                    # complete Home census before applying the failure rule.
+                    self._invalidate_home_observation()
+                    self._rearm_town_store_for_new_work(
+                        STORE_HOME, release_visit_bound=True
+                    )
+            self._home_atomic_withdraw_index = None
+
     def _choose_key(self, snapshot: Snapshot) -> str | None:
         _decision_offers.pop(self, None)
         self._execution_pending_post = None
@@ -7403,231 +7623,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._town_visit_ledger.pending_store_context_waits = 0
         self._observe_home_history(snapshot)
         self._observe_star_remove_curse_reserve_inflight(snapshot)
-        pending_withdrawal = self._home_atomic_withdraw_pending
-        if (
-            pending_withdrawal is not None
-            and len(pending_withdrawal) == 5
-            and snapshot.store is None
-            and (
-                self._store_visit is None
-                or not self._store_visit.operation_posted
-                or self._store_visit.operation_released
-            )
-            and (
-                self._home_atomic_withdraw_posted_turn is None
-                or snapshot.turn > self._home_atomic_withdraw_posted_turn
-            )
-        ):
-            pending_withdrawal = None
-        if (
-            pending_withdrawal is not None
-            and snapshot.store is None
-            and (
-                self._store_visit is None
-                or not self._store_visit.operation_posted
-                or self._store_visit.operation_released
-            )
-            and (
-                self._home_atomic_withdraw_posted_turn is None
-                or snapshot.turn > self._home_atomic_withdraw_posted_turn
-            )
-        ):
-            signature, before_count, withdrawn, quantity = pending_withdrawal
-            procurement_class = self._home_atomic_withdraw_procurement_class
-            move_identity = getattr(
-                self, "_home_atomic_withdraw_move_identity", None
-            )
-            after_count = (
-                self._inventory_move_identity_count(snapshot, move_identity)
-                if move_identity is not None
-                else self._inventory_signature_count(snapshot, signature)
-            )
-            if getattr(self, "_home_visit", None) is not None:
-                self._home_visit.observe_outside(
-                    effect_observed=after_count >= before_count + quantity
-                )
-            if (
-                self._home_errand.request is not None
-                and self._home_errand.request.signature == signature
-            ):
-                self._home_errand.observe_outside(after_count)
-            if after_count < before_count + quantity:
-                self._release_claim_goal(
-                    "target-unobserved", owners=("home-visit", "home-errand"),
-                    kinds=(CLAIM_GOAL_OBSERVE,),
-                    sources=(CLAIM_OBSERVE_STORE_OPERATION,),
-                )
-            self._home_atomic_withdraw_pending = None
-            self._home_atomic_withdraw_procurement_class = None
-            self._home_atomic_withdraw_move_identity = None
-            self._home_atomic_withdraw_posted_turn = None
-            self._home_entry_operation_posted = False
-            if after_count >= before_count + quantity:
-                # Design rev 9 item 3: the posted Home withdrawal's effect is
-                # confirmed.  Before ``_release_invalid_store_visit``, which
-                # can close the visit before the exit sees it.
-                self._complete_observed_effect(
-                    "home-withdraw-observed",
-                    owners=CLAIM_HOME_EFFECT_OWNERS,
-                    sources=CLAIM_HOME_EFFECT_SOURCES,
-                )
-                self._observe_home_operation_effect()
-                if (
-                    self._store_visit is not None
-                    and self._store_visit.store_type == STORE_HOME
-                ):
-                    self._store_visit.operation_effect_observed = True
-                    self._release_invalid_store_visit(snapshot)
-                failure = self._home_procurement_withdraw_failure
-                if (
-                    failure is not None
-                    and failure.get("item_class")
-                    == self._procurement_equivalence(
-                        self._procurement_class(withdrawn)
-                    )
-                ):
-                    self._home_procurement_withdraw_failure = None
-                tracked = getattr(self, "_withdrawal_unsatisfied_for", None)
-                if tracked is not None and tracked[0] == signature:
-                    self._withdrawal_unsatisfied_for = None
-                self._confirm_home_withdrawal_address(
-                    signature, self._home_atomic_withdraw_index
-                )
-                if signature == self._home_pending_item:
-                    self._home_pending_take_confirmed = signature
-                if signature in self._home_pending_batch:
-                    self._home_pending_batch.remove(signature)
-                self._home_pending_quantities.pop(signature, None)
-                if withdrawn.is_digging_tool:
-                    # The queued operation, rather than the standing two-tool
-                    # optimization target, is the departure premise.  Its
-                    # observed inventory gain is confirmed completion.
-                    self._home_digger_withdraw_pending = False
-                suppression_withdrawal = (
-                    self._home_random_teleport_withdrawal == signature
-                )
-                self._equipment_catalog.record_home_withdrawal(
-                    withdrawn,
-                    intent=(snapshot.turn, signature, before_count, quantity),
-                )
-                self._refresh_carried_equipment_catalog(snapshot)
-                if suppression_withdrawal and self._home_pending_item == signature:
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
-                    self._home_random_teleport_withdrawal = None
-                if suppression_withdrawal:
-                    # This atomic visit has no intervening store snapshot on
-                    # which the ordinary leave handler can close the owning
-                    # stop.  Report only this suppression withdrawal; other
-                    # atomic Home operations retain their existing owners.
-                    self._report_town_stop_pass(
-                        snapshot,
-                        STORE_HOME,
-                        goal_satisfied=not self._home_owner_goal_pending(snapshot),
-                        operation_completed=True,
-                    )
-                if (
-                    withdrawn.tval == TVAL_SCROLL
-                    and withdrawn.sval
-                    in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
-                    and (
-                        self._home_pending_item == signature
-                        or (
-                            self._home_errand.request is not None
-                            and self._home_errand.request.signature == signature
-                            and self._home_errand.request.purpose == "identification"
-                        )
-                    )
-                    and self._identification_need is not None
-                ):
-                    # This was the source transaction, not the downstream gear
-                    # transaction. Release its address and re-arm the original
-                    # candidate now that the source is physically carried.
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
-                    self._home_candidate_waiting = True
-                if (
-                    withdrawn.tval == TVAL_STAFF
-                    and withdrawn.sval == SV_STAFF_IDENTIFY
-                ):
-                    if self._home_pending_item == signature:
-                        self._home_pending_item = None
-                        self._home_pending_slot = None
-                    self._home_pending_quantities.pop(signature, None)
-                    self._report_town_stop_pass(
-                        snapshot,
-                        STORE_HOME,
-                        goal_satisfied=self._identify_staff_ready(snapshot),
-                        operation_completed=True,
-                    )
-            else:
-                if self._home_random_teleport_withdrawal == signature:
-                    self._home_random_teleport_withdrawal = None
-                retry_digger = (
-                    withdrawn.is_digging_tool
-                    and self._digger_home_withdraw_failures < 1
-                )
-                if retry_digger:
-                    # The command failed against a page-relative address.  Do
-                    # not let the generic observed/uncomposable rule consume
-                    # the Home stop: retain the exact queued operation, discard
-                    # the stale address space, and make the next attempt earn a
-                    # fresh ~9 observation.  This is state based; the existing
-                    # visible two-failure fallback is the bound.
-                    self._home_pending_item = signature
-                    self._home_digger_withdraw_pending = True
-                    self._invalidate_home_observation()
-                    self._rearm_town_store_for_new_work(
-                        STORE_HOME, release_visit_bound=True
-                    )
-                else:
-                    self._defer_home_item(signature, "atomic-withdraw-observed-failure")
-                    if signature in self._home_pending_batch:
-                        self._home_pending_batch.remove(signature)
-                    self._home_pending_quantities.pop(signature, None)
-                    if self._home_pending_item == signature:
-                        self._home_pending_item = None
-                        self._home_pending_slot = None
-                    if withdrawn.is_digging_tool:
-                        # This is the bounded visible abandonment.  The
-                        # standing fallback purchase now owns procurement.
-                        self._home_digger_withdraw_pending = False
-                self.last_reason = (
-                    self._home_errand.reason("withdraw-failed")
-                    if (
-                        self._home_errand.request is not None
-                        and self._home_errand.request.signature == signature
-                    )
-                    else "home:atomic-withdraw-failed"
-                )
-                if withdrawn.is_digging_tool:
-                    self._digger_home_withdraw_failures += 1
-                terminal_failure = not retry_digger
-                if (
-                    terminal_failure
-                    and procurement_class is not None
-                ):
-                    self._home_procurement_withdraw_failure = {
-                        "item_class": self._procurement_equivalence(
-                            procurement_class
-                        ),
-                        "identity": signature,
-                        "reason": self.last_reason,
-                        "attempts": (
-                            self._digger_home_withdraw_failures
-                            if withdrawn.is_digging_tool else 1
-                        ),
-                        "turn": snapshot.turn,
-                    }
-                    # The failed command leaves the old catalogue unable to
-                    # distinguish a rejected take from concurrently vanished
-                    # stock.  Require the next gate decision to use a fresh
-                    # complete Home census before applying the failure rule.
-                    self._invalidate_home_observation()
-                    self._rearm_town_store_for_new_work(
-                        STORE_HOME, release_visit_bound=True
-                    )
-            self._home_atomic_withdraw_index = None
+        self._observe_home_atomic_withdrawal_outside(snapshot)
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
         # owns a key.
@@ -7784,9 +7780,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._release_equipment_transaction_owned_item(
                         pending.move_identity or pending.item_identity
                     )
-                    if retired:
-                        for obligation in retired:
-                            pass
             if self._equipment_transaction_session.complete:
                 self._retire_replaced_equipment_transaction_owned_items(
                     snapshot, self._equipment_transaction_session

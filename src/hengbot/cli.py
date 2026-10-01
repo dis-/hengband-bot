@@ -3110,6 +3110,8 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"
     )
+    # Startup only, once: an old strip session that still owes gear needs
+    # one manual recovery.  No decision or response dispatch rereads it.
     from hengbot.policy_calibration import refuse_legacy_calibration_debt
     refuse_legacy_calibration_debt(policy.__dict__, policy._character_calibration_path)
     policy._confirmed_loadout_path = args.decision_log.with_name(

@@ -6,24 +6,44 @@ from hengbot.model import Snapshot, InventoryItem, RESTORE_POTION_SVAL_BY_STAT, 
 from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 
 
+# File timestamps come from a coarser clock than ``time.time_ns``.
+DUMP_MTIME_TOLERANCE_NS = 100_000_000
+
+
 class LegacyCalibrationDebtError(RuntimeError):
     """Manual recovery is required before attaching an old stripped session."""
 
 
+def legacy_calibration_file_debt(path: Path | None) -> tuple[str, ...]:
+    """Physical strip debt recorded in the persisted calibration file.
+
+    Never raises: an unreadable or absent file owes nothing.
+    """
+    if path is None:
+        return ()
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    if isinstance(data, dict) and data.get("redress_obligation"):
+        return ("redress_obligation",)
+    return ()
+
+
 def refuse_legacy_calibration_debt(state, path: Path | None = None):
+    """Startup only: refuse to attach to a session that still owes stripped gear.
+
+    The CLI calls this once while configuring a fresh policy.  Decisions,
+    response dispatch and checkpoint restores never call it: a restored
+    checkpoint's strip state is dropped by the shared upgrade instead.
+    """
     names = [name for name in (
         "_calibration_phase", "_calibration_suspended_phase",
         "_calibration_stripped_unrestored", "_calibration_restore_signatures",
         "_calibration_restore_items", "_calibration_restore_move_identities",
         "_calibration_restore_item_ids", "_calibration_session_target",
     ) if state.get(name)]
-    if path is not None:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            data = {}
-        if isinstance(data, dict) and data.get("redress_obligation"):
-            names.append("redress_obligation")
+    names.extend(legacy_calibration_file_debt(path))
     if names:
         raise LegacyCalibrationDebtError("legacy-calibration-debt:" + ",".join(names)
                                          + "; manual equipment/supply recovery required")
@@ -45,15 +65,36 @@ class CalibrationMixin:
         self._calibration_dump_prepared["baseline"] = baseline
 
     def _consume_equipped_character_sheet(self, character, envelope):
+        """Hold the correlated C response until its posted dump completes.
+
+        The game emits the character JSON on entering ``C``, before it accepts
+        ``f`` and writes the dump file (``cmd-draw.cpp``), so the file cannot be
+        read here.  The response and its request are retained and read once,
+        at the posted operation's completion boundary: the next decision
+        (``_complete_character_dump``).
+        """
+        pending = self._calibration_dump_pending
+        if pending is None or envelope is None or self._character_dump_path is None:
+            return
+        self._calibration_dump_response = (pending, character, dict(envelope))
+
+    def _complete_character_dump(self):
+        """Read and validate the stable dump once after the posted macro ended."""
+        retained = self._calibration_dump_response
+        if retained is None:
+            return
+        pending, character, envelope = retained
+        self._calibration_dump_response = None
+        if self._calibration_dump_pending is pending:
+            self._calibration_dump_pending = None
+        self._publish_character_dump(pending, character, envelope)
+
+    def _publish_character_dump(self, pending, character, envelope):
         from hengbot.character_sheet import (CharacterSheetUnavailable, parse_character_sheet,
                                             derive_equipped_calibration)
         from hengbot.model import parse_snapshot
         from hengbot.protocol import snapshot_protocol_version
         from hengbot.warrior_optimization import save_character_calibration
-        pending = self._calibration_dump_pending
-        if pending is None or envelope is None or self._character_dump_path is None:
-            return
-        self._calibration_dump_pending = None
         try:
             if pending.get("started_ns") is None:
                 raise CharacterSheetUnavailable("unprepared-character-dump")
@@ -63,7 +104,10 @@ class CalibrationMixin:
             current = (self._character_dump_path.stat().st_mtime_ns, sheet.content_hash)
             if before != current[0]:
                 raise CharacterSheetUnavailable("dump-file-changing")
-            if pending["baseline"] == current or current[0] < pending["started_ns"]:
+            # A file system timestamp can trail the clock read at preparation
+            # by a coarse tick; an unchanged baseline is the primary proof.
+            if (pending["baseline"] == current
+                    or current[0] < pending["started_ns"] - DUMP_MTIME_TOLERANCE_NS):
                 raise CharacterSheetUnavailable("stale-dump-file")
             sequence = envelope.get("sequence", envelope.get("seq"))
             if sequence is None or (pending["sequence"] is not None
@@ -99,7 +143,6 @@ class CalibrationMixin:
             save_character_calibration(self._character_calibration_path, calibration)
 
     def _validated_character_calibration(self, snapshot: Snapshot) -> CharacterCalibration | None:
-        refuse_legacy_calibration_debt(self.__dict__, self._character_calibration_path)
         if not self._character_calibration_loaded:
             if self._character_calibration is None and self._character_calibration_path is not None:
                 value = load_character_calibration(self._character_calibration_path)

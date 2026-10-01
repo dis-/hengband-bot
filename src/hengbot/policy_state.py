@@ -4,32 +4,122 @@ from collections import Counter
 from dataclasses import replace
 from copy import deepcopy
 from hengbot.policy_types import OwnerProgressCore
+from hengbot.retired_values import is_retired
+
+# Strip-calibration attributes retained by the equipped C-sheet observation.
+_RETAINED_CALIBRATION_NAMES = frozenset({
+    "_calibration_dump_prepared", "_calibration_dump_pending",
+    "_calibration_dump_response", "_calibration_unavailable_reason",
+    "_calibration_rejection", "_calibration_session_id",
+})
+
+
+def retire_strip_calibration_state(restored) -> None:
+    """Drop every retired strip-calibration fact from an old checkpoint.
+
+    The strip phases (deposit, takeoff, naked capture, re-equip, supply
+    restore, redress) no longer exist.  Their attributes, their batch Home
+    withdrawal, their Home visit kind and their claim family are removed, so
+    the restored policy is an ordinary session with no calibration phase.
+    """
+    state = restored.__dict__
+    for name in tuple(state):
+        if name.startswith("_calibration_") and name not in _RETAINED_CALIBRATION_NAMES:
+            del state[name]
+    pending = state.get("_home_atomic_withdraw_pending")
+    if pending is not None and len(pending) == 5:
+        # Only the calibration restore composed a same-page batch take.
+        state["_home_atomic_withdraw_pending"] = None
+        state["_home_atomic_withdraw_procurement_class"] = None
+        state["_home_atomic_withdraw_move_identity"] = None
+        state["_home_atomic_withdraw_posted_turn"] = None
+        state["_home_atomic_withdraw_index"] = None
+        state["_home_entry_operation_posted"] = False
+    visit = state.get("_home_visit")
+    if visit is not None:
+        _retire_home_visit_kind(visit)
+    register = state.get("_claim_register")
+    if register is not None:
+        _retire_claim_family(register)
+    claim = state.get("decision_claim")
+    if claim is not None and is_retired(getattr(claim, "owner", None)):
+        state["decision_claim"] = None
+    registry = state.get("_owner_expectations")
+    if registry is not None:
+        pending_owners = registry.__dict__.get("_pending")
+        if isinstance(pending_owners, dict):
+            pending_owners.pop("calibration", None)
+        pops = registry.__dict__.get("_pops")
+        if isinstance(pops, list):
+            pops[:] = [pop for pop in pops if pop[0] != "calibration"]
+
+
+def _retire_home_visit_kind(visit) -> None:
+    state = visit.__dict__
+    request = state.get("request")
+    report = state.get("report")
+    if (request is not None and is_retired(request.kind)) or (
+        report is not None and is_retired(report.request.kind)
+    ):
+        # The restore visit is abandoned, not completed: no effect is
+        # reported to any requester and the executor is idle again.
+        state["request"] = None
+        state["report"] = None
+        state["fresh_evidence"] = None
+        state["operation"] = None
+        state["operation_generation"] = None
+        state["visit_effect_observed"] = False
+        state["context_token"] = None
+        if isinstance(state.get("operation_history"), list):
+            state["operation_history"].clear()
+        if isinstance(state.get("operation_reports"), list):
+            state["operation_reports"].clear()
+        from hengbot.home_visit import HomeVisitState
+        state["state"] = HomeVisitState.IDLE
+    queued = state.get("queued")
+    if isinstance(queued, list):
+        queued[:] = [item for item in queued if not is_retired(item.kind)]
+    previous = state.get("previous_completed_delta")
+    if previous is not None and is_retired(previous[2]):
+        # Only a standing-digger withdrawal is read from this record.
+        state["previous_completed_delta"] = None
+
+
+def _retire_claim_family(register) -> None:
+    state = register.__dict__
+    for name in ("_claim", "_closing"):
+        claim = state.get(name)
+        if claim is not None and is_retired(claim.owner):
+            state[name] = None
+    for name in ("_suspended", "_bars", "_ended"):
+        values = state.get(name)
+        if isinstance(values, list):
+            values[:] = [value for value in values if not is_retired(value.owner)]
 
 
 def normalize_policy_state(restored, *, restart=False):
-    from hengbot.policy_calibration import refuse_legacy_calibration_debt
-    # Persisted debt is checked at startup/upgrade, not with disk I/O every turn.
-    debt_path = (restored.__dict__.get("_character_calibration_path")
-                 if restart or restored.__dict__.get("_policy_state_version") != 3 else None)
-    refuse_legacy_calibration_debt(restored.__dict__, debt_path)
-    retained = {"_calibration_dump_prepared", "_calibration_dump_pending",
-                "_calibration_unavailable_reason", "_calibration_rejection",
-                "_calibration_session_id"}
-    for name in tuple(restored.__dict__):
-        if name.startswith("_calibration_") and name not in retained:
-            del restored.__dict__[name]
+    """Upgrade ``restored`` in place to the current policy state version.
+
+    Idempotent.  A current-version policy returns at once, so decisions and
+    observations may call this every time; a restored checkpoint
+    (``restart=True``) or an older pickle runs the full upgrade.  The upgrade
+    never raises on retired strip-calibration state: it drops it, so old
+    checkpoints and recordings keep deciding as an ordinary session without a
+    calibration phase.  Physical strip debt is a startup question answered
+    once from the persisted calibration file (``cli``), never here.
+    """
+    if not restart and restored.__dict__.get("_policy_state_version") == 3:
+        return restored
+    retire_strip_calibration_state(restored)
     if restart:
-        import uuid
+        # A posted dump request belongs to the process that posted it; a
+        # restored policy waits for its own next periodic request.
         restored._calibration_dump_pending = None
         restored._calibration_dump_prepared = None
-        restored._calibration_session_id = uuid.uuid4().hex
-        restored._character_calibration = None
-        restored._character_calibration_loaded = False
-        restored._equipment_optimization_signature = None
-        restored._confirmed_loadout = None
-        restored._confirmed_loadout_loaded = False
-    if restored.__dict__.get("_policy_state_version") == 3:
-        return restored
+        restored._calibration_dump_response = None
+        if not restored.__dict__.get("_calibration_session_id"):
+            import uuid
+            restored._calibration_session_id = uuid.uuid4().hex
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     # Construct defaults separately; never rerun __init__ on restored physical
     # state. Missing mutable values are independent, not shared across policies.

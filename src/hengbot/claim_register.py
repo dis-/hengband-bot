@@ -118,11 +118,11 @@ _MEMBER_NAME = str.maketrans(
 class _ClaimOwnerBase(str, Enum):
     @classmethod
     def _missing_(cls, value):
+        # The strip calibration family was retired with its phases.  Old
+        # checkpoints still unpickle; the checkpoint upgrade drops the claim.
         if value == "calibration":
-            from hengbot.policy_calibration import LegacyCalibrationDebtError
-            raise LegacyCalibrationDebtError(
-                "legacy-calibration-debt:calibration-claim; manual recovery required"
-            )
+            from hengbot.retired_values import retired_member
+            return retired_member(cls, value, "RETIRED_CALIBRATION")
         return None
 
 

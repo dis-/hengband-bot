@@ -78,11 +78,16 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
             policy._character_dump_path.write_bytes(raw)
         return policy
 
-    def test_posted_dump_publishes_atomically_and_restart_requires_new_observation(self):
+    def deliver(self, policy, data):
+        """The C response, then the posted macro's completion boundary."""
+        policy.observe_character_snapshot(data["character"], envelope=data)
+        policy._complete_character_dump()
+
+    def test_posted_dump_publishes_atomically_and_restore_drops_the_posted_request(self):
         with TemporaryDirectory() as directory:
             policy = self.posted_policy(directory)
             data = self.envelope()
-            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.deliver(policy, data)
             record = policy._character_calibration
             self.assertIsNotNone(record)
             self.assertEqual((record.schema_version, record.base_stats, record.base_hp),
@@ -92,21 +97,86 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
             saved = json.loads(policy._character_calibration_path.read_text(encoding="utf-8"))
             self.assertEqual(saved["evidence_hash"], record.evidence_hash)
             self.assertEqual(list(Path(directory).glob("*.tmp")), [])
-            restored = pickle.loads(pickle.dumps(policy))
-            self.assertIsNone(restored._character_calibration)
+            fresh_keys = set(vars(HengbotPolicy(monrace_knowledge={})))
+            # A copy (direct unpickle / deepcopy) decides as its original.
+            copied = pickle.loads(pickle.dumps(policy))
+            self.assertEqual(copied._character_calibration, record)
+            self.assertEqual(copied._calibration_session_id, record.session_id)
+            self.assertEqual(set(vars(copied)), fresh_keys)
+            # A restored checkpoint never correlates the posting process's
+            # request: the next periodic dump is its own.
+            policy._prepare_character_sheet_dump()
+            self.assertTrue(policy.confirm_key_posted(CHARACTER_DUMP_MACRO))
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.assertIsNotNone(policy._calibration_dump_response)
+            from hengbot.latch_onset_capture import checkpoint
+            restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             self.assertIsNone(restored._calibration_dump_pending)
-            self.assertNotEqual(restored._calibration_session_id, record.session_id)
-            self.assertEqual(set(vars(restored)), set(vars(HengbotPolicy(monrace_knowledge={}))))
+            self.assertIsNone(restored._calibration_dump_prepared)
+            self.assertIsNone(restored._calibration_dump_response)
+            self.assertEqual(restored._character_calibration, record)
+            # Every attribute of a fresh policy exists after the restore.
+            self.assertEqual(fresh_keys - set(vars(restored)), set())
+
+    def test_response_before_dump_file_is_read_at_the_completion_boundary(self):
+        # Review P1: the game emits the C JSON on entering C, before it
+        # accepts f and writes the file (cmd-draw.cpp do_cmd_player_status).
+        with TemporaryDirectory() as directory:
+            policy = HengbotPolicy(monrace_knowledge={})
+            policy._character_dump_path = Path(directory) / "equipped.txt"
+            policy._character_calibration_path = Path(directory) / "constants.json"
+            policy._prepare_character_sheet_dump()
+            self.assertTrue(policy.confirm_key_posted(CHARACTER_DUMP_MACRO))
+            data = self.envelope()
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            # The file does not exist yet: nothing is read, rejected or lost.
+            self.assertFalse(policy._character_dump_path.exists())
+            self.assertIsNone(policy._calibration_unavailable_reason)
+            self.assertIsNone(policy._calibration_rejection)
+            self.assertIsNone(policy._character_calibration)
+            self.assertIsNotNone(policy._calibration_dump_pending)
+            self.assertIsNotNone(policy._calibration_dump_response)
+            # f + Enter writes the file; ESC returns to the main loop, whose
+            # next board is the completion boundary.
+            raw = (Path(__file__).parent
+                   / "fixtures/calib-equivalence/0917-synthesized.txt").read_bytes()
+            policy._character_dump_path.write_bytes(raw)
+            policy.choose_key(parse_snapshot(data, {}))
+            record = policy._character_calibration
+            self.assertIsNotNone(record)
+            self.assertEqual(record.base_stats, (150, 3, 8, 48, 78, 11))
+            self.assertIsNone(policy._calibration_dump_pending)
+            self.assertIsNone(policy._calibration_dump_response)
+            self.assertTrue(policy._character_calibration_path.exists())
+
+    def test_mutation_change_invalidates_the_cached_calibration(self):
+        # Restored (review P5): the periodic C snapshot's mutation set, with
+        # no dump pending, still invalidates the cached equipped constants.
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory)
+            data = self.envelope()
+            self.deliver(policy, data)
+            board = parse_snapshot(data, {})
+            self.assertIsNotNone(policy._character_calibration)
+            # An unchanged observation keeps the cache.
+            self.assertIsNotNone(policy._validated_character_calibration(board))
+            self.assertIsNone(policy._calibration_dump_pending)
+            # A gained mutation reported by the next periodic snapshot
+            # invalidates it.
+            gained = (*(policy._mutation_signature or ()), 11)
+            policy.observe_character_snapshot({"mutations": list(gained)})
+            self.assertIsNone(policy._validated_character_calibration(board))
+            self.assertIsNone(policy._character_calibration)
 
     def test_unposted_or_unchanged_file_never_publishes(self):
         with TemporaryDirectory() as directory:
             policy = self.posted_policy(directory, preexisting=True)
             data = self.envelope()
-            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.deliver(policy, data)
             self.assertEqual(policy._calibration_unavailable_reason, "stale-dump-file")
             self.assertFalse(policy._character_calibration_path.exists())
             policy._calibration_unavailable_reason = None
-            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.deliver(policy, data)
             self.assertIsNone(policy._character_calibration)
             self.assertIsNone(policy._calibration_unavailable_reason)
 
@@ -125,7 +195,7 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
                     os.utime(policy._character_dump_path, ns=(stamp, stamp))
                     reason = "stale-dump-file"
                 data = self.envelope()
-                policy.observe_character_snapshot(data["character"], envelope=data)
+                self.deliver(policy, data)
                 self.assertEqual(policy._calibration_unavailable_reason, reason)
                 self.assertIsNone(policy._character_calibration)
                 self.assertFalse(policy._character_calibration_path.exists())
@@ -135,7 +205,7 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
             policy = self.posted_policy(directory)
             data = self.envelope()
             data["player"]["status_bar"] = [{"key": "unimplemented-effect"}]
-            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.deliver(policy, data)
             self.assertEqual(policy._calibration_unavailable_reason,
                              "unknown-timed-effect:unimplemented-effect")
             self.assertIsNone(policy._calibration_dump_pending)
@@ -153,7 +223,7 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
                     data["sequence"] = 9
                 else:
                     data["equipment"][0]["name"] = "Different weapon with identical numbers"
-                policy.observe_character_snapshot(data["character"], envelope=data)
+                self.deliver(policy, data)
                 self.assertEqual(policy._calibration_unavailable_reason, reason)
                 self.assertIsNone(policy._character_calibration)
 

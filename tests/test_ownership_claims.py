@@ -234,8 +234,10 @@ class ClaimOwnerDerivationTest(unittest.TestCase):
             [*owner_families(), UNREGISTERED_FAMILY],
         )
         # S2a: 20 arbitrating registrations + 10 census-only families of
-        # design 6/S2a + ``unregistered``.
-        self.assertEqual(len(ClaimOwner), 31)
+        # design 6/S2a + ``unregistered``, less the ``calibration``
+        # registration retired with the strip calibration phases (equipped
+        # C-sheet calibration rework): 19 + 10 + 1.
+        self.assertEqual(len(ClaimOwner), 30)
 
     def test_an_unknown_family_lands_on_unregistered_rather_than_raising(self):
         self.assertEqual(owner_of("no-such-family"), ClaimOwner.UNREGISTERED)

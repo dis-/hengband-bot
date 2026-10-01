@@ -16,11 +16,11 @@ class HomeVisitKind(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        # Strip calibration's restore visit, retired with the strip phases.
+        # Old checkpoints still unpickle; the checkpoint upgrade drops it.
         if value == "calibration-restore":
-            from hengbot.policy_calibration import LegacyCalibrationDebtError
-            raise LegacyCalibrationDebtError(
-                "legacy-calibration-debt:calibration-restore-home-visit; manual recovery required"
-            )
+            from hengbot.retired_values import retired_member
+            return retired_member(cls, value, "RETIRED_CALIBRATION_RESTORE")
         return None
 
 

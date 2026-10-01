@@ -62,6 +62,9 @@ _CAPTURE_STATE_NAMES = frozenset(
         # The Home capture is an observer, not restorable policy state.  It also
         # contains the checkpoint currently being built.
         "_home_entry_capture",
+        # The upgrade marker is not state: every restore runs the shared
+        # upgrade, which restores the transient names above and sets it.
+        "_policy_state_version",
     }
 )
 
@@ -99,8 +102,6 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         # portable runtime keeps the same path classes in pathlib itself.
         state = _LegacyPathUnpickler(io.BytesIO(payload)).load()
     restored.__dict__.update(state)
-    from hengbot.policy_calibration import refuse_legacy_calibration_debt
-    refuse_legacy_calibration_debt(state, state.get("_character_calibration_path"))
     restored._latch_capture_path = None
     restored._latch_capture_previous = None
     restored._latch_capture_predecision = None
