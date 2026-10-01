@@ -19,6 +19,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import TVAL_STAFF, SV_STAFF_IDENTIFY
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import frozen_equipment_replay
+from extraction_calibration import install_extraction_calibration
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'identify-staff-live27.jsonl.gz'
 
@@ -39,6 +40,7 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
             policy = _policy(directory, monrace)
             policy._crossarea_fundraising_enforced = True
             policy._character_calibration_path.write_bytes(FIXTURE.with_suffix('.calibration.json').read_bytes())
+            install_extraction_calibration(policy)
             cursor = 0
             for index, count in enumerate(data['input_rows']):
                 segment = lines[cursor:cursor + count]

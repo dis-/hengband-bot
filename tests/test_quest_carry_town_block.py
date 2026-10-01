@@ -243,9 +243,13 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         self.assertNotEqual(
             policy.last_reason, "town:blocked:departure-unsatisfiable"
         )
+        # Equipped C-sheet calibration rework: the base route here was the
+        # strip calibration's Home deposit trip (store 7, armed because this
+        # fresh policy had no calibration).  Without the strip phase the
+        # ordinary errand route continues to the next supplier (store 4).
         self.assertEqual(
             (str(stop_key), policy.last_reason),
-            ("\x1b`n(.", "shop:travel"),
+            ("\x1b`n%.", "shop:travel"),
         )
         self.assertFalse(policy._fixed_quest_ready_for_travel(recorded_stop, 31))
 

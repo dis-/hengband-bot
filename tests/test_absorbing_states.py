@@ -211,9 +211,14 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         second = policy.choose_key(outside)
         policy.confirm_key_posted(second)
 
+        # Equipped C-sheet calibration rework: capture 1201 was taken in the
+        # strip calibration's restore-supplies phase, whose restore take was
+        # "5pm1\r\x1b".  The retired phase is dropped on restore; the progressing
+        # Home work is the ordinary standing-digger take (the base code decides
+        # the same once its strip state is cleared).
         self.assertEqual(
             (first, row["key"], second, policy.last_reason),
-            ("\x1b", "\x1b", "5pm1\r\x1b", "home:atomic-withdraw"),
+            ("\x1b", "\x1b", "5pV\x1b", "home:atomic-withdraw"),
         )
         self.assertTrue(policy._home_owner_goal_pending(outside))
         self.assertEqual(policy._equipment_transaction_failed_items, failed_items)
@@ -240,9 +245,10 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         withdrawal = policy.choose_key(outside)
         policy.confirm_key_posted(withdrawal)
 
+        # Strip restore take retired; see the failure-gate pin above.
         self.assertEqual(
             (withdrawal, policy.last_reason),
-            ("5pm1\r\x1b", "home:atomic-withdraw"),
+            ("5pV\x1b", "home:atomic-withdraw"),
         )
         self.assertNotEqual(
             policy.last_reason, "town:blocked:restock-store-unreachable"
@@ -441,26 +447,33 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 
         type(world).apply = frozen_apply
         terminal_decision = None
-        for i in range(CALIBRATION_HOME_VISIT_LIMIT + 1):
+        reasons = []
+        for i in range(2 * CALIBRATION_HOME_VISIT_LIMIT):
             world.apply(policy.choose_key(world.snapshot(i)))
+            reasons.append(policy.last_reason)
             if policy._town_blocked_reason is not None:
                 terminal_decision = i + 1
                 break
 
-        self.assertEqual(
-            policy._town_blocked_reason,
-            "equipment-work-home-route-exhausted",
-            "the frozen approach exhausted the authorized calibration budget",
-        )
+        # Equipped C-sheet calibration rework (R1): the frozen approach still
+        # spends the whole equipment-work Home ceiling publicly, and the owner
+        # is retired.  The base terminal "equipment-work-home-route-exhausted"
+        # came from the unavailable calibration counting as outstanding
+        # equipment work afterwards; it no longer does, so with no Home work
+        # left the swallowed walk ends at the town's visible repetition
+        # terminal instead.
+        self.assertIsNotNone(terminal_decision, "the frozen approach reached no terminal")
+        self.assertEqual(policy._town_blocked_reason, "repetition")
         self.assertIn(cat.STORE_HOME, policy._town_visit_ledger.blocked_stores)
         self.assertEqual(
             policy._town_visit_ledger.unsatisfied_passes[cat.STORE_HOME],
-            policy._town_store_visit_limit(cat.STORE_HOME),
+            CALIBRATION_HOME_VISIT_LIMIT,
         )
-        self.assertLessEqual(
-            terminal_decision,
-            CALIBRATION_HOME_VISIT_LIMIT + 1,
+        self.assertGreaterEqual(
+            reasons.count("town:blocked:owner-retired"),
+            CALIBRATION_HOME_VISIT_LIMIT - 3,
         )
+        self.assertLessEqual(terminal_decision, 2 * CALIBRATION_HOME_VISIT_LIMIT)
 
     def test_progress_limb_distinguishes_progress_from_freeze(self):
         def state(progressing):

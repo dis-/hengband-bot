@@ -50,6 +50,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from extraction_calibration import install_extraction_calibration
 
 
 GAME_ROOT = Path("C:/hengband")
@@ -99,6 +100,7 @@ def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
     calibration = directory / "character-calibration.json"
     shutil.copyfile(CALIBRATION, calibration)
     policy._character_calibration_path = calibration
+    install_extraction_calibration(policy)
     return policy, monrace
 
 

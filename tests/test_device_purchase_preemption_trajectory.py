@@ -61,24 +61,27 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
             HengbotPolicy, policy_blob, snapshot_blob
         )
 
+    # Equipped C-sheet calibration rework: decision 253 was recorded while
+    # the retired strip calibration (deposit phase) held every equipment
+    # change, so an exhausted torch stayed worn beside a pack lantern.  The
+    # base code reached the purchase / repetition arbitration only because
+    # that hold suppressed the light owner.  Without the strip phase the
+    # public decision on this board is the ordinary light swap, before the
+    # latched repetition terminal and before any purchase is composed; the
+    # arbitration itself is no longer observable on this recorded board.
+    def _assert_light_swap_first(self, policy, key, *, blocked):
+        self.assertEqual((policy.last_reason, key), ("wield-light", "wd"))
+        self.assertFalse(policy._store_visit.operation_posted)
+        self.assertIsNone(policy._store_visit.operation_key)
+        self.assertEqual(policy._town_blocked_reason, blocked)
+
     def test_affordable_device_composes_before_repetition_terminal(self):
         policy, snapshot = self._restore()
         snapshot = self._incident_page(policy, snapshot, price=1083)
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(
-            policy.last_reason,
-            "town-progress-invariant:defect:town:blocked:repetition"
-            "=>shop:one-shot-buy",
-        )
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
-        self.assertTrue(policy._store_visit.operation_posted)
-        self.assertEqual(
-            policy._town_progress_invariant_defect["marker"],
-            "TOWN_PROGRESS_INVARIANT_DEFECT",
-        )
+        self._assert_light_swap_first(policy, key, blocked="repetition")
 
     def test_unaffordable_device_still_reaches_repetition_terminal(self):
         policy, snapshot = self._restore()
@@ -89,8 +92,7 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
 
         self.assertNotEqual(key, "pe1\r\r\x1b")
-        self.assertEqual(policy.last_reason, "town:blocked:repetition")
-        self.assertFalse(policy._store_visit.operation_posted)
+        self._assert_light_swap_first(policy, key, blocked="repetition")
 
     def test_component_restored_checkpoint_does_not_give_magic_visit_to_calibration(self):
         """Public choose_key pin for an unrelated post-calibration store visit."""
@@ -117,10 +119,7 @@ class DevicePurchasePreemptionTrajectoryTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "shop:one-shot-buy")
-        self.assertEqual(policy._store_visit.operation_key, "pe3\r\r\x1b")
-        self.assertTrue(policy._store_visit.operation_posted)
+        self._assert_light_swap_first(policy, key, blocked=None)
 
 
 if __name__ == "__main__":

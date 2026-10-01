@@ -62,6 +62,7 @@ from hengbot.policy_constants import (
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from tests.policy_fixtures import grid, item, player, store_item
+from extraction_calibration import install_extraction_calibration
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "home-light-loop-20260911.json.gz"
@@ -115,6 +116,7 @@ def _fresh_policy(sandbox: Path) -> ConservativePolicy:
         calibration,
     )
     policy._character_calibration_path = calibration
+    install_extraction_calibration(policy)
     return policy
 
 

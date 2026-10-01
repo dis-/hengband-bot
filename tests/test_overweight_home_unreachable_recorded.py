@@ -94,6 +94,7 @@ from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
+from extraction_calibration import install_extraction_calibration
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -188,6 +189,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes()
             )
+            install_extraction_calibration(policy)
             for index in range(STOP + 1):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,
@@ -253,6 +255,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             directory = Path(raw_directory)
             policy = _policy(directory, cls.monrace)
             policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            install_extraction_calibration(policy)
             for index in range(2637):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,

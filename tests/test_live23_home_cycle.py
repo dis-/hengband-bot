@@ -12,6 +12,7 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.claim_register import observe
+from extraction_calibration import install_extraction_calibration
 
 FIXTURE = Path(__file__).parent / "fixtures/live23-home-cycle"
 
@@ -140,6 +141,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                 directory = Path(raw)
                 policy = _policy(directory, Capture.monrace)
                 policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+                install_extraction_calibration(policy)
                 for index in range(5):
                     if restored and index == 3:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))

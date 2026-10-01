@@ -77,6 +77,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import MIN_FREE_PACK_SLOTS, PACK_CAPACITY
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from extraction_calibration import install_extraction_calibration
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -161,6 +162,7 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes()
             )
+            install_extraction_calibration(policy)
             read_board = cls._board(policy, read_index, directory)
             # Wall (attach): see the module docstring.
             policy.prime(read_board)

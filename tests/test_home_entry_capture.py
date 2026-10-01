@@ -124,7 +124,14 @@ class HomeEntryCaptureTest(unittest.TestCase):
             key=lambda item: item.sval,
         )
         self.assertEqual(policy.choose_key(inside), "\x1b")
-        self.assertEqual(policy.last_reason, "home:queue-digging-tool-withdraw")
+        # The checkpoint predates _home_procurement_probe.  The base restore
+        # left it missing, and the catalogue-shortage owner read the missing
+        # attribute through getattr(..., ()) as an in-flight probe.  The
+        # rework's single checkpoint upgrade (R5) supplies the fresh default
+        # None, so the catalogue-shortage owner binds the same best digger;
+        # the composed key and operation below are unchanged.
+        self.assertEqual(policy.last_reason, "home:queue-catalogue-shortage")
+        self.assertEqual(policy._home_pending_item[1], expected.tval)
         self.assertEqual(
             policy.choose_key(outside), f"5p{expected.letter}\x1b"
         )

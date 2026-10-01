@@ -76,6 +76,7 @@ from hengbot.policy_constants import STORE_HOME
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 import test_policy_home  # WeightOverloadTownTest's overweight town board
+from extraction_calibration import install_extraction_calibration
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -168,6 +169,7 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes()
             )
+            install_extraction_calibration(policy)
             for index in range(STOP + 1):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,

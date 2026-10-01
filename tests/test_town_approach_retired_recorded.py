@@ -92,6 +92,7 @@ from hengbot.policy_constants import SHOP_APPROACH_STUCK_LIMIT, TOWN_TRAVEL_STAL
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
+from extraction_calibration import install_extraction_calibration
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -204,6 +205,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     def _new_policy(cls, directory: Path):
         policy = _policy(directory, cls.monrace)
         policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+        install_extraction_calibration(policy)
         return policy
 
     @classmethod
