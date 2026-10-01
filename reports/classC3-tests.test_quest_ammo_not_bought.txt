@@ -1,0 +1,6 @@
+turn=3025849 replay=('5', 'shop:one-shot-buy') live=("\x1b`n'.", 'shop:travel') operation='po10\r\r\x1b'
+........
+----------------------------------------------------------------------
+Ran 8 tests in 24.695s
+
+OK

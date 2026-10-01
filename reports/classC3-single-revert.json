@@ -1,0 +1,48 @@
+[
+  {
+    "case": "item1-single-revert",
+    "exit_code": 1,
+    "expected_exit_code": 1,
+    "pins": [
+      "tests.test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop"
+    ]
+  },
+  {
+    "case": "item2-single-revert",
+    "exit_code": 1,
+    "expected_exit_code": 1,
+    "pins": [
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore",
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home"
+    ]
+  },
+  {
+    "byte_exact_restoration": {
+      "src\\hengbot\\policy_shop.py": true,
+      "src\\hengbot\\policy_home.py": true
+    },
+    "restored_sha256": {
+      "src\\hengbot\\policy_shop.py": "51ac930aea3b6ca5972484573e5f1886a9fc98aa90cdfb9dd13ae7b129b6a5ee",
+      "src\\hengbot\\policy_home.py": "b9072106d8530091236843eae753a1273f347afac40265a3893d3d58669eaae9"
+    }
+  },
+  {
+    "case": "item1-restored-pin",
+    "exit_code": 0,
+    "expected_exit_code": 0,
+    "pins": [
+      "tests.test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop"
+    ]
+  },
+  {
+    "case": "item2-restored-pins",
+    "exit_code": 0,
+    "expected_exit_code": 0,
+    "pins": [
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore",
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home",
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch",
+      "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_public_stop_board_offers_deeper_guardian_remedy_after_restore"
+    ]
+  }
+]

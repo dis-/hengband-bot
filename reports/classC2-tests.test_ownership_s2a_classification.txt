@@ -1,0 +1,44 @@
+python : test_a_census_only_family_can_never_arbitrate (tests.test_ownership_s2a_classification.CensusSeparationTest.te
+st_a_census_only_family_can_never_arbitrate) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_ownership_s2a_classificatio ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_a_census_o...bitrate) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_the_arbitration_table_is_the_one_that_existed_before_s2a (tests.test_ownership_s2a_classification.CensusSeparation
+Test.test_the_arbitration_table_is_the_one_that_existed_before_s2a) ... ok
+test_the_census_refines_arbitration_and_never_contradicts_it (tests.test_ownership_s2a_classification.CensusSeparationT
+est.test_the_census_refines_arbitration_and_never_contradicts_it) ... ok
+test_the_named_replays_decide_byte_identically (tests.test_ownership_s2a_classification.CensusSeparationTest.test_the_n
+amed_replays_decide_byte_identically) ... ok
+test_every_exception_carries_a_reason (tests.test_ownership_s2a_classification.ExceptionsFileTest.test_every_exception_
+carries_a_reason) ... ok
+test_no_exception_line_is_stale (tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_exception_line_is_s
+tale) ... ok
+test_no_uncovered_site_is_unexcused (tests.test_ownership_s2a_classification.ExceptionsFileTest.test_no_uncovered_site_
+is_unexcused) ... ok
+test_the_lint_still_reports_rather_than_failing (tests.test_ownership_s2a_classification.ExceptionsFileTest.test_the_li
+nt_still_reports_rather_than_failing) ... ok
+test_a4_after_the_census_the_replay_has_no_catch_all_owner (tests.test_ownership_s2a_classification.ImplicitHandoffTest
+.test_a4_after_the_census_the_replay_has_no_catch_all_owner) ... ok
+test_a4_reverting_the_census_restores_the_s1_numbers (tests.test_ownership_s2a_classification.ImplicitHandoffTest.test_
+a4_reverting_the_census_restores_the_s1_numbers)
+Revert-proof: undo the one hook S2a added and the old numbers come back. ... ok
+test_a4_the_town_replay_loses_its_catch_all_owner_too (tests.test_ownership_s2a_classification.ImplicitHandoffTest.test
+_a4_the_town_replay_loses_its_catch_all_owner_too) ... ok
+test_every_declared_owner_is_a_registered_family (tests.test_ownership_s2a_classification.NoCatchAllOwnerTest.test_ever
+y_declared_owner_is_a_registered_family) ... ok
+test_no_producer_declares_unregistered_or_misc (tests.test_ownership_s2a_classification.NoCatchAllOwnerTest.test_no_pro
+ducer_declares_unregistered_or_misc) ... ok
+test_no_reason_literal_lands_in_a_catch_all (tests.test_ownership_s2a_classification.NoCatchAllOwnerTest.test_no_reason
+_literal_lands_in_a_catch_all) ... ok
+test_the_catch_all_names_are_still_registered_families (tests.test_ownership_s2a_classification.OneSourceOfFamiliesTest
+.test_the_catch_all_names_are_still_registered_families) ... ok
+test_the_classifier_and_the_ledger_agree_on_every_recorded_reason (tests.test_ownership_s2a_classification.OneSourceOfF
+amiliesTest.test_the_classifier_and_the_ledger_agree_on_every_recorded_reason) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 44.137s
+
+OK

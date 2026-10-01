@@ -1,0 +1,47 @@
+BASELINE b24fd077 ('1', 'town:blocked:departure-unsatisfiable') ['inventory_weight_ready', 'recall_landing_not_guardian_blocked'] target 2
+
+SINGLE REVERT e8824223 town runtime
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '1' town:blocked:departure-unsatisfiable target 2
+.FF..
+======================================================================
+FAIL: test_no_alternate_keeps_visible_stop_and_weight_requirement (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_no_alternate_keeps_visible_stop_and_weight_requirement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classC2_departure_recorded.py", line 173, in test_no_alternate_keeps_visible_stop_and_weight_requirement
+    self.assertEqual((str(key), self.policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     ("1", "town:blocked:guardian-bounce-no-alternate"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1', 'town:blocked:departure-unsatisfiable') != ('1', 'town:blocked:guardian-bounce-no-alternate')
+
+First differing element 1:
+'town:blocked:departure-unsatisfiable'
+'town:blocked:guardian-bounce-no-alternate'
+
+- ('1', 'town:blocked:departure-unsatisfiable')
++ ('1', 'town:blocked:guardian-bounce-no-alternate')
+
+======================================================================
+FAIL: test_public_stop_board_offers_deeper_guardian_remedy_after_restore (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_public_stop_board_offers_deeper_guardian_remedy_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classC2_departure_recorded.py", line 155, in test_public_stop_board_offers_deeper_guardian_remedy_after_restore
+    self.assertEqual((str(key), policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ("1", "town:entrance-step-off:town:unsafe-recall-fallback"))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1', 'town:blocked:departure-unsatisfiable') != ('1', 'town:entrance-step-off:town:unsafe-recall-fallback')
+
+First differing element 1:
+'town:blocked:departure-unsatisfiable'
+'town:entrance-step-off:town:unsafe-recall-fallback'
+
+- ('1', 'town:blocked:departure-unsatisfiable')
++ ('1', 'town:entrance-step-off:town:unsafe-recall-fallback')
+
+----------------------------------------------------------------------
+Ran 5 tests in 59.487s
+
+FAILED (failures=2)
+
+All five runtime files restored byte-for-byte.

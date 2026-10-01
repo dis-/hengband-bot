@@ -1,0 +1,49 @@
+[
+  {
+    "case": "stuck",
+    "mode": "off",
+    "exit": 0,
+    "seconds": 6.85,
+    "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+    "off_rows": 4,
+    "first_divergence": null,
+    "trajectory_defect": null
+  },
+  {
+    "case": "stuck",
+    "mode": "s33",
+    "exit": 0,
+    "seconds": 11.1,
+    "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+    "off_rows": 4,
+    "first_divergence": null,
+    "trajectory_defect": null
+  },
+  {
+    "case": "withdraw",
+    "mode": "off",
+    "exit": 0,
+    "seconds": 30.29,
+    "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+    "off_rows": 34,
+    "first_divergence": null,
+    "trajectory_defect": null
+  },
+  {
+    "case": "withdraw",
+    "mode": "s33",
+    "exit": 0,
+    "seconds": 35.41,
+    "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+    "off_rows": 34,
+    "first_divergence": {
+      "list_index": 3,
+      "historical_sequence": 3,
+      "on": [
+        "\u001b",
+        "equipment-transaction:catalogue-leave-for-scan"
+      ]
+    },
+    "trajectory_defect": null
+  }
+]

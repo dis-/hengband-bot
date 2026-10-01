@@ -1289,8 +1289,9 @@ class ShopMixin:
             supplier = self._departure_supplier_counterfactual(snapshot)
             if supplier is not None:
                 return supplier
-            self._town_blocked_reason = "departure-unsatisfiable"
-            return None
+            # An exhausted shop route does not exhaust non-shop remedies.
+            # Settle existing restock/fundraising/identification owners below;
+            # the departure evaluator alone may issue the no-owner verdict.
 
         self._town_terminal_transitions(snapshot)
         refreshed_needs = self._enumerate_town_needs(snapshot)
@@ -1310,6 +1311,8 @@ class ShopMixin:
                     else set()
                 ) | ledger_blocked
                 for store_type in refreshed_plan.stops:
+                    if store_type in self._town_visit_ledger.nonhome_attempted_without_effect:
+                        continue
                     restock_recheck = (
                         store_type in self._town_restock_rechecked
                         and store_type not in self._town_store_attempted
@@ -1331,14 +1334,6 @@ class ShopMixin:
                         ):
                             self._town_restock_waiting_for = ()
                         return store_type
-        if live_needs and all(
-            need.store_type != STORE_HOME
-            and need.store_type
-            in self._town_visit_ledger.nonhome_attempted_without_effect
-            for need in live_needs
-        ):
-            if self._departure_supplier_counterfactual(snapshot) is None:
-                self._town_blocked_reason = "departure-unsatisfiable"
         return None
 
     def _release_blocked_store_latches(self, store_type: int) -> None:
@@ -2336,7 +2331,7 @@ class ShopMixin:
                 not bool(status["ready"])
                 for status in self._quest_carry_status(snapshot, force).values()
             )
-            add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
+            add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and (self._quest_carry_target_for_item(snapshot, i, force)[0] != "launcher_ammo" or self._ammo_purchase_preserves_plan(snapshot, i)) and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
             add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
@@ -2345,7 +2340,7 @@ class ShopMixin:
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         launcher = self._equipped_launcher(snapshot)
-        add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET, lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: AMMO_CARRY_TARGET))
+        add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
         add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
@@ -2364,6 +2359,8 @@ class ShopMixin:
         launcher = self._equipped_launcher(snapshot)
         plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
         if launcher is None or item.tval != launcher.ammo_tval:
+            return False
+        if plan.carried_count >= self._ammo_procurement_target(snapshot, item):
             return False
         if plan.plain_slot is None:
             return len(plan.kept_slots) < 2 and len(snapshot.inventory) < PACK_CAPACITY
@@ -2876,7 +2873,7 @@ class ShopMixin:
         launcher = self._equipped_launcher(snapshot)
         if (
             launcher is not None
-            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+            and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
         ):
             ammo = next(
                 (
@@ -2975,7 +2972,7 @@ class ShopMixin:
             target = self._mining_detection_stock_target(snapshot)
             needed = target - self._count_treasure_detection_scrolls(snapshot)
         elif item.is_ammo:
-            needed = AMMO_CARRY_TARGET - self._count_matching_ammo(snapshot)
+            needed = self._ammo_procurement_target(snapshot, item) - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
             target = TORCH_THROW_TARGET
             if strategy is not None:
@@ -3011,6 +3008,12 @@ class ShopMixin:
         else:
             needed = 1
         needed = max(needed, quest_needed)
+        launcher = self._equipped_launcher(snapshot)
+        if item.is_ammo and launcher is not None and item.tval == launcher.ammo_tval:
+            needed = min(needed, self._ammo_procurement_target(snapshot, item)
+                         - self._count_matching_ammo(snapshot))
+            if needed <= 0:
+                return 0
         affordable = snapshot.player.gold // item.price if item.price > 0 else item.count
         return max(1, min(item.count, affordable, max(1, needed)))
 
