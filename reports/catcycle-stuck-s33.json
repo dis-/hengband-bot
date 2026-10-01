@@ -1,0 +1,29 @@
+{
+  "case": "stuck",
+  "mode": "s33",
+  "fixture_sha256": "e47a45e211b2d7f5e2c98873e3a1c56789f0b597de5be80eacb9169a1f27918a",
+  "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+  "off_rows": 4,
+  "off_gate_final_count": 0,
+  "off_declarations": {
+    "gate_final_count": 0,
+    "declaration_gap_rows": [],
+    "declaration_mismatch_counts": [],
+    "missing_declaration_decisions": 1,
+    "missing_declaration_by_family": {
+      "detectors": 1
+    },
+    "declaration_decisions_measured": 4
+  },
+  "gate_final_count": 0,
+  "declaration_gap_rows": [],
+  "declaration_mismatch_counts": [],
+  "missing_declaration_decisions": 1,
+  "missing_declaration_by_family": {
+    "detectors": 1
+  },
+  "declaration_decisions_measured": 4,
+  "first_divergence": null,
+  "expected_first": null,
+  "trajectory_defect": null
+}

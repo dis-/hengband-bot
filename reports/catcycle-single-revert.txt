@@ -1,0 +1,137 @@
+.FFFFFFFF
+======================================================================
+FAIL: test_posted_scan_waits_for_reply_without_reissuing (tests.test_catcycle.CatcycleTest.test_posted_scan_waits_for_reply_without_reissuing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 137, in test_posted_scan_waits_for_reply_without_reissuing
+    self.assertEqual(scan, HOME_KNOWLEDGE_MACRO)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5' != '~9\x1b'
+- 5
++ ~9
+
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=False, crossarea=True, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=False, crossarea=True, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=True, crossarea=False, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=True, crossarea=False, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=False, crossarea=False, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_public_leave_then_same_owner_scan_before_reentry (tests.test_catcycle.CatcycleTest.test_public_leave_then_same_owner_scan_before_reentry) (enforced=False, crossarea=False, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 93, in test_public_leave_then_same_owner_scan_before_reentry
+    self.assertEqual((key, policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (HOME_KNOWLEDGE_MACRO, "equipment-transaction:catalogue-request-knowledge"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'equipment-transaction:travel-home:await-entry') != ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+First differing element 0:
+'5'
+'~9\x1b'
+
+- ('5', 'equipment-transaction:travel-home:await-entry')
++ ('~9\x1b', 'equipment-transaction:catalogue-request-knowledge')
+
+======================================================================
+FAIL: test_separate_recorded_scan_reply_adopts_before_next_home_work (tests.test_catcycle.CatcycleTest.test_separate_recorded_scan_reply_adopts_before_next_home_work)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_catcycle.py", line 111, in test_separate_recorded_scan_reply_adopts_before_next_home_work
+    self.assertEqual(scan, HOME_KNOWLEDGE_MACRO)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5' != '~9\x1b'
+- 5
++ ~9
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 14.770s
+
+FAILED (failures=8)
