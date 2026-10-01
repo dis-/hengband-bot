@@ -223,21 +223,6 @@ class IdentificationDeclarationTest(unittest.TestCase):
                           ("normal", policy._item_signature(target))))
 
 
-class CalibrationDeclarationTest(unittest.TestCase):
-    def test_deferred_calibration_declares_no_step(self):
-        policy = HengbotPolicy()
-        board = SimpleNamespace()
-        with patch.object(policy, "_defer_town_errand", return_value=True):
-            key = policy._calibration_town_key(board)
-        self.assertIsNone(key)
-        claim = policy._claim_register.declare(
-            "calibration", observe(("character",), 8, "calibration"))
-        policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
-        self.assertEqual((declaration.producer, declaration.state,
-                          declaration.cause),
-                         ("calibration", "releasing",
-                          "deferred-by-town-holder"))
 
 
 class DepartureDeclarationTest(unittest.TestCase):

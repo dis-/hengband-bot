@@ -1020,36 +1020,6 @@ class ScreenClassifierTest(unittest.TestCase):
 
 
 class TcpBarrierPinTest(ProductionHarness):
-    def test_p1_calibration_restore_consumes_recorded_outside_knowledge_menu(self):
-        fixture_dir = Path(__file__).with_name("fixtures")
-        viewer = json.loads((fixture_dir / "live-screens" /
-            "26-knowledge-viewer-stuck-20260915-0534.json").read_text(
-                encoding="utf-8"))["result"]
-        recorded_menu = json.loads((fixture_dir /
-            "screen-19-29-knowledge.json").read_text(encoding="utf-8"))
-        map_return = json.loads((fixture_dir / "live-screens" /
-            "03-after-knowledge-esc.json").read_text(
-                encoding="utf-8"))["screen"]["result"]
-        self.assertEqual(classify_screen(recorded_menu).kind,
-                         ScreenKind.KNOWLEDGE)
-
-        game, _client, executor = self.make()
-        game.screens = [viewer, recorded_menu, map_return]
-        self.assertEqual(executor.observe_boundary(
-            deadline=9999999999).outcome, "ready")
-        prefix, continuations = _home_modal_continuation(
-            SimpleNamespace(store=None), HOME_KNOWLEDGE_MACRO,
-            "calibration:request-restore-knowledge",
-        )
-        result = executor.submit(Operation(
-            2341, "calibration:request-restore-knowledge", prefix,
-            executor.ready_board, continuations,
-        ), deadline=9999999999)
-
-        self.assertEqual(result.outcome, "completed")
-        self.assertEqual(result.screen.kind, ScreenKind.COMMAND)
-        self.assertEqual(result.operation.accepted_segments,
-                         ["~9", "\x1b", "\x1b"])
 
     def test_p2_inside_home_knowledge_continuations_remain_exact(self):
         inside = SimpleNamespace(store=SimpleNamespace(store_type=STORE_HOME))

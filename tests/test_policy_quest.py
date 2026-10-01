@@ -4230,31 +4230,6 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 self.assertEqual(key, WAIT_KEY)
                 self.assertEqual(policy.last_reason, "opening-q34:wait")
 
-    def test_finished_q34_other_quest_keeps_calibration_entry_refusal(self):
-        policy, board = self._warmed_current_q34_entrance_replay()
-        control = replace(
-            board,
-            quests={
-                34: QuestState(
-                    id=34, status=QUEST_STATUS_FINISHED, fixed=True, level=5
-                ),
-                1: QuestState(
-                    id=1, status=QUEST_STATUS_TAKEN, fixed=True, level=5
-                ),
-            },
-        )
-
-        self.assertFalse(policy._opening_q34_active(control))
-        self.assertFalse(policy._quest_equipment_entry_allowed(control, 1))
-        self.assertEqual(policy._town_blocked_reason, "equipment-departure-incomplete")
-        self.assertEqual(policy._departure_block["failed"], [
-            "recall_departure_ready",
-            "food_ready",
-            "teleport_ready",
-            "cure_critical_ready",
-            "equipment_departure_ready",
-            "home_catalog_ready",
-        ])
 
     def test_frozen_q34_offer_is_stable_across_mapless_store_snapshot(self):
         self.skipTest(

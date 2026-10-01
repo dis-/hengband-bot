@@ -88,9 +88,6 @@ class RecallStockoutSurplusPins(unittest.TestCase):
         with TemporaryDirectory() as directory:
             policy = HengbotPolicy(
                 home_disposal_state=self._state(Path(directory)))
-            # pin_vacuity: calibration is an unrelated collaborator in this
-            # archived warrior save; the real route/Home/deposit producers run.
-            policy._calibration_active = lambda: False
             knowledge = {}
             decisions = []
             with gzip.open(AUTO_ENTRY_FIXTURE, "rt", encoding="utf-8-sig") as stream:

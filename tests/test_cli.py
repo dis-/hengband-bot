@@ -3309,7 +3309,6 @@ class DecisionRecordTest(unittest.TestCase):
             _town_errand_plan=SimpleNamespace(stops=[7], index=0),
             _equipment_transaction_session=session,
             _equipment_transaction_owned_items=[("weapon-1", "main_hand")],
-            _calibration_phase="deposit",
             _shop_selector_diagnostics={
                 "winning_rung": "town:blocked:repetition",
                 "wanted_purchase": {
@@ -3347,7 +3346,7 @@ class DecisionRecordTest(unittest.TestCase):
             report["equipment_transaction_owned_items"],
             [["weapon-1", "main_hand"]],
         )
-        self.assertEqual(report["calibration_phase"], "deposit")
+        self.assertNotIn("calibration_phase", report)
         self.assertEqual(report["choke_engagement"]["release_cause"], "no-progress")
         self.assertEqual(record["town_stall_report"], report)
 
@@ -5361,15 +5360,11 @@ class TownResidenceStreakTest(unittest.TestCase):
 class CharacterSnapshotDispatchTest(unittest.TestCase):
     """`C` character snapshots reach the policy through the dispatcher."""
 
-    def test_naked_capture_characteristics_are_recorded_only_when_latched(self):
+    def test_character_mutations_are_observed_without_pending_calibration(self):
         from hengbot.cli import _dispatch_response_lines
         from hengbot.policy import HengbotPolicy
 
         policy = HengbotPolicy()
-        policy._calibration_phase = "capture"
-        policy._calibration_naked_dump_requested = True
-        # TEST_FAKERY_LINT_ALLOW: private-state-injected: test begins from a protocol state whose subsequent handling is the subject
-        policy._calibration_naked_dump_inflight = True
         sent = []
         line = json.dumps({
             "type": "character",
@@ -5384,5 +5379,6 @@ class CharacterSnapshotDispatchTest(unittest.TestCase):
         _dispatch_response_lines([line], policy, sent.append)
 
         self.assertEqual(policy._mutation_signature, (7,))
-        self.assertEqual(policy._calibration_naked_flags, frozenset({152}))
-        self.assertFalse(policy._calibration_naked_dump_inflight)
+
+        self.assertIsNone(policy._character_calibration)
+        self.assertEqual(sent, [])

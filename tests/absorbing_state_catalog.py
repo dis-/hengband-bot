@@ -777,129 +777,10 @@ def _invalid_command_noop_home_cycle():
     return policy, TownWorld(surface, passable_positions={entrance})
 
 
-def _doubled_store_entry_cycle():
-    """Delay the Home-open page once after accepting its entry command."""
-    helper = home_fixture.HomeOneOperationPerEntryTest()
-    target = fixture.store_item("a", TVAL_POTION, 2999, name="delayed target")
-    policy = HengbotPolicy()
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(target)]
-    policy._home_candidate_waiting = True
-    surface = replace(
-        helper._entrance_snapshot(helper._real_pack(), turn=3041933),
-        equipment=[
-            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
-        ],
-    )
-
-    delayed_page = [False]
-
-    class DelayedEntryWorld(TownWorld):
-        def __init__(self, snapshot):
-            super().__init__(snapshot, stock=[target])
-            self.invalid_store_entries = 0
-            self.expected_terminal_reason = "home:request-knowledge-scan"
-
-        def snapshot(self, decision):
-            current = super().snapshot(decision)
-            if delayed_page[0]:
-                delayed_page[0] = False
-                return replace(current, store=None)
-            return current
-
-        def apply(self, key):
-            was_inside = self.inside
-            if was_inside and key == WAIT_KEY:
-                self.invalid_store_entries += 1
-                self.last_key = key
-                return
-            super().apply(key)
-            if not was_inside and key == WAIT_KEY and self.inside:
-                delayed_page[0] = True
-
-    return policy, DelayedEntryWorld(surface)
 
 
-def _lagged_successful_store_entry():
-    """Expose a direction posted into a store whose first page is lagged."""
-    helper = home_fixture.HomeOneOperationPerEntryTest()
-    target = fixture.store_item("a", TVAL_POTION, 3001, name="lagged target")
-    policy = HengbotPolicy()
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(target)]
-    policy._home_candidate_waiting = True
-    surface = replace(
-        helper._entrance_snapshot(helper._real_pack(), turn=3041933),
-        equipment=[
-            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
-        ],
-        messages=(),
-    )
-
-    lag_store_page = [False]
-
-    class LaggedSuccessfulEntryWorld(TownWorld):
-        def __init__(self, snapshot):
-            super().__init__(snapshot, stock=[target])
-            self.invalid_store_entries = 0
-            self.expected_terminal_reason = "home:request-knowledge-scan"
-
-        def snapshot(self, decision):
-            current = super().snapshot(decision)
-            if lag_store_page[0]:
-                lag_store_page[0] = False
-                return replace(current, store=None, messages=())
-            return current
-
-        def apply(self, key):
-            was_inside = self.inside
-            if was_inside and key[:1] in MOVES:
-                self.invalid_store_entries += 1
-                self.last_key = key
-                return
-            super().apply(key)
-            if not was_inside and key == WAIT_KEY and self.inside:
-                lag_store_page[0] = True
-
-    return policy, LaggedSuccessfulEntryWorld(surface)
 
 
-def _failed_store_entry_same_turn():
-    """A refused entrance WAIT must hand routing back without a filler key."""
-    helper = home_fixture.HomeOneOperationPerEntryTest()
-    target = fixture.store_item("a", TVAL_POTION, 3000, name="refused target")
-    policy = HengbotPolicy()
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(target)]
-    policy._home_candidate_waiting = True
-    surface = replace(
-        helper._entrance_snapshot(helper._real_pack(), turn=3467379),
-        equipment=[
-            fixture.item("light", policy_module.TVAL_LITE, 0, name="a light")
-        ],
-    )
-
-    class RefusedEntryWorld(TownWorld):
-        def __init__(self, snapshot):
-            super().__init__(snapshot, stock=[target])
-            self.expected_terminal_reason = "store:entry-failed-step-off"
-
-        def apply(self, key):
-            if not self.inside and key == WAIT_KEY:
-                self.last_key = key
-                return
-            super().apply(key)
-
-        def snapshot(self, decision):
-            current = super().snapshot(decision)
-            if not self.inside and self.last_key == WAIT_KEY:
-                return replace(
-                    current,
-                    messages=("The doors are locked.",),
-                )
-            return current
-
-    return policy, RefusedEntryWorld(surface)
 
 
 def _scan_address_burst_visit_seed():
@@ -1142,7 +1023,6 @@ def _home_entry_cycle():
     for store_type in range(8):
         policy._town_visit_ledger.approach_fails[store_type] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_blocked_reason = "no-safe-recall-destination"
-    policy._calibration_blocked_this_visit = True
     policy._equipment_catalog.home_scan_complete = True
     policy._home_entry_operation_posted = True
     snap = replace(
@@ -1165,8 +1045,7 @@ def _withdraw_refusal_cycle():
     missing = fixture.store_item("a", TVAL_POTION, 3990, name="missing restore")
     other = fixture.store_item("a", TVAL_POTION, 3991, name="other home item")
     policy = HengbotPolicy()
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [policy._item_signature(missing)]
+    policy._home_pending_batch = [policy._item_signature(missing)]
     policy._home_candidate_waiting = True
     pack = helper._real_pack()
     page = replace(
@@ -1197,14 +1076,12 @@ def _released_bound():
         policy.choose_key(replace(surface, turn=3200000 + n))
     target = fixture.store_item("a", TVAL_POTION, 3900, name="bound restore")
     signature = policy._item_signature(target)
-    policy._calibration_phase = "restore-supplies"
-    policy._calibration_restore_signatures = [signature]
+    policy._home_pending_batch = [signature]
     policy._home_candidate_waiting = True
     policy.consume_home_knowledge((target,))
     policy._home_page_size = 52
     policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
     policy._town_visit_ledger.approach_fails[STORE_HOME] = policy_module.TOWN_STOP_PASS_LIMIT
-    policy._town_visit_ledger.need_attempts["calibration-restore"] = policy_module.TOWN_STOP_PASS_LIMIT
     policy._town_store_attempted[STORE_HOME] = 3200003
     return policy, TownWorld(
         surface,
@@ -1212,64 +1089,8 @@ def _released_bound():
     )
 
 
-def _calibration_deposit_claim_budget():
-    """Unsafe recall must not install its terminal over a live Home deposit."""
-    helper = town_fixture.NoSafeRecallDestinationTest()
-    policy, snap = helper._fixture()
-    home = replace(
-        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-    )
-    snap = replace(
-        snap,
-        grids={**snap.grids, home.position: home},
-        inventory=[replace(snap.inventory[0], count=19), *snap.inventory[1:]],
-    )
-    policy._town_was_in_town = True
-    policy._calibration_phase = "deposit"
-    policy._town_visit_ledger.need_attempts["deposit"] = 3
-    policy._town_errand_plan = policy_module.TownErrandPlan(
-        [STORE_HOME, policy_module.STORE_TEMPLE, policy_module.STORE_WEAPON,
-         policy_module.STORE_BLACK],
-        index=4,
-    )
-    policy._town_store_attempted[STORE_HOME] = snap.turn
-
-    class CalibrationDepositWorld(TownWorld):
-        def __init__(self, snapshot):
-            super().__init__(snapshot)
-            self.initial_inventory_size = len(self.inventory)
-
-        def visible_terminal(self, reason):
-            if reason == "town:blocked:no-safe-recall-destination":
-                return None
-            if (
-                reason in {"town:blocked:repetition", "livelock:exhausted"}
-                and len(self.inventory) == self.initial_inventory_size
-            ):
-                return None
-            return super().visible_terminal(reason)
-
-    return policy, CalibrationDepositWorld(snap)
 
 
-def _plan_none_live_calibration_home_available():
-    """A live calibration owner with no plan must still reach bounded Home."""
-    helper = town_fixture.NoSafeRecallDestinationTest()
-    policy, snap = helper._fixture()
-    home = replace(
-        fixture.grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-    )
-    snap = replace(snap, grids={**snap.grids, home.position: home})
-    policy._town_was_in_town = True
-    policy._calibration_phase = "deposit"
-    policy._equipment_catalog.home_scan_complete = True
-    policy._equipment_optimization_preparation = SimpleNamespace(
-        blockers=("calibration-required",), result=None,
-    )
-    policy._town_errand_plan = None
-    policy._town_blocked_reason = "repetition"
-    policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 16
-    return policy, TownWorld(snap)
 
 
 def _calibration_prerequisite_scan_bound():
@@ -1882,13 +1703,6 @@ SEEDED_STATES = (
     AbsorbingState("home-blocked-departure", 300, _departure_freeze),
     AbsorbingState("wait-reenters-home-door", 200, _home_entry_cycle),
     AbsorbingState("released-home-attempt-bound", 800, _released_bound),
-    AbsorbingState(
-        "calibration-deposit-claim-budget", 300, _calibration_deposit_claim_budget
-    ),
-    AbsorbingState(
-        "plan-none-live-calibration-home-available", 300,
-        _plan_none_live_calibration_home_available,
-    ),
     AbsorbingState(
         "calibration-prerequisite-scan-bound", 1000,
         _calibration_prerequisite_scan_bound,

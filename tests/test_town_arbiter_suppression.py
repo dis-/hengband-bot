@@ -26,7 +26,6 @@ def _board():
 
 def _incident_policy(*, suppressed: bool):
     policy = HengbotPolicy()
-    policy._calibration_phase = "deposit"
     policy._town_store_attempted = dict(CAPTURED_ATTEMPTED)
     policy._town_cycle_breaks = 1
     policy._town_errand_plan = None
@@ -53,14 +52,12 @@ class TownArbiterSuppressionTest(unittest.TestCase):
 
     def test_suppression_implies_no_reachable_gate_supplier(self):
         snapshot = _board()
-        for phase in ("deposit", None):
-            policy = HengbotPolicy()
-            policy._calibration_phase = phase
-            policy._town_store_attempted = dict(CAPTURED_ATTEMPTED)
-            policy._break_town_cycle(snapshot)
-            supplier = policy._departure_supplier_counterfactual(snapshot)
-            if policy._town_restock_suppressed:
-                self.assertIsNone(supplier)
+        policy = HengbotPolicy()
+        policy._town_store_attempted = dict(CAPTURED_ATTEMPTED)
+        policy._break_town_cycle(snapshot)
+        supplier = policy._departure_supplier_counterfactual(snapshot)
+        if policy._town_restock_suppressed:
+            self.assertIsNone(supplier)
 
     def test_repeated_supplier_is_bounded_by_arbiter_vector_budget(self):
         snapshot = _board()

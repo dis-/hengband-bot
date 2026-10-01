@@ -252,29 +252,6 @@ class HomeVisitExecutorTest(unittest.TestCase):
             self.assertEqual(executor.consume_report().outcome, "completed")
             self.assertEqual(executor.operation_history, [])
 
-    def test_calibration_deposit_restore_is_authorized(self):
-        identity = ("oil-flask", 1)
-        executor = HomeVisitExecutor(3)
-        executor.file(request(HomeVisitKind.DEPOSIT, identity))
-        executor.begin_approach(1)
-        executor.post_entry(1)
-        executor.observe_inside("deposit", 2)
-        executor.record_operation("put", identity, 2)
-        executor.post_exit()
-        executor.observe_outside(effect_observed=True)
-        executor.consume_report()
-        restore = HomeVisitRequest(
-            HomeVisitKind.CALIBRATION_RESTORE, "calibration", identity,
-            batch=(identity,),
-        )
-        executor.file(restore)
-        executor.begin_approach(3)
-        executor.post_entry(3)
-        executor.observe_inside("restore", 4)
-        self.assertTrue(executor.record_operation("take", identity, 4))
-        executor.post_exit()
-        executor.observe_outside(effect_observed=True)
-        self.assertEqual(executor.consume_report().outcome, "completed")
 
     def test_budget_rejection_has_visible_report_and_no_none_crash(self):
         executor = HomeVisitExecutor(1)

@@ -168,6 +168,19 @@ class CharacterSheetCalibrationTest(unittest.TestCase):
         with self.assertRaisesRegex(CharacterSheetUnavailable, "snapshot-mismatch"):
             derive_equipped_calibration(sheet, replace(snapshot, player=replace(snapshot.player, level=29)), character)
 
+    def test_base_epoch_and_identity_labels_must_match(self):
+        sheet, snapshot, character = recorded_equipped_inputs()
+        maximum = list(snapshot.player.stat_max)
+        maximum[0] -= 1
+        with self.assertRaisesRegex(CharacterSheetUnavailable, "visible-base-epoch-mismatch"):
+            derive_equipped_calibration(sheet, replace(snapshot,
+                player=replace(snapshot.player, stat_max=tuple(maximum))), character)
+        wrong = dict(character, race_title="Human")
+        # A race word elsewhere in the text is not the visible Race identity field.
+        with self.assertRaisesRegex(CharacterSheetUnavailable, "identity-mismatch"):
+            derive_equipped_calibration(replace(sheet, text=sheet.text + "\nHuman\n"),
+                                        snapshot, wrong)
+
     def test_drained_positive_inverse_and_pinned_item_do_not_fold_equipment(self):
         sheet, snapshot, character = recorded_equipped_inputs()
         rows = list(sheet.rows)

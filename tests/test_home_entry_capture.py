@@ -195,8 +195,8 @@ class HomeEntryCaptureTest(unittest.TestCase):
         target = test_policy.store_item(
             "a", test_policy.TVAL_POTION, 9999, name="capture target"
         )
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
+        policy._home_pending_item = policy._item_signature(target)
+        policy._home_pending_batch = [policy._item_signature(target)]
         policy._home_candidate_waiting = True
         policy._home_atomic_withdraw_procurement_class = (39, 0)
         policy._home_atomic_withdraw_posted_turn = 3200199

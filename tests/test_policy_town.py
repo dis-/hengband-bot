@@ -6263,7 +6263,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         policy = HengbotPolicy()
         policy.prime(snap)
-        self.assertFalse(policy._calibration_stripped_unrestored)
+        self.assertFalse(hasattr(policy, "_calibration_stripped_unrestored"))
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
         policy._char_dump_done_this_visit = True
         policy._prepare_equipment_optimization = lambda _snapshot: incomplete
@@ -14118,20 +14118,6 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
              "equipment-transaction:abandon-blocked"},
         )
 
-    def test_calibration_authority_block_still_denies_equipment_route(self):
-        policy, _snapshot = self._fixture()
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("optimization-timeout",), result=None,
-        )
-        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT
-        )
-        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        policy._town_visit_ledger.blocked_store_limits[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT
-        )
-
-        self.assertFalse(policy._equipment_work_home_route_available())
 
     @staticmethod
     def _record_exhausted_equipment_decision(policy, snap, reasons, i):
@@ -14221,205 +14207,12 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             "passes",
         )
 
-    def test_captured_calibration_deposit_survives_exhausted_claim_budget(self):
-        """Embed the onset checkpoint's decision-relevant town state."""
-        policy, snapshot = self._fixture()
-        home = replace(
-            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-        )
-        snapshot = replace(
-            snapshot,
-            grids={**snapshot.grids, home.position: home},
-            inventory=[replace(snapshot.inventory[0], count=19), *snapshot.inventory[1:]],
-        )
-        policy._town_was_in_town = True
-        policy._calibration_phase = "deposit"
-        policy._town_visit_ledger.need_attempts["deposit"] = 3
 
-        key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, "4")
-        self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertIsNone(policy._town_blocked_reason)
-        self.assertEqual(
-            policy._town_claim_categories, ["deposit", "equipment-work"]
-        )
 
-    def test_live_calibration_deposit_rearms_exhausted_plan_publicly(self):
-        """Pin turn 3030113: live bounded work must retain its Home route."""
-        policy, snapshot = self._fixture()
-        home = replace(
-            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-        )
-        snapshot = replace(
-            snapshot,
-            turn=3030113,
-            grids={**snapshot.grids, home.position: home},
-        )
-        policy.choose_key(snapshot)
-        policy._town_was_in_town = True
-        policy._calibration_phase = "deposit"
-        policy._equipment_catalog.home_scan_complete = True
-        policy._floor_key = snapshot.floor_key
-        catalog_item = OwnedEquipment(
-            "captured-item", snapshot.equipment[0], "home"
-        )
-        policy._equipment_catalog._home = {
-            f"captured-item-{index}": replace(
-                catalog_item, id=f"captured-item-{index}"
-            )
-            for index in range(51)
-        }
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-            encounters_total=0, encounters_evaluated=0, transaction=None,
-        )
-        policy._town_errand_plan = TownErrandPlan(
-            [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],
-            index=4,
-            completed_this_visit=[STORE_HOME],
-        )
-        # Every value below is the retained 37e07f4 blocking decision's
-        # home_route_rearm block; the downstream checkpoint additionally shows
-        # Home completed this visit and absent from _town_store_attempted.
-
-        self.assertEqual(len(policy._equipment_catalog.items), 52)
-        self.assertTrue(policy._equipment_catalog.home_scan_complete)
-        self.assertEqual(policy._calibration_phase, "deposit")
-        self.assertIsNone(policy.calibration_entry_state(snapshot)["entry_blocker"])
-        self.assertEqual(policy._town_errand_plan.index, 4)
-        self.assertEqual(len(policy._town_errand_plan.stops), 4)
-        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
-        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
-        cure_requirement = next(
-            requirement
-            for requirement in policy.procurement_requirements(snapshot)
-            if requirement["item"] == "Cure Critical Wounds potions"
-        )
-        self.assertEqual(
-            cure_requirement,
-            {
-                "item": "Cure Critical Wounds potions",
-                "current": 0,
-                "target": 10,
-                "missing": 10,
-            },
-        )
-        key = policy.choose_key(snapshot)
-
-        self.assertEqual(key, "4")
-        self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertEqual(policy._calibration_phase, "deposit")
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
-        self.assertIn(
-            "equipment-work",
-            policy._town_errand_plan.need_categories[STORE_HOME],
-        )
-        self.assertEqual(
-            policy.equipment_optimization_state(snapshot)["home_route_projection"][
-                "projection"
-            ],
-            {
-                "evaluated": True,
-                "plan_rebuilt": True,
-                "rebuilt_stops": [STORE_HOME],
-            },
-        )
-
-    def test_live_calibration_deposit_builds_home_plan_from_none_publicly(self):
-        """Pin the CL30 stop: a fresh plan retains live bounded Home work."""
-        policy, snapshot = self._fixture()
-        home = replace(
-            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-        )
-        snapshot = replace(
-            snapshot,
-            turn=3032798,
-            player=replace(snapshot.player, level=30, gold=28651),
-            grids={**snapshot.grids, home.position: home},
-        )
-        policy.choose_key(snapshot)
-        policy._town_was_in_town = True
-        policy._calibration_phase = "deposit"
-        policy._equipment_catalog.home_scan_complete = True
-        policy._floor_key = snapshot.floor_key
-        catalog_item = OwnedEquipment(
-            "captured-item", snapshot.equipment[0], "home"
-        )
-        policy._equipment_catalog._home = {
-            f"captured-item-{index}": replace(
-                catalog_item, id=f"captured-item-{index}"
-            )
-            for index in range(55)
-        }
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-        )
-        policy._town_errand_plan = None
-        policy._town_blocked_reason = "repetition"
-        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 16
-
-        self.assertEqual(len(policy._equipment_catalog.items), 56)
-        self.assertIsNone(policy.calibration_entry_state(snapshot)["entry_blocker"])
-        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 16
-        )
-
-        key = policy.choose_key(snapshot)
-
-        self.assertEqual(
-            key,
-            "4",
-            "afb1d3a repeats town until town:blocked:repetition because a "
-            "fresh plan omits Home",
-        )
-        self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertEqual(policy._town_errand_plan.stops, [STORE_HOME])
-        self.assertIn(
-            "equipment-work",
-            policy._town_errand_plan.need_categories[STORE_HOME],
-        )
-
-    def test_live_calibration_new_work_after_visited_home_routes_publicly(self):
-        """A new live owner supersedes the projected pass that visited Home."""
-        policy, snapshot = self._fixture()
-        home = replace(
-            grid(45, 122, lit=True, in_view=True), store_number=STORE_HOME
-        )
-        snapshot = replace(
-            snapshot,
-            turn=3032800,
-            grids={**snapshot.grids, home.position: home},
-        )
-        policy.choose_key(snapshot)
-        policy._town_was_in_town = True
-        policy._calibration_phase = "deposit"
-        policy._equipment_catalog.home_scan_complete = True
-        policy._floor_key = snapshot.floor_key
-        policy._town_errand_plan = TownErrandPlan(
-            [STORE_HOME, STORE_BLACK],
-            index=1,
-            need_categories={STORE_HOME: ("equipment-catalog",)},
-            completed_this_visit=[STORE_HOME],
-        )
-        policy._town_store_attempted[STORE_HOME] = snapshot.turn
-
-        key = policy.choose_key(snapshot)
-
-        self.assertEqual(key, "4")
-        self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-        self.assertIn(
-            "equipment-work",
-            policy._town_errand_plan.need_categories[STORE_HOME],
-        )
 
     def test_home_route_rearm_telemetry_exposes_every_guard_input(self):
         policy, snapshot = self._fixture()
-        policy._calibration_phase = "deposit"
         policy._town_errand_plan = TownErrandPlan(
             [STORE_HOME, STORE_TEMPLE, STORE_WEAPON, STORE_BLACK],
             index=4,
@@ -14454,83 +14247,8 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             },
         )
 
-    def test_live_calibration_exhausted_ceiling_installs_named_terminal(self):
-        policy, snapshot = self._fixture()
-        policy._town_was_in_town = True
-        policy._calibration_phase = "deposit"
-        policy._town_errand_plan = TownErrandPlan([STORE_HOME], index=1)
-        policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT
-        )
 
-        key = policy.choose_key(snapshot)
 
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(
-            policy.last_reason,
-            "town:blocked:equipment-work-home-route-exhausted",
-        )
-
-    def test_calibration_restore_claim_retires_at_physical_visit_budget(self):
-        """CAL-3: an unrouteable restore claim cannot authorize town wandering."""
-        policy, snapshot = self._fixture()
-        policy._town_was_in_town = True
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [("restore", 1, 1)]
-        policy._home_visit.attempts_used = CALIBRATION_HOME_VISIT_LIMIT - 1
-        claim = TownNeed(STORE_HOME, "calibration-restore", "home-first")
-
-        with patch.object(
-            policy, "_enumerate_live_store_claims", return_value=[claim]
-        ):
-            self.assertTrue(policy._town_claims_active(snapshot))
-            self.assertFalse(
-                getattr(policy, "_town_liveness_claim_retired", False)
-            )
-
-            policy._home_visit.attempts_used = CALIBRATION_HOME_VISIT_LIMIT
-            self.assertFalse(policy._town_claims_active(snapshot))
-            self.assertTrue(policy._town_liveness_claim_retired)
-        self.assertEqual(policy._calibration_phase, "restore-supplies")
-        self.assertEqual(
-            policy._calibration_restore_signatures, [("restore", 1, 1)]
-        )
-
-    def test_installing_checkpoint_oscillation_preserves_calibration_claim(self):
-        """Turn 2942063: the oscillation branch must not install the latch."""
-        policy, snapshot = self._fixture()
-        home = replace(
-            grid(45, 119, lit=True, in_view=True), store_number=STORE_HOME
-        )
-        snapshot = replace(
-            snapshot,
-            turn=2942063,
-            grids={**snapshot.grids, home.position: home},
-            inventory=[replace(snapshot.inventory[0], count=19), *snapshot.inventory[1:]],
-        )
-        policy._town_was_in_town = True
-        policy._floor_key = snapshot.floor_key
-        policy._calibration_phase = "deposit"
-        policy._town_visit_ledger.need_attempts["deposit"] = 8
-        policy._recent.extend(
-            [Position(45, 123), Position(45, 122)] * (STUCK_WINDOW // 2)
-        )
-        key = policy.choose_key(snapshot)
-        policy.confirm_key_posted(key)
-        policy._observe(snapshot)
-        policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
-        policy.confirm_key_posted(key)
-        policy._observe(replace(snapshot, turn=snapshot.turn + 1))
-
-        self.assertNotEqual(key, WAIT_KEY)
-        self.assertIsNone(policy._town_blocked_reason)
-        self.assertEqual(
-            policy._town_claim_categories, ["deposit", "equipment-work"]
-        )
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-        self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
 
     def test_live_home_door_block_replay_never_posts_stay_publicly(self):
         """Run the retained (45,123) state beyond its 104-decision window."""

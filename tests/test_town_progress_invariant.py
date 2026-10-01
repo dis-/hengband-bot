@@ -694,7 +694,6 @@ class TownProgressInvariantTest(unittest.TestCase):
         policy._home_pending_batch = []
         policy._home_atomic_withdraw_pending = None
         policy._home_atomic_deposit_pending = None
-        policy._calibration_restore_signatures = []
         policy._home_knowledge_current = True
         policy._home_scan_item_count = 0
         policy._town_supplier_stock = {}

@@ -47,12 +47,9 @@ class ShadowVerdictTest(unittest.TestCase):
             self.assertIn("rumor", shadow["would_skip_families"])
             self.assertNotIn("home-visit", shadow["would_skip_families"])
 
-    def test_debt_and_missing_empty_entry_wait_equal_on(self):
+
+    def test_missing_empty_entry_wait_equals_on(self):
         board = short_route_board()
-        policy = HengbotPolicy()
-        policy._calibration_restore_signatures = [("oil", 77, 0)]
-        policy.last_reason = "shop:travel:await-entry"
-        self.compare(policy, board, "5", "ownership:declaration-unrestored:calibration")
         policy = HengbotPolicy()
         policy.last_reason = "store:entry-await-observation"
         self.compare(policy, board, "", "ownership:declaration-missing:store-router")

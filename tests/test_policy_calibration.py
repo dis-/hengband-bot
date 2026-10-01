@@ -110,6 +110,26 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
             self.assertIsNone(policy._character_calibration)
             self.assertIsNone(policy._calibration_unavailable_reason)
 
+    def test_changed_old_file_and_unprepared_post_never_publish(self):
+        import os
+        for unprepared in (False, True):
+            with self.subTest(unprepared=unprepared), TemporaryDirectory() as directory:
+                policy = self.posted_policy(directory)
+                if unprepared:
+                    policy._calibration_dump_prepared = None
+                    self.assertTrue(policy.confirm_key_posted(CHARACTER_DUMP_MACRO))
+                    reason = "unprepared-character-dump"
+                else:
+                    # Different content/hash is insufficient if the file predates this request.
+                    stamp = policy._calibration_dump_pending["started_ns"] - 1_000_000_000
+                    os.utime(policy._character_dump_path, ns=(stamp, stamp))
+                    reason = "stale-dump-file"
+                data = self.envelope()
+                policy.observe_character_snapshot(data["character"], envelope=data)
+                self.assertEqual(policy._calibration_unavailable_reason, reason)
+                self.assertIsNone(policy._character_calibration)
+                self.assertFalse(policy._character_calibration_path.exists())
+
     def test_unknown_effect_rejects_once_and_current_gear_can_depart(self):
         with TemporaryDirectory() as directory:
             policy = self.posted_policy(directory)

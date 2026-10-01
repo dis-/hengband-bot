@@ -2665,9 +2665,8 @@ class IdentifyStaffTest(unittest.TestCase):
         pol.choose_key(replace(outside, turn=3))
         self.assertIn(pol._item_signature(restore), pol._deferred_home_items)
         short_inside = replace(inside, turn=4, inventory=[short])
-        # The pin's subject is the deferred-item filter.  End the unrelated
-        # calibration owner after its real queue/failure producer completed.
-        pol._calibration_phase = None
+        # The pin's subject is the deferred-item filter. Complete the pending
+        # deposit observation before checking the next staff withdrawal.
         pol._home_atomic_deposit_pending = None
         pol._home_entry_operation_posted = False
         seed_character_calibration(pol, short_inside)
@@ -2677,21 +2676,6 @@ class IdentifyStaffTest(unittest.TestCase):
         )
         self.assertEqual(pol._home_pending_item, pol._item_signature(staff))
 
-    def test_identify_staff_terminal_is_suppressed_during_calibration(self):
-        pol, outside = self._town(
-            STAFF_IDENTIFY_MIN_DEPTH, inventory=[self._staff(charges=16)]
-        )
-        depleted = store_item(
-            "a", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=0,
-            name="鑑定の杖 (0回分)",
-        )
-        inside = replace(
-            outside, store=StoreState(STORE_HOME, [depleted], stock_num=1)
-        )
-        pol.consume_home_knowledge((depleted,))
-        pol._calibration_phase = "deposit"
-        pol.choose_key(inside)
-        self.assertNotIn(STORE_HOME, pol._town_store_attempted)
 
     def test_identify_staff_terminal_is_suppressed_by_pending_deposit(self):
         pol, outside = self._town(
@@ -3415,17 +3399,12 @@ class IdentifyStaffTest(unittest.TestCase):
             Counter({STORE_HOME: 3, STORE_MAGIC: 2}),
         )
 
-        pol._calibration_restore_signatures = [("restore", 1, 1)]
-        pol._town_visit_ledger.need_attempts["calibration-restore"] = 2
         pol._rearm_town_store_for_new_work(
             STORE_HOME, release_visit_bound=True
         )
 
         self.assertNotIn(STORE_HOME, pol._town_visit_ledger.blocked_stores)
         self.assertNotIn(STORE_HOME, pol._town_visit_ledger.approach_fails)
-        self.assertNotIn(
-            "calibration-restore", pol._town_visit_ledger.need_attempts
-        )
         self.assertIn(STORE_MAGIC, pol._town_visit_ledger.blocked_stores)
 
     def test_home_cleanup_preserves_departure_pack_space(self):

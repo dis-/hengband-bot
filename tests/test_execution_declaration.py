@@ -36,26 +36,6 @@ def short_route_board():
 
 
 class ExecutionDeclarationTest(unittest.TestCase):
-    def test_calibration_town_confirmation_binds_to_calibration_claim(self):
-        policy = HengbotPolicy()
-        policy._decision_sequence = 3009
-        policy._calibration_session_owned = lambda: True
-        claim = policy._claim_register.declare(
-            "calibration", observe(("transaction",), 8, "calibration"))
-        policy._claim_register.declare_execution(
-            claim.claim_id, work_id="old-confirmation", producer="calibration",
-            state="awaiting", operation_ref="decision:3008:ta",
-            expected_effect="equipment-action-confirmed")
-        key = policy._equipment_town_outcome("5", label="await-confirmation")
-        policy._record_execution_declaration(
-            policy._claim_register.current, key,
-            "equipment-transaction:await-confirmation")
-        declaration = policy._claim_register.current.execution
-        self.assertEqual((declaration.producer, declaration.state,
-                          declaration.next_step),
-                         ("calibration", "acting",
-                          "equipment.town.await-confirmation"))
-        self.assertIsNone(policy._decision_declaration_mismatch)
 
     def test_town_page_declarations_do_not_change_keys_with_s33_switch(self):
         outcomes = []
@@ -418,38 +398,6 @@ class ExecutionDeclarationTest(unittest.TestCase):
                           mismatch["declared"]["evidence"]),
                          ("awaiting", "done", "home-withdraw-observed"))
 
-    def test_2322_calibration_takeoff_retains_posted_action(self):
-        # Recorded 42/43: 'ta' under calibration #30, then holder-silent.
-        policy = HengbotPolicy()
-        policy._decision_sequence = 42
-        policy._calibration_session_owned = lambda: True
-        session = SimpleNamespace(
-            target_loadout_id="recorded-strip", index=0,
-            prepare=lambda *args: True,
-        )
-        action = SimpleNamespace(kind="takeoff", target_slot="main_hand",
-                                 item_identity="9c2eb7e52ebfe13f")
-        self.assertTrue(policy._prepare_equipment_transaction_command(
-            session, action, None, "ta", ("town", 0)))
-        policy._claim_register._next_id = 30
-        claim = policy._claim_register.declare(
-            "calibration", observe(("transaction",), 8, "calibration"))
-        policy._record_execution_declaration(
-            claim, "ta", "equipment-transaction:takeoff")
-        self.assertEqual(policy._claim_register.current.execution.next_step,
-                         "equipment.next-action")
-        policy.confirm_key_posted("ta")
-        declaration = policy._claim_register.current.execution
-        self.assertEqual((declaration.state, declaration.operation_ref,
-                          declaration.expected_effect),
-                         ("awaiting", "decision:42:ta",
-                          "equipment-effect:takeoff:main_hand"))
-        policy._record_execution_declaration(
-            policy._claim_register.current, None,
-            "ownership:holder-silent:calibration")
-        mismatch = policy._decision_declaration_mismatch
-        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"]),
-                         ("silent", "awaiting"))
 
     def test_2134_rejected_stair_has_no_fabricated_post(self):
         # Recorded 1712: empty stair wait after a rejected descent candidate.

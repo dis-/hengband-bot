@@ -812,17 +812,16 @@ class HomeVisitOwnershipTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=[]),
         )
 
-    def _uncomposable_calibration_restore(self):
+    def _uncomposable_home_withdraw(self):
         policy = HengbotPolicy()
         target = ("recorded-restore", TVAL_SCROLL, 91)
         snapshot = self._home_snapshot([])
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [target]
+        policy._home_pending_batch = [target]
         policy._home_knowledge_current = False
         policy._home_knowledge_invalidated = True
         request = HomeVisitRequest(
-            HomeVisitKind.CALIBRATION_RESTORE,
-            "calibration-restore",
+            HomeVisitKind.WITHDRAW,
+            "home-errand",
             target,
             batch=(target,),
         )
@@ -837,8 +836,8 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         return policy, snapshot, request
 
     def test_uncomposable_verdict_survives_rebuild_and_other_store_attempt(self):
-        policy, snapshot, request = self._uncomposable_calibration_restore()
-        verdict = "claim-uncomposable:calibration-restore:home-knowledge-invalidated"
+        policy, snapshot, request = self._uncomposable_home_withdraw()
+        verdict = "claim-uncomposable:home-errand:home-knowledge-invalidated"
         policy._home_claim_uncomposable_signature = policy._home_claim_signature(
             request
         )
@@ -852,8 +851,8 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         self.assertIn(STORE_MAGIC, policy._town_store_attempted)
 
     def test_changed_claim_signature_reopens_home(self):
-        policy, snapshot, request = self._uncomposable_calibration_restore()
-        verdict = "claim-uncomposable:calibration-restore:home-knowledge-invalidated"
+        policy, snapshot, request = self._uncomposable_home_withdraw()
+        verdict = "claim-uncomposable:home-errand:home-knowledge-invalidated"
         policy._home_claim_uncomposable_signature = policy._home_claim_signature(
             request
         )
@@ -865,7 +864,7 @@ class HomeVisitOwnershipTest(unittest.TestCase):
             batch=(("new-restore", TVAL_SCROLL, 92),),
         )
         policy._home_visit.request = replacement
-        policy._calibration_restore_signatures = [replacement.item_identity]
+        policy._home_pending_batch = [replacement.item_identity]
 
         policy._rearm_town_store_for_new_work(STORE_HOME)
 
@@ -1106,21 +1105,21 @@ class HomeVisitOwnershipTest(unittest.TestCase):
         stale = ("prior restore", TVAL_SCROLL, 99)
         executor = policy._home_visit
         executor.file(HomeVisitRequest(
-            HomeVisitKind.CALIBRATION_RESTORE, "calibration-restore", stale,
+            HomeVisitKind.WITHDRAW, "home-errand", stale,
         ))
         self.assertTrue(executor.begin_approach(4168))
         self.assertEqual(
             executor.file(HomeVisitRequest(
-                HomeVisitKind.CALIBRATION_RESTORE,
-                "calibration-restore",
+                HomeVisitKind.WITHDRAW,
+                "home-errand",
                 ("intervening restore", TVAL_SCROLL, 98),
             )),
             "queued",
         )
         self.assertEqual(
             executor.file(HomeVisitRequest(
-                HomeVisitKind.CALIBRATION_RESTORE,
-                "calibration-restore",
+                HomeVisitKind.WITHDRAW,
+                "home-errand",
                 target,
                 batch=(target,),
             )),
@@ -1129,8 +1128,7 @@ class HomeVisitOwnershipTest(unittest.TestCase):
 
         policy._decision_sequence = 4169
         policy._shopping_approach_store_type = STORE_HOME
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [target]
+        policy._home_pending_batch = [target]
         policy._home_knowledge_items = [
             policy._inventory_item_from_store_item(candidate)
             for candidate in home_items
@@ -1729,35 +1727,6 @@ class TownDepartureConvenienceDepositTest(unittest.TestCase):
         self.assertTrue(policy._home_deposit_candidate(arrows, snapshot))
         self.assertFalse(policy._town_departure_ready(snapshot))
 
-    def test_calibration_deposit_skips_restore_queue_without_weakening_pack_order(self):
-        """P-A2: restored supplies do not make another deposit round trip."""
-        restore = item(
-            "a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL,
-            count=8, known=True, name="Word of Recall",
-        )
-        next_pack = item("b", TVAL_FOOD, 35, count=3, name="Ration of Food")
-        snapshot = self._snapshot([restore, next_pack])
-        policy = HengbotPolicy()
-        policy._calibration_phase = "deposit"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(restore)
-        ]
-
-        selected = policy._find_home_deposit(snapshot)
-
-        self.assertIs(selected, next_pack)
-        self.assertEqual(selected.count, 3)
-        restore_only = replace(snapshot, inventory=[restore])
-        self.assertIsNone(policy._find_home_deposit(restore_only))
-
-        def install_strip(_snapshot):
-            policy._calibration_phase = "strip"
-            return True
-
-        policy._install_calibration_strip_session = install_strip
-        self.assertEqual(policy._calibration_town_key(restore_only), WAIT_KEY)
-        self.assertEqual(policy._calibration_phase, "strip")
-        self.assertEqual(policy.last_reason, "calibration:strip-installed")
 
 class HomeOneOperationPerEntryTest(unittest.TestCase):
     """Regression for the 2026-08-02 10:03 Home chooser incident."""
@@ -1817,6 +1786,18 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             store=None,
         )
 
+    def _ordinary_deposit_entrance(self, inventory, *, turn=2247201):
+        # Synthetic workflow inputs: worn armour reaches the STR-3 carry cap;
+        # the unreserved stack exceeds it. No optimizer result is supplied.
+        snapshot = self._entrance_snapshot(inventory, turn=turn)
+        stats = (3, 18, 18, 18, 18, 18)
+        burden = replace(item("body", TVAL_SOFT_ARMOR, 2, name="worn weight",
+                              known=True, fully_known=True, is_equipment=True), weight=500)
+        inventory = [replace(carried, weight=150) for carried in inventory]
+        return replace(snapshot, inventory=inventory, equipment=[burden],
+                       player=replace(snapshot.player, stat_index=(0, 0, 0, 0, 0, 0),
+                                      stat_cur=stats, stat_max=stats, stat_use=stats))
+
     def _post_atomic(self, policy, snapshot, target):
         policy._shopping_approach_store_type = STORE_HOME
         with patch.object(policy, "_find_home_deposit", return_value=target):
@@ -1848,64 +1829,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._shopping_approach_store_type = STORE_HOME
         return policy
 
-    def test_restore_list_does_not_steal_unobserved_digger_failure(self):
-        stored = store_item(
-            "a", TVAL_DIGGING, 4, name="stored pick", is_equipment=True
-        )
-        other = store_item(
-            "b", TVAL_POTION, 1, name="other home item"
-        )
-        policy = self._catalogued_withdrawal_policy([stored])
-        signature = policy._item_signature(stored)
-        restore_signature = policy._item_signature(
-            store_item("r", TVAL_POTION, 99, name="calibration restore")
-        )
-        entrance = self._entrance_snapshot([])
 
-        for attempt in range(2):
-            policy._home_pending_item = signature
-            policy._calibration_restore_signatures = [restore_signature]
-            policy._home_knowledge_items = (other,)
-            policy._home_knowledge_valid_before = 1
-            policy._home_knowledge_current = True
-            self.assertIn(
-                policy._atomic_home_withdraw_key(
-                    replace(entrance, turn=entrance.turn + attempt),
-                    entrance.player.position,
-                ),
-                set("12346789"),
-            )
-            self.assertEqual(
-                policy.last_reason,
-                "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
-            )
-
-        self.assertEqual(policy._digger_home_withdraw_failures, 2)
-        self.assertTrue(policy._digger_buy_fallback_available(entrance))
-        self.assertEqual(policy._withdrawable_digging_tool_count(entrance), 0)
-
-    def test_calibration_deposit_phase_does_not_file_restore_visit(self):
-        already_deposited = store_item(
-            "a", TVAL_POTION, 901, name="already deposited calibration supply"
-        )
-        next_deposit = item(
-            "b", TVAL_POTION, 902, name="next calibration supply", known=True
-        )
-        policy = HengbotPolicy()
-        policy._calibration_phase = "deposit"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(already_deposited)
-        ]
-        entrance = self._entrance_snapshot([next_deposit])
-
-        request = policy._derived_home_visit_request(entrance)
-
-        self.assertIsNotNone(request)
-        self.assertEqual(request.requester, "calibration-deposit")
-        self.assertEqual(request.item_identity, policy._item_signature(next_deposit))
-        self.assertNotEqual(
-            request.item_identity, policy._calibration_restore_signatures[0]
-        )
 
     def test_gate1_captured_restore_shrink_reproduces_target_unobserved(self):
         """Gate 1: replay the legacy same-turn failure from captured facts."""
@@ -1924,7 +1848,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         wares[32] = store_item("32", TVAL_DIGGING, 1, name="third shovel", is_equipment=True)
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
         restore_signature = policy._item_signature(restore)
-        policy._calibration_restore_signatures = [restore_signature]
+        policy._home_pending_batch = [restore_signature]
         entrance = self._entrance_snapshot([], turn=1178879)
 
         self.assertEqual(
@@ -1950,7 +1874,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         wares[21] = restore
         wares[30] = shovel
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_batch = [policy._item_signature(restore)]
         policy._home_pending_item = policy._item_signature(shovel)
         entrance = self._entrance_snapshot([], turn=1178879)
 
@@ -1970,35 +1894,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertEqual(policy._home_atomic_withdraw_pending[2].name, restore.name)
 
-    def test_calibration_restore_matches_fresh_home_equipment_identity(self):
-        deposited = store_item(
-            "a", TVAL_SOFT_ARMOR, 2,
-            name="Leather Scale Mail [11,+0] {worn rendering}",
-            known=True, fully_known=True, is_equipment=True,
-        )
-        policy = self._catalogued_withdrawal_policy([deposited])
-        stale_pack_signature = (
-            "Leather Scale Mail [11,+0] {pack rendering}",
-            TVAL_SOFT_ARMOR,
-            2,
-        )
-        policy._calibration_restore_signatures = [stale_pack_signature]
-        policy._calibration_worn_before = (
-            ("body", policy_module.equipment_identity(deposited)),
-        )
-        entrance = self._entrance_snapshot([])
-
-        self.assertEqual(
-            policy._atomic_home_withdraw_key(
-                entrance, entrance.player.position
-            ),
-            WAIT_KEY + policy._store_visit.operation_key,
-        )
-        self.assertEqual(
-            policy.last_reason, "calibration:atomic-restore-withdraw"
-        )
-        self.assertEqual(policy._calibration_restore_signatures, [])
-        self.assertEqual(policy._home_atomic_withdraw_pending[2], deposited)
 
     def test_captured_same_turn_restore_remains_owned_until_fresh_snapshot(self):
         wares = [
@@ -2008,7 +1903,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         restore = store_item("21", 36, 1, name="captured restore")
         wares[21] = restore
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_batch = [policy._item_signature(restore)]
         entrance = self._entrance_snapshot([], turn=1178696)
         self.assertEqual(
             policy._atomic_home_withdraw_key(entrance, entrance.player.position),
@@ -2018,87 +1913,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_atomic_withdraw_pending)
         self.assertEqual(policy._digger_home_withdraw_failures, 0)
 
-    def test_captured_restore_prefix_collapse_rerequests_scan_without_discard(self):
-        """Gate 1: the measured pending-false capture reacquires its addresses."""
-        wares = [
-            store_item(str(index), TVAL_POTION, 1200 + index, name=f"home {index}")
-            for index in range(35)
-        ]
-        restore = store_item("0", 36, 1, count=5, name="captured restore")
-        shovel = store_item(
-            "30", TVAL_DIGGING, 1, name="captured shovel", is_equipment=True,
-        )
-        second_shovel = store_item(
-            "31", TVAL_DIGGING, 1, name="captured second shovel",
-            is_equipment=True,
-        )
-        wares[0] = restore
-        wares[30] = shovel
-        wares[31] = second_shovel
-        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_restore_signatures = [
-            policy._item_signature(restore),
-            policy._item_signature(wares[1]),
-        ]
-        entrance = self._entrance_snapshot([], turn=2320394)
-        owners_before = tuple(policy._calibration_restore_signatures)
-        deferred_before = set(policy._deferred_home_items)
-
-        self.assertEqual(
-            policy._atomic_home_withdraw_key(entrance, entrance.player.position),
-            WAIT_KEY + policy._store_visit.operation_key,
-        )
-        self.assertFalse(policy._home_digger_withdraw_pending)
-        self.assertTrue(policy._home_knowledge_current)
-        policy.confirm_key_posted(WAIT_KEY + policy._store_visit.operation_key)
-        self.assertEqual(
-            policy.choose_key(self._home_page_snapshot(
-                [], wares[:12], turn=2320394,
-                stock_num=len(wares), page_top=0, page_size=52,
-            )),
-            LEAVE_STORE_KEY,
-        )
-        policy.choose_key(replace(
-            entrance,
-            turn=2320395,
-            inventory=[item("a", 36, 1, count=5, name=restore.name)],
-        ))
-        self.assertFalse(policy._home_knowledge_current)
-        self.assertEqual(
-            policy._calibration_restore_signatures, [owners_before[1]]
-        )
-        self.assertEqual(policy._deferred_home_items, deferred_before)
-
-        # Confirmation row 1479 leaves the player outside on the Home door.
-        # The existing selector first moves to a safe non-entrance square; the
-        # invalid observation then makes the next decision re-request ~9.
-        fresh = replace(entrance, turn=2320404)
-        step = policy._town_entrance_step_off_key(
-            fresh, "home:atomic-withdraw-target-unobserved"
-        )
-        self.assertIn(step, set("12346789"))
-        self.assertEqual(
-            policy.last_reason,
-            "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
-        )
-        off_door = replace(
-            fresh,
-            turn=fresh.turn + 1,
-            player=replace(fresh.player, position=Position(45, 122)),
-        )
-        self.assertEqual(policy.choose_key(off_door), "~9\x1b\x1b")
-
-        rescanned = tuple(wares[1:])
-        policy.consume_home_knowledge(rescanned)
-        policy._shopping_approach_store_type = STORE_HOME
-        self.assertIsNone(
-            policy._atomic_home_withdraw_key(
-                replace(entrance, turn=fresh.turn + 2), entrance.player.position
-            )
-        )
-        self.assertFalse(policy._home_digger_withdraw_pending)
-        self.assertEqual(policy._digger_home_withdraw_failures, 0)
-        self.assertEqual(policy._deferred_home_items, deferred_before)
 
     def test_target_unobserved_step_off_uses_safe_least_visited_selector(self):
         policy = HengbotPolicy()
@@ -2183,7 +1997,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         policy.prime(fundraising_seed)
         self.assertEqual(policy._fundraising_mode, "scavenge")
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_batch = [policy._item_signature(restore)]
         home_page = replace(
             self._snapshot([detection, food], turn=entrance.turn - 1),
             store=StoreState(STORE_HOME, wares),
@@ -2551,40 +2365,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             before_unobserved_leave + 1,
         )
 
-    def test_live_92_item_calibration_restore_is_one_public_decision(self):
-        wares = [
-            store_item(
-                chr(ord("a") + (index % 12)),
-                TVAL_POTION,
-                100 + index,
-                name=f"home item {index}",
-            )
-            for index in range(91)
-        ]
-        target = store_item(
-            "h", TVAL_POTION, 999, name="catalogued restore target"
-        )
-        wares.append(target)
-        policy = self._catalogued_withdrawal_policy(wares)
-        signature = policy._item_signature(target)
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [signature]
-        pack = [
-            item(chr(ord("a") + index), TVAL_FOOD, index, name=f"pack {index}")
-            for index in range(12)
-        ]
-        entrance = replace(
-            self._entrance_snapshot(pack),
-            equipment=[item("light", TVAL_LITE, 0, name="a light")],
-        )
-
-        key = self._choose_atomic_withdrawal(policy, entrance)
-
-        self._assert_staged_home_operation(
-            policy, key, (" " * 7) + "ph\x1b"
-        )
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-        self.assertEqual(policy._home_atomic_withdraw_pending[2].name, target.name)
 
     def test_entry_owned_wait_reaches_sender_without_projected_store_command(self):
         """Every character in an outside-composed withdrawal lands legally."""
@@ -2622,196 +2402,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             else:
                 self.fail((state, character, legal))
         self.assertEqual(state, "outside")
-    def test_p5_public_calibration_restore_composes_complete_restore(self):
-        base = [
-            store_item("a", TVAL_POTION, 1400 + index, name=f"home {index}")
-            for index in range(80)
-        ]
-        targets = [
-            store_item(
-                "a", TVAL_POTION, 1500 + index, name=f"restore {index:02d}"
-            )
-            for index in range(12)
-        ]
-        stock = [*base[:7], *targets, *base[7:]]
-        policy = HengbotPolicy()
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [
-            policy._item_signature(target) for target in reversed(targets)
-        ]
-        policy._home_candidate_waiting = True
-        inventory = self._real_pack()
-        target_signatures = {
-            policy._item_signature(target) for target in targets
-        }
-        inside = False
-        on_entrance = True
-        top = 0
-        entries = 0
-        withdrawals = 0
-        reasons = Counter()
-        withdrawal_decisions = []
-
-        def page_items():
-            page = stock[top:top + 12]
-            return [
-                replace(ware, letter=chr(ord("a") + index))
-                for index, ware in enumerate(page)
-            ]
-
-        for decision in range(300):
-            turn = 2247500 + decision
-            snapshot = (
-                self._home_page_snapshot(inventory, page_items(), turn=turn)
-                if inside
-                else replace(
-                    self._entrance_snapshot(inventory, turn=turn),
-                    player=(
-                        player(45, 123, class_id=PLAYER_CLASS_WARRIOR)
-                        if on_entrance
-                        else player(45, 122, class_id=PLAYER_CLASS_WARRIOR)
-                    ),
-                    grids={
-                        Position(45, 123): replace(
-                            grid(45, 123), store_number=STORE_HOME
-                        ),
-                        Position(45, 122): grid(45, 122),
-                    },
-                    equipment=[item("light", TVAL_LITE, 0, name="a light")],
-                )
-            )
-            # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
-            key = policy.choose_key(snapshot)
-            policy.confirm_key_posted(key)
-            reasons[policy.last_reason] += 1
-            if inside:
-                # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-                if key == " ":
-                    top += 12
-                    if top >= len(stock):
-                        top = 0
-                elif key == LEAVE_STORE_KEY:
-                    inside = False
-                    top = 0
-                elif BUY_KEY in key:
-                    prefix, take = key.split(BUY_KEY, 1)
-                    page = len(prefix)
-                    letter = take[0]
-                    index = page * 12 + ord(letter) - ord("a")
-                    withdrawn = stock.pop(index)
-                    inventory.append(item(
-                        chr(ord("u") + withdrawals), withdrawn.tval,
-                        withdrawn.sval, name=withdrawn.name,
-                    ))
-                    withdrawals += 1
-                    withdrawal_decisions.append(decision)
-                    inside = False
-                    top = 0
-                else:
-                    self.fail((decision, "unexpected in-store key", key, policy.last_reason))
-            # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the knowledge request is the public protocol event this replay must answer
-            elif key == "~9\x1b\x1b":
-                policy.consume_home_knowledge(tuple(stock))
-                policy._home_page_size = 12
-                on_entrance = True
-                top = 0
-            elif key == policy_module.HOME_KNOWLEDGE_MACRO:
-                policy.consume_home_knowledge(tuple(stock))
-                policy._home_page_size = 12
-                on_entrance = True
-                top = 0
-            elif key == WAIT_KEY:
-                inside = True
-                on_entrance = True
-                top = 0
-                entries += 1
-            # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-            elif on_entrance and key == "4":
-                on_entrance = False
-            # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the returned protocol key itself is the behavior asserted by this focused test
-            elif not on_entrance and key == "6":
-                inside = True
-                on_entrance = True
-                top = 0
-                entries += 1
-            elif key.startswith(WAIT_KEY) and BUY_KEY in key:
-                command = key[len(WAIT_KEY):]
-                page = 0
-                while command.startswith(" "):
-                    page += 1
-                    command = command[1:]
-                decision_withdrawals = 0
-                while command.startswith(BUY_KEY):
-                    letter = command[1]
-                    command = command[2:]
-                    index = page * 12 + ord(letter) - ord("a")
-                    self.assertLess(index, len(stock))
-                    withdrawn = stock.pop(index)
-                    inventory.append(item(
-                        chr(ord("u") + withdrawals), withdrawn.tval,
-                        withdrawn.sval, name=withdrawn.name,
-                    ))
-                    withdrawals += 1
-                    decision_withdrawals += 1
-                self.assertEqual(command, LEAVE_STORE_KEY)
-                self.assertGreater(decision_withdrawals, 1)
-                entries += 1
-                withdrawal_decisions.append(decision)
-                top = 0
-            elif key.startswith(WAIT_KEY) and SELL_KEY in key:
-                # Restore convergence is reached before the following deposit
-                # phase; the composed deposit merely proves the pending take
-                # was observed and cleared.
-                pass
-            elif key == LEAVE_STORE_KEY:
-                pass
-            else:
-                self.fail((
-                    decision, "unexpected outside key", key, policy.last_reason,
-                    reasons, policy._calibration_phase,
-                    len(policy._calibration_restore_signatures),
-                    policy._town_visit_ledger.blocked_stores,
-                ))
-            restored = {
-                policy._item_signature(carried)
-                for carried in inventory
-            } & target_signatures
-            if len(restored) == 12 and policy._home_atomic_withdraw_pending is None:
-                break
-
-        restored = {
-            policy._item_signature(carried) for carried in inventory
-        } & target_signatures
-        self.assertEqual(len(restored), 12, (reasons, decision, len(inventory)))
-        self.assertEqual(withdrawals, 12)
-        self.assertEqual(
-            decision + 1, 5,
-            (reasons, entries, withdrawals, withdrawal_decisions),
-        )
-        self.assertEqual(
-            reasons[
-                "town:blocked:home-claim-uncomposable:calibration-restore:"
-                "home-knowledge-invalidated"
-            ],
-            0,
-        )
-        self.acceptance_restore_metrics = {
-            "decisions": decision + 1,
-            "reasons": reasons,
-            "entries": entries,
-            "withdrawal_decisions": withdrawal_decisions,
-        }
-        # P5: two withdrawal entries cover the two shelf pages; the third
-        # entry is the existing final atomic deposit that settles the restore.
-        self.assertEqual(entries, 3)
-        self.assertEqual(withdrawal_decisions, [1, 3])
-        # Every successful take refreshes the address space before the next.
-        self.assertEqual(policy._town_visit_ledger.store_visits[STORE_HOME], 0)
-        self.assertEqual(
-            policy._town_visit_ledger.need_attempts.get("calibration-restore", 0),
-            0,
-        )
-        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
     def test_public_restore_attempt_does_not_release_home_approach_bound(self):
         policy = HengbotPolicy()
         pack = self._real_pack()
@@ -2827,16 +2417,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         for decision in range(4):
             # TEST_FAKERY_LINT_ALLOW: frozen-drive-state: bounded replay intentionally exercises internal timeout state without applying map movement
             policy.choose_key(replace(surface, turn=2247800 + decision))
-        policy._calibration_phase = "restore-supplies"
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=("calibration-required",), result=None,
         )
-        policy._calibration_restore_signatures = [("restore", 1, 1)]
+        policy._home_pending_batch = [("restore", 1, 1)]
         policy._home_candidate_waiting = True
         policy._town_visit_ledger.approach_fails[STORE_HOME] = (
-            TOWN_STOP_PASS_LIMIT
-        )
-        policy._town_visit_ledger.need_attempts["calibration-restore"] = (
             TOWN_STOP_PASS_LIMIT
         )
         policy._town_store_attempted[STORE_HOME] = 2247803
@@ -2862,7 +2448,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             (reasons, maximum_approach_fails),
         )
         self.assertNotIn(
-            "calibration-restore", policy._town_visit_ledger.need_attempts
+            "home-errand", policy._town_visit_ledger.need_attempts
         )
         self.assertGreater(
             reasons["home:request-knowledge-scan"],
@@ -3129,9 +2715,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             WAIT_KEY + single_policy._store_visit.operation_key,
         )
         stack_policy = self._catalogued_withdrawal_policy([single, stack])
-        stack_policy._calibration_restore_signatures = [
-            stack_policy._item_signature(stack)
-        ]
+        stack_policy._home_pending_item = stack_policy._item_signature(stack)
         self.assertEqual(
             self._choose_atomic_withdrawal(stack_policy, self._entrance_snapshot([])),
             WAIT_KEY + stack_policy._store_visit.operation_key,
@@ -3239,9 +2823,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
         stack = item("a", TVAL_ARROW, 302, count=7, name="stack")
         policy = HengbotPolicy()
-        policy._calibration_phase = "deposit"
         policy._shopping_approach_store_type = STORE_HOME
-        key = policy.choose_key(self._entrance_snapshot([stack]))
+        key = policy.choose_key(self._ordinary_deposit_entrance([stack]))
         state = "outside"
         quantity = ""
         deposited = 0
@@ -3288,14 +2871,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "n", TVAL_SWORD, 3, name="proven deposited sword",
             known=True, fully_known=True, is_equipment=True,
         )
-        entrance = self._entrance_snapshot([deposited], turn=2247460)
+        entrance = self._ordinary_deposit_entrance([deposited], turn=2247460)
 
         preserved = HengbotPolicy()
         preserved._equipment_catalog.complete_home_scan(())
-        preserved._calibration_phase = "deposit"
         preserved._shopping_approach_store_type = STORE_HOME
         self.assertEqual(preserved.choose_key(entrance), WAIT_KEY)
-        self.assertEqual(preserved.last_reason, "home:atomic-deposit")
+        self.assertEqual(preserved.last_reason, "home:weight-overload-deposit")
         self.assertTrue(preserved._equipment_catalog.home_scan_complete)
         self.assertIn(
             deposited.name,
@@ -3312,13 +2894,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             "n", TVAL_SWORD, 3, name="proven deposited sword",
             known=True, fully_known=True, is_equipment=True,
         )
-        entrance = self._entrance_snapshot([deposited], turn=2247460)
+        entrance = self._ordinary_deposit_entrance([deposited], turn=2247460)
         policy = HengbotPolicy()
         policy._equipment_catalog.complete_home_scan(())
-        policy._calibration_phase = "deposit"
         policy._shopping_approach_store_type = STORE_HOME
         entry = policy.choose_key(entrance)
-        self.assertEqual((entry, policy.last_reason), ("5", "home:atomic-deposit"))
+        self.assertEqual((entry, policy.last_reason), ("5", "home:weight-overload-deposit"))
 
         game = FaithfulHookGame()
         home_state = ProductionHarness.store_state(2247461)
@@ -3349,10 +2930,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(game.accepted, ["5", "dn\x1b"])
 
         incomplete = HengbotPolicy()
-        incomplete._calibration_phase = "deposit"
         incomplete._shopping_approach_store_type = STORE_HOME
         self.assertEqual(incomplete.choose_key(entrance), WAIT_KEY)
-        incomplete._calibration_phase = None
         self.assertEqual(
             incomplete.choose_key(self._home_page_snapshot(
                 [deposited], [], turn=2247460,
@@ -3360,9 +2939,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )),
             "dn\x1b",
         )
-        incomplete._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",), result=None,
-        )
+        # A new ordinary withdrawal requires the missing Home catalogue.
+        incomplete._home_pending_item = incomplete._item_signature(deposited)
         after = replace(
             self._entrance_snapshot([], turn=2247461),
             player=player(45, 122, class_id=PLAYER_CLASS_WARRIOR),
@@ -3370,36 +2948,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(incomplete.choose_key(after), "~9\x1b\x1b")
         self.assertEqual(incomplete.last_reason, "home:request-knowledge-scan")
 
-    def test_restore_withdraws_deposits_with_atomic_fresh_entry_contract(self):
-        wares = [
-            store_item("?", TVAL_POTION, 1600 + index, name=f"home {index}")
-            for index in range(60)
-        ]
-        target = wares[55]
-        policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_phase = "restore-supplies"
-        policy._calibration_restore_signatures = [policy._item_signature(target)]
-        key = policy.choose_key(self._entrance_snapshot(self._real_pack()))
-        posted = []
-        sent, _ = _send_new_decision_key(
-            lambda value, **_kwargs: posted.append(value) or True,
-            "calibration-restore-fresh-entry",
-            key,
-            None,
-            set(),
-            in_store=False,
-            decision={"reason": policy.last_reason, "key": key},
-        )
-
-        self.assertTrue(sent)
-        self.assertEqual(policy.last_reason, "calibration:atomic-restore-withdraw")
-        self.assertEqual(key, WAIT_KEY + policy._store_visit.operation_key)
-        self.assertEqual(posted, [key])
-        self.assertEqual(key.count(WAIT_KEY), 1)
-        self.assertEqual(policy._store_visit.operation_key.count(BUY_KEY), 1)
-        self.assertTrue(
-            policy._store_visit.operation_key.endswith(LEAVE_STORE_KEY)
-        )
 
     def test_duplicate_signature_slots_keep_their_displayed_addresses(self):
         first = store_item("a", TVAL_POTION, 350, count=99, name="duplicate")
@@ -3749,7 +3297,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             for index in range(1, 30)
         ], target]
         policy = self._catalogued_withdrawal_policy(wares, page_size=52)
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_batch = [policy._item_signature(restore)]
         action = policy_module.EquipmentTransaction(
             policy_module.PHASE_HOME_PREPARE, "withdraw", "home:target",
             item_identity=policy_module.equipment_identity(target),
@@ -3795,7 +3343,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             known=True, fully_known=True, is_equipment=True,
         )
         policy = self._catalogued_withdrawal_policy([restore, target], page_size=52)
-        policy._calibration_restore_signatures = [policy._item_signature(restore)]
+        policy._home_pending_batch = [policy._item_signature(restore)]
         action = policy_module.EquipmentTransaction(
             policy_module.PHASE_HOME_PREPARE, "withdraw", "home:target",
             item_identity=policy_module.equipment_identity(target),
@@ -3845,8 +3393,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             ("missing restore one", TVAL_SWORD, 91),
             ("missing restore two", TVAL_SWORD, 92),
         )
-        policy._calibration_restore_signatures[:] = missing
-        policy._calibration_restore_move_identities[missing[0]] = "move-one"
+        policy._home_pending_batch[:] = missing
         policy._home_pending_quantities[missing[0]] = 1
         entrance = self._entrance_snapshot([])
         policy._town_errand_plan = policy_module.TownErrandPlan(
@@ -3865,7 +3412,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             policy.last_reason,
             "town:entrance-step-off:home:atomic-withdraw-target-unobserved",
         )
-        self.assertEqual(policy._calibration_restore_signatures, [missing[1]])
+        self.assertEqual(policy._home_pending_batch, [missing[1]])
         self.assertNotIn(
             "equipment-work",
             {
@@ -3873,7 +3420,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
                 for claim in policy._enumerate_live_store_claims(entrance)
             },
         )
-        self.assertNotIn(missing[0], policy._calibration_restore_move_identities)
         self.assertNotIn(missing[0], policy._home_pending_quantities)
 
     def test_identification_withdrawal_cannot_route_without_executor_request(self):
@@ -5058,22 +4604,6 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:leave")
 
-    def test_calibration_deposit_does_not_arm_unknown_target_sale(self):
-        policy = HengbotPolicy()
-        ring = self._ring()
-        home = self._store_snapshot([ring], STORE_HOME)
-        policy.choose_key(home)
-        policy._calibration_phase = "deposit"
-        self.assertIs(policy._find_home_deposit(home), ring)
-        self.assertEqual(policy._home_deposit_key(home, ring), "db")
-
-        policy._calibration_phase = None
-        policy._equipment_optimization_preparation = self._preparation(known=False)
-        shop = replace(home, store=StoreState(STORE_MAGIC, []))
-        key = policy._shop(shop)
-
-        self.assertEqual(key, LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "shop:leave")
 
     def test_deposit_rejection_guard_exits_without_surplus_carve_out(self):
         policy = HengbotPolicy()
@@ -5138,12 +4668,6 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
                 policy._home_deposit_candidate(self._ring(), snapshot)
             )
             self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
-
-        policy._equipment_optimization_preparation = self._preparation(known=True)
-        policy._calibration_phase = "capture"
-        self.assertFalse(policy._target_loadout_known())
-        self.assertFalse(policy._home_deposit_candidate(self._ring(), snapshot))
-        self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
 
     def test_exhausted_depth_fallback_none_fails_closed(self):
         policy = HengbotPolicy()
@@ -6266,18 +5790,17 @@ class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
         self.assertIsNone(policy._home_knowledge_scan_epoch)
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertFalse(policy._town_space_deposit_actionable(parse_snapshot(rows[5])))
-        with patch.object(policy, "_calibration_active", return_value=False):
-            inside_scan = policy.choose_key(parse_snapshot(rows[5]))
-            self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
-            self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
-            policy.confirm_key_posted(inside_scan)
-            self.assertEqual(
-                _dispatch_response_lines(
-                    [raw_lines[6].decode("utf-8")], policy, Mock()
-                ),
-                1,
-            )
-            next_key = policy.choose_key(parse_snapshot(rows[7]))
+        inside_scan = policy.choose_key(parse_snapshot(rows[5]))
+        self.assertEqual(inside_scan, policy_module.HOME_KNOWLEDGE_MACRO)
+        self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
+        policy.confirm_key_posted(inside_scan)
+        self.assertEqual(
+            _dispatch_response_lines(
+                [raw_lines[6].decode("utf-8")], policy, Mock()
+            ),
+            1,
+        )
+        next_key = policy.choose_key(parse_snapshot(rows[7]))
 
         self.assertNotEqual(next_key, LEAVE_STORE_KEY)
         self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")

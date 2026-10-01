@@ -777,17 +777,6 @@ class DiggerQuestPins(unittest.TestCase):
         self.assertFalse(self.policy._equip_blocked_by_identification(sword))
         self.assertTrue(self.policy._identification_flow_candidate(sword))
 
-    def test_pin_c1_calibration_drops_identify_blocked_redress(self):
-        lamp = self._light("k", SV_LITE_FEANOR, fuel=0, known=False)
-        snap = self._snapshot([lamp], town=True)
-        self.policy._calibration_worn_before = (
-            ("light", equipment_identity(lamp)),
-        )
-        self.policy._calibration_stripped_unrestored = True
-        self.assertIsNone(self.policy._calibration_redress_key(snap))
-        self.assertEqual(self.policy._calibration_worn_before, ())
-        key = self.policy.choose_key(snap)
-        self.assertNotEqual(key, "wk", (self.policy.last_reason, key))
 
     def test_pin_l1_darkness_torch_rejects_cursed(self):
         cursed = self._light("c", SV_LITE_TORCH, fuel=3000, cursed=True)

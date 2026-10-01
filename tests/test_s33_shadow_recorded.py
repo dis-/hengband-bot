@@ -31,45 +31,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 class RecordedShadowTest(unittest.TestCase):
     compare = shadow_tests.ShadowVerdictTest.compare
 
-    def test_live8_debt_and_one_shot_identity(self):
+
+
+    def test_live8_one_shot_identity(self):
         rows = live8.recorded_rows()
         with gzip.open(str(live8.LOG) + ".state.jsonl.gz", "rt", encoding="utf8") as f:
             raw = next(r for r in map(json.loads, f) if r.get("turn") == rows[211]["turn"]
                        and not r.get("inventory") and not r.get("store"))
         board = parse_snapshot(raw, {})
         policy = HengbotPolicy()
-        policy._calibration_restore_signatures = [("oil", 77, 0), ("recall", 70, 11)]
-        policy.last_reason = "shop:travel:await-entry"
-        self.compare(policy, board, "5", "ownership:declaration-unrestored:calibration")
-        policy = HengbotPolicy()
         policy.last_reason = "shop:one-shot-in-flight"
         self.compare(policy, board, "", "ownership:declaration-stale:shop-buy")
-
-    def test_live9_posted_capture_continues_and_absent_target_stops(self):
-        log = live8.LOG.with_name(
-            "incident-20260930-2106-s33-live-calibration-naked-unrestored-stop")
-        with gzip.open(str(log) + ".decisions.jsonl.gz", "rt", encoding="utf8") as f:
-            row = next(r for r in map(json.loads, f) if r.get("decision_sequence") == 44)
-        with gzip.open(str(log) + ".state.jsonl.gz", "rt", encoding="utf8") as f:
-            raw = next(r for r in map(json.loads, f) if r.get("turn") == row["turn"]
-                       and "character" not in r)
-        board = parse_snapshot(raw, {})
-        board = replace(board, player=replace(board.player, shield_skill=0))
-        policy = HengbotPolicy()
-        policy._calibration_phase = "capture"
-        policy._calibration_restore_signatures = [("oil", 77, 0)]
-        policy._last_snapshot_was_store = False
-        policy._decision_sequence = 44
-        key = policy._calibration_town_key(board)
-        self.assertEqual(key, row["key"])
-        claim = policy._claim_register.declare("calibration", observe(
-            ("transaction",), 10, "transaction"), non_discardable=True)
-        policy._record_execution_declaration(claim, key, policy.last_reason)
-        policy.confirm_key_posted(key)
-        policy.last_reason = "shop:approach"
-        self.compare(policy, board, "6", None)
-        policy._town_blocked_reason = "calibration-restore-target-absent"
-        self.compare(policy, board, "6", "ownership:declaration-unrestored:calibration")
 
     def test_live10_restore_observation_and_stale_item(self):
         first, second, _ = live10.boards()

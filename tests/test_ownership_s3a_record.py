@@ -319,12 +319,10 @@ class S3aRecordTest(unittest.TestCase):
         before = (
             policy._equipment_transaction_session,
             policy._home_errand.request,
-            policy._calibration_phase,
         )
         self.assertIsNone(policy._town_restore_weapon_key(board))
         self.assertIsNone(policy._equipment_transaction_town_key(board))
         self.assertIsNone(policy._equipment_transaction_town_owner_key(board))
-        self.assertIsNone(policy._calibration_town_key(board))
         self.assertIsNone(policy._town_procurement_progress_key(board))
         self.assertFalse(policy._file_home_errand(
             board, HomeErrandRequest(("test", 1, 1), 1, "home-catalog", "test"),
@@ -333,19 +331,18 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(before, (
             policy._equipment_transaction_session,
             policy._home_errand.request,
-            policy._calibration_phase,
         ))
         rows = policy._decision_errand_deferred
         # Ruling #5 review items 1/7: non-holder town families are skipped
         # at entry, including the shop-buy procurement composition.
         self.assertEqual({row["deferred_family"] for row in rows}, {
-            "equipment-txn", "calibration", "home-errand", "shop-buy",
+            "equipment-txn", "home-errand", "shop-buy",
         })
         self.assertTrue(all(row["holder_claim_id"] == holder["claim_id"] for row in rows))
 
         home = _Decisions()
         home_claim = home.decide(
-            "calibration:request-restore-knowledge", cell=home.cell(3)
+            "home-errand:request-knowledge:combat-weapon", cell=home.cell(3)
         )
         home.policy._town_claim_bar_enforced = True
         self.assertIsNotNone(
@@ -356,7 +353,7 @@ class S3aRecordTest(unittest.TestCase):
         home.policy.last_reason = "shop:approach"
         self.assertIsNone(home.policy._town_procurement_decision(home.board, "k"))
         self.assertEqual(home.policy._decision_errand_deferred[-1], {
-            "holder_family": "calibration",
+            "holder_family": "home-errand",
             "holder_claim_id": home_claim["claim_id"],
             "deferred_family": "store-router",
             "deferred_reason": "procurement-decision",
@@ -473,7 +470,7 @@ class S3aRecordTest(unittest.TestCase):
         decisions.policy.decision_attribution = "original-arbiter-owner"
         decisions.policy._store_visit = StoreVisit(
             owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
-            opened_sequence=1, opened_producer_family="calibration",
+            opened_sequence=1, opened_producer_family="home-visit",
         )
         decisions.policy._home_atomic_deposit_pending = ("item", 1)
         decisions.decide("home:atomic-deposit")
@@ -498,7 +495,7 @@ class S3aRecordTest(unittest.TestCase):
         decisions = _Decisions()
         visit = StoreVisit(
             owner="store-router", purpose="home", store_type=STORE_HOME,
-            opened_sequence=1, claim_owner="calibration",
+            opened_sequence=1, claim_owner="identification",
             requester_families=frozenset({"home-visit", "home-errand"}),
             exit_requester="home-errand",
         )
@@ -848,13 +845,12 @@ class S3aRecordTest(unittest.TestCase):
         decisions = _Decisions()
         session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
         decisions.policy._equipment_transaction_session = session
-        decisions.policy._calibration_session_target = session.target_loadout_id
-        held = decisions.decide("calibration:restore-wield")
+        held = decisions.decide("equipment-transaction:equip")
         shelter = decisions.decide("town:seek-shelter", cell=decisions.cell(4))
         self.assertTrue(shelter["survival"])
         self.assertIsNone(shelter["violation"])
         self.assertEqual(shelter["suspended_depth"], 1)
-        resumed = decisions.decide("calibration:restore-wield")
+        resumed = decisions.decide("equipment-transaction:equip")
         self.assertEqual(resumed["claim_id"], held["claim_id"])
         self.assertIsNone(resumed["violation"])
         self.assertEqual(resumed["closed_claim"]["closed_reason"],
@@ -888,20 +884,6 @@ class S3aRecordTest(unittest.TestCase):
                          "transaction-identity-stale")
         self.assertIsNone(stale["violation"])
 
-    def test_second_transaction_is_recorded_as_contention(self):
-        decisions = _Decisions()
-        session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
-        decisions.policy._equipment_transaction_session = session
-        decisions.policy._calibration_session_target = session.target_loadout_id
-        decisions.policy._calibration_stripped_unrestored = True
-        held = decisions.decide("calibration:restore-wield")
-        self.assertTrue(held["non_discardable"])
-        decisions.policy._calibration_session_target = None
-        decisions.policy._equipment_transaction_owned_items = ["held-item"]
-        next_row = decisions.decide("equipment-transaction:atomic-deposit")
-        self.assertEqual(next_row["violation"]["kind"],
-                         "transaction-contention")
-        self.assertEqual(next_row["violation"]["claim_id"], held["claim_id"])
 
     def test_withdraw_identity_requires_the_home_visit(self):
         decisions = _Decisions()
@@ -1464,17 +1446,16 @@ class S3aRecordTest(unittest.TestCase):
         decisions.policy._shopping_approach_store_type = STORE_HOME
         self.assertIsNone(decisions.policy._store_visit.opened_for_family)
 
-    def test_router_records_calibration_requester(self):
+    def test_router_records_equipment_requester(self):
         decisions = _Decisions()
         session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
         decisions.policy._equipment_transaction_session = session
-        decisions.policy._calibration_session_target = session.target_loadout_id
         decisions.policy._home_visit.request = SimpleNamespace(
             requester="equipment-transaction"
         )
-        decisions.policy._request_store_trip(STORE_HOME, "calibration")
+        decisions.policy._request_store_trip(STORE_HOME, "equipment-txn")
         self.assertEqual(decisions.policy._store_visit.opened_for_family,
-                         "calibration")
+                         "equipment-txn")
 
     def test_router_does_not_infer_requester_from_session_presence(self):
         decisions = _Decisions()
@@ -1607,47 +1588,14 @@ class S3aRecordTest(unittest.TestCase):
                 self.assertEqual(decisions.register.current.claim_id, first["claim_id"])
                 self.assertEqual(decisions.register.current.closed, ending)
 
-    def test_calibration_session_complete_release_and_expire(self):
-        for ending in ("complete", "release", "expired"):
-            with self.subTest(ending=ending):
-                decisions = _Decisions()
-                session = EquipmentTransactionSession(
-                    EquipmentTransactionPlan((), (), 0)
-                )
-                decisions.policy._equipment_transaction_session = session
-                decisions.policy._calibration_session_target = session.target_loadout_id
-                first = decisions.decide("calibration:restore-wield")
-                self.assertEqual(first["goal"]["source"], "calibration")
-                if ending == "complete":
-                    decisions.policy._complete_observed_effect(
-                        "calibration-restore-observed", owners=("calibration",),
-                        sources=("calibration",),
-                    )
-                elif ending == "release":
-                    decisions.policy._release_claim_goal(
-                        "calibration-aborted", owners=("calibration",),
-                        kinds=("Observe",), sources=("calibration",),
-                    )
-                else:
-                    closed = None
-                    for _ in range(first["goal"]["within"] + 1):
-                        closed = decisions.decide("calibration:restore-wield")["closed_claim"]
-                        if closed is not None:
-                            break
-                    self.assertEqual(closed["claim_id"], first["claim_id"])
-                    self.assertEqual(closed["closed"], "expired")
-                    continue
-                self.assertEqual(decisions.register.current.claim_id, first["claim_id"])
-                self.assertEqual(decisions.register.current.closed, ending)
 
-    def test_re_attributed_transaction_completes_under_calibration(self):
+    def test_transaction_completes_under_its_equipment_family(self):
         decisions = _Decisions()
         session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
         decisions.policy._equipment_transaction_session = session
-        decisions.policy._calibration_session_target = session.target_loadout_id
         held = decisions.decide("equipment-transaction:deposit")
         self.assertEqual((held["owner"], held["goal"]["source"]),
-                         ("calibration", "calibration"))
+                         ("equipment-txn", "transaction"))
         decisions.policy._complete_equipment_transaction_claim()
         self.assertEqual(decisions.register.current.closed, "complete")
         self.assertEqual(decisions.register.current.closed_reason,
@@ -1658,14 +1606,12 @@ class S3aRecordTest(unittest.TestCase):
         self.assertEqual(exit_row["closed_claim"]["closed_reason"],
                          "equipment-transaction-complete")
 
-    def test_transaction_completion_uses_recorded_family_after_session_changes(self):
+    def test_transaction_completion_uses_recorded_equipment_family(self):
         decisions = _Decisions()
         session = EquipmentTransactionSession(EquipmentTransactionPlan((), (), 0))
         decisions.policy._equipment_transaction_session = session
-        decisions.policy._calibration_session_target = session.target_loadout_id
         held = decisions.decide("equipment-transaction:deposit")
-        self.assertEqual(held["owner"], "calibration")
-        decisions.policy._calibration_session_target = None
+        self.assertEqual(held["owner"], "equipment-txn")
         decisions.policy._complete_equipment_transaction_claim()
         self.assertEqual(decisions.register.current.closed, "complete")
 

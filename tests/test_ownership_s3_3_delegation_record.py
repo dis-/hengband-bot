@@ -17,9 +17,6 @@ from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit
 from test_ownership_s2b1_ladder import _Decisions
-from test_calibration_restore_deposits_recorded import (
-    recorded_rows, stripped_obligation,
-)
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.model import parse_snapshot
 from dataclasses import replace
@@ -94,21 +91,6 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(policy.last_reason,
                          "ownership:declaration-missing:store-router")
 
-    def test_unrestored_obligation_has_visible_stop_without_a_key(self):
-        from hengbot.cli import _policy_final_stop_banner
-
-        decisions = _Decisions()
-        decisions.decide("calibration:restore-wield")
-        policy = decisions.policy
-        policy._town_claim_bar_enforced = True
-        policy._calibration_stripped_unrestored = True
-        holder = policy._claim_errand_hold("__none__")
-        self.assertIsNone(policy._town_holder_wait_key(holder, decisions.board))
-        self.assertEqual(policy.last_reason,
-                         "ownership:declaration-missing:calibration")
-        self.assertIn("stopping the bot", _policy_final_stop_banner(
-            policy.last_reason))
-        self.assertTrue(decisions.register.current.is_open)
 
     def test_posted_home_operation_without_provenance_stops(self):
         decisions = _Decisions()
@@ -150,42 +132,7 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertIn(":no-step:", bar.ending)
         self.assertTrue(policy._defer_town_errand("home-visit", "reopen"))
 
-    def test_calibration_strip_installer_records_exact_session(self):
-        rows = recorded_rows()
-        dressed = parse_snapshot(rows[0], {})
-        spacious = replace(dressed, inventory=[])
-        policy = HengbotPolicy()
-        policy._calibration_worn_before = stripped_obligation(rows)
-        self.assertTrue(policy._install_calibration_strip_session(spacious))
-        session = policy._equipment_transaction_session
-        token = policy._execution_delegations[-1]
-        self.assertEqual((token.parent_family, token.delegate_family),
-                         ("calibration", "equipment-txn"))
-        self.assertEqual(token.work_identity[1], "strip")
-        self.assertEqual(token.work_identity[2], session.target_loadout_id)
-        self.assertEqual(len(token.work_identity[3]), len(session.plan.actions))
-        self.assertEqual(token.lifecycle, "reserved")
 
-    def test_calibration_restore_installer_records_exact_session(self):
-        rows = recorded_rows()
-        dressed = parse_snapshot(rows[0], {})
-        lance = next(item for item in dressed.equipment
-                     if item.slot == "main_hand")
-        naked = replace(dressed, equipment=[],
-                        inventory=[replace(lance, slot="a")])
-        policy = HengbotPolicy()
-        policy._calibration_worn_before = (
-            ("main_hand", equipment_identity(lance)),
-        )
-        self.assertTrue(policy._install_calibration_restore_session(naked))
-        token = policy._execution_delegations[-1]
-        self.assertEqual((token.parent_family, token.delegate_family),
-                         ("calibration", "equipment-txn"))
-        self.assertEqual(token.work_identity[1], "restore")
-        self.assertEqual(token.work_identity[2],
-                         policy._equipment_transaction_session.target_loadout_id)
-        self.assertEqual(len(token.work_identity[3]), 1)
-        self.assertEqual(token.lifecycle, "reserved")
 
     def test_town_family_producers_probe_existing_holder_at_entry(self):
         decisions = _Decisions()
@@ -212,58 +159,6 @@ class DelegationRecordTest(unittest.TestCase):
             policy._town_special_key(decisions.board)
         self.assertIn("rumor", [call.args[0] for call in hold.call_args_list])
 
-    def test_session_child_binds_to_existing_parent_and_exact_session(self):
-        decisions = _Decisions()
-        held = decisions.decide("calibration:restore-wield")
-        policy = decisions.policy
-        action = EquipmentTransaction(
-            PHASE_EQUIP, "equip", "calibration-restore:body", "body", "item-a"
-        )
-        session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((action,), (), 1)
-        )
-        policy._equipment_transaction_session = session
-        work = ("session", "restore", session.target_loadout_id,
-                ((action.kind, action.target_slot, action.item_identity),))
-        token = policy._open_execution_delegation(
-            "calibration", "equipment-txn", work, ("calibration", "restore"),
-            "observed-equips", "claim-bound/equipment-confirmation-limit",
-        )
-        self.assertEqual(token.lifecycle, "reserved")
-        self.assertIsNone(token.parent_claim_id)
-        policy._town_claim_bar_enforced = True
-        self.assertIs(policy._recorded_execution_token(
-            policy._claim_errand_hold("equipment-txn"),
-            "equipment-txn", "town-key"), token)
-        policy.last_reason = "calibration:restore-wield"
-        policy._record_decision_claim(decisions.board, "k")
-        self.assertEqual(token.parent_claim_id, held["claim_id"])
-        self.assertEqual(token.lifecycle, "open")
-        holder = policy._claim_errand_hold("equipment-txn")
-        self.assertIs(policy._recorded_execution_token(
-            holder, "equipment-txn", "town-key"), token)
-        self.assertIsNone(policy._recorded_execution_token(
-            holder, "equipment-txn", "town-key",
-            work_identity=("session", "restore", "other", ()),
-        ))
-        policy._town_claim_bar_enforced = True
-        self.assertFalse(policy._defer_town_errand("equipment-txn", "town-key"))
-        self.assertTrue(policy._defer_town_errand("home-scan", "outside-scan"))
-        policy._equipment_transaction_session = EquipmentTransactionSession(
-            EquipmentTransactionPlan((), (), 1)
-        )
-        self.assertIsNone(policy._recorded_execution_token(
-            holder, "equipment-txn", "town-key"))
-        self.assertTrue(policy._defer_town_errand("equipment-txn", "town-key"))
-        token.lifecycle = "released"
-        policy._equipment_transaction_session = session
-        self.assertIsNone(policy._recorded_execution_token(
-            holder, "equipment-txn", "town-key"))
-        restored = pickle.loads(pickle.dumps(policy))
-        self.assertEqual(restored._execution_delegations[0].as_dict(),
-                         token.as_dict())
-        del restored._execution_delegations
-        self.assertEqual(restored._delegation_records(), [])
 
     def test_unbound_reservation_cancels_at_different_exit(self):
         decisions = _Decisions()
@@ -410,30 +305,6 @@ class DelegationRecordTest(unittest.TestCase):
         self.assertEqual(restored._store_visit.requester_families,
                          frozenset({"home-errand"}))
 
-    def test_calibration_deposit_requires_registered_candidate(self):
-        decisions = _Decisions()
-        policy = decisions.policy
-        decisions.decide("calibration:restore-wield")
-        signature = ("calibration-item", 1, 2)
-        policy._calibration_restore_signatures = [signature]
-        policy._home_atomic_deposit_pending = (((signature, 1, 1),), None, 1, 0)
-        self.assertTrue(policy._compose_home_operation(
-            decisions.board, "key", "da\r\x1b", producer_family="calibration"
-        ))
-        self.assertFalse(any(record.work_identity[:1] == ("home-operation",)
-                             for record in policy._execution_delegations))
-        policy._store_visit = None
-        policy._open_execution_delegation(
-            "calibration", "home-visit", ("deposit-candidate", signature),
-            ("calibration", "deposit"), "inventory-effect", "home-visit",
-        )
-        self.assertTrue(policy._compose_home_operation(
-            decisions.board, "key", "da\r\x1b", producer_family="calibration"
-        ))
-        operation = next(record for record in policy._execution_delegations
-                         if record.work_identity[:1] == ("home-operation",))
-        self.assertEqual(operation.work_identity[1:],
-                         policy._store_visit.claim_operation_identity)
 
     def test_filed_home_errand_opens_knowledge_child_before_scan(self):
         decisions = _Decisions()

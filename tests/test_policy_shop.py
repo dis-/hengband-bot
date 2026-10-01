@@ -3864,13 +3864,6 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
 
 class TownErrandPlanTest(unittest.TestCase):
-    def test_calibration_home_budget_admits_measured_full_calibration(self):
-        measured_full_calibration_visits = 98
-        self.assertEqual(CALIBRATION_HOME_VISIT_LIMIT, 300)
-        self.assertGreaterEqual(
-            CALIBRATION_HOME_VISIT_LIMIT,
-            measured_full_calibration_visits,
-        )
 
     def _snapshot(self, *, turn=100, width=20, height=20):
         return Snapshot(
@@ -4251,9 +4244,6 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.consume_home_knowledge((home_staff,))
         policy._equipment_catalog._home = {}
         policy._floor_key = entrance.floor_key
-        policy._calibration_phase = None
-        # TEST_FAKERY_LINT_ALLOW: collaborator-wall: the purchase gate is isolated from unrelated automatic character calibration
-        policy._character_calibration_key = Mock(return_value=None)
         policy._shop_observation = (
             StoreState(
                 STORE_MAGIC,
@@ -6110,37 +6100,6 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
-    def test_calibration_prerequisite_home_scan_uses_calibration_visit_bound(self):
-        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
-        policy = self._policy(needs)
-        snapshot = self._snapshot()
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",), result=None,
-        )
-        self.assertIsNone(policy._calibration_phase)
-        self.assertFalse(policy._equipment_catalog.home_scan_complete)
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-
-        for entry in range(CALIBRATION_HOME_VISIT_LIMIT - 1):
-            policy._report_town_stop_pass(
-                snapshot, STORE_HOME, goal_satisfied=False,
-                operation_completed=False,
-            )
-            self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-            self.assertEqual(
-                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-                entry + 1,
-            )
-
-        policy._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=False,
-            operation_completed=False,
-        )
-        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-            CALIBRATION_HOME_VISIT_LIMIT,
-        )
 
     def test_turn_2952001_mixed_home_work_uses_pipeline_ceiling(self):
         """Embed the mixed Home owner from the third onset capture."""
@@ -6218,78 +6177,8 @@ class TownErrandPlanTest(unittest.TestCase):
             CALIBRATION_HOME_VISIT_LIMIT,
         )
 
-    def test_successful_prerequisite_scan_resets_unsatisfied_budget(self):
-        needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
-        policy = self._policy(needs)
-        snapshot = self._snapshot()
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("home-scan-incomplete",), result=None,
-        )
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        for _ in range(3):
-            policy._report_town_stop_pass(
-                snapshot, STORE_HOME, goal_satisfied=False,
-                operation_completed=True,
-            )
 
-        policy._calibration_phase = "deposit"
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-        )
-        policy._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=False,
-            operation_completed=True,
-        )
 
-        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 0)
-        self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-
-    def test_calibration_home_completed_entries_block_at_visit_limit(self):
-        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
-        policy = self._policy(needs)
-        snapshot = self._snapshot()
-        policy._calibration_phase = "deposit"
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-        )
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-
-        for entry in range(CALIBRATION_HOME_VISIT_LIMIT - 1):
-            policy._report_town_stop_pass(
-                snapshot, STORE_HOME, goal_satisfied=False,
-                operation_completed=False,
-            )
-            self.assertNotIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-            self.assertEqual(
-                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-                entry + 1,
-            )
-
-        policy._report_town_stop_pass(
-            snapshot, STORE_HOME, goal_satisfied=False,
-            operation_completed=False,
-        )
-
-        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-            CALIBRATION_HOME_VISIT_LIMIT,
-        )
-
-    def test_calibration_home_approach_bound_is_visit_limit(self):
-        policy = HengbotPolicy()
-        policy._calibration_phase = "deposit"
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-        )
-        policy._town_visit_ledger.approach_fails[STORE_HOME] = (
-            CALIBRATION_HOME_VISIT_LIMIT - 1
-        )
-        policy._shopping_approach_step(self._snapshot(), STORE_HOME)
-        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-        policy._town_visit_ledger.approach_fails[STORE_HOME] += 1
-        policy._shopping_approach_step(self._snapshot(), STORE_HOME)
-        self.assertIn(STORE_HOME, policy._town_store_attempted)
 
     def _settle_failed_store_walk(self, policy, snapshot, store_type):
         step = policy._shopping_approach_step(snapshot, store_type)
@@ -6299,46 +6188,6 @@ class TownErrandPlanTest(unittest.TestCase):
         policy.confirm_key_posted(key)
         policy._observe(snapshot)
 
-    def test_calibration_home_oscillation_yields_to_entry_bound(self):
-        needs = [TownNeed(STORE_HOME, "deposit", "home-first")]
-        policy = self._policy(needs)
-        snapshot = self._snapshot(width=80, height=40)
-        home = replace(grid(10, 13), store_number=STORE_HOME)
-        snapshot = replace(
-            snapshot,
-            grids={
-                **snapshot.grids,
-                home.position: home,
-            },
-            town_flag=True,
-        )
-        policy._calibration_phase = "deposit"
-        policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("calibration-required",), result=None,
-        )
-        policy._recent.extend([snapshot.player.position] * STUCK_WINDOW)
-        self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-
-        for entry in range(CALIBRATION_HOME_VISIT_LIMIT):
-            self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
-            policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
-            self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
-            self.assertNotIn(STORE_HOME, policy._town_store_attempted)
-            self.assertEqual(
-                policy._town_visit_ledger.approach_fails[STORE_HOME], 0
-            )
-            policy._report_town_stop_pass(
-                snapshot,
-                STORE_HOME,
-                goal_satisfied=False,
-                operation_completed=False,
-            )
-
-        self.assertIn(STORE_HOME, policy._town_visit_ledger.blocked_stores)
-        self.assertEqual(
-            policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-            CALIBRATION_HOME_VISIT_LIMIT,
-        )
 
     def test_turn_2956451_scan_pipeline_oscillation_preserves_home_claim(self):
         needs = [TownNeed(STORE_HOME, "equipment-catalog", "home-first")]
@@ -6357,7 +6206,7 @@ class TownErrandPlanTest(unittest.TestCase):
         self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         policy._shop_approach_stuck_count = SHOP_APPROACH_STUCK_LIMIT - 1
 
-        self.assertIsNone(policy._calibration_phase)
+        self.assertFalse(hasattr(policy, "_calibration_phase"))
         self._settle_failed_store_walk(policy, snapshot, STORE_HOME)
         self.assertNotIn(STORE_HOME, policy._town_store_attempted)
         self.assertEqual(policy._town_visit_ledger.approach_fails[STORE_HOME], 0)
@@ -7225,8 +7074,7 @@ class ProbePurityIncidentPinsTest(unittest.TestCase):
         )
 
         self.assertEqual(policy.choose_key(outside), WAIT_KEY)
-        self.assertEqual(policy._calibration_phase, "strip")
-        self.assertIsNone(policy._equipment_transaction_session.pending_action)
+        self.assertIsNone(policy._equipment_transaction_session)
         self.assertTrue(policy.last_reason.endswith("shop:one-shot-buy"))
         self.assertIsNone(
             policy._shop_selector_diagnostics.get("composition_refusal")

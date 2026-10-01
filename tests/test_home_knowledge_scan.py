@@ -187,7 +187,7 @@ class HomeOwnedModalTest(unittest.TestCase):
     def test_home_character_dump_owns_each_prompt_and_store_return(self):
         inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
         prefix, continuations = _home_modal_continuation(
-            inside, HOME_CHARACTER_DUMP_MACRO, "calibration:capture")
+            inside, HOME_CHARACTER_DUMP_MACRO, "periodic:character-dump")
         self.assertEqual(prefix, "C")
         self.assertEqual(
             [(continuation.kinds, continuation.keys, continuation.optional)
@@ -225,9 +225,9 @@ class HomeOwnedModalTest(unittest.TestCase):
                          "ready")
         inside = replace(town_with_home(), store=StoreState(STORE_HOME, []))
         prefix, continuations = _home_modal_continuation(
-            inside, HOME_CHARACTER_DUMP_MACRO, "calibration:capture")
+            inside, HOME_CHARACTER_DUMP_MACRO, "periodic:character-dump")
         result = executor.submit(Operation(
-            1, "calibration:capture", prefix, executor.ready_board, continuations),
+            1, "periodic:character-dump", prefix, executor.ready_board, continuations),
             deadline=9999999999)
         self.assertEqual(result.outcome, outcome)
         self.assertEqual([entry for entry in game.trace if isinstance(entry, str)], trace)

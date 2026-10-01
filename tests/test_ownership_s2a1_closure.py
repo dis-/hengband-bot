@@ -362,7 +362,6 @@ class GoalTypingTableTest(unittest.TestCase):
 
     def test_the_rev92_rows_have_the_design_kind(self):
         for reason, kind in (
-            ("calibration:restore-travel", "Reach"),
             ("survival:shop-travel", "Reach"),
             ("survival:mana-home-travel", "Reach"),
             ("equipment-transaction:acquire-home-catalog", "Reach"),
@@ -502,13 +501,13 @@ class DeclaredGoalSlotTest(unittest.TestCase):
         policy = _fresh_policy(board)
         policy.last_reason = "periodic:game-save"        # stale, bookkeeping
         policy._declare_reach(
-            Position(41, 131), family=policy._claim_family_of("calibration:restore-travel")
+            Position(41, 131), family=policy._claim_family_of("survival:shop-travel")
         )
-        claim = self._declare(policy, board, "calibration:restore-travel")
+        claim = self._declare(policy, board, "survival:shop-travel")
         self.assertEqual(claim["goal"], {"kind": "Reach", "cell": [41, 131]})
         policy = _fresh_policy(board)
         policy._declare_reach(
-            Position(41, 131), family=policy._claim_family_of("calibration:restore-travel")
+            Position(41, 131), family=policy._claim_family_of("survival:shop-travel")
         )
         claim = self._declare(policy, board, "shop:approach")
         self.assertEqual(claim["goal_note"], "owner-mismatch")
