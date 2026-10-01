@@ -1,0 +1,3 @@
+CHANGED tests/test_input_executor.py:TcpBarrierPinTest.test_recorded_recall_depth_shape_completes_through_sender_path
+  before: self.assertEqual(game.accepted, ["rj", "n"])
+  after: self.assertEqual(game.accepted, ["r", "j", "n"])

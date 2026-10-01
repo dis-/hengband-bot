@@ -1834,21 +1834,27 @@ class TcpBarrierPinTest(ProductionHarness):
 
     def test_recorded_recall_depth_shape_completes_through_sender_path(self):
         fixture = (
-            Path(__file__).parents[1] / "jsonlog" /
-            "incident-20260919-2230-recall-depth-prompt.jsonl"
+            Path(__file__).parent / "fixtures" / "classA-recall-depth-board.jsonl"
         )
         raw = json.loads(fixture.read_text(encoding="utf-8").splitlines()[-1])
         game = FaithfulHookGame()
         game.state = copy.deepcopy(raw)
         game.screen = command_screen(raw["turn"])
-        game.screens = [
-            prompt_screen(
-                "ここは最深到達階より浅い階です。"
-                "この階に戻って来ますか？ [y/n]"
-            ),
-            command_screen(raw["turn"] + 1),
-        ]
-        game.states = [copy.deepcopy(raw), copy.deepcopy(raw)]
+        capture_dir = Path(__file__).parent / "fixtures" / "live-screens"
+        source = json.loads((capture_dir / "live-screen-cap-27-dungeon-read-r.json")
+                            .read_text(encoding="utf-8"))["screen"]["result"]
+        # Constructed source page derived from the verbatim captured read frame:
+        # use this checkpoint's i-l scroll labels and names. It is a protocol
+        # control, not a recorded post-rj effect or an action-consistent replay.
+        source["lines"][0] = source["lines"][0].replace("e-i", "i-l")
+        for row, item in enumerate((item for item in raw["inventory"]
+                                    if item["slot"] in "ijkl"), 1):
+            source["lines"][row] = f"{item['slot']}) ? {item['name']}"
+        source["lines"][5] = ""
+        confirmation = json.loads((capture_dir / "classA-recall-depth-confirm.json")
+                                  .read_text(encoding="utf-8"))["screen"]["result"]
+        game.screens = [source, confirmation, command_screen(raw["turn"] + 1)]
+        game.states = [copy.deepcopy(raw) for _ in game.screens]
         game, _client, executor = self.make(game)
         self.assertEqual(
             executor.observe_boundary(deadline=9999999999).outcome, "ready"
@@ -1865,7 +1871,7 @@ class TcpBarrierPinTest(ProductionHarness):
         )
         self.assertTrue(sent)
         self.assertEqual(port.last_result.outcome, "completed")
-        self.assertEqual(game.accepted, ["rj", "n"])
+        self.assertEqual(game.accepted, ["r", "j", "n"])
 
     def test_unrelated_question_and_knowledge_more_post_no_answer(self):
         for screen in (prompt_screen("Unrelated? [y/n]"), self._knowledge_screen()):

@@ -2139,7 +2139,7 @@ class _ExecutorInputPort:
         operation = Operation(
             decision.get("sequence"),
             str(decision.get("reason", "unknown")),
-            _transport_key(key, self.tunnel_macros_ready),
+            key,
             # Live decision metadata carries no board. Bind the admitted
             # operation to the executor's current observed command boundary;
             # prompt-time state must be compared with this pre-command state.
@@ -2149,11 +2149,25 @@ class _ExecutorInputPort:
             transport=(Transport.TCP if self.executor.client is not None
                        else Transport.WM),
         )
+        from hengbot.observed_input import compile_observed_input
+        if self.executor.active is None and self.executor.ready_board is not None:
+            try:
+                prefix, steps = compile_observed_input(
+                    key, self.executor.ready_screen.kind if self.executor.ready_screen else None,
+                    self.executor.ready_board, operation.owner, operation.continuations,
+                )
+            except ValueError as error:
+                self.last_result = self.executor._terminal(
+                    operation, "admission", str(error), self.executor.ready_screen)
+                print(self.last_result.reason, file=sys.stderr, flush=True)
+                return SendResult.TERMINAL
+            operation.keys, operation.continuations = (
+                _transport_key(prefix, self.tunnel_macros_ready), steps)
         budget = max(
             self.request_budget,
             _command_response_grace(key, str(decision.get("reason", "unknown"))),
         )
-        if continuations:
+        if operation.continuations:
             budget = max(budget, COMMAND_RESPONSE_GRACE)
         if key.startswith("R"):
             budget = max(budget, REST_STALL_GRACE)
@@ -2410,7 +2424,7 @@ def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuati
     prefix = body[:2]
     tail = body[2:]
     continuations: list[Continuation] = []
-    if tail.endswith("\r\r") and len(tail) > 2:
+    if tail.endswith("\r\r"):
         continuations.append(Continuation(frozenset({ScreenKind.QUANTITY}), tail[:-1]))
         continuations.append(Continuation(frozenset({ScreenKind.CONFIRM}), "\r"))
     else:
