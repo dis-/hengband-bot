@@ -67,3 +67,75 @@ does not authorize sacrificing melee for additional occupied slots.
 The current task explicitly forbids losing most melee for extra resistance
 coverage beyond the band requirements. Any implementation must reconcile
 that instruction with the existing below-floor survival selection.
+
+Step 2 implements the current directive using the **existing half-melee
+limit**, with no new threshold. Within the requirement-valid candidate pool,
+reject candidates below half of the maximum melee before applying survival
+selection. Then retain the approved 30-turn survival rule and existing tie
+breakers within that bounded pool. The unconstrained band baseline is now
+the actual maximum melee, rather than the survival-selected winner.
+Required abilities remain enforced before this comparison. No skill input
+is increased to make dual wield look better.
+
+The evaluator excludes launcher to-hit/to-damage from melee and includes
+both rings for a two-handed weapon. Future loadout reports retain combat
+inputs and each hand's to-hit, to-damage and hit reliability.
+
+Corrected recorded-input metrics (AC 100, same representative encounters):
+
+| Loadout | Melee per turn | Blows | Hit chance | Hand to-hit / to-damage | Survival turns |
+| --- | ---: | --- | --- | --- | ---: |
+| Spear, two hands | 87.23033856 | 4 | 72% | +28 / +16 | 6.97176867 |
+| Scythe, two hands | 153.10963194 | 4 | 71% | +28 / +16 | 5.91459938 |
+| Spear + scythe | 15.19430805 | 5 + 4 | 5% + 5% | -57 / +11; -82 / +10 | 7.32982252 |
+| Fixed optimizer choice: spear, two hands | 87.23033856 | 4 | 72% | +28 / +16 | 6.97176867 |
+
+The spear retains 56.972% of the best available melee (the scythe), so it
+passes the half-melee limit; its modeled survival is higher. The dual retains
+only 9.924%, so optional coverage cannot keep it in contention.
+
+Verification, one test module per process, PYTHONPATH=src;tests;scripts:
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| tests.test_dualwield_recorded | 6 | PASS |
+| tests.test_policy_equipment | 192 | PASS |
+| tests.test_equipment_optimizer | 93 | PASS |
+| tests.test_warrior_equipment_evaluator | 11 | PASS |
+| tests.test_warrior_loadout_evaluator | 11 | PASS |
+| tests.test_warrior_loadout_search | 19 | PASS |
+| tests.test_warrior_optimization | 36 | PASS |
+| tests.test_ownership_s2a_classification | 16 | PASS |
+| tests.test_test_fakery_lint | 13 | PASS |
+
+Total: **397 passing tests**. No existing assertion was changed. The named
+equipment_optimizer/warrior_equipment/warrior_optimization/loadout test
+modules are the five matching test modules listed above; recorded_loadout.py
+is a replay helper, not a unittest module. Verification used the installed
+Python313 executable; the documented Codex runtime executable is absent on
+this machine. Reverting all three production files to b24fd077 gives four
+failures and one error in the six new pins; restoring them gives six passes.
+No production state attribute was added, so no new checkpoint field exists.
+
+stuck OFF: 4 decisions, identity hash c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5;
+stuck S33: no divergence, no trajectory defect. withdraw OFF: 34 decisions,
+identity hash a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9;
+withdraw S33: expected first divergence at index 3, historical/off
+`~9\\x1b` (home:request-knowledge-scan), on `\\x1b`
+(equipment-transaction:catalogue-leave-for-scan), no trajectory defect.
+No later recorded board is claimed to show the effect of the divergent key.
+
+Both pre-commit assertion audits:
+
+```text
+No changed pre-existing assertions or forbidden test edits.
+```
+
+Pending for Claude, not run: scripts/test_parallel_runner.py,
+scripts/test_timing_runner.py, scripts/hunk_guard.py, scripts/verify_scope.py,
+scripts/mutation_battery.py; tests.test_cli, tests.test_policy_town,
+tests.test_policy_shop, tests.test_absorbing_states; long tour/town/overweight
+replays, town-producer purity sections, full-fixture first_divergence runs,
+and broad matching-module sweeps. The authorized stuck/withdraw exceptions
+were run. Also pending: recover the exact historical 7830-candidate catalog
+to establish the spear's original rank; the available report does not store it.

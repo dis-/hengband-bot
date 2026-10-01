@@ -22477,5 +22477,3613 @@
     "turn": 1493262,
     "type": "player_turn",
     "visible_monsters": []
-  }
+  },
+  "encounters": [
+    {
+      "race_id": 163,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 13,
+        "max_ranged_damage": 33,
+        "can_multiply": false,
+        "average_hp": 100,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ELEC",
+          "ONLY_GOLD",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BR_ELEC"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 9,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 164,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 13,
+        "max_ranged_damage": 33,
+        "can_multiply": false,
+        "average_hp": 100,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_COLD",
+          "ONLY_GOLD",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BR_COLD"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 9,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 165,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 13,
+        "max_ranged_damage": 33,
+        "can_multiply": false,
+        "average_hp": 100,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_POIS",
+          "ONLY_GOLD",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BR_POIS"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 9,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 166,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 13,
+        "max_ranged_damage": 33,
+        "can_multiply": false,
+        "average_hp": 100,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ACID",
+          "ONLY_GOLD",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BR_ACID"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 9,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 158,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 99,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 10,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 55,
+        "armor_class": 25,
+        "rarity": 1,
+        "flags": [
+          "DROP_60",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FRIENDS",
+          "OPEN_DOOR",
+          "WILD_SWAMP",
+          "WILD_WASTE"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 173,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 16,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 55,
+        "armor_class": 35,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "FRIENDS",
+          "WEIRD_MIND"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 217,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 80,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 14,
+        "max_ranged_damage": 48,
+        "can_multiply": false,
+        "average_hp": 45,
+        "armor_class": 15,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "HAS_LITE_2",
+          "OPEN_DOOR",
+          "WILD_SWAMP",
+          "WILD_WASTE"
+        ],
+        "abilities": [
+          "BLINK",
+          "CAUSE_1",
+          "CONF",
+          "MISSILE",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 7
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 7
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 162,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 72,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 14,
+        "max_ranged_damage": 48,
+        "can_multiply": false,
+        "average_hp": 40,
+        "armor_class": 15,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "HURT_LITE",
+          "OPEN_DOOR",
+          "ORC",
+          "RES_DARK",
+          "WILD_MOUNTAIN",
+          "WILD_SWAMP",
+          "WILD_WOOD"
+        ],
+        "abilities": [
+          "BLINK",
+          "CAUSE_1",
+          "MISSILE"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 7
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 7
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1398,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 28,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 14,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 16,
+        "armor_class": 20,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "DROP_60",
+          "IM_ACID",
+          "OPEN_DOOR"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "SLASH",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 7
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1408,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 28,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 4,
+        "max_ranged_damage": 6,
+        "can_multiply": false,
+        "average_hp": 16,
+        "armor_class": 20,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "DROP_60",
+          "IM_ACID",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "SHOOT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          }
+        ],
+        "spell_frequency": 25,
+        "powerful": false,
+        "shoot_dice_num": 1,
+        "shoot_dice_sides": 6
+      }
+    },
+    {
+      "race_id": 157,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 24,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 9,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 13,
+        "armor_class": 22,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "CAN_FLY",
+          "DROP_CORPSE",
+          "EVIL",
+          "RAND_25",
+          "WILD_MOUNTAIN"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 3
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1400,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 12,
+        "speed": 115,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 6,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 7,
+        "armor_class": 10,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "DROP_60",
+          "DROP_90",
+          "IM_ACID",
+          "ONLY_GOLD",
+          "OPEN_DOOR"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "TOUCH",
+            "effect": "EAT_GOLD",
+            "dice_num": 1,
+            "dice_sides": 3
+          },
+          {
+            "method": "TOUCH",
+            "effect": "EAT_GOLD",
+            "dice_num": 1,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1401,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 12,
+        "speed": 115,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 6,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 7,
+        "armor_class": 10,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "DROP_60",
+          "DROP_90",
+          "IM_ACID",
+          "ONLY_ITEM",
+          "OPEN_DOOR"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "TOUCH",
+            "effect": "EAT_ITEM",
+            "dice_num": 1,
+            "dice_sides": 3
+          },
+          {
+            "method": "TOUCH",
+            "effect": "EAT_ITEM",
+            "dice_num": 1,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1403,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 10,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 4,
+        "max_ranged_damage": 38,
+        "can_multiply": false,
+        "average_hp": 6,
+        "armor_class": 6,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "DROP_60",
+          "IM_ACID",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BLINK",
+          "HEAL",
+          "MISSILE"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          }
+        ],
+        "spell_frequency": 25,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 156,
+      "weight": 0.015988166441571805,
+      "knowledge": {
+        "max_hp": 6,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 9,
+        "max_melee_damage": 5,
+        "max_ranged_damage": 0,
+        "can_multiply": true,
+        "average_hp": 4,
+        "armor_class": 12,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "IM_POIS",
+          "MULTIPLY",
+          "RAND_25"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "POISON",
+            "dice_num": 1,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 910,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 250,
+        "speed": 100,
+        "can_summon": false,
+        "friendly": false,
+        "level": 19,
+        "max_melee_damage": 60,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 137,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "AQUATIC",
+          "COLD_BLOOD",
+          "EMPTY_MIND",
+          "IM_COLD",
+          "IM_FIRE",
+          "IM_POIS",
+          "NONLIVING",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "RES_WATE"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 10
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 10
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 324,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 136,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 19,
+        "max_melee_damage": 16,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 76,
+        "armor_class": 16,
+        "rarity": 1,
+        "flags": [
+          "CAN_SWIM",
+          "EMPTY_MIND",
+          "IM_FIRE",
+          "IM_POIS",
+          "NEVER_MOVE",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "STUPID"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "TOUCH",
+            "effect": "FIRE",
+            "dice_num": 4,
+            "dice_sides": 4
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 327,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 120,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 19,
+        "max_melee_damage": 30,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 66,
+        "armor_class": 40,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_SWIM",
+          "COLD_BLOOD",
+          "DROP_60",
+          "ELDRITCH_HORROR",
+          "EVIL",
+          "HURT_LITE",
+          "IM_COLD",
+          "IM_POIS",
+          "NO_CONF",
+          "NO_SLEEP",
+          "OPEN_DOOR",
+          "RES_NETH",
+          "UNDEAD"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "KICK",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 3
+          },
+          {
+            "method": "KICK",
+            "effect": "HURT",
+            "dice_num": 9,
+            "dice_sides": 1
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 6,
+            "dice_sides": 2
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 328,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 110,
+        "can_summon": true,
+        "friendly": false,
+        "level": 19,
+        "max_melee_damage": 28,
+        "max_ranged_damage": 68,
+        "can_multiply": false,
+        "average_hp": 55,
+        "armor_class": 40,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "AQUATIC",
+          "EVIL",
+          "IM_POIS",
+          "RES_WATE",
+          "WILD_ALL"
+        ],
+        "abilities": [
+          "BLIND",
+          "CAUSE_2",
+          "HEAL",
+          "SCARE",
+          "S_MONSTER",
+          "TELE_TO"
+        ],
+        "blows": [
+          {
+            "method": "STING",
+            "effect": "POISON",
+            "dice_num": 2,
+            "dice_sides": 7
+          },
+          {
+            "method": "STING",
+            "effect": "POISON",
+            "dice_num": 2,
+            "dice_sides": 7
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 321,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 192,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 48,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 108,
+        "armor_class": 75,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "GIANT",
+          "OPEN_DOOR",
+          "TAKE_ITEM",
+          "WILD_MOUNTAIN"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 8
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 313,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 80,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 30,
+        "max_ranged_damage": 15,
+        "can_multiply": false,
+        "average_hp": 80,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FORCE_MAXHP",
+          "FRIENDS",
+          "IM_POIS",
+          "OPEN_DOOR",
+          "ORC",
+          "RES_DARK"
+        ],
+        "abilities": [
+          "SHOOT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 8,
+        "powerful": false,
+        "shoot_dice_num": 3,
+        "shoot_dice_sides": 5
+      }
+    },
+    {
+      "race_id": 317,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 100,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 30,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 55,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "AQUATIC",
+          "RES_WATE",
+          "WILD_ALL"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 5
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 307,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 60,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 18,
+        "max_ranged_damage": 20,
+        "can_multiply": false,
+        "average_hp": 35,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "FRIENDS",
+          "HURT_COLD",
+          "IM_FIRE",
+          "SELF_LITE_2"
+        ],
+        "abilities": [
+          "BR_FIRE"
+        ],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "FIRE",
+            "dice_num": 2,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 10,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 308,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 60,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 22,
+        "max_ranged_damage": 20,
+        "can_multiply": false,
+        "average_hp": 35,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "FRIENDS",
+          "HURT_FIRE",
+          "IM_COLD"
+        ],
+        "abilities": [
+          "BR_COLD"
+        ],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 8
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 8
+          },
+          {
+            "method": "BITE",
+            "effect": "COLD",
+            "dice_num": 1,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 10,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 309,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 60,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 18,
+        "max_ranged_damage": 20,
+        "can_multiply": false,
+        "average_hp": 35,
+        "armor_class": 30,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "FRIENDS",
+          "IM_ELEC",
+          "SELF_LITE_2"
+        ],
+        "abilities": [
+          "BR_ELEC"
+        ],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "ELEC",
+            "dice_num": 2,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 10,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 320,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 24,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 18,
+        "max_melee_damage": 0,
+        "max_ranged_damage": 8,
+        "can_multiply": false,
+        "average_hp": 13,
+        "armor_class": 20,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "RAND_25",
+          "RAND_50",
+          "WEIRD_MIND",
+          "WILD_MOUNTAIN"
+        ],
+        "abilities": [
+          "BR_CONF"
+        ],
+        "blows": [],
+        "spell_frequency": 11,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 297,
+      "weight": 0.016630709955039492,
+      "knowledge": {
+        "max_hp": 200,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 17,
+        "max_melee_damage": 14,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 110,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FRIENDS",
+          "HURT_LITE",
+          "OPEN_DOOR",
+          "REGENERATE",
+          "TROLL",
+          "WILD_WOOD"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 4
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1216,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 441,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 29,
+        "max_melee_damage": 72,
+        "max_ranged_damage": 166,
+        "can_multiply": false,
+        "average_hp": 231,
+        "armor_class": 45,
+        "rarity": 1,
+        "flags": [
+          "COLD_BLOOD",
+          "DROP_90",
+          "DROP_CORPSE",
+          "EVIL",
+          "FRIENDS",
+          "HURT_LITE",
+          "IM_COLD",
+          "IM_POIS",
+          "NO_FEAR",
+          "RES_NETH",
+          "UNDEAD"
+        ],
+        "abilities": [
+          "BA_COLD",
+          "SHOOT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 6
+          },
+          {
+            "method": "SLASH",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 6
+          },
+          {
+            "method": "CRUSH",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 8,
+        "shoot_dice_sides": 9
+      }
+    },
+    {
+      "race_id": 442,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 300,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 28,
+        "max_melee_damage": 75,
+        "max_ranged_damage": 86,
+        "can_multiply": false,
+        "average_hp": 165,
+        "armor_class": 70,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "HUMAN",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BLIND",
+          "CAUSE_3",
+          "DARKNESS",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 938,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 300,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 28,
+        "max_melee_damage": 75,
+        "max_ranged_damage": 86,
+        "can_multiply": false,
+        "average_hp": 165,
+        "armor_class": 70,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "GOOD",
+          "HUMAN",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "CAUSE_3",
+          "CONF",
+          "HEAL",
+          "HOLD"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 450,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 150,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 28,
+        "max_melee_damage": 24,
+        "max_ranged_damage": 76,
+        "can_multiply": false,
+        "average_hp": 150,
+        "armor_class": 60,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "BLIND",
+          "BRAIN_SMASH",
+          "FORGET",
+          "HOLD",
+          "MIND_BLAST",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "GAZE",
+            "effect": "LOSE_INT",
+            "dice_num": 2,
+            "dice_sides": 6
+          },
+          {
+            "method": "GAZE",
+            "effect": "LOSE_INT",
+            "dice_num": 2,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 454,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 240,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 28,
+        "max_melee_damage": 33,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 132,
+        "armor_class": 56,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FRIENDS",
+          "HURT_LITE",
+          "IM_COLD",
+          "OPEN_DOOR",
+          "REGENERATE",
+          "TROLL",
+          "WILD_WASTE"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 5
+          },
+          {
+            "method": "BITE",
+            "effect": "COLD",
+            "dice_num": 3,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 449,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 120,
+        "speed": 110,
+        "can_summon": true,
+        "friendly": false,
+        "level": 28,
+        "max_melee_damage": 20,
+        "max_ranged_damage": 108,
+        "can_multiply": false,
+        "average_hp": 67,
+        "armor_class": 40,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "HAS_LITE_2",
+          "HUMAN",
+          "ONLY_ITEM",
+          "OPEN_DOOR",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BO_COLD",
+          "BO_ELEC",
+          "BO_FIRE",
+          "CONF",
+          "HASTE",
+          "S_MONSTER",
+          "TELE_TO",
+          "TPORT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 5
+          },
+          {
+            "method": "TOUCH",
+            "effect": "DR_MANA",
+            "dice_num": 2,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 33,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 427,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 425,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 27,
+        "max_melee_damage": 16,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 225,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FRIENDS",
+          "OPEN_DOOR",
+          "WILD_MOUNTAIN",
+          "WILD_WASTE"
+        ],
+        "abilities": [
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 8
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 432,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 300,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 27,
+        "max_melee_damage": 20,
+        "max_ranged_damage": 84,
+        "can_multiply": false,
+        "average_hp": 162,
+        "armor_class": 45,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "COLD_BLOOD",
+          "DROP_1D2",
+          "DROP_60",
+          "EVIL",
+          "HURT_LITE",
+          "IM_COLD",
+          "IM_POIS",
+          "NO_CONF",
+          "NO_SLEEP",
+          "OPEN_DOOR",
+          "REGENERATE",
+          "RES_DARK",
+          "RES_NETH",
+          "UNDEAD"
+        ],
+        "abilities": [
+          "CAUSE_2",
+          "DARKNESS",
+          "FORGET",
+          "HOLD",
+          "MIND_BLAST",
+          "SCARE",
+          "TELE_TO"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 6
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 6
+          },
+          {
+            "method": "BITE",
+            "effect": "EXP_VAMP",
+            "dice_num": 1,
+            "dice_sides": 8
+          },
+          {
+            "method": "TOUCH",
+            "effect": "DR_MANA",
+            "dice_num": 1,
+            "dice_sides": 10
+          }
+        ],
+        "spell_frequency": 11,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 424,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 252,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 27,
+        "max_melee_damage": 24,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 136,
+        "armor_class": 60,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_60",
+          "DROP_CORPSE",
+          "EVIL",
+          "FRIENDS",
+          "OPEN_DOOR",
+          "REGENERATE",
+          "TROLL",
+          "WILD_MOUNTAIN",
+          "WILD_SWAMP",
+          "WILD_WOOD"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "POISON",
+            "dice_num": 3,
+            "dice_sides": 3
+          },
+          {
+            "method": "CLAW",
+            "effect": "POISON",
+            "dice_num": 3,
+            "dice_sides": 3
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 1,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 421,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 104,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 27,
+        "max_melee_damage": 32,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 58,
+        "armor_class": 45,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DROP_CORPSE",
+          "IM_FIRE",
+          "WEIRD_MIND",
+          "WILD_VOLCANO"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 4
+          },
+          {
+            "method": "SPIT",
+            "effect": "FIRE",
+            "dice_num": 4,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 563,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 345,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 26,
+        "max_melee_damage": 48,
+        "max_ranged_damage": 115,
+        "can_multiply": false,
+        "average_hp": 345,
+        "armor_class": 60,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_90",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_FIRE",
+          "OPEN_DOOR",
+          "RIDING",
+          "SELF_LITE_1",
+          "WILD_MOUNTAIN",
+          "WILD_VOLCANO"
+        ],
+        "abilities": [
+          "BR_FIRE",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 8
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 8
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 406,
+      "weight": 0.01578879670718374,
+      "knowledge": {
+        "max_hp": 484,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 26,
+        "max_melee_damage": 32,
+        "max_ranged_damage": 82,
+        "can_multiply": false,
+        "average_hp": 253,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "AQUATIC",
+          "EVIL",
+          "IM_POIS",
+          "RES_NETH",
+          "RES_WATE",
+          "WILD_ALL"
+        ],
+        "abilities": [
+          "BLIND",
+          "CAUSE_3",
+          "FORGET",
+          "HASTE",
+          "HEAL",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "STING",
+            "effect": "POISON",
+            "dice_num": 2,
+            "dice_sides": 8
+          },
+          {
+            "method": "STING",
+            "effect": "EXP_VAMP",
+            "dice_num": 2,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 702,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 2500,
+        "speed": 120,
+        "can_summon": true,
+        "friendly": false,
+        "level": 49,
+        "max_melee_damage": 324,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 2500,
+        "armor_class": 110,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "DROP_SKELETON",
+          "EVIL",
+          "FORCE_MAXHP",
+          "GIANT",
+          "MOVE_BODY",
+          "ONLY_ITEM",
+          "OPEN_DOOR",
+          "SMART",
+          "TAKE_ITEM"
+        ],
+        "abilities": [
+          "HEAL",
+          "S_MONSTERS",
+          "TELE_TO"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "HIT",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "HIT",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "HIT",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 756,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 2250,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 48,
+        "max_melee_damage": 304,
+        "max_ranged_damage": 750,
+        "can_multiply": false,
+        "average_hp": 2250,
+        "armor_class": 120,
+        "rarity": 1,
+        "flags": [
+          "AURA_FIRE",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_FIRE",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING",
+          "SELF_LITE_1",
+          "SELF_LITE_2"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_FIRE",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 14
+          },
+          {
+            "method": "CLAW",
+            "effect": "FIRE",
+            "dice_num": 6,
+            "dice_sides": 16
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 14
+          },
+          {
+            "method": "BITE",
+            "effect": "FIRE",
+            "dice_num": 6,
+            "dice_sides": 16
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 728,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 1950,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 47,
+        "max_melee_damage": 224,
+        "max_ranged_damage": 650,
+        "can_multiply": false,
+        "average_hp": 1950,
+        "armor_class": 110,
+        "rarity": 1,
+        "flags": [
+          "AURA_ELEC",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ELEC",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING",
+          "SELF_LITE_2"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_ELEC",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "CLAW",
+            "effect": "ELEC",
+            "dice_num": 6,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "BITE",
+            "effect": "ELEC",
+            "dice_num": 6,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 741,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 1950,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 47,
+        "max_melee_damage": 224,
+        "max_ranged_damage": 650,
+        "can_multiply": false,
+        "average_hp": 1950,
+        "armor_class": 110,
+        "rarity": 1,
+        "flags": [
+          "AURA_COLD",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_COLD",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_COLD",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "CLAW",
+            "effect": "COLD",
+            "dice_num": 6,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "BITE",
+            "effect": "COLD",
+            "dice_num": 6,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 890,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 1950,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 47,
+        "max_melee_damage": 212,
+        "max_ranged_damage": 650,
+        "can_multiply": false,
+        "average_hp": 1950,
+        "armor_class": 110,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_POIS",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_POIS",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "CLAW",
+            "effect": "POISON",
+            "dice_num": 6,
+            "dice_sides": 11
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "BITE",
+            "effect": "POISON",
+            "dice_num": 6,
+            "dice_sides": 11
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1066,
+      "weight": 0.016031431427919948,
+      "knowledge": {
+        "max_hp": 1950,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 47,
+        "max_melee_damage": 224,
+        "max_ranged_damage": 650,
+        "can_multiply": false,
+        "average_hp": 1950,
+        "armor_class": 110,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_90",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ACID",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_ACID",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 10
+          },
+          {
+            "method": "BITE",
+            "effect": "ACID",
+            "dice_num": 6,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "ACID",
+            "dice_num": 6,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 601,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 720,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 39,
+        "max_melee_damage": 132,
+        "max_ranged_damage": 240,
+        "can_multiply": false,
+        "average_hp": 720,
+        "armor_class": 85,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ELEC",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "POWERFUL",
+          "RIDING",
+          "SELF_LITE_1",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_ELEC",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "BITE",
+            "effect": "ELEC",
+            "dice_num": 5,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 617,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 720,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 39,
+        "max_melee_damage": 132,
+        "max_ranged_damage": 240,
+        "can_multiply": false,
+        "average_hp": 720,
+        "armor_class": 85,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_COLD",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "POWERFUL",
+          "RIDING",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_COLD",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "BITE",
+            "effect": "COLD",
+            "dice_num": 5,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 618,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 720,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 39,
+        "max_melee_damage": 132,
+        "max_ranged_damage": 240,
+        "can_multiply": false,
+        "average_hp": 720,
+        "armor_class": 85,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_POIS",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "POWERFUL",
+          "RIDING",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_POIS",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "BITE",
+            "effect": "POISON",
+            "dice_num": 5,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 624,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 720,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 39,
+        "max_melee_damage": 132,
+        "max_ranged_damage": 240,
+        "can_multiply": false,
+        "average_hp": 720,
+        "armor_class": 85,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ACID",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "POWERFUL",
+          "RIDING",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_ACID",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 9
+          },
+          {
+            "method": "BITE",
+            "effect": "ACID",
+            "dice_num": 5,
+            "dice_sides": 12
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 597,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 600,
+        "speed": 120,
+        "can_summon": true,
+        "friendly": false,
+        "level": 38,
+        "max_melee_damage": 86,
+        "max_ranged_damage": 138,
+        "can_multiply": false,
+        "average_hp": 600,
+        "armor_class": 100,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "COLD_BLOOD",
+          "DROP_1D2",
+          "DROP_2D2",
+          "EVIL",
+          "FORCE_MAXHP",
+          "HAS_LITE_1",
+          "HUMAN",
+          "IM_COLD",
+          "ONLY_ITEM",
+          "OPEN_DOOR",
+          "RES_NETH",
+          "SMART"
+        ],
+        "abilities": [
+          "BLIND",
+          "BO_NETH",
+          "CAUSE_3",
+          "SCARE",
+          "S_MONSTERS"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 6,
+            "dice_sides": 6
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          },
+          {
+            "method": "HIT",
+            "effect": "EXP_20",
+            "dice_num": 0,
+            "dice_sides": 0
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1173,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 799,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 38,
+        "max_melee_damage": 56,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 423,
+        "armor_class": 51,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "HAS_LITE_1",
+          "HAS_LITE_2",
+          "HUMAN",
+          "IM_FIRE",
+          "IM_POIS",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "OPEN_DOOR"
+        ],
+        "abilities": [
+          "HEAL"
+        ],
+        "blows": [
+          {
+            "method": "KICK",
+            "effect": "SUPERHURT",
+            "dice_num": 8,
+            "dice_sides": 1
+          },
+          {
+            "method": "HIT",
+            "effect": "SUPERHURT",
+            "dice_num": 8,
+            "dice_sides": 1
+          },
+          {
+            "method": "KICK",
+            "effect": "SUPERHURT",
+            "dice_num": 8,
+            "dice_sides": 4
+          },
+          {
+            "method": "HIT",
+            "effect": "SUPERHURT",
+            "dice_num": 8,
+            "dice_sides": 1
+          }
+        ],
+        "spell_frequency": 14,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1128,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 399,
+        "speed": 115,
+        "can_summon": false,
+        "friendly": false,
+        "level": 38,
+        "max_melee_damage": 88,
+        "max_ranged_damage": 202,
+        "can_multiply": false,
+        "average_hp": 399,
+        "armor_class": 70,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_CORPSE",
+          "DROP_SKELETON",
+          "EVIL",
+          "FORCE_MAXHP",
+          "HURT_LITE",
+          "IM_POIS",
+          "INVISIBLE",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "RES_NETH",
+          "UNDEAD"
+        ],
+        "abilities": [
+          "BA_COLD",
+          "BA_FIRE",
+          "BLIND",
+          "BO_NETH",
+          "CONF",
+          "HOLD",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "SLASH",
+            "effect": "HURT",
+            "dice_num": 11,
+            "dice_sides": 4
+          },
+          {
+            "method": "CRUSH",
+            "effect": "HURT",
+            "dice_num": 11,
+            "dice_sides": 4
+          }
+        ],
+        "spell_frequency": 11,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 575,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 190,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 37,
+        "max_melee_damage": 24,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 190,
+        "armor_class": 50,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "COLD_BLOOD",
+          "DROP_60",
+          "EMPTY_MIND",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_COLD",
+          "IM_POIS",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "OPEN_DOOR",
+          "RES_NETH",
+          "TROLL",
+          "UNDEAD"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 6
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 6
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 587,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 320,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 37,
+        "max_melee_damage": 25,
+        "max_ranged_damage": 106,
+        "can_multiply": false,
+        "average_hp": 176,
+        "armor_class": 40,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "EMPTY_MIND",
+          "NONLIVING",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "NO_STUN",
+          "POWERFUL",
+          "RAND_25",
+          "RAND_50",
+          "RES_NEXU",
+          "RES_TELE"
+        ],
+        "abilities": [
+          "BR_NEXU"
+        ],
+        "blows": [
+          {
+            "method": "ENGULF",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 5
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 588,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 320,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 37,
+        "max_melee_damage": 64,
+        "max_ranged_damage": 106,
+        "can_multiply": false,
+        "average_hp": 176,
+        "armor_class": 40,
+        "rarity": 1,
+        "flags": [
+          "AURA_ELEC",
+          "AURA_FIRE",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "EMPTY_MIND",
+          "IM_ELEC",
+          "IM_FIRE",
+          "NONLIVING",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "NO_STUN",
+          "POWERFUL",
+          "RAND_25",
+          "RAND_50",
+          "RES_PLAS",
+          "SELF_LITE_1"
+        ],
+        "abilities": [
+          "BR_PLAS"
+        ],
+        "blows": [
+          {
+            "method": "ENGULF",
+            "effect": "FIRE",
+            "dice_num": 8,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 16,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 490,
+      "weight": 0.015989973578593716,
+      "knowledge": {
+        "max_hp": 792,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 36,
+        "max_melee_damage": 176,
+        "max_ranged_damage": 54,
+        "can_multiply": false,
+        "average_hp": 429,
+        "armor_class": 90,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_CORPSE",
+          "EVIL",
+          "GIANT",
+          "IM_ACID",
+          "IM_POIS",
+          "MOVE_BODY",
+          "OPEN_DOOR",
+          "TAKE_ITEM"
+        ],
+        "abilities": [
+          "SHOOT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 11,
+            "dice_sides": 8
+          },
+          {
+            "method": "HIT",
+            "effect": "HURT",
+            "dice_num": 11,
+            "dice_sides": 8
+          }
+        ],
+        "spell_frequency": 12,
+        "powerful": false,
+        "shoot_dice_num": 9,
+        "shoot_dice_sides": 6
+      }
+    },
+    {
+      "race_id": 1192,
+      "weight": 0.01783803693894375,
+      "knowledge": {
+        "max_hp": 3800,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 55,
+        "max_melee_damage": 480,
+        "max_ranged_damage": 1266,
+        "can_multiply": false,
+        "average_hp": 3800,
+        "armor_class": 130,
+        "rarity": 1,
+        "flags": [
+          "AURA_FIRE",
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_FIRE",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING",
+          "SELF_LITE_1",
+          "SELF_LITE_2"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_FIRE",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 12
+          },
+          {
+            "method": "CLAW",
+            "effect": "FIRE",
+            "dice_num": 12,
+            "dice_sides": 15
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 5,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "FIRE",
+            "dice_num": 12,
+            "dice_sides": 15
+          }
+        ],
+        "spell_frequency": 25,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1368,
+      "weight": 0.01783803693894375,
+      "knowledge": {
+        "max_hp": 5000,
+        "speed": 115,
+        "can_summon": false,
+        "friendly": false,
+        "level": 55,
+        "max_melee_damage": 116,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 2600,
+        "armor_class": 160,
+        "rarity": 1,
+        "flags": [
+          "COLD_BLOOD",
+          "DROP_90",
+          "IM_ACID",
+          "IM_COLD",
+          "IM_ELEC",
+          "IM_FIRE",
+          "IM_POIS",
+          "KILL_WALL",
+          "NEVER_MOVE",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "RES_TELE",
+          "RIDING"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "SHATTER",
+            "dice_num": 58,
+            "dice_sides": 1
+          },
+          {
+            "method": "BITE",
+            "effect": "SHATTER",
+            "dice_num": 58,
+            "dice_sides": 1
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1188,
+      "weight": 0.01783803693894375,
+      "knowledge": {
+        "max_hp": 3300,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 54,
+        "max_melee_damage": 432,
+        "max_ranged_damage": 1100,
+        "can_multiply": false,
+        "average_hp": 3300,
+        "armor_class": 125,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "CAN_FLY",
+          "DRAGON",
+          "DROP_2D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_ACID",
+          "MOVE_BODY",
+          "NO_CONF",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "POWERFUL",
+          "RIDING"
+        ],
+        "abilities": [
+          "BLIND",
+          "BR_ACID",
+          "CONF",
+          "SCARE"
+        ],
+        "blows": [
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 12
+          },
+          {
+            "method": "CLAW",
+            "effect": "ACID",
+            "dice_num": 12,
+            "dice_sides": 14
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 4,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "ACID",
+            "dice_num": 12,
+            "dice_sides": 14
+          }
+        ],
+        "spell_frequency": 25,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 779,
+      "weight": 0.028186553943837366,
+      "knowledge": {
+        "max_hp": 1800,
+        "speed": 120,
+        "can_summon": false,
+        "friendly": false,
+        "level": 65,
+        "max_melee_damage": 81,
+        "max_ranged_damage": 600,
+        "can_multiply": false,
+        "average_hp": 930,
+        "armor_class": 100,
+        "rarity": 1,
+        "flags": [
+          "ANIMAL",
+          "ATTR_ANY",
+          "ATTR_MULTI",
+          "BASH_DOOR",
+          "FRIENDS",
+          "NO_CONF",
+          "NO_SLEEP",
+          "RES_CHAO"
+        ],
+        "abilities": [
+          "BR_CHAO"
+        ],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 12
+          },
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 2,
+            "dice_sides": 12
+          },
+          {
+            "method": "CLAW",
+            "effect": "HURT",
+            "dice_num": 3,
+            "dice_sides": 3
+          }
+        ],
+        "spell_frequency": 20,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 812,
+      "weight": 0.011260589690070684,
+      "knowledge": {
+        "max_hp": 3000,
+        "speed": 120,
+        "can_summon": true,
+        "friendly": false,
+        "level": 76,
+        "max_melee_damage": 308,
+        "max_ranged_damage": 1000,
+        "can_multiply": false,
+        "average_hp": 3000,
+        "armor_class": 100,
+        "rarity": 1,
+        "flags": [
+          "CAN_FLY",
+          "DEMON",
+          "DROP_1D2",
+          "DROP_60",
+          "DROP_GOOD",
+          "EVIL",
+          "FORCE_MAXHP",
+          "IM_COLD",
+          "IM_ELEC",
+          "IM_FIRE",
+          "IM_POIS",
+          "INVISIBLE",
+          "NONLIVING",
+          "NO_CONF",
+          "NO_SLEEP",
+          "PASS_WALL",
+          "RES_NETH",
+          "RES_NEXU",
+          "SMART"
+        ],
+        "abilities": [
+          "BRAIN_SMASH",
+          "BR_PLAS",
+          "DRAIN_MANA",
+          "HEAL",
+          "S_DEMON",
+          "TPORT"
+        ],
+        "blows": [
+          {
+            "method": "HIT",
+            "effect": "UN_BONUS",
+            "dice_num": 14,
+            "dice_sides": 11
+          },
+          {
+            "method": "HIT",
+            "effect": "UN_POWER",
+            "dice_num": 14,
+            "dice_sides": 11
+          }
+        ],
+        "spell_frequency": 25,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1100,
+      "weight": 0.002946696367495132,
+      "knowledge": {
+        "max_hp": 6666,
+        "speed": 110,
+        "can_summon": false,
+        "friendly": false,
+        "level": 88,
+        "max_melee_damage": 539,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 6666,
+        "armor_class": 66,
+        "rarity": 2,
+        "flags": [
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_CORPSE",
+          "DROP_GOOD",
+          "FORCE_MAXHP",
+          "RIDING"
+        ],
+        "abilities": [],
+        "blows": [
+          {
+            "method": "BITE",
+            "effect": "HURT",
+            "dice_num": 7,
+            "dice_sides": 77
+          }
+        ],
+        "spell_frequency": 0,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 1416,
+      "weight": 0.0027186781962008663,
+      "knowledge": {
+        "max_hp": 9801,
+        "speed": 209,
+        "can_summon": false,
+        "friendly": false,
+        "level": 99,
+        "max_melee_damage": 324,
+        "max_ranged_damage": 0,
+        "can_multiply": false,
+        "average_hp": 4950,
+        "armor_class": 99,
+        "rarity": 1,
+        "flags": [
+          "BASH_DOOR",
+          "DROP_1D2",
+          "DROP_2D2",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_60",
+          "DROP_90",
+          "DROP_CORPSE",
+          "EMPTY_MIND",
+          "FRIENDS",
+          "IM_POIS",
+          "NEVER_MOVE",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_SLEEP",
+          "ONLY_ITEM",
+          "QUANTUM",
+          "RAND_25",
+          "STUPID"
+        ],
+        "abilities": [
+          "BLINK"
+        ],
+        "blows": [
+          {
+            "method": "SPORE",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "SPORE",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "SPORE",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          },
+          {
+            "method": "SPORE",
+            "effect": "CONFUSE",
+            "dice_num": 9,
+            "dice_sides": 9
+          }
+        ],
+        "spell_frequency": 50,
+        "powerful": false,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    },
+    {
+      "race_id": 883,
+      "weight": 0.00043849648325820415,
+      "knowledge": {
+        "max_hp": 30000,
+        "speed": 160,
+        "can_summon": true,
+        "friendly": false,
+        "level": 127,
+        "max_melee_damage": 840,
+        "max_ranged_damage": 100000,
+        "can_multiply": false,
+        "average_hp": 30000,
+        "armor_class": 200,
+        "rarity": 4,
+        "flags": [
+          "AURA_COLD",
+          "AURA_ELEC",
+          "AURA_FIRE",
+          "CAN_FLY",
+          "DROP_1D2",
+          "DROP_2D2",
+          "DROP_3D2",
+          "DROP_4D2",
+          "DROP_GREAT",
+          "EVIL",
+          "FORCE_DEPTH",
+          "FORCE_MAXHP",
+          "IM_ACID",
+          "IM_COLD",
+          "IM_ELEC",
+          "IM_FIRE",
+          "IM_POIS",
+          "KILL_BODY",
+          "KILL_WALL",
+          "NONLIVING",
+          "NO_CONF",
+          "NO_FEAR",
+          "NO_INSTANTLY_DEATH",
+          "NO_SLEEP",
+          "NO_STUN",
+          "ONLY_ITEM",
+          "ONLY_ONE",
+          "POWERFUL",
+          "REFLECTING",
+          "REGENERATE",
+          "RES_CHAO",
+          "RES_NETH",
+          "RES_TELE",
+          "SMART",
+          "SPEAK_ALL",
+          "UNDEAD"
+        ],
+        "abilities": [
+          "BA_CHAO",
+          "BR_CHAO",
+          "BR_DISI",
+          "BR_MANA",
+          "BR_NETH",
+          "BR_NUKE",
+          "DISPEL",
+          "HAND_DOOM",
+          "ROCKET",
+          "S_CYBER",
+          "S_HI_DRAGON",
+          "S_HI_UNDEAD",
+          "S_KIN",
+          "S_MONSTERS",
+          "S_UNIQUE"
+        ],
+        "blows": [
+          {
+            "method": "CRUSH",
+            "effect": "SHATTER",
+            "dice_num": 22,
+            "dice_sides": 15
+          },
+          {
+            "method": "CRUSH",
+            "effect": "SHATTER",
+            "dice_num": 22,
+            "dice_sides": 15
+          },
+          {
+            "method": "BITE",
+            "effect": "LOSE_ALL",
+            "dice_num": 15,
+            "dice_sides": 12
+          },
+          {
+            "method": "TOUCH",
+            "effect": "UN_POWER",
+            "dice_num": 0,
+            "dice_sides": 0
+          }
+        ],
+        "spell_frequency": 33,
+        "powerful": true,
+        "shoot_dice_num": 0,
+        "shoot_dice_sides": 0
+      }
+    }
+  ],
+  "monrace_source_sha256": "b556c5bfd15b43c17ebc7363eddc17398b4073e2034267c7245bab2fcddf2054"
 }

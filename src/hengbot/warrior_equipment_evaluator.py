@@ -17,6 +17,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipment,
     SLOT_MAIN_HAND,
     SLOT_MAIN_RING,
+    SLOT_BOW,
     SLOT_SUB_HAND,
     SLOT_SUB_RING,
 )
@@ -254,9 +255,13 @@ def _distributed_bonus(loadout: Loadout, hand_slot: str, attribute: str) -> int:
     dual = loadout.hand_mode == "dual_wield"
     result = 0
     for slot, owned in loadout.slots:
-        if slot in {SLOT_MAIN_HAND, SLOT_SUB_HAND}:
+        if slot in {SLOT_MAIN_HAND, SLOT_SUB_HAND, SLOT_BOW}:
             continue
         value = int(getattr(owned.item, attribute))
+        if loadout.hand_mode == "two_handed":
+            if hand_slot == SLOT_MAIN_HAND:
+                result += value
+            continue
         if not dual:
             if hand_slot == SLOT_MAIN_HAND and slot != SLOT_SUB_RING:
                 result += value

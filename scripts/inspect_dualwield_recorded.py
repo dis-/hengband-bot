@@ -1,10 +1,9 @@
 """Read-only reconstruction of the 2026-10-01 loadout search."""
 from dataclasses import asdict, replace
-from functools import cmp_to_key
 import json
 from pathlib import Path
 
-from hengbot.equipment_optimizer import Loadout, OwnedEquipmentCatalog, _prefer
+from hengbot.equipment_optimizer import Loadout, OwnedEquipmentCatalog
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import (

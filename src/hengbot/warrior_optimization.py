@@ -896,6 +896,8 @@ def _append_loadout_report(
             },
             "melee_hands": [
                 {"blows": hand.blows, "hit_chance_ac100": hand.hit_chance_ac100,
+                 "to_hit": hand.to_hit, "to_damage": hand.to_damage,
+                 "hit_reliability": hand.hit_reliability,
                  "damage_per_hit": hand.expected_damage_per_hit,
                  "damage_per_turn": hand.expected_damage_per_round}
                 for hand in detailed.melee.hands
@@ -904,6 +906,7 @@ def _append_loadout_report(
     record = {
         "time": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "depth": depth,
+        "combat_inputs": asdict(evaluator.inputs.combat),
         "timed_out": result.timed_out,
         "search_truncated": result.search_truncated,
         "considered": result.combinations_considered,
