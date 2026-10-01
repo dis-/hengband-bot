@@ -2,9 +2,9 @@
 
 User decision 2026-10-02 (verbatim): 「上質以下同士の比較ならスリングより
 ライトクロスボウを優先。スリングが高級品以上なら威力評価。という決定を以前したはず。」
-(the 2026-07-19 decision covered the Short Bow).  The live boards come from
-jsonlog/autorecover-20261002-012442-no-key-exhausted.bot-state-fixed.jsonl.gz
-(see tests/extract_xbow_pref_fixture.py for the row numbers).
+(the 2026-07-19 decision covered the Short Bow).  The live boards are the
+frozen fixture written by tests/extract_xbow_pref_fixture.py (source capture
+and row numbers are documented there).
 """
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
@@ -353,23 +353,16 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
         self.assertEqual(result.best.loadout.item_at(SLOT_BOW).id, sling.id)
 
     def test_ammo_errand_falls_back_to_general_store(self):
-        # Derived board: the recorded surface (99 shots) with the shot stack
-        # cut to the 48 recorded at rows 29-56, so the ordinary ammo errand is
-        # live. Derived page: the recorded Weapon Smith page (row 56) with its
-        # plain iron shots removed (a stock-out).
-        shots = next(item for item in self.surface.inventory if item.tval == TVAL_SHOT)
-        board = replace(
-            self.surface,
-            inventory=[
-                replace(item, count=48) if item is shots else item
-                for item in self.surface.inventory
-            ],
-        )
+        # Board: the recorded Weapon Smith board (row 56, 48 iron shots, turn
+        # 2321048) as the bot steps out (store page removed), so the ordinary
+        # ammo errand is live. Derived page: the recorded Weapon Smith page
+        # with its plain iron shots removed (a stock-out).
+        board = replace(self.rows[56], store=None)
         smith = self.rows[56].store
-        sold_out = replace(smith, items=tuple(
+        sold_out = replace(smith, items=[
             item for item in smith.items
             if not (item.tval == TVAL_SHOT and item.to_h == 0 and item.to_d == 0)
-        ))
+        ])
 
         def ammo_errands(policy):
             return [
@@ -378,27 +371,42 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
                 if need.category == "ammo"
             ]
 
+        def sold_out_smith(general=True):
+            policy = self.policy()
+            self.remember(policy, 56)
+            policy._town_supplier_stock[STORE_WEAPON] = sold_out
+            if general:
+                # The General Store page (row 44) remembered with its plain
+                # shots, arrows and bolts.
+                self.remember(policy, 44)
+            return policy
+
         stocked = self.policy()
         self.remember(stocked, 56)
+        self.remember(stocked, 44)
         self.assertEqual(ammo_errands(stocked), [STORE_WEAPON])
 
-        policy = self.policy()
-        self.remember(policy, 56)
-        policy._town_supplier_stock[STORE_WEAPON] = sold_out
-        self.assertEqual(ammo_errands(policy), [STORE_GENERAL])
-        # The General Store page (row 44) shows plain shots, arrows and bolts.
+        policy = sold_out_smith()
         self.assertEqual(
             sorted(item.tval for item in policy._launcher_ammo_offers(
                 self.rows[44], STORE_GENERAL
             )),
             [TVAL_SHOT, TVAL_ARROW, TVAL_BOLT],
         )
+        self.assertEqual(ammo_errands(policy), [STORE_GENERAL])
+        # Without General Store stock evidence the errand is unchanged.
+        self.assertEqual(ammo_errands(sold_out_smith(general=False)), [STORE_WEAPON])
 
+        # "Weapon Smith attempted" alone never adds a General Store stop.
         attempted = self.policy()
+        self.remember(attempted, 44)
         attempted._town_store_attempted[STORE_WEAPON] = board.turn
-        self.assertEqual(ammo_errands(attempted), [STORE_GENERAL])
-        attempted._town_store_attempted[STORE_GENERAL] = board.turn
         self.assertEqual(ammo_errands(attempted), [])
+        # A sold-out Weapon Smith with the General Store already attempted.
+        exhausted = sold_out_smith()
+        exhausted._town_store_attempted[STORE_WEAPON] = board.turn
+        exhausted._town_store_attempted[STORE_GENERAL] = board.turn
+        self.assertEqual(ammo_errands(exhausted), [])
 
     def test_unaffordable_store_ammo_is_not_an_offer(self):
         board = self.rows[44]

@@ -2773,7 +2773,7 @@ class TownMixin:
                         snapshot, quest_strategy, name, STORE_WEAPON
                     )
                     for name in missing_carries
-                    if STORE_WEAPON in self._quest_carry_suppliers(snapshot, name)
+                    if STORE_WEAPON in self._quest_carry_supplier_stores(snapshot, name)
                 )
                 if (
                     STORE_WEAPON not in self._town_store_attempted
@@ -2798,7 +2798,7 @@ class TownMixin:
             # all of its suppliers have been tried).
             quest_carry_need_added = False
             for name in sorted(missing_carries):
-                for supplier in self._quest_carry_suppliers(snapshot, name):
+                for supplier in self._quest_carry_supplier_stores(snapshot, name):
                     if any(
                         need.store_type == supplier
                         and need.category in {

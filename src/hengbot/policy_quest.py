@@ -804,27 +804,34 @@ class QuestMixin:
                 }
         return status
 
-    def _quest_carry_suppliers(
+    def _quest_carry_supplier_stores(
         self, snapshot: Snapshot, name: str
     ) -> tuple[int, ...]:
-        if name == "throwing_items.lit_torch":
-            return (STORE_GENERAL,)
+        """Declared suppliers, with the ammo errand's General Store fallback.
+
+        Identical to ``_quest_carry_suppliers`` except for launcher ammunition
+        when the current-town Weapon Smith page shows none affordable and the
+        ammo errand (``_launcher_ammo_errand_store``) picks the General Store.
+        """
         if name in QUEST_LAUNCHER_AMMO_CARRIES:
-            # Same supplier selection as the ordinary ammo errand; once every
-            # supplier is exhausted the Weapon Smith stays the declared one so
-            # the existing exhaustion/abandon path is unchanged.
             launcher = self._equipped_launcher(snapshot)
             ammo_tval = (
                 QUEST_AMMO_TVALS.get(name.partition(".")[2])
                 if name != "throwing_items.launcher_ammo"
                 else launcher.ammo_tval if launcher is not None else None
             )
-            store = (
-                self._launcher_ammo_errand_store(snapshot, ammo_tval)
-                if ammo_tval is not None
-                else None
-            )
-            return (STORE_WEAPON,) if store is None else (store,)
+            if (
+                ammo_tval is not None
+                and self._launcher_ammo_errand_store(snapshot, ammo_tval)
+                == STORE_GENERAL
+            ):
+                return (STORE_GENERAL,)
+        return self._quest_carry_suppliers(name)
+
+    @staticmethod
+    def _quest_carry_suppliers(name: str) -> tuple[int, ...]:
+        if name == "throwing_items.lit_torch":
+            return (STORE_GENERAL,)
         if name.startswith("launcher") or name.startswith("throwing_items."):
             return (STORE_WEAPON,)
         if name.startswith("required_scrolls."):
@@ -841,7 +848,7 @@ class QuestMixin:
         status: dict[str, int | bool],
     ) -> SupplyStatus:
         """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
-        stores = self._quest_carry_suppliers(snapshot, name)
+        stores = self._quest_carry_supplier_stores(snapshot, name)
         launcher_ammo = name in QUEST_LAUNCHER_AMMO_CARRIES
         obtainable = False
         if launcher_ammo and (
