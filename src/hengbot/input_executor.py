@@ -1142,19 +1142,23 @@ class OperationExecutor:
                 for feature in expected_features if feature is not None
             )
             equipped_full = self.active.owner == "identify:full-equipped"
+            normal_carried = self.active.owner == "identify:normal"
             if equipped_full and match.kind is ScreenKind.ITEM_TARGET \
                     and ScreenKind.ITEM_TARGET in continuation.kinds:
                 feature_matches = feature_matches or match.feature.endswith((
                     "*Identify* which item?", "どのアイテムを*鑑定*しますか?",
                 ))
             if match.kind in continuation.kinds and feature_matches:
-                if equipped_full:
+                if equipped_full or normal_carried:
                     prompt_state = self._request("state", deadline, map=True)
                     if prompt_state is None:
                         return self._terminal(
                             self.active, "state", "prompt binding failed", match, outcome)
                     self._bound_screen_value, self._bound_state_value = screen_value, prompt_state
-                    if match.kind is ScreenKind.ITEM_SOURCE:
+                    if match.kind is ScreenKind.ITEM_SOURCE or normal_carried:
+                        if normal_carried and match.kind is ScreenKind.ITEM_TARGET \
+                                and not match.feature.startswith(("(Inven:", "(持ち物:")):
+                            break
                         before = self.active.observation
                         old_items = before.get("inventory", ()) if isinstance(before, Mapping) else ()
                         old = next((item for item in old_items
@@ -1167,6 +1171,20 @@ class OperationExecutor:
                                            for field in identity_fields)]
                         if len(sources) != 1:
                             break
+                        if normal_carried and match.kind is ScreenKind.ITEM_SOURCE:
+                            # Validate the device kind as well as its identity;
+                            # the current slot must still be an identify source.
+                            from hengbot.model import (
+                                TVAL_STAFF, SV_STAFF_IDENTIFY, TVAL_ROD,
+                                SV_ROD_IDENTIFY, TVAL_SCROLL, SV_SCROLL_IDENTIFY,
+                            )
+                            expected = {
+                                "u": (TVAL_STAFF, SV_STAFF_IDENTIFY),
+                                "z": (TVAL_ROD, SV_ROD_IDENTIFY),
+                                "r": (TVAL_SCROLL, SV_SCROLL_IDENTIFY),
+                            }.get(self.active.keys[:1])
+                            if expected != (sources[0].get("tval"), sources[0].get("sval")):
+                                break
                         answer = str(sources[0].get("slot", ""))
                         if not re.fullmatch(r"[a-z]", answer):
                             break

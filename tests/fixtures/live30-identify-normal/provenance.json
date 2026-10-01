@@ -1,0 +1,12 @@
+{
+  "state_source": "incident-20261001-1142-identify-normal-unrecognized.state.jsonl.gz",
+  "state_sha256": "459408d67faeeb5ec62fcd35cdf3b06558fea9a21e344af6d0a494b82ce80a54",
+  "state_jsonl_lines": {
+    "before-purchase": 297,
+    "before-identify": 299,
+    "staff-failed": 300
+  },
+  "screen_source": "live-screen-20261001-1142-identify-normal-unrecognized.json",
+  "screen_sha256": "b28008f7faac695c3397215062b10ec7066fc754d57e10e03776620a48dd3784",
+  "intermediate_screens": "Not captured. Pins derive chooser rows from recorded inventory and protocol literals."
+}
