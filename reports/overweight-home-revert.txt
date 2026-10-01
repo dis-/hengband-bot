@@ -1,0 +1,13 @@
+REVERT: src/hengbot/policy.py src/hengbot/policy_town.py restored to c4677d7a
+== tests.test_overweight_home_hold_recorded
+FAIL: test_failed_home_pass_ends_in_the_named_overweight_stop (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_failed_home_pass_ends_in_the_named_overweight_stop)
+AssertionError: Tuples differ: ('5', 'town:blocked:no-actionable-claim-owner') != ('5', 'town:blocked:overweight-home-unreachable')
+FAIL: test_routed_home_arrival_deposits_the_minimal_overload (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload)
+AssertionError: Tuples differ: ('\x1b', 'home:route-claim-unfulfilled') != ('dk\x1b', 'home:weight-overload-deposit')
+Ran 4 tests in 36.458s
+FAILED (failures=2)
+== tests.test_identify_staff_live27_recorded
+FAIL: test_routed_home_arrival_queues_the_mining_digger (tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_routed_home_arrival_queues_the_mining_digger)
+AssertionError: Tuples differ: ('\x1b', 'home:route-claim-unfulfilled') != ('\x1b', 'home:queue-digging-tool-withdraw')
+Ran 2 tests in 107.041s
+FAILED (failures=1)

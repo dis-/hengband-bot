@@ -1,0 +1,10 @@
+test_recorded_shortfall_enters_one_run_mining (tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_recorded_shortfall_enters_one_run_mining) ... ok
+test_routed_home_arrival_queues_the_mining_digger (tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_routed_home_arrival_queues_the_mining_digger)
+Production at the recorded arrival: first changed key is index 63. ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 101.521s
+
+OK
+FIRST DIVERGENCE 104 live '5' town:blocked:departure-unsatisfiable replay '5' town:identify-staff-stockout-mining
+SHORTFALL 18 mode prepare planned 1 home_current True stores {}
