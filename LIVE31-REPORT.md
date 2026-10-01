@@ -2,6 +2,7 @@
 
 Base: dcb3fed7; worktree: bot-client-decl-r3b, branch decl-r3b.
 Step 1 commit: 0193f0b4.
+Step 2 implementation commit: bfd840d7.
 
 Recorded evidence: incident-20261001-1235-calibration-restore-target-absent-2.state.jsonl.gz
 and .decisions.jsonl.gz, copied without changing boards into the live31 fixture.
@@ -80,3 +81,56 @@ weapon bonus, accept annotation/knowledge growth, record worn outcomes, and
 cover new and old checkpoint defaults. Existing live19/live28 assertions and
 EXPECTED_FIRST were not edited. R2 adds no screen requirement here: no screen
 classification or modal continuation was changed, and no UI screen was faked.
+
+## Verification
+
+Python: C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe;
+PYTHONPATH=src;tests;scripts, PYTHONUTF8=1. Each module ran in its own process.
+
+| Authorized module | Tests | Result |
+| --- | ---: | --- |
+| tests.test_calibration_live31 | 6 | PASS |
+| tests.test_calibration_live19 | 11 | PASS, existing pins unchanged |
+| tests.test_calibration_live25 | 6 | PASS |
+| tests.test_calibration_live28 | 3 | PASS, existing pins unchanged |
+| tests.test_policy_calibration | 75 | PASS |
+| tests.test_calibration_restore_deposits_recorded | 6 | PASS |
+| tests.test_policy_home | 184 | PASS, 4 existing skips |
+| tests.test_live23_home_cycle | 7 | PASS |
+| tests.test_ownership_s2a_classification | 16 | PASS |
+| tests.test_test_fakery_lint | 13 | PASS |
+| Total | 327 | PASS, 4 skips |
+
+The single matcher revert to dcb3fed7 runs the new module: six tests, three
+failures. The original first macro omits `py3\r`; the terminal board emits
+`5` instead of `5po3\r\x1b`; annotation reconciliation fails. The script's
+finally block restores the source byte-for-byte. This is one actual revert
+run; an earlier script invocation failed before changing source due to CRLF
+boundary matching, which was corrected before running the actual check.
+
+| Short recorded fixture | OFF digest | S3.3 result |
+| --- | --- | --- |
+| stuck | c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5 | No divergence; expected null |
+| withdraw | a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9 | Exact ruling #9 row: (3, 3, ESC, equipment-transaction:catalogue-leave-for-scan) |
+
+Both modes have no declaration gap or mismatch rows and no trajectory defect.
+The fixture runner reports existing detector missing declarations (stuck: one
+in both modes; withdraw: two in OFF, zero before the S3.3 first divergence).
+EXPECTED_FIRST remains unchanged. The four JSON reports and ten module logs
+are under reports/live31-*. PowerShell stderr capture added NativeCommandError
+formatting to some passing logs; every reported process exit code was zero.
+
+Assertion audit (before each commit):
+`No changed pre-existing assertions or forbidden test edits.`
+No pre-existing assertion was changed, removed or weakened. `git diff --check`
+passed. No live bot or game was run. The unrelated pre-existing untracked
+`.live8b-revert.py` was left untouched.
+
+Pending for Claude under the inherited DO-NOT-RUN block (not executed here):
+scripts/test_parallel_runner.py, scripts/test_timing_runner.py,
+scripts/hunk_guard.py, scripts/verify_scope.py, scripts/mutation_battery.py,
+tests.test_cli, tests.test_policy_town, tests.test_policy_shop,
+tests.test_absorbing_states, long recorded tour/town/overweight replays,
+town producer purity parts, full-fixture runs of scripts/first_divergence_s3_3.py
+(only the explicit stuck/withdraw exception ran), and any all-matching-module
+sweep. No additional test module or gate script was run.

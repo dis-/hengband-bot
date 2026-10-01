@@ -1,0 +1,6 @@
+......
+----------------------------------------------------------------------
+Ran 6 tests in 4.946s
+System.Management.Automation.RemoteException
+OK
+replay=('wi', 'equipment-transaction:equip') live=('wh', 'calibration:redress')

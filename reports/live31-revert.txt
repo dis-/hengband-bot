@@ -1,0 +1,49 @@
+F.FF..
+======================================================================
+FAIL: test_first_changed_macro_includes_pooled_wand_and_restores (tests.test_calibration_live31.Live31CalibrationTest.test_first_changed_macro_includes_pooled_wand_and_restores)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live31.py", line 83, in test_first_changed_macro_includes_pooled_wand_and_restores
+    self.assertEqual(key, FIRST.replace("pz2\r", "pz2\rpy3\r"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5pKpD3\rpCpA2\rpz2\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b' != '5pKpD3\rpCpA2\rpz2\rpy3\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b'
+  5pKpD3
+  pCpA2
+  pz2
++ py3
+  prpqpp10
+  po13
+  pm4
+  pl9
+  pk4
+  pf5
+  pe3
+  pdpcpb
+
+
+======================================================================
+FAIL: test_historical_terminal_board_has_addressable_debt (tests.test_calibration_live31.Live31CalibrationTest.test_historical_terminal_board_has_addressable_debt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live31.py", line 138, in test_historical_terminal_board_has_addressable_debt
+    self.assertEqual(key, "5po3\r\x1b")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: '5' != '5po3\r\x1b'
+- 5
++ 5po3
++ 
+
+
+======================================================================
+FAIL: test_known_equipment_annotation_and_added_knowledge (tests.test_calibration_live31.Live31CalibrationTest.test_known_equipment_annotation_and_added_knowledge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live31.py", line 164, in test_known_equipment_annotation_and_added_knowledge
+    self.assertEqual(policy._calibration_restore_item_matches(owner, changed), True)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False != True
+
+----------------------------------------------------------------------
+Ran 6 tests in 5.547s
+
+FAILED (failures=3)

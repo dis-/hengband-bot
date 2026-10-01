@@ -1,0 +1,14 @@
+python : ......
+発生場所 行:2 文字:59
++ ... ONUTF8='1'; python -m unittest tests.test_calibration_live31 2>&1 | T ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (......:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+live31 first divergence '5pKpD3\rpCpA2\rpz2\rpy3\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b' live '5pKpD3\rpCpA2\rpz2\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b'
+----------------------------------------------------------------------
+Ran 6 tests in 6.011s
+
+OK
+live31 first divergence '5pKpD3\rpCpA2\rpz2\rpy3\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b' live '5pKpD3\rpCpA2\rpz2\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b'
+live31 terminal recovery '5po3\r\x1b' live None town:blocked:calibration-restore-target-absent

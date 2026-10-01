@@ -1,0 +1,8 @@
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 23.496s
+System.Management.Automation.RemoteException
+OK
+live19 capture continuation: [('wf', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wa(', 'equipment-transaction:equip', 'calibration'), ('wa', 'equipment-transaction:equip', 'calibration'), ('~9\x1b', 'calibration:request-restore-knowledge', 'calibration')]
+live19 recorded recovery: None home:process-next-batch-item
+live19 recorded recovery: None home:process-next-batch-item

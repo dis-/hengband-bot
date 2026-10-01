@@ -1,0 +1,5 @@
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 48.895s
+System.Management.Automation.RemoteException
+OK
