@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "state.jsonl.gz": "1f149f4fe5c72a7f6e4aa3851fc8d595de2bb1b6de3f15a9f962655c669a02df",
+    "decisions.jsonl.gz": "953bc506a82a4c7ff99302ece0a66e4b30a7eae50bc6d204f8f36d0014217260"
+  },
+  "attach_row": 4052,
+  "end_row": 4211,
+  "decision_count": 105,
+  "boundary_rule": "walk backwards using exact current decision timing.batch_bytes decoded character count, verifying every turn; initial attach row alone"
+}

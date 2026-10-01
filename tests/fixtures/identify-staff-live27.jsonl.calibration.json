@@ -1,0 +1,42 @@
+{
+ "race_id": 25,
+ "class_id": 0,
+ "personality_id": 1,
+ "level": 21,
+ "stat_cur": [
+  60,
+  11,
+  17,
+  39,
+  45,
+  10
+ ],
+ "base_stats": [
+  140,
+  3,
+  8,
+  69,
+  115,
+  6
+ ],
+ "base_hp": 335,
+ "base_ac_bonus": 0,
+ "intrinsic_abilities": [
+  "resist_cold",
+  "resist_neth",
+  "resist_pois",
+  "see_invisible"
+ ],
+ "pinned_identities": [],
+ "observed_turn": 688556,
+ "mutation_signature": [],
+ "intrinsic_tr_flags": [
+  10,
+  47,
+  51,
+  52,
+  60,
+  78,
+  80
+ ]
+}
