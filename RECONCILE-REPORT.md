@@ -9,7 +9,7 @@ divergence. Their shared first decisions are:
 
 | Pin purpose / failures | First divergence | Verdict and captured values |
 | --- | --- | --- |
-| Town A1 walk, A1 full stream, S2b2, S3 violations, B1 latch, B1 recall (six failures) | Index 48, sequence 47, turn 5328458: live `\x1b`n%.` / `shop:travel`; corrected `\x1b`n(.` / `equipment-transaction:travel-home` | Legitimate. Old weapon/shield keeps equipped Theoden axe, DPS 113.88679069, survival 16.80939145; selector correction chooses Home Avavir scythe with shield, DPS 157.90346946, survival 16.24382859. See `validation/reconcile/town-optimizer-evidence.json:3`. All six failures share this continuous replay; later failed walk/latch observations are consequences, not six independent first divergences. |
+| Town A1 walk, A1 full stream, S2b2, S3 violations, B1 latch, B1 recall (six failures) | Index 48, sequence 47, turn 5328458: live ``\x1b`n%.`` / `shop:travel`; corrected ``\x1b`n(.`` / `equipment-transaction:travel-home` | Legitimate. Old weapon/shield keeps equipped Theoden axe, DPS 113.88679069, survival 16.80939145; selector correction chooses Home Avavir scythe with shield, DPS 157.90346946, survival 16.24382859. See `validation/reconcile/town-optimizer-evidence.json:3`. All six failures share this continuous replay; later failed walk/latch observations are consequences, not six independent first divergences. |
 | Live27 mining | Index 11: live `{f.\r`, corrected `{g.\r`, both `equipment:suppress-random-teleport` | Legitimate. Old hammer/mace dual wield DPS 13.38018547; selector correction chooses hammer two handed DPS 112.01172916. See `validation/reconcile/live27-optimizer-evidence.json:3`, pin decision loop `tests/test_identify_staff_live27_recorded.py:57`. |
 | ClassC2 public ammo route, residual-surplus route, guardian remedy (three failures) | Independent capture seams at sequence 11411, turn 1493887; public route expects ``\x1b`n(.`` / `shop:travel`, corrected `tb` / `equipment-transaction:takeoff`; constructed guardian seam first adds `equipment_departure_ready` to failed conjuncts | Legitimate. Old Defender spear/Avavir scythe dual wield DPS 16.81640718, survival 7.32982252; selector correction chooses spear two handed DPS 87.23033856, survival 6.97176867. See `validation/reconcile/classC2-optimizer-evidence.json:3`; public assertions originally `tests/test_classC2_departure_recorded.py:193`, `:242`, `:282`. Constructed boards are independent counterfactuals, not historical effects. |
 
@@ -59,3 +59,34 @@ No changed pre-existing assertions or forbidden test edits.
 ```
 
 Event: `{"topic":"reconcile","implementer":"gpt-6.1-sol","step":2,"changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits."}`
+
+# Merged supplier regression (STEP 3)
+
+Required verification exposed one additional failure in the unchanged
+`tests/test_policy_equipment.py:872` restored-terminal pin. Its first failing
+observation (`:888`) was Home supplier `7` instead of `None`. Repeating that
+one test with the historical selector and bonus function still failed, ruling
+out the dual-wield fix. Diagnostic output was:
+
+```text
+SUPPLIER 7 needs [TownNeed(store_type=7, category='identification-withdrawal', ordering_class='post-alchemist-home')] overweight 1682 1700 deposit None exhausted True
+```
+
+The class C merge replaced the global exhausted-equipment return with
+per-owner filtering so independent supply and safe-deposit remedies can run.
+It filtered `equipment-work` and `equipment-transaction`, but overlooked the
+equipment candidate's identification withdrawal. That is a defect of the
+merged supplier change, not a legitimate optimizer consequence.
+`src/hengbot/policy_town.py:3345` now filters that handoff only when equipment
+is exhausted. Independent supplies, safe deposits and the existing retirement
+filters retain their behavior. No attributes, thresholds, or assertions added.
+The existing restored-checkpoint pin is the regression/revert cover: it fails
+without this guard and passes with it; the whole 192-test module passes.
+
+STEP 3 assertion audit (verbatim):
+
+```text
+No changed pre-existing assertions or forbidden test edits.
+```
+
+Event: `{"topic":"reconcile","implementer":"gpt-6.1-sol","step":3,"defect":"exhausted equipment identification withdrawal exposed as supplier","changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits."}`
