@@ -219,6 +219,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         class CapturingExecutor:
             client = object()
             ready_board = None
+            active = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -236,6 +237,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         class CapturingExecutor:
             client = object()
             ready_board = None
+            active = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -255,6 +257,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         class CapturingExecutor:
             client = object()
             ready_board = None
+            active = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -274,6 +277,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         class CapturingExecutor:
             client = object()
             ready_board = None
+            active = None
 
             def submit(self, operation, *, deadline):
                 self.operation, self.deadline = operation, deadline
@@ -296,6 +300,7 @@ class Stage2aFollowBarrierPin(unittest.TestCase):
         class DeathExecutor:
             client = object()
             ready_board = None
+            active = None
 
             def submit(self, operation, *, deadline):
                 return SimpleNamespace(
