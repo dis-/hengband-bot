@@ -1222,7 +1222,9 @@ class TownMixin:
             getattr(self, "_town_claim_bar_enforced", False)
             and plan is not None and plan.index < len(plan.stops)
         )
-        if proposed_reason == "breakout:least-visited" and not plan_stop_pending:
+        if (snapshot.store is None
+                and proposed_reason == "breakout:least-visited"
+                and not plan_stop_pending):
             self._boxed_town_breakout_key(snapshot)
             committed = self._commit_boxed_town_breakout_key(snapshot)
             if committed is not None:
@@ -1273,6 +1275,11 @@ class TownMixin:
                 )
             return key
 
+        if snapshot.store is not None:
+            # Preserve the store producer's exit/continuation as its own step.
+            # Its command language cannot accept survival or detector map
+            # commands. Procurement resumes only on an observed outside board.
+            return key
         progress = self._town_procurement_progress_key(snapshot)
         if progress is None:
             liveness_candidate = (

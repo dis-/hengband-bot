@@ -1,0 +1,137 @@
+F.FFFFFFFFFF
+======================================================================
+FAIL: test_recorded_home_scan_exit_survives_production_arbitration (tests.test_live35_store_page.Live35StorePageTest.test_recorded_home_scan_exit_survives_production_arbitration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 50, in test_recorded_home_scan_exit_survives_production_arbitration
+    self.assertEqual(policy._town_procurement_decision(board, "\x1b"), "\x1b")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=1, reason='home:scan-incomplete-open-page', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=1, reason='survival:eat', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=1, reason='rest', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=1, reason='town:recover', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=1, reason='no-wait:escape-scroll', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=2, reason='home:scan-incomplete-open-page', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=2, reason='survival:eat', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=2, reason='rest', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=2, reason='town:recover', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+======================================================================
+FAIL: test_store_language_is_preserved_for_all_exit_and_wait_owners (tests.test_live35_store_page.Live35StorePageTest.test_store_language_is_preserved_for_all_exit_and_wait_owners) (index=2, reason='no-wait:escape-scroll', key='\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live35_store_page.py", line 62, in test_store_language_is_preserved_for_all_exit_and_wait_owners
+    self.assertEqual(policy._town_procurement_decision(board, key), key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Eg' != '\x1b'
+- Eg
++ 
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.510s
+
+FAILED (failures=11)
