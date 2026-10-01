@@ -130,8 +130,7 @@ Explicitly authorized stuck/withdraw runs of first_divergence_s3_3.py:
 | withdraw/off | 34 | a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9 | matching |
 | withdraw/s33 | 4 | index 3, sequence 3, ESC / equipment-transaction:catalogue-leave-for-scan | trajectory_defect null |
 
-Step-1 commit: bce3c16a. Implementation commit is recorded below after git
-creates it. The original evidence/assertions and EXPECTED_FIRST are unchanged.
+Step-1 commit: bce3c16a. Implementation commit: 92fe295a. The original evidence/assertions and EXPECTED_FIRST are unchanged.
 No live game/bot interaction, generic mining remedy, publishing or other
 worktree write was performed.
 
@@ -156,3 +155,11 @@ Assertion audit before step-2 commit, base ed59a8eb, verbatim:
 ```
 No changed pre-existing assertions or forbidden test edits.
 ```
+
+Final assertion audit before report commit, base ed59a8eb, verbatim:
+
+```
+No changed pre-existing assertions or forbidden test edits.
+```
+
+{"topic":"tpstockout","implementer":"gpt-6.1-sol","status":"complete","base":"ed59a8eb","step1_commit":"bce3c16a","implementation_commit":"92fe295a","cause":"Home prepended to suppliers exceeded finite registry lookups","before":{"key":"5","reason":"town:blocked:no-actionable-claim-owner"},"after":{"key":"\u001b`n%.","reason":"shop:travel","store_type":4},"tests_passed":94,"restored_checkpoint":"pass","revert_check":"six expected failing subcases; restored code passes","stuck_off_s33":"pass","withdraw_off_s33":"pass-designed-index-3","generic_stockout_mining":false,"changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits.","blockers":[]}
