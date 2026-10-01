@@ -1289,8 +1289,11 @@ class CalibrationMixin:
                     key = self._atomic_home_deposit_key(
                         snapshot, snapshot.player.position)
                 else:
-                    key = self._shopping_approach_step(
+                    step = self._shopping_approach_step(
                         snapshot, STORE_HOME, requester="calibration")
+                    key = (self._shopping_approach_key(
+                        snapshot, step, "calibration:deposit-travel")
+                        if step is not None else None)
                 if key is None:
                     return self._calibration_restore_terminal("deposit-failed")
                 return key
