@@ -129,6 +129,7 @@ class WarriorDefenseInputs:
     base_speed: int = 110
     saving_skill: int = 0
     intrinsic_flags: frozenset[int] = frozenset()
+    intrinsic_dex: int = 0
 
 
 @dataclass(frozen=True)
@@ -156,7 +157,7 @@ def loadout_armor_class(loadout: Loadout, inputs: WarriorDefenseInputs) -> int:
     if TR_LOW_AC in flags:
         raise ValueError("LOW_AC curse magnitude is not present in bot telemetry")
 
-    dexterity = modify_stat_value(inputs.natural_dex, _pval_total(loadout, TR_DEX))
+    dexterity = modify_stat_value(inputs.natural_dex, inputs.intrinsic_dex + _pval_total(loadout, TR_DEX))
     armor_class = inputs.base_ac_bonus + ADJ_DEX_TO_AC[stat_index(dexterity)]
     armor_class += sum(item.item.ac + item.item.to_a for _, item in loadout.slots)
 

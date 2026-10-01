@@ -146,6 +146,12 @@ class CharacterCalibration:
     # rest — and become worn-independent search input.
     intrinsic_tr_flags: frozenset[int] = frozenset()
 
+    schema_version: int = 1
+    source: str = "legacy-strip"
+    natural_stats: tuple[int, ...] = ()
+    intrinsic_adjustments: tuple[int, ...] = ()
+    hp_floor: int = 1
+
     def stale_reason(
         self,
         player,
@@ -295,7 +301,7 @@ def warrior_optimizer_input_key(
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
     inputs = {
-        "schema": 2,
+        "schema": 3,
         "items": tuple(sorted(
             (optimizer_item_projection(item) for item in items),
             key=lambda projection: projection[0],
@@ -694,9 +700,11 @@ def prepare_warrior_optimization(
     intrinsic_abilities = _effective_intrinsic_abilities(
         player, calibration.intrinsic_abilities
     )
-    base_str = calibration.base_stats[0]
-    base_dex = calibration.base_stats[3]
-    base_con = calibration.base_stats[4]
+    stats = calibration.natural_stats or calibration.base_stats
+    adjustments = calibration.intrinsic_adjustments or (0,) * 6
+    base_str = stats[0]
+    base_dex = stats[3]
+    base_con = stats[4]
     base_hp = calibration.base_hp
     base_ac_bonus = calibration.base_ac_bonus
     # The naked characteristics enrich the evaluator's intrinsic flag set with
@@ -714,6 +722,7 @@ def prepare_warrior_optimization(
     defense = WarriorDefenseInputs(
         level=player.level,
         natural_dex=base_dex,
+        intrinsic_dex=adjustments[3],
         shield_skill=player.shield_skill,
         base_ac_bonus=base_ac_bonus,
         base_speed=player.speed - _equipment_speed(current),
@@ -725,6 +734,8 @@ def prepare_warrior_optimization(
             level=player.level,
             natural_str=base_str,
             natural_dex=base_dex,
+            intrinsic_str=adjustments[0],
+            intrinsic_dex=adjustments[3],
             melee_skill=player.melee_skill,
             shooting_skill=getattr(player, "shooting_skill", player.melee_skill),
             two_weapon_skill=player.two_weapon_skill,
@@ -736,6 +747,8 @@ def prepare_warrior_optimization(
             player_has_mana=player.max_mp > 0,
         ),
         natural_con=base_con,
+        intrinsic_con=adjustments[4],
+        hp_floor=calibration.hp_floor,
         base_hp=base_hp,
     )
     evaluator = (

@@ -89,6 +89,8 @@ class WarriorCombatInputs:
     two_weapon_skill: int = 0
     valour_hit_bonus: int = 0
     lazy_personality: bool = False
+    intrinsic_str: int = 0
+    intrinsic_dex: int = 0
 
 
 @dataclass(frozen=True)
@@ -359,8 +361,8 @@ def evaluate_warrior_melee(
     neutral_target_brands: bool = False,
 ) -> WarriorMeleeResult:
     """Evaluate source-compatible melee damage against the requested AC."""
-    strength = modify_stat_value(inputs.natural_str, _pval_total(loadout, TR_STR))
-    dexterity = modify_stat_value(inputs.natural_dex, _pval_total(loadout, TR_DEX))
+    strength = modify_stat_value(inputs.natural_str, inputs.intrinsic_str + _pval_total(loadout, TR_STR))
+    dexterity = modify_stat_value(inputs.natural_dex, inputs.intrinsic_dex + _pval_total(loadout, TR_DEX))
     str_idx = stat_index(strength)
     dex_idx = stat_index(dexterity)
     main = loadout.item_at(SLOT_MAIN_HAND)

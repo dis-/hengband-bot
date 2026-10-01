@@ -116,6 +116,8 @@ class WarriorLoadoutInputs:
     spell_selection: SpellSelectionContext | None = None
     natural_con: int = 3
     base_hp: int | None = None
+    intrinsic_con: int = 0
+    hp_floor: int = 1
 
 
 @dataclass(frozen=True)
@@ -140,10 +142,10 @@ def loadout_max_hp(loadout: Loadout, inputs: WarriorLoadoutInputs) -> int:
     if inputs.base_hp is None:
         return inputs.current_hp
     constitution = modify_stat_value(
-        inputs.natural_con, _pval_total(loadout, TR_CON)
+        inputs.natural_con, inputs.intrinsic_con + _pval_total(loadout, TR_CON)
     )
     return max(
-        1,
+        inputs.hp_floor,
         inputs.base_hp
         + constitution_hp_bonus(constitution, inputs.combat.level),
     )
@@ -166,8 +168,8 @@ def warrior_ranged_offense_dps(
         return 0.0
     ammo_tval, energy, multiplier = LAUNCHER_PROPERTIES[launcher.item.sval]
     ammo_damage = STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
-    strength = modify_stat_value(inputs.natural_str, _pval_total(loadout, TR_STR))
-    dexterity = modify_stat_value(inputs.natural_dex, _pval_total(loadout, TR_DEX))
+    strength = modify_stat_value(inputs.natural_str, inputs.intrinsic_str + _pval_total(loadout, TR_STR))
+    dexterity = modify_stat_value(inputs.natural_dex, inputs.intrinsic_dex + _pval_total(loadout, TR_DEX))
     str_idx = stat_index(strength)
     dex_idx = stat_index(dexterity)
     hold = ADJ_STR_HOLD[str_idx]
