@@ -1,0 +1,12 @@
+﻿# bad: [08fef4dc3525a127afe5fdb01d0b796c3f7b0ce1] Record the live26 and live27 events
+# good: [2fe5a02e02a871c790669587a05e2889ecec430b] Record the live19-21 calibration and shop entry event
+git bisect start '08fef4dc' '2fe5a02e' '--' 'src/hengbot'
+# bad: [8c7bbd712dffef58250453959e3f6d71820e4129] fix(live26): bind unchanged catalogue scans to their registered equipment work
+git bisect bad 8c7bbd712dffef58250453959e3f6d71820e4129
+# bad: [028434ccccebbd6515c4a9a55ebd09d7d5eb7ea9] Restore skipping unavailable bounty offices without a town block
+git bisect bad 028434ccccebbd6515c4a9a55ebd09d7d5eb7ea9
+# good: [6a9dcdcbd4cefc248984f5ebabf20b9cbdc054c8] Keep bounty errands owned and judge progress against their declared goal
+git bisect good 6a9dcdcbd4cefc248984f5ebabf20b9cbdc054c8
+# bad: [ddebaf64ae89b4825d6ce9435890039dc1df5255] fix(live23): keep registered Home catalogue work through acquisition
+git bisect bad ddebaf64ae89b4825d6ce9435890039dc1df5255
+# first bad commit: [ddebaf64ae89b4825d6ce9435890039dc1df5255] fix(live23): keep registered Home catalogue work through acquisition
