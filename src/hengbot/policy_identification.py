@@ -899,9 +899,10 @@ class IdentificationMixin:
         """Key that identifies a non-worn carried item, or None if none is usable.
 
         The carried Staff of Identify is only allowed when its modelled success
-        rate clears STAFF_IDENTIFY_MIN_SUCCESS; below that a town staff misfire
-        would leak the target selector onto the town map, so only a scroll is
-        accepted.  A full *Identify* always needs a scroll regardless.  A device
+        rate clears STAFF_IDENTIFY_MIN_SUCCESS; below that only a reliable
+        scroll is accepted. Normal answers are gated even above that rate:
+        a staff can still fail without opening the target chooser. A full
+        *Identify* always needs a scroll regardless. A device
         that repeatedly fails to land (unknown count unchanged) is abandoned via
         _unidentifiable_sigs so it cannot loop.
         """
@@ -932,12 +933,22 @@ class IdentificationMixin:
             else:
                 self._identify_watch = watch
                 self._identify_fail_streak = 0
-        return (
+        key = (
             command
             + source_item.slot
             + target.slot
             + (FULL_IDENTIFY_DISMISS_SUFFIX if full else "")
         )
+        if not full:
+            # A device may fail without opening the target chooser. Never
+            # queue that target as a command; each answer owns its prompt.
+            self._staged_prompt_chain = {
+                "owner": "identify:normal", "key": key,
+                "sequence": self._decision_sequence, "turn": snapshot.turn,
+                "gates": ((1, SOURCE_PROMPT[command]), (2, IDENTIFY_ITEM_PROMPT)),
+            }
+            self._declare_non_discardable()
+        return key
 
     def _identification_deadlock_recoverable(self, snapshot: Snapshot) -> bool:
         """A pure Home-identification deadlock that only a mining retry re-arms.
