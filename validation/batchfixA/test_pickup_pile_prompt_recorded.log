@@ -1,0 +1,7 @@
+..<stuck-prompt> owner=conquest:pickup phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+....<stuck-prompt> owner=conquest:pickup phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+......
+----------------------------------------------------------------------
+Ran 12 tests in 1.122s
+
+OK

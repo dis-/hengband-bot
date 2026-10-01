@@ -1,0 +1,13 @@
+E
+======================================================================
+ERROR: test_historical_gate_stop_shadow_agrees_without_mutation (tests.test_live32_shop_leave.Live32ShopLeaveTest.test_historical_gate_stop_shadow_agrees_without_mutation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live32_shop_leave.py", line 87, in test_historical_gate_stop_shadow_agrees_without_mutation
+    before = pickle.dumps(policy)
+AttributeError: Can't get local object 'TownMixin._town_need_registry.<locals>.<lambda>'
+
+----------------------------------------------------------------------
+Ran 1 test in 1.307s
+
+FAILED (errors=1)

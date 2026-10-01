@@ -1,0 +1,25 @@
+F
+======================================================================
+FAIL: test_p1b_rewritten_store_key_releases_the_posting_it_armed (tests.test_posted_effect_unobserved.PostedEffectUnobservedTest.test_p1b_rewritten_store_key_releases_the_posting_it_armed)
+The 20:10 substitution no longer strands the visit it armed.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_posted_effect_unobserved.py", line 256, in test_p1b_rewritten_store_key_releases_the_posting_it_armed
+    self.assertEqual((str(key), policy.last_reason),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (recorded["key"], recorded["reason"]))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('\x1b', 'home:queue-withdraw-identify-staff-reserve') != ('Eh', 'town-progress-invariant:defect:home[57 chars]orb')
+
+First differing element 0:
+'\x1b'
+'Eh'
+
+- ('\x1b', 'home:queue-withdraw-identify-staff-reserve')
++ ('Eh',
++  'town-progress-invariant:defect:home:queue-withdraw-identify-staff-reserve=>survival:mana-absorb')
+
+----------------------------------------------------------------------
+Ran 1 test in 1.395s
+
+FAILED (failures=1)

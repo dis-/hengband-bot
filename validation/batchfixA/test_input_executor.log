@@ -1,0 +1,9 @@
+...................................<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 reason=expected prompt absent
+<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 reason=expected prompt absent
+.............<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 reason=unowned item-target: Identify which item?
+.............<stuck-prompt> owner=quest:enter:approach phase=continuation transport=accepted request_id=3 reason=unowned confirm: Enter the arena? [y/n]
+............
+----------------------------------------------------------------------
+Ran 73 tests in 2.094s
+
+OK

@@ -9,12 +9,13 @@ from pathlib import Path
 
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen
+from tests import test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 FIXTURES = Path(__file__).parent / "fixtures" / "live-screens"
 
 
-class StoreWhich2RecordedPin(ProductionHarness):
+class StoreWhich2RecordedPin(executor_harness.ProductionHarness):
     def test_live_metadata_and_recorded_screen_after_p(self):
         data = (FIXTURES / "storewhich2-20261001-2130.json").read_bytes()
         self.assertEqual(hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest(),

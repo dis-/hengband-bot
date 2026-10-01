@@ -1,0 +1,54 @@
+................<no-key:warning:refused-without-key>
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> 2 consecutive decisions produced no command; stopping the bot
+...........................................
+
+<loop-detected> floor=(0, 1, 0) turn=3 confined to [(5, 5), (5, 6)] over 40 decisions; stopping the bot for investigation
+loop detected at floor=(0, 1, 0) cells=[(5, 5), (5, 6)]; stopping bot (game left running)
+.<no-key:home:atomic-withdraw-target-unobserved>
+<no-key:home:atomic-withdraw-target-unobserved>
+<no-key-exhausted> 2 consecutive decisions produced no command; stopping the bot
+.~9
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+.6
+..<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+.5
+<posting-contract:identical-repost-unobserved> {'marker': 'posting-contract:identical-repost-unobserved', 'owner': 'first-decision', 'key': '5'}
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+..5
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 0.001s after a decision produced no command; stopping the bot
+....................<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+<esc>
+........................invalid snapshot: list index out of range
+...........................invalid snapshot: Expecting value: line 2 column 1 (char 24)
+........<player-death> feature=tomb
+...<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+...<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+.....<input-owner-busy> control_port=18345 another bot process owns the causal input barrier
+...................................................<posting-contract:identical-repost-unobserved> {'marker': 'posting-contract:identical-repost-unobserved'}
+<posting-contract:prompt-owner-mismatch> {'marker': 'posting-contract:prompt-owner-mismatch'}
+..........................
+----------------------------------------------------------------------
+Ran 234 tests in 19.450s
+
+OK

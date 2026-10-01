@@ -1,0 +1,38 @@
+FIRST REGISTRY MATERIALIZATION
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_shop.py", line 3301, in _batch_sell_key
+    self._current_store_sale_candidates(snapshot)
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_shop.py", line 3179, in _current_store_sale_candidates
+    organization = self._find_town_organization_surplus(snapshot)
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_town.py", line 4173, in _find_town_organization_surplus
+    self._find_device_sale(snapshot),
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_shop.py", line 425, in _find_device_sale
+    return self._first_item(
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_helpers.py", line 224, in _first_item
+    if item.slot and predicate(item):
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_shop.py", line 427, in <lambda>
+    lambda item: self._retention_surplus(snapshot, item) > 0
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_home.py", line 1098, in _retention_surplus
+    return max(0, item.count - self._retention_reservation(snapshot, item))
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_home.py", line 776, in _retention_reservation
+    return self._retention_reservation_detail(snapshot, item)[0]
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_home.py", line 816, in _retention_reservation_detail
+    plan = ammo_carry_plan(snapshot, launcher, self._ammo_procurement_target(
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_home.py", line 1145, in _ammo_procurement_target
+    for i in self._weight_deposit_candidates(snapshot, include_ammo=False)
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\19a6fd1f\src\hengbot\policy_home.py", line 1188, in _weight_deposit_candidates
+    for spec in self._town_need_registry()
+  File "C:\hengband\bot-client-decl-r3b\validation\batchfixA\trace_registry.py", line 9, in trace
+    traceback.print_stack(limit=12)
+E
+======================================================================
+ERROR: test_historical_gate_stop_shadow_agrees_without_mutation (tests.test_live32_shop_leave.Live32ShopLeaveTest.test_historical_gate_stop_shadow_agrees_without_mutation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live32_shop_leave.py", line 107, in test_historical_gate_stop_shadow_agrees_without_mutation
+    before = pickle.dumps(policy)
+AttributeError: Can't get local object 'TownMixin._town_need_registry.<locals>.<lambda>'
+
+----------------------------------------------------------------------
+Ran 1 test in 1.982s
+
+FAILED (errors=1)

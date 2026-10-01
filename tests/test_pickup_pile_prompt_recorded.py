@@ -57,6 +57,7 @@ import re
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from hengbot.cli import (
     PostingContract,
@@ -311,7 +312,12 @@ class PickupPilePromptRecordedTest(unittest.TestCase):
         # The pre-fix sender: the whole composed key as one operation.
         game = self._game()
         port = self._ready(game)
-        sent = port(STOP_KEY, decision=self._decision())
+        # This pin explicitly feeds the PRE-FIX atomic operation. Class A
+        # now compiles direct port calls too; bypass only that compiler here,
+        # leaving transport, executor classification and every outcome live.
+        with patch("hengbot.observed_input.compile_observed_input",
+                   side_effect=lambda key, kind, board, owner, steps, **kw: (key, steps)):
+            sent = port(STOP_KEY, decision=self._decision())
         self.assertIs(sent, SendResult.TERMINAL)
         self.assertEqual(game.accepted, [STOP_KEY])
         self.assertEqual(game.picked, ["バトル・アックス (2d8)"])

@@ -698,7 +698,11 @@ class ClosingPathsTest(unittest.TestCase):
         self.assertEqual(
             [row["barrier_provenance"] for row in rows
              if row["reason"] == "shop:await-leave-confirmation"],
-            ["barrier-provenance-missing"] * 2,
+            # Claude ruling 2026-10-01 (batchfixA): with STORE_STUCK_LIMIT 8 and
+            # two increments per loop (5430/5432/5434 wait, 5436 releases) the
+            # recorded attachment waits three times; the old "2" was an
+            # arithmetic error in the assertion (ef93a790), not behaviour.
+            ["barrier-provenance-missing"] * 3,
         )
 
         # Keep the original unobserved-effect closing pin when the exiting

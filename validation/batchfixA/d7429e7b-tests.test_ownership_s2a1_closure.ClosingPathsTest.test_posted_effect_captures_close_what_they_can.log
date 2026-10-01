@@ -1,0 +1,32 @@
+F
+======================================================================
+FAIL: test_posted_effect_captures_close_what_they_can (tests.test_ownership_s2a1_closure.ClosingPathsTest.test_posted_effect_captures_close_what_they_can)
+The captures are effects that never arrived; their closings.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_ownership_s2a1_closure.py", line 698, in test_posted_effect_captures_close_what_they_can
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        [row["barrier_provenance"] for row in rows
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         if row["reason"] == "shop:await-leave-confirmation"],
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ["barrier-provenance-missing"] * 2,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: ['bar[22 chars]g', 'barrier-provenance-missing', 'barrier-provenance-missing'] != ['bar[22 chars]g', 'barrier-provenance-missing']
+
+First list contains 1 additional elements.
+First extra element 2:
+'barrier-provenance-missing'
+
++ ['barrier-provenance-missing', 'barrier-provenance-missing']
+- ['barrier-provenance-missing',
+-  'barrier-provenance-missing',
+-  'barrier-provenance-missing']
+
+----------------------------------------------------------------------
+Ran 1 test in 6.557s
+
+FAILED (failures=1)
