@@ -1,0 +1,69 @@
+caltravel s33=False restored=False: first=('\x1b`n(.', 'calibration:deposit-travel'); next=(None, 'ownership:holder-silent:calibration'); live-next={'decision_sequence': 4677, 'turn': 1722384, 'key': None, 'reason': 'ownership:holder-silent:calibration'}
+caltravel s33=False restored=True: first=('\x1b`n(.', 'calibration:deposit-travel'); next=(None, 'ownership:holder-silent:calibration'); live-next={'decision_sequence': 4677, 'turn': 1722384, 'key': None, 'reason': 'ownership:holder-silent:calibration'}
+caltravel s33=True restored=False: first=('\x1b`n(.', 'calibration:deposit-travel'); next=('\x1b`n(.', 'store:entry-interrupted-replan'); live-next={'decision_sequence': 4677, 'turn': 1722384, 'key': None, 'reason': 'ownership:holder-silent:calibration'}
+caltravel s33=True restored=True: first=('\x1b`n(.', 'calibration:deposit-travel'); next=('\x1b`n(.', 'store:entry-interrupted-replan'); live-next={'decision_sequence': 4677, 'turn': 1722384, 'key': None, 'reason': 'ownership:holder-silent:calibration'}
+FFFF
+======================================================================
+FAIL: test_recorded_response_continues_calibration_off_and_s33 (tests.test_caltravel_recorded.CaltravelRecordedTest.test_recorded_response_continues_calibration_off_and_s33) (on=False, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c3\tests\test_caltravel_recorded.py", line 79, in test_recorded_response_continues_calibration_off_and_s33
+    self.assertEqual(second, ("\x1b`n(.", "calibration:deposit-travel"))
+AssertionError: Tuples differ: (None, 'ownership:holder-silent:calibration') != ('\x1b`n(.', 'calibration:deposit-travel')
+
+First differing element 0:
+None
+'\x1b`n(.'
+
+- (None, 'ownership:holder-silent:calibration')
++ ('\x1b`n(.', 'calibration:deposit-travel')
+
+======================================================================
+FAIL: test_recorded_response_continues_calibration_off_and_s33 (tests.test_caltravel_recorded.CaltravelRecordedTest.test_recorded_response_continues_calibration_off_and_s33) (on=False, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c3\tests\test_caltravel_recorded.py", line 79, in test_recorded_response_continues_calibration_off_and_s33
+    self.assertEqual(second, ("\x1b`n(.", "calibration:deposit-travel"))
+AssertionError: Tuples differ: (None, 'ownership:holder-silent:calibration') != ('\x1b`n(.', 'calibration:deposit-travel')
+
+First differing element 0:
+None
+'\x1b`n(.'
+
+- (None, 'ownership:holder-silent:calibration')
++ ('\x1b`n(.', 'calibration:deposit-travel')
+
+======================================================================
+FAIL: test_recorded_response_continues_calibration_off_and_s33 (tests.test_caltravel_recorded.CaltravelRecordedTest.test_recorded_response_continues_calibration_off_and_s33) (on=True, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c3\tests\test_caltravel_recorded.py", line 79, in test_recorded_response_continues_calibration_off_and_s33
+    self.assertEqual(second, ("\x1b`n(.", "calibration:deposit-travel"))
+AssertionError: Tuples differ: ('\x1b`n(.', 'store:entry-interrupted-replan') != ('\x1b`n(.', 'calibration:deposit-travel')
+
+First differing element 1:
+'store:entry-interrupted-replan'
+'calibration:deposit-travel'
+
+- ('\x1b`n(.', 'store:entry-interrupted-replan')
++ ('\x1b`n(.', 'calibration:deposit-travel')
+
+======================================================================
+FAIL: test_recorded_response_continues_calibration_off_and_s33 (tests.test_caltravel_recorded.CaltravelRecordedTest.test_recorded_response_continues_calibration_off_and_s33) (on=True, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c3\tests\test_caltravel_recorded.py", line 79, in test_recorded_response_continues_calibration_off_and_s33
+    self.assertEqual(second, ("\x1b`n(.", "calibration:deposit-travel"))
+AssertionError: Tuples differ: ('\x1b`n(.', 'store:entry-interrupted-replan') != ('\x1b`n(.', 'calibration:deposit-travel')
+
+First differing element 1:
+'store:entry-interrupted-replan'
+'calibration:deposit-travel'
+
+- ('\x1b`n(.', 'store:entry-interrupted-replan')
++ ('\x1b`n(.', 'calibration:deposit-travel')
+
+----------------------------------------------------------------------
+Ran 1 test in 9.421s
+
+FAILED (failures=4)

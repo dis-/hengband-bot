@@ -6324,8 +6324,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             elif family == "calibration" and continuation == "calibration.capture.observe":
                 return None
             elif (family == "calibration"
-                  and continuation == "calibration.restore-supplies"
-                  and self._calibration_phase == "restore-supplies"):
+                  and continuation in {"calibration.deposit", "calibration.restore-supplies"}
+                  and continuation == f"calibration.{self._calibration_phase}"):
                 return None
             elif continuation in {"home.knowledge.observe", "store.entry.observe",
                                   "home.operation.observe", "shop.one-shot.dispatch"}:
@@ -6464,7 +6464,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return self._town_declared_producer_result(
                         holder, snapshot, key, since)
             elif (family == "calibration"
-                  and declaration.continuation == "calibration.restore-supplies"):
+                  and declaration.continuation in {
+                      "calibration.deposit", "calibration.restore-supplies"}):
                 since = self._decision_offer_buffer().sequence
                 key = self._calibration_town_key(snapshot)
                 return self._town_declared_producer_result(
@@ -6567,6 +6568,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
+        declaration = holder.execution
+        # Cross-area calibration also owns this continuation with S3.3 OFF.
+        # A generic route continuation cannot resume its deposit/restore phase.
+        if (holder.owner.value == "calibration"
+                and declaration is not None
+                and declaration.expected_effect == "home-reached"
+                and declaration.continuation in {
+                    "calibration.deposit", "calibration.restore-supplies"}
+                and declaration.continuation == f"calibration.{self._calibration_phase}"):
+            return self._town_holder_declared_key(holder, snapshot)
         if getattr(self, "_town_claim_bar_enforced", False):
             return self._town_holder_declared_key(holder, snapshot)
         route_unresolved = False
@@ -7641,6 +7652,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         "town-travel:interrupted-entry"
                     )
                     self._town_travel_state = None
+                # Short native travel ended outside Home. Keep the phase's
+                # producer responsible for composing and declaring its retry.
+                if (posted_entry_owner == STORE_HOME
+                        and self._calibration_owns_town_sequence()
+                        and self._calibration_phase in {"deposit", "restore-supplies"}):
+                    return self._calibration_town_key(snapshot)
                 step = self._shopping_approach_step(
                     snapshot, posted_entry_owner, router_plan_stop=True
                 )

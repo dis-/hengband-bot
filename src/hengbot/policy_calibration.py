@@ -1294,6 +1294,14 @@ class CalibrationMixin:
                     key = (self._shopping_approach_key(
                         snapshot, step, "calibration:deposit-travel")
                         if step is not None else None)
+                    if key is not None and not self._calibration_home_step_declared(key):
+                        self._offer_execution(
+                            key, producer="calibration",
+                            work_id="calibration:deposit-travel",
+                            next_step="calibration.deposit",
+                            expected_effect="home-reached",
+                            continuation="calibration.deposit",
+                        )
                 if key is None:
                     return self._calibration_restore_terminal("deposit-failed")
                 return key
