@@ -1,0 +1,8 @@
+<stuck-prompt> owner=identify:full phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-w,'(',')', '-'床上, ESC) どのアイテムを鑑定しますか?
+.<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-t,'(',')', '/' 装備品, ESC) どのアイテムを*鑑定*しますか?
+.<stuck-prompt> owner=identify:full phase=screen transport=accepted request_id=9 reason=read-only request failed
+.
+----------------------------------------------------------------------
+Ran 3 tests in 12.453s
+
+OK
