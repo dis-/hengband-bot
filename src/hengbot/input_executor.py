@@ -243,9 +243,15 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # inventory/floor-item-getter.cpp:460-461; spells-perception.cpp:125;
     # store/store.cpp:185. Require the exact prompt suffix, not history text.
     source_prompts = ("Read which scroll?", "Use which staff?", "Zap which rod?",
-                      "どの巻物を読みますか?", "どの杖を使いますか?", "どのロッドを振りますか?")
+                      "どの巻物を読みますか?", "どの杖を使いますか?", "どのロッドを振りますか?",
+                      # Recorded live30 quaff and cap-13/15/31 Home prompts.
+                      "どの薬を飲みますか?", "どれを装備しますか?",
+                      "どれを装備からはずしますか?", "どのアイテムを置きますか?")
     if any(row0.endswith(prompt) for prompt in source_prompts):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    # cap-16/57/59: choosing a ring opens a separate hand chooser.
+    if row0.endswith("どちらの手に装備しますか?"):
+        return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
     if re.fullmatch(FLOOR_PICKUP_PROMPT_PATTERN, row0):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
     if row0.endswith(("Enchant which item?", "どのアイテムを強化しますか?")):
@@ -253,10 +259,10 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?",
                       "*Identify* which item?", "どのアイテムを*鑑定*しますか?")):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
-    if row0.startswith("(Items ") and "ESC to exit)" in row0:
+    if row0.lstrip().startswith("(Items ") and "ESC to exit)" in row0:
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
     # store/store.cpp:181-185. Japanese selects either 商品 or アイテム.
-    if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", row0):
+    if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", row0.lstrip()):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
 
     # perception/identification.cpp:762-799. prt() starts at x=15 and the
@@ -353,6 +359,14 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     else:
         menu_y, offset_x, actions, complete = 0, 0, "", False
     if complete:
+        # Recorded cap-11/13/15/16/31 and live35 put the active item input
+        # cursor on row zero while retaining the store footer underneath.
+        # A footer alone is therefore insufficient for command admission.
+        cursor = screen.get("cursor")
+        if isinstance(cursor, Mapping) and cursor.get("visible") is True \
+                and cursor.get("y") == 0:
+            return ScreenMatch(ScreenKind.UNKNOWN, "unrecognized-store-input", 0,
+                               cursor.get("x"))
         if any(value in actions for value in ("p) Purchase an item.", "s) Sell an item.",
                 "g) Get an item.", "d) Drop an item.", "p) 商品を買う", "s) アイテムを売る",
                 "g) アイテムを取る", "d) アイテムを置く")):
@@ -967,6 +981,19 @@ class OperationExecutor:
             )
         if self.ready_board is None:
             return self._terminal(operation, "admission", "no fresh ready observation")
+        if self.ready_screen is None or self.ready_screen.kind not in (
+                ScreenKind.COMMAND, ScreenKind.STORE):
+            return self._terminal(operation, "admission", "command or store screen required")
+        # These commands belong exclusively to the map command language. Even
+        # a coherent Home board cannot authorize them at a STORE input wait.
+        if self.ready_screen.kind is ScreenKind.STORE:
+            first = operation.keys[:1]
+            store_producer = operation.owner.startswith((
+                "shop:", "home:", "calibration:", "equipment-transaction:",
+            ))
+            if (first in "EqruazRfvkToDFl012346789\\<>+`"
+                    or first in "swtgd{}5" and not store_producer):
+                return self._terminal(operation, "admission", "map command on store screen")
         self.ready_board = None
         operation.operation_reference = OperationReference(
             operation.sequence, operation.owner, self.executor_scope,
@@ -1142,6 +1169,9 @@ class OperationExecutor:
                 for feature in expected_features if feature is not None
             )
             equipped_full = self.active.owner == "identify:full-equipped"
+            equipped_identify = self.active.owner in {
+                "identify:full-equipped", "identify:normal-equipped",
+            }
             normal_carried = self.active.owner == "identify:normal"
             if equipped_full and match.kind is ScreenKind.ITEM_TARGET \
                     and ScreenKind.ITEM_TARGET in continuation.kinds:
@@ -1149,7 +1179,7 @@ class OperationExecutor:
                     "*Identify* which item?", "どのアイテムを*鑑定*しますか?",
                 ))
             if match.kind in continuation.kinds and feature_matches:
-                if equipped_full or normal_carried:
+                if equipped_identify or normal_carried:
                     prompt_state = self._request("state", deadline, map=True)
                     if prompt_state is None:
                         return self._terminal(
@@ -1239,6 +1269,10 @@ class OperationExecutor:
                         break
                     if not match.feature.startswith(("(Equip:", "(装備品:")):
                         break
+                if continuation.keys == "/" and match.kind in (
+                        ScreenKind.ITEM_SOURCE, ScreenKind.ITEM_TARGET) \
+                        and "'/'" not in match.feature:
+                    break
                 prompt_state = self._request("state", deadline, map=True)
                 if prompt_state is None:
                     return self._terminal(self.active, "state", "prompt binding failed", match, outcome)

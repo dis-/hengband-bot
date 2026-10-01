@@ -1,0 +1,29 @@
+[
+  {
+    "module": "tests.test_classA_observed_input",
+    "exit": 0,
+    "summary": [
+      "Ran 29 tests in 10.192s",
+      "",
+      "OK"
+    ]
+  },
+  {
+    "module": "tests.test_input_executor",
+    "exit": 0,
+    "summary": [
+      "Ran 73 tests in 1.890s",
+      "",
+      "OK"
+    ]
+  },
+  {
+    "module": "tests.test_test_fakery_lint",
+    "exit": 0,
+    "summary": [
+      "Ran 13 tests in 63.067s",
+      "",
+      "OK"
+    ]
+  }
+]
