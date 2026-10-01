@@ -5867,6 +5867,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if row is None:
             return False
         active_bar = row.pop("active_bar", False)
+        if (family in {"home-scan", "home-errand"}
+                and reason in {"choose-key-scan", "outside-scan", "open-home-scan"}):
+            # These entries immediately guard the knowledge macro. OFF still
+            # emits it; ON never reaches its producer when this verdict holds.
+            # Bind that fact to the candidate key, not merely to a family that
+            # might also have an unrelated, ungated output later this decision.
+            row["producer_key"] = ("~9\x1b\x1b" if reason == "outside-scan"
+                                   else HOME_KNOWLEDGE_MACRO)
         if not active_bar:
             if getattr(self, "_decision_errand_deferred", None) is None:
                 self._decision_errand_deferred = []
@@ -6867,7 +6875,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     foreign = self._claim_errand_hold(family, enforced=True)
                     if (foreign is not None and self._recorded_execution_token(
                             foreign, family, f"final:{reason}") is None):
-                        stop = f"ownership:gate-missing:{family}"
+                        entry_refused = any(
+                            row.get("producer_key") == key
+                            and row.get("holder_claim_id") == foreign.claim_id
+                            and row.get("holder_family") == foreign.owner.value
+                            and row.get("deferred_family") == family
+                            and row.get("token_would_admit") is False
+                            for row in getattr(self, "_decision_errand_deferred", ()) or ()
+                        )
+                        # A gated OFF output is not an ON gate escape. Keep
+                        # genuine final-only outputs visible, and still verify
+                        # that the holder has a valid registered continuation.
+                        stop = (self._town_holder_structural_stop(foreign, snapshot)
+                                if entry_refused else f"ownership:gate-missing:{family}")
         elif holder is not None and not self._home_tail_leave_ready(holder, snapshot):
             stop = self._town_holder_structural_stop(holder, snapshot)
             if (stop is None and declaration.state == "acting"
