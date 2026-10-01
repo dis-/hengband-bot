@@ -1,0 +1,43 @@
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-t,'(',')', '/' 装備品, ESC) どのアイテムを*鑑定*しますか?
+.<stuck-prompt> owner=identify:full phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-t,'(',')', '/' 装備品, ESC) どのアイテムを*鑑定*しますか?
+F
+======================================================================
+FAIL: test_full_owner_rejects_recorded_normal_target (tests.test_classA3_full_identify.FullIdentifyPins.test_full_owner_rejects_recorded_normal_target)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classA3_full_identify.py", line 67, in test_full_owner_rejects_recorded_normal_target
+    self.assertEqual(game.accepted, ['r', 'j'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['r', 'j', 's'] != ['r', 'j']
+
+First list contains 1 additional elements.
+First extra element 2:
+'s'
+
+- ['r', 'j', 's']
+?          -----
+
++ ['r', 'j']
+
+======================================================================
+FAIL: test_recorded_carried_full_target_posts_only_target (tests.test_classA3_full_identify.FullIdentifyPins.test_recorded_carried_full_target_posts_only_target)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_classA3_full_identify.py", line 52, in test_recorded_carried_full_target_posts_only_target
+    self.assertEqual(game.accepted, ['r', 'i', 's'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['r', 'i'] != ['r', 'i', 's']
+
+Second list contains 1 additional elements.
+First extra element 2:
+'s'
+
+- ['r', 'i']
++ ['r', 'i', 's']
+?          +++++
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.549s
+
+FAILED (failures=2)

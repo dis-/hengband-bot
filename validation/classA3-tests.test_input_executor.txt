@@ -1,0 +1,19 @@
+python : ...................................<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=acce
+pted request_id=6 reason=expected prompt absent
+発生場所 行:2 文字:69
++ ... NG='utf-8'; python -m unittest tests.test_input_executor *> validatio ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (..................d prompt absent:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 reason=expected prompt abs
+ent
+.............<stuck-prompt> owner=quest:sweep:identify phase=continuation transport=accepted request_id=6 reason=unowne
+d item-target: Identify which item?
+.............<stuck-prompt> owner=quest:enter:approach phase=continuation transport=accepted request_id=3 reason=unowne
+d confirm: Enter the arena? [y/n]
+............
+----------------------------------------------------------------------
+Ran 73 tests in 2.180s
+
+OK

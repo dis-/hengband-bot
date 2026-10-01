@@ -1,0 +1,59 @@
+<stuck-prompt> owner=light:scroll phase=continuation transport=accepted request_id=5 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+..<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=9 reason=unowned confirm: クエストに入りますか？[y/n]
+.<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=equipment-transaction:takeoff phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=loot:identify-floor-item phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=home:atomic-deposit phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=home:deposit phase=continuation transport=accepted request_id=3 reason=unowned item-source:                                                                  (アイテム:a-Z, ESCで中断) どのアイテムを取りますか?
+.<stuck-prompt> owner=home:atomic-withdraw phase=continuation transport=accepted request_id=6 reason=unowned quantity: 休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &
+.<stuck-prompt> owner=home:scan phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=home:scan phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=observe:look phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+<stuck-prompt> owner=survival:map-command phase=admission transport=tcp request_id=None reason=map command on store screen
+.<stuck-prompt> owner=identify:normal-equipped phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-w,'(',')', '-'床上, ESC) どのアイテムを鑑定しますか?
+.<stuck-prompt> owner=character:periodic phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+<stuck-prompt> owner=loot:pickup phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+<stuck-prompt> owner=descend phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=home:deposit-equipment phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=item:cure-critical phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:d-f,'(',')', ESC) どの巻物を読みますか?
+.<stuck-prompt> owner=light:scroll phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+....<stuck-prompt> owner=survival:mana-absorb phase=admission transport=tcp request_id=None reason=map command on store screen
+..<stuck-prompt> owner=rest phase=continuation transport=accepted request_id=3 reason=unowned quantity:                                                                  いくつですか (1-13): 1
+.<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=6 reason=unowned quantity: 休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &
+.<stuck-prompt> owner=home:atomic-withdraw phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:d-f,'(',')', ESC) どの巻物を読みますか?
+.<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=6 reason=unowned confirm: クエストに入りますか？[y/n]
+.<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.<stuck-prompt> owner=equipment-transaction:equip phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+.
+----------------------------------------------------------------------
+Ran 29 tests in 12.661s
+
+OK

@@ -1168,16 +1168,28 @@ class OperationExecutor:
                 )
                 for feature in expected_features if feature is not None
             )
-            equipped_full = self.active.owner == "identify:full-equipped"
             equipped_identify = self.active.owner in {
                 "identify:full-equipped", "identify:normal-equipped",
             }
             normal_carried = self.active.owner == "identify:normal"
-            if equipped_full and match.kind is ScreenKind.ITEM_TARGET \
+            if self.active.owner in {
+                    "identify:full", "identify:full-equipped", "identify:normal",
+                    "identify:normal-equipped", "identify:device", "loot:identify-floor-item",
+                    "quest:sweep:identify", "home-disposal:identify-before-sale",
+            } and match.kind is ScreenKind.ITEM_TARGET \
                     and ScreenKind.ITEM_TARGET in continuation.kinds:
-                feature_matches = feature_matches or match.feature.endswith((
-                    "*Identify* which item?", "どのアイテムを*鑑定*しますか?",
-                ))
+                # Historical chains use the normal tuple even for *Identify*.
+                # Bind the target text to the operation, rather than accepting
+                # both kinds or limiting full text to equipped items.
+                target_prompts = (
+                    ("*Identify* which item?", "どのアイテムを*鑑定*しますか?")
+                    if self.active.owner in {"identify:full", "identify:full-equipped"}
+                    else ("Identify which item?", "どのアイテムを鑑定しますか?")
+                )
+                feature_matches = match.feature.endswith(target_prompts) and (
+                    self.active.owner in {"identify:full", "identify:full-equipped"}
+                    or feature_matches
+                )
             if match.kind in continuation.kinds and feature_matches:
                 if equipped_identify or normal_carried:
                     prompt_state = self._request("state", deadline, map=True)

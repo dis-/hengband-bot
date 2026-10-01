@@ -1668,7 +1668,10 @@ class TcpBarrierPinTest(ProductionHarness):
         game, _client, executor = self.make()
         game.screens = [
             prompt_screen("Read which scroll?"),
-            prompt_screen("Identify which item?"),
+            # Full identify opens the recorded *Identify* chooser. The
+            # surrounding source/viewer sequence remains a protocol control.
+            json.loads((Path(__file__).with_name("fixtures") / "classA3" /
+                        "full-target.json").read_text(encoding="utf-8")),
             source_derived_identify_viewer(),
             source_derived_identify_viewer(final=True),
             command_screen(6),
