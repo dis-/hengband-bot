@@ -1,0 +1,22 @@
+SHORTFALL 18 mode prepare planned None home_current True stores {7: 692214}
+F
+======================================================================
+FAIL: test_recorded_shortfall_enters_one_run_mining (tests.test_identify_staff_live27_recorded.IdentifyStaffLive27RecordedTest.test_recorded_shortfall_enters_one_run_mining)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_identify_staff_live27_recorded.py", line 65, in test_recorded_shortfall_enters_one_run_mining
+    self.assertEqual((str(key), policy.last_reason), ('5', 'town:identify-staff-stockout-mining'))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'town:blocked:departure-unsatisfiable') != ('5', 'town:identify-staff-stockout-mining')
+
+First differing element 1:
+'town:blocked:departure-unsatisfiable'
+'town:identify-staff-stockout-mining'
+
+- ('5', 'town:blocked:departure-unsatisfiable')
++ ('5', 'town:identify-staff-stockout-mining')
+
+----------------------------------------------------------------------
+Ran 1 test in 49.955s
+
+FAILED (failures=1)

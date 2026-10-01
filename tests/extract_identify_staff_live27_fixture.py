@@ -33,11 +33,11 @@ def main():
     payload = ''.join(lines[ends[0]:ends[-1] + 1]).encode('utf-8')
     output.write_bytes(gzip.compress(payload, mtime=0))
     boundary = output.with_suffix('.boundaries.json')
-    boundary.write_text(json.dumps({'input_rows': counts, 'recorded': decisions}, ensure_ascii=False) + '\n', encoding='utf-8')
+    boundary.write_text(json.dumps({'input_rows': counts, 'recorded': decisions}, ensure_ascii=False) + '\n', encoding='utf-8', newline='\n')
     calibration = output.with_suffix('.calibration.json')
-    calibration.write_bytes((source / 'character-calibration.json').read_bytes())
+    calibration.write_bytes((source / 'character-calibration.json').read_bytes().replace(b'\r\n', b'\n'))
     provenance = {'sources': {name: hashlib.sha256((source / (stem + '.' + name)).read_bytes()).hexdigest() for name in ['state.jsonl.gz', 'decisions.jsonl.gz']}, 'attach_row': ends[0], 'end_row': ends[-1], 'decision_count': len(decisions), 'boundary_rule': 'walk backwards using exact current decision timing.batch_bytes decoded character count, verifying every turn; initial attach row alone'}
-    output.with_suffix('.provenance.json').write_text(json.dumps(provenance, indent=2) + '\n', encoding='utf-8')
+    output.with_suffix('.provenance.json').write_text(json.dumps(provenance, indent=2) + '\n', encoding='utf-8', newline='\n')
     for path in [output, boundary, calibration]:
         print(path.name, hashlib.sha256(path.read_bytes()).hexdigest())
 
