@@ -46,7 +46,7 @@ class Live23HomeCycleTest(unittest.TestCase):
             if name.endswith(".json"):
                 data = data.replace(b"\r\n", b"\n")
             self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
-        for enforced, crossarea in ((False, True), (True, False), (True, True)):
+        for enforced, crossarea in ((False, False), (False, True), (True, False), (True, True)):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):
                     policy, boards = attachment(enforced, crossarea)
@@ -101,7 +101,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                     self.assertEqual(key, "\x1b")
 
     def test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw(self):
-        for enforced, crossarea in ((False, True), (True, False)):
+        for enforced, crossarea in ((False, False), (False, True), (True, False)):
             policy, boards = attachment(enforced, crossarea)
             self.assertEqual(policy.choose_key(boards[0]), "5")
             policy.confirm_key_posted("5")

@@ -6721,9 +6721,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return None
 
     def _home_catalogue_sequence_enforced(self) -> bool:
-        """Protect physical Home work under cross-area or S3.3 enforcement."""
+        """Protect registered catalogue work, plus enforced physical Home work."""
         return bool(getattr(self, "_crossarea_fundraising_enforced", False)
-                    or getattr(self, "_town_claim_bar_enforced", False))
+                    or getattr(self, "_town_claim_bar_enforced", False)
+                    or self._home_catalogue_work_holder() is not None)
 
     def _home_catalogue_work_holder(self):
         holder = self._claim_errand_hold("__none__", enforced=True)

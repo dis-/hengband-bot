@@ -159,7 +159,10 @@ S2A1_OBSERVE_COMPLETE_LABELS = {
 # R4: row 2648's entrance-step-off:equipment-transaction:home-route-unavailable
 # keeps the standing transaction Observe claim; base counted its one-step Reach
 # as complete on the next row. The other 1,347 rows are identical.
-S2A1_NEXT_ROW_COMPLETE = 1347
+# ddebaf64: the catalogue claim at 2657 is Observe, completed on adoption,
+# rather than Reach completed at entry. Accepted by Claude live26 RULING,
+# 2026-10-01 09:10; the 2658 owner change remains forbidden.
+S2A1_NEXT_ROW_COMPLETE = 1346
 S2A1_FAR_TARGET_REASONS = frozenset({
     "return:seek-upstairs", "livelock:seek-upstairs",
     "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
