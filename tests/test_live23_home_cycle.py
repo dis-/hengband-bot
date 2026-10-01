@@ -46,7 +46,7 @@ class Live23HomeCycleTest(unittest.TestCase):
             if name.endswith(".json"):
                 data = data.replace(b"\r\n", b"\n")
             self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
-        for enforced, crossarea in ((False, False), (False, True), (True, False), (True, True)):
+        for enforced, crossarea in ((False, True), (True, False), (True, True)):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, crossarea=crossarea, restored=restored):
                     policy, boards = attachment(enforced, crossarea)
@@ -101,7 +101,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                     self.assertEqual(key, "\x1b")
 
     def test_registered_catalogue_keeps_turn_even_for_later_mining_withdraw(self):
-        for enforced, crossarea in ((False, False), (False, True), (True, False)):
+        for enforced, crossarea in ((False, True), (True, False)):
             policy, boards = attachment(enforced, crossarea)
             self.assertEqual(policy.choose_key(boards[0]), "5")
             policy.confirm_key_posted("5")
@@ -126,6 +126,41 @@ class Live23HomeCycleTest(unittest.TestCase):
                 lambda: self.fail("later equipment producer ran"), family="equipment-txn"))
             self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
             self.assertIsNone(policy._equipment_transaction_session)
+
+    def test_recorded_off_scan_continues_registered_catalogue(self):
+        # Only the four unchanged entry/scan actions of the withdraw capture.
+        # Never consume a historical board after a changed key.
+        from tempfile import TemporaryDirectory
+        from hengbot.cli import _consume_response_sequence
+        from tests.test_home_withdraw_failed_stock_present_recorded import (
+            HomeWithdrawFailedStockPresentRecordedTest as Capture, _policy, CALIBRATION)
+        Capture.setUpClass()
+        for restored in (False, True):
+            with TemporaryDirectory() as raw:
+                directory = Path(raw)
+                policy = _policy(directory, Capture.monrace)
+                policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+                for index in range(4):
+                    if restored and index == 3:
+                        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+                    _, boards = _consume_response_sequence(
+                        Capture._board_lines(index), policy, lambda _key: True,
+                        Capture.monrace, knowledge_ledger_path=directory / "knowledge.jsonl")
+                    key = policy.choose_key(boards[-1])
+                    historical = Capture.recorded[index]
+                    self.assertEqual((str(key), policy.last_reason),
+                                     (historical["key"], historical["reason"]))
+                    if index == 2:
+                        holder_id = policy._claim_register.current.claim_id
+                    if index == 3:
+                        self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                        self.assertEqual(policy.decision_claim["claim_id"], holder_id)
+                        self.assertIsNone(policy.decision_claim["violation"])
+                        self.assertEqual(policy._claim_register.current.execution.work_id,
+                                         "equipment:acquire-home-catalog")
+                        self.assertEqual(policy._claim_register.current.execution.continuation,
+                                         "home.catalogue.acquire")
+                    policy.confirm_key_posted(key)
 
     def test_restored_legacy_entry_declaration_still_requires_catalogue_evidence(self):
         policy, boards = attachment()

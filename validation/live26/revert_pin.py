@@ -15,8 +15,8 @@ with TemporaryDirectory(prefix='revert-source-', dir=ROOT / 'validation/live26')
     import unittest
     from tests.test_live23_home_cycle import Live23HomeCycleTest
     suite = unittest.TestSuite([Live23HomeCycleTest(
-        'test_recorded_entry_completes_catalogue_before_other_errand')])
+        'test_recorded_off_scan_continues_registered_catalogue')])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if result.wasSuccessful():
         raise SystemExit('ERROR: revert did not break the strengthened pin')
-    print('REVERT DETECTED: pre-fix source fails the OFF catalogue completion pin.')
+    print('REVERT DETECTED: pre-fix source fails the OFF registered scan pin.')

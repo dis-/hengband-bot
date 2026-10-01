@@ -3205,6 +3205,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _claim_family_of(self, reason: str | None) -> str:
         """The census family of a reason, answered by the live arbiter."""
+        if reason == "home:request-knowledge-scan":
+            # The scan can be a step of registered equipment catalogue work,
+            # rather than a new errand. Require the producer's explicit offer.
+            for offer in reversed(self._execution_offers_for()):
+                if (offer[2] == "equipment:acquire-home-catalog"
+                        and offer[5] == "home-catalog-available"
+                        and offer[0] == HOME_KNOWLEDGE_MACRO):
+                    return offer[1]
         if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
             return self._visit_exit_family()
         if reason and reason.startswith("town:entrance-step-off:"):
@@ -6720,11 +6728,27 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.last_reason = f"ownership:holder-silent:{family}"
         return None
 
+    def _offer_home_knowledge_request(self, *, producer: str) -> None:
+        """A catalogue scan continues its registered work, without a handoff."""
+        holder = (self._home_catalogue_work_holder()
+                  if producer == "home-scan" else None)
+        self._offer_execution(
+            HOME_KNOWLEDGE_MACRO,
+            producer=holder.owner.value if holder is not None else producer,
+            work_id=("equipment:acquire-home-catalog" if holder is not None
+                     else f"home-knowledge:{self._town_visit_epoch}"),
+            next_step="home.knowledge.request",
+            expected_effect=("home-catalog-available" if holder is not None
+                             else "catalogue-adopted"),
+            continuation=("home.catalogue.acquire" if holder is not None
+                          else "home.knowledge.observe"),
+            budget_ref="home-knowledge-existing-epoch",
+        )
+
     def _home_catalogue_sequence_enforced(self) -> bool:
-        """Protect registered catalogue work, plus enforced physical Home work."""
+        """Protect physical Home work under cross-area or S3.3 enforcement."""
         return bool(getattr(self, "_crossarea_fundraising_enforced", False)
-                    or getattr(self, "_town_claim_bar_enforced", False)
-                    or self._home_catalogue_work_holder() is not None)
+                    or getattr(self, "_town_claim_bar_enforced", False))
 
     def _home_catalogue_work_holder(self):
         holder = self._claim_errand_hold("__none__", enforced=True)
@@ -7361,16 +7385,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if self._home_errand.needs_knowledge
                 else "home:request-knowledge-scan"
             )
-            self._offer_execution(
-                HOME_KNOWLEDGE_MACRO,
-                producer=("home-errand" if self._home_errand.needs_knowledge
-                          else "home-scan"),
-                work_id=f"home-knowledge:{self._town_visit_epoch}",
-                next_step="home.knowledge.request",
-                expected_effect="catalogue-adopted",
-                continuation="home.knowledge.observe",
-                budget_ref="home-knowledge-existing-epoch",
-            )
+            self._offer_home_knowledge_request(
+                producer="home-errand" if self._home_errand.needs_knowledge
+                else "home-scan")
             return HOME_KNOWLEDGE_MACRO
         if (
             snapshot.store is None
@@ -8995,14 +9012,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ):
                     self.last_reason = "home:request-knowledge-scan"
                     key = HOME_KNOWLEDGE_MACRO
-                    self._offer_execution(
-                        key, producer="home-scan",
-                        work_id=f"home-knowledge:{self._town_visit_epoch}",
-                        next_step="home.knowledge.request",
-                        expected_effect="catalogue-adopted",
-                        continuation="home.knowledge.observe",
-                        budget_ref="home-knowledge-existing-epoch",
-                    )
+                    self._offer_home_knowledge_request(producer="home-scan")
                 else:
                     # A visible page of a multi-page (or metadata-poor) Home is
                     # useful evidence, but it cannot replace the complete ~9 list.
