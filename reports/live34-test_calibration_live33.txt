@@ -1,0 +1,15 @@
+python.exe : ..
+発生場所 行:4 文字:310
++ ... y_lint')) { & $live34Python -m unittest "tests.$live34Module" > "repo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (..:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 2 tests in 8.469s
+
+OK
+live33 first divergence '5' home:atomic-deposit live None ownership:declaration-unrestored:calibration shadow None
+live33 first divergence '5' home:atomic-deposit live None ownership:declaration-unrestored:calibration shadow None
+live33 first divergence '5' home:atomic-deposit live None ownership:declaration-unrestored:calibration shadow None
+live33 first divergence '5' home:atomic-deposit live None ownership:declaration-unrestored:calibration shadow None

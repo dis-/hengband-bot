@@ -1,4 +1,4 @@
-﻿# Live34 calibration investigation (base 64e3fabe)
+# Live34 calibration investigation (base 64e3fabe)
 
 Rule: calibration is the producer of every action in its physical sequence. Equipment and Home are its executors, not competing errands. Each command declares acting, confirmation names the actual posted operation as awaiting, and observed completion declares done. Equipment session identity is checked before treating an executor as calibration; unrelated equipment work remains gated.
 
@@ -7,12 +7,12 @@ Frozen inputs: tests/fixtures/live34-{0317,0812,0812b,1041,1235,1342,1416}.json.
 | Sequence | ON result before fix | Cause (base file:line) |
 |---|---|---|
 | 02:58 / 0317 | entry ends at 3014: step-off instead of ta; independent strip stops at 3015 | policy.py:5819-5834 treats calibration-owned executor as equipment-txn; policy_equipment.py:2153 asks that foreign family and policy_equipment.py:2136 declares releasing for calibration |
-| 08:12 / 0812 | entry ends at 13: step-off instead of ta; independent strip stops at 14 | same executor admission/declaration gap |
-| live25 / 0812b | entry ends at 1254: step-off instead of ta; independent strip stops at 1255 | same executor admission/declaration gap |
-| 10:41 / 1041 | entry ends at 15178: step-off instead of tb; independent strip stops at 15179 | same executor admission/declaration gap |
-| 12:35 / 1235 | entry ends at 5561: step-off instead of tb; independent strip stops at 5562 | same executor admission/declaration gap |
+| 08:12 / 0812 | entry ends at 13: step-off instead of ta; independent strip stops at 14 | policy.py:5819-5834; policy_equipment.py:2153,2136 (executor admission/declaration gap) |
+| live25 / 0812b | entry ends at 1254: step-off instead of ta; independent strip stops at 1255 | policy.py:5819-5834; policy_equipment.py:2153,2136 (executor admission/declaration gap) |
+| 10:41 / 1041 | entry ends at 15178: step-off instead of tb; independent strip stops at 15179 | policy.py:5819-5834; policy_equipment.py:2153,2136 (executor admission/declaration gap) |
+| 12:35 / 1235 | entry ends at 5561: step-off instead of tb; independent strip stops at 5562 | policy.py:5819-5834; policy_equipment.py:2153,2136 (executor admission/declaration gap) |
 | 13:42 / 1342 | 5/6 match; 7 changes to 5 / home:atomic-deposit; no ON stop | prior live33 fix policy_calibration.py:1244-1265 already continues the deposit |
-| 14:16 / 1416 | initial map attachment chooses a different step-off at 136; independent strip stops at 138 | same executor gap; live stop 145 additionally follows claim expiry at 144, invalidating the claim-bound child token (policy.py:5790-5800) |
+| 14:16 / 1416 | initial map attachment chooses a different step-off at 136; independent strip stops at 138 | policy.py:5819-5834; policy_equipment.py:2153,2136 (executor gap); live stop 145 additionally follows claim expiry at 144, invalidating the claim-bound child token (policy.py:5790-5800) |
 
 The live 14:16 decision log shows claim 76 expiring within-exceeded at 144 and claim 77 holding the light takeoff; at 145 the executor reports no-step/deferred-by-town-holder under calibration, leaving a non-discardable releasing declaration. Structural validation rejects it at policy.py:6237-6239. Increasing the eight-observation limit or rebinding unrelated grants would mask the producer-family error; neither is needed.
 
@@ -45,3 +45,16 @@ Final recorded ON boundaries (zero ON stops to each boundary):
 All earlier recorded commands remain actual responses until these first changed keys. Every independent phase attachment is named; later boards are not borrowed across a changed key. Restore attachments verify the historical deposit selectors/quantities through the production deposit producer and invalidate the old Home addresses through the production observer before replaying ~9. Existing live19/25/28/31/33 modules cover their deeper historical reconciliation and physical restoration cases separately.
 
 The new module has three pins with checkpoint restoration and OFF shadow checks. The final full-module run passed all three tests; the restore attachment was then strengthened to invalidate the confirmed historical deposits' catalogue and check exact deposit commands, and that changed test passed separately (five sequences, all checkpoints). Every available OFF frame predicts no ON stop; each measured ON frame and each unresolved posted calibration declaration is also checked. OFF and ON can legitimately reach different first changed commands; the pins do not force later boards into either trajectory.
+
+Step 3 verification
+
+All requested distinct tests passed (146): tests.test_calibration_live34 3; tests.test_calibration_live19 11; live25 6; live28 3; live31 6; live33 2; tests.test_calibration_crossarea_debt 5; tests.test_policy_calibration 75; tests.test_s33_shadow_recorded 6; tests.test_ownership_s2a_classification 16; tests.test_test_fakery_lint 13. Each module used its own process with PYTHONPATH=src;tests;scripts and the Codex runtime Python. The changed restore pin was separately rerun and passed after its historical-deposit attachment was strengthened. Logs: reports/live34-final-pins.txt, reports/live34-final-restore-pins.txt, and reports/live34-test_*.txt; counts: reports/live34-verification.json.
+
+Single whole-fix revert: temporarily restore policy.py, policy_calibration.py and policy_equipment.py to 64e3fabe, retaining the final new pin module, and run that module with unittest failfast. Native exit 1, one assertion failure in the recorded 0317 restore pin: the posted ~9 declaration is structurally stale (unsupported calibration.restore-supplies continuation). See reports/live34-revert.txt. The fixed source bytes were restored in finally and verified byte-for-byte; git diff is empty for source. The earlier strip baseline independently records the equipment-owner failures for all six available strip attachments. No pins or pre-existing assertions were deleted or weakened.
+
+Allowed recorded exceptions:
+- stuck OFF/S3.3: c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5; no divergence, no trajectory defect.
+- withdraw OFF: a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9; S3.3 first divergence (list_index=3, historical_sequence=3, new_sequence=3), ESC / equipment-transaction:catalogue-leave-for-scan; no trajectory defect.
+- EXPECTED_FIRST untouched. Four result files: reports/live34-{stuck,withdraw}-{off,s33}.json.
+
+Commits: investigation/pins 7c980800; implementation 2592ddf3; verification is the commit containing this section. No game, live bot, executable, hold, other worktree, read-only jsonlog, push or external review action was performed. DO-NOT-RUN modules remain pending for Claude as listed above.

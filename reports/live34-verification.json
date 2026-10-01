@@ -1,0 +1,24 @@
+{
+  "base": "64e3fabe",
+  "investigation_commit": "7c980800",
+  "implementation_commit": "2592ddf3",
+  "modules": {
+    "test_calibration_live34": 3,
+    "test_calibration_crossarea_debt": 5,
+    "test_calibration_live19": 11,
+    "test_calibration_live25": 6,
+    "test_calibration_live28": 3,
+    "test_calibration_live31": 6,
+    "test_calibration_live33": 2,
+    "test_ownership_s2a_classification": 16,
+    "test_policy_calibration": 75,
+    "test_s33_shadow_recorded": 6,
+    "test_test_fakery_lint": 13
+  },
+  "passed_tests": 146,
+  "restore_pin_rerun_passed": true,
+  "single_whole_fix_revert_native_exit": 1,
+  "fixed_sources_restored_byte_for_byte": true,
+  "recorded_on_stops_to_first_changed_key": 0,
+  "off_shadow_stops": 0
+}
