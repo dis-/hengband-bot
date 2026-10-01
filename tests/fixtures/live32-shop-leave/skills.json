@@ -1,0 +1,392 @@
+{
+  "knowledge": {
+    "category": "skill_exp",
+    "menu_key": "f",
+    "skills": [
+      {
+        "at_max": false,
+        "exp": 0,
+        "id": 0,
+        "max": 8000,
+        "name": "\u30de\u30fc\u30b7\u30e3\u30eb\u30a2\u30fc\u30c4",
+        "rank": 0
+      },
+      {
+        "at_max": false,
+        "exp": 4376,
+        "id": 1,
+        "max": 8000,
+        "name": "\u4e8c\u5200\u6d41",
+        "rank": 1
+      },
+      {
+        "at_max": false,
+        "exp": 0,
+        "id": 2,
+        "max": 5000,
+        "name": "\u4e57\u99ac",
+        "rank": 0
+      },
+      {
+        "at_max": false,
+        "exp": 4000,
+        "id": 3,
+        "max": 8000,
+        "name": "\u76fe",
+        "rank": 1
+      }
+    ]
+  },
+  "player": {
+    "ability_sources": {
+      "free_action": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_acid": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_blind": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_chaos": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_cold": {
+        "equipment": true,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_conf": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_curse": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_dark": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_disen": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_elec": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_fear": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_fire": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_lite": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_neth": {
+        "equipment": false,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_nexus": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_pois": {
+        "equipment": true,
+        "permanent": true,
+        "temporary": false
+      },
+      "resist_shard": {
+        "equipment": true,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_sound": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_time": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "resist_water": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "see_invisible": {
+        "equipment": true,
+        "permanent": true,
+        "temporary": false
+      },
+      "telepathy": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "ac": 72,
+    "action": {
+      "color": "white",
+      "kind": "none",
+      "text": "     "
+    },
+    "can_see_own_grid": true,
+    "class_id": 0,
+    "exp": 20301,
+    "exp_drained": false,
+    "exp_to_advance": 26250,
+    "food_state": "normal",
+    "food_type": 4,
+    "gold": 6637,
+    "hp": 452,
+    "immunities": {
+      "acid": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "cold": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "dark": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "elec": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "fire": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "lite": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "nether": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "level": 25,
+    "level_drained": false,
+    "light_radius": 3,
+    "max_exp": 20301,
+    "max_hp": 452,
+    "max_level": 25,
+    "max_mp": 0,
+    "melee": {
+      "main_hand_blows": 5,
+      "main_hand_to_d": 11,
+      "main_hand_to_h": -61,
+      "sub_hand_blows": 4,
+      "sub_hand_to_d": 10,
+      "sub_hand_to_h": -86
+    },
+    "mimic_form": 0,
+    "mp": 0,
+    "personality_id": 1,
+    "race_id": 25,
+    "race_title": "\u30be\u30f3\u30d3",
+    "recalling": false,
+    "skill_ratings": {
+      "digging": {
+        "color": "violet",
+        "legendary_level": 20,
+        "rating": "legendary",
+        "text": "100-\u4f1d\u8aac\u7684[20]",
+        "value": 100
+      },
+      "disarming": {
+        "color": "yellow",
+        "rating": "very_good",
+        "text": " 49-\u5927\u5909\u826f\u3044",
+        "value": 49
+      },
+      "fighting": {
+        "color": "blue",
+        "rating": "heroic",
+        "text": "208-\u82f1\u96c4\u7684",
+        "value": 208
+      },
+      "magic_device": {
+        "color": "orange",
+        "rating": "fair",
+        "text": " 23-\u666e\u901a",
+        "value": 23
+      },
+      "perception": {
+        "color": "red",
+        "rating": "bad",
+        "text": "  5-\u60aa\u3044",
+        "value": 5
+      },
+      "saving_throw": {
+        "color": "light_green",
+        "rating": "excellent",
+        "text": " 58-\u5353\u8d8a",
+        "value": 58
+      },
+      "searching": {
+        "color": "red",
+        "rating": "bad",
+        "text": " 11-\u60aa\u3044",
+        "value": 11
+      },
+      "shooting": {
+        "color": "blue",
+        "rating": "heroic",
+        "text": "184-\u82f1\u96c4\u7684",
+        "value": 184
+      },
+      "stealth": {
+        "color": "red",
+        "rating": "bad",
+        "text": "  1-\u60aa\u3044",
+        "value": 1
+      }
+    },
+    "speed": 110,
+    "speed_display": {
+      "color": "white",
+      "riding": false,
+      "text": "<encoding-error>",
+      "value": 0
+    },
+    "stats": {
+      "chr": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 6,
+        "max": 10,
+        "top": 9,
+        "use": 9
+      },
+      "con": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 24,
+        "max": 45,
+        "top": 115,
+        "use": 115
+      },
+      "dex": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 23,
+        "max": 39,
+        "top": 99,
+        "use": 99
+      },
+      "int": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 0,
+        "max": 13,
+        "top": 3,
+        "use": 3
+      },
+      "str": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 29,
+        "max": 75,
+        "top": 165,
+        "use": 165
+      },
+      "wis": {
+        "at_racial_max": false,
+        "drained": false,
+        "index": 5,
+        "max": 17,
+        "top": 8,
+        "use": 8
+      }
+    },
+    "status": {
+      "afraid": false,
+      "blind": false,
+      "confused": false,
+      "cut": false,
+      "cut_rank": 0,
+      "cut_rank_name": "none",
+      "hallucinated": false,
+      "paralyzed": false,
+      "poisoned": false,
+      "stun_rank": 0,
+      "stun_rank_name": "none",
+      "stunned": false
+    },
+    "status_bar": [],
+    "study": null,
+    "title": "\u5263\u58eb",
+    "vulnerabilities": {
+      "acid": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "cold": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "curse": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "elec": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "fire": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      },
+      "lite": {
+        "equipment": false,
+        "permanent": false,
+        "temporary": false
+      }
+    },
+    "x": 118,
+    "y": 32
+  }
+}

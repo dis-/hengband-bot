@@ -1,0 +1,19 @@
+{
+  "source": "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-1341-s33-on-gate-missing-town-plan",
+  "sequences": [
+    4215,
+    4216,
+    4217
+  ],
+  "fixture_sha256": {
+    "decisions.jsonl.gz": "126f5a78401163a4f629f695660246d115c3f90883c6f35149e7c61f331d8f84",
+    "state.jsonl.gz": "166e36643733b341c3b8b72879756fec4104e00f26a05320bb2a197bd28701dd",
+    "skills.json": "a16169691caf7d3bd18d18f178213d2dee0bfcbe70c38fa0aa24b26dc82e893d"
+  },
+  "source_sha256": {
+    "decisions": "e530d8d0b61ebee1ebb9283afaa7c37ba4e9429b20a3c10e1ae1d988709e3584",
+    "state": "969a555074ff257b48c3176c6ec04a8a391b430f28bdb7199bb7052560315467",
+    "ownership-claims": "882bece5e80720f3012a7da3a24c2b9f30beed0f3e7ed24b304849d2df0d61fa",
+    "posted-characters": "c6c800292e55e7bea7487fe21c3033ddb9cca8497d456b85fbff5984a3225991"
+  }
+}
