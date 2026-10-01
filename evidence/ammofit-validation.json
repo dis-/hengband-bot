@@ -1,0 +1,32 @@
+{
+  "topic": "ammofit",
+  "implementer": "gpt-6.1-sol",
+  "base": "275841d3f53ee07e92c22098a776bc8b17675714",
+  "step1_commit": "8c156288",
+  "verdict": "64 is correct for normal-dive procurement: floor (0,0,0), both quest procurement strategies None",
+  "arithmetic": "weight 1506 = pack 992 + equipment 514; limit 1700; unit weight 3; reserved ammo 28; min(99,28+floor((1700-1506)/3))=92; buy 92-28=64; final weight 1698; old 71 gives 1719",
+  "changed_preexisting_assertions": [
+    {
+      "site": "tests/test_shop_one_shot.py:ShopOneShotTest.test_recorded_ammo_top_up_buys_71_plain_bolts_into_q",
+      "before": "self.assertEqual(policy._purchase_quantity(snap, ware), 71)",
+      "after": "self.assertEqual(policy._purchase_quantity(snap, ware), 64)",
+      "quoted_clause": "if 64 is the correct decision result, update ONLY that expectation with a comment citing the decision and the weight arithmetic (this is an expectation the user decision changes - allowed here)"
+    }
+  ],
+  "assertion_audit": "CHANGED tests/test_shop_one_shot.py:ShopOneShotTest.test_recorded_ammo_top_up_buys_71_plain_bolts_into_q\n  before: self.assertEqual(policy._purchase_quantity(snap, ware), 71)\n  after: self.assertEqual(policy._purchase_quantity(snap, ware), 64)\n",
+  "tests": {
+    "tests.test_shop_one_shot": {"run": 53, "failures": 0, "skipped": 1},
+    "tests.test_classC2_departure_recorded": {"run": 9, "failures": 3},
+    "tests.test_live36_weight": {"run": 7, "failures": 0},
+    "tests.test_ammo_surplus": {"run": 4, "failures": 0},
+    "tests.test_quest_ammo_not_bought": {"run": 8, "failures": 0},
+    "tests.test_test_fakery_lint": {"run": 13, "failures": 0}
+  },
+  "remaining_failures": [
+    "tests/test_classC2_departure_recorded.py:282 test_any_remaining_safe_surplus_goes_home_before_guardian_switch: actual ('tb','equipment-transaction:takeoff'), expected ('\\x1b`n(.','shop:travel')",
+    "tests/test_classC2_departure_recorded.py:242 test_public_stop_board_offers_deeper_guardian_remedy_after_restore: actual failed list additionally includes equipment_departure_ready",
+    "tests/test_classC2_departure_recorded.py:193 test_recorded_public_board_routes_ammo_home_before_departure: actual ('tb','equipment-transaction:takeoff'), expected ('\\x1b`n(.','shop:travel')"
+  ],
+  "scope": "Production code, other pins, fixtures and EXPECTED_FIRST unchanged. Each requested module ran once in its own process. No baseline rerun; equipment failures reported without broadening this authorized expectation-only change.",
+  "diff_check": "passed"
+}

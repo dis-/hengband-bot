@@ -1,0 +1,32 @@
+FF
+======================================================================
+FAIL: test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo (tests.test_policy_home.WeightOverloadTownTest.test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_policy_home.py", line 497, in test_matches_game_weight_limit_and_preserves_plain_plus_highest_ammo
+    self.assertEqual(
+AssertionError: Lists differ: [14, 0, 27] != [72, 0, 27]
+
+First differing element 0:
+14
+72
+
+- [14, 0, 27]
+?  ^^
+
++ [72, 0, 27]
+?  ^^
+
+
+======================================================================
+FAIL: test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit (tests.test_policy_home.WeightOverloadTownTest.test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_policy_home.py", line 709, in test_overweight_rearm_tracks_successful_deposit_progress_to_weight_limit
+    self.assertEqual(passes, 4)
+AssertionError: 3 != 4
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.137s
+
+FAILED (failures=2)

@@ -1133,6 +1133,8 @@ class HomeMixin:
         limit = self._inventory_weight_limit(snapshot)
         if limit is None:
             return AMMO_CARRY_TARGET
+        if for_retention and not self._inventory_overweight(snapshot):
+            return AMMO_CARRY_TARGET
         plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
         kept = [(next(i for i in snapshot.inventory if i.slot == slot), count)
                 for slot, count in plan.reservations]
@@ -1143,6 +1145,14 @@ class HomeMixin:
             weight -= sum(
                 max(0, i.weight) * self._retention_surplus(snapshot, i)
                 for i in self._weight_deposit_candidates(snapshot, include_ammo=False)
+            )
+            # The ordinary two-stack plan already releases excess ammunition.
+            # Remove that excess before asking whether its reserved ammunition
+            # must also shrink; otherwise surplus bolts displace needed bolts.
+            weight -= sum(
+                max(0, i.weight) * max(0, i.count - plan.reservation(i.slot))
+                for i in snapshot.inventory
+                if i.tval == launcher.ammo_tval
             )
         room = limit - weight + sum(max(0, i.weight) * n for i, n in kept)
         count = 0

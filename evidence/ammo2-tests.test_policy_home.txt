@@ -1,0 +1,14 @@
+..................................................................<stuck-prompt> owner=home:atomic-deposit phase=continuation transport=accepted request_id=6 reason=expected prompt absent
+F...........................................ssss......................................................................
+======================================================================
+FAIL: test_production_executor_home_atomic_deposit_enters_then_posts_once (tests.test_policy_home.HomeOneOperationPerEntryTest.test_production_executor_home_atomic_deposit_enters_then_posts_once)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_policy_home.py", line 3348, in test_production_executor_home_atomic_deposit_enters_then_posts_once
+    self.assertTrue(sent)
+AssertionError: <SendResult.TERMINAL: 'terminal'> is not true
+
+----------------------------------------------------------------------
+Ran 184 tests in 148.768s
+
+FAILED (failures=1, skipped=4)
