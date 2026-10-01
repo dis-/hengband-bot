@@ -130,11 +130,11 @@ class CharacterCalibration:
     intrinsic_abilities: frozenset[str]
     pinned_identities: tuple[tuple[str, str], ...] = ()
     observed_turn: int = 0
-    # Sorted mutation ids from the naked `C` character snapshot at capture
+    # Sorted mutation ids from the equipped `C` character snapshot at capture
     # time (the periodic status dump refreshes the live observation); None
     # when no mutation observation was available yet.
     mutation_signature: tuple[int, ...] | None = None
-    # Permanent TR flag ids read off the naked `C` character snapshot's
+    # Permanent TR flag ids read off the `C` character snapshot's
     # characteristics table (player/immunity/vulnerability columns).  These
     # carry what the 19-boolean abilities set cannot express — permanent
     # elemental vulnerabilities and immunities, sustains, TR_RES_TIME and the
@@ -166,8 +166,7 @@ class CharacterCalibration:
         The invalidation triggers are exactly the approved list: character
         identity, level change, ``stat_cur`` change (augmentation / drain),
         mutation gain or loss (observed through the `C` character snapshots —
-        the capture phase's naked dump and the periodic status dump the bot
-        already posts), and a change in the pinned (cursed worn) set.  Pass
+        the periodic status dump the bot already posts), and a change in the pinned (cursed worn) set.  Pass
         ``mutation_signature=None`` when no mutation observation exists yet;
         an observed signature that differs from the recorded one — including
         a capture made before any observation — invalidates the cache.
@@ -742,7 +741,7 @@ def prepare_warrior_optimization(
     base_con = stats[4]
     base_hp = calibration.base_hp
     base_ac_bonus = calibration.base_ac_bonus
-    # The naked characteristics enrich the evaluator's intrinsic flag set with
+    # Source-separated characteristics enrich the intrinsic flag set with
     # what the abilities booleans cannot express.  Consumed today by the
     # defense model: TR_IM_* (zero elemental damage), TR_VUL_* (+1/3 damage),
     # TR_SUST_* (drain exposure) and TR_RES_TIME; every other recorded flag

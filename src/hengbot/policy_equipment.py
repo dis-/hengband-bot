@@ -2097,7 +2097,7 @@ class EquipmentMixin:
             # letters are page-relative.  Keep this session as the owner and
             # use the existing bounded Home paging protocol until the target
             # page is observed; blocking here used to discard the session and
-            # strand calibration-stripped slots.
+            # lose the pending equipment target.
             self.last_reason = "equipment-transaction:seek-home-page"
             return self._equipment_home_outcome(
                 " ", label="seek-home-page",

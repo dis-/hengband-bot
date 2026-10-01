@@ -1640,10 +1640,6 @@ class TownMixin:
         home_required = self._home_available(snapshot)
         return {
             "recall_departure_ready": self._recall_departure_ready(snapshot),
-            # A calibration-stripped character must be re-dressed (by the
-            # restore session or a completed optimizer transaction) before ANY
-            # departure path — including every pre-existing escape valve
-            # deeper in this conjunction — can open.
             "food_ready": (
                 self._fundraising_food_ready(snapshot)
                 if self._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -3231,7 +3227,7 @@ class TownMixin:
             )
             if home_holds_source_or_kit:
                 return STORE_HOME, False
-            # Home/calibration cannot own an identification target until a
+            # Home cannot own an identification target until a
             # usable source exists.  At poverty gold, an absent or remembered-
             # unaffordable source makes every dependent Home/store need inert
             # for this visit; exposing one as a supplier masks the established

@@ -329,7 +329,7 @@ class TownTurnArbiter:
         #   equipment-transaction: composed at 12837, is owned by town-plan via
         #   the registered ``town:blocked`` prefix above.  owner_for_reason uses
         #   anchored startswith matching, so an inner reason cannot hijack it.
-        # - calibration:abort: (11128), equipment-transaction: (12837),
+        # - equipment-transaction: (12837),
         #   quest:readiness: (10296), quest:blocked: (27292), and
         #   home:morivant-ledger-drop- (19729) own through their registered
         #   calibration, equipment-txn, town-plan, quest-request, and home-visit

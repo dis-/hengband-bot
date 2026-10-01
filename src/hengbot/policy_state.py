@@ -8,7 +8,10 @@ from hengbot.policy_types import OwnerProgressCore
 
 def normalize_policy_state(restored, *, restart=False):
     from hengbot.policy_calibration import refuse_legacy_calibration_debt
-    refuse_legacy_calibration_debt(restored.__dict__, restored.__dict__.get("_character_calibration_path"))
+    # Persisted debt is checked at startup/upgrade, not with disk I/O every turn.
+    debt_path = (restored.__dict__.get("_character_calibration_path")
+                 if restart or restored.__dict__.get("_policy_state_version") != 3 else None)
+    refuse_legacy_calibration_debt(restored.__dict__, debt_path)
     retained = {"_calibration_dump_prepared", "_calibration_dump_pending",
                 "_calibration_unavailable_reason", "_calibration_rejection",
                 "_calibration_session_id"}
