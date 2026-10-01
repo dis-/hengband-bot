@@ -24,6 +24,16 @@ No wall touches the Morivant producer, the progress core or the arbiter.
 The speed-adjusted optimizer changes the key at sequence 242. Later boards
 are counterfactual new-code measurements; the late walk is now store-router
 owned, while the live-key comparison ends before 242.
+
+R4 boundary (USER DECISION 2026-10-01: the strip calibration is replaced by
+the equipped C-sheet read): sequence 210 is the first recorded decision of
+the removed strip phases.  The base code armed the strip deposit phase on that
+decision (its Home trip ``shop:travel``); 211-215 deposit the whole pack,
+216-227 take every worn item off (the 537 -> 506 max-HP clamp at 218 is that
+takeoff), 229 is the naked capture and 244-248 restore the supplies.  The
+replay ends before 210.  The late walk pins (former m1/m2, sequences 699-708)
+are therefore unreachable here; see CALIBRATION-OBSOLETE-PINS.md for where
+that protection lives now and what was lost.
 """
 
 from __future__ import annotations
@@ -54,6 +64,8 @@ CALIBRATION_SHA256 = "d470a028bdf04cfe5847fa11f28c2f17eafcbe92a07b4314eaf62dadd2
 WALK_START = 699
 TERMINAL = 708
 STALL_AFTER = 703
+# First recorded decision of the removed strip calibration (see docstring).
+STRIP_BOUNDARY = 210
 
 
 class MorivantTravelRetiredRecordedTest(unittest.TestCase):
@@ -99,7 +111,7 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         decided = {}
         progress = {}
         stall = None
-        for sequence in range(1, TERMINAL + 1):
+        for sequence in range(1, STRIP_BOUNDARY):
             snapshot = cls._consume(policy, sequence)
             recorded_reason = cls.boundaries["recorded"][sequence - 1][1]
             if recorded_reason == "periodic:game-save":
@@ -119,102 +131,35 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         cls.replay = decided, progress, stall
         return cls.replay
 
-    def test_m0_replay_matches_recorded_lifetime_before_equipment_choice(self):
+    def test_m0_replay_matches_recorded_lifetime_before_the_strip_calibration(self):
         decided, _progress, _stall = self._replay()
         recorded = self.boundaries["recorded"]
-        # R4: sequence 242 changes from an equipment equip to taking off the
-        # cold shield. The new best keeps Theoden in main_hand and leaves
-        # sub_hand empty (11.243 survival turns); the old calculation chose
-        # the shielded loadout (15.608). Keep the established earlier
-        # divergences, but stop the live-key comparison before sequence 242.
+        # R4 (USER DECISION 2026-10-01): compare every recorded decision
+        # before the first strip-calibration decision (sequence 210) and end
+        # the replay there.
+        self.assertEqual(sorted(decided), list(range(1, STRIP_BOUNDARY)))
         divergent = [
-            sequence for sequence in range(1, 242)
+            sequence for sequence in range(1, STRIP_BOUNDARY)
             if decided[sequence] != recorded[sequence - 1]
         ]
-        # The first new divergence is 218: max HP and current HP both fall
-        # 537 -> 506. Hengband clamps current HP to the new maximum, so this
-        # is not damage and the town shelter key is no longer warranted.
-        # 219 is the following recorded board after that changed key. The
-        # The later recurrence at 268/269 is beyond the R4 boundary.
-        for before, clamp, after in ((217, 218, 219),):
-            prior = self._consume(None, before).player
-            clamped = self._consume(None, clamp).player
-            following = self._consume(None, after).player
-            self.assertEqual(
-                ((prior.hp, prior.max_hp), (clamped.hp, clamped.max_hp),
-                 (following.hp, following.max_hp)),
-                ((537, 537), (506, 506), (506, 506)),
-            )
-            self.assertEqual(recorded[clamp - 1], ["9", "town:seek-shelter"])
-            self.assertEqual(decided[clamp], ["te", "equipment-transaction:takeoff"])
-            self.assertEqual(recorded[after - 1], ["te", "equipment-transaction:takeoff"])
-            self.assertEqual(decided[after], ["5", "equipment-transaction:await-confirmation"])
         # melee-threat-p95-adjacency (user 2026-09-22) moved exactly these
         # earlier combat decisions:
         # 153 emergency:teleport -> melee (HP 370, operational 554 -> 316),
         # 155 return:recall -> rest (follows 153: no teleport was read),
         # 158 emergency:teleport -> melee (HP 341, 372 -> 210).
-        self.assertEqual(divergent, [153, 155, 158, 218, 219])
-
-    def test_m1_recorded_walk_closing_its_distance_is_not_retired(self):
-        decided, progress, _stall = self._replay()
-
-        # The changed equipment transaction leaves the later recorded walk
-        # with the store-router owner. Position changes still count as progress.
+        self.assertEqual(divergent, [153, 155, 158])
+        # The recorded boundary is the strip session: Home trip, deposit of
+        # the whole pack, takeoff of every worn item, naked capture.
+        self.assertEqual(recorded[STRIP_BOUNDARY - 1], ["\x1b`n(.", "shop:travel"])
         self.assertEqual(
-            [decided[sequence] for sequence in range(WALK_START, TERMINAL + 1)],
-            [["1", "town:blocked:equipment-calibration-required"]]
-            + [[key, "shop:approach"] for key in
-               ("6", "6", "6", "6", "9", "9", "9", "9", "6")],
+            [row[1] for row in recorded[STRIP_BOUNDARY:STRIP_BOUNDARY + 5]],
+            ["home:store-context-exit"] + ["home:atomic-deposit"] * 4,
         )
         self.assertEqual(
-            [progress[sequence] for sequence in range(WALK_START, TERMINAL + 1)],
-            [("town-plan", True, ())]
-            + [("store-router", True, ())] * (TERMINAL - WALK_START),
+            {row[1] for row in recorded[215:227]} - {"town:seek-shelter"},
+            {"equipment-transaction:takeoff"},
         )
-        self.assertEqual(
-            [
-                self.boundaries["recorded_positions"][sequence - 1]
-                for sequence in range(WALK_START, TERMINAL + 1)
-            ],
-            [
-                [45, 84], [46, 85], [46, 86], [46, 87], [46, 88],
-                [46, 89], [45, 90], [44, 91], [43, 92], [42, 93],
-            ],
-        )
-
-    def test_m2_walk_that_stops_closing_the_distance_is_still_retired(self):
-        _decided, _progress, (policy, snapshot) = self._replay()
-        policy = copy.deepcopy(policy)
-        self.assertEqual(
-            policy._town_turn_arbiter.registry["store-router"].budget,
-            TOWN_TRAVEL_STALL_LIMIT,
-        )
-
-        stalled = []
-        retirements = []
-        for repeat in range(1, 3 * TOWN_TRAVEL_STALL_LIMIT):
-            board = replace(snapshot, turn=snapshot.turn + 10 * repeat)
-            key = policy.choose_key(board)
-            stalled.append((str(key), policy.last_reason))
-            retirements.append(tuple(
-                (policy._town_turn_arbiter.telemetry or {}).get(
-                    "retirement_set", ()
-                )
-            ))
-            policy.confirm_key_posted(key)
-            if policy.last_reason == "town:blocked:owner-retired":
-                break
-
-        # The store-router steps stay at (46,88). A detector breakout interrupts
-        # the attempt, then the owner retires on the next stalled step.
-        self.assertEqual(
-            stalled,
-            [("6", "shop:approach")] * 3
-            + [("2", "breakout"), ("6", "shop:approach"),
-               ("5", "town:blocked:owner-retired")],
-        )
-        self.assertEqual(retirements, [()] * 4 + [("store-router",), ()])
+        self.assertEqual(recorded[228], ["Cf\ry\x1b\x1b", "calibration:request-naked-character"])
 
 
 if __name__ == "__main__":

@@ -24,7 +24,13 @@ from test_ownership_s3_3_first_divergence import EXPECTED_FIRST, trajectory_defe
 OFF_SHA = {
     "tour": "d30b053bc9744336253c0b2235f7887dd3b4604bc09a86b715262c8377de5464",
     "town": "7fe5100909a3346355e5c0a9c4e66d649bae412987a46276040c077277f550b1",
-    "overweight": "8e76a2056d587730d825bc367b0fc3812da13610809f96193b03445ef542758b",
+    # R4 (USER DECISION 2026-10-01, strip calibration replaced by the
+    # equipped C-sheet read): the overweight replay now ends before index
+    # 3734, the first strip-calibration decision.  Base full stream 8e76a205
+    # (3782 rows); base prefix [:3734] bc4e5224.  The one differing prefix row
+    # is the declared rework divergence 3701 (stuck:wander -> the equipped
+    # periodic:character-dump request); see the overweight module docstring.
+    "overweight": "98c719059781554b49d0cc82b0e9995980bb4e589e4b279b3e037788115b8909",
     "withdraw": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
     "recall": "b21c0b3b423c886674960f5f3640424b8a51fc3d1f8215e31b3f61a5299bcef4",
     "stuck": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",

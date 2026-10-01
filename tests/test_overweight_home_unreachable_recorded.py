@@ -64,6 +64,22 @@ Walls, each declared:
   Home-subject lifetime replay. The production loot boundary test runs without
   the wall and stops at the first changed key.
 No wall touches the Home ledger, the equipment transaction or the terminal.
+
+R4 boundary (USER DECISION 2026-10-01: the strip calibration is replaced by
+the equipped C-sheet read): the replay ends before index 3734 (sequence
+3733), the first recorded decision of the removed strip phases -- the base
+code armed the strip deposit phase there (``town:blocked:equipment-
+calibration-required``), and 3735-3776 are its Home deposit-all, takeoff of
+every worn item, naked capture, re-equip and supply restores.  The recorded
+H1 window (Home passes through those deposits/restores, the Ring deposit and
+the 3780 stop) is therefore unreachable; its protection lives in
+HomeSuccessResetsTheVisitBoundTest below and in test_policy_home's public
+weight-overload entry pin (see CALIBRATION-OBSOLETE-PINS.md).
+DECLARED DIVERGENCE (rework): at index 3701 the frozen calibration is stale
+(the live process had owed the strip calibration since its town arrival at
+3696, outstanding_equipment_work True), so the safe ``stuck:wander`` filler
+becomes the equipped C-sheet dump request ``periodic:character-dump``; every
+later recorded board up to the boundary is decided as the base code decided it.
 The unseen-caster death fix changes the key at index 1594 (hidden gas breath,
 HP 542 -> 538).  This Home-subject replay walls only that earlier caster
 decision and its HP-loss streak; the death incident pins the new escape on
@@ -118,6 +134,10 @@ STAFF_OBSERVED = 3777  # sequence 3776
 RING_DEPOSIT = 3779  # sequence 3778, 'do\r'
 RING_OBSERVED = 3780  # sequence 3779, home:leave-after-one-operation
 STOP = 3781  # sequence 3780, town:blocked:overweight-home-unreachable
+# R4 (see docstring): first recorded strip-calibration decision; the replay
+# decides indices below it only.
+STRIP_START = 3734  # sequence 3733, base arms the strip deposit phase
+DUMP_REQUEST = 3701  # sequence 3700, declared rework divergence
 HOME_ENTRANCE = (45, 123)
 PRE_CASTER_WALL = 1594
 
@@ -190,7 +210,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 CALIBRATION.read_bytes()
             )
             install_extraction_calibration(policy)
-            for index in range(STOP + 1):
+            for index in range(STRIP_START):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,
                     cls.monrace,
@@ -353,18 +373,21 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(TOWN_STOP_PASS_LIMIT, 3)
 
     # ------------------------------------------------------------ H1
-    def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
+    def test_replay_reproduces_every_recorded_decision_before_the_strip(self):
         replay = self._replay()
+        # R4 (USER DECISION 2026-10-01): the replay ends before STRIP_START.
+        self.assertEqual(len(replay), STRIP_START)
+        self.assertEqual(
+            (self.recorded[STRIP_START]["key"], self.recorded[STRIP_START]["reason"]),
+            ("7", "town:blocked:equipment-calibration-required"),
+        )
         # Quantity-only key changes on the same frozen boards: e is an
         # eleven-item stack at 3 and 3713, so a one-item Home deposit needs
-        # "1 Return". At 3779, o is a singleton ring and needs no Return.
-        # R4 compares the remaining stream modulo these exact answers; the
-        # captured later boards reflect the old keys and cannot prove their
-        # counterfactual effects.
+        # "1 Return".  The captured later boards reflect the old keys and
+        # cannot prove their counterfactual effects.
         quantity_keys = {
             3: ("de\x1b", "de1\r\x1b"),
             3713: ("de\x1b", "de1\r\x1b"),
-            RING_DEPOSIT: ("do\r", "do"),
         }
         for index, (old, new) in quantity_keys.items():
             self.assertEqual(self.recorded[index]["key"], old)
@@ -373,30 +396,41 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             [
                 index
-                for index in range(STOP + 1)
+                for index in range(STRIP_START)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            [*DIVERGENT, STOP],
+            sorted({DUMP_REQUEST, *DIVERGENT}),
         )
+        # The declared rework divergence (see docstring).
+        self.assertEqual(
+            (self.recorded[DUMP_REQUEST]["key"], self.recorded[DUMP_REQUEST]["reason"]),
+            ("7", "stuck:wander"),
+        )
+        self.assertEqual(
+            (replay[DUMP_REQUEST]["key"], replay[DUMP_REQUEST]["reason"]),
+            ("Cf\ry\x1b\x1b", "periodic:character-dump"),
+        )
+        self.assertTrue(self.recorded[VISIT_START]["outstanding_equipment_work"])
         self.assertEqual(
             [index for index, row in enumerate(replay)
              if row["claim"].get("claim_verdict_conflict")],
             [],
         )
+        # Indices 6 and 3724; base counted the same two over the whole
+        # process (the later rows are strip-window rows).
         self.assertEqual(
             sum(bool(row["claim"].get("scan-during-pending-atomic"))
                 for row in replay),
             2,
         )
+        # Indices 16 and 3724.  Base counted five over the whole process; the
+        # other three (3770, 3776, 3777) are strip restore-window rows.
         self.assertEqual(
             sum(bool(row["claim"].get("visit_owner_mismatch"))
                 for row in replay),
-            # The knowledge-source claim from ruling (c') adds one genuine
-            # Home-scan requester/operator disagreement to the four plan
-            # requester disagreements already pinned here.
-            5,
+            2,
         )
 
     def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
@@ -430,61 +464,6 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             [row for row in replay if row["bar_skipped"] is not None], []
         )
-
-    def test_h1_stop_board_proceeds_to_the_home_deposit(self):
-        replay = self._replay()
-        stop = replay[STOP]
-        # The stop board stands on the Home entrance, overweight.
-        self.assertEqual(stop["position"], HOME_ENTRANCE)
-        self.assertEqual(stop["store_number"], STORE_HOME)
-        self.assertTrue(stop["overweight"])
-        # It enters Home for the surplus deposit instead of the terminal.
-        self.assertEqual(
-            (stop["key"], stop["reason"]), ("5", "home:weight-overload-deposit")
-        )
-        self.assertIsNone(stop["blocked_reason"])
-        self.assertFalse(stop["blocked"])
-        self.assertIn("weight-overload", stop["claims"])
-        for row in replay[VISIT_START : STOP + 1]:
-            self.assertNotEqual(
-                row["blocked_reason"], "overweight-home-unreachable", row
-            )
-
-    def test_h1_every_observed_home_effect_resets_the_pass_count(self):
-        replay = self._replay()
-        recorded = self.recorded
-        # Until the first observed effect the count is the recorded one.
-        self.assertEqual(
-            [row["passes"] for row in replay[VISIT_START : DEPOSITS_OBSERVED[0]]],
-            [
-                row["home_unsatisfied_passes"]
-                for row in recorded[VISIT_START : DEPOSITS_OBSERVED[0]]
-            ],
-        )
-        # Each confirmed deposit/withdrawal clears the passes charged before
-        # it; a later pass counts from there.
-        self.assertEqual(
-            [
-                replay[index]["passes"]
-                for index in (
-                    3736, *DEPOSITS_OBSERVED, 3770, *RESTORES_OBSERVED,
-                    STAFF_OBSERVED, 3778, RING_DEPOSIT, RING_OBSERVED,
-                )
-            ],
-            [2, 0, 0, 0, 1, 0, 0, 1, 1, 2, 2, 1],
-        )
-        # The Ring deposit still finishes the equipment work and drops the
-        # bound to 3, but one pass after an observed effect blocks nothing.
-        ring = replay[RING_OBSERVED]
-        self.assertEqual(
-            (ring["key"], ring["reason"], ring["limit"], ring["blocked"]),
-            ("\x1b", "home:leave-after-one-operation", 3, False),
-        )
-        self.assertEqual(
-            {row["approach_fails"] for row in replay[VISIT_START : STOP + 1]},
-            {0},
-        )
-
 
 class HomeSuccessResetsTheVisitBoundTest(unittest.TestCase):
     """H2 (class): observed Home effects, not visits, decide the bound.

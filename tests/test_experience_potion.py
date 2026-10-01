@@ -79,6 +79,7 @@ from hengbot.model import (
     SV_POTION_EXPERIENCE,
     SV_POTION_RESTORE_EXP,
     TVAL_POTION,
+    parse_snapshot,
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -613,7 +614,13 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
             directory = Path(raw_directory)
             policy = esp_recorded._policy(directory, monrace)
             cursor = 0
-            for index, count in enumerate(boundaries["input_rows"][:-1]):
+            # R4 (USER DECISION 2026-10-01, strip calibration replaced by the
+            # equipped C-sheet read): the replay ends before sequence 210, the
+            # first recorded strip-calibration decision of this lifetime
+            # (test_morivant_travel_retired_recorded.STRIP_BOUNDARY).
+            for index, count in enumerate(
+                boundaries["input_rows"][:morivant.STRIP_BOUNDARY - 1]
+            ):
                 segment = lines[cursor:cursor + count]
                 cursor += count
                 _decoded, snapshots = _consume_response_sequence(
@@ -629,21 +636,54 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
                 elif reason == "periodic:character-dump":
                     policy.request_character_dump()
                 decided.append(list(_decide(policy, snapshot)))
-        self.assertGreater(carried, 100)
+        self.assertEqual(len(decided), morivant.STRIP_BOUNDARY - 1)
+        # The potion is first carried after the strip boundary; its
+        # protocol-2 boards are pinned by the next test on the producer.
+        self.assertEqual(carried, 0)
         self.assertEqual(
             [
-                index + 1 for index, decision in enumerate(decided[:682])
+                index + 1 for index, decision in enumerate(decided)
                 if decision != boundaries["recorded"][index]
             ],
-            # M0's combat moves and the max-HP clamps at 218 and 268
-            # (537/537 -> 506/506); the following recorded boards at 219
-            # and 269 reflect the shelter keys absent from this replay.
-            # R4 stops at the quantity prompt at sequence 683.
-            [153, 155, 158, 218, 219, 268, 269, 618, 620],
+            # M0's combat moves (melee-threat-p95-adjacency).  The base
+            # comparison ran to sequence 682: its max-HP clamps at 218/268
+            # were strip takeoffs and its quantity prompt at 683 lies beyond
+            # the strip boundary; see CALIBRATION-OBSOLETE-PINS.md.
+            [153, 155, 158],
         )
-        self.assertEqual(boundaries["recorded"][682], ["db\x1b", "home:atomic-deposit"])
-        self.assertEqual(decided[682], ["db1\r\x1b", "home:atomic-deposit"])
         self.assertFalse(any(reason.startswith("experience:") for _key, reason in decided))
+
+
+    def test_x7_protocol2_boards_carrying_the_potion_never_quaff_it(self):
+        """X7's carried-potion protection after the R4 replay boundary.
+
+        Every recorded protocol-2 board of the lifetime that carries the
+        Experience potion (max_exp is not exported, so a drain is unknown):
+        the quaff producer offers nothing.  The producer runs on a fresh
+        policy, so no replayed (strip-era) state is involved.
+        """
+        boundaries = json.loads(
+            morivant.FIXTURE.with_suffix(".boundaries.json").read_text(encoding="utf-8")
+        )
+        with gzip.open(morivant.FIXTURE, "rt", encoding="utf-8") as stream:
+            lines = list(stream)
+        monrace = load_monrace_knowledge(esp_recorded.EDIT / "MonraceDefinitions.jsonc")
+        cursor = 0
+        carried = []
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy = esp_recorded._policy(Path(directory.name), monrace)
+        for index, count in enumerate(boundaries["input_rows"][:-1]):
+            row = json.loads(lines[cursor + count - 1])
+            cursor += count
+            snapshot = parse_snapshot(row, monrace)
+            if _potion(snapshot, SV_POTION_EXPERIENCE) is None:
+                continue
+            carried.append(index + 1)
+            self.assertIsNone(snapshot.player.max_exp)
+            self.assertIsNone(policy._experience_potion_quaff_key(snapshot, []))
+        self.assertGreater(len(carried), 100)
+        self.assertGreaterEqual(min(carried), morivant.STRIP_BOUNDARY)
 
 
 class ExperiencePotionRestoredCheckpointTest(unittest.TestCase):

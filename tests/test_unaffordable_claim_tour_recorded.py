@@ -209,6 +209,41 @@ S2A1_ENDINGS = {
     # R4 wrapper attribution records these step-offs under the inner owner.
     "departure/Reach:one-step": {"complete": 0},
 }
+# R4 (USER DECISION 2026-10-01: the strip calibration is replaced by the
+# equipped C-sheet read).  The S2a.1 and S3 measurements end before list
+# index 2999 (decision 2996), the first strip-calibration decision: the base
+# code armed the strip deposit phase on that Home trip, and 3000-3050 are the
+# deposit-all, takeoffs, naked capture, re-equip and supply restores.  The
+# three full-lifetime tables above are the base (3e153bc1) values, kept for
+# the record; the tables below are the same measurements before the strip.
+# Every claim row before 2999 equals the base row except the declared rework
+# divergence DUMP_REQUEST: the stale frozen calibration turns that safe
+# ``explore`` step into the equipped dump request ``periodic:character-dump``,
+# which removes the one explore Reach the base completed on the next row.
+STRIP_START = 2999
+DUMP_REQUEST = 2810  # decision 2808
+S2A1_OBSERVE_COMPLETE_LABELS_BEFORE_STRIP = {
+    "purchase-observed": 8,
+    "sale-observed": 3,
+    "floor-changed": 8,
+    "home-knowledge-current": 5,
+    "entered-store": 5,
+    "equipment-transaction-complete": 3,
+    "staged-tail-posted": 15,
+}
+S2A1_NEXT_ROW_COMPLETE_BEFORE_STRIP = 980  # base prefix 981 (DUMP_REQUEST)
+S2A1_ENDINGS_BEFORE_STRIP = {
+    "shop-buy/Observe": {"complete": 8, "open-at-end": 0},
+    "home-visit/Observe": {"complete": 0, "release": 0,
+                           "expired": 3, "abandoned": 0},
+    "equipment-txn/Observe": {"complete": 4, "abandoned": 0},
+    "floor-loot/Reach": {"complete": 37, "abandoned": 0},
+    "floor-loot/Reach:one-step": {"complete": 2},
+    "positioning/Reach": {"complete": 7, "release": 0},
+    "positioning/Reach:one-step": {"complete": 0},
+    "departure/Reach": {"complete": 2},
+    "departure/Reach:one-step": {"complete": 0},
+}
 
 
 def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
@@ -293,28 +328,29 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
 
     def test_s3_new_code_replay_names_remaining_violations(self):
         self._replay()
+        # R4 boundary (see STRIP_START): the base strip session's Home trip.
+        strip = self.claim_rows[STRIP_START]
         self.assertEqual(
-            [(row["decision_sequence"], row["owner"])
-             for row in self.claim_rows
-             if 2998 <= row["decision_sequence"] <= 3003],
-            [(sequence, "calibration") for sequence in range(2998, 3004)],
+            (strip["decision_sequence"], strip["key"], strip["reason"]),
+            (2996, "\x1b`n(.", "shop:travel"),
+        )
+        dump = self.claim_rows[DUMP_REQUEST]
+        self.assertEqual(
+            (dump["decision_sequence"], dump["key"], dump["reason"]),
+            (2808, "Cf\ry\x1b\x1b", "periodic:character-dump"),
         )
         actual = [
             (row["decision_sequence"], v["kind"], v["from"], v["to"])
-            for row in self.claim_rows
+            for row in self.claim_rows[:STRIP_START]
             if isinstance(v := row.get("violation"), dict)
             and v.get("scope") == "S3"
         ]
-        # Base 7df0fb0d had 11 owner changes. Ruling (c') types calibration's
-        # knowledge request as Observe(knowledge), so its replacement of the
-        # previous calibration goal is now a visible same-family retarget at
-        # 3035. The two router Reach handoffs and the second transaction
-        # contending with calibration remain.
+        # Base 7df0fb0d had 11 owner changes; base 3e153bc1 named four over
+        # the whole lifetime: 2701 (store-router -> home-scan), the strip
+        # session's 3035 retarget and 3037 contention, and 3052 after it.
+        # R4: only the one before the strip boundary is measured here.
         self.assertEqual(actual, [
             (2701, "owner-change", "store-router", "home-scan"),
-            (3035, "retarget", "calibration", "calibration"),
-            (3037, "transaction-contention", "calibration", "equipment-txn"),
-            (3052, "owner-change", "store-router", "home-scan"),
         ])
 
     @classmethod
@@ -584,8 +620,10 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         from hengbot.ownership_metrics import gate_numbers
 
         self._replay()
-        rows = self.claim_rows
-        self.assertEqual(len(rows), AFTER_PURCHASES)
+        self.assertEqual(len(self.claim_rows), AFTER_PURCHASES)
+        # R4 (see STRIP_START): measure before the first strip decision.
+        rows = self.claim_rows[:STRIP_START]
+        self.assertEqual(rows[DUMP_REQUEST]["reason"], "periodic:character-dump")
         labels: dict[str, int] = {}
         for row in rows:
             closed = row.get("closed_claim") or {}
@@ -595,7 +633,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             ):
                 label = closed["closed_reason"]
                 labels[label] = labels.get(label, 0) + 1
-        self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS)
+        self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS_BEFORE_STRIP)
         # S3.0/S3.1: adding a newly stripped item changes the per-key post,
         # but the session's plan and claim identity remain fixed.
         self.assertEqual(
@@ -644,7 +682,7 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 reason = rows[index]["reason"]
                 next_row[reason] = next_row.get(reason, 0) + 1
             index = end + 1
-        self.assertEqual(sum(next_row.values()), S2A1_NEXT_ROW_COMPLETE)
+        self.assertEqual(sum(next_row.values()), S2A1_NEXT_ROW_COMPLETE_BEFORE_STRIP)
         self.assertEqual(
             {
                 reason: count for reason, count in next_row.items()
@@ -659,9 +697,9 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     ending: endings.get(name, {}).get(ending, 0)
                     for ending in counts
                 }
-                for name, counts in S2A1_ENDINGS.items()
+                for name, counts in S2A1_ENDINGS_BEFORE_STRIP.items()
             },
-            S2A1_ENDINGS,
+            S2A1_ENDINGS_BEFORE_STRIP,
         )
 
 

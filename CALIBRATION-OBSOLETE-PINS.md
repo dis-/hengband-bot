@@ -241,3 +241,25 @@ Expectations changed as a direct result of removing the strip phases (each verif
 Expectations changed by the single checkpoint upgrade (R5), which now supplies every fresh attribute: `test_unseen_caster_death_recorded` (streak present as 0), `test_home_entry_capture` gate1 (the pre-probe checkpoint gets `_home_procurement_probe=None`; the catalogue owner binds the same digger and composed key).
 
 Recorded replays that freeze the extraction-time strip record (`tests/extraction_calibration.py`) now also hold it in memory, because the live process no longer reads schema-1 records from disk.
+
+## R4 on recorded lifetime replays (reviewer decision, 2026-10-02)
+
+Each replay keeps asserting the recorded trajectory up to (excluding) the first decision of the removed strip phases and ends there (USER DECISION 2026-10-01: strip calibration replaced by the equipped C-sheet read). The boundary is the decision on which the base code (3e153bc1) armed the strip deposit phase, measured by replaying the base code with a phase hook.
+
+| Replay | Boundary (list index / decision) | Recorded strip session | Changed rows before the boundary |
+| --- | --- | --- | --- |
+| overweight (`test_overweight_home_unreachable_recorded`) | 3734 / 3733 `town:blocked:equipment-calibration-required` | 3735-3776 deposit-all, takeoffs, naked capture 3755, re-equip, restores 3770-3775 | 3701 only (declared): the stale frozen calibration turns `stuck:wander` into the equipped dump request `periodic:character-dump` |
+| morivant + experience x7 (same fixture) | 210 / 210 Home trip `shop:travel` | 211-215 deposit-all, 216-227 takeoffs (the 537->506 max-HP clamp at 218 is a takeoff), 229 naked capture, 244-248 restores | none |
+| tour (`test_unaffordable_claim_tour_recorded`, S2a.1 and S3 measurements only) | 2999 / 2996 Home trip `shop:travel` | 3000-3050 deposits, takeoffs, capture, re-equip, restores | 2810 only (declared): `explore` -> `periodic:character-dump`, removing one next-row Reach completion (981 -> 980) |
+
+Hash / measurement changes:
+
+- `scripts/first_divergence_s3_3.py` OFF_SHA["overweight"]: base full stream `8e76a205...` (3782 rows), base prefix [:3734] `bc4e5224...`, new prefix `98c71905...`. The one differing prefix row is 3701 (above). Rows 3734-3781 (all inside or after the strip session) are no longer replayed.
+- tour S3 violations: base lifetime `[2701, 3035 retarget calibration, 3037 contention calibration, 3052]`; before the boundary `[2701]` in both base and new code. S2a.1 tables before the boundary are new constants (`*_BEFORE_STRIP`); every one equals the base prefix value except next-row completions (981 -> 980, row 2810). The full-lifetime base tables remain in the module for the record.
+
+Protection status after the boundary:
+
+- overweight H1 (`test_h1_every_observed_home_effect_resets_the_pass_count`, `test_h1_stop_board_proceeds_to_the_home_deposit`, removed): the observed-effect reset and the released block are pinned on constructed boards by `HomeSuccessResetsTheVisitBoundTest` (5 methods); an overweight character on the Home entrance entering for the deposit is pinned publicly by `test_policy_home.py:...test_production_executor_home_atomic_deposit_enters_then_posts_once` (`5`, `home:weight-overload-deposit`). Lost: the recorded incident shape itself (Ring deposit finishing the equipment work so the bound falls 300 -> 3 on the pass that reaches 3, sequence 3778-3780), and the replay's later `scan-during-pending-atomic` / `visit_owner_mismatch` rows 3770, 3776, 3777 (restore window).
+- morivant m1/m2 (removed; sequences 699-708): store-router walk progress is pinned by `test_town_approach_retired_recorded.test_a1_walk_whose_claimed_distance_falls_is_not_retired`; stalled store-router travel retirement by `test_entrance_travel_retired_recorded.test_e2_entrance_walk_that_stops_closing_the_distance_is_retired` (arbiter level). Lost: m2's public-path sequence on the 703 board (three stalled `shop:approach`, a detector `breakout`, then `town:blocked:owner-retired`).
+- experience x7: the potion is first carried after the boundary (0 carried decisions before 210). New separate pin `test_x7_protocol2_boards_carrying_the_potion_never_quaff_it`: on every recorded protocol-2 board that carries the Experience potion (>100 boards, all after 210), the quaff producer offers nothing on a fresh policy. Lost: the lifetime quantity-prompt comparison at 683 (`db1\r\x1b`); the same one-item deposit quantity answer remains pinned at overweight indices 3 and 3713.
+- tour: decisions after the boundary are still pinned by the module's purchase / owner-retired tests on the full replay (they pass); only the two measurement tests are bounded.
