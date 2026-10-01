@@ -1,0 +1,52 @@
+FFF
+======================================================================
+FAIL: test_fresh_restore_includes_merged_stack_and_completes (tests.test_calibration_live28.Live28CalibrationTest.test_fresh_restore_includes_merged_stack_and_completes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live28.py", line 104, in test_fresh_restore_includes_merged_stack_and_completes
+    self.assertEqual(key, LIVE_FIRST.replace("pupt", "pv1\rpupt"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5pXpFpw2\rpupt2\rps2\rprpppm6\rplpk2\rpj10\rpi15\rph[19 chars]\x1b' != '5pXpFpw2\rpv1\rpupt2\rps2\rprpppm6\rplpk2\rpj10\rpi1[24 chars]\x1b'
+  5pXpFpw2+ pv1  pupt2  ps2  prpppm6  plpk2  pj10  pi15  ph1  pg4  pf10  pb5  
+
+
+======================================================================
+FAIL: test_historical_first_observation_keeps_four_charge_debt (tests.test_calibration_live28.Live28CalibrationTest.test_historical_first_observation_keeps_four_charge_debt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live28.py", line 80, in test_historical_first_observation_keeps_four_charge_debt
+    self.assertEqual(staff, [policy._item_signature(original)])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [('鑑定の杖 (21回分)', 55, 5)] != [('鑑定の杖 (4回分)', 55, 5)]
+
+First differing element 0:
+('鑑定の杖 (21回分)', 55, 5)
+('鑑定の杖 (4回分)', 55, 5)
+
+- [('鑑定の杖 (21回分)', 55, 5)]
+?          ^^
+
++ [('鑑定の杖 (4回分)', 55, 5)]
+?          ^
+
+
+======================================================================
+FAIL: test_old_checkpoint_already_carried_target_reconciles (tests.test_calibration_live28.Live28CalibrationTest.test_old_checkpoint_already_carried_target_reconciles)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_calibration_live28.py", line 129, in test_old_checkpoint_already_carried_target_reconciles
+    self.assertEqual(policy._calibration_restore_signatures, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [('鑑定の杖 (21回分)', 55, 5)] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+('鑑定の杖 (21回分)', 55, 5)
+
+- [('鑑定の杖 (21回分)', 55, 5)]
++ []
+
+----------------------------------------------------------------------
+Ran 3 tests in 4.320s
+
+FAILED (failures=3)
