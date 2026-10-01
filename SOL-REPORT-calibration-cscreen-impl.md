@@ -42,7 +42,7 @@ Each verified module ran in its own process with the Codex runtime Python and `P
 | `tests.test_home_withdraw_deposit_alternation_recorded` | 2 |
 | Total | **407** |
 
-An additional **28 focused preserved/changed pins** pass: 16 Home methods, six ownership attribution/requester/completion methods, three town-arbiter suppression methods, one supply rearm method, and two shadow identity methods. These were qualified-method runs, not whole-module sweeps. The seven R1-R7 single-revert checks each failed their intended pin; original source bytes were restored after each check. Changed Python files parse and `git diff --check` passes.
+An additional **28 focused preserved/changed pins** pass: 16 Home methods, six ownership attribution/requester/completion methods, three town-arbiter suppression methods, one supply rearm method, and two shadow identity methods. These were qualified-method runs, not whole-module sweeps. The seven R1-R7 single-revert checks each failed their intended pin; original source bytes were restored after each check. Changed Python files parse; code whitespace checks pass. The complete diff against the base reports only intentional fixed-width padding / final blank bytes in the frozen CP932 dump fixtures; those bytes are preserved.
 
 Bounded OFF/S33 measurements use only four rows per case and stop at the first changed action. No response after that change is fed. The fixture's existing stop-rung wall is retained for stuck; this is not a full trajectory/live-game proof.
 

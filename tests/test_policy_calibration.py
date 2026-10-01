@@ -272,4 +272,3 @@ class EquippedCalibrationRegressionTest(unittest.TestCase):
         self.assertIn(
             "town:blocked:departure-unsatisfiable", POLICY_FINAL_STOP_REASONS
         )
-

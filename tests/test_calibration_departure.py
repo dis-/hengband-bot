@@ -17,4 +17,3 @@ class CalibrationDepartureTest(unittest.TestCase):
         # Scenario input: Home has already proved unreachable this visit.
         policy._town_visit_ledger.blocked_stores.add(STORE_HOME)
         self.assertIsNone(policy._terminal_equipment_blocker(snapshot))
-

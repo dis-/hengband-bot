@@ -221,5 +221,3 @@ class CalibrationMixin:
         self._home_pending_quantity = 1
         self._home_pending_quantities[signature] = 1
         self._home_withdrawal_queued = True
-
-
