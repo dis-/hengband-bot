@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_model_reproduces_the_recorded_stop_for_the_atomic_macro (tests.test_pickup_pile_prompt_recorded.PickupPilePromptRecordedTest.test_model_reproduces_the_recorded_stop_for_the_atomic_macro)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_pickup_pile_prompt_recorded.py", line 315, in test_model_reproduces_the_recorded_stop_for_the_atomic_macro
+    self.assertIs(sent, SendResult.TERMINAL)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <SendResult.SENT: 'sent'> is not <SendResult.TERMINAL: 'terminal'>
+
+----------------------------------------------------------------------
+Ran 1 test in 2.167s
+
+FAILED (failures=1)

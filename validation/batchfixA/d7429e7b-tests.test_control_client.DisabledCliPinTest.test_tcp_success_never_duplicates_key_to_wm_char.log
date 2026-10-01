@@ -1,0 +1,7 @@
+hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+5
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
