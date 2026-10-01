@@ -9,7 +9,7 @@ import unittest
 import tests  # noqa: F401
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_types import TownErrandPlan
+from hengbot.policy_types import TownErrandPlan, TownNeed
 
 FIXTURE = Path(__file__).parent / "fixtures/live32-shop-leave"
 
@@ -92,6 +92,53 @@ class Live32ShopLeaveTest(unittest.TestCase):
         on._town_claim_bar_enforced = True
         self.assertIsNone(on._enforce_town_claim_result(boards[3], "5"))
         self.assertEqual(on.last_reason, shadow["would_stop"])
+
+    def test_recorded_rebuild_keeps_posted_route_and_shadow_agrees(self):
+        for restored in (False, True):
+            policy, boards = attachment(True)
+            board = boards[2]
+            step = policy._walkable_neighbors(board, board.player.position)[0]
+            key = policy._shopping_approach_key(board, step, "shop:travel")
+            self.assertEqual(key, "1")
+            policy._record_decision_claim(board, key)
+            holder_id = policy._claim_register.current.claim_id
+            policy.confirm_key_posted(key)
+            if restored:
+                policy = pickle.loads(pickle.dumps(policy))
+            # Recorded 4217 really follows the unchanged posted 1. Replay the
+            # route/rebuild seam, using the recorded live-need projection;
+            # no claim about replaying the whole prior town lifetime is made.
+            board = boards[3]
+            policy._decision_sequence = 4217
+            policy._map_predicate_snapshot = board
+            policy._build_grid_index(board)
+            policy._town_errand_plan = policy._build_town_errand_plan(board, [
+                TownNeed(7, "equipment-catalog", "home-first"),
+                TownNeed(7, "equipment-work", "home-first"),
+            ])
+            self.assertEqual(policy._town_errand_plan.stops, [7])
+            self.assertEqual(policy._decision_plan_change_evidence["previous_stops"], (7, 6, 4))
+            self.assertEqual(policy._decision_plan_change_evidence["new_stops"], (7,))
+            holder = policy._claim_register.current
+            key = policy._town_holder_ladder_result(holder, board)
+            self.assertEqual((key, policy.last_reason), ("9", "shop:approach"))
+            self.assertEqual(policy._town_held_decision(key).claim_id, holder_id)
+            # The normal choose_key seam protects this holder from no-progress
+            # and procurement rewrites. Its outside move is still a route.
+            self.assertEqual(policy._enforce_town_claim_result(board, key), key)
+            policy._town_claim_bar_enforced = False
+            before = pickle.dumps(policy)
+            shadow = policy._s33_shadow_verdict(board, key)
+            self.assertEqual(pickle.dumps(policy), before)
+            self.assertIsNone(shadow["would_stop"])
+            self.assertEqual(shadow["holder_family"], "store-router")
+            policy._town_claim_bar_enforced = True
+            policy._record_decision_claim(board, key)
+            self.assertEqual(policy._claim_register.current.claim_id, holder_id)
+            self.assertIsNone(policy.decision_claim["violation"])
+            self.assertEqual(policy._claim_register.current.goal.cell, (45, 84))
+            # 9 is the first changed key (recorded 4217 stopped). No following
+            # historical board is treated as a consequence of this new action.
 
 
 if __name__ == "__main__":

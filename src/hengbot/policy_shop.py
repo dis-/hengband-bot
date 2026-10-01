@@ -5153,6 +5153,11 @@ class ShopMixin:
             self.last_reason = reason_before_composition
         self._shop_observation = None
         offer_outcome(None, "uncomposable-page-released")
+        if getattr(self, "_town_claim_bar_enforced", False):
+            # No shelf command was selected. The outside route still owns its
+            # fallback key; a speculative shop:leave must not label that walk
+            # as an unposted sale operation with no execution declaration.
+            self.last_reason = reason_before_composition
         return None
 
     def _star_remove_curse_reserve_purchase_needed(
