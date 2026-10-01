@@ -167,6 +167,8 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if not lines:
         return ScreenMatch(ScreenKind.UNKNOWN, "empty-screen")
     row0 = lines[0]
+    prompt0 = row0.lstrip()
+    prompt_column = _cell_width(row0) - _cell_width(prompt0)
 
     # player/player-status.cpp:2841-2870. This modal cannot be dismissed with
     # Escape: it requires one of the six visible rows and then confirmation.
@@ -231,7 +233,7 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # core/asking-player.cpp:343-351. The editable default follows the colon.
     if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0) or \
             re.search(r"^(?:Rest|休憩) \(0-9999, .+\):(?: .*)?$", row0):
-        return ScreenMatch(ScreenKind.QUANTITY, row0, 0, 0)
+        return ScreenMatch(ScreenKind.QUANTITY, prompt0, 0, prompt_column)
     # target/target-getter.cpp:56-61,118-120.
     direction_prompts = ("Direction (Escape to cancel)?", "方向 (ESCで中断)?",
         "Direction ('5' for target, '*' to re-target, Escape to cancel)?",
@@ -259,11 +261,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if row0.endswith(("Identify which item?", "どのアイテムを鑑定しますか?",
                       "*Identify* which item?", "どのアイテムを*鑑定*しますか?")):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
-    if row0.lstrip().startswith("(Items ") and "ESC to exit)" in row0:
-        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    if prompt0.startswith("(Items ") and "ESC to exit)" in prompt0:
+        return ScreenMatch(ScreenKind.ITEM_SOURCE, prompt0, 0, prompt_column)
     # store/store.cpp:181-185. Japanese selects either 商品 or アイテム.
-    if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", row0.lstrip()):
-        return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
+    if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", prompt0):
+        return ScreenMatch(ScreenKind.ITEM_SOURCE, prompt0, 0, prompt_column)
 
     # perception/identification.cpp:762-799. prt() starts at x=15 and the
     # heading literal itself begins with five spaces, so its text starts at 20.
@@ -351,9 +353,9 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
         menu_y = 20 + min(40, height - 24)
         offset_x = (width - 80) // 2
-        command = lines[menu_y][offset_x:] if menu_y < len(lines) else ""
-        exit_row = lines[menu_y + 1][offset_x:] if menu_y + 1 < len(lines) else ""
-        actions = "\n".join(line[offset_x:] for line in lines[menu_y:min(len(lines), menu_y + 4)])
+        command = _text_at_cell(lines[menu_y], offset_x) if menu_y < len(lines) else ""
+        exit_row = _text_at_cell(lines[menu_y + 1], offset_x) if menu_y + 1 < len(lines) else ""
+        actions = "\n".join(_text_at_cell(line, offset_x) for line in lines[menu_y:min(len(lines), menu_y + 4)])
         complete = command.startswith(("You may:", "コマンド:")) and exit_row.startswith((
             " ESC) Exit from Building.", " ESC) 建物から出る"))
     else:

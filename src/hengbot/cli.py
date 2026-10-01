@@ -2424,7 +2424,13 @@ def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuati
     body = key[:-1] if key.endswith("\x1b") else key
     prefix = body[:2]
     tail = body[2:]
-    continuations: list[Continuation] = []
+    # A chooser may still be observed after the historical atomic p+slot
+    # prefix. Recover only this operation's slot on an actual store chooser.
+    continuations: list[Continuation] = [Continuation(
+        frozenset({ScreenKind.ITEM_SOURCE}), prefix[1],
+        (r"\(Items .*ESC to exit\).*", r"\((?:\u5546\u54c1|\u30a2\u30a4\u30c6\u30e0):.-., ESC\u3067\u4e2d\u65ad\) .*"),
+        feature_pattern=True, optional=True,
+    )]
     if tail.endswith("\r\r"):
         continuations.append(Continuation(frozenset({ScreenKind.QUANTITY}), tail[:-1]))
         continuations.append(Continuation(frozenset({ScreenKind.CONFIRM}), "\r"))
