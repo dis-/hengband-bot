@@ -1,0 +1,46 @@
+python.exe : test_recorded_entry_completes_catalogue_before_other_errand (tests.test_live23_home_cycle.Live23HomeCycleT
+est.test_recorded_entry_completes_catalogue_before_other_errand) ... 
+発生場所 行:27 文字:1
++ & 'C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe'  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_recorded_e...er_errand) ... :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  test_recorded_entry_completes_catalogue_before_other_errand (tests.test_live23_home_cycle.Live23HomeCycleTest.test_re
+corded_entry_completes_catalogue_before_other_errand) (enforced=False, crossarea=False, restored=False) ... FAIL
+  test_recorded_entry_completes_catalogue_before_other_errand (tests.test_live23_home_cycle.Live23HomeCycleTest.test_re
+corded_entry_completes_catalogue_before_other_errand) (enforced=False, crossarea=False, restored=True) ... FAIL
+
+======================================================================
+FAIL: test_recorded_entry_completes_catalogue_before_other_errand (tests.test_live23_home_cycle.Live23HomeCycleTest.tes
+t_recorded_entry_completes_catalogue_before_other_errand) (enforced=False, crossarea=False, restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live23_home_cycle.py", line 62, in test_recorded_entry_completes_catal
+ogue_before_other_errand
+    self.assertEqual(policy.last_reason, "equipment-transaction:home-catalog-acquired")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'home:queue-digging-tool-withdraw' != 'equipment-transaction:home-catalog-acquired'
+- home:queue-digging-tool-withdraw
++ equipment-transaction:home-catalog-acquired
+
+
+======================================================================
+FAIL: test_recorded_entry_completes_catalogue_before_other_errand (tests.test_live23_home_cycle.Live23HomeCycleTest.tes
+t_recorded_entry_completes_catalogue_before_other_errand) (enforced=False, crossarea=False, restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live23_home_cycle.py", line 62, in test_recorded_entry_completes_catal
+ogue_before_other_errand
+    self.assertEqual(policy.last_reason, "equipment-transaction:home-catalog-acquired")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'home:queue-digging-tool-withdraw' != 'equipment-transaction:home-catalog-acquired'
+- home:queue-digging-tool-withdraw
++ equipment-transaction:home-catalog-acquired
+
+
+----------------------------------------------------------------------
+Ran 1 test in 15.593s
+
+FAILED (failures=2)
+REVERT DETECTED: pre-fix source fails the OFF catalogue completion pin.

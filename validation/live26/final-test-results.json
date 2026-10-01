@@ -1,0 +1,58 @@
+[
+  {
+    "module": "tests.test_unaffordable_claim_tour_recorded",
+    "tests": 7,
+    "seconds": 544.731,
+    "outcome": "fail",
+    "failures": 1,
+    "skips": 0
+  },
+  {
+    "module": "tests.test_live23_home_cycle",
+    "tests": 7,
+    "seconds": 46.692,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 0
+  },
+  {
+    "module": "tests.test_live22_bounty",
+    "tests": 12,
+    "seconds": 30.413,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 0
+  },
+  {
+    "module": "tests.test_policy_home",
+    "tests": 184,
+    "seconds": 121.512,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 4
+  },
+  {
+    "module": "tests.test_town_progress_invariant",
+    "tests": 22,
+    "seconds": 66.846,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 0
+  },
+  {
+    "module": "tests.test_ownership_s2a_classification",
+    "tests": 16,
+    "seconds": 35.422,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 0
+  },
+  {
+    "module": "tests.test_test_fakery_lint",
+    "tests": 13,
+    "seconds": 63.583,
+    "outcome": "pass",
+    "failures": 0,
+    "skips": 0
+  }
+]

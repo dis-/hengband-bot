@@ -1,5 +1,8 @@
 # live26: Home catalogue replay investigation
 
+**RULING applied after a4a33abc:** the earlier decision-boundary report below
+is historical. See Step 4 for the authorized implementation and new validation.
+
 Worktree: `C:/hengband/bot-client-live21`, branch `live24`, initial
 HEAD `2b573a70`. Other worktrees and the live runtime are untouched.
 
@@ -128,3 +131,108 @@ Commits: reproduction `66602343`; bisect and decision evidence `0189decc`;
 the final reporting commit contains this verification and `LIVE26-EVENT.json`.
 There is **no fix commit**, because the dispatch's evidence-based stop
 condition was met. Only reporting and bounded diagnostic artifacts changed.
+
+
+## Step 4: apply Claude's 2026-10-01 09:10 RULING
+
+Continued from `a4a33abc` in this worktree only. The accepted next-row Reach
+completion count is now **1346**, with the requested `ddebaf64` and ruling
+comment. No `EXPECTED_FIRST` entry or other numeric expectation was changed.
+
+The bisect boundary remains `f424d3b4` -> `ddebaf64`. The unconditional
+catalogue Observe declaration was correct; the legacy scan producers still
+opened a separate home-scan work even when the equipment catalogue work was
+registered. The physical continuation was gated on the cross-area/S3.3
+switches, while the new Observe was unconditional.
+
+Final code: `src/hengbot/policy.py:6731` centralizes the two knowledge-request
+execution offers. When the scan serves registered equipment catalogue work,
+it declares that holder's producer, work id, expected effect and continuation,
+instead of opening unrelated home-scan work. At `:3208` the census family reads
+that explicit, key-specific catalogue offer. `_claim_goal` consequently
+continues the holder's original Observe(knowledge), and catalogue adoption
+closes it through the existing observed-effect path. An ordinary scan without
+registered catalogue work keeps its ordinary home-scan declaration. Both
+legacy scan sites use the helper. This preserves OFF keys/reasons and does
+not change ON physical Home continuation.
+
+No new attribute, threshold, fabricated completion or unnamed release was
+added. The new recorded pin replays exactly the withdraw capture's unchanged entry/scan actions
+and their recorded knowledge response with both switches OFF, directly and after checkpoint
+restoration. It checks the same equipment-txn claim id and acquisition work
+on the scan row. A single revert check extracts pre-fix `a4a33abc` src under
+this worktree and runs that pin: it fails because the original scan changes
+owner to home-scan. No production source is temporarily reverted.
+
+Commits: `6d3f268b` applied 1346 and an initial physical-continuation fix;
+`80439cd5` added partial-page and diagnostic coverage; **`8c7bbd71`** replaces
+the initial OFF physical change with registered scan continuation and adds
+the recorded/restored OFF pin; `eca564eb` extends it through the real scan
+response and confirms completion. The final diff against `a4a33abc`, rather than
+the intermediate approach, defines the implementation.
+
+The initial physical attempt broke withdraw OFF identity and introduced tour
+violations downstream of a changed exit key. Its logs are preserved under
+`ruling-*`; it is superseded by `final-*` logs and `ruling-tour-final.log`.
+Those failed measurements are not final passing evidence.
+
+Final fixture verification (one fixture/mode per process):
+
+- stuck OFF: 4 rows, unchanged
+  `c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5`;
+  S3.3 has no first difference and no holder-silent stop.
+- withdraw OFF: 34 rows, unchanged
+  `a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9`.
+- withdraw S3.3: the **pre-existing** live23 first difference remains historical
+  sequence/list index 3: `~9 ESC / home:request-knowledge-scan` becomes
+  `ESC / equipment-transaction:catalogue-leave-for-scan` because the visible
+  page contains 52/131 items. It retains equipment-txn claim 3. The measurement
+  stops there; no later board is claimed as the effect of the changed action.
+  Against unchanged `EXPECTED_FIRST` row 20, this is still `early-divergence`,
+  not a passing expected-row gate. Live26 does not change that ON behavior.
+
+Final requested module results (one module per process):
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| test_unaffordable_claim_tour_recorded | 7 | 1 aggregate expectation failure |
+| test_live23_home_cycle | 7 | pass |
+| test_live22_bounty | 12 | pass |
+| test_policy_home | 184 | pass, 4 existing skips |
+| test_town_progress_invariant | 22 | pass |
+| test_ownership_s2a_classification | 16 | pass |
+| test_test_fakery_lint | 13 | pass |
+
+Total: 261 tests, 256 passed, 4 skipped, 1 failure. The final tour process
+ran 544.731 seconds, 4,267 claim rows. Its unchanged remaining-violations pin
+passes exactly: (2701, owner-change, store-router, home-scan),
+(3035, retarget, calibration, calibration),
+(3037, transaction-contention, calibration, equipment-txn),
+(3052, owner-change, store-router, home-scan). The 2658 violation is gone.
+The accepted 1346 pin and all Observe completion-label counts pass.
+
+Recorded evidence: at decision 2657 claim 2302 opens as equipment-txn
+Observe(knowledge), work equipment:acquire-home-catalog. Decision 2658 posts
+the unchanged scan key/reason under that same claim 2302, with no violation.
+At 2659 the real knowledge response closes claim 2302 **complete**, reason
+home-knowledge-current, execution evidence home-knowledge-current. Thus the
+catalogue is actually adopted before the Home-visit owner can take the turn.
+
+**Remaining decision:** accept `S2A1_ENDINGS["equipment-txn/Observe"]["complete"]`
+**7 instead of 6**. The additional completion is exactly the now-correct
+catalogue adoption described above; equipment abandoned falls from 1 to 0
+and satisfies its unchanged 0 pin. The RULING explicitly authorized 1346,
+but did not name this additional aggregate change. The dispatch says:
+> Change an expectation only if the recorded evidence shows the new behaviour
+> is the intended live23 behaviour - then stop and state the decision needed.
+
+Accordingly, the complete=6 expectation remains unchanged, its one failure is
+disclosed, and implementation stops at that decision boundary. No fabricated
+completion or unrelated change is used to keep the old aggregate. The withdraw
+ON row-3 early-divergence is also disclosed as pre-existing, with EXPECTED_FIRST
+unchanged. This is not an all-green gate report.
+
+Evidence: `validation/live26/ruling-tour-summary.json`, `ruling-tour-final.log`,
+`final-test-results.json`, `final-*.log`. All modules used normal Python 3.13
+with PYTHONPATH=src;tests;scripts. No prohibited runner or test module, other
+worktree, game executable, jsonlog write, or live-runtime change was used.

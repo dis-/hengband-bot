@@ -1,0 +1,16 @@
+python.exe : Traceback (most recent call last):
+発生場所 行:63 文字:1
++ & 'C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe'  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\hengband\bot-client-live21\scripts\first_divergence_s3_3.py", line 285, in <module>
+    print(json.dumps(measure(sys.argv[1], sys.argv[2] if len(sys.argv) > 2
+                     ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                             else "s33"), sort_keys=True, default=str))
+                             ^^^^^^^^^^^
+  File "C:\hengband\bot-client-live21\scripts\first_divergence_s3_3.py", line 191, in measure
+    raise AssertionError(f"{case}: OFF hash {digest} != {OFF_SHA[case]}")
+AssertionError: withdraw: OFF hash f46dce6d1815af2396c58053cadc1c89c3bf44341c0a2ced0b0e9dcb65f6264d != a9b344206bbbfda5
+6f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9
