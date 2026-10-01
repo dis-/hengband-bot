@@ -36,6 +36,36 @@ def board():
 
 
 class ClassAObservedInputPins(ProductionHarness):
+    def test_existing_english_store_plans_preserve_all_composed_transactions(self):
+        from hengbot.observed_input import compile_observed_input
+        from tests.test_input_executor import store_screen
+
+        # Reuse the existing production regression's English protocol control;
+        # this is preservation of its plan, not a new captured UI classifier.
+        plans = (
+            ("home:atomic-deposit", "dn\x1b"),
+            ("home:atomic-withdraw", "pa3\r\x1b"),
+            ("home:atomic-withdraw", " pa3\r\x1b"),
+            ("home:deposit", "dn\x1b"),
+            ("home:withdraw", "ga\x1b"),
+            ("calibration:atomic-deposit", "dn\x1b"),
+            ("calibration:atomic-restore-withdraw", "pa\x1b"),
+            ("equipment-transaction:atomic-deposit", "dn\x1b"),
+            ("equipment-transaction:atomic-withdraw", "pa\x1b"),
+            ("home-errand:atomic-withdraw", "pa\x1b"),
+            ("shop:buy-recall", "pa1\r\r\x1b"),
+            ("shop:one-shot-sale-compose", "sa1\r\r\x1b"),
+            ("shop:one-shot-buy", "pa"),
+        )
+        for owner, key in plans:
+            with self.subTest(owner=owner, key=key):
+                steps = [Continuation(frozenset({ScreenKind.STORE}), "\x1b")]
+                prefix, following = compile_observed_input(
+                    key, ScreenKind.STORE, ProductionHarness.store_state(2),
+                    owner, steps, screen=store_screen())
+                self.assertEqual(prefix, key)
+                self.assertEqual(following, steps)
+
     def drive(self, key, owner, screens, *, initial=None, raw=None, steps=None, states=None):
         game = FaithfulHookGame()
         game.state = copy.deepcopy(raw or board())
