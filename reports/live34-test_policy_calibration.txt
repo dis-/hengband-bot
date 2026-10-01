@@ -1,0 +1,12 @@
+python.exe : ...........................................................................
+発生場所 行:4 文字:310
++ ... y_lint')) { & $live34Python -m unittest "tests.$live34Module" > "repo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.................................:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 75 tests in 277.370s
+
+OK
+r7-pin batch phase=None restore=[] ids={} qty={}; redress key='pb\x1b' reason=home:atomic-withdraw

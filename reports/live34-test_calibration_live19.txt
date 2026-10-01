@@ -1,0 +1,14 @@
+python.exe : ...........
+発生場所 行:4 文字:310
++ ... y_lint')) { & $live34Python -m unittest "tests.$live34Module" > "repo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (...........:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 11 tests in 33.058s
+
+OK
+live19 capture continuation: [('wf', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wb', 'equipment-transaction:equip', 'calibration'), ('wa(', 'equipment-transaction:equip', 'calibration'), ('wa', 'equipment-transaction:equip', 'calibration'), ('~9\x1b', 'calibration:request-restore-knowledge', 'calibration')]
+live19 recorded recovery: None home:process-next-batch-item
+live19 recorded recovery: None home:process-next-batch-item

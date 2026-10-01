@@ -5810,6 +5810,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _town_errand_deferral(self, family, reason, snapshot=None,
                               *, work_identity=None, enforced=True):
         """Pure entry admission verdict; recording belongs to the caller."""
+        # Calibration's installed session executes its own work. A child
+        # grant belongs to a particular claim and can end before the physical
+        # session does; that does not turn its next action into another errand.
+        if family == "equipment-txn" and self._calibration_session_owned():
+            family = "calibration"
         register = getattr(self, "_claim_register", None)
         if enforced and snapshot is not None and register is not None:
             for bar in register.bars:
@@ -5943,6 +5948,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
+        if rung.family == "equipment-txn" and self._calibration_session_owned():
+            rung = claim_rung_of("calibration", None)
         if (not self._town_gate_exempt(rung.family)
                 and self._defer_town_errand(
                     rung.family, f"entry:{rung_name}")):
@@ -6308,6 +6315,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = "bounty.resume"
             elif family == "calibration" and continuation == "calibration.capture.observe":
                 return None
+            elif (family == "calibration"
+                  and continuation == "calibration.restore-supplies"
+                  and self._calibration_phase == "restore-supplies"):
+                return None
             elif continuation in {"home.knowledge.observe", "store.entry.observe",
                                   "home.operation.observe", "shop.one-shot.dispatch"}:
                 return None
@@ -6444,6 +6455,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     key = self._calibration_town_key(snapshot)
                     return self._town_declared_producer_result(
                         holder, snapshot, key, since)
+            elif (family == "calibration"
+                  and declaration.continuation == "calibration.restore-supplies"):
+                since = self._decision_offer_buffer().sequence
+                key = self._calibration_town_key(snapshot)
+                return self._town_declared_producer_result(
+                    holder, snapshot, key, since)
             elif declaration.continuation in {
                 "home.knowledge.observe", "store.entry.observe",
                 "home.operation.observe", "shop.one-shot.dispatch",
