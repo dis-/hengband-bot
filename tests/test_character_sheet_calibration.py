@@ -200,3 +200,57 @@ class CharacterSheetCalibrationTest(unittest.TestCase):
         self.assertEqual(actual_pinned.base_stats, actual.base_stats)
         self.assertEqual(actual_pinned.base_hp, actual.base_hp)
         self.assertEqual(len(actual_pinned.pinned_identities), 1)
+
+
+class VisibleIdentityAndModifierRulesTest(unittest.TestCase):
+    """Review P2/P4: the game's own name-line and Mod-column rules."""
+
+    def test_japanese_personality_without_no_particle_calibrates(self):
+        # display_player_name prints title + (personality_info[].no == 1 ? "の" : "").
+        # Nimble (4) has no == 0: "すばしっこいbot-test", not "すばしっこいのbot-test".
+        sheet, snapshot, character = recorded_equipped_inputs()
+        self.assertIn("名前  : ちからじまんのbot-test", sheet.text)
+        nimble = replace(snapshot, player=replace(snapshot.player, personality_id=4))
+        character = dict(character, personality_title="すばしっこい")
+        text = sheet.text.replace("ちからじまんのbot-test", "すばしっこいbot-test")
+        actual = derive_equipped_calibration(replace(sheet, text=text), nimble, character)
+        self.assertEqual(actual.base_stats, (164, 5, 9, 91, 115, 6))
+        self.assertEqual(actual.personality_id, 4)
+        # The particle belongs to the personality: Mighty (no == 1) still
+        # requires it.
+        mighty_bare = sheet.text.replace("ちからじまんのbot-test", "ちからじまんbot-test")
+        mighty = dict(character, personality_title="ちからじまん")
+        with self.assertRaisesRegex(CharacterSheetUnavailable, "identity-mismatch"):
+            derive_equipped_calibration(replace(sheet, text=mighty_bare), snapshot, mighty)
+
+    def test_floor_concealed_modifier_uses_the_displayed_residual(self):
+        # Base 3, race+class+personality +3, equipment -4: stat_top floors at
+        # 3, so the game prints Actual 3 and Mod -3 (not -4).  STR/DEX/CON only.
+        from hengbot.character_sheet import displayed_modifier
+        self.assertEqual(displayed_modifier(3, 3, 3), -3)
+        self.assertEqual(displayed_modifier(164, 244, 8), 0)
+        self.assertEqual(displayed_modifier(18, 38, 2), 0)
+        self.assertEqual(displayed_modifier(28, 18, -1), 0)
+        sheet, snapshot, character = recorded_equipped_inputs()
+        rows = list(sheet.rows)
+        rows[0] = replace(rows[0], base=3, race=3, profession=0, personality=0,
+                          modifier=-3, actual=3, current=None)
+        sheet = replace(sheet, rows=tuple(rows))
+        cursed_strength = replace(snapshot.equipment[1], pval=-4, known_flags=frozenset({0}))
+        stats = list(snapshot.player.stat_use)
+        stats[0] = 3
+        maximum = list(snapshot.player.stat_max)
+        maximum[0] = 3
+        snapshot = replace(snapshot, equipment=(snapshot.equipment[0], cursed_strength,
+                                                *snapshot.equipment[2:]),
+                           player=replace(snapshot.player, stat_use=tuple(stats),
+                                          stat_max=tuple(maximum)))
+        actual = derive_equipped_calibration(sheet, snapshot, character)
+        self.assertEqual(actual.natural_stats[0], 3)
+        self.assertEqual(actual.intrinsic_adjustments[0], 3)
+        self.assertEqual(actual.base_stats[0], 6)
+        # The equipment sum itself is not what the game prints there.
+        printed_sum = list(rows)
+        printed_sum[0] = replace(rows[0], modifier=-4)
+        with self.assertRaisesRegex(CharacterSheetUnavailable, "visible-modifier-mismatch"):
+            derive_equipped_calibration(replace(sheet, rows=tuple(printed_sum)), snapshot, character)

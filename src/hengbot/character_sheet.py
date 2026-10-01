@@ -102,6 +102,45 @@ def parse_character_sheet(raw: bytes, *, encoding: str = "cp932") -> CharacterSh
                           int(ac[1]) + int(ac[2]), hashlib.sha256(raw).hexdigest(), language, text)
 
 
+def _c_quotient(numerator: int, denominator: int) -> int:
+    """C integer division, which truncates toward zero."""
+    quotient = abs(numerator) // denominator
+    return quotient if numerator >= 0 else -quotient
+
+
+def displayed_modifier(base: int, top: int, adjustment: int) -> int:
+    """The Mod column the game prints for one stat row.
+
+    Port of ``display-player-stat-info.cpp`` ``calc_basic_stat`` (residual of
+    ``stat_top`` over ``stat_max`` in printed units) minus the printed race,
+    class and personality columns.  ``modify_stat_value`` floors at 3, so a
+    floor-concealed equipment modifier prints as the residual it left, not as
+    the equipment's pval sum.
+    """
+    if base > 18 and top > 18:
+        residual = _c_quotient(top - base, 10)
+    elif base <= 18 and top <= 18:
+        residual = top - base
+    elif base <= 18:
+        residual = _c_quotient(top - 18, 10) - base + 18
+    else:
+        residual = top - _c_quotient(base - 19, 10) - 19
+    return residual - adjustment
+
+
+# ``personality_info[].no`` is 0 for these personalities: the Japanese name line
+# prints their title without "の" (display-player-misc-info.cpp
+# ``display_player_name``).  Nimble, Combat, Patient, Chargeman.
+PERSONALITIES_WITHOUT_NO = frozenset({4, 6, 10, 12})
+
+
+def name_line_title_prefix(title: str, personality_id: int, language: str) -> str:
+    """The personality text the game prints before the character name."""
+    if language == "ja":
+        return title + ("" if personality_id in PERSONALITIES_WITHOUT_NO else "の")
+    return title + " "
+
+
 def invert_current(row: StatRow, adjustment: int) -> int:
     """Positive adjustments invert uniquely; floors use the minimal candidate."""
     if row.current is None:
@@ -158,8 +197,10 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
             raise CharacterSheetUnavailable("identity-mismatch")
         explicit = r"(?m)^\s*" + label + r"\s*:\s*" + re.escape(title) + r"(?:\s|$)"
         # The ordinary dump puts personality in the character-name prefix.
-        name_prefix = (r"(?m)^\s*名前\s*:\s*" + re.escape(title) + "の" if sheet.language == "ja"
-                       else r"(?m)^\s*Name\s*:\s*" + re.escape(title) + r"\s")
+        name_prefix = ((r"(?m)^\s*名前\s*:\s*" if sheet.language == "ja"
+                        else r"(?m)^\s*Name\s*:\s*")
+                       + re.escape(name_line_title_prefix(
+                           title, player.personality_id, sheet.language)))
         if not re.search(explicit, sheet.text) and not (
             key == "personality_title" and re.search(name_prefix, sheet.text)
         ):
@@ -230,11 +271,15 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     for index, row in enumerate(sheet.rows):
         timed_stat = 4 if "tsuyoshi" in effects and index in (0, 4) else 0
         total = adjustments[index] + equipment_modifiers[index] + timed_stat
-        if index in (0, 3, 4) and row.modifier != equipment_modifiers[index] + timed_stat:
-            raise CharacterSheetUnavailable("visible-modifier-mismatch")
         if index in (0, 3, 4) and row.base != player.stat_max[index]:
             raise CharacterSheetUnavailable("visible-base-epoch-mismatch")
         predicted = modify_stat_value(row.base, total)
+        # Compare with the column the game prints, floor information loss
+        # included, before the minimum-candidate inversion below.
+        if index in (0, 3, 4) and row.modifier != displayed_modifier(
+            row.base, predicted, adjustments[index]
+        ):
+            raise CharacterSheetUnavailable("visible-modifier-mismatch")
         matches = predicted >= row.actual if row.saturated else predicted == row.actual
         # Only STR/DEX/CON constrain optimization. Other floor ambiguities
         # cannot reject an otherwise useful Warrior observation.
