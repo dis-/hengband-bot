@@ -509,7 +509,8 @@ class SupplyMixin:
         return requirements
 
     def _find_surplus_identify_staff(
-        self, snapshot: Snapshot, *, pending_home_sale: bool = False
+        self, snapshot: Snapshot, *, pending_home_sale: bool = False,
+        for_weight_overload: bool = False,
     ) -> InventoryItem | None:
         staffs = [
             item
@@ -519,7 +520,7 @@ class SupplyMixin:
             and item.sval == SV_STAFF_IDENTIFY
         ]
         if (
-            not pending_home_sale
+            not (pending_home_sale or for_weight_overload)
             and sum(item.count for item in staffs) <= STAFF_IDENTIFY_MAX_COUNT
         ):
             return None
@@ -533,7 +534,8 @@ class SupplyMixin:
         candidates = [
             item
             for item in candidates
-            if self._item_signature(item) not in self._town_visit_purchases
+            if (for_weight_overload
+                or self._item_signature(item) not in self._town_visit_purchases)
             and self._retention_surplus(snapshot, item) >= item.count
         ]
         if not candidates:
