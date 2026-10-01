@@ -22,6 +22,7 @@ directory (tests.test_esp_threat_rest_recorded._policy).
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from extraction_calibration import install_extraction_calibration
 import copy
 import gzip
 import hashlib
@@ -229,6 +230,8 @@ class P1LifetimeTest(unittest.TestCase):
         with TemporaryDirectory() as raw:
             directory = Path(raw)
             policy = _policy(directory, monrace)
+            # The recorded process decided with the frozen calibration.
+            install_extraction_calibration(policy)
             for sequence in range(1, 138):
                 segment = v3[starts[sequence - 1] : starts[sequence]]
                 _decoded, snapshots = _consume_response_sequence(
