@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "decisions": "incident-20261001-1458-departure-unsatisfiable-2",
+      "state": "incident-20261001-1458-departure-unsatisfiable-2",
+      "decision": 3106
+    },
+    {
+      "decisions": "incident-20261001-shadow-gate-missing-home-scan",
+      "state": "incident-20261001-1616-departure-unsatisfiable-3",
+      "decision": 9682
+    }
+  ],
+  "fixture_sha256": {
+    "first.decisions.jsonl.gz": "af21ffc36ff9fdee25b19e8a39f52c861d5afc5fd1d069305377c1da99fc0064",
+    "first.state.jsonl.gz": "13318bc3498e1c808dd6753bd9a8497037d1f86ba517cb899f8d3f34c105dc47",
+    "second.decisions.jsonl.gz": "6cec3f84f9f5b4272eda0744f727ae3e0c3984f7309aa9eb63df337668af776f",
+    "second.state.jsonl.gz": "6bf96336cb32b5d9015d94ad2c44c7360ee5fe15e1d8214cc813ba8d396b0e40",
+    "skills.json": "1407d462dbed57dcad8d5985ae3b8dc2ca524aa60c9db847687d2d0b3642d148"
+  },
+  "skill_response_source": {
+    "state": "incident-20261001-1616-departure-unsatisfiable-3.state.jsonl.gz",
+    "turn": 1418482
+  }
+}
