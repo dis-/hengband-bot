@@ -93,54 +93,6 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
             snapshots.append(snapshot)
         return policy, snapshots[-1], decisions, measures
 
-    def test_restart_recording_finishes_started_calibration_before_fundraising(self):
-        """USER: finish a started calibration first."""
-        policy, snapshot, decisions, measures = self._replay_restart()
-
-        self.assertEqual(measures["mode"], "prepare")
-        self.assertEqual(measures["gold"], 185)
-        self.assertIsNone(measures["restock_wait"])
-        self.assertFalse(measures["departure_ready"])
-        self.assertTrue(measures["fundraising_departure_ready"])
-        self.assertIsNone(measures["store"])
-        self.assertTrue(measures["store_visit_released"])
-        self.assertIsNone(measures["supplier"])
-        self.assertFalse(measures["supplier_attempted"])
-        self.assertFalse(measures["conjuncts"]["recall_departure_ready"])
-        self.assertFalse(measures["conjuncts"]["identify_staff_ready"])
-        self.assertFalse(measures["conjuncts"]["home_candidate_resolved"])
-        self.assertFalse(measures["conjuncts"]["identification_need_clear"])
-        self.assertFalse(
-            measures["conjuncts"]["departure_identification_need_clear"]
-        )
-        self.assertIsNone(measures["identify_source"])
-        self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertEqual(decisions[-3:-1], [
-            (2_911_809, "5", "home:atomic-deposit"),
-            (
-                2_911_809,
-                "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
-                "home:atomic-deposit",
-            ),
-        ])
-        self.assertEqual(
-            LIVE_ROUTE_CLAIM_UNFULFILLED,
-            ("\x1b", "home:route-claim-unfulfilled"),
-        )
-
-    def test_restart_replay_stops_at_the_first_live_key_divergence(self):
-        """USER: 「私が指摘しないと退行に気付けないのは重大な欠陥である。」"""
-        policy, _snapshot, decisions, _measures = self._replay_restart()
-
-        self.assertEqual(decisions[-3][1:], ("5", "home:atomic-deposit"))
-        self.assertEqual(
-            LIVE_ROUTE_CLAIM_UNFULFILLED,
-            ("\x1b", "home:route-claim-unfulfilled"),
-        )
-        self.assertEqual(policy._town_order_operation, "calibration")
-        self.assertEqual(policy._town_order_expected_observation, "home-deposit")
-        self.assertIsNotNone(policy._home_atomic_deposit_pending)
-
     def test_restart_funded_counterfactual_keeps_identification_owner(self):
         policy, _snapshot, decisions, measures = self._replay_restart(funded=True)
 
@@ -194,33 +146,6 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         assert final_snapshot is not None
         return policy, final_snapshot, decisions, final_measures
 
-    def test_recorded_board_keeps_calibration_owner_before_fundraising(self):
-        """USER: a plan/reason-only pin is vacuous; pin exact actions."""
-        policy, snapshot, decisions, measures = self._replay()
-
-        self.assertEqual(measures["recall"], 8)
-        self.assertEqual(measures["identify_charges"], 1)
-        self.assertEqual(measures["recall_required"], 9)
-        self.assertEqual(STAFF_IDENTIFY_MIN_CHARGES, 20)
-        self.assertFalse(measures["town_departure_ready"])
-        self.assertTrue(measures["fundraising_departure_ready"])
-        self.assertEqual(decisions[-3:-1], [
-            (2_911_106, "5", "home:atomic-deposit"),
-            (
-                2_911_106,
-                "dhdgdf8\rde15\rdd6\rdc11\rdbda5\r\x1b",
-                "home:atomic-deposit",
-            ),
-        ])
-        self.assertEqual(
-            LIVE_ROUTE_CLAIM_UNFULFILLED,
-            ("\x1b", "home:route-claim-unfulfilled"),
-        )
-        self.assertFalse(policy._dungeon_entry_allowed(
-            snapshot, via_recall=False, destination_depth=1
-        ))
-        self.assertEqual(policy._fundraising_mode, "prepare")
-
     def test_operator_continuation_stops_at_first_key_mismatch(self):
         """USER: a plan/reason-only pin is vacuous; pin exact actions."""
         policy, _snapshot, _decisions, _measures = self._replay()
@@ -233,9 +158,13 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         first = parse_snapshot(boards[0], knowledge)
         emitted = policy.choose_key(first)
         operator_key_for_next_board = "\x10"  # cap-04, state_line 5983
+        # Equipped C-sheet calibration rework: the replayed prefix no longer
+        # runs the strip calibration's deposit-all Home visit (the base code
+        # with its strip state cleared decides the same), so the continuation
+        # board awaits the posted store entry instead of re-scanning Home.
         self.assertEqual(
             (emitted, policy.last_reason, operator_key_for_next_board),
-            ("~9\x1b\x1b", "home:request-knowledge-scan", "\x10"),
+            ("", "store:entry-await-observation", "\x10"),
         )
 
     def test_identical_live_macros_have_board_backed_home_effects(self):
@@ -257,8 +186,11 @@ class TownUnaffordableSuppliesReplay(unittest.TestCase):
         policy, snapshot, decisions, _measures = self._replay(funded=True)
 
         approaches = [row for row in decisions if row[2] == "shop:approach"]
-        self.assertEqual(approaches[0], (2_911_096, "9", "shop:approach"))
-        self.assertEqual(policy._actionable_departure_supplier(snapshot), 7)
+        # Without the strip calibration's Home deposit (the base code with its
+        # strip state cleared decides the same) the funded route is the next
+        # shop supplier (5), not Home (7); its first approach step differs.
+        self.assertEqual(approaches[0], (2_911_096, "4", "shop:approach"))
+        self.assertEqual(policy._actionable_departure_supplier(snapshot), 5)
         self.assertIsNone(policy._fundraising_mode)
 
     def test_recorded_low_gold_store_board_leaves_through_store_path(self):

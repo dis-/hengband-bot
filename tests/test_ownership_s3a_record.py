@@ -599,7 +599,13 @@ class S3aRecordTest(unittest.TestCase):
             visit = decisions.policy._home_visit
             visit.operation = ("take", f"recorded-{closed['claim_id']}")
             opened = decisions.decide("home:atomic-withdraw")
-            self.assertEqual(opened["owner"], closed["owner"])
+            # The calibration family was retired with the strip phases
+            # (equipped C-sheet calibration rework); its recorded Home take
+            # is now an ordinary home-visit operation.
+            self.assertEqual(
+                opened["owner"],
+                "home-visit" if closed["owner"] == "calibration" else closed["owner"],
+            )
             decisions.register.complete("home-withdraw-observed")
             detected = decisions.decide(row["reason"])["claim_verdict_conflict"]
             self.assertEqual(detected["claim_id"], opened["claim_id"])

@@ -128,7 +128,9 @@ class UnseenCasterDeathRecorded(unittest.TestCase):
         seed._last_hp = 841
         del seed._unexplained_damage_streak
         policy = restore_checkpoint(HengbotPolicy, checkpoint(seed))
-        self.assertNotIn("_unexplained_damage_streak", vars(policy))
+        # The rework's single checkpoint upgrade (R5) supplies every fresh
+        # attribute; a checkpoint without the streak starts at the fresh 0.
+        self.assertEqual(policy._unexplained_damage_streak, 0)
         policy._observe(board)
         self.assertEqual(policy._unexplained_damage_streak, 1)
 

@@ -217,3 +217,20 @@ Preserved or renamed methods (excluded from the 179 retired method IDs):
 | `test_policy_calibration.py:CharacterCalibrationPhaseTest.test_unactionable_home_identification_routes_when_home_unblocked` | `EquippedCalibrationRegressionTest.test_unactionable_home_identification_routes_when_home_unblocked` |
 
 Additional preserved split methods: `test_s33_shadow.py:ShadowVerdictTest.test_debt_and_missing_empty_entry_wait_equal_on` -> `test_missing_empty_entry_wait_equals_on`; `test_s33_shadow_recorded.py:RecordedShadowTest.test_live8_debt_and_one_shot_identity` -> `test_live8_one_shot_identity`. Only their calibration-debt sub-pins are retired.
+
+## Fix round after review (Claude, 2026-10-02)
+
+Restored (review P5): `test_policy_calibration.py:EquippedObservationLifecycleTest.test_mutation_change_invalidates_the_cached_calibration` replaces the retired `CharacterCalibrationPhaseTest` method around an equipped observation.
+
+Retired: `test_declarations_r7.py:CalibrationRows.test_overweight_new_deposit_does_not_flag_completed_old_claim` - it declares a claim of the retired `calibration` family.
+
+Expectations changed as a direct result of removing the strip phases (each verified by running the base code with its strip state cleared and its re-arming disabled, which reproduces the new decision), with a comment at each site:
+
+- `test_absorbing_states`: capture 1201 was in `restore-supplies`; its restore take `5pm1\r\x1b` becomes the standing-digger take `5pV\x1b` (2 methods). The frozen Home approach still spends the 300-pass ceiling publicly, but unavailable calibration is no longer outstanding equipment work (R1), so it ends at `repetition` instead of `equipment-work-home-route-exhausted`.
+- `test_town_restock_trajectory` (4 methods) and `test_device_purchase_preemption_trajectory` (3 methods): the recorded boards keep an exhausted torch worn beside a pack lantern because the strip deposit phase held equipment changes; the public first decision is now `wield-light`. The restock pins also assert the released-restock producer's original route on the same boards; the device purchase/repetition arbitration is not observable on board 253 any more.
+- `test_quest_carry_town_block.test_remote_home_scan_exhaustion_abandons_ammo_without_town_stop`: the base route was the strip calibration's Home deposit trip.
+- `test_ownership_s3a_record`, `test_ownership_s2a1_closure` (refinement table), `test_ownership_s2b1_ladder` (rung count and recorded-window ladder measurements), `test_ownership_claims` (enum size): the `calibration` family/rung no longer exists.
+
+Expectations changed by the single checkpoint upgrade (R5), which now supplies every fresh attribute: `test_unseen_caster_death_recorded` (streak present as 0), `test_home_entry_capture` gate1 (the pre-probe checkpoint gets `_home_procurement_probe=None`; the catalogue owner binds the same digger and composed key).
+
+Recorded replays that freeze the extraction-time strip record (`tests/extraction_calibration.py`) now also hold it in memory, because the live process no longer reads schema-1 records from disk.

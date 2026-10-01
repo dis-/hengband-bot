@@ -84,7 +84,6 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from test_home_light_alternation_cli import FakeControlClient
-from extraction_calibration import install_extraction_calibration
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -173,7 +172,6 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes()
             )
-            install_extraction_calibration(policy)
             # Wall (attach skill list): see the module docstring.
             policy.consume_skill_knowledge(cls.attach_skill_knowledge)
             for index in range(WINDOW, STOP + 1):

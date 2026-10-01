@@ -297,10 +297,11 @@ class GoalTypingTableTest(unittest.TestCase):
         registry = _new_town_turn_arbiter().registry
         # S3a composes these four Home operation keys into each transaction
         # owner.  Pin every cross-family exception explicitly; new leaks must
-        # still fail this test.
+        # still fail this test.  (The calibration family's four rows were
+        # retired with the strip phases: equipped C-sheet calibration rework.)
         composed_home = {
             (family, prefix)
-            for family in ("equipment-txn", "calibration")
+            for family in ("equipment-txn",)
             for prefix in (
                 "home:atomic-withdraw",
                 "home:atomic-deposit",

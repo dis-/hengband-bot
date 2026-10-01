@@ -24,7 +24,6 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import recorded_equipment_decisions
-from extraction_calibration import install_extraction_calibration
 
 FIXTURE = Path(__file__).parent / "fixtures/classC2-departure-20261001.json.gz"
 
@@ -44,7 +43,6 @@ def attachment(directory, sequence=11411):
     board = parse_snapshot(raw)
     policy = _policy(directory, load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc"))
     policy._character_calibration_path.write_text(json.dumps(capture["calibration"]), encoding="utf8")
-    install_extraction_calibration(policy)
     policy.prime(board)
     for name in ("_conquest_committed", "_fundraising_cleared_for_conquest",
                  "_yeek_conquest_processed", "_town_was_in_town",
