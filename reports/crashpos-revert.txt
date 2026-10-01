@@ -1,0 +1,41 @@
+EE
+======================================================================
+ERROR: test_recorded_board_returns_composed_key_after_checkpoint (tests.test_crash_position_key_recorded.CrashPositionKeyTest.test_recorded_board_returns_composed_key_after_checkpoint) (restored=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_crash_position_key_recorded.py", line 42, in test_recorded_board_returns_composed_key_after_checkpoint
+    self.assertEqual(replay(restored),
+                     ~~~~~~^^^^^^^^^^
+  File "C:\hengband\bot-client-c2\tests\test_crash_position_key_recorded.py", line 31, in replay
+    key = policy.choose_key(board)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy.py", line 2833, in choose_key
+    procurement_key = self._town_procurement_decision(snapshot, key)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy_town.py", line 1174, in _town_procurement_decision
+    result_makes_progress = self._town_result_makes_progress(snapshot, key)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy_town.py", line 766, in _town_result_makes_progress
+    if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
+               ^^^^^^^^^^^^^^
+AttributeError: 'Position' object has no attribute 'startswith'
+
+======================================================================
+ERROR: test_recorded_board_returns_composed_key_after_checkpoint (tests.test_crash_position_key_recorded.CrashPositionKeyTest.test_recorded_board_returns_composed_key_after_checkpoint) (restored=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_crash_position_key_recorded.py", line 42, in test_recorded_board_returns_composed_key_after_checkpoint
+    self.assertEqual(replay(restored),
+                     ~~~~~~^^^^^^^^^^
+  File "C:\hengband\bot-client-c2\tests\test_crash_position_key_recorded.py", line 31, in replay
+    key = policy.choose_key(board)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy.py", line 2833, in choose_key
+    procurement_key = self._town_procurement_decision(snapshot, key)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy_town.py", line 1174, in _town_procurement_decision
+    result_makes_progress = self._town_result_makes_progress(snapshot, key)
+  File "C:\hengband\bot-client-c2\src\hengbot\policy_town.py", line 766, in _town_result_makes_progress
+    if key and key.startswith((BUY_KEY, SELL_KEY, "{")):
+               ^^^^^^^^^^^^^^
+AttributeError: 'Position' object has no attribute 'startswith'
+
+----------------------------------------------------------------------
+Ran 1 test in 3.056s
+
+FAILED (errors=2)
