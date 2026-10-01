@@ -90,3 +90,50 @@ No changed pre-existing assertions or forbidden test edits.
 ```
 
 Event: `{"topic":"reconcile","implementer":"gpt-6.1-sol","step":3,"defect":"exhausted equipment identification withdrawal exposed as supplier","changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits."}`
+
+# Final verification
+
+User acceptance clauses: "make the pin hold its PURPOSE without depending on
+the old loadout choice" and "Do NOT weaken the assertions about the pin's
+own purpose." The three existing modules pass with every pre-existing
+assertion unchanged; the dedicated optimizer and dual-wield modules exercise
+the production correction without the frozen collaborator wall.
+
+Every invocation uses normal Python 3.13 with `PYTHONPATH=src;tests;scripts`,
+one test module per process. Only the explicitly listed modules and bounded
+stuck/withdraw measurements were run. The supplier guard was subsequently
+verified again on town, live27, classC2, classC remedies and policy equipment.
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| tests.test_town_approach_retired_recorded | 8 | PASS |
+| tests.test_identify_staff_live27_recorded | 1 | PASS |
+| tests.test_classC2_departure_recorded | 9 | PASS |
+| tests.test_dualwield_recorded | 6 | PASS |
+| tests.test_classC_departure_remedies | 5 | PASS |
+| tests.test_live36_weight | 7 | PASS |
+| tests.test_policy_equipment | 192 | PASS |
+| tests.test_equipment_optimizer | 93 | PASS |
+| tests.test_ownership_s2a_classification | 16 | PASS |
+| tests.test_test_fakery_lint | 13 | PASS |
+| Total | 350 | PASS |
+
+Final stuck/withdraw OFF+S3.3 measurements are stored in
+`validation/reconcile/stuck-withdraw-measurements.json`:
+
+| Case | OFF rows | OFF identity SHA256 | First S3.3 difference | Verdict |
+| --- | ---: | --- | --- | --- |
+| stuck | 4 | c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5 | None | No trajectory defect |
+| withdraw | 34 | a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9 | Index 3 / sequence 3: ESC, equipment-transaction:catalogue-leave-for-scan | Matches unchanged EXPECTED_FIRST; no trajectory defect |
+
+Commits: `4986c4f7` diagnosis/capture; `460b49e8` replay input walls;
+`239b6a8f` supplier defect repair. This final report and verification data are
+committed in the subsequent documentation commit.
+
+Final assertion audit (verbatim):
+
+```text
+No changed pre-existing assertions or forbidden test edits.
+```
+
+Event: `{"topic":"reconcile","implementer":"gpt-6.1-sol","status":"complete","tests_passed":350,"pin_divergence_verdict":"legitimate","additional_defect_fixed":"exhausted equipment identification withdrawal supplier","EXPECTED_FIRST_changed":false,"changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits.","commits":["4986c4f7","460b49e8","239b6a8f"]}`
