@@ -403,6 +403,15 @@ from hengbot.model import (
 )
 
 
+# Quest carries that are launcher ammunition (bought by the ammo suppliers).
+QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
+    "throwing_items.shot",
+    "throwing_items.arrow",
+    "throwing_items.bolt",
+    "throwing_items.launcher_ammo",
+})
+
+
 class QuestMixin:
     def _derived_home_visit_request(
         self, snapshot: Snapshot
@@ -795,10 +804,27 @@ class QuestMixin:
                 }
         return status
 
-    @staticmethod
-    def _quest_carry_suppliers(name: str) -> tuple[int, ...]:
+    def _quest_carry_suppliers(
+        self, snapshot: Snapshot, name: str
+    ) -> tuple[int, ...]:
         if name == "throwing_items.lit_torch":
             return (STORE_GENERAL,)
+        if name in QUEST_LAUNCHER_AMMO_CARRIES:
+            # Same supplier selection as the ordinary ammo errand; once every
+            # supplier is exhausted the Weapon Smith stays the declared one so
+            # the existing exhaustion/abandon path is unchanged.
+            launcher = self._equipped_launcher(snapshot)
+            ammo_tval = (
+                QUEST_AMMO_TVALS.get(name.partition(".")[2])
+                if name != "throwing_items.launcher_ammo"
+                else launcher.ammo_tval if launcher is not None else None
+            )
+            store = (
+                self._launcher_ammo_errand_store(snapshot, ammo_tval)
+                if ammo_tval is not None
+                else None
+            )
+            return (STORE_WEAPON,) if store is None else (store,)
         if name.startswith("launcher") or name.startswith("throwing_items."):
             return (STORE_WEAPON,)
         if name.startswith("required_scrolls."):
@@ -815,13 +841,8 @@ class QuestMixin:
         status: dict[str, int | bool],
     ) -> SupplyStatus:
         """Mirror SupplyLedger's per-visit evidence for one quest carry entry."""
-        stores = self._quest_carry_suppliers(name)
-        launcher_ammo = name in {
-            "throwing_items.shot",
-            "throwing_items.arrow",
-            "throwing_items.bolt",
-            "throwing_items.launcher_ammo",
-        }
+        stores = self._quest_carry_suppliers(snapshot, name)
+        launcher_ammo = name in QUEST_LAUNCHER_AMMO_CARRIES
         obtainable = False
         if launcher_ammo and (
             not self._home_knowledge_current

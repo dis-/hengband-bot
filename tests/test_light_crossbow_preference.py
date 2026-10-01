@@ -41,6 +41,7 @@ from hengbot.model import (
     parse_snapshot,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import STORE_RESTOCK_WAIT_TURNS
 
 FIXTURE = (
     Path(__file__).parent / "fixtures" / "xbow-pref-live-20261002-012442.json.gz"
@@ -207,6 +208,15 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
         policy._home_knowledge_current = True
         return policy
 
+    def remember(self, policy, row, town_id=None):
+        """Record a supplier page as policy.py:10058-10062 does on entry."""
+        board = self.rows[row]
+        policy._town_supplier_stock[board.store.store_type] = board.store
+        policy._town_supplier_stock_observations[board.store.store_type] = (
+            policy._effective_town_id(board) if town_id is None else town_id,
+            board.turn,
+        )
+
     def test_remembered_plain_store_bolts_are_obtainable_ammunition(self):
         fresh = self.policy()
         self.assertFalse(any(
@@ -215,9 +225,12 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
         ))
 
         policy = self.policy()
-        policy._town_supplier_stock[STORE_GENERAL] = self.rows[44].store
-        policy._town_supplier_stock[STORE_WEAPON] = self.rows[56].store
-        obtainable = policy._obtainable_launcher_ammunition(self.surface)
+        self.remember(policy, 44)
+        # Recorded: the General Store page (turn 2320759) is still current at
+        # the Weapon Smith board (turn 2321048), which is the open page.
+        board = self.rows[56]
+        self.assertLess(board.turn - self.rows[44].turn, STORE_RESTOCK_WAIT_TURNS)
+        obtainable = policy._obtainable_launcher_ammunition(board)
 
         self.assertEqual(
             sorted(
@@ -234,6 +247,165 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
         sling = next(item for item in self.surface.equipment if item.slot == "bow")
         self.assertEqual(best_obtainable_launcher_damage(self.crossbow, obtainable), 18.0)
         self.assertEqual(best_obtainable_launcher_damage(sling, obtainable), 24.0)
+
+    def test_supplier_pages_from_another_town_or_expired_are_not_evidence(self):
+        policy = self.policy()
+        self.remember(policy, 56, town_id=policy._effective_town_id(self.surface) + 1)
+        self.assertFalse(any(
+            item.tval == TVAL_BOLT
+            for item in policy._obtainable_launcher_ammunition(self.surface)
+        ))
+        # Recorded turns: the General Store page (2320759) is older than the
+        # restock turnover at the surface board (2321880).
+        policy = self.policy()
+        self.remember(policy, 44)
+        self.assertGreaterEqual(
+            self.surface.turn - self.rows[44].turn, STORE_RESTOCK_WAIT_TURNS
+        )
+        self.assertFalse(any(
+            item.tval == TVAL_BOLT
+            for item in policy._obtainable_launcher_ammunition(self.surface)
+        ))
+
+    def test_bolts_remembered_in_another_town_do_not_authorize_swap_in(self):
+        sling_item = next(
+            item for item in self.surface.equipment if item.slot == "bow"
+        )
+        sling = OwnedEquipment(
+            "equipped:live-sling", sling_item, "equipped", equipped_slot=SLOT_BOW
+        )
+        crossbow = OwnedEquipment("home:live-crossbow", self.crossbow, "home")
+        current_town = self.policy()._effective_town_id(self.surface)
+        chosen = {}
+        for label, town_id in (("other", current_town + 1), ("current", None)):
+            policy = self.policy()
+            self.remember(policy, 56, town_id=town_id)
+            ammunition = policy._obtainable_launcher_ammunition(self.surface)
+            result = optimize_loadout(
+                (sling, crossbow),
+                lambda loadout: flat_metrics(1.0),
+                depth=1,
+                current_item_ids=frozenset({sling.id}),
+                candidate_loadouts=(
+                    Loadout(((SLOT_BOW, sling),), "empty"),
+                    Loadout(((SLOT_BOW, crossbow),), "empty"),
+                ),
+                obtainable_ammunition=ammunition,
+            )
+            chosen[label] = result.best.loadout.item_at(SLOT_BOW).id
+        self.assertEqual(chosen, {"other": sling.id, "current": crossbow.id})
+
+    def test_equipped_crossbow_is_kept_with_zero_bolts_after_restart(self):
+        # Post-swap state rebuilt from the recorded items: the Light Crossbow
+        # (+4,+3) worn, the ordinary Sling (+10,+10) shelved in Home, no bolts
+        # anywhere, and a fresh process (empty supplier memory).
+        sling_item = next(
+            item for item in self.surface.equipment if item.slot == "bow"
+        )
+        crossbow = OwnedEquipment(
+            "equipped:live-crossbow", self.crossbow, "equipped",
+            equipped_slot=SLOT_BOW,
+        )
+        sling = OwnedEquipment("home:live-sling", sling_item, "home")
+        policy = self.policy()
+        self.assertEqual(policy._town_supplier_stock, {})
+        ammunition = policy._obtainable_launcher_ammunition(self.surface)
+        self.assertFalse(any(item.tval == TVAL_BOLT for item in ammunition))
+        self.assertTrue(any(item.tval == TVAL_SHOT for item in ammunition))
+
+        result = optimize_loadout(
+            (sling, crossbow),
+            lambda loadout: flat_metrics(
+                best_obtainable_launcher_damage(
+                    loadout.item_at(SLOT_BOW).item, ammunition
+                )
+            ),
+            depth=1,
+            current_item_ids=frozenset({crossbow.id}),
+            candidate_loadouts=(
+                Loadout(((SLOT_BOW, sling),), "empty"),
+                Loadout(((SLOT_BOW, crossbow),), "empty"),
+            ),
+            obtainable_ammunition=ammunition,
+        )
+        self.assertEqual(result.best.loadout.item_at(SLOT_BOW).id, crossbow.id)
+
+    def test_swap_in_blocked_when_no_bolts_are_obtainable_anywhere(self):
+        sling_item = next(
+            item for item in self.surface.equipment if item.slot == "bow"
+        )
+        sling = OwnedEquipment(
+            "equipped:live-sling", sling_item, "equipped", equipped_slot=SLOT_BOW
+        )
+        crossbow = OwnedEquipment("home:live-crossbow", self.crossbow, "home")
+        ammunition = self.policy()._obtainable_launcher_ammunition(self.surface)
+        result = optimize_loadout(
+            (sling, crossbow),
+            lambda loadout: flat_metrics(1.0),
+            depth=1,
+            current_item_ids=frozenset({sling.id}),
+            candidate_loadouts=(
+                Loadout(((SLOT_BOW, sling),), "empty"),
+                Loadout(((SLOT_BOW, crossbow),), "empty"),
+            ),
+            obtainable_ammunition=ammunition,
+        )
+        self.assertEqual(result.best.loadout.item_at(SLOT_BOW).id, sling.id)
+
+    def test_ammo_errand_falls_back_to_general_store(self):
+        # Derived board: the recorded surface (99 shots) with the shot stack
+        # cut to the 48 recorded at rows 29-56, so the ordinary ammo errand is
+        # live. Derived page: the recorded Weapon Smith page (row 56) with its
+        # plain iron shots removed (a stock-out).
+        shots = next(item for item in self.surface.inventory if item.tval == TVAL_SHOT)
+        board = replace(
+            self.surface,
+            inventory=[
+                replace(item, count=48) if item is shots else item
+                for item in self.surface.inventory
+            ],
+        )
+        smith = self.rows[56].store
+        sold_out = replace(smith, items=tuple(
+            item for item in smith.items
+            if not (item.tval == TVAL_SHOT and item.to_h == 0 and item.to_d == 0)
+        ))
+
+        def ammo_errands(policy):
+            return [
+                need.store_type
+                for need in policy._town_need_candidates(board)
+                if need.category == "ammo"
+            ]
+
+        stocked = self.policy()
+        self.remember(stocked, 56)
+        self.assertEqual(ammo_errands(stocked), [STORE_WEAPON])
+
+        policy = self.policy()
+        self.remember(policy, 56)
+        policy._town_supplier_stock[STORE_WEAPON] = sold_out
+        self.assertEqual(ammo_errands(policy), [STORE_GENERAL])
+        # The General Store page (row 44) shows plain shots, arrows and bolts.
+        self.assertEqual(
+            sorted(item.tval for item in policy._launcher_ammo_offers(
+                self.rows[44], STORE_GENERAL
+            )),
+            [TVAL_SHOT, TVAL_ARROW, TVAL_BOLT],
+        )
+
+        attempted = self.policy()
+        attempted._town_store_attempted[STORE_WEAPON] = board.turn
+        self.assertEqual(ammo_errands(attempted), [STORE_GENERAL])
+        attempted._town_store_attempted[STORE_GENERAL] = board.turn
+        self.assertEqual(ammo_errands(attempted), [])
+
+    def test_unaffordable_store_ammo_is_not_an_offer(self):
+        board = self.rows[44]
+        poor = replace(board, player=replace(board.player, gold=0))
+        policy = self.policy()
+        self.assertTrue(policy._launcher_ammo_offers(board, STORE_GENERAL))
+        self.assertEqual(policy._launcher_ammo_offers(poor, STORE_GENERAL), ())
 
     def test_open_store_page_counts_without_memory(self):
         policy = self.policy()

@@ -480,19 +480,88 @@ class EquipmentMixin:
                 or owned[0] in replacements[owned[1]]
             ]
 
+    # Stores whose shelves carry plain launcher ammunition, in errand order:
+    # the Weapon Smith first, the General Store when the Weapon Smith cannot
+    # supply it (the 012442 live pages show plain bolts in both).
+    LAUNCHER_AMMO_SUPPLIERS = (STORE_WEAPON, STORE_GENERAL)
+
+    def _current_town_supplier_page(
+        self, snapshot: Snapshot, store_type: int
+    ) -> StoreState | None:
+        """The supplier page observed in this town visit, or None.
+
+        Same freshness as the other observed-shelf consumers: the open page,
+        or a remembered page whose observation is in this town and younger
+        than the restock turnover. Observations are cleared on a town change
+        and on every fresh town visit (policy_observation).
+        """
+        if snapshot.store is not None and snapshot.store.store_type == store_type:
+            return snapshot.store
+        observation = self._town_supplier_stock_observations.get(store_type)
+        page = self._town_supplier_stock.get(store_type)
+        if (
+            page is None
+            or observation is None
+            or observation[0] != self._effective_town_id(snapshot)
+            or observation[1] > snapshot.turn
+            or snapshot.turn - observation[1] >= STORE_RESTOCK_WAIT_TURNS
+        ):
+            return None
+        return page
+
+    def _launcher_ammo_offers(
+        self, snapshot: Snapshot, store_type: int, ammo_tval: int | None = None
+    ) -> tuple[StoreItem, ...]:
+        """Affordable plain ammunition on a current-town supplier page.
+
+        Plain is what the ``tail:ammo`` rung buys (``is_plain_store_ammo``);
+        affordable means a positive purchasable quantity (count > 0 and one
+        unit's price within the carried gold).
+        """
+        page = self._current_town_supplier_page(snapshot, store_type)
+        if page is None:
+            return ()
+        return tuple(
+            item
+            for item in page.items
+            if item.is_ammo
+            and (ammo_tval is None or item.tval == ammo_tval)
+            and item.count > 0
+            and item.price <= snapshot.player.gold
+            and is_plain_store_ammo(item)
+        )
+
+    def _launcher_ammo_errand_store(
+        self, snapshot: Snapshot, ammo_tval: int
+    ) -> int | None:
+        """The supplier the ammo errand walks to, in supplier order.
+
+        A supplier already attempted this visit, or observed this visit
+        without affordable plain ammunition of the type, is skipped; an
+        unobserved supplier is tried.
+        """
+        for store_type in self.LAUNCHER_AMMO_SUPPLIERS:
+            if store_type in self._town_store_attempted:
+                continue
+            if (
+                self._current_town_supplier_page(snapshot, store_type) is not None
+                and not self._launcher_ammo_offers(snapshot, store_type, ammo_tval)
+            ):
+                continue
+            return store_type
+        return None
+
     def _obtainable_launcher_ammunition(
         self, snapshot: Snapshot
     ) -> tuple[InventoryItem | StoreItem, ...]:
         """Ammunition the optimizer counts as obtainable for a launcher.
 
-        Carried and Home stacks, plus remembered store stock that the ordinary
-        ammo purchase rung would buy (``tail:ammo`` in policy_shop accepts only
-        ``is_plain_store_ammo``).  A launcher without any of these has no
-        obtainable ammunition and is never preferred over one that can shoot.
+        Carried and Home stacks, plus affordable plain ammunition on the
+        launcher-ammo suppliers' pages observed in this town visit (the same
+        offers the ammo errand routes to).  Swapping INTO a Light Crossbow
+        needs such evidence; an equipped one is kept regardless
+        (equipment_optimizer.yields_to_light_crossbow).
         """
-        supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
-        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
-            supplier_pages[snapshot.store.store_type] = snapshot.store
         owned = tuple(
             item
             for item in (*snapshot.inventory, *self._home_knowledge_items)
@@ -500,9 +569,8 @@ class EquipmentMixin:
         )
         stocked = tuple(
             item
-            for _store_type, page in sorted(supplier_pages.items())
-            for item in page.items
-            if item.is_ammo and item.count > 0 and is_plain_store_ammo(item)
+            for store_type in self.LAUNCHER_AMMO_SUPPLIERS
+            for item in self._launcher_ammo_offers(snapshot, store_type)
         )
         return owned + stocked
 
