@@ -935,14 +935,18 @@ def yields_to_light_crossbow(
     """Whether the user launcher rule replaces ``launcher`` by ``crossbow``.
 
     ``usable_launcher_ids`` holds the launchers with obtainable ammunition
-    (see ``optimize_loadout``).  A Light Crossbow without obtainable bolts
-    never displaces a launcher that can shoot; when neither has ammunition
-    evidence the rule applies unchanged.
+    (see ``optimize_loadout``).  The missing-bolts exception only blocks a
+    swap INTO a Light Crossbow: one without obtainable bolts never displaces
+    a launcher that can shoot.  An equipped Light Crossbow keeps the rule
+    regardless of ammunition evidence (zero bolts or a forgotten supplier
+    page after a restart never swaps it back); bolts are procured as usual.
+    When neither launcher has ammunition evidence the rule applies unchanged.
     """
     return ordinary_launcher_yields_to_light_crossbow(
         launcher.item, crossbow.item
     ) and (
-        crossbow.id in usable_launcher_ids
+        crossbow.origin == "equipped"
+        or crossbow.id in usable_launcher_ids
         or launcher.id not in usable_launcher_ids
     )
 
