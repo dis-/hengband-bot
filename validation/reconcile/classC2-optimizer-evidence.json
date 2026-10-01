@@ -1,0 +1,244 @@
+[
+  {
+    "signature": "8a629cbef8df26c15667c7a22ec4eaefcf75df899d3aa2c0bbe76589e1a55fa6",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:088c46cfa1466f1c:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:9ac78bf75ce376f6:0",
+          "name": "スリング (x2) (0.53turn) (+7,+7)"
+        },
+        "neck": {
+          "id": "equipped:8486b7fecf6c8c06:0",
+          "name": "耐電のアミュレット"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(6061ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:264166cee058ac24:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:0b36c2bb2a1bf7fa:0",
+          "name": "(防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .}"
+        },
+        "sub_hand": {
+          "id": "equipped:3ab6c26319e92e77:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃破;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 16.816407183591124,
+          "survival_turns": 7.329822524588722,
+          "combat_margin": -29.644514547823675,
+          "ranged_dps": 24.502500000000005,
+          "speed_bonus": 0,
+          "secondary_value": -13.099066669628662,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 20
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:088c46cfa1466f1c:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:9ac78bf75ce376f6:0",
+          "name": "スリング (x2) (0.53turn) (+7,+7)"
+        },
+        "neck": {
+          "id": "equipped:8486b7fecf6c8c06:0",
+          "name": "耐電のアミュレット"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(6061ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:264166cee058ac24:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:0b36c2bb2a1bf7fa:0",
+          "name": "(防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 87.23033855999999,
+          "survival_turns": 6.971768672899432,
+          "combat_margin": -0.15620443619674695,
+          "ranged_dps": 24.502500000000005,
+          "speed_bonus": 0,
+          "secondary_value": -13.47883541664918,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 20
+    }
+  },
+  {
+    "signature": "0957972f934e921e3544f4c5099ea43c3ac9ba9b2e8be2ca2e1905febf73f871",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:088c46cfa1466f1c:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:9ac78bf75ce376f6:0",
+          "name": "スリング (x2) (0.53turn) (+7,+7)"
+        },
+        "neck": {
+          "id": "equipped:8486b7fecf6c8c06:0",
+          "name": "耐電のアミュレット"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(6061ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:264166cee058ac24:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:0b36c2bb2a1bf7fa:0",
+          "name": "(防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .}"
+        },
+        "sub_hand": {
+          "id": "equipped:3ab6c26319e92e77:0",
+          "name": "★大鎌『アヴァビア』 (5d3) (+8,+8) [+10] (+3) {+器魅r電火冷閃破;麻視明|電焼凍}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 16.816407183591124,
+          "survival_turns": 7.329822524588722,
+          "combat_margin": -29.644514547823675,
+          "ranged_dps": 24.502500000000005,
+          "speed_bonus": 0,
+          "secondary_value": -13.099066669628662,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 20
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:088c46cfa1466f1c:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:9ac78bf75ce376f6:0",
+          "name": "スリング (x2) (0.53turn) (+7,+7)"
+        },
+        "neck": {
+          "id": "equipped:8486b7fecf6c8c06:0",
+          "name": "耐電のアミュレット"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(6061ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:264166cee058ac24:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {+腕r電, .}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:0b36c2bb2a1bf7fa:0",
+          "name": "(防衛者)スピア (1d6) (+11,+10) [+1] (+1隠密) {+隠r酸電火冷毒劣;麻視活浮(耐, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 87.23033855999999,
+          "survival_turns": 6.971768672899432,
+          "combat_margin": -0.15620443619674695,
+          "ranged_dps": 24.502500000000005,
+          "speed_bonus": 0,
+          "secondary_value": -13.47883541664918,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 20
+    }
+  }
+]

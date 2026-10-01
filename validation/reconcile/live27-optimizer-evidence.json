@@ -1,0 +1,793 @@
+[
+  {
+    "signature": "5b579446d3edf2b797a3e816616ae9fadb08145a6a2880450974db4c1b43b148",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:da335989de5eca91:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        },
+        "sub_hand": {
+          "id": "pack:e34ba7bbe9b97ea6:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:da335989de5eca91:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1)"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "2034e8ddb742140601aee33478b31fdcb77643086dda32338ac79c8ecdb9de53",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        },
+        "sub_hand": {
+          "id": "pack:e34ba7bbe9b97ea6:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "6fbc689ca6b3af9873b7ecc9548507758eb5aabfe676e829a05db400898aee1f",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        },
+        "sub_hand": {
+          "id": "pack:f9d7c71eca6bc2b2:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:cf469e98f5ecdb89:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2)"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "7483bdbde807c8908d12cb80ea9fd576cc18af796e4b26b12e89eee6fddd7f42",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:ff9ba4e515034f2b:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {.}"
+        },
+        "sub_hand": {
+          "id": "pack:f9d7c71eca6bc2b2:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4053ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "pack:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "pack:ff9ba4e515034f2b:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "3126e341412f3670bb1c6756f24a9addceea4947bef3dec182fa903bfdb57f02",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4031ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:ff9ba4e515034f2b:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {.}"
+        },
+        "sub_hand": {
+          "id": "equipped:f9d7c71eca6bc2b2:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(4031ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:ff9ba4e515034f2b:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.535175247554758,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "4bb37eab7b9a952ce376be886abd0cbfef11ed03f831de813117db776419d538",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(3828ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:93930ef0f19bdf97:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .}"
+        },
+        "sub_hand": {
+          "id": "equipped:f9d7c71eca6bc2b2:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2) {.}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.51619071290492,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(3828ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:93930ef0f19bdf97:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.51619071290492,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  },
+  {
+    "signature": "5d1a3c7098cbf55d4fa493cc3b716418ed85e60106d05ab1a071e17bceb53b27",
+    "old": {
+      "mode": "dual_wield",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(3828ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:93930ef0f19bdf97:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .}"
+        },
+        "sub_hand": {
+          "id": "equipped:b1687a68e37a801d:0",
+          "name": "西方国のメイス (2d4) (+10,+11) (+2) {+腕器耐r恐;麻視/オト巨~オト巨, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 13.380185471438356,
+          "survival_turns": 4.6470286428357,
+          "combat_margin": -41.82284345873504,
+          "ranged_dps": 9.78806,
+          "speed_bonus": 0,
+          "secondary_value": -13.51619071290492,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    },
+    "new_selector": {
+      "mode": "two_handed",
+      "slots": {
+        "main_ring": {
+          "id": "equipped:d505049098c29136:0",
+          "name": "恐れ知らずの指輪"
+        },
+        "sub_ring": {
+          "id": "equipped:9d8a08605f7ade6b:0",
+          "name": "大防御の守りの指輪 [+19] {.}"
+        },
+        "bow": {
+          "id": "equipped:7dc68dd70099f189:0",
+          "name": "スリング (x2) (0.56turn) (+3,+2)"
+        },
+        "light": {
+          "id": "equipped:cf9cbd9f667b29b6:0",
+          "name": "真鍮のランタン(3828ターンの寿命) {明}"
+        },
+        "body": {
+          "id": "equipped:03e7b77dac7fa375:0",
+          "name": "オログの強化プレート・アーマー (-2,+1) [28,+8] (+1) {.}"
+        },
+        "outer": {
+          "id": "equipped:84b8e905728393f7:0",
+          "name": "クローク [1,+0]"
+        },
+        "arms": {
+          "id": "equipped:aa2dc39428972b1c:0",
+          "name": "革グローブ [1,+0]"
+        },
+        "main_hand": {
+          "id": "equipped:93930ef0f19bdf97:0",
+          "name": "(パターン)ウォー・ハンマー (3d3) (+7,+9) (+2) {+腕耐r盲;麻視経/邪デ死, .}"
+        }
+      },
+      "metrics": {
+        "class": "LoadoutMetrics",
+        "fields": {
+          "expected_dps": 112.01172915516439,
+          "survival_turns": 4.341175970809067,
+          "combat_margin": -1.2098097361584612,
+          "ranged_dps": 9.4572,
+          "speed_bonus": 0,
+          "secondary_value": -13.51619071290492,
+          "relevant_traits": {
+            "frozenset": []
+          },
+          "evaluation_complete": true
+        }
+      },
+      "depth": 19
+    }
+  }
+]

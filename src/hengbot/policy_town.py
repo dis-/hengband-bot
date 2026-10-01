@@ -3339,6 +3339,11 @@ class TownMixin:
         for need in candidates:
             if not self._town_need_supplier_reachable(snapshot, need):
                 continue
+            # A Home identification handoff for an equipment candidate belongs
+            # to the exhausted equipment owner too. Independent supplies and
+            # safe deposits remain eligible for their own departure remedies.
+            if equipment_exhausted and need.category == "identification-withdrawal":
+                continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
                 equipment_exhausted
                 or "equipment-opt" in retired

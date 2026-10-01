@@ -23,6 +23,7 @@ from hengbot.model import StoreItem, StoreState, parse_snapshot, _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_equipment_decisions import recorded_equipment_decisions
 
 FIXTURE = Path(__file__).parent / "fixtures/classC2-departure-20261001.json.gz"
 
@@ -106,6 +107,9 @@ def attachment(directory, sequence=11411):
 
 class ClassC2DepartureRecordedTest(unittest.TestCase):
     def setUp(self):
+        # fixer-reconcile-prompt.txt STEP 2: weight/guardian remedies are the
+        # subject; the captured kit decision is an input, including restores.
+        self.enterContext(recorded_equipment_decisions("classC2"))
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.policy, self.board, self.capture = attachment(Path(directory.name))

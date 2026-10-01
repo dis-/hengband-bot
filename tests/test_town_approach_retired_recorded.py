@@ -91,6 +91,7 @@ from hengbot.policy_constants import SHOP_APPROACH_STUCK_LIMIT, TOWN_TRAVEL_STAL
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
+from recorded_equipment_decisions import frozen_equipment_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -276,6 +277,9 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
 
     @classmethod
     @recorded_loadout_replay
+    # fixer-reconcile-prompt.txt STEP 2: approach/ownership/guardian pins must
+    # consume capture-time equipment choices, not unconfirmed new loadouts.
+    @frozen_equipment_replay("town")
     def _replay(cls):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:
