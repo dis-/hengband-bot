@@ -1241,6 +1241,26 @@ class CalibrationMixin:
                     "inventory-decreased/home-stock-increased",
                     "claim-bound/home-visit",
                 )
+            if self._calibration_restore_enforced():
+                # The deposit phase already owes supplies. Keep its physical
+                # continuation in this producer: a Terminal Home-tail claim
+                # is not an errand holder after its observed batch completes.
+                entrance = snapshot.grid_at(snapshot.player.position)
+                if in_home:
+                    key = self._open_home_deposit_key(snapshot)
+                elif entrance is not None and entrance.store_number == STORE_HOME:
+                    if (self._shopping_approach_store_type != STORE_HOME
+                            and self._shopping_approach_step(
+                                snapshot, STORE_HOME, requester="calibration") is None):
+                        return self._calibration_restore_terminal("deposit-home-unavailable")
+                    key = self._atomic_home_deposit_key(
+                        snapshot, snapshot.player.position)
+                else:
+                    key = self._shopping_approach_step(
+                        snapshot, STORE_HOME, requester="calibration")
+                if key is None:
+                    return self._calibration_restore_terminal("deposit-failed")
+                return key
             # Deposits ride the ordinary Home routing (atomic entry deposit,
             # one operation per entry); nothing to post from here.
             self._offer_execution(
