@@ -84,7 +84,7 @@ class CalibrationCrossAreaDebtTest(unittest.TestCase):
         with (patch.object(policy, "_release_cured_calibration_deferral"),
               patch.object(policy, "_restore_calibration_redress_obligation"),
               patch.object(policy, "_calibration_redress_observe")):
-            policy._calibration_observe(SimpleNamespace(in_town=True))
+            policy._calibration_observe(SimpleNamespace(in_town=True, equipment=[], inventory=[]))
         self.assertEqual(policy._calibration_phase, "restore-supplies")
         self.assertEqual(policy._calibration_restore_signatures, [signature])
 
