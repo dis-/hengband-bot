@@ -3062,6 +3062,10 @@ class TownMixin:
                             and self._town_visit_ledger.need_attempts.get(
                                 need.category, 0
                             ) >= spec.budget
+                            # Successful earlier shedding is not a failure of
+                            # a later overload after required purchases. Home's
+                            # real approach/pass/operation bounds still apply.
+                            and need.category != "weight-overload"
                             and not equipment_owner
                             and not self._outstanding_equipment_work()
                         )

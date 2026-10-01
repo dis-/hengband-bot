@@ -1142,6 +1142,12 @@ class HomeMixin:
             for spec in self._town_need_registry()
             if spec.departure_blocking
         }
+        # A charge-based ability has no per-stack retention target. Ask its
+        # existing supply-preserving surplus selector instead of protecting
+        # every Identify staff merely because its category blocks departure.
+        surplus_identify_staff = self._find_surplus_identify_staff(
+            snapshot, for_weight_overload=True
+        )
 
         def required_supply(item: InventoryItem) -> bool:
             categories = set(self._cross_town_item_categories(item))
@@ -1185,6 +1191,7 @@ class HomeMixin:
             return (
                 required_supply(item)
                 and self._retention_reservation(snapshot, item) == 0
+                and item != surplus_identify_staff
             )
 
         mining_planned = self._fundraising_mode in {
