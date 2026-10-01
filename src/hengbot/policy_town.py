@@ -2328,7 +2328,7 @@ class TownMixin:
         launcher = self._equipped_launcher(snapshot)
         ammo_short = (
             launcher is not None
-            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+            and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
         )
         if ammo_short and self._home_available(snapshot):
             if (
@@ -2591,7 +2591,7 @@ class TownMixin:
             if mandatory_supplies_ready:
                 if (
                     self._equipped_launcher(snapshot) is not None
-                    and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+                    and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
                     and STORE_WEAPON not in self._town_store_attempted
                 ):
                     add(STORE_WEAPON, "ammo")
@@ -2698,6 +2698,8 @@ class TownMixin:
                     and name not in self._abandoned_quest_carry_requirements
                 )
             }
+            if self._count_matching_ammo(snapshot) >= self._ammo_procurement_target(snapshot):
+                missing_carries.discard("throwing_items.launcher_ammo")
             if "throwing_items.lit_torch" in missing_carries:
                 home_torch = self._home_procurement_candidate(
                     (TVAL_LITE, SV_LITE_TORCH)
@@ -2810,7 +2812,7 @@ class TownMixin:
         # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
         if (
             self._equipped_launcher(snapshot) is not None
-            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+            and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
             and STORE_WEAPON not in self._town_store_attempted
         ):
             add(STORE_WEAPON, "ammo")

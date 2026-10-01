@@ -110,12 +110,89 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.policy, self.board, self.capture = attachment(Path(directory.name))
 
-    def test_recorded_residual_weight_has_no_safe_deposit(self):
+    def test_recorded_residual_weight_deposits_exactly_four_shots_after_restore(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
             "b886d8f7f1393690ce0f8b5c2f82bb733f658f808e8dee3158c7ca6834bc57b7")
         self.assertEqual((self.policy._inventory_weight(self.board),
                           self.policy._inventory_weight_limit(self.board)), (1768, 1750))
-        self.assertEqual(self.policy._overweight_home_deposit(self.board), None)
+        saved = checkpoint(self.policy)
+        for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
+            deposit = policy._overweight_home_deposit(self.board)
+            self.assertIsNotNone(deposit)
+            self.assertEqual((deposit.slot, deposit.count, deposit.weight), ("i", 99, 5))
+            self.assertEqual(policy._retention_surplus(self.board, deposit), 4)
+            self.assertEqual([(i.slot, n) for i, n in policy._home_deposit_batch(
+                self.board, deposit)], [("i", 4)])
+            self.assertEqual(policy._home_deposit_key(self.board, deposit), "di4\r")
+            self.assertEqual(policy._inventory_weight(self._after_shots()), 1748)
+
+    def _after_shots(self):
+        # Constructed effect board of the exact four-shot deposit above. It is
+        # not a later historical input row or a replay beyond first divergence.
+        return replace(self.board, inventory=tuple(
+            replace(i, count=95) if i.slot == "i" else i
+            for i in self.board.inventory))
+
+    def test_next_visit_buys_only_fitting_count_and_leaves_deposit_home(self):
+        # Constructed next visit: no historical continuation is replayed. The
+        # current kit is unchanged; five shots were consumed during a dive.
+        pack = next(i for i in self.board.inventory if i.slot == "i")
+        shared = {f.name for f in fields(StoreItem)} & {f.name for f in fields(type(pack))}
+        ware = StoreItem(letter="a", price=1, **{
+            name: getattr(pack, name) for name in shared})
+        board = replace(self._after_shots(), inventory=tuple(
+            replace(i, count=90) if i.slot == "i" else i
+            for i in self.board.inventory), store=StoreState(2, [ware]))
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((replace(pack, slot="a", count=4),))
+        saved = checkpoint(policy)
+        for policy in (policy, restore_checkpoint(HengbotPolicy, saved)):
+            self.assertIs(policy._next_purchase_unreserved(board), ware)
+            self.assertEqual(policy._purchase_quantity(board, ware), 5)
+            self.assertEqual(policy._ammo_procurement_target(board, ware), 95)
+            topped_up = replace(board, inventory=self._after_shots().inventory)
+            self.assertEqual(policy._inventory_weight(topped_up), 1748)
+            self.assertEqual(policy._purchase_quantity(topped_up, ware), 0)
+            self.assertIsNone(policy._next_purchase_unreserved(topped_up))
+            self.assertIsNone(policy._home_ammo_top_up(topped_up))
+            self.assertEqual(policy._procurement_missing_amount(topped_up, ware), 0)
+            self.assertFalse(any(need.category in {"ammo", "ammo-home-first"}
+                                 for need in policy._enumerate_town_needs(topped_up)))
+            empty = replace(board, inventory=tuple(i for i in board.inventory if not i.is_ammo))
+            self.assertIs(policy._next_purchase_unreserved(empty), ware)
+            self.assertEqual(policy._purchase_quantity(empty, ware), 95)
+
+    def test_overweight_matching_ammo_for_each_launcher_deposits_minimum(self):
+        # Constructed launcher/ammo substitutions, preserving the recorded
+        # kit weight and overload; no weapon comparison or ready gate is walled.
+        for ammo_tval, launcher_sval in ((16, 2), (17, 12), (18, 23)):
+            board = replace(self.board,
+                inventory=tuple(replace(i, tval=ammo_tval) if i.slot == "i" else i
+                                for i in self.board.inventory),
+                equipment=tuple(replace(i, sval=launcher_sval) if i.slot == "bow" else i
+                                for i in self.board.equipment))
+            policy = restore_checkpoint(HengbotPolicy, checkpoint(self.policy))
+            saved = checkpoint(policy)
+            for policy in (policy, restore_checkpoint(HengbotPolicy, saved)):
+                deposit = policy._overweight_home_deposit(board)
+                self.assertEqual((deposit.slot, deposit.weight), ("i", 5))
+                self.assertEqual(policy._retention_surplus(board, deposit), 4)
+
+    def test_fixed_quest_force_still_requires_99_after_normal_weight_deposit(self):
+        board = self._after_shots()
+        strategy = self.policy._carry_procurement_strategy(board)
+        status = self.policy._quest_carry_status(board, strategy.required_force)
+        self.assertEqual(status["throwing_items.launcher_ammo"],
+                         {"measured": 95, "required": 99, "ready": False})
+        self.assertFalse(self.policy._fixed_quest_ready_for_travel(board, strategy.quest_id))
+
+    def test_recorded_public_board_routes_ammo_home_before_departure(self):
+        saved = checkpoint(self.policy)
+        for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
+            key = policy.choose_key(self.board)
+            self.assertEqual((str(key), policy.last_reason), ("\x1b`n(.", "shop:travel"))
+            self.assertEqual(policy._shopping_approach_store_type, 7)
+            self.assertIsNone(policy._town_blocked_reason)
 
     def test_recorded_deposit_and_residual_supply_quantities(self):
         before = next(parse_snapshot(row) for row in self.capture["boards"]
@@ -129,7 +206,7 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         self.assertEqual([(item.slot, self.policy._retention_reservation(self.board, item))
                           for item in self.board.inventory],
                          [("a", 5), ("b", 10), ("c", 3), ("d", 15), ("e", 10),
-                          ("f", 6), ("g", 1), ("h", 0), ("i", 99)])
+                          ("f", 6), ("g", 1), ("h", 0), ("i", 95)])
         self.assertEqual(self.policy._total_identify_staff_charges(self.board), 20)
         self.assertEqual(self.policy._find_surplus_identify_staff(
             self.board, for_weight_overload=True), None)
@@ -139,7 +216,7 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         self.assertEqual(len(self.policy._equipment_catalog.items), 40)
 
     def test_public_stop_board_offers_deeper_guardian_remedy_after_restore(self):
-        board = self.board
+        board = self._after_shots()
         saved = checkpoint(self.policy)
         for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
             self.assertEqual(policy._town_recall_destination(board, guardian_gate=False),
@@ -147,33 +224,43 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
             self.assertEqual(policy._guardian_floor_blocked(board, 2, 12), True)
             self.assertEqual(policy._guardian_floor_blocked(board, 3, 18), False)
             self.assertEqual(policy._missing_required_abilities(board, 18), frozenset())
-            key = policy.choose_key(board)
+            # Evaluate departure directly on the constructed effect board.
+            # Weight relief also makes optional launcher enchanting live; its
+            # shop route may precede this evaluator on the public path.
+            key = policy._town_special_key(board)
             historical = self.capture["decisions"][-1]
             print("CLASS C2 FIRST DIFFERENCE", "live", repr(historical["key"]),
                   historical["reason"], "replay", repr(str(key)), policy.last_reason,
                   "target", policy._target_dungeon_id)
             self.assertEqual((str(key), policy.last_reason),
-                ("1", "town:entrance-step-off:town:unsafe-recall-fallback"))
+                ("5", "town:unsafe-recall-fallback"))
             self.assertEqual((policy._alternate_dungeon, policy._target_dungeon_id), (3, 3))
             self.assertEqual(policy._conquest_committed, None)
             self.assertEqual(policy._town_blocked_reason, None)
             self.assertEqual(policy._pending_recall_dungeon_id, None)
-            # These are the refusal's own facts on the deciding board. The
-            # fallback selects a target, never removes the hard weight gate.
+            # The guardian remedy is still required after the weight remedy.
             self.assertEqual(policy._departure_block["failed"],
-                ["inventory_weight_ready", "recall_landing_not_guardian_blocked"])
-            self.assertEqual(policy._inventory_overweight(board), True)
+                ["recall_landing_not_guardian_blocked"])
+            self.assertEqual(policy._inventory_overweight(board), False)
+            self.assertTrue(policy._town_departure_ready(board))
+            self.assertTrue(all(policy._recall_town_departure_conjuncts(board).values()))
+            # The departure evaluator's next decision on this constructed kit
+            # can issue the safe recall; no later live response is supplied.
+            recall = policy._town_special_key(board)
+            self.assertTrue(str(recall).startswith("r"))
+            self.assertEqual(policy.last_reason, "town:recall-to-alt-dungeon")
+            self.assertEqual(policy._pending_recall_dungeon_id, 3)
             # Stop at this changed decision: no future live effect is claimed.
 
     def test_no_alternate_keeps_visible_stop_and_weight_requirement(self):
         # Named counterfactual: only Angband and the refused Yeek cave entered.
-        # All pack/equipment/weight facts are still the recorded stop board.
-        board = replace(self.board, entered_dungeon_ids=(1, 2))
-        key = self.policy.choose_key(board)
+        # The four-shot weight remedy has completed on this counterboard.
+        board = replace(self._after_shots(), entered_dungeon_ids=(1, 2))
+        key = self.policy._town_special_key(board)
         self.assertEqual((str(key), self.policy.last_reason),
                          ("1", "town:blocked:guardian-bounce-no-alternate"))
         self.assertEqual(self.policy._target_dungeon_id, 2)
-        self.assertEqual(self.policy._inventory_overweight(board), True)
+        self.assertEqual(self.policy._inventory_overweight(board), False)
 
     def test_any_remaining_safe_surplus_goes_home_before_guardian_switch(self):
         # Named counterfactual: retain one of the phase-door scrolls that the
@@ -188,6 +275,8 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
             deposit = policy._overweight_home_deposit(board)
             self.assertEqual((deposit.slot, deposit.count, deposit.weight), ("j", 1, 5))
+            self.assertEqual([(i.slot, n) for i, n in policy._home_deposit_batch(
+                board, deposit)], [("j", 1), ("i", 4)])
             self.assertEqual(policy._inventory_weight(board), 1773)
             key = policy.choose_key(board)
             self.assertEqual((str(key), policy.last_reason), ("\x1b`n(.", "shop:travel"))

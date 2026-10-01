@@ -719,6 +719,10 @@ class SupplyMixin:
     ) -> int:
         """Return the unmet amount from the same ledgers that drive procurement."""
         item_class = self._procurement_class(item)
+        launcher = self._equipped_launcher(snapshot)
+        if item.is_ammo and launcher is not None and item.tval == launcher.ammo_tval:
+            return max(0, self._ammo_procurement_target(snapshot, item)
+                       - self._count_matching_ammo(snapshot))
         if self._is_destruction_item(item):
             # Home-first: a stored *Destruction* item is withdrawn before the
             # shop purchase, and the shortage is the same one the departure

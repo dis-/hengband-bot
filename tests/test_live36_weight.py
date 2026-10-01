@@ -125,12 +125,17 @@ class Live36WeightTest(unittest.TestCase):
         self.assertEqual(self.policy._town_blocked_reason, "overweight-home-unreachable")
         self.assertEqual("weight-overload" in self.policy._town_claim_categories, False)
 
-    def test_no_safe_staff_excess_leaves_no_weight_owner(self):
+    def test_no_safe_staff_excess_keeps_minimum_ammo_weight_owner(self):
         self.policy._home_rejected_deposits.update(
             self.policy._item_signature(i) for i in self.board.inventory if i.slot in "jk")
-        self.assertIsNone(self.policy._overweight_home_deposit(self.board))
+        deposit = self.policy._overweight_home_deposit(self.board)
+        self.assertIsNotNone(deposit)
+        self.assertEqual((deposit.slot, deposit.count, deposit.weight), ("l", 99, 5))
+        self.assertEqual(self.policy._retention_surplus(self.board, deposit), 6)
+        self.assertEqual([(i.slot, n) for i, n in self.policy._home_deposit_batch(
+            self.board, deposit)], [("l", 6)])
         self.policy._town_claims_active(self.board)
-        self.assertEqual("weight-overload" in self.policy._town_claim_categories, False)
+        self.assertEqual("weight-overload" in self.policy._town_claim_categories, True)
 
 
 if __name__ == "__main__":
