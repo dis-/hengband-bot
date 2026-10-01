@@ -17,6 +17,12 @@ from unittest.mock import patch
 
 from hengbot import equipment_optimizer, model, warrior_optimization
 
+FIXTURE_SHA256 = {
+    "town": "8a8b62d1c8556b23782a0a9fa6f4a6c653f1f75001d2e7345f53dacc663e54bb",
+    "live27": "eb8a8aa1fa6cbecad9d7e0b4541d8f86360cca9e966f981bde93af4e5e8eff53",
+    "classC2": "ecfe01c2c70926975f8fde3e612f5380c27d80027cf4101018c939aabdfaa116",
+}
+
 
 def encode(value):
     if is_dataclass(value):
@@ -57,7 +63,11 @@ def input_signature(items, kwargs):
 @contextmanager
 def recorded_equipment_decisions(name):
     path = Path(__file__).parent / "fixtures" / f"{name}.optimizer.json.gz"
-    records = json.loads(gzip.decompress(path.read_bytes()))["results"]
+    # R9: hash text content after CRLF normalization, independent of checkout.
+    payload = gzip.decompress(path.read_bytes()).replace(b"\r\n", b"\n")
+    if hashlib.sha256(payload).hexdigest() != FIXTURE_SHA256[name]:
+        raise AssertionError(f"changed optimizer fixture: {name}")
+    records = json.loads(payload)["results"]
 
     def recorded(items, evaluator, **kwargs):
         signature = input_signature(items, kwargs)
