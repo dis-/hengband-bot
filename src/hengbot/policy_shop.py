@@ -1311,6 +1311,8 @@ class ShopMixin:
                     else set()
                 ) | ledger_blocked
                 for store_type in refreshed_plan.stops:
+                    if store_type in self._town_visit_ledger.nonhome_attempted_without_effect:
+                        continue
                     restock_recheck = (
                         store_type in self._town_restock_rechecked
                         and store_type not in self._town_store_attempted

@@ -5747,7 +5747,11 @@ class TownMixin:
             restock = self._town_restock_wait_key(snapshot)
             if restock is not None:
                 return restock
-            if blocker is not None:
+            exhausted_shop_supply = any(
+                need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect
+                for need in self._departure_blocking_town_needs(snapshot)
+            ) if self._town_visit_ledger.nonhome_attempted_without_effect else False
+            if blocker is not None and not exhausted_shop_supply:
                 self._town_blocked_reason = blocker
                 return self._town_blocked_key(snapshot)
             # The errand registry and its bounded store passes have no remaining
@@ -5843,6 +5847,23 @@ class TownMixin:
                 self._town_blocked_reason = self.last_reason
                 return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
+            return self._town_blocked_key(snapshot)
+        blocking_needs = (
+            self._departure_blocking_town_needs(snapshot)
+            if self._town_visit_ledger.nonhome_attempted_without_effect
+            else []
+        )
+        if blocking_needs and all(
+            need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect
+            for need in blocking_needs
+        ) and not self._town_claims_active(snapshot):
+            expedition = self._cross_town_shopping_key(snapshot)
+            if expedition is not None:
+                return expedition
+            restock = self._town_restock_wait_key(snapshot)
+            if restock is not None:
+                return restock
+            self._town_blocked_reason = "departure-unsatisfiable"
             return self._town_blocked_key(snapshot)
         return None
 
