@@ -14,6 +14,7 @@ from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import replace
+import re
 
 class HomeMixin:
     def _calibration_keep_in_home(self, signature: tuple, quantity: int) -> None:
@@ -90,6 +91,10 @@ class HomeMixin:
             owed = self._home_pending_quantities.get(owner, 1)
             if worn < owed and (shelf_present or carried + worn < owed):
                 continue
+            self._calibration_restore_outcomes[owner] = (
+                "calibration-restore:worn" if worn >= owed
+                else "calibration-restore:carried"
+            )
             self._calibration_restore_signatures.remove(owner)
             self._home_pending_quantities.pop(owner, None)
             self._calibration_restore_move_identities.pop(owner, None)
@@ -117,7 +122,50 @@ class HomeMixin:
     def _calibration_restore_item_matches(
         self, owner_signature: tuple[str, int, int], item: StoreItem
     ) -> bool:
-        """Match a calibration deposit after Home may merge its stack count."""
+        """Match observed movement properties, not the rendered catalogue name.
+
+        A wand/rod carries a pooled resource; a staff's pval is per copy and
+        must still distinguish otherwise identical stacks (live28). Knowledge
+        may grow, but properties already known at deposit cannot be erased.
+        """
+        original = getattr(self, "_calibration_restore_items", {}).get(owner_signature)
+        if original is not None and self._calibration_restore_enforced():
+            if (original.tval, original.sval) != (item.tval, item.sval):
+                return False
+            def physical_name(observed):
+                name = re.sub(r"\s*\{[^}]*\}", "", observed.name).strip()
+                if observed.tval in (TVAL_WAND, TVAL_STAFF, TVAL_ROD):
+                    name = re.sub(r"\([^)]*(?:回分|charges?|charging)[^)]*\)", "", name).strip()
+                return name
+            # Hidden svals (-1) are not a kind identity. Keep the observed
+            # flavour, otherwise all unidentified mushrooms become one debt.
+            if original.sval < 0:
+                return physical_name(original) == physical_name(item)
+            if original.known:
+                fields = ("is_ego", "is_artifact", "is_cursed", "is_broken",
+                          "to_h", "to_d", "to_a", "ac", "damage_dice_num",
+                          "damage_dice_sides")
+                if not item.known or any(getattr(original, field) != getattr(item, field)
+                                         for field in fields):
+                    return False
+                if not original.known_flags <= item.known_flags:
+                    return False
+                # Pooled wand charges, rod capacity, and light fuel change on
+                # merge/split/use. Staff charges and equipment bonuses do not
+                # pool; retaining them prevents discharging a different debt.
+                if original.tval not in (TVAL_WAND, TVAL_ROD, 39):
+                    if original.pval != item.pval:
+                        return False
+                if original.tval == TVAL_STAFF and original.charges != item.charges:
+                    return False
+                if original.fully_known and not item.fully_known:
+                    return False
+                # For equipment, preserve the known ego/artifact's printed
+                # identity too: numerical properties alone are not unique.
+                if original.tval != 39:
+                    if physical_name(original) != physical_name(item):
+                        return False
+            return True
         move_identity = self._calibration_restore_move_identities.get(
             owner_signature
         )
@@ -1419,6 +1467,7 @@ class HomeMixin:
                 self._calibration_restore_signatures.append(signature)
             self._protect_calibration_restore_items()
             if restore_count:
+                self._calibration_restore_items[signature] = deposit
                 self._calibration_restore_move_identities[signature] = (
                     equipment_move_identity(deposit)
                 )
@@ -2268,6 +2317,7 @@ class HomeMixin:
                 else signature
             )
             if owner_signature in self._calibration_restore_signatures:
+                self._calibration_restore_outcomes[owner_signature] = "calibration-restore:withdrawn"
                 self._calibration_restore_signatures.remove(owner_signature)
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)

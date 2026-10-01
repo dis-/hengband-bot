@@ -2314,6 +2314,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_suspended_phase: str | None = None
         self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
         self._calibration_restore_signatures: list[tuple[str, int, int]] = []
+        self._calibration_restore_items: dict[tuple[str, int, int], InventoryItem] = {}
+        self._calibration_restore_outcomes: dict[tuple[str, int, int], str] = {}
         self._calibration_restore_move_identities: dict[
             tuple[str, int, int], str
         ] = {}
@@ -2604,6 +2606,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._calibration_entry_refusal = None
         if not hasattr(self, "_calibration_restore_move_identities"):
             self._calibration_restore_move_identities = {}
+        if not hasattr(self, "_calibration_restore_items"):
+            self._calibration_restore_items = {}
+        if not hasattr(self, "_calibration_restore_outcomes"):
+            self._calibration_restore_outcomes = {}
         if not hasattr(self, "_calibration_restore_item_ids"):
             self._calibration_restore_item_ids = {}
         if not hasattr(self, "_equipment_transaction_route_abandonment"):

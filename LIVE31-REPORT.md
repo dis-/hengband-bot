@@ -1,6 +1,7 @@
 # live31 — diagnosis (step 1)
 
 Base: dcb3fed7; worktree: bot-client-decl-r3b, branch decl-r3b.
+Step 1 commit: 0193f0b4.
 
 Recorded evidence: incident-20261001-1235-calibration-restore-target-absent-2.state.jsonl.gz
 and .decisions.jsonl.gz, copied without changing boards into the live31 fixture.
@@ -38,3 +39,44 @@ The repair must compare observed physical properties with their transport
 semantics: quantities and pooled resources can change; per-staff charges still
 distinguish live28's debts. Previously known equipment properties cannot be
 discarded just because identification or a printed annotation changes.
+
+## Step 2 — movement reconciliation
+
+`policy_home.py:122` now uses the original deposited observation (registered at
+`policy_home.py:1470`), rather than a digest of the display string. The same
+matcher is used for shelf selection, carried/worn reconciliation and actual
+withdrawal observation. It keeps known physical properties, requires previously
+known flags to remain present, permits further knowledge and annotations, and
+separates pooled device resources from per-copy staff charges. No new threshold
+or special guard for this sequence was introduced. OFF keeps the old matcher.
+`policy.py:2317-2318,2609-2612` initializes the new checkpoint fields.
+
+| Identity change | Reconciliation after repair |
+| --- | --- |
+| Identification / increasing knowledge | Compare available kind and previously known properties at policy_home.py:134-168; fully-known evidence cannot regress. An unidentified hidden sval remains distinguished by its recorded flavour (lines 141-144), never by a guessed kind. |
+| Stack merge/split | Count is not identity; the actual deposit quantity remains the debt. Original observations are retained at policy_home.py:1470. Batch gains are checked at policy_home.py:2282-2288. |
+| Inscription / printed known-flag annotations | Strip brace annotations for physical-name comparison at policy_home.py:136-140,170-174; known fields and flags still constrain the match. |
+| Wand charge pooling, rod resource changes | Pooled pval is excluded at policy_home.py:160-162 and printed device resources are excluded at lines 138-140. This handles both Home merge and subsequent split. |
+| Staff charge use | Staff charges remain per-copy evidence (policy_home.py:163-164), preserving live28. A used staff is not silently substituted for another charged staff. Deposited Home items cannot be used; after a positively observed restoration the debt is already discharged before a later use. |
+| Fuel / timeout | Light fuel is excluded at policy_home.py:160-162,170; timeout never enters this identity. |
+| Wear/wield | Positively observed possession discharges the debt at policy_home.py:75-113, with typed `calibration-restore:worn` or `calibration-restore:carried` at lines 94-97. |
+| Consumption/destruction | Absence is not positive evidence of consumption. A confirmed take discharges debt as `calibration-restore:withdrawn` at policy_home.py:2320; later consumption cannot reopen it. Items still deposited at Home cannot be consumed by rest or an inventory use. The truly-absent live19 pin remains unchanged. |
+
+The original incident source lines 7113/7114 show the predeposit wand; source
+line 7187 shows final Home slot 14. They are fixture lines 12/13 and 86.
+The provenance JSON records the source/fixture hashes and every source line.
+
+The fresh first divergence is the original macro with `py3\r` inserted after
+`pz2\r`: it now takes three wands from the four-wand/28-charge shelf. The test
+constructs their three-wand/21-charge response and the remaining one-wand/
+7-charge shelf from the pre-decision board, then observes both restore batches
+to completion. It does not use historical boards as effects after divergence.
+Independently reconstructed historical intents reach the real terminal board;
+the new recovery command there is `5po3\r\x1b`, versus the live no-key terminal.
+The constructed response discharges the last debt and ends calibration.
+
+New pins also retain distinct hidden mushroom flavours, reject a changed known
+weapon bonus, accept annotation/knowledge growth, record worn outcomes, and
+cover new and old checkpoint defaults. Existing live19/live28 assertions and
+EXPECTED_FIRST were not edited. R2 adds no screen requirement here: no screen
+classification or modal continuation was changed, and no UI screen was faked.
