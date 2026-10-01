@@ -1,0 +1,17 @@
+Examined 119 screen/capture/control-reply/prompt JSON files under read-only jsonlog (files <= 2 MB).
+live-screen-20260930-2334-star-identify-equipment-prompt.json "(装備品:a-i,'(',')', ESC) どのアイテムを*鑑定*しますか?"
+live-screen-20261001-0047-read-scroll-prompt.json "(持ち物:d-f,'(',')', ESC) どの巻物を読みますか?"
+live-screen-20261001-1142-identify-normal-unrecognized.json "(持ち物:b-d,'(',')', ESC) どの薬を飲みますか?"
+live-screen-20261001-1432-knowledge-scan-store-page.json '                                                                  (アイテム:a-Z, ESCで中断) どのアイテムを取りますか?'
+live-screen-cap-00-read-recall-dungeon.json 'ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]'
+live-screen-cap-05-alchemist-buy-p.json '                                                                 (商品:a-q, ESCで中断) どの品物が欲しいんだい?'
+live-screen-cap-07-alchemist-buy-quantity-enter.json '                                                                 買値 $23 で買いますか？[Y/n]'
+live-screen-cap-11-home-withdraw-g.json '                                                                 (アイテム:a-Z, ESCで中断) どのアイテムを取りますか?'
+live-screen-cap-13-home-takeoff-t.json "                                                                 (装備品:a-l,'(',')', ESC) どれを装備からはずしますか?"
+live-screen-cap-15-home-wield-w.json "                                                                 (持ち物:l-o,'(',')', ESC) どれを装備しますか?"
+live-screen-cap-16-home-wield-ring-l.json "                                                                 (装備品:d-e,'(',')', ESC) どちらの手に装備しますか?"
+live-screen-cap-27-dungeon-read-r.json "(持ち物:e-i,'(',')', ESC) どの巻物を読みますか?"
+live-screen-cap-31-home-deposit-d.json "                                                                 (持ち物:a-p,'(',')', '/' 装備品, ESC) どのアイテムを置きますか?"
+live-screen-cap-33-home-deposit-d2.json "                                                                 (持ち物:a-o,'(',')', '/' 装備品, ESC) どのアイテムを置きますか?"
+live-screen-cap-49-redress-w-prompt.json "                                                                 (持ち物:j-u,'(',')', ESC) どれを装備しますか?"
+live-screens\12-read-item-prompt.json "(持ち物:d-e,'(',')', ESC) どの巻物を読みますか?"

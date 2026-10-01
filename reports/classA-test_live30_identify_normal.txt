@@ -1,0 +1,16 @@
+<stuck-prompt> owner=identify:normal phase=screen transport=accepted request_id=9 reason=read-only request failed
+<stuck-prompt> owner=identify:normal phase=screen transport=accepted request_id=9 reason=read-only request failed
+...<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=expected prompt absent
+..<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=unowned item-source: (持ち物:b-d,'(',')', ESC) どの薬を飲みますか?
+..<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:a-s,'(',')', ESC) どの杖を使いますか?
+<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:a-s,'(',')', ESC) どの杖を使いますか?
+<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:a-s,'(',')', ESC) どの杖を使いますか?
+.<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-s,'(',')', ESC) どのアイテムを鑑定しますか?
+<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=unowned item-target: (持ち物:a-s,'(',')', ESC) どのアイテムを鑑定しますか?
+<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=unowned item-target: (Equip:a-s, ESC) Identify which item?
+<stuck-prompt> owner=identify:normal phase=continuation transport=accepted request_id=6 reason=unowned item-target: (Inven:a-s, ESC) *Identify* which item?
+.
+----------------------------------------------------------------------
+Ran 9 tests in 26.676s
+
+OK

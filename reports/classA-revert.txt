@@ -1,0 +1,1041 @@
+<stuck-prompt> owner=light:scroll phase=continuation transport=accepted request_id=5 reason=unowned unknown: unrecognized
+FF<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=3 reason=expected prompt absent
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=equipment-transaction:takeoff phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=loot:identify-floor-item phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:e-i,'(',')', ESC) どの巻物を読みますか?
+FFFF<stuck-prompt> owner=home:scan phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=home:scan phase=continuation transport=accepted request_id=3 reason=unowned knowledge: 現在の知識を確認する
+F<stuck-prompt> owner=observe:look phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+FFFFFFFFFFFFFFFFFFFFFFFFFFFF<stuck-prompt> owner=identify:normal-equipped phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:e-i,'(',')', ESC) どの巻物を読みますか?
+F<stuck-prompt> owner=character:periodic phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=loot:pickup phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=descend phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=home:deposit-equipment phase=continuation transport=accepted request_id=3 reason=expected prompt absent
+F<stuck-prompt> owner=item:cure-critical phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:d-f,'(',')', ESC) どの巻物を読みますか?
+F<stuck-prompt> owner=light:scroll phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:a-s,'(',')', ESC) どの杖を使いますか?
+F<stuck-prompt> owner=equipment-transaction:equip phase=store-state transport=accepted request_id=3 reason=missing or mismatching current store page
+FFF<stuck-prompt> owner=item:cure-critical phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=rest phase=continuation transport=accepted request_id=3 reason=unowned quantity:                                                                  いくつですか (1-13): 1
+F<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=3 reason=expected prompt absent
+F<stuck-prompt> owner=home:atomic-withdraw phase=continuation transport=accepted request_id=3 reason=unowned item-source: (持ち物:d-f,'(',')', ESC) どの巻物を読みますか?
+F<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=3 reason=expected prompt absent
+F<stuck-prompt> owner=identify:device phase=continuation transport=accepted request_id=3 reason=unowned unknown: unrecognized
+F<stuck-prompt> owner=equipment-transaction:equip phase=store-state transport=accepted request_id=3 reason=missing or mismatching current store page
+F
+======================================================================
+FAIL: test_constructed_more_consumes_only_space_before_wrong_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_constructed_more_consumes_only_space_before_wrong_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 136, in test_constructed_more_consumes_only_space_before_wrong_chooser
+    self.assertEqual(game.accepted, ["r", " "])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rj', ' '] != ['r', ' ']
+
+First differing element 0:
+'rj'
+'r'
+
+- ['rj', ' ']
+?    -
+
++ ['r', ' ']
+
+======================================================================
+FAIL: test_constructed_unknown_store_input_is_not_a_command_page (tests.test_classA_observed_input.ClassAObservedInputPins.test_constructed_unknown_store_input_is_not_a_command_page)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 359, in test_constructed_unknown_store_input_is_not_a_command_page
+    self.assertEqual(classify_screen(screen).kind, ScreenKind.UNKNOWN)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <ScreenKind.STORE: 'store'> != <ScreenKind.UNKNOWN: 'unknown'>
+
+======================================================================
+FAIL: test_default_quantity_enter_and_price_enter_use_different_prompts (tests.test_classA_observed_input.ClassAObservedInputPins.test_default_quantity_enter_and_price_enter_use_different_prompts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 277, in test_default_quantity_enter_and_price_enter_use_different_prompts
+    self.assertEqual(game.accepted, ["p", "q", "\r"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['pq'] != ['p', 'q', '\r']
+
+First differing element 0:
+'pq'
+'p'
+
+Second list contains 2 additional elements.
+First extra element 1:
+'q'
+
+- ['pq']
++ ['p', 'q', '\r']
+
+======================================================================
+FAIL: test_device_source_prefix_is_gated_even_with_existing_target_chain (tests.test_classA_observed_input.ClassAObservedInputPins.test_device_source_prefix_is_gated_even_with_existing_target_chain) (key='um')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 102, in test_device_source_prefix_is_gated_even_with_existing_target_chain
+    self.assertEqual(game.accepted, [key[0]])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['um'] != ['u']
+
+First differing element 0:
+'um'
+'u'
+
+- ['um']
+?    -
+
++ ['u']
+
+======================================================================
+FAIL: test_device_source_prefix_is_gated_even_with_existing_target_chain (tests.test_classA_observed_input.ClassAObservedInputPins.test_device_source_prefix_is_gated_even_with_existing_target_chain) (key='zi')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 102, in test_device_source_prefix_is_gated_even_with_existing_target_chain
+    self.assertEqual(game.accepted, [key[0]])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['zi'] != ['z']
+
+First differing element 0:
+'zi'
+'z'
+
+- ['zi']
+?    -
+
++ ['z']
+
+======================================================================
+FAIL: test_device_source_prefix_is_gated_even_with_existing_target_chain (tests.test_classA_observed_input.ClassAObservedInputPins.test_device_source_prefix_is_gated_even_with_existing_target_chain) (key='rf')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 102, in test_device_source_prefix_is_gated_even_with_existing_target_chain
+    self.assertEqual(game.accepted, [key[0]])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rf'] != ['r']
+
+First differing element 0:
+'rf'
+'r'
+
+- ['rf']
+?    -
+
++ ['r']
+
+======================================================================
+FAIL: test_equipment_takeoff_composer_never_answers_quaff (tests.test_classA_observed_input.ClassAObservedInputPins.test_equipment_takeoff_composer_never_answers_quaff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 193, in test_equipment_takeoff_composer_never_answers_quaff
+    self.assertEqual(game.accepted, ["t"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['te'] != ['t']
+
+First differing element 0:
+'te'
+'t'
+
+- ['te']
+?    -
+
++ ['t']
+
+======================================================================
+FAIL: test_floor_identify_target_waits_for_its_own_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_floor_identify_target_waits_for_its_own_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 147, in test_floor_identify_target_waits_for_its_own_chooser
+    self.assertEqual(game.accepted, ["r", "h"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rh-'] != ['r', 'h']
+
+First differing element 0:
+'rh-'
+'r'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'h'
+
+- ['rh-']
++ ['r', 'h']
+
+======================================================================
+FAIL: test_home_batch_next_command_requires_return_to_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_home_batch_next_command_requires_return_to_store)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 248, in test_home_batch_next_command_requires_return_to_store
+    self.assertEqual(game.accepted, ["d", "o"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['dodc1\r\x1b'] != ['d', 'o']
+
+First differing element 0:
+'dodc1\r\x1b'
+'d'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'o'
+
+- ['dodc1\r\x1b']
++ ['d', 'o']
+
+======================================================================
+FAIL: test_home_deposit_composer_never_answers_a_take_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_home_deposit_composer_never_answers_a_take_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 225, in test_home_deposit_composer_never_answers_a_take_chooser
+    self.assertEqual(game.accepted, ["d"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['dc1\r'] != ['d']
+
+First differing element 0:
+'dc1\r'
+'d'
+
+- ['dc1\r']
++ ['d']
+
+======================================================================
+FAIL: test_home_withdraw_quantity_never_answers_rest_prompt (tests.test_classA_observed_input.ClassAObservedInputPins.test_home_withdraw_quantity_never_answers_rest_prompt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 233, in test_home_withdraw_quantity_never_answers_rest_prompt
+    self.assertEqual(game.accepted, ["p", "x"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['px1\r\x1b'] != ['p', 'x']
+
+First differing element 0:
+'px1\r\x1b'
+'p'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'x'
+
+- ['px1\r\x1b']
++ ['p', 'x']
+
+======================================================================
+FAIL: test_knowledge_menu_selection_does_not_land_on_quaff (tests.test_classA_observed_input.ClassAObservedInputPins.test_knowledge_menu_selection_does_not_land_on_quaff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 283, in test_knowledge_menu_selection_does_not_land_on_quaff
+    self.assertEqual(game.accepted, ["~"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['~9'] != ['~']
+
+First differing element 0:
+'~9'
+'~'
+
+- ['~9']
+?    -
+
++ ['~']
+
+======================================================================
+FAIL: test_knowledge_viewer_exit_does_not_land_on_quaff (tests.test_classA_observed_input.ClassAObservedInputPins.test_knowledge_viewer_exit_does_not_land_on_quaff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 290, in test_knowledge_viewer_exit_does_not_land_on_quaff
+    self.assertEqual(game.accepted, ["~", "9"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['~9'] != ['~', '9']
+
+First differing element 0:
+'~9'
+'~'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'9'
+
+- ['~9']
++ ['~', '9']
+?    ++++
+
+
+======================================================================
+FAIL: test_look_exit_is_withheld_on_other_modal (tests.test_classA_observed_input.ClassAObservedInputPins.test_look_exit_is_withheld_on_other_modal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 313, in test_look_exit_is_withheld_on_other_modal
+    self.assertEqual(game.accepted, ["l"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['l\x1b'] != ['l']
+
+First differing element 0:
+'l\x1b'
+'l'
+
+- ['l\x1b']
++ ['l']
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='Eg')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['Eg'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'Eg'
+
+- ['Eg']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='qc')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['qc'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'qc'
+
+- ['qc']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='rh')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rh'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'rh'
+
+- ['rh']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='uo')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['uo'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'uo'
+
+- ['uo']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='am6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['am6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'am6'
+
+- ['am6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='zk')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['zk'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'zk'
+
+- ['zk']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='R&\r')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['R&\r'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'R&\r'
+
+- ['R&\r']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='fs6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['fs6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'fs6'
+
+- ['fs6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='va6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['va6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'va6'
+
+- ['va6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='kq')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['kq'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'kq'
+
+- ['kq']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='s')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['s'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'s'
+
+- ['s']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='wq')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['wq'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'wq'
+
+- ['wq']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='te')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['te'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'te'
+
+- ['te']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='dq')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['dq'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'dq'
+
+- ['dq']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='ga')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['ga'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'ga'
+
+- ['ga']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='T6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['T6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'T6'
+
+- ['T6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='o6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['o6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'o6'
+
+- ['o6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='D6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['D6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'D6'
+
+- ['D6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='\\Fa')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['\\Fa'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'\\Fa'
+
+- ['\\Fa']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='6')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['6'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'6'
+
+- ['6']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['0'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'0'
+
+- ['0']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='5')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['5'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'5'
+
+- ['5']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='{q.\r')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['{q.\r'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'{q.\r'
+
+- ['{q.\r']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='}q')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['}q'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'}q'
+
+- ['}q']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='<')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['<'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'<'
+
+- ['<']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='>')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['>'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'>'
+
+- ['>']
++ []
+
+======================================================================
+FAIL: test_map_commands_are_rejected_before_any_post_on_store (tests.test_classA_observed_input.ClassAObservedInputPins.test_map_commands_are_rejected_before_any_post_on_store) (key='+6y')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 323, in test_map_commands_are_rejected_before_any_post_on_store
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['+6y'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'+6y'
+
+- ['+6y']
++ []
+
+======================================================================
+FAIL: test_normal_equipped_producer_requires_an_advertised_equipment_page (tests.test_classA_observed_input.ClassAObservedInputPins.test_normal_equipped_producer_requires_an_advertised_equipment_page)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 162, in test_normal_equipped_producer_requires_an_advertised_equipment_page
+    self.assertEqual(game.accepted, ["r", "h"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rh/a'] != ['r', 'h']
+
+First differing element 0:
+'rh/a'
+'r'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'h'
+
+- ['rh/a']
++ ['r', 'h']
+
+======================================================================
+FAIL: test_once_mode_reuses_existing_plans_at_the_common_port (tests.test_classA_observed_input.ClassAObservedInputPins.test_once_mode_reuses_existing_plans_at_the_common_port) (key='Cf\ry\x1b\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 300, in test_once_mode_reuses_existing_plans_at_the_common_port
+    self.assertEqual(game.accepted, [prefix])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['Cf\ry\x1b\x1b'] != ['C']
+
+First differing element 0:
+'Cf\ry\x1b\x1b'
+'C'
+
+- ['Cf\ry\x1b\x1b']
++ ['C']
+
+======================================================================
+FAIL: test_once_mode_reuses_existing_plans_at_the_common_port (tests.test_classA_observed_input.ClassAObservedInputPins.test_once_mode_reuses_existing_plans_at_the_common_port) (key='gaaa')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 300, in test_once_mode_reuses_existing_plans_at_the_common_port
+    self.assertEqual(game.accepted, [prefix])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['gaaa'] != ['g']
+
+First differing element 0:
+'gaaa'
+'g'
+
+- ['gaaa']
+?    ---
+
++ ['g']
+
+======================================================================
+FAIL: test_once_mode_reuses_existing_plans_at_the_common_port (tests.test_classA_observed_input.ClassAObservedInputPins.test_once_mode_reuses_existing_plans_at_the_common_port) (key='>\ry')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 300, in test_once_mode_reuses_existing_plans_at_the_common_port
+    self.assertEqual(game.accepted, [prefix])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['>\ry'] != ['>']
+
+First differing element 0:
+'>\ry'
+'>'
+
+- ['>\ry']
+?    ---
+
++ ['>']
+
+======================================================================
+FAIL: test_page_switch_and_item_are_separately_observed (tests.test_classA_observed_input.ClassAObservedInputPins.test_page_switch_and_item_are_separately_observed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 172, in test_page_switch_and_item_are_separately_observed
+    self.assertEqual(game.accepted, ["d", "/"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['d'] != ['d', '/']
+
+Second list contains 1 additional elements.
+First extra element 1:
+'/'
+
+- ['d']
++ ['d', '/']
+
+======================================================================
+FAIL: test_quaff_producer_never_answers_a_recorded_read_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_quaff_producer_never_answers_a_recorded_read_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 77, in test_quaff_producer_never_answers_a_recorded_read_chooser
+    self.assertEqual(game.accepted, ["q"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['qc'] != ['q']
+
+First differing element 0:
+'qc'
+'q'
+
+- ['qc']
+?    -
+
++ ['q']
+
+======================================================================
+FAIL: test_read_composer_drops_source_on_recorded_quaff (tests.test_classA_observed_input.ClassAObservedInputPins.test_read_composer_drops_source_on_recorded_quaff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 93, in test_read_composer_drops_source_on_recorded_quaff
+    self.assertEqual(game.accepted, ["r"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rj'] != ['r']
+
+First differing element 0:
+'rj'
+'r'
+
+- ['rj']
+?    -
+
++ ['r']
+
+======================================================================
+FAIL: test_recorded_failure_message_withholds_target_after_staff_selection (tests.test_classA_observed_input.ClassAObservedInputPins.test_recorded_failure_message_withholds_target_after_staff_selection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 128, in test_recorded_failure_message_withholds_target_after_staff_selection
+    self.assertEqual(game.accepted, ["u", "o"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['uoq'] != ['u', 'o']
+
+First differing element 0:
+'uoq'
+'u'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'o'
+
+- ['uoq']
++ ['u', 'o']
+
+======================================================================
+FAIL: test_recorded_hand_prompt_releases_ring_answer (tests.test_classA_observed_input.ClassAObservedInputPins.test_recorded_hand_prompt_releases_ring_answer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 214, in test_recorded_hand_prompt_releases_ring_answer
+    self.assertEqual(game.accepted, ["w", "l", ")"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['wl)'] != ['w', 'l', ')']
+
+First differing element 0:
+'wl)'
+'w'
+
+Second list contains 2 additional elements.
+First extra element 1:
+'l'
+
+- ['wl)']
++ ['w', 'l', ')']
+
+======================================================================
+FAIL: test_recorded_home_chooser_cannot_be_admitted_as_store_boundary (tests.test_classA_observed_input.ClassAObservedInputPins.test_recorded_home_chooser_cannot_be_admitted_as_store_boundary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 345, in test_recorded_home_chooser_cannot_be_admitted_as_store_boundary
+    self.assertEqual(classify_screen(screen).kind, ScreenKind.ITEM_SOURCE)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <ScreenKind.STORE: 'store'> != <ScreenKind.ITEM_SOURCE: 'item-source'>
+
+======================================================================
+FAIL: test_recorded_mana_producer_is_refused_by_the_common_store_admission (tests.test_classA_observed_input.ClassAObservedInputPins.test_recorded_mana_producer_is_refused_by_the_common_store_admission)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 340, in test_recorded_mana_producer_is_refused_by_the_common_store_admission
+    self.assertEqual(game.accepted, [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['Eg'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'Eg'
+
+- ['Eg']
++ []
+
+======================================================================
+FAIL: test_recorded_quaff_accepts_its_item_only_after_observation (tests.test_classA_observed_input.ClassAObservedInputPins.test_recorded_quaff_accepts_its_item_only_after_observation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 83, in test_recorded_quaff_accepts_its_item_only_after_observation
+    self.assertEqual(game.accepted, ["q", "c"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['qc'] != ['q', 'c']
+
+First differing element 0:
+'qc'
+'q'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'c'
+
+- ['qc']
++ ['q', 'c']
+?    ++++
+
+
+======================================================================
+FAIL: test_rest_argument_does_not_answer_store_quantity (tests.test_classA_observed_input.ClassAObservedInputPins.test_rest_argument_does_not_answer_store_quantity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 306, in test_rest_argument_does_not_answer_store_quantity
+    self.assertEqual(game.accepted, ["R"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['R&\r'] != ['R']
+
+First differing element 0:
+'R&\r'
+'R'
+
+- ['R&\r']
+?    ---
+
++ ['R']
+
+======================================================================
+FAIL: test_store_buy_prefix_and_price_are_separately_observed (tests.test_classA_observed_input.ClassAObservedInputPins.test_store_buy_prefix_and_price_are_separately_observed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 266, in test_store_buy_prefix_and_price_are_separately_observed
+    self.assertEqual(game.accepted, ["p", "q"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['pq'] != ['p', 'q']
+
+First differing element 0:
+'pq'
+'p'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'q'
+
+- ['pq']
++ ['p', 'q']
+?    ++++
+
+
+======================================================================
+FAIL: test_store_entry_does_not_post_purchase_on_a_prompt (tests.test_classA_observed_input.ClassAObservedInputPins.test_store_entry_does_not_post_purchase_on_a_prompt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 254, in test_store_entry_does_not_post_purchase_on_a_prompt
+    self.assertEqual(game.accepted, ["5"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['5px1\r\x1b'] != ['5']
+
+First differing element 0:
+'5px1\r\x1b'
+'5'
+
+- ['5px1\r\x1b']
++ ['5']
+
+======================================================================
+FAIL: test_store_price_confirmation_never_answers_quest_entry (tests.test_classA_observed_input.ClassAObservedInputPins.test_store_price_confirmation_never_answers_quest_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 183, in test_store_price_confirmation_never_answers_quest_entry
+    self.assertEqual(game.accepted, ["p", "q"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['pq'] != ['p', 'q']
+
+First differing element 0:
+'pq'
+'p'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'q'
+
+- ['pq']
++ ['p', 'q']
+?    ++++
+
+
+======================================================================
+FAIL: test_town_device_producer_cannot_answer_a_quaff_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_town_device_producer_cannot_answer_a_quaff_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 116, in test_town_device_producer_cannot_answer_a_quaff_chooser
+    self.assertEqual(game.accepted, ["r"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['rhm'] != ['r']
+
+First differing element 0:
+'rhm'
+'r'
+
+- ['rhm']
+?    --
+
++ ['r']
+
+======================================================================
+FAIL: test_wield_hand_answer_waits_for_observed_hand_chooser (tests.test_classA_observed_input.ClassAObservedInputPins.test_wield_hand_answer_waits_for_observed_hand_chooser)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_classA_observed_input.py", line 207, in test_wield_hand_answer_waits_for_observed_hand_chooser
+    self.assertEqual(game.accepted, ["w", "l"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['wl)'] != ['w', 'l']
+
+First differing element 0:
+'wl)'
+'w'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'l'
+
+- ['wl)']
++ ['w', 'l']
+
+----------------------------------------------------------------------
+Ran 29 tests in 9.878s
+
+FAILED (failures=59)

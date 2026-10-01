@@ -1,6 +1,6 @@
 # Class A partial implementation
 
-Status: PARTIAL. Work stayed in bot-client-decl-r3b on decl-r3b; no game/bot/exe action, push, or other worktree write. Base was fast-forwarded to 9f596eec. Audit-only commit: b55b423c.
+Status: PARTIAL. Work stayed in bot-client-decl-r3b on decl-r3b; no game/bot/exe action, push, or other worktree write. Base was fast-forwarded to 9f596eec. Audit-only commit: b55b423c. Implementation/pins commit: 28ee9a9a. Verification artifacts are committed separately.
 
 Audit: 81 grouped expression/family rows, 9 already safe and 72 unsafe at base; 27 rows now covered by shared staging/context changes, 45 mixed or unsupported rows remain. Duplicate variants are rows, not unique incidents. Fixed-row coverage is not a claim that every private producer state has its own exhaustive pin. The full Class A request remains unfinished within the timebox.
 
@@ -28,4 +28,4 @@ Remaining capture/implementation work: food/mana chooser; aim/fire/throw directi
 Pending for Claude under the inherited DO NOT RUN block: tests.test_cli (also named by Class A verification, but not included in its sole stuck/withdraw exception), tests.test_policy_town, tests.test_policy_shop, tests.test_absorbing_states; parallel/timing runners, hunk_guard, verify_scope, mutation_battery, long recorded town/tour/overweight, town producer purity, complete first_divergence fixtures and matching sweeps. None was run. No Claude review was invoked.
 
 JSON event before implementation commit:
-{"topic":"classA","implementer":"gpt-6.1-sol","status":"partial","base":"9f596eec","audit_commit":"b55b423c","audit_rows":81,"base_safe":9,"base_unsafe":72,"shared_rule_covered_rows":27,"remaining_rows":45,"tests_passed":172,"revert_failures":59,"assertion_audit":"passed; one exact transport-segmentation expectation changed","changed_assertions":[{"test":"TcpBarrierPinTest.test_recorded_recall_depth_shape_completes_through_sender_path","before":"[rj,n]","after":"[r,j,n]","reason":"observe source chooser before item answer"}],"cli_tests":"pending Claude per inherited prohibition","pushed":false}
+{"topic":"classA","implementer":"gpt-6.1-sol","status":"partial","base":"9f596eec","audit_commit":"b55b423c","implementation_commit":"28ee9a9a","audit_rows":81,"base_safe":9,"base_unsafe":72,"shared_rule_covered_rows":27,"remaining_rows":45,"tests_passed":172,"revert_failures":59,"assertion_audit":"passed; one exact transport-segmentation expectation changed","changed_assertions":[{"test":"TcpBarrierPinTest.test_recorded_recall_depth_shape_completes_through_sender_path","before":"[rj,n]","after":"[r,j,n]","reason":"observe source chooser before item answer"}],"cli_tests":"pending Claude per inherited prohibition","pushed":false}
