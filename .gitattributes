@@ -4,3 +4,4 @@ tests/fixtures/incident-launcher-repetition-20260823.jsonl -text whitespace=-tra
 tests/fixtures/incident-calibration-entry-await-20260823.jsonl -text whitespace=-trailing-space
 tests/fixtures/incident-magic-abandon-cycle-20260823.jsonl -text whitespace=-trailing-space
 jsonlog/replay-*.jsonl -text whitespace=-trailing-space
+tests/fixtures/live36-weight.json -text

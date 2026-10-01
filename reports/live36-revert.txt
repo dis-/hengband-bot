@@ -1,0 +1,50 @@
+F.F.FFF
+======================================================================
+FAIL: test_batch_preserves_all_required_supplies_and_charges (tests.test_live36_weight.Live36WeightTest.test_batch_preserves_all_required_supplies_and_charges)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live36_weight.py", line 107, in test_batch_preserves_all_required_supplies_and_charges
+    self.assertIsNotNone(first)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_genuine_home_approach_failure_still_stops (tests.test_live36_weight.Live36WeightTest.test_genuine_home_approach_failure_still_stops)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live36_weight.py", line 125, in test_genuine_home_approach_failure_still_stops
+    self.assertEqual(self.policy._town_blocked_reason, "overweight-home-unreachable")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'overweight-home-unreachable'
+
+======================================================================
+FAIL: test_recorded_surface_has_a_safe_weight_deposit (tests.test_live36_weight.Live36WeightTest.test_recorded_surface_has_a_safe_weight_deposit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live36_weight.py", line 87, in test_recorded_surface_has_a_safe_weight_deposit
+    self.assertIsNotNone(deposit)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_recorded_surface_selects_home_route_after_restore (tests.test_live36_weight.Live36WeightTest.test_recorded_surface_selects_home_route_after_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live36_weight.py", line 98, in test_recorded_surface_selects_home_route_after_restore
+    self.assertEqual(policy._next_required_store_type(self.board), 7)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 7
+
+======================================================================
+FAIL: test_weight_owner_survives_prior_successful_attempts (tests.test_live36_weight.Live36WeightTest.test_weight_owner_survives_prior_successful_attempts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_live36_weight.py", line 92, in test_weight_owner_survives_prior_successful_attempts
+    self.assertEqual("weight-overload" in self.policy._town_claim_categories, True)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False != True
+
+----------------------------------------------------------------------
+Ran 7 tests in 33.025s
+
+FAILED (failures=5)
