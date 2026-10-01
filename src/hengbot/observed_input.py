@@ -65,10 +65,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     classifier and captured screens. Missing forms remain unfixed blockers.
     """
     # The captured Class A store prompts are Japanese. The established
-    # English one-shot plan binds its purchase prefix to the observed store
-    # boundary and gates quantity/confirmation separately. Keep that plan for
-    # the unrecorded English UI rather than requiring Japanese chooser text.
-    if owner == "shop:one-shot-buy" and kind is ScreenKind.STORE and any(
+    # English store plans bind composed transactions to the observed store
+    # boundary, with any existing quantity/confirmation gates kept separately.
+    # Preserve those plans for every producer instead of imposing Japanese
+    # chooser text on Home, calibration, equipment transactions or other shops.
+    if kind is ScreenKind.STORE and key[:1] in {"p", "d", "g", " "} and any(
             "You may: p) Purchase an item." in str(line)
             for line in (screen or {}).get("lines", ())):
         return key, continuations

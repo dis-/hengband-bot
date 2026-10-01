@@ -1,0 +1,141 @@
+FFFFFFFFFFF
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home:atomic-deposit', key='dn\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'd' != 'dn\x1b'
+- d
++ dn
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home:atomic-withdraw', key='pa3\r\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'p' != 'pa3\r\x1b'
+- p
++ pa3
++ 
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home:atomic-withdraw', key=' pa3\r\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: ' ' != ' pa3\r\x1b'
+-  
++  pa3
++ 
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home:deposit', key='dn\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'd' != 'dn\x1b'
+- d
++ dn
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home:withdraw', key='ga\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'g' != 'ga\x1b'
+- g
++ ga
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='calibration:atomic-deposit', key='dn\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'd' != 'dn\x1b'
+- d
++ dn
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='calibration:atomic-restore-withdraw', key='pa\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'p' != 'pa\x1b'
+- p
++ pa
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='equipment-transaction:atomic-deposit', key='dn\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'd' != 'dn\x1b'
+- d
++ dn
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='equipment-transaction:atomic-withdraw', key='pa\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'p' != 'pa\x1b'
+- p
++ pa
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='home-errand:atomic-withdraw', key='pa\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'p' != 'pa\x1b'
+- p
++ pa
+
+
+======================================================================
+FAIL: test_existing_english_store_plans_preserve_all_composed_transactions (tests.test_classA_observed_input.ClassAObservedInputPins.test_existing_english_store_plans_preserve_all_composed_transactions) (owner='shop:buy-recall', key='pa1\r\r\x1b')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classA_observed_input.py", line 66, in test_existing_english_store_plans_preserve_all_composed_transactions
+    self.assertEqual(prefix, key)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 'p' != 'pa1\r\r\x1b'
+- p
++ pa1
++ 
++ 
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.018s
+
+FAILED (failures=11)
