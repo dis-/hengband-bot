@@ -1027,6 +1027,12 @@ class TownMixin:
             if mana is not None and self._town_result_makes_progress(snapshot, mana):
                 return mana, self.last_reason
 
+        # The next item in an already selected Home batch belongs to that
+        # continuation. A newly visible shop supplier must not redirect the
+        # item-processing handoff before the batch producer consumes it.
+        if self._home_pending_batch:
+            return None
+
         # A27 bookkeeping belongs to candidate availability: stale terminal
         # ownership and an inert visit cannot make a released supplier appear
         # unreachable.  Posted operations remain authoritative.
@@ -2961,10 +2967,13 @@ class TownMixin:
             ("fundraising-oil", "normal", 1, True),  # Oil gates a fundraising run.
             ("identification-source", "before-withdrawal", 1, True),  # Identification is consumed by departure readiness.
             ("identification-withdrawal", "post-alchemist-home", 1, True),  # The identification handoff gates departure.
-            ("recall", "normal", 2, True),  # Recall supply feeds the departure ledger.
-            ("teleport", "normal", 1, True),  # Teleport supply feeds the departure ledger.
-            ("cure-critical", "normal", 2, True),  # Critical cures feed the departure ledger.
-            ("oil", "normal", 1, True),  # Oil supply feeds the departure ledger.
+            # The ledger prepends Home when it holds supplies. Reserve a lookup
+            # for it as well as every ordinary supplier; otherwise Home hides
+            # the last shop and its purchase owner after a restart.
+            ("recall", "normal", 3, True),  # Home, Temple, Alchemist.
+            ("teleport", "normal", 2, True),  # Home, Alchemist.
+            ("cure-critical", "normal", 3, True),  # Home, Temple, Alchemist.
+            ("oil", "normal", 2, True),  # Home, General.
             ("food", "normal", 2, True),  # Food supply feeds the departure ledger.
             ("quest-throwing-items", "normal", 1, True),  # Required throwing stock gates the quest departure.
             ("quest-launcher", "home-first", 1, True),  # A required launcher gates the quest departure.
