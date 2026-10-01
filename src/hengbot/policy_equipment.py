@@ -2345,6 +2345,10 @@ class EquipmentMixin:
         """Permit completion now or a recorded loadout with no visit-local work."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
+        # Calibration controls optimization, never ordinary movement. Depth
+        # abilities are checked separately from the current ability_sources.
+        if self._validated_character_calibration(snapshot) is None:
+            return self._equipment_transaction_session is None
         cacheable = snapshot is self._map_predicate_snapshot
         if (
             cacheable

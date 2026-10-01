@@ -13791,7 +13791,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return None
         if "calibration-required" in preparation.blockers:
-            return "equipment-calibration-required"
+            return None
+        if any(blocker.startswith("calibration-stale:")
+               for blocker in preparation.blockers):
+            return None
         if "no-valid-loadout" in preparation.blockers:
             return "equipment-no-valid-loadout"
         if "incomplete-equipment-catalog" in preparation.blockers:
