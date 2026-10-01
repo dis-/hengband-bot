@@ -1,0 +1,55 @@
+python : test_active_claim_allows_needed_supplier_and_boxed_landmark_travel (tests.test_town_progress_invariant.TownPro
+gressInvariantTest.test_active_claim_allows_needed_supplier_and_boxed_landmark_travel) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_town_progress_invariant -v  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_active_cla..._travel) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_atomic_home_withdraw_await_outranks_posted_shop_buy (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_atomic_home_withdraw_await_outranks_posted_shop_buy) ... ok
+test_captured_town_wander_retires_phantom_equipment_failure (tests.test_town_progress_invariant.TownProgressInvariantTe
+st.test_captured_town_wander_retires_phantom_equipment_failure) ... ok
+test_closed_allow_set_members_are_individually_pinned (tests.test_town_progress_invariant.TownProgressInvariantTest.tes
+t_closed_allow_set_members_are_individually_pinned) ... ok
+test_closed_key_axis_rejects_known_and_novel_noop_macros (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_closed_key_axis_rejects_known_and_novel_noop_macros) ... ok
+test_derived_randomized_result_invariant_generalized_sweep (tests.test_town_progress_invariant.TownProgressInvariantTes
+t.test_derived_randomized_result_invariant_generalized_sweep) ... ok
+test_detector_does_not_flag_convergent_equipment_macro (tests.test_town_progress_invariant.TownProgressInvariantTest.te
+st_detector_does_not_flag_convergent_equipment_macro) ... ok
+test_detector_fires_for_revisited_equipment_macro (tests.test_town_progress_invariant.TownProgressInvariantTest.test_de
+tector_fires_for_revisited_equipment_macro) ... ok
+test_detector_fires_for_twenty_repeated_wait_decisions (tests.test_town_progress_invariant.TownProgressInvariantTest.te
+st_detector_fires_for_twenty_repeated_wait_decisions) ... ok
+test_emit_only_phase_is_silent_for_legitimate_results (tests.test_town_progress_invariant.TownProgressInvariantTest.tes
+t_emit_only_phase_is_silent_for_legitimate_results) ... ok
+test_emit_only_phase_reports_without_overriding (tests.test_town_progress_invariant.TownProgressInvariantTest.test_emit
+_only_phase_reports_without_overriding) ... ok
+test_incomplete_home_scan_steps_off_before_shop_approach (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_incomplete_home_scan_steps_off_before_shop_approach) ... ok
+test_live_shaped_magic_observe_then_compose_ignores_advanced_plan (tests.test_town_progress_invariant.TownProgressInvar
+iantTest.test_live_shaped_magic_observe_then_compose_ignores_advanced_plan) ... ok
+test_move_reason_cannot_bless_wait_or_leave_axis (tests.test_town_progress_invariant.TownProgressInvariantTest.test_mov
+e_reason_cannot_bless_wait_or_leave_axis) ... ok
+test_net_zero_goal_walk_is_still_preempted (tests.test_town_progress_invariant.TownProgressInvariantTest.test_net_zero_
+goal_walk_is_still_preempted) ... ok
+test_pin_vacuity_real_approach_does_not_relabel_same_key (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_pin_vacuity_real_approach_does_not_relabel_same_key) ... ok
+test_randomized_active_claim_non_goal_moves_are_rejected (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_randomized_active_claim_non_goal_moves_are_rejected) ... ok
+test_recorded_home_errand_knowledge_macro_is_bounded_progress (tests.test_town_progress_invariant.TownProgressInvariant
+Test.test_recorded_home_errand_knowledge_macro_is_bounded_progress) ... ok
+test_saved_page_composes_after_town_plan_advances (tests.test_town_progress_invariant.TownProgressInvariantTest.test_sa
+ved_page_composes_after_town_plan_advances) ... ok
+test_seek_loot_progress_is_not_preempted_by_composable_purchase (tests.test_town_progress_invariant.TownProgressInvaria
+ntTest.test_seek_loot_progress_is_not_preempted_by_composable_purchase) ... ok
+test_target_leave_is_defect_but_nonstocking_leave_can_advance (tests.test_town_progress_invariant.TownProgressInvariant
+Test.test_target_leave_is_defect_but_nonstocking_leave_can_advance) ... ok
+test_whole_approach_enter_compose_sequence_uses_one_seam (tests.test_town_progress_invariant.TownProgressInvariantTest.
+test_whole_approach_enter_compose_sequence_uses_one_seam) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 84.326s
+
+OK

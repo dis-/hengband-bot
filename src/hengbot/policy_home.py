@@ -806,9 +806,15 @@ class HomeMixin:
             or "equipment-txn" in retired_town_owners
             or failed_home_route
         ):
+            if launcher is not None and item.is_ammo and item.tval == launcher.ammo_tval:
+                target = self._ammo_procurement_target(snapshot, for_retention=True)
+                if target < AMMO_CARRY_TARGET:
+                    reservation = ammo_carry_plan(snapshot, launcher, target).reservation(item.slot)
+                    return min(baseline[0], reservation), baseline[1]
             return baseline
 
-        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        plan = ammo_carry_plan(snapshot, launcher, self._ammo_procurement_target(
+            snapshot, for_retention=True))
         reservation = plan.reservation(item.slot)
         return reservation, "ammo:carry-plan" if reservation > 0 else None
 
@@ -1111,6 +1117,46 @@ class HomeMixin:
         limit = self._inventory_weight_limit(snapshot)
         return limit is not None and self._inventory_weight(snapshot) > limit
 
+    def _ammo_procurement_target(
+        self, snapshot: Snapshot, item=None, *, for_retention: bool = False
+    ) -> int:
+        """Normal dives carry only the launcher ammunition that fits the kit.
+
+        Quest force accounting keeps its existing fixed target. No visit latch
+        is needed: Home deposits remain excluded by the observed carried weight.
+        """
+        launcher = self._equipped_launcher(snapshot)
+        if launcher is None:
+            return AMMO_CARRY_TARGET
+        if snapshot.floor_key[2] != 0:
+            return AMMO_CARRY_TARGET
+        limit = self._inventory_weight_limit(snapshot)
+        if limit is None:
+            return AMMO_CARRY_TARGET
+        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        kept = [(next(i for i in snapshot.inventory if i.slot == slot), count)
+                for slot, count in plan.reservations]
+        weight = self._inventory_weight(snapshot)
+        if for_retention:
+            # Ordinary retention surplus goes first; ammunition clears only
+            # the residual overload, rather than displacing the other excess.
+            weight -= sum(
+                max(0, i.weight) * self._retention_surplus(snapshot, i)
+                for i in self._weight_deposit_candidates(snapshot, include_ammo=False)
+            )
+        room = limit - weight + sum(max(0, i.weight) * n for i, n in kept)
+        count = 0
+        for pack, quantity in kept:
+            fitting = quantity if pack.weight <= 0 else min(
+                quantity, max(0, room) // pack.weight)
+            count += fitting
+            room -= fitting * max(0, pack.weight)
+        unit_weight = (max(0, item.weight) if item is not None else 0) or (
+            max(0, kept[-1][0].weight) if kept else 0)
+        if unit_weight <= 0:
+            return AMMO_CARRY_TARGET
+        return min(AMMO_CARRY_TARGET, count + max(0, room) // unit_weight)
+
     def _can_add_item_without_overweight(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
         *, quantity: int | None = None,
@@ -1128,14 +1174,14 @@ class HomeMixin:
         )
         return current_weight + added_weight <= limit
 
-    def _overweight_home_deposit(
-        self, snapshot: Snapshot
-    ) -> InventoryItem | None:
+    def _weight_deposit_candidates(
+        self, snapshot: Snapshot, *, include_ammo: bool = True
+    ) -> list[InventoryItem]:
         if (
             self._equipment_mutation.state.name != "IDLE"
             or not self._inventory_overweight(snapshot)
         ):
-            return None
+            return []
 
         blocking_categories = {
             spec.category
@@ -1198,23 +1244,11 @@ class HomeMixin:
             "prepare", "mine", "scavenge"
         }
 
-        def priority(item: InventoryItem) -> tuple[int, int, str]:
-            category = (
-                0
-                if item.is_equipment and item.is_cursed
-                else 1
-                if item.is_digging_tool and not mining_planned
-                else 3
-                if required_supply(item)
-                else 2
-            )
-            removable_weight = item.weight * self._retention_surplus(snapshot, item)
-            return category, -removable_weight, item.slot
-
         candidates = [
             item
             for item in snapshot.inventory
-            if item.weight > 0
+            if (include_ammo or not item.is_ammo)
+            and item.weight > 0
             and self._retention_surplus(snapshot, item) > 0
             and not (self._calibration_restore_enforced()
                      and self._calibration_phase == "restore-supplies" and any(
@@ -1253,6 +1287,23 @@ class HomeMixin:
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot
         ]
+        launcher = self._equipped_launcher(snapshot)
+        ordinary = [item for item in candidates
+                    if launcher is None or item.tval != launcher.ammo_tval]
+        if ordinary:
+            candidates = ordinary
+        def priority(item: InventoryItem) -> tuple[int, int, str]:
+            category = (
+                0 if item.is_equipment and item.is_cursed
+                else 1 if item.is_digging_tool and not mining_planned
+                else 3 if required_supply(item) else 2
+            )
+            return category, -item.weight * self._retention_surplus(snapshot, item), item.slot
+
+        return sorted(candidates, key=priority)
+
+    def _overweight_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
+        candidates = self._weight_deposit_candidates(snapshot)
         excess = (
             self._inventory_weight(snapshot)
             - (self._inventory_weight_limit(snapshot) or 0)
@@ -1261,7 +1312,7 @@ class HomeMixin:
             item for item in candidates
             if item.weight * self._retention_surplus(snapshot, item) >= excess
         ]
-        return min(clears or candidates, key=priority, default=None)
+        return next(iter(clears or candidates), None)
 
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
@@ -2878,7 +2929,12 @@ class HomeMixin:
             if deposit_count > 0:
                 selected.append((current, deposit_count))
                 selected_slots.add(current.slot)
-            remaining = tuple(item for item in remaining if item.slot != current.slot)
+            remaining = tuple(
+                replace(item, count=item.count - deposit_count)
+                if item.slot == current.slot else item
+                for item in remaining
+                if item.slot != current.slot or item.count > deposit_count
+            )
             current = self._find_home_deposit(
                 replace(snapshot, inventory=remaining)
             )
@@ -3829,7 +3885,7 @@ class HomeMixin:
             return None
         launcher = self._equipped_launcher(snapshot)
         plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
-        shortage = AMMO_CARRY_TARGET - plan.carried_count
+        shortage = self._ammo_procurement_target(snapshot) - plan.carried_count
         if launcher is None or shortage <= 0 or not plan.kept_slots:
             return None
         kept = [
@@ -3856,7 +3912,9 @@ class HomeMixin:
                 None,
             )
             if candidate is not None:
-                return candidate, min(candidate.count, shortage)
+                shortage = self._ammo_procurement_target(snapshot, candidate) - plan.carried_count
+                if shortage > 0:
+                    return candidate, min(candidate.count, shortage)
         if plan.plain_slot is None and len(plan.kept_slots) < 2:
             candidate = next(
                 (
@@ -3873,7 +3931,9 @@ class HomeMixin:
                 None,
             )
             if candidate is not None:
-                return candidate, min(candidate.count, shortage)
+                shortage = self._ammo_procurement_target(snapshot, candidate) - plan.carried_count
+                if shortage > 0:
+                    return candidate, min(candidate.count, shortage)
         return None
 
     def _queue_home_ammo_top_up(self, snapshot: Snapshot) -> bool:

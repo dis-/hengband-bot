@@ -1,0 +1,7 @@
+FIRST DIVERGENCE 104 live '5' town:blocked:departure-unsatisfiable replay '5' town:identify-staff-stockout-mining
+SHORTFALL 18 mode prepare planned 1 home_current True stores {}
+.
+----------------------------------------------------------------------
+Ran 1 test in 48.910s
+
+OK

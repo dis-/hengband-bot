@@ -1,0 +1,25 @@
+python : test_h1_the_first_overweight_board_sheds_weight_at_home (tests.test_departure_unsatisfiable_weight_recorded.De
+partureUnsatisfiableWeightRecordedTest.test_h1_the_first_overweight_board_sheds_weight_at_home) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_departure_unsatisfiable_wei ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_h1_the_fir...at_home) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_h1_the_observed_ring_swap_releases_the_mutation_gate (tests.test_departure_unsatisfiable_weight_recorded.Departure
+UnsatisfiableWeightRecordedTest.test_h1_the_observed_ring_swap_releases_the_mutation_gate) ... ok
+test_h1_the_stop_board_heads_home_instead_of_the_terminal (tests.test_departure_unsatisfiable_weight_recorded.Departure
+UnsatisfiableWeightRecordedTest.test_h1_the_stop_board_heads_home_instead_of_the_terminal) ... ok
+test_recorded_weight_and_the_stop (tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecor
+dedTest.test_recorded_weight_and_the_stop) ... ok
+test_replay_decides_as_live_until_the_first_overweight_board (tests.test_departure_unsatisfiable_weight_recorded.Depart
+ureUnsatisfiableWeightRecordedTest.test_replay_decides_as_live_until_the_first_overweight_board) ... ok
+test_a_board_without_the_worn_change_keeps_the_gate (tests.test_departure_unsatisfiable_weight_recorded.ObservedMutatio
+nReleasesTownOwnersTest.test_a_board_without_the_worn_change_keeps_the_gate) ... ok
+test_the_board_showing_the_worn_change_releases_weight_shedding (tests.test_departure_unsatisfiable_weight_recorded.Obs
+ervedMutationReleasesTownOwnersTest.test_the_board_showing_the_worn_change_releases_weight_shedding) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 31.872s
+
+OK

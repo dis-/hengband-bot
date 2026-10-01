@@ -1,0 +1,39 @@
+python : test_exhausted_shop_router_offers_stockout_mining_before_stop (tests.test_classC_departure_remedies.DepartureR
+emedyTest.test_exhausted_shop_router_offers_stockout_mining_before_stop) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_classC_departure_remedies - ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_exhausted_...re_stop) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_exhausted_shop_router_preserves_existing_recovery_owner (tests.test_classC_departure_remedies.DepartureRemedyTest.
+test_exhausted_shop_router_preserves_existing_recovery_owner) ... ok
+test_existing_stockout_plan_does_not_become_permission_to_depart (tests.test_classC_departure_remedies.DepartureRemedyT
+est.test_existing_stockout_plan_does_not_become_permission_to_depart) ... ok
+test_newly_installed_supply_restock_is_offered_on_the_same_board (tests.test_classC_departure_remedies.DepartureRemedyT
+est.test_newly_installed_supply_restock_is_offered_on_the_same_board) ... ok
+test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemed
+yTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 54.563s
+
+OK
+CLASS C SAME BOARD food_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD light_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD teleport_ready 'R300\r' town:wait-restock:alchemist
+CLASS C SAME BOARD cure_critical_ready 'R300\r' town:wait-restock:temple
+CLASS C SUPPLIER identify_staff_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER identify_staff_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER recall_departure_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER recall_departure_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER food_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER food_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER teleport_ready 4 '\x1b`n%.' shop:travel
+CLASS C SUPPLIER teleport_ready 4 '\x1b`n%.' shop:travel
+CLASS C SUPPLIER cure_critical_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER cure_critical_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER light_ready 0 '5' shop:travel:await-entry
+CLASS C SUPPLIER light_ready 0 '5' shop:travel:await-entry
+CLASS C SUPPLIER inventory_weight_ready 7 '\x1b`n(.' shop:travel
+CLASS C SUPPLIER inventory_weight_ready 7 '\x1b`n(.' shop:travel

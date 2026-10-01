@@ -2328,7 +2328,7 @@ class TownMixin:
         launcher = self._equipped_launcher(snapshot)
         ammo_short = (
             launcher is not None
-            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+            and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
         )
         if ammo_short and self._home_available(snapshot):
             if (
@@ -2591,7 +2591,7 @@ class TownMixin:
             if mandatory_supplies_ready:
                 if (
                     self._equipped_launcher(snapshot) is not None
-                    and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+                    and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
                     and STORE_WEAPON not in self._town_store_attempted
                 ):
                     add(STORE_WEAPON, "ammo")
@@ -2698,6 +2698,8 @@ class TownMixin:
                     and name not in self._abandoned_quest_carry_requirements
                 )
             }
+            if self._count_matching_ammo(snapshot) >= self._ammo_procurement_target(snapshot):
+                missing_carries.discard("throwing_items.launcher_ammo")
             if "throwing_items.lit_torch" in missing_carries:
                 home_torch = self._home_procurement_candidate(
                     (TVAL_LITE, SV_LITE_TORCH)
@@ -2810,7 +2812,7 @@ class TownMixin:
         # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
         if (
             self._equipped_launcher(snapshot) is not None
-            and self._count_matching_ammo(snapshot) < AMMO_CARRY_TARGET
+            and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
             and STORE_WEAPON not in self._town_store_attempted
         ):
             add(STORE_WEAPON, "ammo")
@@ -3323,21 +3325,22 @@ class TownMixin:
         retired_worn_item_ids = getattr(
             self, "_equipment_retired_worn_item_ids", frozenset()
         )
-        if retired_worn_item_ids or (
+        # Exhaustion belongs to the equipment owner. Independent supplies and
+        # safe deposits still get their remedy before a departure verdict.
+        equipment_exhausted = bool(retired_worn_item_ids) or (
             self._equipment_failure_unexecutable_this_visit(
                 snapshot,
                 self._equipment_optimization_preparation,
                 require_confirmed=False,
                 include_launcher_enchant=False,
             )
-        ):
-            return None, True
+        )
         retired = set(getattr(self._town_turn_arbiter, "_retired", ()))
         for need in candidates:
             if not self._town_need_supplier_reachable(snapshot, need):
                 continue
             if need.category in {"equipment-work", "equipment-transaction"} and (
-                retired_worn_item_ids
+                equipment_exhausted
                 or "equipment-opt" in retired
                 or "equipment-txn" in retired
             ):
@@ -3352,8 +3355,8 @@ class TownMixin:
                 or need.store_type == STORE_HOME
                 or remembered_affordable
             ):
-                return need.store_type, False
-        return None, False
+                return need.store_type, equipment_exhausted
+        return None, equipment_exhausted
 
     def _order_town_stops(
         self, snapshot: Snapshot, stores: list[int], start: Position | None = None
@@ -5169,6 +5172,18 @@ class TownMixin:
             guardian_bounced_dungeon=dungeon_id,
         ) is not None
 
+    @claims(ClaimOwner.SHOP_BUY)
+    def _town_restock_wait_key(self, snapshot: Snapshot) -> str | None:
+        """Offer a live stock-turnover remedy, including one installed now."""
+        if (
+            not self._town_restock_suppressed
+            and self._town_restock_wait_until is not None
+            and snapshot.turn < self._town_restock_wait_until
+        ):
+            self.last_reason = self._restock_wait_reason(snapshot)
+            return RESTOCK_WAIT_MACRO
+        return None
+
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         full_identify_trip = self._morivant_full_identify_key(snapshot)
         if full_identify_trip is not None:
@@ -5274,13 +5289,9 @@ class TownMixin:
         ):
             return self._identify_staff_stockout_key(snapshot)
 
-        if (
-            not self._town_restock_suppressed
-            and self._town_restock_wait_until is not None
-            and snapshot.turn < self._town_restock_wait_until
-        ):
-            self.last_reason = self._restock_wait_reason(snapshot)
-            return RESTOCK_WAIT_MACRO
+        restock = self._town_restock_wait_key(snapshot)
+        if restock is not None:
+            return restock
 
         if (
             self._fundraising_mode == "mine"
@@ -5473,8 +5484,8 @@ class TownMixin:
         # the current kit cannot pass still runs the whole departure flow:
         # its supplies, scrolls and readiness gates are those of a recall that
         # will be read (to the switched landing), and the refusal is recorded
-        # as a failed departure leaf.  The switch itself happens only where
-        # the recall key would otherwise be read.
+        # as a failed departure leaf. Switch at the recall read point, or after
+        # the other remedies have no remaining step, before a terminal verdict.
         guardian_blocked = False
         if recall_dest is None:
             gated_dest, gated_dungeon = self._town_recall_destination(
@@ -5650,11 +5661,11 @@ class TownMixin:
                     # made it the target (a conquest latch committed on an
                     # earlier kit, a latched alternate whose landing has since
                     # reached its guardian floor), the dive would come
-                    # straight back (guardian-kit-insufficient).  Only here,
-                    # with every departure leaf ready -- a departure-blocking
+                    # straight back (guardian-kit-insufficient). At this read
+                    # point every departure leaf is ready; a departure-blocking
                     # withdrawal or purchase still pending (a consumable that
                     # can make the guardian beatable again) keeps the target
-                    # and the latch -- switch the way the guardian valve
+                    # and the latch. Switch the way the guardian valve
                     # does, and with no landing left stop visibly (user
                     # decisions 2026-09-25, guardian-recall-pingpong r2/r3).
                     # Optional town claims do not hold the switch back, just
@@ -5732,7 +5743,17 @@ class TownMixin:
 
         if recall_dest is not None and not departure_ok:
             blocker = self._terminal_equipment_blocker(snapshot)
-            if blocker is not None:
+            # Equipment evaluation can exhaust the shop plan and install a
+            # supply remedy. Offer it even when another hard leaf also fails;
+            # replenishing supplies does not authorise dungeon departure.
+            restock = self._town_restock_wait_key(snapshot)
+            if restock is not None:
+                return restock
+            exhausted_shop_supply = any(
+                need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect
+                for need in self._departure_blocking_town_needs(snapshot)
+            ) if self._town_visit_ledger.nonhome_attempted_without_effect else False
+            if blocker is not None and not exhausted_shop_supply:
                 self._town_blocked_reason = blocker
                 return self._town_blocked_key(snapshot)
             # The errand registry and its bounded store passes have no remaining
@@ -5757,6 +5778,32 @@ class TownMixin:
                     # prepare mode is not yet the one-run stockout time-pass;
                     # install that plan before declaring departure impossible.
                     return self._identify_staff_stockout_key(snapshot)
+                # The supplier/terminal evaluators above can install a remedy
+                # on this very board, after the early restock check already ran.
+                # Offer its existing producer before declaring no owner left.
+                restock = self._town_restock_wait_key(snapshot)
+                if restock is not None:
+                    return restock
+                if guardian_blocked and not snapshot.player.recalling:
+                    # All procurement/deposit owners above have had their
+                    # opportunity. A different unresolved leaf (including
+                    # weight with no safe surplus) must not silence the
+                    # decided guardian remedy. Select the safe target only;
+                    # the next board still has to satisfy every departure
+                    # gate before a recall can be read.
+                    if self._guardian_blocked_recall_switch(
+                        snapshot, recall_dungeon_id
+                    ):
+                        self.last_reason = "town:unsafe-recall-fallback"
+                        self._offer_execution(
+                            WAIT_KEY, producer="departure",
+                            work_id="town:guardian-recall-fallback",
+                            next_step="recall.observe-fallback",
+                            expected_effect="safe-destination-selected",
+                        )
+                        return WAIT_KEY
+                    self._town_blocked_reason = "guardian-bounce-no-alternate"
+                    return self._town_blocked_key(snapshot)
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         # Destination safety is a departure assertion, not an errand-router
@@ -5802,6 +5849,23 @@ class TownMixin:
                 self._town_blocked_reason = self.last_reason
                 return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
+            return self._town_blocked_key(snapshot)
+        blocking_needs = (
+            self._departure_blocking_town_needs(snapshot)
+            if self._town_visit_ledger.nonhome_attempted_without_effect
+            else []
+        )
+        if blocking_needs and all(
+            need.store_type in self._town_visit_ledger.nonhome_attempted_without_effect
+            for need in blocking_needs
+        ) and not self._town_claims_active(snapshot):
+            expedition = self._cross_town_shopping_key(snapshot)
+            if expedition is not None:
+                return expedition
+            restock = self._town_restock_wait_key(snapshot)
+            if restock is not None:
+                return restock
+            self._town_blocked_reason = "departure-unsatisfiable"
             return self._town_blocked_key(snapshot)
         return None
 

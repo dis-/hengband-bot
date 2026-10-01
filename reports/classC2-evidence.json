@@ -1,0 +1,357 @@
+{
+  "decisions": [
+    {
+      "decision_sequence": 11397,
+      "turn": 1493262,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": null,
+      "key": "5",
+      "reason": "home:weight-overload-deposit"
+    },
+    {
+      "decision_sequence": 11398,
+      "turn": 1493262,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": 7,
+      "key": "dkdjdd\u001b",
+      "reason": "home:weight-overload-deposit"
+    },
+    {
+      "decision_sequence": 11399,
+      "turn": 1493274,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": null,
+      "key": "5",
+      "reason": "shop:travel:await-entry"
+    },
+    {
+      "decision_sequence": 11400,
+      "turn": 1493274,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": 7,
+      "key": "\u001b",
+      "reason": "home:scan-incomplete-open-page"
+    },
+    {
+      "decision_sequence": 11401,
+      "turn": 1493288,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": null,
+      "key": "9",
+      "reason": "shop:approach"
+    },
+    {
+      "decision_sequence": 11402,
+      "turn": 1493302,
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "store_type": null,
+      "key": "1",
+      "reason": "shop:approach"
+    },
+    {
+      "decision_sequence": 11403,
+      "turn": 1493302,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": 7,
+      "key": "\u001b",
+      "reason": "home:scan-incomplete-open-page"
+    },
+    {
+      "decision_sequence": 11404,
+      "turn": 1493309,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": null,
+      "key": "9",
+      "reason": "shop:approach"
+    },
+    {
+      "decision_sequence": 11405,
+      "turn": 1493319,
+      "position": {
+        "y": 44,
+        "x": 124
+      },
+      "store_type": null,
+      "key": "1",
+      "reason": "shop:approach"
+    },
+    {
+      "decision_sequence": 11406,
+      "turn": 1493319,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": 7,
+      "key": "\u001b",
+      "reason": "home:scan-incomplete-open-page"
+    },
+    {
+      "decision_sequence": 11407,
+      "turn": 1493327,
+      "position": {
+        "y": 45,
+        "x": 123
+      },
+      "store_type": null,
+      "key": "\u001b`n#.",
+      "reason": "shop:travel"
+    },
+    {
+      "decision_sequence": 11408,
+      "turn": 1493661,
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "store_type": 2,
+      "key": "\u001b",
+      "reason": "shop:observe-and-leave"
+    },
+    {
+      "decision_sequence": 11409,
+      "turn": 1493674,
+      "position": {
+        "y": 31,
+        "x": 91
+      },
+      "store_type": null,
+      "key": "\u001b`n'.",
+      "reason": "shop:travel"
+    },
+    {
+      "decision_sequence": 11410,
+      "turn": 1493876,
+      "position": {
+        "y": 45,
+        "x": 84
+      },
+      "store_type": 6,
+      "key": "\u001b",
+      "reason": "shop:observe-and-leave"
+    },
+    {
+      "decision_sequence": 11411,
+      "turn": 1493887,
+      "position": {
+        "y": 45,
+        "x": 84
+      },
+      "store_type": null,
+      "key": "1",
+      "reason": "town:blocked:departure-unsatisfiable"
+    }
+  ],
+  "before_deposit": {
+    "weight": 1983,
+    "items": [
+      [
+        "a",
+        "油つぼ",
+        10,
+        5
+      ],
+      [
+        "b",
+        "致命傷の治癒の薬",
+        4,
+        10
+      ],
+      [
+        "c",
+        "体力回復の薬",
+        4,
+        3
+      ],
+      [
+        "d",
+        "ショート・テレポートの巻物",
+        5,
+        1
+      ],
+      [
+        "e",
+        "テレポートの巻物",
+        5,
+        15
+      ],
+      [
+        "f",
+        "帰還の詔の巻物",
+        5,
+        10
+      ],
+      [
+        "g",
+        "光の巻物 {@0}",
+        5,
+        6
+      ],
+      [
+        "h",
+        "岩石溶解の魔法棒 (3回分)",
+        10,
+        1
+      ],
+      [
+        "i",
+        "鑑定の杖 (5x 4回分)",
+        50,
+        5
+      ],
+      [
+        "j",
+        "シャベル (1d2) (+0,+0) (+1) {+掘}",
+        60,
+        1
+      ],
+      [
+        "k",
+        "つるはし (1d3) (+0,+0) (+1) {+掘}",
+        150,
+        1
+      ],
+      [
+        "l",
+        "鉄弾 (1d3) (+0,+0) (20/shot 37/turn)",
+        5,
+        99
+      ]
+    ]
+  },
+  "stop_retention": [
+    {
+      "signature": [
+        "油つぼ",
+        77,
+        0
+      ],
+      "tval": 77,
+      "sval": 0,
+      "count": 5,
+      "reservation": 5,
+      "branch": "supply-ledger:oil"
+    },
+    {
+      "signature": [
+        "致命傷の治癒の薬",
+        75,
+        36
+      ],
+      "tval": 75,
+      "sval": 36,
+      "count": 10,
+      "reservation": 10,
+      "branch": "supply-ledger:cure"
+    },
+    {
+      "signature": [
+        "体力回復の薬",
+        75,
+        37
+      ],
+      "tval": 75,
+      "sval": 37,
+      "count": 3,
+      "reservation": 3,
+      "branch": "carry-strategy:heal-potions"
+    },
+    {
+      "signature": [
+        "テレポートの巻物",
+        70,
+        9
+      ],
+      "tval": 70,
+      "sval": 9,
+      "count": 15,
+      "reservation": 15,
+      "branch": "carry-strategy:teleport"
+    },
+    {
+      "signature": [
+        "帰還の詔の巻物",
+        70,
+        11
+      ],
+      "tval": 70,
+      "sval": 11,
+      "count": 10,
+      "reservation": 10,
+      "branch": "supply-ledger:recall"
+    },
+    {
+      "signature": [
+        "光の巻物 {@0}",
+        70,
+        24
+      ],
+      "tval": 70,
+      "sval": 24,
+      "count": 6,
+      "reservation": 6,
+      "branch": "carry-strategy:light"
+    },
+    {
+      "signature": [
+        "岩石溶解の魔法棒 (3回分)",
+        65,
+        6
+      ],
+      "tval": 65,
+      "sval": 6,
+      "count": 1,
+      "reservation": 1,
+      "branch": "mana-device"
+    },
+    {
+      "signature": [
+        "鉄弾 (1d3) (+0,+0) (20/shot 37/turn)",
+        16,
+        1
+      ],
+      "tval": 16,
+      "sval": 1,
+      "count": 99,
+      "reservation": 99,
+      "branch": "ammo:carry-plan"
+    }
+  ],
+  "home_positions": [
+    [
+      45,
+      123
+    ]
+  ],
+  "source_sha256": {
+    "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-1616-departure-unsatisfiable-3.decisions.jsonl.gz": "a6e09525a781c2ed43f95e6c8a4b8bb7593df596b2051a7dc87b4fa9090614bf",
+    "C:\\hengband\\bot-client\\jsonlog\\incident-20261001-1616-departure-unsatisfiable-3.state.jsonl.gz": "089bd112fb46a3a507a78f4654c6d762fc4252a134dbbf946427a6d0a2c8982b",
+    "C:\\hengband\\bot-client\\incident-captures\\20261001-161643-departure-unsatisfiable\\policy-state.json": "b358908bfcfb5de2babc5c7c5416a62b3c09cccf8057c07c8e7ab33cebaaf8f7",
+    "C:\\hengband\\bot-client\\jsonlog\\character-calibration.json": "2aa285b74e93b74bbbc2b669e6baa78f0a8c4b517cdc282403cdb196049df125",
+    "C:\\hengband\\bot-client\\jsonlog\\confirmed-loadout.json": "087d5acb347693049ffd68ca5746ef50e4eeb8960f323074d12144712debf454"
+  }
+}

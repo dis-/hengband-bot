@@ -1,0 +1,253 @@
+src/hengbot/policy_shop.py SINGLE REVERT exit=1
+F
+======================================================================
+FAIL: test_exhausted_shop_router_offers_stockout_mining_before_stop (tests.test_classC_departure_remedies.DepartureRemedyTest.test_exhausted_shop_router_offers_stockout_mining_before_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 123, in test_exhausted_shop_router_offers_stockout_mining_before_stop
+    self.assertEqual(policy._town_blocked_reason, None)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'departure-unsatisfiable' != None
+
+----------------------------------------------------------------------
+Ran 1 test in 5.615s
+
+FAILED (failures=1)
+
+src/hengbot/policy_town.py SINGLE REVERT exit=1
+FFFFFFF
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='identify_staff_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (5, True)
+
+First differing element 0:
+None
+5
+
+- (None, True)
+?  ^^^^
+
++ (5, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='recall_departure_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (3, True)
+
+First differing element 0:
+None
+3
+
+- (None, True)
+?  ^^^^
+
++ (3, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='food_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (5, True)
+
+First differing element 0:
+None
+5
+
+- (None, True)
+?  ^^^^
+
++ (5, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='teleport_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (4, True)
+
+First differing element 0:
+None
+4
+
+- (None, True)
+?  ^^^^
+
++ (4, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='cure_critical_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (3, True)
+
+First differing element 0:
+None
+3
+
+- (None, True)
+?  ^^^^
+
++ (3, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='light_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (0, True)
+
+First differing element 0:
+None
+0
+
+- (None, True)
+?  ^^^^
+
++ (0, True)
+?  ^
+
+
+======================================================================
+FAIL: test_retired_equipment_does_not_erase_supply_and_deposit_producers (tests.test_classC_departure_remedies.DepartureRemedyTest.test_retired_equipment_does_not_erase_supply_and_deposit_producers) (leaf='inventory_weight_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 80, in test_retired_equipment_does_not_erase_supply_and_deposit_producers
+    self.assertEqual(policy._departure_supplier_core(changed), (expected_store, True))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (None, True) != (7, True)
+
+First differing element 0:
+None
+7
+
+- (None, True)
+?  ^^^^
+
++ (7, True)
+?  ^
+
+
+----------------------------------------------------------------------
+Ran 1 test in 18.948s
+
+FAILED (failures=7)
+
+SHOP RECOVERY SINGLE REVERT exit=1
+F
+======================================================================
+FAIL: test_exhausted_shop_router_preserves_existing_recovery_owner (tests.test_classC_departure_remedies.DepartureRemedyTest.test_exhausted_shop_router_preserves_existing_recovery_owner)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 141, in test_exhausted_shop_router_preserves_existing_recovery_owner
+    self.assertEqual(self.policy._town_blocked_reason, None)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'departure-unsatisfiable' != None
+
+----------------------------------------------------------------------
+Ran 1 test in 4.920s
+
+FAILED (failures=1)
+
+SAME-BOARD REMEDY SINGLE REVERT exit=1
+CLASS C SAME BOARD food_ready '5' town:blocked:departure-unsatisfiable
+CLASS C SAME BOARD light_ready '5' town:blocked:equipment-calibration-required
+CLASS C SAME BOARD teleport_ready '5' town:blocked:departure-unsatisfiable
+CLASS C SAME BOARD cure_critical_ready '5' town:blocked:departure-unsatisfiable
+FFFF
+======================================================================
+FAIL: test_newly_installed_supply_restock_is_offered_on_the_same_board (tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board) (leaf='food_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 189, in test_newly_installed_supply_restock_is_offered_on_the_same_board
+    self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'town:blocked:departure-unsatisfiable') != ('R300\r', 'town:wait-restock:general')
+
+First differing element 0:
+'5'
+'R300\r'
+
+- ('5', 'town:blocked:departure-unsatisfiable')
++ ('R300\r', 'town:wait-restock:general')
+
+======================================================================
+FAIL: test_newly_installed_supply_restock_is_offered_on_the_same_board (tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board) (leaf='light_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 189, in test_newly_installed_supply_restock_is_offered_on_the_same_board
+    self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'town:blocked:equipment-calibration-required') != ('R300\r', 'town:wait-restock:general')
+
+First differing element 0:
+'5'
+'R300\r'
+
+- ('5', 'town:blocked:equipment-calibration-required')
++ ('R300\r', 'town:wait-restock:general')
+
+======================================================================
+FAIL: test_newly_installed_supply_restock_is_offered_on_the_same_board (tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board) (leaf='teleport_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 189, in test_newly_installed_supply_restock_is_offered_on_the_same_board
+    self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'town:blocked:departure-unsatisfiable') != ('R300\r', 'town:wait-restock:alchemist')
+
+First differing element 0:
+'5'
+'R300\r'
+
+- ('5', 'town:blocked:departure-unsatisfiable')
++ ('R300\r', 'town:wait-restock:alchemist')
+
+======================================================================
+FAIL: test_newly_installed_supply_restock_is_offered_on_the_same_board (tests.test_classC_departure_remedies.DepartureRemedyTest.test_newly_installed_supply_restock_is_offered_on_the_same_board) (leaf='cure_critical_ready')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-live21\tests\test_classC_departure_remedies.py", line 189, in test_newly_installed_supply_restock_is_offered_on_the_same_board
+    self.assertEqual((key, policy.last_reason), (RESTOCK_WAIT_MACRO, "town:wait-restock:" + supplier))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('5', 'town:blocked:departure-unsatisfiable') != ('R300\r', 'town:wait-restock:temple')
+
+First differing element 0:
+'5'
+'R300\r'
+
+- ('5', 'town:blocked:departure-unsatisfiable')
++ ('R300\r', 'town:wait-restock:temple')
+
+----------------------------------------------------------------------
+Ran 1 test in 8.645s
+
+FAILED (failures=4)

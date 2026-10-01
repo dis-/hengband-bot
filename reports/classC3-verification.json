@@ -1,0 +1,185 @@
+{
+  "python": "C:\\Users\\user\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+  "PYTHONPATH": "src;tests;scripts",
+  "modules": [
+    {
+      "module": "tests.test_policy_shop",
+      "exit_code": 0,
+      "tests": 279,
+      "seconds": 27.95
+    },
+    {
+      "module": "tests.test_classC_departure_remedies",
+      "exit_code": 0,
+      "tests": 5,
+      "seconds": 51.66
+    },
+    {
+      "module": "tests.test_classC2_departure_recorded",
+      "exit_code": 0,
+      "tests": 9,
+      "seconds": 164.72
+    },
+    {
+      "module": "tests.test_live36_weight",
+      "exit_code": 0,
+      "tests": 7,
+      "seconds": 35.86
+    },
+    {
+      "module": "tests.test_identify_staff_live27_recorded",
+      "exit_code": 0,
+      "tests": 1,
+      "seconds": 53.27
+    },
+    {
+      "module": "tests.test_departure_unsatisfiable_weight_recorded",
+      "exit_code": 0,
+      "tests": 7,
+      "seconds": 31.64
+    },
+    {
+      "module": "tests.test_ammo_surplus",
+      "exit_code": 0,
+      "tests": 4,
+      "seconds": 65.2
+    },
+    {
+      "module": "tests.test_quest_ammo_not_bought",
+      "exit_code": 0,
+      "tests": 8,
+      "seconds": 26.3
+    },
+    {
+      "module": "tests.test_town_progress_invariant",
+      "exit_code": 0,
+      "tests": 22,
+      "seconds": 95.14
+    },
+    {
+      "module": "tests.test_ownership_s2a_classification",
+      "exit_code": 0,
+      "tests": 16,
+      "seconds": 49.72
+    },
+    {
+      "module": "tests.test_test_fakery_lint",
+      "exit_code": 0,
+      "tests": 13,
+      "seconds": 81.75
+    }
+  ],
+  "total_tests": 371,
+  "skipped": 1,
+  "replays": [
+    {
+      "case": "stuck",
+      "mode": "off",
+      "exit_code": 0,
+      "identical_to_classC2": true,
+      "off_rows": 4,
+      "trajectory_defect": null
+    },
+    {
+      "case": "stuck",
+      "mode": "s33",
+      "exit_code": 0,
+      "identical_to_classC2": true,
+      "off_rows": 4,
+      "trajectory_defect": null
+    },
+    {
+      "case": "withdraw",
+      "mode": "off",
+      "exit_code": 0,
+      "identical_to_classC2": true,
+      "off_rows": 34,
+      "trajectory_defect": null
+    },
+    {
+      "case": "withdraw",
+      "mode": "s33",
+      "exit_code": 0,
+      "identical_to_classC2": true,
+      "off_rows": 34,
+      "trajectory_defect": null
+    }
+  ],
+  "single_revert": [
+    {
+      "case": "item1-single-revert",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "pins": [
+        "tests.test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop"
+      ]
+    },
+    {
+      "case": "item2-single-revert",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "pins": [
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore",
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home"
+      ]
+    },
+    {
+      "byte_exact_restoration": {
+        "src\\hengbot\\policy_shop.py": true,
+        "src\\hengbot\\policy_home.py": true
+      },
+      "restored_sha256": {
+        "src\\hengbot\\policy_shop.py": "51ac930aea3b6ca5972484573e5f1886a9fc98aa90cdfb9dd13ae7b129b6a5ee",
+        "src\\hengbot\\policy_home.py": "b9072106d8530091236843eae753a1273f347afac40265a3893d3d58669eaae9"
+      }
+    },
+    {
+      "case": "item1-restored-pin",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "pins": [
+        "tests.test_policy_shop.TownErrandPlanTest.test_non_home_leave_blocks_reopened_out_of_stock_stop"
+      ]
+    },
+    {
+      "case": "item2-restored-pins",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "pins": [
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_recorded_residual_weight_deposits_exactly_four_shots_after_restore",
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_next_visit_buys_only_fitting_count_and_leaves_deposit_home",
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch",
+        "tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.test_public_stop_board_offers_deeper_guardian_remedy_after_restore"
+      ]
+    }
+  ],
+  "commits": {
+    "merge": "6aabf2ead5d9d6b47fe3a1ce6cead6ec27dbac18",
+    "item1": "a774ae8bb5df882ccbcf5137d1884d67d0cb5318",
+    "item2": "19a6fd1f0942fa3957cd2e12714886a8f83381f7"
+  },
+  "claude_pending_modules": [
+    "tests.test_cli",
+    "tests.test_policy_town",
+    "tests.test_absorbing_states",
+    "tests.test_unaffordable_claim_tour_recorded",
+    "tests.test_town_approach_retired_recorded",
+    "tests.test_overweight_home_unreachable_recorded",
+    "tests.test_town_producer_purity",
+    "tests.test_town_producer_purity_part1",
+    "tests.test_town_producer_purity_part2",
+    "tests.test_town_producer_purity_part3",
+    "tests.test_town_producer_purity_part4",
+    "tests.test_town_producer_purity_part5",
+    "tests.test_town_producer_purity_part6"
+  ],
+  "claude_pending_scripts": [
+    "scripts/test_parallel_runner.py",
+    "scripts/test_timing_runner.py",
+    "scripts/hunk_guard.py",
+    "scripts/verify_scope.py",
+    "scripts/mutation_battery.py",
+    "full-fixture scripts/first_divergence_s3_3.py beyond stuck/withdraw",
+    "any all-matching-module sweep"
+  ]
+}

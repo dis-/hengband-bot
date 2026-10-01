@@ -1,0 +1,34 @@
+[
+  {
+    "case": "stuck",
+    "mode": "off",
+    "exit_code": 0,
+    "identical_to_classC2": true,
+    "off_rows": 4,
+    "trajectory_defect": null
+  },
+  {
+    "case": "stuck",
+    "mode": "s33",
+    "exit_code": 0,
+    "identical_to_classC2": true,
+    "off_rows": 4,
+    "trajectory_defect": null
+  },
+  {
+    "case": "withdraw",
+    "mode": "off",
+    "exit_code": 0,
+    "identical_to_classC2": true,
+    "off_rows": 34,
+    "trajectory_defect": null
+  },
+  {
+    "case": "withdraw",
+    "mode": "s33",
+    "exit_code": 0,
+    "identical_to_classC2": true,
+    "off_rows": 34,
+    "trajectory_defect": null
+  }
+]
