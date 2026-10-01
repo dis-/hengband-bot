@@ -229,3 +229,52 @@ test_home_equipment_disposal 6 OK, test_town_restock_trajectory 21 OK, test_test
 assertion_change_audit --base f2bd447c: no changed pre-existing assertions.
 
 {"topic":"xbow-pref","implementer":"opus-5.5","round":2,"base":"f2bd447c","commits":["ed8aa833","95d34463","4b23df1e","2bf665b1"],"review_items":{"P1":"equipped Light Crossbow keeps the grade rule regardless of ammo evidence (equipment_optimizer.py:948)","P2":"one supplier selection LAUNCHER_AMMO_SUPPLIERS=(Weapon Smith, General Store) for swap-in eligibility, ordinary ammo errand (policy_town.py:2621-2629,2845-2855) and quest launcher-ammo suppliers (policy_quest.py:807-830); affordable plain offers only","P3":"only pages observed in the current town and younger than STORE_RESTOCK_WAIT_TURNS"},"new_attributes":[],"new_thresholds":[],"verified":{"test_light_crossbow_preference":16,"test_equipment_optimizer":93,"test_policy_equipment":192,"test_warrior_optimization":36,"test_ammo_surplus":4,"test_launcher_deferral":7,"test_quest_ammo_not_bought":8,"test_home_equipment_disposal":6,"test_town_restock_trajectory":21,"test_test_fakery_lint":13},"not_run":["test_policy_town","test_policy_shop","test_policy_home","test_cli","test_absorbing_states","full suite"],"blockers":["entry-point requirement pin still needs a recorded post-calibration town board with full ~9 Home list (page 52) and ~f reply"]}
+
+## Round 3 (merged-main full suite regressions, coordinator design) - commit cd9c8574 on 5afa8525
+
+Changes:
+- `_launcher_ammo_errand_store` (policy_equipment.py:553-572): the Weapon Smith exactly as before
+  (unless attempted). The General Store only when the current-town Weapon Smith page shows no
+  affordable plain ammo of the type AND the General Store was not attempted this visit AND its page
+  (current or remembered, like `_quest_carry_remembered_affordable`) shows an affordable plain stack.
+  "Weapon Smith attempted" alone adds no General Store stop.
+- Quest carry: `_quest_carry_suppliers(name)` is the original static method again (tests call it);
+  the new `_quest_carry_supplier_stores(snapshot, name)` returns `(STORE_GENERAL,)` only in the case
+  above, else the original suppliers (callers: policy_town.py:2773, :2798; policy_quest.py:844).
+- `_obtainable_launcher_ammunition`: store offers are added only for the ammo type of an owned
+  launcher (worn, carried or Home) that has no owned stack of that type. Launchers with owned ammo
+  are ranked by it exactly as before, so optimizer inputs are unchanged unless store evidence makes
+  an otherwise unusable launcher usable.
+- no_live_state_artifact: the pin module docstring named the live state log; now it points to the
+  extractor only.
+
+Results (one module per process): test_light_crossbow_preference 16 OK, test_no_live_state_artifact
+1 OK, test_policy_supply 202 OK, test_overweight_home_unreachable_recorded 12 OK,
+test_classC_departure_remedies 5 OK, test_recall_stockout_set_end_recorded 5 OK, test_declarations_r14
+2 OK, test_unaffordable_claim_tour_recorded 7 OK, test_town_approach_retired_recorded 8 OK,
+test_policy_town 598 OK (incl. test_unobtainable_q22_ammo_defers_to_fundraising_departure),
+test_test_fakery_lint 13 OK.
+
+STOPPED - remaining failures are the intended behaviour change (user decision 2026-10-02); no
+assertion was edited:
+- test_tpstockout_restart_recorded::test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist
+  (both subtests), line 93 `assertEqual(key, '\x1b`n%.')` / line 94 `shop:travel`. New: key
+  '\x1b`n(.' reason `equipment-transaction:travel-home`. Probe: target bow = Home
+  "ライト・クロスボウ (x3) (0.75turn) (+4,+3)"; plan withdraw crossbow, takeoff Sling (+10,+10), equip
+  crossbow, deposit sling; evidence = the recorded current-town Weapon Smith shelf with plain bolts
+  83 @ 3 gold. With store evidence suppressed the old key/reason come back.
+- test_classC2_departure_recorded (4 tests: any_remaining_safe_surplus_goes_home_before_guardian_switch,
+  no_alternate_keeps_visible_stop_and_weight_requirement,
+  public_stop_board_offers_deeper_guardian_remedy_after_restore,
+  recorded_public_board_routes_ammo_home_before_departure): "uncaptured optimizer input: classC2
+  8548c6b9.../c95c43b9...". Board turn 1493887: Sling (+7,+7) + Home Light Crossbow (+4,+3), no
+  bolts owned, current-town shelf plain bolts 99 @ 3. With store evidence suppressed all 9 pass.
+- test_identify_staff_live27_recorded::test_recorded_shortfall_enters_one_run_mining: "uncaptured
+  optimizer input: live27 dc581429...". Boards turns 688808 and 689594-689975: Sling (+3,+2) + Home
+  Light Crossbow (+4,+3), shelf plain bolts 98 / 49 @ 3. With store evidence suppressed it passes.
+These three fixtures freeze capture-time optimizer outputs (tests/recorded_equipment_decisions.py,
+fail closed on a new input signature); the new input is exactly the bolts evidence that lets the user
+rule pick the crossbow. Decision needed: re-capture/extend those optimizer fixtures (or accept the
+new first divergence in tpstockout), which edits recorded expectations and is outside my mandate.
+
+{"topic":"xbow-pref","implementer":"opus-5.5","round":3,"base":"5afa8525","commits":["cd9c8574"],"passing":{"test_light_crossbow_preference":16,"test_no_live_state_artifact":1,"test_policy_supply":202,"test_overweight_home_unreachable_recorded":12,"test_classC_departure_remedies":5,"test_recall_stockout_set_end_recorded":5,"test_declarations_r14":2,"test_unaffordable_claim_tour_recorded":7,"test_town_approach_retired_recorded":8,"test_policy_town":598,"test_test_fakery_lint":13},"intended_change_failures":{"test_tpstockout_restart_recorded":2,"test_classC2_departure_recorded":4,"test_identify_staff_live27_recorded":1},"assertions_edited":0,"new_attributes":[],"decision_needed":"re-capture classC2/live27 frozen optimizer fixtures and accept tpstockout first divergence (crossbow swap) or not"}
