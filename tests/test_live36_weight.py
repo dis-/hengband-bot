@@ -66,8 +66,8 @@ class Live36WeightTest(unittest.TestCase):
         self.policy, self.board, self.capture = attachment(Path(directory.name))
 
     def test_frozen_stop_and_retained_quantities(self):
-        self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
-                         "b9d78eefbc220d7accb30eeb96433cae91414a45c94ff5dcce869addc9322ff3")
+        self.assertEqual(hashlib.sha256(FIXTURE.read_bytes().replace(b"\r\n", b"\n")).hexdigest(),
+                         "33558b2ac36f04cd57861c9cdcb3ec9aadccce4d28596cba99b58a5f874a2348")
         stop = self.capture["decisions"][-1]
         self.assertEqual((stop["decision_sequence"], stop["key"], stop["reason"]),
                          (7520, "1", "town:blocked:departure-unsatisfiable"))

@@ -1,0 +1,14 @@
+python.exe : ......
+発生場所 行:4 文字:310
++ ... y_lint')) { & $live34Python -m unittest "tests.$live34Module" > "repo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (......:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 6 tests in 9.561s
+
+OK
+live31 first divergence '5pKpD3\rpCpA2\rpz2\rpy3\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b' live '5pKpD3\rpCpA2\rpz2\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b'
+live31 first divergence '5pKpD3\rpCpA2\rpz2\rpy3\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b' live '5pKpD3\rpCpA2\rpz2\rprpqpp10\rpo13\rpm4\rpl9\rpk4\rpf5\rpe3\rpdpcpb\x1b'
+live31 terminal recovery '5po3\r\x1b' live None town:blocked:calibration-restore-target-absent
