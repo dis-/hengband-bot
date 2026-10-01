@@ -846,7 +846,10 @@ class ShopOneShotTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertTrue(policy._matching_live_purchase_rungs(snap, ware))
-        self.assertEqual(policy._purchase_quantity(snap, ware), 71)
+        # User decision 2026-10-01: normal-dive ammo buys only what fits.
+        # Weight 1506, limit 1700, bolt weight 3: (1700 - 1506) // 3 = 64;
+        # 28 reserved + 64 = 92 <= 99; buying 71 would weigh 1719 > 1700.
+        self.assertEqual(policy._purchase_quantity(snap, ware), 64)
         self.assertTrue(policy._store_purchase_fits_pack(snap, ware))
         enhanced = replace(ware, letter="b", to_d=1)
         self.assertFalse(policy._matching_live_purchase_rungs(snap, enhanced))
