@@ -1,86 +1,107 @@
-# tpstockout: evidence contradicts stock-out premise
+﻿# tpstockout: stocked supplier owner failure (CORRECTION applied)
 
-## Step 1 — correction
+Continued from ed59a8eb on tpstockout. Work is confined to this worktree;
+recorder-owned jsonlog and other worktrees are read-only. The original
+empty-shelf premise is superseded by the 2026-10-02 02:55 CORRECTION:
+"Do NOT build the generic empty-shelf mining remedy now."
 
-The actual Alchemist page in `autorecover-20261002-023427-loop-detected.bot-state-fixed.jsonl.gz`
-at turn 2570072 contains these exported items, printed by the evidence test:
+## Step 1: cause and reconstruction
 
-| Letter | Name | Count | Price |
+The failure is a truncated need registry, not an empty Alchemist.
+`policy_supply.py:162-175` prepends Home to a supply's supplier list when Home
+contains that supply. `policy_town.py:2693-2715` correctly creates both Home
+and affordable remembered-shop candidates even after an attempted visit.
+But the old `_town_need_registry` allocated only one teleport lookup.
+`_TownNeedLookup.lookup` at `policy_town.py:36-39` selects a candidate by
+occurrence, so the only lookup resolves to Home. Alchemist never becomes a
+live teleport producer. `policy_town.py:1087-1124` subsequently refuses its
+counterfactual purchase: its selected ware is teleport, but no departure
+family for that shop is registered. The progress seam at :1304/:1319 (base
+line numbers) has claims but no purchase owner and replaces stuck wandering
+with WAIT. Probe movement then alternates with that WAIT.
+
+`policy_shop.py:2096` reports `no-store-page-observed` because the current
+outside snapshot has no store; it does not assert empty inventory on a
+remembered shelf. Re-registration at base `policy_town.py:2690` cannot cure
+loss in the following finite-occurrence registry projection.
+
+Preserved route evidence: `tests/fixtures/tpstockout-routes-20261002.json.gz`
+contains verbatim decision rows from all three captures, with source hashes.
+`tests/fixtures/tpstockout-20261002.json.gz` remains unchanged and preserves
+the actual board, shelf, Home/skill knowledge, calibration and stop telemetry.
+
+| Capture | Recorded process/route facts |
+| --- | --- |
+| 02:17:28 | Retained rows start at sequence 5637, not process start. Final 5814 at turn 2553976 is `town:blocked:route-nonprogress:quest-request`, with an unposted store-5 approach. This is a different stop, not evidence of an empty Alchemist or the later teleport failure. |
+| 02:34:27 | Retained rows start at 910. At 1068/2570072, Alchemist buys Recall with `pg2\r\r\x1b`; the shelf has 99 Teleports at 61 gold and 4 discounted Teleports at 46. At 1069 its plan has lost Alchemist; 1129/2570681 blocks with only `teleport_ready` false and a Home-only plan. |
+| 02:35:56 | Fresh sequence 1/2570692 scans Home, 2 travels to Home, 3/2571133 exits `home:route-claim-unfulfilled`, 4 travels to Weapon, 5/2571460 observes/leaves, 6 travels to Black, 7/2571679 observes/leaves. No Alchemist route is registered. 8 selects the unsafe-recall fallback. At 9 the blocked/probe cycle starts; 37/2571984 blocks and 38 probes. |
+
+All startup stderr records say `enforce_town_claims=False` and
+`enforce_crossarea_fundraising=True`. The restarted route ledger at sequence
+37 has Home visits 2, Weapon 1, Black 1, Home unsatisfied passes 2, no blocked
+stores, live claims teleport/equipment-catalog, and only teleport readiness
+false. Target and alternate are Forest (7), optimization depth 20, Home
+knowledge current and Home equipment scan complete. Gold is 10903,
+Teleport 4/15; 11 missing scrolls are affordable (611 gold on the recorded
+mixed-price shelf). A fresh process rebuilding from remembered Home stock
+hits the same registry truncation even without a remembered Alchemist page;
+with the remembered page, the invariant's purchase composer also fails.
+
+The fixture is not a serialized policy checkpoint. The acceptance attachment
+reconstructs the recorded route, ledger, alternate, shelf and knowledge facts
+on a freshly primed policy, with an explicit committed-expedition latch.
+It does not claim to reproduce missing lifetime state before the retained
+02:17/02:34 windows. R4: stop at the first different key; later historical
+boards are never interpreted as effects of the changed travel command.
+
+## Conjunct table
+
+| Conjunct | Town supplies | Lookup defect when Home holds stock | Empty-shelf mining in base |
 | --- | --- | --- | --- |
-| e | テレポートの巻物 | 99 | 61 |
-| f | テレポートの巻物 {25%引き} | 4 | 46 |
+| recall_departure_ready | Home + Temple + Alchemist | 2 slots hide the third supplier | Recall-specific remedy |
+| teleport_ready | Home + Alchemist | 1 slot hides Alchemist | No generic remedy |
+| cure_critical_ready | Home + Temple + Alchemist | 2 slots hide the third supplier | No generic remedy |
+| food_ready | Home + General (Magic for mana eaters) | 2 slots already cover both | No generic remedy |
+| light_ready / oil | Home + General for oil; light has its own selection | 1 oil slot hides General | No generic remedy |
+| identify_staff_ready | Home / Magic, with Black availability veto | Separate identify capacity and routing | Identify-specific remedy |
 
-Decision 1068 at that turn buys Recall (`pg2\r\r\x1b`) and leaves. The later
-02:35:56 decision 37 at turn 2571984 has Teleport 4/15, gold 10903 and only
-`teleport_ready` false; it emits `town:blocked:no-actionable-claim-owner` (`5`),
-followed by decision 38 `probe` (`8`). The missing 11 Teleports cost 611 gold
-on the last recorded shelf. No supplied later Alchemist page proves stock-out.
-The stopped selector reports `no-store-page-observed`, not an empty shelf.
+HP/MP/status, pack/weight, equipment/calibration, quest carries and pending
+operations are separate owners, not ordinary empty-shelf supply conjuncts.
+The fix adds lookup coverage, without lowering any requirement or inventing
+a mining action. D17 "survival reserves may be spent; replenish in town;
+MINE ON STOCK-OUT" remains intact: these stocked boards replenish in town.
+Class C's "remedy ... offered and genuinely failed" now permits the stocked
+supplier's remedy to actually be produced.
 
-Commit 30bf754e incorrectly accepted the prompt's stock-out description.
-This report supersedes that claim. No production modification is retained.
+## Step 2 (verification in progress)
 
-## Code and conjunct table at ace34cd2
+Reserve lookup coverage for Home plus every ordinary supplier: Recall 3,
+Teleport 2, Critical Cure 3, Oil 2; Food remains 2. Preserve an already
+selected Home batch's continuation before the invariant tries another shop.
+No new runtime attribute, threshold, UI classifier or departure gate.
 
-`policy_town.py:2690` registers attempted supply stores again if remembered
-stock is affordable. At :1304 the progress invariant asks for procurement;
-:1319 emits `no-actionable-claim-owner` if no producer composes despite live
-claims. Recall mining starts at `policy.py:14586`; Identify mining is offered
-at `policy_town.py:5299`. A fresh frozen seam with the actual shelf memory
-chooses `shop:travel`, not stock-out mining. Full restart/route-state
-reconstruction is needed to diagnose the live stocked supplier's missing owner.
+Initial failure before: the new public `choose_key` acceptance pin returns
+`5`, `town:blocked:no-actionable-claim-owner`, both fresh and checkpoint
+restored. With lookup coverage it returns `\x1b`n%.`, `shop:travel`, store 4.
+Printed source mapping: `model.py:335` says `STORE_ALCHEMIST = 4`;
+`policy_constants.py:74` says
+`TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")`.
+The pin asserts travel, not an unobserved future purchase result.
 
-| Conjunct | Supplier | Base empty-shelf mining |
-| --- | --- | --- |
-| recall_departure_ready | Temple / Alchemist | Recall-specific starter |
-| identify_staff_ready | Home / Magic; Black availability veto | Identify-specific starter |
-| teleport_ready | Alchemist / known Home stock | No generic remedy |
-| cure_critical_ready | Temple / Alchemist / known Home stock | No generic remedy |
-| food_ready | General; Magic for mana eaters; known Home stock | No generic remedy |
-| light_ready (light/oil) | General / known Home stock | No generic remedy |
+Verification results and final JSON event follow after completion.
 
-The supply mapping is `policy_constants.py`'s `SUPPLY_STORES`, consumed by
-`policy_supply.py:116`; other supplier mappings are `policy_town.py:3895`.
-HP/MP/status, pack/weight, equipment/calibration and pending transactions
-are not empty-shelf supplies. Quest carries have separate rules at :2720.
+For Claude, DO NOT RUN: `scripts/test_parallel_runner.py`,
+`scripts/test_timing_runner.py`, `scripts/hunk_guard.py`,
+`scripts/verify_scope.py`, `scripts/mutation_battery.py`, `tests.test_cli`,
+`tests.test_policy_town`, `tests.test_policy_shop`, `tests.test_absorbing_states`,
+long tour/town/overweight replays, town producer purity parts, full-fixture
+`scripts/first_divergence_s3_3.py`, full-suite/gate runners or all-matching
+sweeps. Explicit exception: stuck/withdraw OFF+S3.3.
 
-## Exact decision required
-
-D17 says **MINE ON STOCK-OUT**. Step 2 requires a mining acceptance pin on
-these recordings, whose last actual supplier is stocked and affordable.
-Making that pin pass as stock-out would contradict the evidence and R3/R4.
-The inherited prompt says to stop when design contradicts WHAT to build.
-
-Decide between fixing the **stocked-supplier procurement/owner failure** shown
-here and providing the intended **actual empty-shelf recording** for the
-generic mining remedy. No fabricated empty shelf, changed EXPECTED_FIRST,
-weakened requirement, live interaction or other worktree write was used.
-
-## Validation
-
-`tests.test_tpstockout_recorded`: 1 evidence test passed.
-`tests.test_test_fakery_lint`: 13 tests passed. This is substrate
-verification, not the requested behavior acceptance pin. No completed fix,
-fail-before/pass-after mining result or single revert check is claimed.
-
-Assertion audit before each commit, base ace34cd2, verbatim:
+Assertion audit before step-1 commit, base ed59a8eb, verbatim:
 
 ```
 No changed pre-existing assertions or forbidden test edits.
 ```
 
-Changed pre-existing assertions: [].
-
-For Claude: DO NOT RUN `scripts/test_parallel_runner.py`,
-`scripts/test_timing_runner.py`, `scripts/hunk_guard.py`,
-`scripts/verify_scope.py`, `scripts/mutation_battery.py`, `tests.test_cli`,
-`tests.test_policy_town`, `tests.test_policy_shop`, `tests.test_absorbing_states`,
-long tour/town/overweight replays, town producer purity parts, full-fixture
-`scripts/first_divergence_s3_3.py`, full-suite/gate runners or all-matching sweeps.
-Stuck/withdraw OFF+S3.3 are the explicit exception.
-
-Explicit stockout/restock module list: `tests.test_recall_stockout_set_end_recorded`,
-`tests.test_recall_stockout_surplus_pins`, `tests.test_town_restock_trajectory`.
-Implementation checks were not run because no production fix remains.
-
-{"topic":"tpstockout","implementer":"gpt-6.1-sol","status":"blocked-evidence-contradiction","base":"ace34cd2","step1_commit":"30bf754e","production_fix":false,"tests":{"tests.test_tpstockout_recorded":1,"tests.test_test_fakery_lint":13},"revert_check":"not-run-no-production-fix","changed_preexisting_assertions":[],"assertion_audit":"No changed pre-existing assertions or forbidden test edits.","blockers":["Recorded Alchemist has 99+4 affordable Teleports. Decide stocked-supplier owner fix versus actual empty-shelf capture."]}
+Changed pre-existing assertions: []. EXPECTED_FIRST is unchanged.
