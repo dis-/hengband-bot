@@ -51,6 +51,92 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, STORE_STUCK_LIMIT, WAIT_KEY
+from hengbot.policy_constants import CHARACTER_DUMP_MACRO
+
+
+class EquippedObservationLifecycleTest(unittest.TestCase):
+    """Real response decoder and posted-dump lifecycle; no optimizer injection."""
+
+    def envelope(self):
+        fixtures = Path(__file__).parent / "fixtures/calib-equivalence"
+        data = json.loads((fixtures / "0917-equipped.json").read_text(encoding="utf-8"))
+        data["player"]["status_bar"] = []
+        data["character"].update(race_title="Zombie", class_title="Warrior",
+                                  personality_title="Mighty")
+        return data
+
+    def posted_policy(self, directory, *, preexisting=False):
+        policy = HengbotPolicy(monrace_knowledge={})
+        policy._character_dump_path = Path(directory) / "equipped.txt"
+        policy._character_calibration_path = Path(directory) / "constants.json"
+        raw = (Path(__file__).parent / "fixtures/calib-equivalence/0917-synthesized.txt").read_bytes()
+        if preexisting:
+            policy._character_dump_path.write_bytes(raw)
+        policy._prepare_character_sheet_dump()
+        self.assertTrue(policy.confirm_key_posted(CHARACTER_DUMP_MACRO))
+        if not preexisting:
+            policy._character_dump_path.write_bytes(raw)
+        return policy
+
+    def test_posted_dump_publishes_atomically_and_restart_requires_new_observation(self):
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory)
+            data = self.envelope()
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            record = policy._character_calibration
+            self.assertIsNotNone(record)
+            self.assertEqual((record.schema_version, record.base_stats, record.base_hp),
+                             (2, (150, 3, 8, 48, 78, 11), 380))
+            self.assertEqual(record.response_sequence, 1)
+            self.assertIsNone(policy._equipment_transaction_session)
+            saved = json.loads(policy._character_calibration_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["evidence_hash"], record.evidence_hash)
+            self.assertEqual(list(Path(directory).glob("*.tmp")), [])
+            restored = pickle.loads(pickle.dumps(policy))
+            self.assertIsNone(restored._character_calibration)
+            self.assertIsNone(restored._calibration_dump_pending)
+            self.assertNotEqual(restored._calibration_session_id, record.session_id)
+            self.assertEqual(set(vars(restored)), set(vars(HengbotPolicy(monrace_knowledge={}))))
+
+    def test_unposted_or_unchanged_file_never_publishes(self):
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory, preexisting=True)
+            data = self.envelope()
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.assertEqual(policy._calibration_unavailable_reason, "stale-dump-file")
+            self.assertFalse(policy._character_calibration_path.exists())
+            policy._calibration_unavailable_reason = None
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.assertIsNone(policy._character_calibration)
+            self.assertIsNone(policy._calibration_unavailable_reason)
+
+    def test_unknown_effect_rejects_once_and_current_gear_can_depart(self):
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory)
+            data = self.envelope()
+            data["player"]["status_bar"] = [{"key": "unimplemented-effect"}]
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            self.assertEqual(policy._calibration_unavailable_reason,
+                             "unknown-timed-effect:unimplemented-effect")
+            self.assertIsNone(policy._calibration_dump_pending)
+            self.assertTrue(policy._equipment_departure_ready(parse_snapshot(data, {})))
+            self.assertNotIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
+
+    def test_response_sequence_and_gear_identity_must_match(self):
+        for change, reason in (("sequence", "uncorrelated-character-response"),
+                               ("gear", "dump-equipment-mismatch")):
+            with self.subTest(change=change), TemporaryDirectory() as directory:
+                policy = self.posted_policy(directory)
+                data = self.envelope()
+                if change == "sequence":
+                    policy._calibration_dump_pending["sequence"] = 10
+                    data["sequence"] = 9
+                else:
+                    data["equipment"][0]["name"] = "Different weapon with identical numbers"
+                policy.observe_character_snapshot(data["character"], envelope=data)
+                self.assertEqual(policy._calibration_unavailable_reason, reason)
+                self.assertIsNone(policy._character_calibration)
+
 try:
     from policy_fixtures import grid, hostile, item, player, store_item
 except ModuleNotFoundError:

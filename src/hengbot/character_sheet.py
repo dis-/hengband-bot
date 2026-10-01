@@ -148,6 +148,8 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     player = snapshot.player
     if player.class_id != 0:
         raise CharacterSheetUnavailable("unsupported-class")
+    if player.mimic_form:
+        raise CharacterSheetUnavailable("unsupported-active-form")
     # These titles are the same visible identity page, not underlying form IDs.
     for title in (character.get("race_title"), character.get("class_title"),
                   character.get("personality_title")):
@@ -155,6 +157,30 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
             raise CharacterSheetUnavailable("identity-mismatch")
     if sheet.level != player.level or sheet.max_hp != player.max_hp or sheet.armor_class != player.ac:
         raise CharacterSheetUnavailable("snapshot-mismatch")
+    if protocol_version >= 3:
+        if not isinstance(character.get("stat_modifiers"), list):
+            raise CharacterSheetUnavailable("stat-modifiers-missing")
+        if {row.get("stat_id") for row in character["stat_modifiers"] if isinstance(row, dict)} != set(range(6)):
+            raise CharacterSheetUnavailable("stat-modifiers-partial")
+        if not isinstance(character.get("curse_marks"), list):
+            raise CharacterSheetUnavailable("curse-marks-missing")
+        if character.get("base_ac") is None or character.get("ac_bonus") is None:
+            raise CharacterSheetUnavailable("displayed-ac-missing")
+        if character["base_ac"] + character["ac_bonus"] != player.ac:
+            raise CharacterSheetUnavailable("character-ac-mismatch")
+    # Correlate even gear changes that leave stat totals and displayed AC equal.
+    heading = re.search(r"\[(?:キャラクタの装備|Character Equipment)\]", sheet.text, re.I)
+    if heading is None:
+        raise CharacterSheetUnavailable("dump-equipment-missing")
+    block = re.split(r"(?m)^\s*\[", sheet.text[heading.end():], maxsplit=1)[0]
+    names = dict(re.findall(r"(?m)^([a-l])\) (.+)$", block))
+    slots = ("main_hand", "sub_hand", "bow", "main_ring", "sub_ring", "neck",
+             "light", "body", "outer", "head", "arms", "feet")
+    for item in snapshot.equipment:
+        if item.is_equipment and (
+            item.slot not in slots or names.get(chr(ord("a") + slots.index(item.slot))) != item.name
+        ):
+            raise CharacterSheetUnavailable("dump-equipment-mismatch")
     if character.get("mutations") is None:
         raise CharacterSheetUnavailable("mutations-missing")
     mutations = tuple(sorted(int(value) for value in character["mutations"]))
@@ -165,6 +191,17 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
         raise CharacterSheetUnavailable("skill-exp-unknown")
     if not isinstance(character.get("characteristics"), list):
         raise CharacterSheetUnavailable("intrinsic-flags-missing")
+    if any(not isinstance(row, dict) for row in character["characteristics"]):
+        raise CharacterSheetUnavailable("intrinsic-flags-partial")
+    if protocol_version >= 3 and not (
+        set(PLAYER_ABILITY_FLAGS.values()) | {78}
+    ).issubset({row.get("flag_id") for row in character["characteristics"]}):
+        raise CharacterSheetUnavailable("intrinsic-flags-partial")
+    if protocol_version >= 3:
+        marks = {row.get("slot"): row.get("mark") for row in character["curse_marks"] if isinstance(row, dict)}
+        if any(marks.get(item.slot) not in ({"+", "*"} if item.is_cursed else {"."})
+               for item in snapshot.equipment if item.is_equipment):
+            raise CharacterSheetUnavailable("curse-mark-mismatch")
     if any(item.is_equipment and not item.known for item in snapshot.equipment):
         raise CharacterSheetUnavailable("equipment-stat-modifiers-unknown")
     catalog = OwnedEquipmentCatalog()
@@ -182,7 +219,10 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
                                 for index in range(6))
     natural = []
     for index, row in enumerate(sheet.rows):
-        total = adjustments[index] + equipment_modifiers[index]
+        timed_stat = 4 if "tsuyoshi" in effects and index in (0, 4) else 0
+        total = adjustments[index] + equipment_modifiers[index] + timed_stat
+        if index in (0, 3, 4) and row.modifier != equipment_modifiers[index] + timed_stat:
+            raise CharacterSheetUnavailable("visible-modifier-mismatch")
         predicted = modify_stat_value(row.base, total)
         matches = predicted >= row.actual if row.saturated else predicted == row.actual
         # Only STR/DEX/CON constrain optimization. Other floor ambiguities
@@ -202,7 +242,8 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     neutral_hp = player.max_hp - hp_bonus
     if neutral_hp <= player.level + 1:
         raise CharacterSheetUnavailable("hp-floor-ambiguous")
-    con = modify_stat_value(natural[4], adjustments[4] + equipment_modifiers[4])
+    con = modify_stat_value(natural[4], adjustments[4] + equipment_modifiers[4]
+                            + (4 if "tsuyoshi" in effects else 0))
     roll = neutral_hp - constitution_hp_bonus(con, player.level)
     defense = WarriorDefenseInputs(player.level, natural[3], shield_skill=player.shield_skill,
                                    intrinsic_dex=adjustments[3])
@@ -211,6 +252,8 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     except ValueError as exc:
         raise CharacterSheetUnavailable("unsupported-ac-interaction") from exc
     flags = character_intrinsic_flags(character["characteristics"])
+    capabilities = frozenset("immune_nether" for row in character["characteristics"]
+                             if row.get("flag_id") == 60 and row.get("immunity"))
     ability_flags = {name: flag for name, flag in PLAYER_ABILITY_FLAGS.items() if name != "hold_exp"}
     ability_flags["see_invisible"] = 78
     abilities = frozenset(name for name, flag in ability_flags.items()
@@ -227,4 +270,5 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
         evidence_hash=sheet.content_hash, response_sequence=sequence,
         protocol_version=protocol_version, stat_key_kind="visible-base-current-v2",
         visible_stat_key=player.printed_stat_cur_key, session_id=session_id,
+        intrinsic_capabilities=capabilities,
     )

@@ -368,6 +368,7 @@ class PlayerState:
     class_id: int = -1
     race_id: int = -1
     personality_id: int = -1
+    mimic_form: int = 0
     ac: int = 0
     main_hand_blows: int = 0
     sub_hand_blows: int = 0
@@ -1062,6 +1063,7 @@ def parse_snapshot(
         class_id=int(player_data.get("class_id", -1)),
         race_id=int(player_data.get("race_id", -1)),
         personality_id=int(player_data.get("personality_id", -1)),
+        mimic_form=int(player_data.get("mimic_form", 0)),
         ac=int(player_data.get("ac", 0)),
         main_hand_blows=int(melee.get("main_hand_blows", 0)),
         sub_hand_blows=int(melee.get("sub_hand_blows", 0)),

@@ -113,15 +113,10 @@ def optimization_encounters(
 
 @dataclass(frozen=True)
 class CharacterCalibration:
-    """Worn-independent character constants observed with nothing removable worn.
+    """Worn-independent constants from an equipped visible C-sheet (schema 2).
 
-    Produced by the execution-layer unequipped calibration phase (the user's
-    sanctioned method): the pack is deposited at Home, every removable item is
-    taken off, and the naked snapshot IS the constants — no inversion of
-    ``modify_stat_value`` and no ``ADJ_DEX_TO_AC`` subtraction of a worn set
-    ever happens.  Cursed (unremovable) items stay worn during the observation,
-    so their contribution is folded into the constants; ``pinned_identities``
-    records that folded set so a curse change invalidates the calibration.
+    Schema 1 is retained for historical comparison and diagnostic unit tests;
+    the live policy accepts only session-correlated schema-2 observations.
     """
 
     race_id: int
@@ -157,6 +152,7 @@ class CharacterCalibration:
     stat_key_kind: str = "legacy"
     visible_stat_key: tuple[int, ...] = ()
     session_id: str = ""
+    intrinsic_capabilities: frozenset[str] = frozenset()
 
     def stale_reason(
         self,
@@ -185,6 +181,8 @@ class CharacterCalibration:
         if player.level != self.level:
             return "level"
         if self.schema_version == 2:
+            if player.mimic_form:
+                return "unsupported-active-form"
             if player.printed_stat_cur_key != self.visible_stat_key:
                 return "visible-stat-key"
         elif player.stat_cur is not None:
@@ -354,14 +352,7 @@ def warrior_optimizer_input_key(
 
 
 def character_intrinsic_flags(characteristics) -> frozenset[int]:
-    """Permanent TR flag ids from a NAKED `C` snapshot's characteristics.
-
-    Rows are the emitter's make_flag_table_json shape.  With nothing worn the
-    player/immunity/vulnerability columns are exactly the character's own
-    permanent flags (race, class, mutations); the temporary columns are
-    deliberately excluded — the calibration preconditions forbid temporary
-    effects, and folding one in would contaminate the constants.
-    """
+    """Permanent player columns; resistance-keyed immune/vulnerable rows map to TRs."""
     flags: set[int] = set()
     for row in characteristics or ():
         if not isinstance(row, dict):
@@ -389,7 +380,7 @@ def calibrate_character_constants(
     mutation_signature: tuple[int, ...] | None = None,
     intrinsic_tr_flags: frozenset[int] = frozenset(),
 ) -> CharacterCalibration | None:
-    """Read the constants off a naked observation. Purely observational.
+    """Historical schema-1 diagnostic; never called by the live policy.
 
     Returns None unless every worn item is unremovable (cursed): a removable
     item still worn means the strip phase has not finished and the observation
@@ -463,6 +454,7 @@ def save_character_calibration(path: Path, calibration: CharacterCalibration) ->
     data["intrinsic_abilities"] = sorted(calibration.intrinsic_abilities)
     data["pinned_identities"] = [list(pair) for pair in calibration.pinned_identities]
     data["intrinsic_tr_flags"] = sorted(calibration.intrinsic_tr_flags)
+    data["intrinsic_capabilities"] = sorted(calibration.intrinsic_capabilities)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Never erase an old physical obligation while publishing observations.
@@ -483,8 +475,10 @@ def load_character_calibration(path: Path) -> CharacterCalibration | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    if not isinstance(data, dict):
+        return None
     try:
-        return CharacterCalibration(
+        calibration = CharacterCalibration(
             race_id=int(data["race_id"]),
             class_id=int(data["class_id"]),
             personality_id=int(data["personality_id"]),
@@ -520,9 +514,19 @@ def load_character_calibration(path: Path) -> CharacterCalibration | None:
             stat_key_kind=str(data.get("stat_key_kind", "legacy")),
             visible_stat_key=tuple(int(v) for v in data.get("visible_stat_key", ())),
             session_id=str(data.get("session_id", "")),
+            intrinsic_capabilities=frozenset(str(v) for v in data.get("intrinsic_capabilities", [])),
         )
     except (KeyError, TypeError, ValueError):
         return None
+    if calibration.schema_version == 2 and (
+        calibration.source != "equipped-c-screen"
+        or any(len(values) != 6 for values in (
+            calibration.natural_stats, calibration.intrinsic_adjustments,
+            calibration.base_stats, calibration.visible_stat_key))
+        or not calibration.session_id
+    ):
+        return None
+    return calibration
 
 
 @dataclass(frozen=True)

@@ -1453,8 +1453,6 @@ class HomeMixin:
         ):
             signature = self._home_pending_item
             selecting_branch = "home-pending-item"
-        if not transaction_withdraw_pending and signature is None:
-            pass
         if (
             not transaction_withdraw_pending and signature is None and self._home_pending_batch
         ):
@@ -2006,8 +2004,6 @@ class HomeMixin:
             self._defer_home_item(signature, "unobserved-home-withdrawal")
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
-            if signature in [] and True:
-                pass
             self._home_pending_quantities.pop(signature, None)
         if self._home_pending_item == signature:
             self._home_pending_item = None
@@ -2045,8 +2041,7 @@ class HomeMixin:
         self._home_errand.observe_knowledge(False)
 
     def _atomic_home_deposit_key(
-        self, snapshot: Snapshot, step: Position, *,
-        calibration_restore_excess: bool = False,
+        self, snapshot: Snapshot, step: Position,
     ) -> str | None:
         """Bind one Home deposit to its stay-entry and exit."""
         if (
@@ -2220,21 +2215,6 @@ class HomeMixin:
                     len(snapshot.inventory),
                 ),
             )
-            if signature in []:
-                deposited_owned = next(
-                    (
-                        owned
-                        for owned in self._equipment_catalog.items
-                        if owned.origin == "home"
-                        and equipment_move_identity(owned.item)
-                        == equipment_move_identity(item)
-                    ),
-                    None,
-                )
-                if deposited_owned is not None:
-                    {}[signature] = (
-                        deposited_owned.id
-                    )
         if not operations:
             self._offer_home_atomic_no_step("deposit", "deposit-batch-empty")
             return None

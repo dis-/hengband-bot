@@ -2295,10 +2295,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             frozenset()
         )
         self._warrior_evaluator_cache = WarriorEvaluatorCache()
-        # P1 worn-independent character constants (SOL-ROADMAP-optimizer-purity
-        # stage P1).  The constants are OBSERVED by the execution-layer
-        # unequipped calibration phase and cached; the selector only consumes
-        # them and never triggers the phase itself.
+        # Constants from session-correlated equipped character dumps.
         self._character_calibration: CharacterCalibration | None = None
         self._character_calibration_path: Path | None = None
         self._character_calibration_loaded = False
@@ -2315,29 +2312,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._confirmed_loadout_loaded = False
         self._equipment_optimizer_input_key: str | None = None
         self._equipment_optimizer_knowledge_key: str | None = None
-        # Calibration phase state machine: None | "deposit" | "strip" |
-        # "capture" | "restore-equip" | "restore-supplies".
-        # The observation phase to continue after an interruption has been
-        # handled and the originally worn equipment has been restored.
-        # Stage-1 town-order ownership survives the individual Home/store
-        # executors.  A failed calibration is an explicit deferred outcome,
-        # not successful capture and not permission to forget why it stopped.
+        # Ordinary town-order operations retain their observation identity.
         self._town_order_operation: str | None = None
         self._town_order_expected_observation: str | None = None
-        # True from the moment a calibration strip session is installed until
-        # every recorded identity is observed worn again.  While set, town
-        # departure is impossible: no
-        # escape valve may let a calibration-stripped character dive naked.
-        # Mutation observation (sorted ids) from `C` character snapshots: the
-        # calibration phase's naked dump records it at capture, and the
-        # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
-        # refreshes it autonomously during normal play — the observation-based
-        # bound for the mutation invalidation trigger.
+        # Refreshed by the existing periodic character observation.
         self._mutation_signature: tuple[int, ...] | None = None
-        # Naked `C` acquisition latches for the capture step.  prepared is set
-        # when the macro is offered, converted to requested/inflight only by
-        # confirm_key_posted (a suppressed or replaced key must not consume
-        # the request); the response records _calibration_naked_flags.
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         # #8 record-only explicit executor grants.  A reserved child binds to
         # the parent's claim at the choose_key exit, before the next gate.
@@ -2411,7 +2390,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
-        self._policy_state_version = 2
+        self._policy_state_version = 3
+        self._execution_pending_post = None
         self._decision_goal = None
         self._decision_expectation = None
         self._decision_triggers = None
@@ -5566,9 +5546,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _town_errand_deferral(self, family, reason, snapshot=None,
                               *, work_identity=None, enforced=True):
         """Pure entry admission verdict; recording belongs to the caller."""
-        # Calibration's installed session executes its own work. A child
-        # grant belongs to a particular claim and can end before the physical
-        # session does; that does not turn its next action into another errand.
         register = getattr(self, "_claim_register", None)
         if enforced and snapshot is not None and register is not None:
             for bar in register.bars:
@@ -5593,7 +5570,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _defer_town_errand(
         self, family: str, reason: str, *, work_identity: tuple | None = None,
     ) -> bool:
-        """Protect physical calibration ownership, then apply the S3.3 hold."""
+        """Apply the S3.3 hold to the requested town producer."""
         enforced = (getattr(self, "_town_claim_bar_enforced", False)
                     or self._home_sequence_has_holder())
         row = self._town_errand_deferral(
@@ -6252,8 +6229,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
         declaration = holder.execution
-        # Cross-area calibration also owns this continuation with S3.3 OFF.
-        # A generic route continuation cannot resume its deposit/restore phase.
         if getattr(self, "_town_claim_bar_enforced", False):
             return self._town_holder_declared_key(holder, snapshot)
         route_unresolved = False
@@ -6574,7 +6549,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 if entry_refused else f"ownership:gate-missing:{family}")
         elif holder is not None and not self._home_tail_leave_ready(holder, snapshot):
             stop = self._town_holder_structural_stop(holder, snapshot)
-            if (stop is None and declaration.state == 'acting' and (declaration.next_step not in {'route.resume', 'bounty.resume', 'equipment.next-action', 'stair.post'}) and True):
+            if (stop is None and declaration.state == 'acting' and (declaration.next_step not in {'route.resume', 'bounty.resume', 'equipment.next-action', 'stair.post'})):
                 buffer = _decision_offers.get(self)
                 no_steps = () if buffer is None else buffer.no_steps
                 if not any(entry[0] == holder.owner.value
@@ -7520,11 +7495,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if signature == self._home_pending_item:
                     self._home_pending_take_confirmed = signature
-                if getattr(self, "_crossarea_fundraising_enforced", False):
-                    pass
-                else:
-                    if signature in []:
-                        pass
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
                 self._home_pending_quantities.pop(signature, None)
@@ -7614,8 +7584,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._defer_home_item(signature, "atomic-withdraw-observed-failure")
                     if signature in self._home_pending_batch:
                         self._home_pending_batch.remove(signature)
-                    if signature in []:
-                        pass
                     self._home_pending_quantities.pop(signature, None)
                     if self._home_pending_item == signature:
                         self._home_pending_item = None
@@ -7763,14 +7731,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
             if fresh_home_entry:
-                # A fresh page is positive reachability evidence independent
-                # of the later leave which may raise Home's T3 latch. Arm it
-                # only for a restore queue not previously seen at a fresh
-                # entry.  During restore-supplies the queue is monotonically
-                # non-increasing, so distinct queue signatures (and therefore
-                # releases) are bounded by its initial cardinality.  A leave
-                # cannot change the queue or manufacture another entry edge.
-                restore_queue = tuple([])
                 self._home_knowledge_scan_requested = False
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
@@ -7808,7 +7768,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     visit.operation_released = True
             if advanced and pending is not None:
                 if (
-                    pending.kind == 'takeoff' and pending.target_slot is not None and True
+                    pending.kind == 'takeoff' and pending.target_slot is not None
                 ):
                     self._equipment_transaction_owned_items.append(
                         (
@@ -7824,7 +7784,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._release_equipment_transaction_owned_item(
                         pending.move_identity or pending.item_identity
                     )
-                    retired = tuple((obligation for obligation in () if obligation[1] == pending.item_identity))
                     if retired:
                         for obligation in retired:
                             pass
@@ -9611,11 +9570,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if opening_q34 is not None:
             return opening_q34
 
-        # A calibration-stripped character gets dressed before ANY other town
-        # activity: one wear key per decision, unconditionally — under threat,
-        # at any HP, with temporary statuses active.  Only the emergency and
-        # threat-response owners above may preempt it.
-
         if (
             self._breakout_dig_floor is not None
             and (
@@ -10440,10 +10394,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if suppress_random_teleport is not None:
             return suppress_random_teleport
 
-        # The unequipped calibration phase owns the character before the
-        # optimizer may run: it strips at Home, observes the constants, and the
-        # optimizer (unblocked by the capture) dresses the character back.
-
         # Equipment changes have one owner: after Home identification and the
         # complete-page scan, execute the globally optimized loadout transaction.
         # Legacy per-item weapon trials and jewellery upgrades must not race this
@@ -10472,8 +10422,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Keep a light lit before any town errand can approach a store or the
         # dungeon entrance: native town travel is rejected at night unless a
         # light is equipped. Skip equipment changes while confused, and while
-        # the calibration phase deliberately holds the character stripped.
-        if not player.confused and True:
+        if not player.confused:
             restore_lantern = self._empty_lantern_to_restore(snapshot)
             if restore_lantern is not None:
                 self.last_reason = "restore-lantern"
@@ -12238,26 +12187,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
 
-    # ---- P1 unequipped calibration phase (execution layer) -----------------
-    #
-    # Reachable exit from every phase state (roadmap P1 requirement 6):
-    #   deposit  -> strip (pack drained / enough free slots), or abort
-    #   strip    -> capture (session complete), or abort (session abandoned /
-    #               precondition break)
-    #   capture  -> done (constants cached) or abort (structural / break)
-    #   restore-equip    -> restore-supplies / None (session complete), or a
-    #               fresh abort attempt rebuilds it (bounded by the abort
-    #               counter); when the counter latches the visit blocked, the
-    #               phase clears and the pre-existing town-blocked machinery
-    #               owns the state.
-    #   restore-supplies -> None (queue drained, item deferred, or Home proved
-    #               blocked for this visit by T3).
-    # An abort always attempts to re-wear what was taken off; the departure
-    # gates stay closed while a phase or the restore queue is live. If Home
-    # itself becomes T3-blocked, departure stays closed because no full
-    # catalog result exists; the ordinary town terminal exposes that refusal.
-
-
     def _outstanding_equipment_work(self) -> bool:
         """Return whether equipment work still owns a route to Home.
 
@@ -12379,7 +12308,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         session = self._equipment_transaction_session
         state: dict[str, object] = {
             "calibration": (
-                self.calibration_entry_state(snapshot) if snapshot is not None else {'phase': None, 'entry_blocker': None}
+                self.calibration_entry_state(snapshot) if snapshot is not None else {'source': 'equipped-c-screen', 'schema': 2, 'pending': False, 'unavailable_reason': None}
             ),
             "equipment_transaction": (
                 self.equipment_transaction_entry_state(snapshot)
@@ -13061,6 +12990,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _terminal_equipment_blocker(self, snapshot: Snapshot) -> str | None:
         """Name an unrepairable optimizer block after all town routes are spent."""
         preparation = self._prepare_equipment_optimization(snapshot)
+        if preparation is not None and any(
+            blocker == "calibration-required" or blocker.startswith("calibration-stale:")
+            for blocker in preparation.blockers
+        ):
+            return None
         if (
             STORE_HOME in self._town_visit_ledger.blocked_stores
             and (preparation is None or preparation.result is None)
@@ -13076,11 +13010,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             preparation is None
             or self._next_required_store_type(snapshot) is not None
         ):
-            return None
-        if "calibration-required" in preparation.blockers:
-            return None
-        if any(blocker.startswith("calibration-stale:")
-               for blocker in preparation.blockers):
             return None
         if "no-valid-loadout" in preparation.blockers:
             return "equipment-no-valid-loadout"
@@ -15244,7 +15173,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # hypothetical loadout comparison, that score does not require us to
         # reconstruct natural stats: the emitter exposes the resulting blows
         # and hand bonuses directly.  Fresh CL1 characters have not completed
-        # the naked calibration yet, so use those observed combat results as a
+        # a current character calibration yet, so use those observed combat results as a
         # conservative unbranded score instead of calling a real weapon 0 DPS.
         if dps is None and weapon is not None:
             blows = max(0, snapshot.player.main_hand_blows)

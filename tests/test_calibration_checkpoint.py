@@ -35,3 +35,19 @@ class CalibrationCheckpointTest(unittest.TestCase):
             with self.assertRaisesRegex(LegacyCalibrationDebtError, "redress_obligation"):
                 refuse_legacy_calibration_debt({}, path)
             self.assertEqual(path.read_text(), original)
+
+    def test_retired_home_visit_and_claim_refuse_during_deserialization(self):
+        from hengbot.home_visit import HomeVisitKind
+        from hengbot.claim_register import ClaimOwner
+        for kind, value in ((HomeVisitKind, "calibration-restore"), (ClaimOwner, "calibration")):
+            with self.subTest(value=value), self.assertRaisesRegex(LegacyCalibrationDebtError, value):
+                kind(value)
+
+    def test_v2_upgrade_removes_inactive_strip_fields_and_supplies_new_defaults(self):
+        policy = HengbotPolicy(monrace_knowledge={})
+        policy._policy_state_version = 2
+        del policy._execution_pending_post
+        policy._calibration_phase = None
+        policy._calibration_restore_signatures = []
+        normalize_policy_state(policy)
+        self.assertEqual(set(vars(policy)), set(vars(HengbotPolicy(monrace_knowledge={}))))

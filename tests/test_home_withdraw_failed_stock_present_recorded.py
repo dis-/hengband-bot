@@ -284,9 +284,23 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
             # crossbow's +10/+8 from melee keeps Avabia/shield instead of
             # withdrawing Theoden. This is the first changed decision; no
             # subsequent historical board is used as its response.
-            evaluator = policy._warrior_evaluator_cache.evaluator
-            self.assertIsNotNone(evaluator)
             items = policy._equipment_catalog.items
+            # This pin compares historical combat numbers, independently of
+            # live policy freshness. Its schema-1 fixture is diagnostic evidence;
+            # it must no longer be installed as a live calibration at startup.
+            from hengbot.warrior_optimization import (
+                WarriorEvaluatorCache, load_character_calibration,
+                prepare_warrior_optimization,
+            )
+            cache = WarriorEvaluatorCache()
+            preparation = prepare_warrior_optimization(
+                policy._with_cached_skill_exp(board), items, self.monrace, depth=None,
+                home_scan_complete=True, evaluator_cache=cache,
+                calibration=load_character_calibration(CALIBRATION),
+            )
+            self.assertEqual(preparation.blockers, ())
+            evaluator = cache.evaluator
+            self.assertIsNotNone(evaluator)
             avabia_shield = current_loadout(items)
             theoden = next(
                 item for item in items
@@ -385,7 +399,7 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
                                protected.metrics.expected_dps * 1.05)
             self.assertGreater(empty.metrics.survival_turns,
                                protected.metrics.survival_turns * 0.95)
-            selection = policy._prepare_equipment_optimization(board).result
+            selection = preparation.result
             max_survival = max(
                 entry.metrics.survival_turns
                 for entry in selection.pareto_frontier

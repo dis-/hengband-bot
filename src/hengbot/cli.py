@@ -4964,11 +4964,7 @@ def _dispatch_response_lines(
             if isinstance(character, dict) and hasattr(
                 policy, "observe_character_snapshot"
             ):
-                # Every `C` status snapshot — the calibration capture's naked
-                # dump and the pre-existing periodic liveness dump alike —
-                # carries the mutation id set and the characteristics table.
-                # The policy records the observation; no nudge, no request
-                # state beyond the capture-phase latch it owns itself.
+                # Keep the response epoch with the equipped C observation.
                 policy.observe_character_snapshot(character, envelope=data)
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)

@@ -12,8 +12,16 @@ class HomeVisitKind(str, Enum):
     DEPOSIT = "deposit"
     WITHDRAW = "withdraw"
     EQUIPMENT_MUTATION = "equipment-mutation"
-    CALIBRATION_RESTORE = "calibration-restore"
     RECOVERY = "recovery"
+
+    @classmethod
+    def _missing_(cls, value):
+        if value == "calibration-restore":
+            from hengbot.policy_calibration import LegacyCalibrationDebtError
+            raise LegacyCalibrationDebtError(
+                "legacy-calibration-debt:calibration-restore-home-visit; manual recovery required"
+            )
+        return None
 
 
 class HomeVisitState(str, Enum):

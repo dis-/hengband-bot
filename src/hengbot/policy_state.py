@@ -20,11 +20,12 @@ def normalize_policy_state(restored, *, restart=False):
         restored._calibration_dump_pending = None
         restored._calibration_dump_prepared = None
         restored._calibration_session_id = uuid.uuid4().hex
-        calibration = restored.__dict__.get("_character_calibration")
-        if calibration is not None and calibration.schema_version == 2:
-            restored._character_calibration = None
+        restored._character_calibration = None
         restored._character_calibration_loaded = False
-    if restored.__dict__.get("_policy_state_version") == 2:
+        restored._equipment_optimization_signature = None
+        restored._confirmed_loadout = None
+        restored._confirmed_loadout_loaded = False
+    if restored.__dict__.get("_policy_state_version") == 3:
         return restored
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     # Construct defaults separately; never rerun __init__ on restored physical
@@ -214,5 +215,5 @@ def normalize_policy_state(restored, *, restart=False):
                 registry._pending[owner] = replace(
                     pending, progress_core=upgraded
                 )
-    restored._policy_state_version = 2
+    restored._policy_state_version = 3
     return restored

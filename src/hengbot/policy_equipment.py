@@ -658,10 +658,8 @@ class EquipmentMixin:
                 source="in-flight-session",
             )
             return self._equipment_optimization_preparation
-        # P1: the search consumes only calibrated worn-independent character
-        # constants.  Without a valid calibration the optimizer fails closed;
-        # the town execution layer owns running the calibration phase — the
-        # selector itself never triggers it.
+        # Missing observations skip optimization. The existing periodic dump
+        # path refreshes equipped constants without owning movement or gear.
         calibration = self._validated_character_calibration(snapshot)
         if calibration is None:
             self._equipment_optimization_telemetry = {

@@ -1,4 +1,4 @@
-﻿import tests  # noqa: F401
+import tests  # noqa: F401
 import unittest
 
 from hengbot.equipment_optimizer import Loadout, OwnedEquipment

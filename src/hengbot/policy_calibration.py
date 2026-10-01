@@ -22,7 +22,7 @@ def refuse_legacy_calibration_debt(state, path: Path | None = None):
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             data = {}
-        if data.get("redress_obligation"):
+        if isinstance(data, dict) and data.get("redress_obligation"):
             names.append("redress_obligation")
     if names:
         raise LegacyCalibrationDebtError("legacy-calibration-debt:" + ",".join(names)
@@ -54,9 +54,12 @@ class CalibrationMixin:
             return
         self._calibration_dump_pending = None
         try:
+            before = self._character_dump_path.stat().st_mtime_ns
             raw = self._character_dump_path.read_bytes()
             sheet = parse_character_sheet(raw)
             current = (self._character_dump_path.stat().st_mtime_ns, sheet.content_hash)
+            if before != current[0]:
+                raise CharacterSheetUnavailable("dump-file-changing")
             if pending["baseline"] == current:
                 raise CharacterSheetUnavailable("stale-dump-file")
             sequence = envelope.get("sequence", envelope.get("seq"))
@@ -101,14 +104,27 @@ class CalibrationMixin:
         calibration = self._character_calibration
         if calibration is None:
             return None
+        if calibration.intrinsic_capabilities:
+            # Preserve capabilities without fabricating TR IDs. This initial
+            # evaluator envelope does not model nether immunity yet.
+            self._calibration_unavailable_reason = "unsupported-intrinsic-capability:" + ",".join(
+                sorted(calibration.intrinsic_capabilities))
+            return None
         reason = calibration.stale_reason(snapshot.player, self._current_pinned_identities(snapshot),
                                           mutation_signature=self._mutation_signature)
         if reason is None and calibration.schema_version == 2:
             from hengbot.warrior_equipment_evaluator import modify_stat_value
+            from hengbot.character_sheet import temporary_bonuses, CharacterSheetUnavailable
+            effects = frozenset(snapshot.player.status_bar or ())
+            try:
+                temporary_bonuses(effects)
+            except CharacterSheetUnavailable as exc:
+                reason = str(exc)
             for index in (0, 3, 4):
                 equipment = sum(item.pval for item in snapshot.equipment if index in item.known_flags)
                 predicted = modify_stat_value(calibration.natural_stats[index],
-                                             calibration.intrinsic_adjustments[index] + equipment)
+                                             calibration.intrinsic_adjustments[index] + equipment
+                                             + (4 if "tsuyoshi" in effects and index in (0, 4) else 0))
                 shown = snapshot.player.stat_use[index]
                 if (predicted < 238 if shown >= 238 else predicted != shown):
                     reason = "visible-current-changed"

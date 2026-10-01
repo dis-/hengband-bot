@@ -1,0 +1,20 @@
+synthesized-from-raw: 0917-equipped.json; fixture only
+Zombie Warrior Mighty
+Level: 27 HP: 447/447 AC: [0,37]
+Base Race Class Pers Mod Actual Current abcdefghijkl@
+STR: 18/52  2  4  2  0 18/132       
+INT:    12 -6 -2 -2  0      3       
+WIS:    17 -6 -2 -1  0      8       
+DEX:    18  1  2  0  0  18/30       
+CON:    17  4  2  1  0  18/60       
+CHR:    15 -3 -1  0  0     11       
+[Character Equipment]
+a) 毒殺のランス (2d8) (+6,+4) {r毒|毒}
+c) ライト・クロスボウ (x3) (0.77turn) (+8,+8)
+d) 浮遊の指輪
+e) 恐れ知らずの指輪
+g) フェアノールのランプ
+h) エルフのローブ [2,+8] (+3隠密) {+隠r酸電火冷沌, .}
+i) エルフのクローク [4,+10] (+1隠密)
+j) 鋭敏の金の冠 [0,+5] (+3探索) {+探r盲;視, .}
+l) 浮遊の軟革ブーツ [2,+4] {浮, .}

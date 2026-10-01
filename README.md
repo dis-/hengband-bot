@@ -2,6 +2,18 @@
 
 Experimental external bot for Hengband's `--bot-json-output` mode.
 
+Warrior equipment optimization reads the equipped character dump produced by
+the existing periodic `C` command. Set `--character-dump-file` to that file
+(default: `C:\hengband\lib\user\bot-test.txt` in this installation). The file
+uses CP932; both Japanese and English stat tables are supported. A missing,
+stale or unsupported observation skips optimization and keeps the current
+gear; normal depth ability requirements still apply. Restarting requires a
+new dump. No equipment is removed or deposited for calibration.
+
+An old checkpoint or calibration file with unfinished strip/restore debt is
+refused with `legacy-calibration-debt` and the debt name. Recover that session's
+equipment and supplies manually before starting this implementation.
+
 The suite runners isolate durable Home history automatically. Plain
 `unittest` commands retain the live default (`Path.cwd()`); set
 `HENGBOT_HOME_HISTORY_DIR` explicitly when test isolation is required. The
