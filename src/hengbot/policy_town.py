@@ -5736,6 +5736,16 @@ class TownMixin:
                 if supplier is not None:
                     self._town_blocked_reason = None
                     return None
+                if (
+                    self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH
+                    and not self._identify_staff_ready(snapshot)
+                    and not self._identify_staff_mining_plan
+                ):
+                    # The observed Home/shop routes and the counterfactual
+                    # supplier have no executable procurement left. A generic
+                    # prepare mode is not yet the one-run stockout time-pass;
+                    # install that plan before declaring departure impossible.
+                    return self._identify_staff_stockout_key(snapshot)
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         # Destination safety is a departure assertion, not an errand-router
