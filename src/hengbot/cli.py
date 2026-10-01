@@ -2155,6 +2155,7 @@ class _ExecutorInputPort:
                 prefix, steps = compile_observed_input(
                     key, self.executor.ready_screen.kind if self.executor.ready_screen else None,
                     self.executor.ready_board, operation.owner, operation.continuations,
+                    screen=self.executor.ready_screen_value,
                 )
             except ValueError as error:
                 self.last_result = self.executor._terminal(

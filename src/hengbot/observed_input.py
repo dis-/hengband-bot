@@ -57,13 +57,21 @@ def _split_page_switches(continuations):
 
 def compile_observed_input(key: str, kind: ScreenKind | None,
                            board: Mapping | None, owner: str,
-                           continuations: list[Continuation]):
+                           continuations: list[Continuation], *, screen: Mapping | None = None):
     """Return the initial key and separately observed continuation segments.
 
     The suffix literals cite live-screens cap-05/11/13/15/16/31 and live30.
     Read/device/identify, LOOK, knowledge and quantity reuse the established
     classifier and captured screens. Missing forms remain unfixed blockers.
     """
+    # The captured Class A store prompts are Japanese. The established
+    # English one-shot plan binds its purchase prefix to the observed store
+    # boundary and gates quantity/confirmation separately. Keep that plan for
+    # the unrecorded English UI rather than requiring Japanese chooser text.
+    if owner == "shop:one-shot-buy" and kind is ScreenKind.STORE and any(
+            "You may: p) Purchase an item." in str(line)
+            for line in (screen or {}).get("lines", ())):
+        return key, continuations
     continuations = _split_page_switches(continuations)
     if owner == "shop:one-shot-buy":
         continuations = [
