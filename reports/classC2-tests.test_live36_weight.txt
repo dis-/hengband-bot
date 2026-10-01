@@ -1,0 +1,41 @@
+python : test_batch_preserves_all_required_supplies_and_charges (tests.test_live36_weight.Live36WeightTest.test_batch_p
+reserves_all_required_supplies_and_charges) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_live36_weight -v *> reports ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_batch_pres...charges) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_frozen_stop_and_retained_quantities (tests.test_live36_weight.Live36WeightTest.test_frozen_stop_and_retained_quant
+ities) ... FAIL
+test_genuine_home_approach_failure_still_stops (tests.test_live36_weight.Live36WeightTest.test_genuine_home_approach_fa
+ilure_still_stops) ... ok
+test_no_safe_staff_excess_leaves_no_weight_owner (tests.test_live36_weight.Live36WeightTest.test_no_safe_staff_excess_l
+eaves_no_weight_owner) ... ok
+test_recorded_surface_has_a_safe_weight_deposit (tests.test_live36_weight.Live36WeightTest.test_recorded_surface_has_a_
+safe_weight_deposit) ... ok
+test_recorded_surface_selects_home_route_after_restore (tests.test_live36_weight.Live36WeightTest.test_recorded_surface
+_selects_home_route_after_restore) ... ok
+test_weight_owner_survives_prior_successful_attempts (tests.test_live36_weight.Live36WeightTest.test_weight_owner_survi
+ves_prior_successful_attempts) ... ok
+
+======================================================================
+FAIL: test_frozen_stop_and_retained_quantities (tests.test_live36_weight.Live36WeightTest.test_frozen_stop_and_retained
+_quantities)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_live36_weight.py", line 69, in test_frozen_stop_and_retained_quantities
+    self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     "b9d78eefbc220d7accb30eeb96433cae91414a45c94ff5dcce869addc9322ff3")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '33558b2ac36f04cd57861c9cdcb3ec9aadccce4d28596cba99b58a5f874a2348' != 'b9d78eefbc220d7accb30eeb96433cae
+91414a45c94ff5dcce869addc9322ff3'
+- 33558b2ac36f04cd57861c9cdcb3ec9aadccce4d28596cba99b58a5f874a2348
++ b9d78eefbc220d7accb30eeb96433cae91414a45c94ff5dcce869addc9322ff3
+
+
+----------------------------------------------------------------------
+Ran 7 tests in 40.875s
+
+FAILED (failures=1)

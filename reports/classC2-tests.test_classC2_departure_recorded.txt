@@ -1,0 +1,23 @@
+python : test_any_remaining_safe_surplus_goes_home_before_guardian_switch (tests.test_classC2_departure_recorded.ClassC
+2DepartureRecordedTest.test_any_remaining_safe_surplus_goes_home_before_guardian_switch) ... ok
+発生場所 行:2 文字:38
++ ... s;scripts'; python -m unittest tests.test_classC2_departure_recorded  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_any_remain..._switch) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_no_alternate_keeps_visible_stop_and_weight_requirement (tests.test_classC2_departure_recorded.ClassC2DepartureReco
+rdedTest.test_no_alternate_keeps_visible_stop_and_weight_requirement) ... ok
+test_public_stop_board_offers_deeper_guardian_remedy_after_restore (tests.test_classC2_departure_recorded.ClassC2Depart
+ureRecordedTest.test_public_stop_board_offers_deeper_guardian_remedy_after_restore) ... ok
+test_recorded_deposit_and_residual_supply_quantities (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTes
+t.test_recorded_deposit_and_residual_supply_quantities) ... ok
+test_recorded_residual_weight_has_no_safe_deposit (tests.test_classC2_departure_recorded.ClassC2DepartureRecordedTest.t
+est_recorded_residual_weight_has_no_safe_deposit) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 69.923s
+
+OK
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '1' town:entrance-step-off:town:unsafe-recall-fallback target 3
+CLASS C2 FIRST DIFFERENCE live '1' town:blocked:departure-unsatisfiable replay '1' town:entrance-step-off:town:unsafe-recall-fallback target 3
