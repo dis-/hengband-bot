@@ -1,8 +1,8 @@
 # Class C implementation and verification
 
 Scope: branch `classC` in `C:\hengband\bot-client-live21`, base `be0befed`.
-Step 1 audit commit: `6d7d401d`. Step 2 implementation commit is the commit
-containing this report; the final result record names its SHA.
+Step 1 audit commit: `6d7d401d`. Step 2 implementation commit: `3be2ac5a`. The final result record
+also names the audit and implementation SHAs.
 
 ## One rule
 
