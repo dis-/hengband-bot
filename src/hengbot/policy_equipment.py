@@ -658,12 +658,6 @@ class EquipmentMixin:
                 source="in-flight-session",
             )
             return self._equipment_optimization_preparation
-        if self._calibration_owns_town_sequence():
-            self._offer_execution_no_step(
-                producer="equipment-opt", work_id="equipment:optimizer",
-                cause="calibration-restoration-owned",
-            )
-            return None
         # P1: the search consumes only calibrated worn-independent character
         # constants.  Without a valid calibration the optimizer fails closed;
         # the town execution layer owns running the calibration phase — the
@@ -1444,8 +1438,7 @@ class EquipmentMixin:
             return False
         self._equipment_transaction_prepared_key = key
         producer = (
-            "calibration" if self._calibration_session_owned()
-            else "equipment-txn"
+            'equipment-txn'
         )
         self._offer_execution(
             key, producer=producer,
@@ -1464,11 +1457,7 @@ class EquipmentMixin:
         session = self._equipment_transaction_session
         if (session is not None
                 and getattr(self, "_town_claim_bar_enforced", False)):
-            self._release_claim_goal(
-                "equipment-transaction-abandoned",
-                owners=("equipment-txn", "calibration"),
-                kinds=("Observe",), sources=("transaction", "calibration"),
-            )
+            self._release_claim_goal('equipment-transaction-abandoned', owners=('equipment-txn',), kinds=('Observe',), sources=('transaction',))
         if self._store_visit is not None:
             target_store_type = (
                 STORE_HOME
@@ -1774,7 +1763,7 @@ class EquipmentMixin:
                                 effect: str = "store-exited") -> str | None:
         """Name a Home transaction exit that has no prepared action offer."""
         work_id = f"equipment:home:{label}"
-        producer = "calibration" if self._calibration_session_owned() else "equipment-txn"
+        producer = 'equipment-txn'
         if key is None:
             self._offer_execution_no_step(
                 producer=producer, work_id=work_id, cause=label,
@@ -1826,15 +1815,7 @@ class EquipmentMixin:
             # reconciles it before policy dispatch; never leave merely to make
             # the same inventory/equipment observation outside.
             self.last_reason = "equipment-transaction:await-home-barrier"
-            self._offer_execution(
-                None, producer=("calibration" if self._calibration_session_owned()
-                                else "equipment-txn"),
-                work_id=f"equipment:home:pending:{session.target_loadout_id}",
-                next_step="equipment.observe-home-barrier",
-                arguments=(session.posted_command_id,),
-                expected_effect="equipment-action-confirmed",
-                continuation="equipment.next-action",
-            )
+            self._offer_execution(None, producer='equipment-txn', work_id=f'equipment:home:pending:{session.target_loadout_id}', next_step='equipment.observe-home-barrier', arguments=(session.posted_command_id,), expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
             return None
 
         action = session.current_action
@@ -2133,7 +2114,7 @@ class EquipmentMixin:
     def _equipment_town_outcome(self, key: str | None, *, label: str,
                                 effect: str = "transaction-progress") -> str | None:
         work_id = f"equipment:town:{label}"
-        producer = "calibration" if self._calibration_session_owned() else "equipment-txn"
+        producer = 'equipment-txn'
         if key is None:
             self._offer_execution_no_step(
                 producer=producer, work_id=work_id, cause=label,
@@ -2176,16 +2157,7 @@ class EquipmentMixin:
             self.last_reason = "equipment-transaction:await-confirmation"
             operation_ref = session.posted_command_id
             if operation_ref is not None:
-                self._offer_execution(
-                    WAIT_KEY, producer=("calibration" if self._calibration_session_owned()
-                                        else "equipment-txn"),
-                    work_id=f"equipment:town:pending:{session.target_loadout_id}",
-                    next_step="equipment.action.observe",
-                    arguments=(operation_ref,),
-                    expected_effect="equipment-action-confirmed",
-                    continuation="equipment.next-action",
-                    post_on_emit=False,
-                )
+                self._offer_execution(WAIT_KEY, producer='equipment-txn', work_id=f'equipment:town:pending:{session.target_loadout_id}', next_step='equipment.action.observe', arguments=(operation_ref,), expected_effect='equipment-action-confirmed', continuation='equipment.next-action', post_on_emit=False)
             return WAIT_KEY
         if session.required_context == "home":
             if (
@@ -2212,14 +2184,7 @@ class EquipmentMixin:
                     )
                 self._town_errand_plan = replacement
             step = (
-                self._shopping_approach_step(
-                    snapshot, STORE_HOME, requester=(
-                        "calibration" if self._calibration_session_owned()
-                        else "equipment-txn"
-                    )
-                )
-                if self._ensure_home_visit_request(snapshot)
-                else None
+                self._shopping_approach_step(snapshot, STORE_HOME, requester='equipment-txn') if self._ensure_home_visit_request(snapshot) else None
             )
             if step is None or self._shopping_approach_store_type != STORE_HOME:
                 self._block_equipment_transaction("home-route-unavailable")
@@ -2347,8 +2312,6 @@ class EquipmentMixin:
             return True
         # Calibration controls optimization, never ordinary movement. Depth
         # abilities are checked separately from the current ability_sources.
-        if self._validated_character_calibration(snapshot) is None:
-            return self._equipment_transaction_session is None
         cacheable = snapshot is self._map_predicate_snapshot
         if (
             cacheable
@@ -2356,6 +2319,11 @@ class EquipmentMixin:
         ):
             return self._equipment_departure_cache_value
         preparation = self._prepare_equipment_optimization(snapshot)
+        if preparation is not None and any(
+            blocker == "calibration-required" or blocker.startswith("calibration-stale:")
+            for blocker in preparation.blockers
+        ):
+            return self._equipment_transaction_session is None
         complete_now = bool(
             preparation is not None
             and getattr(preparation, "ready", False)
@@ -2365,20 +2333,6 @@ class EquipmentMixin:
         )
         if complete_now:
             self._record_confirmed_loadout(snapshot)
-        mechanically_deferred_calibration = bool(
-            preparation is not None
-            and preparation.blockers == ("calibration-required",)
-            and self._calibration_deferral_cause
-            == "unremovable-cursed-equipment"
-            and any(item.is_cursed for item in snapshot.equipment)
-            and (
-                any(
-                    item.is_cursed and self._curse_unremovable(item)
-                    for item in snapshot.equipment
-                )
-                or not self._normal_remove_curse_actionable_this_visit(snapshot)
-            )
-        )
         premise = bool(
             not complete_now
             and self._equipment_transaction_session is None
@@ -2386,7 +2340,7 @@ class EquipmentMixin:
             and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
-        ready = complete_now or mechanically_deferred_calibration
+        ready = complete_now or False
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
@@ -2935,7 +2889,7 @@ class EquipmentMixin:
 
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
-        if not snapshot.in_town or self._calibration_active():
+        if not snapshot.in_town or False:
             self._offer_execution_no_step(
                 producer="equipment-txn", work_id="restore-combat-weapon",
                 cause="restore-context-unavailable",

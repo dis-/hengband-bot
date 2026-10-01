@@ -1058,16 +1058,6 @@ class FundraisingMixin:
                 cause="fundraising-mode-inactive",
             )
             return None
-        if snapshot.in_town and self._calibration_active():
-            # The unequipped calibration phase owns the town while it runs.
-            # Fundraising town work (kit purchases, departure) would feed the
-            # calibration deposit loop its own purchases; it resumes untouched
-            # once the phase releases the town.
-            self._offer_execution_no_step(
-                producer="fundraising", work_id="fundraise:run",
-                cause="calibration-owns-town",
-            )
-            return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
             and snapshot.dungeon_level != 1

@@ -995,7 +995,7 @@ class OperationExecutor:
             # original owner identity for confirmation and ownership telemetry.
             producer = operation.owner.removeprefix("policy:")
             store_producer = producer.startswith((
-                "shop:", "home:", "calibration:", "equipment-transaction:",
+                "shop:", "home:", "equipment-transaction:",
             ))
             if (first in "EqruazRfvkToDFl012346789\\<>+`"
                     or first in "swtgd{}5" and not store_producer):

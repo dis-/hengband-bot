@@ -137,7 +137,6 @@ class TownTurnArbiter:
                 # (policy_equipment.py ``_town_restore_weapon_key``) was never
                 # registered, so it alone fell through to ``unregistered``.
                 ("town:replace-no-teleport-weapon",)),
-            registration("calibration", ("calibration:",), "calibration phase advance"),
             registration("identification", ("identify:", "identification:", "item-processing:", "inventory:"), "known item or failure-set delta"),
             registration("fundraising", ("fundraise:", "fundraising:", "mining:", "town:recall-stockout-mining", "town:identify-staff-stockout-mining"), "gold or vein delta"),
             registration("curse-enchant", ("town:remove-curse", "town:enchant-launcher-", "curse:", "remove-curse:", "enchant:"), "curse or enchantment delta"),
@@ -606,7 +605,6 @@ def _new_town_turn_arbiter() -> TownTurnArbiter:
         "home-scan": (("CALIBRATION_HOME_VISIT_LIMIT",), CALIBRATION_HOME_VISIT_LIMIT),
         "equipment-txn": (("EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT",), EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT),
         "equipment-opt": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
-        "calibration": (("STORE_STUCK_LIMIT",), STORE_STUCK_LIMIT),
         "identification": (("IDENTIFY_FAIL_LIMIT", "IDENTIFY_PURCHASE_MAX"), IDENTIFY_FAIL_LIMIT),
         "town-plan": (("TOWN_STOP_PASS_LIMIT",), TOWN_STOP_PASS_LIMIT),
         "fundraising": (("MINING_STALL_LIMIT",), MINING_STALL_LIMIT),

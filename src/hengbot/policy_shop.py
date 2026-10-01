@@ -1380,14 +1380,6 @@ class ShopMixin:
                 store_type, None
             )
             self._town_visit_ledger.approach_fails.pop(store_type, None)
-        if (
-            release_visit_bound
-            and store_type == STORE_HOME
-            and self._calibration_restore_signatures
-        ):
-            self._town_visit_ledger.need_attempts.pop(
-                "calibration-restore", None
-            )
         plan = self._town_errand_plan
         if plan is None:
             return
@@ -1411,9 +1403,6 @@ class ShopMixin:
         requester = getattr(request, "requester", None)
         item_identity = getattr(request, "item_identity", None)
         batch = getattr(request, "batch", None)
-        if requester == "calibration-restore" and self._calibration_restore_signatures:
-            item_identity = self._calibration_restore_signatures[0]
-            batch = tuple(self._calibration_restore_signatures)
         return (
             getattr(kind, "value", kind),
             requester,
@@ -3711,19 +3700,7 @@ class ShopMixin:
 
             if self._home_atomic_withdraw_pending is not None:
                 self.last_reason = "home:leave-after-one-operation"
-                self._offer_execution(
-                    LEAVE_STORE_KEY,
-                    producer=(
-                        self._store_visit.operation_producer_family
-                        if self._store_visit is not None
-                        and self._store_visit.operation_producer_family in {
-                            "equipment-txn", "calibration", "home-visit"
-                        } else "home-visit"
-                    ),
-                    work_id="home:leave-after-one-operation",
-                    next_step="store.leave.send",
-                    arguments=(STORE_HOME,), expected_effect="outside-store",
-                )
+                self._offer_execution(LEAVE_STORE_KEY, producer=self._store_visit.operation_producer_family if self._store_visit is not None and self._store_visit.operation_producer_family in {'equipment-txn', 'home-visit'} else 'home-visit', work_id='home:leave-after-one-operation', next_step='store.leave.send', arguments=(STORE_HOME,), expected_effect='outside-store')
                 return LEAVE_STORE_KEY
 
             # Prefer owned Identify charges to buying another staff.  Once the
@@ -3738,7 +3715,7 @@ class ShopMixin:
                 and item.charges > 0
             ]
             queued_withdrawals = set(self._home_pending_batch)
-            queued_withdrawals.update(self._calibration_restore_signatures)
+            queued_withdrawals.update([])
             if self._home_pending_item is not None:
                 queued_withdrawals.add(self._home_pending_item)
             stored_identify = [

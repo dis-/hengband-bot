@@ -117,7 +117,7 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
             )
         restored._monrace_knowledge = load_monrace_knowledge(definitions)
     from hengbot.policy_state import normalize_policy_state
-    normalize_policy_state(restored)
+    normalize_policy_state(restored, restart=True)
     return restored
 
 

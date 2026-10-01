@@ -5235,7 +5235,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
                     policy_module.EquipmentTransactionPlan((action,), (), 1)
                 )
             )
-            policy._prepare_equipment_optimization = Mock()
+            policy._prepare_equipment_optimization = Mock(return_value=None)
             _, outside = town_fixture.NoSafeRecallDestinationTest()._fixture()
             return policy, replace(
                 outside,
@@ -5662,7 +5662,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         )
         policy._home_pending_item = policy._item_signature(torches)
         policy._home_pending_quantity = 4
-        policy._prepare_equipment_optimization = Mock()
+        policy._prepare_equipment_optimization = Mock(return_value=None)
         entrance = Snapshot(
             player(45, 123, class_id=PLAYER_CLASS_WARRIOR),
             {

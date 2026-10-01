@@ -6,9 +6,24 @@ from copy import deepcopy
 from hengbot.policy_types import OwnerProgressCore
 
 
-def normalize_policy_state(restored):
+def normalize_policy_state(restored, *, restart=False):
     from hengbot.policy_calibration import refuse_legacy_calibration_debt
     refuse_legacy_calibration_debt(restored.__dict__, restored.__dict__.get("_character_calibration_path"))
+    retained = {"_calibration_dump_prepared", "_calibration_dump_pending",
+                "_calibration_unavailable_reason", "_calibration_rejection",
+                "_calibration_session_id"}
+    for name in tuple(restored.__dict__):
+        if name.startswith("_calibration_") and name not in retained:
+            del restored.__dict__[name]
+    if restart:
+        import uuid
+        restored._calibration_dump_pending = None
+        restored._calibration_dump_prepared = None
+        restored._calibration_session_id = uuid.uuid4().hex
+        calibration = restored.__dict__.get("_character_calibration")
+        if calibration is not None and calibration.schema_version == 2:
+            restored._character_calibration = None
+        restored._character_calibration_loaded = False
     if restored.__dict__.get("_policy_state_version") == 2:
         return restored
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
@@ -56,10 +71,6 @@ def normalize_policy_state(restored):
     restored.__dict__.setdefault("_esp_threat_hunt", None)
     restored.__dict__.setdefault("_esp_threat_hunt_end", None)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
-    # Equipment departure can now consult a calibration deferral even when a
-    # legacy checkpoint reaches the calibration-required optimizer return.
-    restored.__dict__.setdefault("_calibration_deferral_cause", None)
-    restored.__dict__.setdefault("_calibration_deferral_reason", None)
     restored.__dict__.setdefault("_prompt_gated_posting", True)
     restored.__dict__.setdefault("_town_restock_waited_turns", 0)
     restored.__dict__.setdefault("_town_restock_last_wait_turn", None)

@@ -257,24 +257,7 @@ class CombatMixin:
         """
         reason = self.last_reason or ""
         guarded_wait_owner = (
-            reason == "rest"
-            or reason == "town:recover"
-            or reason == "opening-q34:wait"
-            or reason == "calibration:await-capture"
-            or reason.startswith("town:wait-restock:")
-            or reason in {
-                "town:wait-recall",
-                "town:await-recall-confirmation",
-                "fundraise:wait-recall",
-                "return:wait-recall",
-                "return:await-recall-confirmation",
-                "breeder-breakthrough:wait-recall",
-            }
-            or reason.startswith("town:blocked:")
-            or (
-                reason.startswith("equipment-transaction:")
-                and reason not in EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS
-            )
+            reason == 'rest' or reason == 'town:recover' or reason == 'opening-q34:wait' or reason.startswith('town:wait-restock:') or (reason in {'town:wait-recall', 'town:await-recall-confirmation', 'fundraise:wait-recall', 'return:wait-recall', 'return:await-recall-confirmation', 'breeder-breakthrough:wait-recall'}) or reason.startswith('town:blocked:') or (reason.startswith('equipment-transaction:') and reason not in EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS)
         )
         if key != WAIT_KEY or snapshot.store is not None or not guarded_wait_owner:
             return key

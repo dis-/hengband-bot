@@ -115,6 +115,17 @@ _MEMBER_NAME = str.maketrans(
     "abcdefghijklmnopqrstuvwxyz-", "ABCDEFGHIJKLMNOPQRSTUVWXYZ_"
 )
 
+class _ClaimOwnerBase(str, Enum):
+    @classmethod
+    def _missing_(cls, value):
+        if value == "calibration":
+            from hengbot.policy_calibration import LegacyCalibrationDebtError
+            raise LegacyCalibrationDebtError(
+                "legacy-calibration-debt:calibration-claim; manual recovery required"
+            )
+        return None
+
+
 ClaimOwner = Enum(
     "ClaimOwner",
     [
@@ -122,8 +133,8 @@ ClaimOwner = Enum(
         for name in (*owner_families(), UNREGISTERED_FAMILY)
     ],
     module=__name__,
+    type=_ClaimOwnerBase,
     qualname="ClaimOwner",
-    type=str,
 )
 ClaimOwner.__doc__ = "An owner family that exists today (town_arbiter)."
 

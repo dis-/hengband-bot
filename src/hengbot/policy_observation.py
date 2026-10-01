@@ -26,15 +26,7 @@ class ObservationMixin:
             self._home_knowledge_scan_leave_turn = None
 
     def observe_character_snapshot(self, character, *, envelope=None) -> None:
-        """Consume a `C` character snapshot (naked capture or periodic dump).
-
-        Always refreshes the mutation signature from ``mutations`` — the
-        pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS) makes
-        this the autonomous, observation-bounded post-calibration trigger for
-        the mutation invalidation.  While the calibration capture step's
-        naked dump is in flight, the ``characteristics`` table is additionally
-        recorded as the worn-independent intrinsic TR flag set.
-        """
+        """Refresh visible mutations and consume an acknowledged equipped dump."""
         if not isinstance(character, dict):
             return
         mutations = character.get("mutations")
@@ -91,9 +83,6 @@ class ObservationMixin:
                 self._home_visit.reset_epoch()
             self._unknown_lantern_departure_refilled = False
             self._abandoned_quest_carry_requirements.clear()
-            self._calibration_aborts_this_visit = 0
-            self._calibration_blocked_this_visit = False
-            self._calibration_last_abort = None
         self._town_was_in_town = snapshot.in_town
         if previous_floor is None and snapshot.in_town and snapshot.player.recalling:
             self._startup_town_recall = True

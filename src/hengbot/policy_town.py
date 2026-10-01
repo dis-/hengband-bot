@@ -1644,7 +1644,6 @@ class TownMixin:
             # restore session or a completed optimizer transaction) before ANY
             # departure path — including every pre-existing escape valve
             # deeper in this conjunction — can open.
-            "calibration_loadout_restored": not self._calibration_stripped_unrestored,
             "food_ready": (
                 self._fundraising_food_ready(snapshot)
                 if self._fundraising_mode in {"prepare", "mine", "scavenge"}
@@ -1703,12 +1702,6 @@ class TownMixin:
                 not home_required or self._identification_need is None
             ),
             # Never depart mid-calibration or with its supplies still at Home.
-            "calibration_phase_complete": (
-                not home_required or not self._calibration_active()
-            ),
-            "calibration_restore_complete": (
-                not home_required or not self._calibration_restore_signatures
-            ),
         }
 
     def _town_pack_space_ready(self, snapshot: Snapshot) -> bool:
@@ -2286,25 +2279,6 @@ class TownMixin:
         def add(store_type: int, category: str, ordering_class: str = "normal") -> None:
             needs.append(TownNeed(store_type, category, ordering_class))
 
-        if self._calibration_active():
-            # The unequipped calibration phase owns the town while it runs.
-            # The only legitimate errand is Home: deposits going in, the pack
-            # restore coming out.  Every other need is suppressed — in
-            # particular a supply purchase would feed the deposit loop its own
-            # replacements (deposit -> shortage -> buy -> deposit ...).
-            if (
-                self._calibration_phase in {"deposit", "restore-supplies"}
-                and self._home_available(snapshot)
-                and STORE_HOME not in self._town_store_attempted
-            ):
-                add(
-                    STORE_HOME,
-                    "calibration-restore"
-                    if self._calibration_phase == "restore-supplies"
-                    else "deposit",
-                    "home-first",
-                )
-            return needs
 
         if (
             self._home_disposal_pass
@@ -2925,71 +2899,7 @@ class TownMixin:
         cached = getattr(self, "_town_need_specs", None)
         if cached is not None:
             return cached
-        entries = (
-            ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
-            ("home-disposal-identify", "normal", 1, False),  # Disposal identification is opportunistic.
-            ("home-disposal-sale", "normal", 1, False),  # Disposal sales are opportunistic.
-            ("birth-supplies", "normal", 2, True),  # Birth supplies are required before the opening departure.
-            ("quest-throwing-items", "opening-quest", 1, True),  # Opening Q34 stock gates quest acceptance.
-            ("quest-throwing-items", "home-first", 1, True),  # Stored required throwing stock gates departure.
-            ("disposal", "normal", 1, False),  # Dominated-item disposal is opportunistic.
-            ("safe-weapon", "home-first", 1, True),  # A teleport-safe weapon is a departure safety gate.
-            ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
-            ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
-            ("organization-sale", "normal", 1, True),  # Recognized surplus gates departure.
-            ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
-            ("space-deposit", "home-first", 1, True),  # Pack reserve gates all later town transactions.
-            ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
-            ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
-            ("experience-restore", "normal", 1, False),  # Restore before the Experience potion; never blocks departure.
-            ("experience-restore-check", "normal", 1, False),  # One look at the Temple shelf per visit; never blocks departure.
-            ("experience-potion-home", "home-first", 1, False),  # A stored Experience potion is withdrawn to drink.
-            ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
-            ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
-            ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
-            ("weapon-sale", "normal", 1, False),  # Inferior weapon sales are opportunistic.
-            ("light-sale", "normal", 1, False),  # Surplus light sales are opportunistic.
-            ("fundraising-kit", "home-first", 1, True),  # The mining kit gates a fundraising run.
-            ("fundraising-digger", "normal", 1, True),  # A digger gates a fundraising run.
-            ("fundraising-detection", "normal", 1, True),  # Detection gates a fundraising run.
-            ("fundraising-food", "normal", 1, True),  # Food gates a fundraising run.
-            ("stored-detection", "home-first", 1, True),  # Stored detection gates a fundraising run.
-            ("mining-detection", "normal", 1, True),  # Purchased detection gates a fundraising run.
-            ("stored-digger", "home-first", 1, True),  # A stored digger gates a fundraising run.
-            ("mining-digger", "normal", 1, True),  # A purchased digger gates a fundraising run.
-            ("fundraising-light", "normal", 1, True),  # Light gates a fundraising run.
-            ("fundraising-oil", "normal", 1, True),  # Oil gates a fundraising run.
-            ("identification-source", "before-withdrawal", 1, True),  # Identification is consumed by departure readiness.
-            ("identification-withdrawal", "post-alchemist-home", 1, True),  # The identification handoff gates departure.
-            ("recall", "normal", 2, True),  # Recall supply feeds the departure ledger.
-            ("teleport", "normal", 1, True),  # Teleport supply feeds the departure ledger.
-            ("cure-critical", "normal", 2, True),  # Critical cures feed the departure ledger.
-            ("oil", "normal", 1, True),  # Oil supply feeds the departure ledger.
-            ("food", "normal", 2, True),  # Food supply feeds the departure ledger.
-            ("quest-throwing-items", "normal", 1, True),  # Required throwing stock gates the quest departure.
-            ("quest-launcher", "home-first", 1, True),  # A required launcher gates the quest departure.
-            ("quest-ranged-kit", "normal", 1, True),  # Required ranged gear gates the quest departure.
-            ("quest-scrolls", "normal", 1, True),  # Required scrolls gate the quest departure.
-            ("quest-carry", "normal", 1, True),  # Declared quest-carry suppliers gate departure.
-            ("quest-speed", "normal", 1, True),  # Required speed potions gate the quest departure.
-            ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
-            ("light", "normal", 1, True),  # Expedition light gates departure.
-            ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
-            ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
-            ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
-            ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
-            ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
-            ("home-star-remove-curse-use", "home-first", 1, True),
-            ("home-star-remove-curse-check", "home-first", 1, False),
-            ("home-star-remove-curse-stock", "normal", 1, False),
-            ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
-            ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
-            ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
-            ("equipment-work", "home-first", 1, True),
-            ("equipment-transaction", "home-first", 1, True),
-            ("calibration-restore", "home-first", 1, True),
-            ("black-market", "normal", 1, False),  # Black Market browsing is opportunistic.
-        )
+        entries = (('idle-consumable-scan', 'home-first', 1, False), ('home-disposal-identify', 'normal', 1, False), ('home-disposal-sale', 'normal', 1, False), ('birth-supplies', 'normal', 2, True), ('quest-throwing-items', 'opening-quest', 1, True), ('quest-throwing-items', 'home-first', 1, True), ('disposal', 'normal', 1, False), ('safe-weapon', 'home-first', 1, True), ('combat-weapon', 'home-first', 1, True), ('book-sale', 'normal', 1, False), ('organization-sale', 'normal', 1, True), ('weight-overload', 'home-first', 1, True), ('space-deposit', 'home-first', 1, True), ('deposit', 'home-first', 1, False), ('stat-restore', 'normal', 1, True), ('experience-restore', 'normal', 1, False), ('experience-restore-check', 'normal', 1, False), ('experience-potion-home', 'home-first', 1, False), ('low-level-sale', 'normal', 1, False), ('mana-food-sale', 'normal', 1, False), ('device-sale', 'normal', 1, False), ('weapon-sale', 'normal', 1, False), ('light-sale', 'normal', 1, False), ('fundraising-kit', 'home-first', 1, True), ('fundraising-digger', 'normal', 1, True), ('fundraising-detection', 'normal', 1, True), ('fundraising-food', 'normal', 1, True), ('stored-detection', 'home-first', 1, True), ('mining-detection', 'normal', 1, True), ('stored-digger', 'home-first', 1, True), ('mining-digger', 'normal', 1, True), ('fundraising-light', 'normal', 1, True), ('fundraising-oil', 'normal', 1, True), ('identification-source', 'before-withdrawal', 1, True), ('identification-withdrawal', 'post-alchemist-home', 1, True), ('recall', 'normal', 2, True), ('teleport', 'normal', 1, True), ('cure-critical', 'normal', 2, True), ('oil', 'normal', 1, True), ('food', 'normal', 2, True), ('quest-throwing-items', 'normal', 1, True), ('quest-launcher', 'home-first', 1, True), ('quest-ranged-kit', 'normal', 1, True), ('quest-scrolls', 'normal', 1, True), ('quest-carry', 'normal', 1, True), ('quest-speed', 'normal', 1, True), ('quest-healing', 'normal', 2, True), ('light', 'normal', 1, True), ('identify-staff', 'normal', 1, True), ('ammo-home-first', 'home-first', 1, False), ('ammo', 'normal', 1, False), ('throwing-torches', 'normal', 1, False), ('remove-curse', 'normal', 1, True), ('home-star-remove-curse-use', 'home-first', 1, True), ('home-star-remove-curse-check', 'home-first', 1, False), ('home-star-remove-curse-stock', 'normal', 1, False), ('star-remove-curse', 'normal', 1, False), ('launcher-enchant', 'normal', 1, False), ('equipment-catalog', 'home-first', 1, False), ('equipment-work', 'home-first', 1, True), ('equipment-transaction', 'home-first', 1, True), ('black-market', 'normal', 1, False))
         specs: list[NeedSpec] = []
         for category, ordering_class, count, departure_blocking in entries:
             for occurrence in range(count):
@@ -3107,11 +3017,6 @@ class TownMixin:
                     # an overweight character has no alternate supplier.  Hand
                     # the exhausted route directly to a diagnostic terminal.
                     self._town_blocked_reason = "overweight-home-unreachable"
-                if (
-                    home_visit_budget_exhausted
-                    and need.category == "calibration-restore"
-                ):
-                    self._town_liveness_claim_retired = True
                 continue
             if spec is not None and not spec.departure_blocking:
                 if departure_ready is None:
@@ -3190,10 +3095,7 @@ class TownMixin:
             self._town_need_evaluation_snapshot = previous_snapshot
             self._town_need_evaluation_candidates = previous_candidates
         if (
-            self._home_knowledge_current
-            and self._home_scan_item_count == 0
-            and not self._calibration_active()
-            and self._equipment_transaction_session is None
+            self._home_knowledge_current and self._home_scan_item_count == 0 and (self._equipment_transaction_session is None)
         ):
             needs = [
                 need
@@ -3225,10 +3127,6 @@ class TownMixin:
         finally:
             self._town_need_evaluation_snapshot = previous_snapshot
             self._town_need_evaluation_candidates = previous_candidates
-        if self._calibration_phase == "deposit" and self._home_available(snapshot):
-            needs.append(TownNeed(
-                STORE_HOME, "calibration-deposit", "home-first"
-            ))
         return needs
 
     def _town_need_supplier_reachable(
@@ -3677,11 +3575,7 @@ class TownMixin:
             else tuple(need.category for need in store_needs)
         )
         if (
-            store_type == STORE_HOME
-            and self._home_knowledge_current
-            and self._home_scan_item_count == 0
-            and not self._calibration_active()
-            and self._equipment_transaction_session is None
+            store_type == STORE_HOME and self._home_knowledge_current and (self._home_scan_item_count == 0) and (self._equipment_transaction_session is None)
         ):
             # Reconcile a plan built before the knowledge response.  Categories
             # whose only fulfillment was an empty-Home withdrawal no longer own
@@ -4890,20 +4784,7 @@ class TownMixin:
                 and equipment_identity(item) == action.item_identity
                 for item in addressable
             )
-        requested = {
-            *self._calibration_restore_signatures,
-            *self._home_pending_batch,
-            *(
-                (self._home_pending_item,)
-                if self._home_pending_item is not None
-                else ()
-            ),
-            *(
-                (self._home_errand.request.signature,)
-                if self._home_errand.active and self._home_errand.request is not None
-                else ()
-            ),
-        }
+        requested = {*[], *self._home_pending_batch, *((self._home_pending_item,) if self._home_pending_item is not None else ()), *((self._home_errand.request.signature,) if self._home_errand.active and self._home_errand.request is not None else ())}
         return any(self._item_signature(item) in requested for item in addressable)
 
     def _town_blocked_key(self, snapshot: Snapshot) -> str | None:

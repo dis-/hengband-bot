@@ -127,10 +127,6 @@ OPERATION_CLAIMS = (
                       "session.opened_sequence,plan.actions", ("equipment",),
                       "_equipment_ownership_release_due/session.complete",
                       "abandoned session / expiry"),
-    OperationClaimRow("calibration", "_calibration_session_owned", "calibration",
-                      EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
-                      "session.opened_sequence,plan.actions", ("equipment",),
-                      "_observe_calibration_restore_batch", "calibration abort / expiry"),
     OperationClaimRow("staged-prompt", "_staged_prompt_chain", STORE_OPERATION,
                       None, "chain.owner,stage-count", ("tail posted",),
                       "commit_staged_prompt_chain", "tail dropped / expiry"),
@@ -305,20 +301,6 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("town:remove-no-teleport-weapon", O, TRANSACTION),
         ("wield-light", T, EFFECT),
         ("town:replace-no-teleport-weapon", O, TRANSACTION),
-    ),
-    *_rows(
-        "calibration",
-        ("home:atomic-withdraw", O, STORE_OPERATION),
-        ("home:atomic-deposit", O, STORE_OPERATION),
-        ("home:leave-after-one-operation", O, STORE_OPERATION),
-        ("home:atomic-withdraw-target-unobserved", T, EFFECT),
-        ("calibration:", O, TRANSACTION),
-        ("calibration:request-restore-knowledge", O, KNOWLEDGE),
-        ("calibration:restore-home-unavailable", T, EFFECT),
-        ("calibration:restore-home-unreachable", T, EFFECT),
-        # Rev 9.2 (T2): calibration's walks to the Home are native travel.
-        ("calibration:restore-travel", R, ENTRANCE),
-        ("calibration:restore-travel:await-entry", O, STORE_ENTRY),
     ),
     *_rows(
         "identification",
@@ -681,7 +663,7 @@ MONSTER_CHASE_OWNERS = frozenset(
 # store-operation and transaction table contents, and the expectation names
 # they post.
 HOME_EFFECT_OWNERS = frozenset(
-    {"home-visit", "home-errand", "home-scan", "calibration", "equipment-txn"}
+    {"home-visit", "home-errand", "home-scan", "equipment-txn"}
 )
 # Rev 9.3 (R6): the withdraw and deposit names only -- not ``home:``, which
 # also names ``home:store-context-exit`` / ``home:route-claim-unfulfilled``,

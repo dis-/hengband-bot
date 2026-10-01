@@ -109,7 +109,7 @@ EXCEPTIONS = ROOT / "scripts" / "ownership_claim_exceptions.txt"
 #       for x in e if x.reason_prefixes]).encode()).hexdigest())"
 ARBITRATING_FAMILIES = (
     "home-errand", "home-scan", "home-visit", "shop-sell", "shop-buy",
-    "store-router", "equipment-opt", "equipment-txn", "calibration",
+    "store-router", "equipment-opt", "equipment-txn",
     "identification", "fundraising", "curse-enchant", "cross-town",
     "survival", "departure", "town-plan", "rumor", "quest-request",
     "detectors", "misc",
@@ -123,7 +123,7 @@ ARBITRATING_FAMILIES = (
 # walk is owned by the family that cashes the bounty out (recorded incident
 # incident-20261001-0625-town-loop-bounty-approach, shadow gate leak).
 ARBITRATION_TABLE_SHA256 = (
-    "acdb85f4f5b46cb2d997246f3850398a2dd09e2179f9e5084121d4324ba1b59c"
+    "40aed34a5ca1306a53ebecc4a63ae88f3ea5745b1f3ccbce92dce56ef62040ba"
 )
 
 # The ten families S2a adds, each named after what it owns.  They are

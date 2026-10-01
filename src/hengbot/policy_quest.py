@@ -459,28 +459,6 @@ class QuestMixin:
                 keep_set=keep_set,
                 batch=tuple(self._home_pending_batch),
             )
-        if self._calibration_phase == "deposit":
-            deposit = self._find_home_deposit(snapshot)
-            if deposit is not None:
-                identity = self._item_signature(deposit)
-                return PhysicalHomeVisitRequest(
-                    HomeVisitKind.CALIBRATION_RESTORE,
-                    "calibration-deposit",
-                    identity,
-                    quantity=deposit.count,
-                    keep_set=keep_set,
-                    shelving_plan=(identity,),
-                    batch=tuple(self._calibration_restore_signatures),
-                )
-        if self._calibration_restore_signatures:
-            identity = self._calibration_restore_signatures[0]
-            return PhysicalHomeVisitRequest(
-                HomeVisitKind.CALIBRATION_RESTORE,
-                "calibration-restore",
-                identity,
-                batch=tuple(self._calibration_restore_signatures),
-                keep_set=keep_set,
-            )
         if self._home_errand.active and self._home_errand.request is not None:
             errand = self._home_errand.request
             return PhysicalHomeVisitRequest(
@@ -1035,13 +1013,7 @@ class QuestMixin:
     def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
         """Ask the shared selector to resolve body armour with the whole kit."""
         if (
-            not snapshot.in_town
-            or snapshot.player.class_id != PLAYER_CLASS_WARRIOR
-            or self._equipment_transaction_session is not None
-            or self._calibration_active()
-            or self._validated_character_calibration(snapshot) is None
-            or not self._equipment_catalog.home_scan_complete
-            or not self._home_knowledge_current
+            not snapshot.in_town or snapshot.player.class_id != PLAYER_CLASS_WARRIOR or self._equipment_transaction_session is not None or (self._validated_character_calibration(snapshot) is None) or (not self._equipment_catalog.home_scan_complete) or (not self._home_knowledge_current)
         ):
             return
         if current_loadout(self._equipment_catalog.items).item_at(SLOT_BODY) is not None:

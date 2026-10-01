@@ -216,6 +216,7 @@ from hengbot.policy_types import (
 from hengbot.policy_constants import (
     ADJ_STR_WEIGHT_LIMIT,
     AMMO_CARRY_TARGET,
+    HOME_VISIT_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
     DESTRUCTION_GATE_DEPTH,
@@ -1710,7 +1711,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # The maximum existing Home bound is installed once per town epoch.
         # Ordinary route bounds may stop earlier; no optimizer/session rebuild
         # can replenish this physical-visit budget.
-        self._home_visit = HomeVisitExecutor(CALIBRATION_HOME_VISIT_LIMIT)
+        self._home_visit = HomeVisitExecutor(HOME_VISIT_LIMIT)
         self._pending_home_visit_report: str | None = None
         self._home_route_refusal: dict[str, object] | None = None
         self._home_route_refusal_sequence: int | None = None
@@ -2316,41 +2317,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_optimizer_knowledge_key: str | None = None
         # Calibration phase state machine: None | "deposit" | "strip" |
         # "capture" | "restore-equip" | "restore-supplies".
-        self._calibration_phase: str | None = None
         # The observation phase to continue after an interruption has been
         # handled and the originally worn equipment has been restored.
-        self._calibration_suspended_phase: str | None = None
-        self._calibration_worn_before: tuple[tuple[str, str], ...] = ()
-        self._calibration_restore_signatures: list[tuple[str, int, int]] = []
-        self._calibration_restore_items: dict[tuple[str, int, int], InventoryItem] = {}
-        self._calibration_restore_outcomes: dict[tuple[str, int, int], str] = {}
-        self._calibration_restore_move_identities: dict[
-            tuple[str, int, int], str
-        ] = {}
-        self._calibration_restore_item_ids: dict[
-            tuple[str, int, int], str
-        ] = {}
-        self._calibration_restore_seen_pages: set[tuple[str, ...]] = set()
-        self._calibration_session_target: str | None = None
-        self._calibration_aborts_this_visit = 0
-        self._calibration_blocked_this_visit = False
-        self._calibration_last_abort: str | None = None
         # Stage-1 town-order ownership survives the individual Home/store
         # executors.  A failed calibration is an explicit deferred outcome,
         # not successful capture and not permission to forget why it stopped.
         self._town_order_operation: str | None = None
         self._town_order_expected_observation: str | None = None
-        self._calibration_deferral_reason: str | None = None
-        self._calibration_deferral_cause: str | None = None
-        self._calibration_entry_refusal: tuple[int, str | None] | None = None
         # True from the moment a calibration strip session is installed until
         # every recorded identity is observed worn again.  While set, town
         # departure is impossible: no
         # escape valve may let a calibration-stripped character dive naked.
-        self._calibration_stripped_unrestored = False
-        self._calibration_redress_loaded = False
-        self._calibration_redress_attempts: dict[tuple[str, str], int] = {}
-        self._calibration_redress_abandonment: str | None = None
         # Mutation observation (sorted ids) from `C` character snapshots: the
         # calibration phase's naked dump records it at capture, and the
         # pre-existing periodic status dump (cli DUMP_INTERVAL_SECONDS)
@@ -2361,10 +2338,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # when the macro is offered, converted to requested/inflight only by
         # confirm_key_posted (a suppressed or replaced key must not consume
         # the request); the response records _calibration_naked_flags.
-        self._calibration_naked_dump_prepared = False
-        self._calibration_naked_dump_requested = False
-        self._calibration_naked_dump_inflight = False
-        self._calibration_naked_flags: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         # #8 record-only explicit executor grants.  A reserved child binds to
         # the parent's claim at the choose_key exit, before the next gate.
@@ -2430,8 +2403,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # context so a latched town stop closes that UI before it waits.
         self._last_snapshot_was_store = False
         self._last_snapshot_store_type: int | None = None
-        self._calibration_home_rearm_eligible = False
-        self._calibration_home_rearm_queue: tuple[tuple, ...] | None = None
         # Full-pack disposal verification: signatures of items the game would not
         # destroy (so we stop re-selecting them and forever looping), plus a watch
         # on the last attempt to detect that the pack did not change afterwards.
@@ -2450,7 +2421,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def __setstate__(self, state):
         self.__dict__.update(state)
         from hengbot.policy_state import normalize_policy_state
-        normalize_policy_state(self)
+        normalize_policy_state(self, restart=True)
 
     # ------------------------------------------------------------------ core
     def _with_grid_memory(self, snapshot: Snapshot) -> Snapshot:
@@ -2985,16 +2956,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 self.last_reason = "town:blocked:owner-retired"
                 key = WAIT_KEY
-            if (getattr(self, "_crossarea_fundraising_enforced", False)
-                    and key == WAIT_KEY
-                    and self.last_reason == "town:blocked:owner-retired"
-                    and self._calibration_restore_signatures):
-                self._town_blocked_reason = (
-                    "calibration-restore-home-visit-exhausted"
-                )
-                self.last_reason = (
-                    "town:blocked:calibration-restore-home-visit-exhausted"
-                )
             vector = self._town_arbiter_progress_vector(snapshot, self.last_reason)
         elif (in_town and held_claim_decision
               and not arbiter.preview_may_select(
@@ -3076,15 +3037,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not (self.last_reason or "").startswith("town:blocked:")
         ):
             self._intentional_entrance_activation = True
-        if (
-            key == WAIT_KEY
-            and (self.last_reason or "") == "calibration:strip-installed"
-            and here is not None
-            and (here.store_number >= 0 or here.building_special >= 0)
-        ):
-            # Installation is only an in-memory handoff.  Execute its first
-            # step now because a wait cannot create another snapshot.
-            key = self._equipment_transaction_town_key(snapshot) or key
         if (self.last_reason or "").startswith("town:blocked:"):
             self._intentional_entrance_activation = False
         if (
@@ -3206,12 +3158,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "home:atomic-withdraw-address-invalid",
         )):
             previous = getattr(getattr(self, "_claim_register", None), "current", None)
-            if (previous is not None
-                    and previous.owner.value in {"equipment-txn", "calibration"}):
+            if (previous is not None and previous.owner.value in {'equipment-txn'}):
                 return previous.owner.value
-        if (reason and reason.startswith("equipment-transaction:")
-                and self._calibration_session_owned()):
-            return "calibration"
         visit = getattr(self, "_store_visit", None)
         if reason in {"shop:one-shot-in-flight", "store:entry-await-observation"}:
             family = (
@@ -3221,44 +3169,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if family in CLAIM_S3_FAMILIES:
                 return family
-        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
-                and visit is not None
-                and getattr(visit, "operation_producer_family", None)
-                    in {"equipment-txn", "calibration"}):
+        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'operation_producer_family', None) in {'equipment-txn'})):
             return visit.operation_producer_family
         if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
                 and visit is not None
                 and visit.owner == "equipment-transaction"):
             return (
-                "calibration" if self._calibration_session_owned()
-                else "equipment-txn"
+                'equipment-txn'
             )
-        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
-                and visit is not None
-                and getattr(visit, "claim_operation_identity", None) is not None
-                and visit.claim_owner in {"home-visit", "equipment-txn", "calibration"}):
+        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'claim_operation_identity', None) is not None) and (visit.claim_owner in {'home-visit', 'equipment-txn'})):
             return visit.claim_owner
         current = getattr(getattr(self, "_claim_register", None), "current", None)
-        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
-                and current is not None and current.is_open
-                and current.owner.value in {"equipment-txn", "calibration"}
-                and current.goal.source in {"transaction", "calibration"}):
+        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (current is not None) and current.is_open and (current.owner.value in {'equipment-txn'}) and (current.goal.source in {'transaction'})):
             return current.owner.value
         composing_family = getattr(visit, "operation_producer_family", None)
         if composing_family is None:
             composing_family = getattr(visit, "opened_producer_family", None)
-        if (reason and reason.startswith("home:atomic-")
-                and composing_family in {"equipment-txn", "calibration"}):
+        if (reason and reason.startswith('home:atomic-') and (composing_family in {'equipment-txn'})):
             return composing_family
-        if reason and reason.startswith((
-            "home:atomic-", "home:deposit", "home:withdraw-",
-            "home:weight-overload-deposit", "home:morivant-temporary-deposit",
-            "home:morivant-retry-temporary-deposit", "home:leave-",
-            "home:store-context-exit",
-        )) and composing_family in {"equipment-txn", "calibration"} and (
-            getattr(self, "_home_atomic_deposit_pending", None) is not None
-            or getattr(self, "_home_atomic_withdraw_pending", None) is not None
-        ):
+        if reason and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit')) and (composing_family in {'equipment-txn'}) and (getattr(self, '_home_atomic_deposit_pending', None) is not None or getattr(self, '_home_atomic_withdraw_pending', None) is not None):
             return composing_family
         arbiter = getattr(self, "_town_turn_arbiter", None)
         if arbiter is not None:
@@ -3517,12 +3446,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else "acting"
         )
         self._decision_declaration_mismatch = (
-            claim_declaration_mismatch(claim, inferred, reason)
-            if claim.owner.value in {
-                "store-router", "home-visit", "equipment-txn",
-                "calibration", "departure", "fundraising",
-            }
-            else None
+            claim_declaration_mismatch(claim, inferred, reason) if claim.owner.value in {'store-router', 'home-visit', 'equipment-txn', 'departure', 'fundraising'} else None
         )
 
     def _claim_refresh_non_discardable(self, owner) -> None:
@@ -3532,16 +3456,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self, "_equipment_transaction_owned_items", None
         ):
             self._declare_non_discardable(family)
-        elif family in {"home-visit", "home-errand", "calibration", "equipment-txn"} and (
-            getattr(self, "_home_atomic_withdraw_pending", None) is not None
-            or getattr(self, "_home_atomic_deposit_pending", None) is not None
-            or (family == "calibration" and getattr(
-                self, "_calibration_stripped_unrestored", False
-            ))
-        ) and not (
-            family == "home-errand"
-            and (self.last_reason or "").startswith("home-errand:request-knowledge")
-        ):
+        elif family in {'home-visit', 'home-errand', 'equipment-txn'} and (getattr(self, '_home_atomic_withdraw_pending', None) is not None or getattr(self, '_home_atomic_deposit_pending', None) is not None or False) and (not (family == 'home-errand' and (self.last_reason or '').startswith('home-errand:request-knowledge'))):
             self._declare_non_discardable(family)
         else:
             chain = getattr(self, "_staged_prompt_chain", None)
@@ -3701,13 +3616,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         claims = (() if register is None else (
             register.current, *register.suspended
         ))
-        recorded = next((
-            claim for claim in claims if claim is not None and claim.is_open
-            and claim.owner.value in {"equipment-txn", "calibration"}
-            and claim.goal.source in {"transaction", "calibration"}
-            and (opened_sequence is None or str(opened_sequence)
-                 in claim.goal.expectation)
-        ), None)
+        recorded = next((claim for claim in claims if claim is not None and claim.is_open and (claim.owner.value in {'equipment-txn'}) and (claim.goal.source in {'transaction'}) and (opened_sequence is None or str(opened_sequence) in claim.goal.expectation)), None)
         if recorded is None:
             return
         self._complete_observed_effect(
@@ -3734,10 +3643,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         release the visit's open goals.
         """
         if outcome == "completed":
-            operation_owners = (
-                "shop-buy", "shop-sell", "home-visit", "home-errand",
-                "equipment-txn", "calibration",
-            )
+            operation_owners = ('shop-buy', 'shop-sell', 'home-visit', 'home-errand', 'equipment-txn')
             if getattr(visit, "operation_effect_observed", False):
                 self._complete_observed_effect(
                     "store-visit:completed", owners=operation_owners,
@@ -3789,18 +3695,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
                     source="transaction",
                 )
-        if owner.value == "calibration" and content == "transaction":
-            session = getattr(self, "_equipment_transaction_session", None)
-            if session is not None and self._calibration_session_owned():
-                opened = getattr(session, "opened_sequence", None)
-                if opened is None:
-                    opened = self._decision_sequence
-                    session.opened_sequence = opened
-                return claim_observe(
-                    (opened, tuple(map(repr, session.plan.actions))),
-                    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
-                    source="calibration",
-                )
         if content == CLAIM_OBSERVE_KNOWLEDGE:
             return claim_observe(
                 (STORE_HOME, "knowledge",
@@ -3817,13 +3711,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     (visit.store_type, visit.operation_key, visit.opened_sequence),
                     STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
                 )
-        if owner.value in {"home-visit", "equipment-txn", "calibration"} and reason.startswith((
-            "home:atomic-", "home:deposit", "home:withdraw-",
-            "home:weight-overload-deposit",
-            "home:morivant-temporary-deposit", "home:morivant-retry-temporary-deposit",
-            "home:morivant-restore-temporary-deposit", "home:leave-",
-            "home:store-context-exit",
-        )) and visit is not None and visit.store_type == STORE_HOME:
+        if owner.value in {'home-visit', 'equipment-txn'} and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:morivant-restore-temporary-deposit', 'home:leave-', 'home:store-context-exit')) and (visit is not None) and (visit.store_type == STORE_HOME):
             withdrawal = getattr(self, "_home_atomic_withdraw_pending", None)
             deposit = getattr(self, "_home_atomic_deposit_pending", None)
             withdraw_step = "withdraw" in reason or reason.startswith(
@@ -3906,19 +3794,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_KNOWLEDGE,
             ), False, None
         if (
-            standing is not None and standing.is_open
-            and standing.owner == owner
-            and (
-                (reason == "store:entry-await-observation"
-                 and standing.goal.source in {
-                     CLAIM_OBSERVE_STORE_OPERATION,
-                     "transaction", "calibration",
-                 })
-                or (reason == "home:scan-incomplete-open-page"
-                    and standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE)
-                or (reason == "shop:one-shot-in-flight"
-                    and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION)
-            )
+            standing is not None and standing.is_open and (standing.owner == owner) and (reason == 'store:entry-await-observation' and standing.goal.source in {CLAIM_OBSERVE_STORE_OPERATION, 'transaction'} or (reason == 'home:scan-incomplete-open-page' and standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE) or (reason == 'shop:one-shot-in-flight' and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION))
         ):
             # Neither a lagged store entry nor an incomplete Home page ends
             # the operation or knowledge observation it is waiting for.
@@ -3947,35 +3823,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or reason == "home:store-context-exit"
         ) and (completed_transaction or (visit is not None and visit.operation_effect_observed)):
             if (
-                standing is not None and standing.is_open
-                and standing.owner == owner
-                and standing.goal.kind == CLAIM_GOAL_OBSERVE
-                and standing.goal.source in {
-                    CLAIM_OBSERVE_STORE_OPERATION, "transaction", "calibration"
-                }
+                standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.kind == CLAIM_GOAL_OBSERVE) and (standing.goal.source in {CLAIM_OBSERVE_STORE_OPERATION, 'transaction'})
             ):
                 return standing.goal, False, None
             return claim_terminal(reason), False, None
-        if owner.value in {"equipment-txn", "calibration"} and reason.startswith((
-            "home:atomic-", "home:deposit", "home:withdraw-",
-            "home:weight-overload-deposit", "home:morivant-temporary-deposit",
-            "home:morivant-retry-temporary-deposit", "home:leave-",
-            "home:store-context-exit", "equipment-transaction:await-confirmation",
-            "equipment-transaction:home-route-unavailable",
-        )):
-            if (standing is not None and standing.is_open
-                    and standing.owner == owner
-                    and standing.goal.source in {"transaction", "calibration"}):
-                return standing.goal, False, None
-            operation = self._claim_operation_goal(snapshot, owner, reason, "transaction")
-            if operation is not None:
-                return operation, False, None
-        if owner.value == "calibration" and reason.startswith((
-            "equipment-transaction:", "calibration:restore",
-        )) and not reason.endswith(":await-entry"):
-            if (standing is not None and standing.is_open
-                    and standing.owner == owner
-                    and standing.goal.source in {"transaction", "calibration"}):
+        if owner.value in {'equipment-txn'} and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit', 'equipment-transaction:await-confirmation', 'equipment-transaction:home-route-unavailable')):
+            if (standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.source in {'transaction'})):
                 return standing.goal, False, None
             operation = self._claim_operation_goal(snapshot, owner, reason, "transaction")
             if operation is not None:
@@ -4017,9 +3870,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # session. The separately ruled await-entry wait keeps its own
         # store-entry goal once the entrance command has been posted.
         if (
-            row.kind == CLAIM_GOAL_REACH
-            and owner.value in {"equipment-txn", "calibration"}
-            and not reason.endswith(":await-entry")
+            row.kind == CLAIM_GOAL_REACH and owner.value in {'equipment-txn'} and (not reason.endswith(':await-entry'))
         ):
             operation = self._claim_operation_goal(
                 snapshot, owner, reason, "transaction"
@@ -4222,15 +4073,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and (opened is None or str(opened) not in goal.expectation)
         )
         if (
-            goal.source in {"transaction", "calibration"}
-            and standing.owner.value in {"equipment-txn", "calibration"}
-            and (
-                session_replaced
-                or (session is None and (
-                    getattr(self, "_equipment_transaction_owned_items", None)
-                    or getattr(self, "_calibration_stripped_unrestored", False)
-                ))
-            )
+            goal.source in {'transaction'} and standing.owner.value in {'equipment-txn'} and (session_replaced or (session is None and (getattr(self, '_equipment_transaction_owned_items', None) or False)))
         ):
             terminal = (
                 getattr(self, "_equipment_transaction_restore_terminal", None)
@@ -4431,13 +4274,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                  or suspended_holder is not None)
         )
         continuing_store_exit = (
-            getattr(self, "_town_claim_bar_enforced", False)
-            and reason == "policy:none-store-exit"
-            and standing is not None and standing.is_open
-            and standing.goal.kind == CLAIM_GOAL_OBSERVE
-            and standing.goal.source in {
-                CLAIM_OBSERVE_STORE_OPERATION, "transaction", "calibration",
-            }
+            getattr(self, '_town_claim_bar_enforced', False) and reason == 'policy:none-store-exit' and (standing is not None) and standing.is_open and (standing.goal.kind == CLAIM_GOAL_OBSERVE) and (standing.goal.source in {CLAIM_OBSERVE_STORE_OPERATION, 'transaction'})
         )
         continuing_owner = (
             continuing_home_errand or continuing_holder_wait
@@ -4477,11 +4314,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and standing.owner == owner
             and reason.startswith("equipment-transaction:stale-identity-invalidated:")
         ):
-            self._release_claim_goal(
-                "transaction-identity-stale", owners=(owner,),
-                kinds=(CLAIM_GOAL_OBSERVE,),
-                sources=("transaction", "calibration"),
-            )
+            self._release_claim_goal('transaction-identity-stale', owners=(owner,), kinds=(CLAIM_GOAL_OBSERVE,), sources=('transaction',))
             standing = register.current
         if (
             standing is not None and standing.is_open
@@ -4548,12 +4381,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else None
         )
         if (
-            finished is not None
-            and finished.closed == CLAIM_CLOSED_BY_COMPLETE
-            and finished.goal.kind == CLAIM_GOAL_OBSERVE
-            and finished.owner.value in {
-                "home-visit", "home-errand", "calibration", "equipment-txn"
-            }
+            finished is not None and finished.closed == CLAIM_CLOSED_BY_COMPLETE and (finished.goal.kind == CLAIM_GOAL_OBSERVE) and (finished.owner.value in {'home-visit', 'home-errand', 'equipment-txn'})
         ):
             self._claim_last_completed_home = (
                 finished, getattr(home_visit, "visit_id", None),
@@ -4587,20 +4415,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             recent is not None and len(recent) > 2
             and recent[2] is not None and recent[2] == operation_identity
         )
-        completed = next(
-            (candidate for candidate in (
-                finished if same_operation else None,
-                standing if same_operation else None,
-                recent[0] if same_operation else None,
-            )
-             if candidate is not None
-             and candidate.closed == CLAIM_CLOSED_BY_COMPLETE
-             and candidate.goal.kind == CLAIM_GOAL_OBSERVE
-             and candidate.owner.value in {
-                 "home-visit", "home-errand", "calibration", "equipment-txn"
-             }),
-            None,
-        )
+        completed = next((candidate for candidate in (finished if same_operation else None, standing if same_operation else None, recent[0] if same_operation else None) if candidate is not None and candidate.closed == CLAIM_CLOSED_BY_COMPLETE and (candidate.goal.kind == CLAIM_GOAL_OBSERVE) and (candidate.owner.value in {'home-visit', 'home-errand', 'equipment-txn'})), None)
         claim_verdict_conflict = (
             {
                 "claim_id": completed.claim_id,
@@ -4713,9 +4528,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             purpose_duplicates.append(duplicate)
             if violation is None:
                 violation = duplicate
-        if claim.is_open and claim.owner.value in {
-            "home-visit", "home-errand", "calibration", "equipment-txn"
-        }:
+        if claim.is_open and claim.owner.value in {'home-visit', 'home-errand', 'equipment-txn'}:
             operation = getattr(home_visit, "operation", None)
             identity = (
                 (operation, getattr(home_visit, "operation_generation", None))
@@ -4764,9 +4577,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "shop-one-shot": visit.opened_producer_family,
                 "home-one-shot": "home-visit",
                 "equipment-transaction": (
-                    visit.opened_for_family
-                    if visit.opened_for_family == "calibration"
-                    else "equipment-txn"
+                    'equipment-txn'
                 ),
             }
             alias = aliases.get(visit.owner, visit.owner)
@@ -4811,17 +4622,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._record_execution_declaration(claim, key, reason)
         claim = register.current
         closed_declaration_mismatch = (
-            claim_declaration_mismatch(finished, "awaiting", reason)
-            if (finished is not None and finished.execution is not None
-                and finished.execution.state == "done"
-                and (claim.claim_id == finished.claim_id
-                     or claim.execution is None)
-                and finished.owner.value in {
-                    "home-visit", "equipment-txn", "calibration"
-                }
-                and visit is not None and visit.operation_posted
-                and not visit.operation_released)
-            else None
+            claim_declaration_mismatch(finished, 'awaiting', reason) if finished is not None and finished.execution is not None and (finished.execution.state == 'done') and (claim.claim_id == finished.claim_id or claim.execution is None) and (finished.owner.value in {'home-visit', 'equipment-txn'}) and (visit is not None) and visit.operation_posted and (not visit.operation_released) else None
         )
         self.decision_claim = {
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
@@ -5088,10 +4889,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The same owner pursuing the same goal keeps its claim, survival
             # or not (``declare`` updates its survival flag).
             return None, None, None
-        if (standing.owner == owner
-                and standing.goal.source in {"transaction", "calibration"}
-                and goal.source == CLAIM_OBSERVE_STORE_ENTRY
-                and (self.last_reason or "").endswith(":await-entry")):
+        if (standing.owner == owner and standing.goal.source in {'transaction'} and (goal.source == CLAIM_OBSERVE_STORE_ENTRY) and (self.last_reason or '').endswith(':await-entry')):
             return CLAIM_PREEMPTION, "transaction-entry-wait", None
         # S3 town operations survive an emergency even when their Observe
         # source normally forbids suspension.  Other owners keep the ladder's
@@ -5138,14 +4936,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             plan_changed=plan_changed,
         ):
             kind = "plan-handoff"
-        if (kind == "owner-change" and standing.non_discardable
-                and non_discardable
-                and standing.owner.value in {
-                    "equipment-txn", "calibration", "home-visit", "home-errand"
-                }
-                and owner.value in {
-                    "equipment-txn", "calibration", "home-visit", "home-errand"
-                }):
+        if (kind == 'owner-change' and standing.non_discardable and non_discardable and (standing.owner.value in {'equipment-txn', 'home-visit', 'home-errand'}) and (owner.value in {'equipment-txn', 'home-visit', 'home-errand'})):
             kind = "transaction-contention"
         return None, None, {
             "kind": kind,
@@ -5750,18 +5541,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         self._home_errand.state.value == "done"
                     ) else "released"
                     record.ending = f"filed-request:{self._home_errand.state.value}"
-            elif work[:1] == ("deposit-candidate",):
-                if self._calibration_phase != "deposit":
-                    record.lifecycle = "completed" if (
-                        work[1] in self._calibration_restore_signatures
-                    ) else "released"
-                    record.ending = "calibration-deposit-phase-ended"
-            elif work[:1] == ("restore-batch",):
-                if self._calibration_phase != "restore-supplies":
-                    record.lifecycle = "completed" if (
-                        not self._calibration_restore_signatures
-                    ) else "released"
-                    record.ending = "calibration-restore-phase-ended"
             if record.lifecycle == "open" and record.parent_claim_id is not None:
                 register = self._claim_register
                 live = [register.current, *register.suspended]
@@ -5790,8 +5569,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Calibration's installed session executes its own work. A child
         # grant belongs to a particular claim and can end before the physical
         # session does; that does not turn its next action into another errand.
-        if family == "equipment-txn" and self._calibration_session_owned():
-            family = "calibration"
         register = getattr(self, "_claim_register", None)
         if enforced and snapshot is not None and register is not None:
             for bar in register.bars:
@@ -5804,15 +5581,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             "token_would_admit": False, "token_work_identity": None,
                             "active_bar": True}
         holder = self._claim_errand_hold(family, enforced=enforced)
-        if enforced and self._calibration_restore_signatures:
-            if family == "calibration" and (
-                    holder is None or not holder.non_discardable):
-                return None
-            if holder is None and family != "calibration":
-                return {"holder_family": "calibration", "holder_claim_id": None,
-                        "deferred_family": family,
-                        "deferred_reason": f"restore-debt:{reason}",
-                        "token_would_admit": False, "token_work_identity": None}
         if holder is None:
             return None
         token = self._recorded_execution_token(
@@ -5826,16 +5594,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, family: str, reason: str, *, work_identity: tuple | None = None,
     ) -> bool:
         """Protect physical calibration ownership, then apply the S3.3 hold."""
-        if not self._calibration_town_family_allowed(family):
-            if getattr(self, "_decision_errand_deferred", None) is None:
-                self._decision_errand_deferred = []
-            self._decision_errand_deferred.append({
-                "holder_family": "calibration", "holder_claim_id": None,
-                "deferred_family": family,
-                "deferred_reason": f"restore-debt:{reason}",
-                "token_would_admit": False, "token_work_identity": None,
-            })
-            return True
         enforced = (getattr(self, "_town_claim_bar_enforced", False)
                     or self._home_sequence_has_holder())
         row = self._town_errand_deferral(
@@ -5877,8 +5635,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if plan is None or plan.index >= len(plan.stops):
             return False
         next_families = tuple(plan.requester_families.get(plan.stops[plan.index], ()))
-        return (not (family == "calibration" and self._calibration_restore_signatures)
-                and family not in next_families and family != "store-router")
+        return (family not in next_families and family != 'store-router')
 
     def _retire_finished_home_errand_plan_stop(self) -> None:
         """Drop a Home stop whose sole requester has already finished."""
@@ -5920,9 +5677,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         test precedes any reservation, visit mutation, or execution offer in
         the producer.  Survival and detectors remain outside the errand hold.
         """
-        if (not getattr(self, "_town_claim_bar_enforced", False)
-                and not self._calibration_owns_town_sequence()
-                and not self._home_sequence_has_holder()):
+        if (not getattr(self, '_town_claim_bar_enforced', False) and (not self._home_sequence_has_holder())):
             return call()
         board = getattr(self, "_map_predicate_snapshot", None)
         if (board is not None
@@ -5933,8 +5688,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
-        if rung.family == "equipment-txn" and self._calibration_session_owned():
-            rung = claim_rung_of("calibration", None)
         if (not self._town_gate_exempt(rung.family)
                 and self._defer_town_errand(
                     rung.family, f"entry:{rung_name}")):
@@ -6038,15 +5791,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if (request is not None and self._home_errand.needs_knowledge
                         and work[:1] == ("knowledge",)
                         and work[2:] == (request.signature, request.purpose)
-                        and self._home_atomic_deposit_pending is None
-                        and self._home_atomic_withdraw_pending is None):
-                    return record
-                if (record.parent_family == "calibration"
-                        and work[:1] == ("restore-scan",)
-                        and self._calibration_phase == "restore-supplies"
-                        and work[2] == tuple(
-                            self._calibration_restore_signatures
-                        )
                         and self._home_atomic_deposit_pending is None
                         and self._home_atomic_withdraw_pending is None):
                     return record
@@ -6298,13 +6042,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = "route.resume"
             elif family == "quest-request" and continuation == "bounty.resume":
                 step = "bounty.resume"
-            elif family == "calibration" and continuation == "calibration.capture.observe":
-                return None
-            elif (family == "calibration"
-                  and continuation in {"calibration.deposit", "calibration.restore-supplies"}
-                  and continuation == f"calibration.{self._calibration_phase}"):
-                return None
-            elif continuation in {"home.knowledge.observe", "store.entry.observe",
+            if continuation in {"home.knowledge.observe", "store.entry.observe",
                                   "home.operation.observe", "shop.one-shot.dispatch"}:
                 return None
             elif continuation == "departure.step-off-entrance":
@@ -6340,8 +6078,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if args:
                 action = session.current_action
                 if args[0] in {"strip", "restore", "deposit"} and len(args) == 1:
-                    if family != "calibration":
-                        return f"ownership:declaration-stale:{family}"
+                    return f"ownership:declaration-stale:{family}"
                 elif (args[0] != action.kind
                       or args[-1] != action.item_identity
                       or (len(args) == 3
@@ -6421,33 +6158,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else:
                     self.last_reason = "equipment-transaction:await-confirmation"
                     return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
-            elif (family == "calibration"
-                  and declaration.continuation == "calibration.capture.observe"):
-                # Capture installs the restore session from observed gear.
-                if (self._calibration_phase == "restore-equip"
-                        and self._calibration_session_owned()):
-                    self._claim_register.declare_execution(
-                        holder.claim_id, work_id=declaration.work_id,
-                        producer=family, state="acting",
-                        next_step="equipment.next-action", arguments=("restore",),
-                        expected_effect="observed-equips",
-                        continuation="equipment.next-action",
-                        budget_ref="calibration-session")
-                    holder = self._claim_register.current
-                    declaration = holder.execution
-                else:
-                    since = self._decision_offer_buffer().sequence
-                    key = self._calibration_town_key(snapshot)
-                    return self._town_declared_producer_result(
-                        holder, snapshot, key, since)
-            elif (family == "calibration"
-                  and declaration.continuation in {
-                      "calibration.deposit", "calibration.restore-supplies"}):
-                since = self._decision_offer_buffer().sequence
-                key = self._calibration_town_key(snapshot)
-                return self._town_declared_producer_result(
-                    holder, snapshot, key, since)
-            elif declaration.continuation in {
+            if declaration.continuation in {
                 "home.knowledge.observe", "store.entry.observe",
                 "home.operation.observe", "shop.one-shot.dispatch",
             }:
@@ -6518,11 +6229,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                    else self._equipment_transaction_town_key(snapshot))
             return self._town_declared_producer_result(
                 holder, snapshot, key, since)
-        if family == "calibration" and step.startswith("calibration."):
-            since = self._decision_offer_buffer().sequence
-            key = self._calibration_town_key(snapshot)
-            return self._town_declared_producer_result(
-                holder, snapshot, key, since)
         if step == "stair.post":
             direction, floor, cell = declaration.arguments
             self.last_reason = "town:descend" if direction == ">" else "town:ascend"
@@ -6548,13 +6254,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         declaration = holder.execution
         # Cross-area calibration also owns this continuation with S3.3 OFF.
         # A generic route continuation cannot resume its deposit/restore phase.
-        if (holder.owner.value == "calibration"
-                and declaration is not None
-                and declaration.expected_effect == "home-reached"
-                and declaration.continuation in {
-                    "calibration.deposit", "calibration.restore-supplies"}
-                and declaration.continuation == f"calibration.{self._calibration_phase}"):
-            return self._town_holder_declared_key(holder, snapshot)
         if getattr(self, "_town_claim_bar_enforced", False):
             return self._town_holder_declared_key(holder, snapshot)
         route_unresolved = False
@@ -6652,9 +6351,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The final §3 branch reports an unresolved route consistently.
             route_unresolved = True
         session = self._equipment_transaction_session
-        if (holder.owner.value in {"equipment-txn", "calibration"}
-                and session is not None
-                and not getattr(session, "complete", False)):
+        if (holder.owner.value in {'equipment-txn'} and session is not None and (not getattr(session, 'complete', False))):
             if session.pending_action is not None:
                 self.last_reason = "equipment-transaction:await-confirmation"
                 key = LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
@@ -6716,14 +6413,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         children = [record for record in self._delegation_records()
                     if record.lifecycle == "open"
                     and record.parent_claim_id == holder.claim_id]
-        unresolved = (route_unresolved or knowledge_unresolved
-                      or holder.non_discardable or bool(children)
-                      or (holder.owner.value in {"calibration", "equipment-txn"}
-                          and bool(self._calibration_stripped_unrestored))
-                      or (visit is not None and visit.operation_posted
-                          and not visit.operation_effect_observed
-                          and not visit.operation_released)
-                      or self._home_atomic_withdraw_pending is not None)
+        unresolved = (route_unresolved or knowledge_unresolved or holder.non_discardable or bool(children) or (holder.owner.value in {'equipment-txn'} and False) or (visit is not None and visit.operation_posted and (not visit.operation_effect_observed) and (not visit.operation_released)) or (self._home_atomic_withdraw_pending is not None))
         if not unresolved:
             register = self._claim_register
             if holder is register.current:
@@ -6860,13 +6550,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         stop = None
         if key is not None:
             stop = self._town_unrestored_stop(snapshot, holder, target_only=True)
-            if stop is None and (holder is not None
-                    and holder.owner.value == "calibration"
-                    and family != "calibration"
-                    and not self._town_gate_exempt(family, reason, snapshot)):
-                stop = (None if self._home_tail_leave_ready(holder, snapshot) else
-                        self._town_holder_structural_stop(holder, snapshot))
-            elif stop is None:
+            if stop is None:
                 stop = (self._town_unrestored_stop(snapshot, holder)
                         or self._town_final_declaration_stop(snapshot, key, holder))
                 if (stop is None and not reason.startswith((
@@ -6890,11 +6574,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                                 if entry_refused else f"ownership:gate-missing:{family}")
         elif holder is not None and not self._home_tail_leave_ready(holder, snapshot):
             stop = self._town_holder_structural_stop(holder, snapshot)
-            if (stop is None and declaration.state == "acting"
-                    and declaration.next_step not in {"route.resume", "bounty.resume", "equipment.next-action",
-                                                       "stair.post"}
-                    and not (holder.owner.value == "calibration"
-                             and declaration.next_step.startswith("calibration."))):
+            if (stop is None and declaration.state == 'acting' and (declaration.next_step not in {'route.resume', 'bounty.resume', 'equipment.next-action', 'stair.post'}) and True):
                 buffer = _decision_offers.get(self)
                 no_steps = () if buffer is None else buffer.no_steps
                 if not any(entry[0] == holder.owner.value
@@ -6912,23 +6592,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_unrestored_stop(self, snapshot, holder, *, target_only=False):
         """Pure restoration-debt check in the ON precedence order."""
-        if (self._calibration_restore_signatures
-                and self._town_blocked_reason == "calibration-restore-target-absent"):
-            return "ownership:declaration-unrestored:calibration"
-        if target_only or (holder is not None
-                and holder.owner.value == "calibration"):
+        if target_only or (holder is not None and False):
             return None
-        if (self._calibration_restore_signatures
-                and self._claim_family_of(self.last_reason or "")
-                    != "calibration"
-                and self._home_atomic_deposit_pending is None
-                and self._home_atomic_withdraw_pending is None
-                and not self._town_gate_exempt(
-                    self._claim_family_of(self.last_reason or ""),
-                    self.last_reason or "", snapshot)):
-            # The plan cannot defer the producer that owes deposited items
-            # and then send another errand's key. Keep the debt for recovery.
-            return "ownership:declaration-unrestored:calibration"
         return None
 
     def _town_final_declaration_stop(self, snapshot, key, route):
@@ -7027,22 +6692,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
-        if (not enforced and (self.last_reason or "").startswith(
-                "town:blocked:calibration-restore-")):
-            return None
         holder = self._claim_errand_hold("__none__") if enforced else None
         if enforced:
             stop = self._town_unrestored_stop(snapshot, holder, target_only=True)
             if stop is not None:
                 self.last_reason = stop
                 return None
-        if (holder is not None and holder.owner.value == "calibration"
-                and self._claim_family_of(self.last_reason or "") != "calibration"
-                and not self._town_gate_exempt(
-                    self._claim_family_of(self.last_reason or ""),
-                    self.last_reason or "", snapshot)):
-            # Debt is expected while this holder measures and restores.
-            return self._town_holder_declared_key(holder, snapshot)
         if enforced:
             stop = self._town_unrestored_stop(snapshot, holder)
             if stop is not None:
@@ -7396,44 +7051,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             else:
                 return self._home_catalogue_work_key(snapshot)
         if (
-            snapshot.store is not None
-            and snapshot.store.store_type == STORE_HOME
-            and (
-                not self._equipment_catalog.home_scan_complete
-                or self._home_knowledge_invalidated
-            )
-            and (
-                self._home_errand.needs_knowledge
-                or "home-scan-incomplete" in getattr(
-                    self._equipment_optimization_preparation, "blockers", ()
-                )
-                or (
-                    self._home_procurement_probe is not None
-                    or (
-                        self._home_visit.request is not None
-                        and self._home_visit.request.kind == HomeVisitKind.SCAN
-                    )
-                )
-            )
-            and not self._home_knowledge_scan_requested
-            and self._home_knowledge_scan_epoch is None
-            and self._equipment_transaction_session is None
-            and not self._calibration_active()
-            and not self._town_space_deposit_actionable(snapshot)
-            and not (
-                getattr(self, "_town_claim_bar_enforced", False)
-                and self._store_leave_inflight is not None
-            )
-            and not (
-                getattr(self, "_town_claim_bar_enforced", False)
-                and (
-                    self._home_atomic_deposit_pending is not None
-                    or self._home_atomic_withdraw_pending is not None
-                )
-            )
-            and not self._defer_town_errand(
-                "home-errand" if self._home_errand.needs_knowledge
-                else "home-scan", "choose-key-scan")
+            snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (not (getattr(self, '_town_claim_bar_enforced', False) and self._store_leave_inflight is not None)) and (not (getattr(self, '_town_claim_bar_enforced', False) and (self._home_atomic_deposit_pending is not None or self._home_atomic_withdraw_pending is not None))) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
         ):
             self.last_reason = (
                 self._home_errand.reason("request-knowledge")
@@ -7465,10 +7083,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or (here is None and self._current_town_has_home(snapshot))
             ):
                 self._ensure_home_visit_request(snapshot)
-                self._request_store_trip(
-                    STORE_HOME, "calibration" if self._calibration_session_owned()
-                    else "equipment-txn"
-                )
+                self._request_store_trip(STORE_HOME, 'equipment-txn')
                 self.last_reason = "equipment-transaction:acquire-home-catalog"
                 key = self._shopping_approach_key(
                     snapshot, snapshot.player.position,
@@ -7631,10 +7246,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._town_travel_state = None
                 # Short native travel ended outside Home. Keep the phase's
                 # producer responsible for composing and declaring its retry.
-                if (posted_entry_owner == STORE_HOME
-                        and self._calibration_owns_town_sequence()
-                        and self._calibration_phase in {"deposit", "restore-supplies"}):
-                    return self._calibration_town_key(snapshot)
                 step = self._shopping_approach_step(
                     snapshot, posted_entry_owner, router_plan_stop=True
                 )
@@ -7832,7 +7443,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 or snapshot.turn > self._home_atomic_withdraw_posted_turn
             )
         ):
-            self._observe_calibration_restore_batch(snapshot, pending_withdrawal)
             pending_withdrawal = None
         if (
             pending_withdrawal is not None
@@ -7911,26 +7521,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if signature == self._home_pending_item:
                     self._home_pending_take_confirmed = signature
                 if getattr(self, "_crossarea_fundraising_enforced", False):
-                    restore_owner = next((
-                        owner for owner in self._calibration_restore_signatures
-                        if owner == signature
-                    ), None) or next((
-                        owner for owner in self._calibration_restore_signatures
-                        if self._calibration_restore_item_matches(owner, withdrawn)
-                    ), None)
-                    if restore_owner is not None:
-                        self._calibration_restore_signatures.remove(restore_owner)
-                        self._calibration_restore_move_identities.pop(
-                            restore_owner, None
-                        )
-                        self._calibration_restore_item_ids.pop(
-                            restore_owner, None
-                        )
+                    pass
                 else:
-                    if signature in self._calibration_restore_signatures:
-                        self._calibration_restore_signatures.remove(signature)
-                    self._calibration_restore_move_identities.pop(signature, None)
-                    self._calibration_restore_item_ids.pop(signature, None)
+                    if signature in []:
+                        pass
                 if signature in self._home_pending_batch:
                     self._home_pending_batch.remove(signature)
                 self._home_pending_quantities.pop(signature, None)
@@ -7982,14 +7576,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._home_pending_item = None
                     self._home_pending_slot = None
                     self._home_candidate_waiting = True
-                if self._calibration_restore_signatures:
-                    # Each successful one-shot take is fresh progress and the
-                    # remaining physical slots are a new Home operation, not a
-                    # repeated failed need.  Release the per-stop ledger so a
-                    # multi-item restore cannot abandon its tail.
-                    self._rearm_town_store_for_new_work(
-                        STORE_HOME, release_visit_bound=True
-                    )
                 if (
                     withdrawn.tval == TVAL_STAFF
                     and withdrawn.sval == SV_STAFF_IDENTIFY
@@ -8028,10 +7614,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._defer_home_item(signature, "atomic-withdraw-observed-failure")
                     if signature in self._home_pending_batch:
                         self._home_pending_batch.remove(signature)
-                    if signature in self._calibration_restore_signatures:
-                        self._calibration_restore_signatures.remove(signature)
-                    self._calibration_restore_move_identities.pop(signature, None)
-                    self._calibration_restore_item_ids.pop(signature, None)
+                    if signature in []:
+                        pass
                     self._home_pending_quantities.pop(signature, None)
                     if self._home_pending_item == signature:
                         self._home_pending_item = None
@@ -8186,14 +7770,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # non-increasing, so distinct queue signatures (and therefore
                 # releases) are bounded by its initial cardinality.  A leave
                 # cannot change the queue or manufacture another entry edge.
-                restore_queue = tuple(self._calibration_restore_signatures)
-                if (
-                    self._calibration_phase == "restore-supplies"
-                    and restore_queue
-                    and restore_queue != self._calibration_home_rearm_queue
-                ):
-                    self._calibration_home_rearm_eligible = True
-                    self._calibration_home_rearm_queue = restore_queue
+                restore_queue = tuple([])
                 self._home_knowledge_scan_requested = False
                 self._home_knowledge_scan_inflight = False
                 self._home_knowledge_scan_retries_remaining = 1
@@ -8231,9 +7808,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     visit.operation_released = True
             if advanced and pending is not None:
                 if (
-                    pending.kind == "takeoff"
-                    and pending.target_slot is not None
-                    and not self._calibration_session_owned()
+                    pending.kind == 'takeoff' and pending.target_slot is not None and True
                 ):
                     self._equipment_transaction_owned_items.append(
                         (
@@ -8249,23 +7824,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._release_equipment_transaction_owned_item(
                         pending.move_identity or pending.item_identity
                     )
-                    if not self._calibration_session_owned():
-                        retired = tuple(
-                            obligation
-                            for obligation in self._calibration_worn_before
-                            if obligation[1] == pending.item_identity
-                        )
-                        if retired:
-                            self._calibration_worn_before = tuple(
-                                obligation
-                                for obligation in self._calibration_worn_before
-                                if obligation[1] != pending.item_identity
-                            )
-                            for obligation in retired:
-                                self._calibration_redress_attempts.pop(
-                                    obligation, None
-                                )
-                            self._persist_calibration_redress_obligation()
+                    retired = tuple((obligation for obligation in () if obligation[1] == pending.item_identity))
+                    if retired:
+                        for obligation in retired:
+                            pass
             if self._equipment_transaction_session.complete:
                 self._retire_replaced_equipment_transaction_owned_items(
                     snapshot, self._equipment_transaction_session
@@ -8292,12 +7854,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             "equipment-transaction:home-route-repeat-terminal"
                         )
                         self._town_visit_ledger.blocked_stores.add(STORE_HOME)
-        self._calibration_observe(snapshot)
-        if (getattr(self, "_crossarea_fundraising_enforced", False)
-                and self.last_reason in {
-                    "town:blocked:calibration-restore-home-visit-exhausted",
-                    "town:blocked:calibration-restore-target-absent",
-                }):
+        if (getattr(self, '_crossarea_fundraising_enforced', False) and self.last_reason in {*()}):
             return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
         if not self._observe_fundraising_transport(snapshot):
@@ -8455,23 +8012,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._home_entry_operation_posted = False
                     self._home_atomic_deposit_pending = None
                     self._invalidate_home_observation()
-                    if (
-                        self._town_order_operation == "calibration"
-                        and self._town_order_expected_observation == "home-deposit"
-                        and self._store_visit is not None
-                        and self._store_visit.store_type == STORE_HOME
-                        and self._store_visit.operation_posted
-                    ):
-                        # The released Home macro owned both its input and its
-                        # effect.  Once the outside board proves that effect,
-                        # close that physical visit and return authority to
-                        # the calibration phase machine in this decision.
-                        self._calibration_observe(snapshot)
-                        calibration_key = self._town_producer_entry(
-                            "_calibration_town_key",
-                            lambda: self._calibration_town_key(snapshot))
-                        if calibration_key is not None:
-                            return calibration_key
                 elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
                     # A11r2 discipline: never recompose against the page that
                     # failed to show the mutation.  Terminate this visit
@@ -8546,12 +8086,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if unintended_store_context:
             if (
-                snapshot.store.store_type == STORE_HOME
-                and self._home_knowledge_current
-                and self._home_scan_item_count == 0
-                and self._home_atomic_deposit_pending is None
-                and not self._calibration_active()
-                and self._equipment_transaction_session is None
+                snapshot.store.store_type == STORE_HOME and self._home_knowledge_current and (self._home_scan_item_count == 0) and (self._home_atomic_deposit_pending is None) and (self._equipment_transaction_session is None)
             ):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=True,
@@ -8772,11 +8307,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._store_leave_inflight = None
                 if snapshot.store.store_type == STORE_HOME:
                     if (
-                        self._home_knowledge_current
-                        and self._home_scan_item_count == 0
-                        and self._home_atomic_deposit_pending is None
-                        and not self._calibration_active()
-                        and self._equipment_transaction_session is None
+                        self._home_knowledge_current and self._home_scan_item_count == 0 and (self._home_atomic_deposit_pending is None) and (self._equipment_transaction_session is None)
                     ):
                         self._report_town_stop_pass(
                             snapshot, STORE_HOME, goal_satisfied=True,
@@ -8874,13 +8405,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 key = equipment_key
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and not self._town_space_deposit_actionable(snapshot)
-                and getattr(
-                    self, "_queue_home_catalogue_shortages", lambda _snapshot: False
-                )(snapshot)
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._town_space_deposit_actionable(snapshot)) and getattr(self, '_queue_home_catalogue_shortages', lambda _snapshot: False)(snapshot)
             ):
                 # This is the single live catalogue-shortage owner.  Purchase
                 # gates may route here first, but no shop shelf is required.
@@ -8893,42 +8418,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and not self._identify_staff_ready(snapshot)
-                and self._home_pending_item is None
-                and not self._home_pending_batch
-                and self._home_atomic_withdraw_pending is None
-                and PACK_CAPACITY - len(snapshot.inventory)
-                > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
-                and (
-                    identify_staff := max(
-                        (
-                            (catalogue_index, item)
-                            for catalogue_index, item in enumerate(
-                                self._home_knowledge_items
-                                if self._home_knowledge_current
-                                else snapshot.store.items
-                            )
-                            if item.tval == TVAL_STAFF
-                            and item.sval == SV_STAFF_IDENTIFY
-                            and item.charges > 0
-                            and self._item_signature(item)
-                            not in self._deferred_home_items
-                        ),
-                        # Both sources preserve Home catalogue order, which is
-                        # also what the withdrawal composer uses to resolve a
-                        # page and selector.  Knowledge items are
-                        # InventoryItems (slot), while open-page items are
-                        # StoreItems (letter), so the shared ordinal is the
-                        # type-correct tie-break.
-                        key=lambda indexed_item: (
-                            indexed_item[1].charges, indexed_item[0]
-                        ),
-                        default=None,
-                    )
-                ) is not None
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
             ):
                 # The Home entry owner, unlike _shop(), is on the live path.
                 # Bind the catalogue item here so the outside owner can compose
@@ -8943,23 +8433,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "home:queue-withdraw-identify-staff-reserve"
                 key = LEAVE_STORE_KEY
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and (
-                    standing_digger := self._queue_standing_home_digger(snapshot)
-                ) is not None
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and ((standing_digger := self._queue_standing_home_digger(snapshot)) is not None)
             ):
                 # The open page is authoritative Home-stock evidence even when
                 # entry ownership was recovered after a restart or lagged post.
                 # Selection is bound here; the outside decision composes it.
                 key = standing_digger
             elif (
-                self._home_knowledge_current
-                and self._home_scan_item_count == 0
-                and self._home_atomic_deposit_pending is None
-                and not self._calibration_active()
-                and self._equipment_transaction_session is None
+                self._home_knowledge_current and self._home_scan_item_count == 0 and (self._home_atomic_deposit_pending is None) and (self._equipment_transaction_session is None)
             ):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=True,
@@ -8968,15 +8449,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_home_scan_leave()
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and self._open_home_page_is_complete(snapshot)
-                and (
-                    not self._equipment_catalog.home_scan_complete
-                    or not self._home_knowledge_current
-                    or self._home_knowledge_invalidated
-                )
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._open_home_page_is_complete(snapshot) and (not self._equipment_catalog.home_scan_complete or not self._home_knowledge_current or self._home_knowledge_invalidated)
             ):
                 self._adopt_home_catalogue(tuple(
                     self._inventory_item_from_store_item(item)
@@ -8987,46 +8460,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_home_scan_leave()
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                # The outside composer refuses without a current catalogue
-                # (policy_home._atomic_home_withdraw_key, "await-fresh
-                # knowledge"), and the ~9 scan that makes it current can only
-                # be requested from this page.  Leaving first therefore hands
-                # off to an owner that cannot act: the bot re-enters, leaves
-                # again, and the cycle only ends when the arbiter retires the
-                # owner.  Refresh the catalogue before handing off.
-                and self._home_knowledge_current
-                and not self._home_knowledge_invalidated
-                and (
-                    pending_withdrawals := {
-                        *(
-                            (self._home_pending_item,)
-                            if self._home_pending_item is not None
-                            else ()
-                        ),
-                        *self._home_pending_batch,
-                        *(
-                            (self._home_atomic_withdraw_pending[0],)
-                            if self._home_atomic_withdraw_pending is not None
-                            else ()
-                        ),
-                    }
-                )
-                and pending_withdrawals.intersection(
-                    {
-                        self._item_signature(item)
-                        for item in (
-                            snapshot.store.items
-                            if self._open_home_page_is_complete(snapshot)
-                            else (
-                                *snapshot.store.items,
-                                *self._home_knowledge_items,
-                            )
-                        )
-                    }
-                )
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and (pending_withdrawals := {*((self._home_pending_item,) if self._home_pending_item is not None else ()), *self._home_pending_batch, *((self._home_atomic_withdraw_pending[0],) if self._home_atomic_withdraw_pending is not None else ())}) and pending_withdrawals.intersection({self._item_signature(item) for item in (snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))})
             ):
                 # Ordinary withdrawals are composed only from the adjacent
                 # outside snapshot.  This hand-off is not a failed stop pass.
@@ -9039,14 +8473,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and (
-                    not self._equipment_catalog.home_scan_complete
-                    or not self._home_knowledge_current
-                    or self._home_knowledge_invalidated
-                )
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._equipment_catalog.home_scan_complete or not self._home_knowledge_current or self._home_knowledge_invalidated)
             ):
                 routed_home_visit = bool(
                     self._store_visit is not None
@@ -9091,37 +8518,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         budget_ref="home-knowledge-existing-epoch",
                     )
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
-                and (open_page_deposit := self._town_producer_entry(
-                    "_open_home_deposit_key",
-                    lambda: self._open_home_deposit_key(snapshot),
-                    family="home-visit"))
-                is not None
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and ((open_page_deposit := self._town_producer_entry('_open_home_deposit_key', lambda: self._open_home_deposit_key(snapshot), family='home-visit')) is not None)
             ):
                 key = open_page_deposit
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and not self._identify_staff_ready(snapshot)
-                and self._home_knowledge_current
-                and self._home_pending_item is None
-                and not self._home_pending_batch
-                and self._home_atomic_withdraw_pending is None
-                and STORE_HOME not in self._town_store_attempted
-                and (
-                    PACK_CAPACITY - len(snapshot.inventory)
-                    <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
-                    or not any(
-                        item.tval == TVAL_STAFF
-                        and item.sval == SV_STAFF_IDENTIFY
-                        and item.charges > 0
-                        and self._item_signature(item)
-                        not in self._deferred_home_items
-                        for item in self._home_knowledge_items
-                    )
-                )
+                self._home_atomic_deposit_pending is None and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (STORE_HOME not in self._town_store_attempted) and (PACK_CAPACITY - len(snapshot.inventory) <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS) or not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items)))
             ):
                 has_usable_staff = any(
                     item.tval == TVAL_STAFF
@@ -9150,9 +8551,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
-                not self._calibration_active()
-                and self._home_atomic_deposit_pending is None
-                and self._equipment_transaction_session is None
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None
             ):
                 self._report_town_stop_pass(
                     snapshot, STORE_HOME, goal_satisfied=False
@@ -9173,12 +8572,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 requester = (
                     request.requester if request is not None else "unknown-requester"
                 )
-                claim_uncomposable = bool(
-                    request is not None
-                    and requester == "calibration-restore"
-                    and request.address is None
-                    and self._home_knowledge_invalidated
-                )
+                claim_uncomposable = bool(request is not None and False)
                 if claim_uncomposable:
                     refusal = "home-knowledge-invalidated"
                     verdict = f"claim-uncomposable:{requester}:{refusal}"
@@ -9894,22 +9288,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # rebuilding here would discard its recorded pack-letter continuation.
         admitted_session = self._equipment_transaction_session
         if (
-            snapshot.in_town
-            and admitted_session is not None
-            and self._calibration_town_family_allowed("equipment-txn")
-            and admitted_session.executable
-            and admitted_session.required_context == "home"
-            and admitted_session.physical_context == "home"
-            and self._home_pending_item is None
-            and not self._home_pending_batch
-            and self._home_atomic_withdraw_pending is None
-            and any(
-                grid.store_number == STORE_HOME
-                for grid in (snapshot.grid_at(snapshot.player.position),)
-                if grid is not None
-            )
-            and snapshot.player.hp >= snapshot.player.max_hp
-            and not any(monster.hostile for monster in snapshot.visible_monsters)
+            snapshot.in_town and admitted_session is not None and admitted_session.executable and (admitted_session.required_context == 'home') and (admitted_session.physical_context == 'home') and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and any((grid.store_number == STORE_HOME for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None)) and (snapshot.player.hp >= snapshot.player.max_hp) and (not any((monster.hostile for monster in snapshot.visible_monsters)))
         ):
             return self._town_producer_entry("_equipment_transaction_town_key#1", lambda: self._equipment_transaction_town_key(snapshot)) or WAIT_KEY
         # A TR_WARNING prompt reported by this snapshot is disposed of before
@@ -10236,9 +9615,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # activity: one wear key per decision, unconditionally — under threat,
         # at any HP, with temporary statuses active.  Only the emergency and
         # threat-response owners above may preempt it.
-        redress = self._calibration_redress_key(snapshot)
-        if redress is not None:
-            return redress
 
         if (
             self._breakout_dig_floor is not None
@@ -11067,9 +10443,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # The unequipped calibration phase owns the character before the
         # optimizer may run: it strips at Home, observes the constants, and the
         # optimizer (unblocked by the capture) dresses the character back.
-        calibration_key = self._town_producer_entry("_calibration_town_key", lambda: self._calibration_town_key(snapshot))
-        if calibration_key is not None:
-            return calibration_key
 
         # Equipment changes have one owner: after Home identification and the
         # complete-page scan, execute the globally optimized loadout transaction.
@@ -11100,7 +10473,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # dungeon entrance: native town travel is rejected at night unless a
         # light is equipped. Skip equipment changes while confused, and while
         # the calibration phase deliberately holds the character stripped.
-        if not player.confused and not self._calibration_active():
+        if not player.confused and True:
             restore_lantern = self._empty_lantern_to_restore(snapshot)
             if restore_lantern is not None:
                 self.last_reason = "restore-lantern"
@@ -12896,15 +12269,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         preparation = self._equipment_optimization_preparation
         blockers = getattr(preparation, "blockers", ())
         optimization_already_applied = self._optimization_already_applied(preparation)
-        return bool(
-            (blockers and not optimization_already_applied)
-            or self._equipment_transaction_session is not None
-            or self._home_pending_item is not None
-            or self._home_pending_batch
-            or self._home_atomic_withdraw_pending is not None
-            or self._home_atomic_deposit_pending is not None
-            or self._calibration_restore_signatures
-        )
+        return bool(blockers and (not optimization_already_applied) or self._equipment_transaction_session is not None or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None) or [])
 
     @staticmethod
     def _optimization_already_applied(preparation: object | None) -> bool:
@@ -12928,61 +12293,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def calibration_entry_state(self, snapshot: Snapshot) -> dict[str, object]:
-        """Bounded diagnostics for calibration's current town refusal."""
-        blocker = None
-        if not snapshot.in_town:
-            blocker = "not-in-town"
-        elif snapshot.store is not None:
-            blocker = "inside-store"
-        elif snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
-            blocker = "not-warrior"
-        elif self._calibration_phase is not None:
-            if STORE_HOME in self._town_visit_ledger.blocked_stores:
-                blocker = "home-visit-blocked"
-        elif self._calibration_blocked_this_visit:
-            blocker = "visit-blocked"
-        elif self._calibration_restore_signatures:
-            blocker = "restore-queue-without-phase"
-        elif not self._equipment_catalog.home_scan_complete:
-            blocker = "home-scan-incomplete"
-        elif self._validated_character_calibration(snapshot) is not None:
-            blocker = "calibration-valid"
-        elif self._calibration_actionable_invalidator(snapshot) is not None:
-            blocker = self._calibration_actionable_invalidator(snapshot)
-        elif any(monster.hostile for monster in snapshot.visible_monsters):
-            blocker = "calibration-preconditions"
-        elif not self._home_available(snapshot):
-            blocker = "home-unavailable"
-        elif self._equipment_transaction_session is not None:
-            blocker = "equipment-transaction-active"
-        elif self._identification_need_actionable(snapshot):
-            blocker = "identification-active"
-        elif self._calibration_unrewearable_worn(snapshot):
-            blocker = "identify-first-worn"
-        elif self._home_pending_item is not None:
-            blocker = "home-item-pending"
-        elif self._home_pending_batch:
-            blocker = "home-batch-pending"
-        elif self._home_atomic_withdraw_pending is not None:
-            blocker = "home-withdraw-inflight"
-        recorded = getattr(self, "_calibration_entry_refusal", None)
-        if recorded is not None and recorded[0] == self._decision_sequence:
-            blocker = recorded[1]
-        state: dict[str, object] = {
-            "phase": (
-                self._calibration_phase or self._calibration_suspended_phase
-            ),
-            "entry_blocker": blocker,
-        }
-        if self._calibration_last_abort is not None:
-            state["last_abort"] = self._calibration_last_abort
-        kept = getattr(self, "_calibration_restore_kept_home", {})
-        if kept:
-            state["kept_in_home"] = [
-                {"signature": list(signature), "quantity": quantity}
-                for signature, quantity in sorted(kept.items())
-            ]
-        return state
+        return {"source": "equipped-c-screen", "schema_version": 2,
+                "pending": self._calibration_dump_pending is not None,
+                "unavailable_reason": self._calibration_unavailable_reason}
 
     def equipment_transaction_entry_state(
         self, snapshot: Snapshot
@@ -13066,12 +12379,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         session = self._equipment_transaction_session
         state: dict[str, object] = {
             "calibration": (
-                self.calibration_entry_state(snapshot)
-                if snapshot is not None
-                else {
-                    "phase": self._calibration_phase,
-                    "entry_blocker": None,
-                }
+                self.calibration_entry_state(snapshot) if snapshot is not None else {'phase': None, 'entry_blocker': None}
             ),
             "equipment_transaction": (
                 self.equipment_transaction_entry_state(snapshot)
@@ -13838,8 +13146,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _target_loadout_known(self) -> bool:
         """Whether the optimizer currently supplies a concrete target loadout."""
-        if self._calibration_active():
-            return False
         preparation = self._equipment_optimization_preparation
         if preparation is None:
             return False

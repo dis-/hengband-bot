@@ -1134,13 +1134,12 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
         ):
             return VERDICT_RELEASED
         if (
-            held_family in {"equipment-txn", "calibration"}
+            held_family in {"equipment-txn"}
             and held_goal.get("kind") == "Observe"
             and reason.startswith((
                 "equipment-transaction:approach-home",
                 "equipment-transaction:travel-home",
-                "calibration:restore-travel",
-            ))
+                            ))
             and not reason.endswith(":await-entry")
         ):
             return VERDICT_CONTINUES

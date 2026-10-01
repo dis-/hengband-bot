@@ -112,9 +112,9 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             return first, [*steps, *continuations]
     store = (board or {}).get("store")
     home = isinstance(store, Mapping) and store.get("store_type") == STORE_HOME
-    home = home or owner.startswith(("home:", "calibration:", "equipment-transaction:"))
+    home = home or owner.startswith(("home:", "equipment-transaction:"))
     if kind is ScreenKind.COMMAND and command in "pdg" and owner.startswith(
-            ("home:", "shop:", "calibration:", "equipment-transaction:withdraw",
+            ("home:", "shop:", "equipment-transaction:withdraw",
              "equipment-transaction:deposit")):
         raise ValueError("store command on map screen")
 
@@ -172,7 +172,7 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         except ValueError:
             return key, continuations
     if command == "5" and tail and tail[0] in "pdg " and owner.startswith(
-            ("home:", "calibration:", "equipment-transaction:", "shop:")):
+            ("home:", "equipment-transaction:", "shop:")):
         try:
             first, steps = _store_plan(tail, home, continuations)
         except ValueError:

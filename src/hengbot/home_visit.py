@@ -291,11 +291,6 @@ class HomeVisitExecutor:
             action, identity = self.operation
             delta = self.request.quantity * (1 if action == "take" else -1)
             previous = self.previous_completed_delta
-            calibration_restore = (
-                self.request.kind == HomeVisitKind.CALIBRATION_RESTORE
-                or (previous is not None
-                    and previous[2] == HomeVisitKind.CALIBRATION_RESTORE)
-            )
             captured_takeput_pair = (
                 previous is not None
                 and previous[2] == HomeVisitKind.WITHDRAW
@@ -306,7 +301,6 @@ class HomeVisitExecutor:
             if (
                 previous is not None
                 and previous[0] + delta == 0
-                and not calibration_restore
                 and captured_takeput_pair
             ):
                 self.semantic_churn_cooldown = True

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from hengbot.model import Snapshot, RESTORE_POTION_SVAL_BY_STAT, STORE_ALCHEMIST
+from hengbot.model import Snapshot, InventoryItem, RESTORE_POTION_SVAL_BY_STAT, STORE_ALCHEMIST
 from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 
 
@@ -65,6 +65,8 @@ class CalibrationMixin:
                 raise CharacterSheetUnavailable("uncorrelated-character-response")
             snapshot = self._with_cached_skill_exp(parse_snapshot(envelope, self._monrace_knowledge))
             bars = envelope.get("player", {}).get("status_bar", [])
+            if "status_bar" not in envelope.get("player", {}):
+                raise CharacterSheetUnavailable("timed-effect-observation-missing")
             effects = frozenset(row["key"] for row in bars)
             calibration = derive_equipped_calibration(
                 sheet, snapshot, character, effects=effects, sequence=sequence,
@@ -96,7 +98,6 @@ class CalibrationMixin:
                 self._character_calibration = (value if value and value.schema_version == 2
                                                and value.session_id == self._calibration_session_id else None)
             self._character_calibration_loaded = True
-            self.request_character_dump()
         calibration = self._character_calibration
         if calibration is None:
             return None
@@ -119,24 +120,6 @@ class CalibrationMixin:
             self.request_character_dump()
             return None
         return calibration
-
-    # Temporary compatibility seams for callers retired in the following step.
-    def _calibration_active(self): return False
-    def _calibration_restore_enforced(self): return False
-    def _calibration_owns_town_sequence(self): return False
-    def _calibration_session_owned(self): return False
-    def _calibration_town_family_allowed(self, family): return True
-    def _calibration_observe(self, snapshot): return None
-    def _calibration_town_key(self, snapshot): return None
-    def _calibration_redress_key(self, snapshot): return None
-    def _calibration_redress_observe(self, snapshot): return None
-    def _calibration_completion_observed(self): return None
-    def _calibration_actionable_invalidator(self, snapshot): return None
-    def _release_cured_calibration_deferral(self, snapshot): return None
-    def _persist_calibration_redress_obligation(self):
-        refuse_legacy_calibration_debt(self.__dict__, self._character_calibration_path)
-    def _restore_calibration_redress_obligation(self, snapshot):
-        refuse_legacy_calibration_debt(self.__dict__, self._character_calibration_path)
 
     def _home_stat_restore_candidate(
         self, snapshot: Snapshot

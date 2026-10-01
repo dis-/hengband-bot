@@ -89,7 +89,9 @@ FOOD_MIN_SVAL = 32
 STORE_STUCK_LIMIT = 8
 SELL_ATTEMPT_LIMIT = 3
 SHOP_APPROACH_STUCK_LIMIT = 12
-CALIBRATION_HOME_VISIT_LIMIT = 300
+HOME_VISIT_LIMIT = 300
+# Historical import compatibility; no calibration visit is created.
+CALIBRATION_HOME_VISIT_LIMIT = HOME_VISIT_LIMIT
 UNUSED_DIVE_LIMIT = 3
 AMMO_CARRY_TARGET = 99
 TORCH_THROW_TARGET = 10
@@ -270,25 +272,23 @@ EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
 # it and owns the operator banner for each entry.
 POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset(
     {
-        "dark:locomotion-exhausted",
-        "town:blocked:departure-unsatisfiable",
-        "town:blocked:overweight-home-unreachable",
-        "town:blocked:owner-retired",
-        "town:blocked:calibration-restore-home-visit-exhausted",
-        "town:blocked:calibration-restore-target-absent",
-        "town:blocked:home-known-empty-withdrawal",
-        "town:blocked:home-withdraw-failed-stock-present",
-        "town:blocked:procurement-home-unavailable",
-        "town:blocked:procurement-home-unroutable",
-        "town:blocked:survival-mana-no-charges",
-        "town:blocked:overflow-no-legal-disposal",
-        "town:blocked:recall-readiness-contradiction",
-        "town:blocked:walk-in-entrance-unavailable",
-        "town:blocked:guardian-bounce-no-alternate",
-        "quest:blocked:q34-recovery-no-progress",
-        "quest:blocked:q34-throw-point-unreachable",
-        "quest:blocked:fixed-target-not-visible",
-        "wilderness:no-safe-route",
+        'dark:locomotion-exhausted',
+        'quest:blocked:fixed-target-not-visible',
+        'quest:blocked:q34-recovery-no-progress',
+        'quest:blocked:q34-throw-point-unreachable',
+        'town:blocked:departure-unsatisfiable',
+        'town:blocked:guardian-bounce-no-alternate',
+        'town:blocked:home-known-empty-withdrawal',
+        'town:blocked:home-withdraw-failed-stock-present',
+        'town:blocked:overflow-no-legal-disposal',
+        'town:blocked:overweight-home-unreachable',
+        'town:blocked:owner-retired',
+        'town:blocked:procurement-home-unavailable',
+        'town:blocked:procurement-home-unroutable',
+        'town:blocked:recall-readiness-contradiction',
+        'town:blocked:survival-mana-no-charges',
+        'town:blocked:walk-in-entrance-unavailable',
+        'wilderness:no-safe-route',
     }
 )
 

@@ -99,7 +99,6 @@ TOWN_ERRAND_FAMILIES = frozenset({
     "store-router",
     "equipment-opt",
     "equipment-txn",
-    "calibration",
     "identification",
     "curse-enchant",
     "cross-town",
@@ -116,7 +115,6 @@ S3_FAMILIES = frozenset({
     "home-errand",
     "home-scan",
     "equipment-txn",
-    "calibration",
     "identification",
     "curse-enchant",
     "cross-town",
@@ -316,7 +314,6 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_town_enchant_launcher_key", "curse-enchant"),            # 6826
     _decide("_town_random_teleport_suppression_key",
             "equipment-txn"),                                          # 6830
-    _decide("_calibration_town_key", "calibration", ordinary=True),    # 6839
     _decide("_equipment_transaction_town_key", "equipment-txn",
             ordinary=True),                                            # 6847
     _decide("_normal_loot_key", "floor-loot", "seek-loot", "loot:",
