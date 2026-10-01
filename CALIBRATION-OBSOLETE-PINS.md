@@ -188,8 +188,8 @@ Additional retired unconditional calibration restore-queue interactions (the ord
 - `tests.test_policy_home.HomeOneOperationPerEntryTest.test_restore_list_does_not_steal_unobserved_digger_failure`
 - `tests.test_policy_home.HomeOneOperationPerEntryTest.test_captured_restore_prefix_collapse_rerequests_scan_without_discard`
 - `tests.test_policy_home.HomeOneOperationPerEntryTest.test_restore_withdraws_deposits_with_atomic_fresh_entry_contract`
-- `tests.test_ownership_s3a_record.S3aRecordTest.test_second_transaction_is_recorded_as_contention` ? retired calibration parent contention / calibration entry refusal.
-- `tests.test_policy_quest.ApprovedQuestStrategyExecutionTest.test_finished_q34_other_quest_keeps_calibration_entry_refusal` ? retired calibration parent contention / calibration entry refusal.
+- `tests.test_ownership_s3a_record.S3aRecordTest.test_second_transaction_is_recorded_as_contention` - retired calibration parent contention / calibration entry refusal.
+- `tests.test_policy_quest.ApprovedQuestStrategyExecutionTest.test_finished_q34_other_quest_keeps_calibration_entry_refusal` - retired calibration parent contention / calibration entry refusal.
 
 Three pure historical fixture integrity methods were moved unchanged to `tests.test_calibration_historical_fixtures`; they are not retired. The live19 data-fact sub-pin is also retained there independently of the removed deposit executor.
 

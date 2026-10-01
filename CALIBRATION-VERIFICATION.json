@@ -1,0 +1,292 @@
+{
+  "topic": "calib-impl",
+  "implementer": "gpt-6.1-sol",
+  "implementation_commit": "4c995499",
+  "modules": [
+    {
+      "module": "tests.test_calibration_checkpoint",
+      "tests": 4,
+      "passed": true
+    },
+    {
+      "module": "tests.test_calibration_departure",
+      "tests": 1,
+      "passed": true
+    },
+    {
+      "module": "tests.test_calibration_single_application",
+      "tests": 1,
+      "passed": true
+    },
+    {
+      "module": "tests.test_character_sheet_calibration",
+      "tests": 10,
+      "passed": true
+    },
+    {
+      "module": "tests.test_dualwield_recorded",
+      "tests": 6,
+      "passed": true
+    },
+    {
+      "module": "tests.test_equipment_optimizer",
+      "tests": 93,
+      "passed": true
+    },
+    {
+      "module": "tests.test_home_withdraw_deposit_alternation_recorded",
+      "tests": 2,
+      "passed": true
+    },
+    {
+      "module": "tests.test_home_withdraw_failed_stock_present_recorded",
+      "tests": 6,
+      "passed": true
+    },
+    {
+      "module": "tests.test_ownership_s2a_classification",
+      "tests": 16,
+      "passed": true
+    },
+    {
+      "module": "tests.test_policy_calibration",
+      "tests": 9,
+      "passed": true
+    },
+    {
+      "module": "tests.test_policy_equipment",
+      "tests": 191,
+      "passed": true
+    },
+    {
+      "module": "tests.test_stuck_prompt_staged_tail_recorded",
+      "tests": 4,
+      "passed": true
+    },
+    {
+      "module": "tests.test_test_fakery_lint",
+      "tests": 13,
+      "passed": true
+    },
+    {
+      "module": "tests.test_warrior_equipment_evaluator",
+      "tests": 11,
+      "passed": true
+    },
+    {
+      "module": "tests.test_warrior_optimization",
+      "tests": 36,
+      "passed": true
+    },
+    {
+      "module": "tests.test_calibration_historical_fixtures",
+      "tests": 4,
+      "passed": true
+    }
+  ],
+  "module_tests_total": 407,
+  "focused_preserved_pins": 28,
+  "revert_checks": [
+    {
+      "requirement": "R1",
+      "pin": "tests.test_calibration_departure",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R2",
+      "pin": "tests.test_character_sheet_calibration.CharacterSheetCalibrationTest.test_arithmetic_floor_minimal_candidate_and_unique_positive_inverse",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R3",
+      "pin": "tests.test_character_sheet_calibration.CharacterSheetCalibrationTest.test_real_l28_equivalence_all_semantic_fields",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R4",
+      "pin": "tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_each_old_debt_is_named_and_never_executed",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R5",
+      "pin": "tests.test_calibration_checkpoint.CalibrationCheckpointTest.test_empty_upgrade_has_exact_fresh_key_set_and_is_idempotent",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R6",
+      "pin": "tests.test_character_sheet_calibration.CharacterSheetCalibrationTest.test_temporary_effects_use_maximum_ac_group_and_post_floor_hp",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "requirement": "R7",
+      "pin": "tests.test_calibration_single_application",
+      "exit_code": 1,
+      "caught": true
+    }
+  ],
+  "bounded_off_s33": [
+    {
+      "case": "stuck",
+      "mode": "off",
+      "rows": 4,
+      "violations": 0,
+      "holder_silent": 0,
+      "errand_deferred": 0,
+      "decisions": [
+        {
+          "key": "5",
+          "reason": "return:wait-recall",
+          "sequence": 1
+        },
+        {
+          "key": "~f\u001b",
+          "reason": "periodic:skill-exp-knowledge",
+          "sequence": 1
+        },
+        {
+          "key": "R&\r",
+          "reason": "town:recover",
+          "sequence": 2
+        },
+        {
+          "key": "\u001b`n%.",
+          "reason": "town-progress-invariant:defect:town:enchant-launcher-tohit=>town-progress-invariant:approach",
+          "sequence": 2
+        }
+      ]
+    },
+    {
+      "case": "stuck",
+      "mode": "s33",
+      "rows": 4,
+      "violations": 0,
+      "holder_silent": 0,
+      "errand_deferred": 0,
+      "decisions": [
+        {
+          "key": "5",
+          "reason": "return:wait-recall",
+          "sequence": 1
+        },
+        {
+          "key": "~f\u001b",
+          "reason": "periodic:skill-exp-knowledge",
+          "sequence": 1
+        },
+        {
+          "key": "R&\r",
+          "reason": "town:recover",
+          "sequence": 2
+        },
+        {
+          "key": "\u001b`n%.",
+          "reason": "town-progress-invariant:defect:town:enchant-launcher-tohit=>town-progress-invariant:approach",
+          "sequence": 2
+        }
+      ]
+    },
+    {
+      "case": "withdraw",
+      "mode": "off",
+      "rows": 4,
+      "violations": 0,
+      "holder_silent": 0,
+      "errand_deferred": 2,
+      "decisions": [
+        {
+          "key": "~f\u001b",
+          "reason": "periodic:skill-exp-knowledge",
+          "sequence": 0
+        },
+        {
+          "key": "\u001b",
+          "reason": "home:scan-incomplete-open-page",
+          "sequence": 1
+        },
+        {
+          "key": "5",
+          "reason": "equipment-transaction:travel-home:await-entry",
+          "sequence": 2
+        },
+        {
+          "key": "~9\u001b",
+          "reason": "home:request-knowledge-scan",
+          "sequence": 3
+        }
+      ]
+    },
+    {
+      "case": "withdraw",
+      "mode": "s33",
+      "rows": 4,
+      "violations": 0,
+      "holder_silent": 0,
+      "errand_deferred": 2,
+      "decisions": [
+        {
+          "key": "~f\u001b",
+          "reason": "periodic:skill-exp-knowledge",
+          "sequence": 0
+        },
+        {
+          "key": "\u001b",
+          "reason": "home:scan-incomplete-open-page",
+          "sequence": 1
+        },
+        {
+          "key": "5",
+          "reason": "equipment-transaction:travel-home:await-entry",
+          "sequence": 2
+        },
+        {
+          "key": "\u001b",
+          "reason": "equipment-transaction:catalogue-leave-for-scan",
+          "sequence": 3
+        }
+      ]
+    }
+  ],
+  "expected_first_unchanged": true,
+  "retired_method_ids": 179,
+  "retired_absorbing_cases": 2,
+  "broad_gates_run": false,
+  "live_game_touched": false,
+  "equivalence": {
+    "L28": {
+      "base_stats": [
+        164,
+        5,
+        9,
+        91,
+        115,
+        6
+      ],
+      "base_hp": 403,
+      "base_ac_bonus": 0,
+      "semantic_fields": 12
+    },
+    "September": {
+      "base_stats": [
+        150,
+        3,
+        8,
+        48,
+        78,
+        11
+      ],
+      "base_ac_bonus": 0,
+      "comparable_fields": 10,
+      "strip_level": 26,
+      "equipped_level": 27,
+      "strip_base_hp": 367,
+      "equipped_base_hp": 380,
+      "table": "synthesized-from-raw"
+    }
+  }
+}
