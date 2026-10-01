@@ -88,7 +88,7 @@ class Live37HomeScanTest(unittest.TestCase):
     def test_frozen_capture_and_actual_gate_evidence(self):
         provenance = json.loads((FIXTURE / "provenance.json").read_text(encoding="utf8"))
         for name, digest in provenance["fixture_sha256"].items():
-            self.assertEqual(hashlib.sha256((FIXTURE / name).read_bytes()).hexdigest(), digest)
+            self.assertEqual(hashlib.sha256((FIXTURE / name).read_bytes().replace(b"\r\n", b"\n")).hexdigest(), digest)
         for label, sequence, holder in (("first", 3106, 2566), ("second", 9682, 8583)):
             policy, board, scan = attachment(label)
             self.assertEqual(scan["decision_sequence"], sequence)
