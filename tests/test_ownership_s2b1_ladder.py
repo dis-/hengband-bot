@@ -294,7 +294,8 @@ class LadderOrderTest(unittest.TestCase):
 
     def test_the_decide_rungs_are_the_marked_calls_in_order(self):
         self.assertEqual(_order_mismatch(CLAIM_LADDER), [])
-        self.assertEqual(len(decide_rungs()), 76)
+        # 76 before the calibration rung was retired with the strip phases.
+        self.assertEqual(len(decide_rungs()), 75)
 
     def test_revert_proof_swapping_two_rungs(self):
         rungs = list(CLAIM_LADDER)
@@ -1171,13 +1172,17 @@ EXCERPT_ROWS = 7525
 DESIGN_WINDOW = 6709
 DESIGN_A = 66
 EXCERPT_A = 71
-RANK_ONLY_DESIGN_WINDOW = {"preemption": 41, "S3": 23, "in-scope": 2}
+# The calibration rung was retired with the strip phases (equipped C-sheet
+# calibration rework): recorded calibration rows no longer have a rung of
+# their own, which moves one S3 pair to preemption and one S3 retarget to the
+# in-scope count.  Base values: rank-only {41, 23, 2}, retargets {2, 12}.
+RANK_ONLY_DESIGN_WINDOW = {"preemption": 42, "S3": 22, "in-scope": 2}
 LADDER_DESIGN_WINDOW = {"preemption": 35, "S3": 29, "in-scope": 2}
 LADDER_EXCERPT = {"preemption": 38, "S3": 31, "in-scope": 2}
 # (b) on the same rows (the same owner replacing its open goal), scoped: the
 # twelve S3 ones are departure's ``town:wait-recall`` retargets and the
 # equipment / calibration transactions.
-RETARGETS_DESIGN_WINDOW = {"in-scope": 2, "S3": 12}
+RETARGETS_DESIGN_WINDOW = {"in-scope": 3, "S3": 11}
 ACCEPTANCE_II_PAIRS = ("fundraising>combat", "floor-loot>combat", "departure>combat")
 IN_SCOPE_PAIRS = {"detectors>explore": 2}
 

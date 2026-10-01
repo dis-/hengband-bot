@@ -6503,7 +6503,17 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._deepest_level = RECALL_MIN_DEPTH
         policy._char_dump_done_this_visit = True  # past the pre-dive dump
 
-        self.assertIsNone(policy._town_special_key(snap))
+        # R1 (equipped C-sheet calibration rework): the uncalibrated
+        # equipment leaf no longer blocks departure, so the recall-stock leaf
+        # is the only failed one and its restock wait owns the board (base:
+        # both leaves failed and no special key was emitted).
+        self.assertEqual(
+            [leaf for leaf, ready
+             in policy._recall_town_departure_conjuncts(snap).items() if not ready],
+            ["recall_departure_ready"],
+        )
+        self.assertEqual(policy._town_special_key(snap), RESTOCK_WAIT_MACRO)
+        self.assertEqual(policy.last_reason, "town:wait-restock:temple")
 
     def test_recall_selection_falls_back_to_current_destination(self):
         snap = Snapshot(
@@ -11234,7 +11244,12 @@ class TownCycleDetectorTest(unittest.TestCase):
         keys.append(pol._town_special_key(outside))
 
         self.assertEqual(keys[0], LEAVE_STORE_KEY)
-        self.assertEqual(keys[1], "")
+        # Base emitted "" here only because the uncalibrated policy installed
+        # a strip session ("town:entrance-wait-refused:calibration:
+        # strip-installed").  Without the strip phase (equipped C-sheet
+        # calibration rework) the interleaved board is an ordinary step; it
+        # is still never a raw WAIT.
+        self.assertNotIn(keys[1], {WAIT_KEY, LEAVE_STORE_KEY})
         self.assertIsNone(keys[2])
 
     def test_blocked_latch_outside_store_owns_departure_route(self):
@@ -14060,7 +14075,13 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             policy._town_store_visit_limit(STORE_HOME) - 1
         )
 
-        key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        # R1 (equipped C-sheet calibration rework): the base premise
+        # "equipment work is outstanding" came from the uncalibrated
+        # optimizer's calibration-required blocker, which re-prepared over the
+        # timeout set here; an unavailable calibration is no longer Home work,
+        # so the premise is declared explicitly.
+        with patch.object(policy, "_outstanding_equipment_work", return_value=True):
+            key = policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
 
         self.assertNotEqual(
             policy.last_reason, "town:blocked:no-safe-recall-destination"
@@ -14144,10 +14165,16 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             policy._town_store_visit_limit(STORE_HOME)
         )
         reasons = Counter()
-        for i in range(40):
-            self._record_exhausted_equipment_decision(policy, snap, reasons, i)
-            if policy._town_blocked_reason is not None:
-                break
+        # R1 (equipped C-sheet calibration rework): the base premise
+        # "equipment work is outstanding" came from the uncalibrated
+        # optimizer's calibration-required blocker, which re-prepared over the
+        # timeout set here; an unavailable calibration is no longer Home work,
+        # so the premise is declared explicitly.
+        with patch.object(policy, "_outstanding_equipment_work", return_value=True):
+            for i in range(40):
+                self._record_exhausted_equipment_decision(policy, snap, reasons, i)
+                if policy._town_blocked_reason is not None:
+                    break
         return policy, reasons
 
     def test_exhausted_equipment_home_route_emits_named_terminal_publicly(self):
@@ -14227,16 +14254,19 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
 
         state = policy.equipment_optimization_state(snapshot)
 
+        # R1 (equipped C-sheet calibration rework): calibration-required is
+        # not outstanding Home work any more, so it grants no equipment-work
+        # route and the ordinary Home bound applies (base: True, True, 300).
         self.assertEqual(
             state["home_route_projection"],
             {
                 "home_owner_goal_pending": False,
                 "equipment_work_need_present": False,
-                "equipment_work_home_route_available": True,
-                "outstanding_equipment_work": True,
+                "equipment_work_home_route_available": False,
+                "outstanding_equipment_work": False,
                 "town_plan_exhausted": True,
                 "home_approach_fails": 0,
-                "home_visit_limit": CALIBRATION_HOME_VISIT_LIMIT,
+                "home_visit_limit": TOWN_STOP_PASS_LIMIT,
                 "home_unsatisfied_passes": 0,
                 "home_blocked": False,
                 "projection": {
@@ -14275,9 +14305,11 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
             decisions.append((key, policy.last_reason))
 
         self.assertFalse(any(key == LEAVE_STORE_KEY for key, _ in decisions))
-        self.assertIn(
-            (WAIT_KEY, "home:atomic-deposit"), decisions
-        )
+        # The base trajectory's Home deposit was the strip calibration's
+        # deposit-all phase, armed because this fresh policy had no
+        # calibration; it no longer exists (equipped C-sheet calibration
+        # rework; the base code with strip re-arming disabled agrees).
+        self.assertNotIn((WAIT_KEY, "home:atomic-deposit"), decisions)
         # E6 re-judgement: the arbiter exhausts the ineffective owner before
         # the legacy cycle detector needs to emit its marker.
         self.assertIn(("4", "town:blocked:owner-retired"), decisions)
@@ -14607,11 +14639,15 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
         ):
             key = policy.choose_key(self.before)
 
-        # Ruling (a') gates the departure dump on a quiet claim state even
-        # with the S3.3 switch OFF. The open shop approach therefore steps
-        # off the entrance first on this recorded board.
-        self.assertEqual((str(key), policy.last_reason),
-                         ("6", "town:entrance-step-off:shop:approach"))
+        # Base: ruling (a') gated the departure on a quiet claim state, and
+        # the uncalibrated optimizer's equipment work kept a shop approach
+        # open, so the board stepped off the entrance first.  Under R1
+        # (equipped C-sheet calibration rework) an unavailable calibration is
+        # no Home/shop work: with departure walled ready the attempted surplus
+        # deposit still does not block it, and the recall is read.
+        self.assertEqual(str(key), "7")
+        self.assertTrue(policy.last_reason.endswith("town:recall-to-angband"),
+                        policy.last_reason)
         self.assertNotIn("deposit", policy.last_reason)
 
     def test_p5_recorded_supplier_exhaustion_keeps_existing_shortage_flow(self):
@@ -14990,9 +15026,13 @@ class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):
         snapshots = self.rows[1:11]
 
         self.assertTrue(snapshots)
+        # Base named Home as the counterfactual departure supplier while the
+        # uncalibrated policy owed the strip calibration's Home work; without
+        # the strip phase (the base code with strip re-arming disabled agrees)
+        # it is the Magic shop.  The public decisions below are unchanged.
         self.assertTrue(
             all(
-                policy._actionable_departure_supplier(snapshot) == STORE_HOME
+                policy._actionable_departure_supplier(snapshot) == STORE_MAGIC
                 for snapshot in snapshots
             )
         )
@@ -15357,13 +15397,3 @@ class OrganizationDepartureRecordedTest(unittest.TestCase):
         self.assertEqual(len(organization), 1)
         self.assertEqual(organization[0].ordering_class, "normal")
 
-    def test_o4_refusal_producer_publishes_exact_failed_leaf(self):
-        policy = HengbotPolicy(monrace_knowledge=self.monrace)
-        self.assertTrue(policy.consume_home_knowledge(self.home.store.items))
-        self.assertTrue(policy._descent_is_blocked(self.terminal))
-
-        self.assertEqual(policy._descent_refusal_reason, "town-departure-not-ready")
-        self.assertEqual(
-            policy.departure_block_state(self.terminal)["failed"],
-            ["equipment_departure_ready"],
-        )

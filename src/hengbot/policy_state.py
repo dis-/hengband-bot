@@ -250,6 +250,10 @@ def normalize_policy_state(restored, *, restart=False):
         register.__dict__.setdefault("_bars", [])
         register.__dict__.setdefault("_ended", [])
     restored.__dict__.setdefault("_town_turn_arbiter", None)
+    # A pre-executor checkpoint: the Home visit executor is rebuilt lazily on
+    # its first operation, which reports restart-refile-required instead of
+    # inheriting an unknown posted visit (every reader guards None).
+    restored.__dict__.setdefault("_home_visit", None)
     restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")
     if ledger is not None:

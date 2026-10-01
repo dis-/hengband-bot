@@ -347,6 +347,9 @@ class SkillListCacheTest(unittest.TestCase):
             policy = self._fresh(directory)
             del policy.__dict__["_skill_exp_cache"]
             del policy.__dict__["_skill_exp_request_inflight"]
+            # A checkpoint from before the cache also predates the rework's
+            # upgrade marker; the single upgrade (R5) supplies both names.
+            del policy.__dict__["_policy_state_version"]
             board = self._feed(policy, directory, v3[starts[499] : starts[500]])
             self.assertEqual(policy.choose_key(board), SKILL_KNOWLEDGE_MACRO)
             self.assertIsNone(policy._skill_exp_cache)
@@ -446,7 +449,11 @@ class CliStartupTest(unittest.TestCase):
             (decision["key"], decision["reason"]),
             (SKILL_KNOWLEDGE_MACRO, "periodic:skill-exp-knowledge"),
         )
-        self.assertIn("skill-exp-unknown", json.dumps(decision["equipment_optimization"]))
+        # The --once process holds no equipped calibration (the rework no
+        # longer reads a legacy strip record from disk), so the optimizer
+        # stops at its calibration-required return before reporting the
+        # missing skill list; the request above is the subject.
+        self.assertIn("calibration-required", json.dumps(decision["equipment_optimization"]))
         self.assertIsNone(policy._skill_exp_cache)
 
     def test_once_on_the_derived_v3_town_row_requests_the_skill_list(self):

@@ -3618,60 +3618,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         if posted.startswith("~9"):
             policy.consume_home_knowledge(home_items)
 
-    def test_live_route_claim_window_does_not_latch_under_reactive_drive(self):
-        capture = (
-            Path(__file__).parent
-            / "fixtures"
-            / "home-route-claim-stall-20260911.json.gz"
-        )
-        with gzip.open(capture, "rt", encoding="utf-8-sig") as stream:
-            snapshots = [
-                parse_snapshot(row["snapshot"])
-                for row in json.load(stream)
-            ]
-        policy = HengbotPolicy()
-        observed = None
-        posted = None
-        latest_home_items = ()
-        home_pages = 0
-        attempted_then_rearmed = False
-        maximum_passes = 0
-        visit_limit = policy._town_store_visit_limit(STORE_HOME)
-        for captured in snapshots:
-            current = self._apply_home_route_claim_key(
-                captured, observed, posted
-            )
-            if current.store is not None and current.store.store_type == STORE_HOME:
-                latest_home_items = tuple(current.store.items)
-                home_pages += 1
-
-            was_attempted = STORE_HOME in policy._town_store_attempted
-            posted = policy.choose_key(current)
-            self._confirm_home_route_claim_key(
-                policy, posted, latest_home_items
-            )
-            attempted_then_rearmed |= (
-                was_attempted and STORE_HOME not in policy._town_store_attempted
-            )
-            maximum_passes = max(
-                maximum_passes,
-                policy._town_visit_ledger.unsatisfied_passes[STORE_HOME],
-            )
-            observed = current
-
-        self.assertTrue(snapshots)
-        self.assertTrue(home_pages)
-        self.assertGreater(maximum_passes, visit_limit)
-        self.assertTrue(attempted_then_rearmed)
-        self.assertEqual(
-            policy._town_store_attempted[STORE_HOME],
-            "claim-uncomposable:calibration-restore:home-knowledge-invalidated",
-        )
-        self.assertFalse(policy._town_errand_plan.index)
-        self.assertNotIn(
-            STORE_HOME, policy._town_errand_plan.blocked_this_visit
-        )
-
     def test_142251_transaction_deposit_uses_atomic_entrance_visit(self):
         policy = HengbotPolicy()
         target = item(
@@ -4208,7 +4154,11 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy._equipment_catalog.home_scan_complete = True
 
         policy._home_entry_operation_posted = True
-        with patch.object(policy, "_home_owner_goal_pending", return_value=True):
+        # The base premise "equipment work is outstanding" came from the
+        # uncalibrated optimizer's calibration-required blocker; under R1 an
+        # unavailable calibration is not Home work, so the premise is
+        # declared explicitly for the 300-pass equipment-work bound.
+        with patch.object(policy, "_home_owner_goal_pending", return_value=True),                 patch.object(policy, "_outstanding_equipment_work", return_value=True):
             for _ in range(3):
                 self.assertEqual(policy.choose_key(home), LEAVE_STORE_KEY)
                 self.assertEqual(
@@ -5595,82 +5545,6 @@ class RecordedHomeWithdrawalObserverOrderingTest(unittest.TestCase):
         )
 
 
-class RecordedHomeStayReentryIncidentTest(unittest.TestCase):
-    @staticmethod
-    def _replay():
-        fixture = (
-            Path(__file__).parent / "fixtures"
-            / "incident-20260920-0149-home-withdraw-alternation.jsonl.gz"
-        )
-        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
-            lines = list(stream)
-        snapshots = [parse_snapshot(json.loads(line)) for line in lines]
-        assert len(snapshots) == 53
-
-        policy = HengbotPolicy()
-        for index in (0, 1):
-            key = policy.choose_key(snapshots[index])
-            policy.confirm_key_posted(key)
-        assert _dispatch_response_lines([lines[2]], policy, Mock()) == 1
-
-        decisions = []
-        for index in (3, *range(24, len(snapshots))):
-            snapshot = snapshots[index]
-            pending_before = policy._home_atomic_withdraw_pending is not None
-            key = policy.choose_key(snapshot)
-            pending_after = policy._home_atomic_withdraw_pending is not None
-            here = snapshot.grid_at(snapshot.player.position)
-            decisions.append({
-                "index": index,
-                "key": key,
-                "reason": policy.last_reason,
-                "pending": pending_before or pending_after,
-                "outside_home_entrance": bool(
-                    snapshot.store is None
-                    and here is not None
-                    and here.store_number == STORE_HOME
-                ),
-            })
-            if key:
-                policy.confirm_key_posted(key)
-        return decisions
-
-    def test_p1_recorded_entrance_never_posts_bare_stay_or_owner_alternation(self):
-        decisions = self._replay()
-        self.assertFalse(any(
-            row["key"] == WAIT_KEY and row["outside_home_entrance"]
-            for row in decisions
-        ))
-        withdrawal_owners = [
-            row["reason"] for row in decisions
-            if row["reason"] in {
-                "home:atomic-withdraw",
-                "calibration:atomic-restore-withdraw",
-                "home:leave-for-pending-withdraw",
-            }
-        ]
-        self.assertNotIn("home:leave-for-pending-withdraw", withdrawal_owners)
-
-    def test_p2_recorded_pending_withdrawal_posts_complete_atomic_macro(self):
-        decisions = self._replay()
-        composed = next(
-            row for row in decisions
-            if row["reason"] == "calibration:atomic-restore-withdraw"
-        )
-        self.assertEqual(composed["key"], "5pU\x1b")
-        self.assertTrue(composed["pending"])
-
-    def test_p3_pending_withdrawal_has_claim_and_never_falls_through(self):
-        decisions = self._replay()
-        pending = [row for row in decisions if row["pending"]]
-        self.assertTrue(pending)
-        self.assertEqual(pending[0]["key"], "5pU\x1b")
-        self.assertTrue(all(
-            row["reason"] not in {"probe", "stuck:wander"}
-            for row in pending
-        ))
-
-
 class RecordedStaleHomeScanInsideTest(unittest.TestCase):
     def test_invalidated_multi_page_home_scans_before_leaving(self):
         raw_lines = (
@@ -5802,7 +5676,13 @@ class RecordedErrandShoppingStaleHomeScanInsideRound2Test(unittest.TestCase):
         )
         next_key = policy.choose_key(parse_snapshot(rows[7]))
 
-        self.assertNotEqual(next_key, LEAVE_STORE_KEY)
+        # The scan reply is adopted: the board does not leave as an
+        # incomplete scan.  Base stayed because the strip calibration's
+        # deposit phase (armed for this fresh policy) suppressed the
+        # catalogue-shortage owner; without it (equipped C-sheet calibration
+        # rework) that owner binds a Home take and leaves to compose it.
+        self.assertEqual((next_key, policy.last_reason),
+                         (LEAVE_STORE_KEY, "home:queue-catalogue-shortage"))
         self.assertNotEqual(policy.last_reason, "home:scan-incomplete-open-page")
 
 

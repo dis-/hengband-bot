@@ -10,6 +10,8 @@ import subprocess
 import sys
 import textwrap
 import unittest
+
+from extraction_calibration import install_extraction_calibration
 from collections import Counter, deque
 from dataclasses import replace
 from pathlib import Path
@@ -4069,6 +4071,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._character_calibration_path = Path(
             "tests/fixtures/q34-entry-character-calibration-20260814.json"
         )
+        install_extraction_calibration(policy)
         with Path(
             "tests/fixtures/q34-entry-current-tail-20260814.jsonl"
         ).open(encoding="utf-8-sig") as records:

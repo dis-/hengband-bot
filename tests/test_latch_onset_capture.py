@@ -110,17 +110,15 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         self.assertIsNone(replay._town_order_operation)
         self.assertIsNone(replay._town_order_expected_observation)
 
-        expected_key = (
-            "5pZ47\rpW2\rpypu2\rpqpk6\rpi30\rph87\rpf6\rpe29\rpdpa9\r\x1b"
-        )
+        # The recorded decision was the strip calibration's batch restore
+        # take, retired with the strip phases (equipped C-sheet calibration
+        # rework; the upgrade drops its state).  The pin keeps its subject:
+        # the slim legacy checkpoint decides exactly as the full one.
+        full = (old_policy.choose_key(snapshot), old_policy.last_reason)
         self.assertEqual(
-            (old_policy.choose_key(snapshot), old_policy.last_reason),
-            (expected_key, row["last_reason"]),
+            (replay.choose_key(snapshot), replay.last_reason), full
         )
-        self.assertEqual(
-            (replay.choose_key(snapshot), replay.last_reason),
-            (expected_key, row["last_reason"]),
-        )
+        self.assertNotEqual(full[1], row["last_reason"])
 
     def test_restore_seeds_marked_memory_for_checkpoint_before_axis_split(self):
         policy, _ = test_policy_town.NoSafeRecallDestinationTest()._fixture()
