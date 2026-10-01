@@ -12198,7 +12198,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         preparation = self._equipment_optimization_preparation
         blockers = getattr(preparation, "blockers", ())
         optimization_already_applied = self._optimization_already_applied(preparation)
-        return bool(blockers and (not optimization_already_applied) or self._equipment_transaction_session is not None or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None) or [])
+        return bool(blockers and (not optimization_already_applied) or self._equipment_transaction_session is not None or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None))
 
     @staticmethod
     def _optimization_already_applied(preparation: object | None) -> bool:
@@ -12683,8 +12683,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._skill_exp_request_inflight = True
             return True
         if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO}:
+            prepared = self._calibration_dump_prepared
             self._calibration_dump_pending = {
-                "baseline": self._calibration_dump_prepared,
+                "baseline": prepared["baseline"] if prepared else None,
+                "started_ns": prepared["started_ns"] if prepared else None,
                 "sequence": self._character_response_sequence,
             }
             return True

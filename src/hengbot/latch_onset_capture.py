@@ -99,6 +99,8 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
         # portable runtime keeps the same path classes in pathlib itself.
         state = _LegacyPathUnpickler(io.BytesIO(payload)).load()
     restored.__dict__.update(state)
+    from hengbot.policy_calibration import refuse_legacy_calibration_debt
+    refuse_legacy_calibration_debt(state, state.get("_character_calibration_path"))
     restored._latch_capture_path = None
     restored._latch_capture_previous = None
     restored._latch_capture_predecision = None

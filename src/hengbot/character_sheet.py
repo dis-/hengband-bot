@@ -151,9 +151,18 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     if player.mimic_form:
         raise CharacterSheetUnavailable("unsupported-active-form")
     # These titles are the same visible identity page, not underlying form IDs.
-    for title in (character.get("race_title"), character.get("class_title"),
-                  character.get("personality_title")):
-        if not isinstance(title, str) or title not in sheet.text:
+    labels = ("種族", "職業", "性格") if sheet.language == "ja" else ("Race", "Class", "Personality")
+    for label, key in zip(labels, ("race_title", "class_title", "personality_title")):
+        title = character.get(key)
+        if not isinstance(title, str):
+            raise CharacterSheetUnavailable("identity-mismatch")
+        explicit = r"(?m)^\s*" + label + r"\s*:\s*" + re.escape(title) + r"(?:\s|$)"
+        # The ordinary dump puts personality in the character-name prefix.
+        name_prefix = (r"(?m)^\s*名前\s*:\s*" + re.escape(title) + "の" if sheet.language == "ja"
+                       else r"(?m)^\s*Name\s*:\s*" + re.escape(title) + r"\s")
+        if not re.search(explicit, sheet.text) and not (
+            key == "personality_title" and re.search(name_prefix, sheet.text)
+        ):
             raise CharacterSheetUnavailable("identity-mismatch")
     if sheet.level != player.level or sheet.max_hp != player.max_hp or sheet.armor_class != player.ac:
         raise CharacterSheetUnavailable("snapshot-mismatch")
@@ -223,6 +232,8 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
         total = adjustments[index] + equipment_modifiers[index] + timed_stat
         if index in (0, 3, 4) and row.modifier != equipment_modifiers[index] + timed_stat:
             raise CharacterSheetUnavailable("visible-modifier-mismatch")
+        if index in (0, 3, 4) and row.base != player.stat_max[index]:
+            raise CharacterSheetUnavailable("visible-base-epoch-mismatch")
         predicted = modify_stat_value(row.base, total)
         matches = predicted >= row.actual if row.saturated else predicted == row.actual
         # Only STR/DEX/CON constrain optimization. Other floor ambiguities

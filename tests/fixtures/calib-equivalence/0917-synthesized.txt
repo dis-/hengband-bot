@@ -1,5 +1,7 @@
 synthesized-from-raw: 0917-equipped.json; fixture only
-Zombie Warrior Mighty
+Race: Zombie
+Class: Warrior
+Personality: Mighty
 Level: 27 HP: 447/447 AC: [0,37]
 Base Race Class Pers Mod Actual Current abcdefghijkl@
 STR: 18/52  2  4  2  0 18/132       

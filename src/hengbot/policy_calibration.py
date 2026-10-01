@@ -31,8 +31,9 @@ def refuse_legacy_calibration_debt(state, path: Path | None = None):
 
 class CalibrationMixin:
     def _prepare_character_sheet_dump(self):
+        import time
         path = self._character_dump_path
-        self._calibration_dump_prepared = None
+        self._calibration_dump_prepared = {"baseline": None, "started_ns": time.time_ns()}
         if path is None:
             return
         try:
@@ -41,7 +42,7 @@ class CalibrationMixin:
             baseline = (path.stat().st_mtime_ns, hashlib.sha256(raw).hexdigest())
         except OSError:
             baseline = None
-        self._calibration_dump_prepared = baseline
+        self._calibration_dump_prepared["baseline"] = baseline
 
     def _consume_equipped_character_sheet(self, character, envelope):
         from hengbot.character_sheet import (CharacterSheetUnavailable, parse_character_sheet,
@@ -54,13 +55,15 @@ class CalibrationMixin:
             return
         self._calibration_dump_pending = None
         try:
+            if pending.get("started_ns") is None:
+                raise CharacterSheetUnavailable("unprepared-character-dump")
             before = self._character_dump_path.stat().st_mtime_ns
             raw = self._character_dump_path.read_bytes()
             sheet = parse_character_sheet(raw)
             current = (self._character_dump_path.stat().st_mtime_ns, sheet.content_hash)
             if before != current[0]:
                 raise CharacterSheetUnavailable("dump-file-changing")
-            if pending["baseline"] == current:
+            if pending["baseline"] == current or current[0] < pending["started_ns"]:
                 raise CharacterSheetUnavailable("stale-dump-file")
             sequence = envelope.get("sequence", envelope.get("seq"))
             if sequence is None or (pending["sequence"] is not None
@@ -78,8 +81,11 @@ class CalibrationMixin:
             )
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self._character_calibration = None
-            self._calibration_unavailable_reason = str(exc)
-            self._calibration_rejection = (pending, str(exc))
+            reason = (str(exc) if isinstance(exc, CharacterSheetUnavailable) else
+                      "dump-unreadable:" + type(exc).__name__ if isinstance(exc, OSError) else
+                      "character-response-unavailable:" + type(exc).__name__)
+            self._calibration_unavailable_reason = reason
+            self._calibration_rejection = (pending, reason)
             self._equipment_optimization_signature = None
             return
         self._character_calibration = calibration
