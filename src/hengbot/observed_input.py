@@ -84,6 +84,14 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         ]
     if not key or len(key) == 1:
         return key, continuations
+    if (kind is ScreenKind.STORE and owner == "shop:one-shot-buy"
+            and continuations
+            and continuations[0].kinds == frozenset({ScreenKind.ITEM_SOURCE})
+            and key == "p" + continuations[0].keys):
+        # The sender already bound this slot to the recorded store chooser.
+        # Split its historical p+slot prefix without inserting a narrower
+        # _BUY gate in front of that authoritative continuation.
+        return "p", [replace(continuations[0], optional=False), *continuations[1:]]
     command, tail = key[0], key[1:]
     # The once-mode sender also enters this common port. Reuse the same
     # established plans as the ordinary decision router instead of bypassing

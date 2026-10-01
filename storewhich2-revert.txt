@@ -1,0 +1,22 @@
+<stuck-prompt> owner=shop:one-shot-buy phase=continuation transport=accepted request_id=3 reason=unowned item-source: (商品:a-Z, ESCで中断) どれ?
+F
+======================================================================
+FAIL: test_live_metadata_and_recorded_screen_after_p (tests.test_storewhich2_recorded.StoreWhich2RecordedPin.test_live_metadata_and_recorded_screen_after_p)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-c2\tests\test_storewhich2_recorded.py", line 43, in test_live_metadata_and_recorded_screen_after_p
+    self.assertEqual(game.accepted, ["p", "k", "4\r", "\r", "\x1b"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['p'] != ['p', 'k', '4\r', '\r', '\x1b']
+
+Second list contains 4 additional elements.
+First extra element 1:
+'k'
+
+- ['p']
++ ['p', 'k', '4\r', '\r', '\x1b']
+
+----------------------------------------------------------------------
+Ran 1 test in 0.015s
+
+FAILED (failures=1)
