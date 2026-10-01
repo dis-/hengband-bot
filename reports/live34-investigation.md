@@ -21,3 +21,27 @@ Other declaration seams to cover under the same rule: Home equipment outcomes cu
 Baseline evidence: reports/live34-strip-before.txt. No EXPECTED_FIRST changes. Existing untracked .live8b-revert.py retained.
 
 DO NOT RUN / pending for Claude: scripts/test_parallel_runner.py, scripts/test_timing_runner.py, scripts/hunk_guard.py, scripts/verify_scope.py, scripts/mutation_battery.py; tests.test_cli, tests.test_policy_town, tests.test_policy_shop, tests.test_absorbing_states; long tour/town/overweight replays; town producer purity parts; full-fixture first_divergence_s3_3.py and all matching-module sweeps. Only stuck/withdraw off+s33 are authorized exceptions.
+
+Step 2 implementation
+
+The same calibration producer owns the installed equipment session at both entry admission and its ordinary calibration rung (policy.py:5810,5930; policy_calibration.py:1093). This uses the existing session target identity, including after a claim expires; it grants nothing to an unrelated equipment session. The equipment Home executor now declares the same producer as its town executor (policy_equipment.py:1773,1827). No new attributes or limits were introduced.
+
+Home send/observe declarations are preserved instead of overwritten with a travel/excess-deposit declaration (policy_calibration.py:151,1385,1480). Calibration's posted restore scan has a valid phase continuation in both pure shadow validation and the bounded producer dispatcher (policy.py:6318,6458), and repeated knowledge waits retain the original posted operation reference. Observed restoration ends with done/complete only when phase, suspension, equipment debt, supply debt and pending Home operations have all ended (policy_calibration.py:133).
+
+The batch exposed another actual ON stop after the initial executor fix: 0812 decision 30, ownership:declaration-stale:calibration. Cause: base policy_calibration.py:1424-1434 overwrote the Home withdrawal's declaration with calibration:restore-travel / calibration.restore-supplies, while base policy.py:6298-6318 recognized only the capture continuation. reports/live34-after.txt records that intermediate failure. Preserving the exact Home binding removes that stop; the completed supply restore can advance to the next recorded board.
+
+Final recorded ON boundaries (zero ON stops to each boundary):
+
+| Sequence | Deposit-start replay ends at | Independent strip replay ends at | Independent restore replay ends at |
+|---|---|---|---|
+| 0317 | 3027, different post-redress entry step | 3027 | 3034, Home entry wait instead of full withdrawal |
+| 0812 | 31, supply restoration completed; next command differs | 28 | 29, Home entry wait instead of full withdrawal |
+| 0812b / live25 | 1272, changed restore macro | 1271 | 1272, Home entry wait instead of full withdrawal |
+| 1041 | 15200, changed restore macro | 15199 | 15200, Home entry wait instead of full withdrawal |
+| 1235 | 5585, changed restore macro | 5584 | 5585, Home entry wait instead of full withdrawal |
+| 1342 | 7, 5 / home:atomic-deposit replaces the recorded stop | not present in capture | not present in capture |
+| 1416 | 136, different step-off direction from fresh map attachment | 145, next actual takeoff replaces the recorded stop | not present in capture |
+
+All earlier recorded commands remain actual responses until these first changed keys. Every independent phase attachment is named; later boards are not borrowed across a changed key. Restore attachments verify the historical deposit selectors/quantities through the production deposit producer and invalidate the old Home addresses through the production observer before replaying ~9. Existing live19/25/28/31/33 modules cover their deeper historical reconciliation and physical restoration cases separately.
+
+The new module has three pins with checkpoint restoration and OFF shadow checks. The final full-module run passed all three tests; the restore attachment was then strengthened to invalidate the confirmed historical deposits' catalogue and check exact deposit commands, and that changed test passed separately (five sequences, all checkpoints). Every available OFF frame predicts no ON stop; each measured ON frame and each unresolved posted calibration declaration is also checked. OFF and ON can legitimately reach different first changed commands; the pins do not force later boards into either trajectory.

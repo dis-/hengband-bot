@@ -1774,14 +1774,15 @@ class EquipmentMixin:
                                 effect: str = "store-exited") -> str | None:
         """Name a Home transaction exit that has no prepared action offer."""
         work_id = f"equipment:home:{label}"
+        producer = "calibration" if self._calibration_session_owned() else "equipment-txn"
         if key is None:
             self._offer_execution_no_step(
-                producer="equipment-txn", work_id=work_id, cause=label,
+                producer=producer, work_id=work_id, cause=label,
             )
         else:
             self._offer_execution(
                 "\r" if key == WAIT_KEY else key,
-                producer="equipment-txn", work_id=work_id,
+                producer=producer, work_id=work_id,
                 next_step=f"equipment.home.{label}", expected_effect=effect,
                 continuation="equipment.next-action",
             )
@@ -1826,7 +1827,8 @@ class EquipmentMixin:
             # the same inventory/equipment observation outside.
             self.last_reason = "equipment-transaction:await-home-barrier"
             self._offer_execution(
-                None, producer="equipment-txn",
+                None, producer=("calibration" if self._calibration_session_owned()
+                                else "equipment-txn"),
                 work_id=f"equipment:home:pending:{session.target_loadout_id}",
                 next_step="equipment.observe-home-barrier",
                 arguments=(session.posted_command_id,),

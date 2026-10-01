@@ -130,6 +130,30 @@ class CalibrationMixin:
         )
         return WAIT_KEY
 
+    def _calibration_completion_observed(self) -> None:
+        """The producer settles its declaration only after physical debt ends."""
+        if (self._calibration_phase is not None
+                or self._calibration_suspended_phase is not None
+                or self._calibration_stripped_unrestored
+                or self._calibration_restore_signatures
+                or self._home_atomic_deposit_pending is not None
+                or self._home_atomic_withdraw_pending is not None):
+            return
+        self._offer_execution_done(
+            producer="calibration", work_id="calibration:town",
+            evidence="calibration-restoration-observed",
+        )
+        self._complete_claim_goal(
+            "calibration-restoration-observed", owners=("calibration",),
+            kinds=("Observe",), sources=("calibration", "knowledge"),
+        )
+
+    def _calibration_home_step_declared(self, key: str) -> bool:
+        """Keep the Home executor's exact send/observe binding when supplied."""
+        return any(offer[0] == key and offer[1] == "calibration"
+                   and offer[2].startswith("home-operation:")
+                   for offer in self._execution_offers_for())
+
     def _persist_calibration_redress_obligation(self) -> None:
         """Store the strip debt in the existing calibration record."""
         path = self._character_calibration_path
@@ -985,6 +1009,7 @@ class CalibrationMixin:
                     # against the newly observed equipment/pack and retain
                     # the debt (and departure gate) for empty stripped slots.
                     self._calibration_redress_observe(snapshot)
+                    self._calibration_completion_observed()
             else:
                 # A LIVE session that vanished was abandoned by the stall
                 # bound; only that consumes the per-visit failure budget — an
@@ -1013,6 +1038,7 @@ class CalibrationMixin:
                 self._calibration_restore_signatures.clear()
                 self._calibration_phase = None
                 self._calibration_home_rearm_eligible = False
+                self._calibration_completion_observed()
             elif STORE_HOME in self._town_visit_ledger.blocked_stores:
                 if (
                     self._calibration_home_rearm_eligible
@@ -1099,6 +1125,13 @@ class CalibrationMixin:
                 cause="other-equipment-session-active",
             )
             return None
+        if (phase in {"strip", "restore-equip"}
+                and self._calibration_session_owned()
+                and self._calibration_restore_enforced()):
+            # Keep the executor at its producer's rung. Its own action offer
+            # declares calibration and binds the actual posted confirmation.
+            return (self._equipment_transaction_home_key(snapshot) if in_home
+                    else self._equipment_transaction_town_key(snapshot))
         if phase is None:
             if self._calibration_suspended_phase is not None:
                 suspended = self._calibration_suspended_phase
@@ -1350,10 +1383,12 @@ class CalibrationMixin:
                     if key is None:
                         return self._calibration_restore_terminal("deposit-failed")
                     self.last_reason = "calibration:restore-excess-deposit"
+                    if self._calibration_home_step_declared(key):
+                        return key
                     self._offer_execution(
                         key, producer="calibration",
                         work_id="calibration:restore-excess",
-                        next_step="home.deposit-excess",
+                        next_step="calibration.restore-supplies",
                         expected_effect="inventory-decreased/home-stock-increased",
                         continuation="calibration.restore-supplies",
                         budget_ref="home-visit-existing-budget",
@@ -1389,6 +1424,21 @@ class CalibrationMixin:
                     )
                     return HOME_KNOWLEDGE_MACRO
                 self.last_reason = "calibration:await-restore-knowledge"
+                holder = self._claim_errand_hold("__none__", enforced=True)
+                declaration = getattr(holder, "execution", None)
+                if (holder is not None and holder.owner.value == "calibration"
+                        and declaration is not None
+                        and declaration.state == "awaiting"
+                        and declaration.operation_ref
+                        and declaration.expected_effect == "catalogue-adopted"):
+                    self._offer_execution_awaiting(
+                        WAIT_KEY, producer="calibration",
+                        work_id=declaration.work_id,
+                        operation_ref=declaration.operation_ref,
+                        expected_effect="catalogue-adopted",
+                        continuation="calibration.restore-supplies",
+                    )
+                    return WAIT_KEY
                 self._offer_execution(
                     WAIT_KEY, producer="calibration",
                     work_id=f"calibration:{self._calibration_session_target}:restore-scan",
@@ -1424,10 +1474,12 @@ class CalibrationMixin:
                     snapshot, step, "calibration:restore-travel"
                 )
                 if key is not None:
+                    if self._calibration_home_step_declared(key):
+                        return key
                     self._offer_execution(
                         key, producer="calibration",
                         work_id="calibration:restore-travel",
-                        next_step="home.approach-for-restore",
+                        next_step="calibration.restore-supplies",
                         expected_effect="home-reached",
                         continuation="calibration.restore-supplies",
                     )
