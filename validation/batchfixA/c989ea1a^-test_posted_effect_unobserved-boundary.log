@@ -1,0 +1,7 @@
+test_p1b_rewritten_store_key_releases_the_posting_it_armed (tests.test_posted_effect_unobserved.PostedEffectUnobservedTest.test_p1b_rewritten_store_key_releases_the_posting_it_armed)
+The 20:10 substitution no longer strands the visit it armed. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.195s
+
+OK

@@ -6,11 +6,12 @@ import json
 from pathlib import Path
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-from tests.test_input_executor import ProductionHarness, store_screen, command_screen
+from tests import test_input_executor as executor_harness
+from tests.test_input_executor import store_screen, command_screen
 
 FIXTURES = Path(__file__).parent / "fixtures" / "live-screens"
 
-class StoreWhichRecordedPin(ProductionHarness):
+class StoreWhichRecordedPin(executor_harness.ProductionHarness):
     def test_recorded_chooser_through_production_sender(self):
         data = (FIXTURES / "storewhich-20261001-2118.json").read_bytes()
         self.assertEqual(hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest(),

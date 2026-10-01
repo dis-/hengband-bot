@@ -16,7 +16,8 @@ from hengbot.input_executor import Continuation, ScreenKind, classify_screen
 from hengbot.model import InventoryItem, TVAL_RING, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, REST_MACRO, CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO
-from tests.test_input_executor import ProductionHarness, FaithfulHookGame, command_screen, prompt_screen
+from tests import test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 from tests.test_live30_identify_normal import derived_chooser
 
 
@@ -35,7 +36,7 @@ def board():
                        "before-identify.json").read_text(encoding="utf-8"))
 
 
-class ClassAObservedInputPins(ProductionHarness):
+class ClassAObservedInputPins(executor_harness.ProductionHarness):
     def test_existing_english_store_plans_preserve_all_composed_transactions(self):
         from hengbot.observed_input import compile_observed_input
         from tests.test_input_executor import store_screen
@@ -61,7 +62,7 @@ class ClassAObservedInputPins(ProductionHarness):
             with self.subTest(owner=owner, key=key):
                 steps = [Continuation(frozenset({ScreenKind.STORE}), "\x1b")]
                 prefix, following = compile_observed_input(
-                    key, ScreenKind.STORE, ProductionHarness.store_state(2),
+                    key, ScreenKind.STORE, executor_harness.ProductionHarness.store_state(2),
                     owner, steps, screen=store_screen())
                 self.assertEqual(prefix, key)
                 self.assertEqual(following, steps)

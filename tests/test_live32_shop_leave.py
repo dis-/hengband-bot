@@ -39,6 +39,26 @@ def attachment(enforced):
 
 
 class Live32ShopLeaveTest(unittest.TestCase):
+    def test_cached_registry_callbacks_follow_the_restored_policy(self):
+        for restored in (False, True):
+            policy, boards = attachment(False)
+            specs = policy._town_need_registry()
+            if restored:
+                policy = pickle.loads(pickle.dumps(policy))
+            board = boards[2]
+            policy._town_need_evaluation_snapshot = board
+            policy._town_need_evaluation_candidates = [
+                TownNeed(7, "equipment-work", "home-first"),
+            ]
+            spec = next(entry for entry in policy._town_need_registry()
+                        if entry.category == "equipment-work")
+            self.assertEqual(spec.produces(board), True)
+            self.assertEqual(spec.resolve_store_type(board), 7)
+            self.assertEqual(spec.satisfied(board), False)
+            policy._town_need_evaluation_candidates = []
+            self.assertEqual(spec.produces(board), False)
+            self.assertEqual(spec.satisfied(board), True)
+
     def test_frozen_evidence(self):
         provenance = json.loads((FIXTURE / "provenance.json").read_text(encoding="utf8"))
         for name, digest in provenance["fixture_sha256"].items():

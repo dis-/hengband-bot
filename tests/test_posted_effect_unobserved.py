@@ -40,6 +40,8 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from functools import partial
+from unittest.mock import patch
 
 import tests  # noqa: F401  (bare runs stay isolated from runtime files)
 from hengbot.model import parse_snapshot
@@ -66,6 +68,19 @@ LEAVE_STORE_KEY = "\x1b"
 def _records():
     with gzip.open(FIXTURE, "rb") as stream:
         return [json.loads(line) for line in stream]
+
+
+def _recorded_posting_rewrite(policy, recorded, board, key, **kwargs):
+    """Supply the capture's old downstream substitution to its release pin.
+
+    Store-context protection c989ea1a prevents this substitution in current
+    production. Its recorded key remains the input to the posting-release
+    subject; no later board is claimed as an effect of a different key.
+    """
+    if key != LEAVE_STORE_KEY:
+        raise AssertionError(f"recorded rewrite expected a leave, got {key!r}")
+    policy.last_reason = recorded["reason"]
+    return recorded["key"]
 
 
 class PostedEffectUnobservedTest(unittest.TestCase):
@@ -249,9 +264,11 @@ class PostedEffectUnobservedTest(unittest.TestCase):
         policy._store_visit.posted_sequence = None
         policy._store_visit.posted_turn = None
 
-        key = policy.choose_key(board)
-
         recorded = self._decision(LEAVE_REPEAT, 5428)
+        with patch.object(policy, "_town_procurement_decision",
+                          side_effect=partial(_recorded_posting_rewrite, policy, recorded)):
+            key = policy.choose_key(board)
+
         # The same substitution the capture recorded still happens ...
         self.assertEqual((str(key), policy.last_reason),
                          (recorded["key"], recorded["reason"]))

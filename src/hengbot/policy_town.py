@@ -22,7 +22,31 @@ from hengbot.policy_types import (
 )
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
-from dataclasses import replace
+from dataclasses import dataclass, replace
+
+@dataclass(frozen=True)
+class _TownNeedLookup:
+    """Serializable registry callbacks, bound to the restored policy instance."""
+
+    policy: object
+    category: str
+    ordering_class: str
+    occurrence: int
+
+    def lookup(self, snapshot):
+        return self.policy._candidate_need(
+            snapshot, self.category, self.ordering_class, self.occurrence,
+        )
+
+    def produces(self, snapshot):
+        return self.lookup(snapshot) is not None
+
+    def store_type(self, snapshot):
+        return self.lookup(snapshot).store_type
+
+    def satisfied(self, snapshot):
+        return not self.produces(snapshot)
+
 
 class TownMixin:
     def _refresh_town_facts(self, snapshot: Snapshot) -> None:
@@ -2969,23 +2993,16 @@ class TownMixin:
         specs: list[NeedSpec] = []
         for category, ordering_class, count, departure_blocking in entries:
             for occurrence in range(count):
-                lookup = (
-                    lambda snapshot, category=category,
-                    ordering_class=ordering_class, occurrence=occurrence:
-                    self._candidate_need(
-                        snapshot, category, ordering_class, occurrence
-                    )
+                lookup = _TownNeedLookup(
+                    self, category, ordering_class, occurrence,
                 )
-                produces = lambda snapshot, lookup=lookup: lookup(snapshot) is not None
                 specs.append(
                     NeedSpec(
                         category=category,
-                        store_type=lambda snapshot, lookup=lookup: (
-                            lookup(snapshot).store_type  # type: ignore[union-attr]
-                        ),
+                        store_type=lookup.store_type,
                         ordering_class=ordering_class,
-                        produces=produces,
-                        satisfied=lambda snapshot, produces=produces: not produces(snapshot),
+                        produces=lookup.produces,
+                        satisfied=lookup.satisfied,
                         departure_blocking=departure_blocking,
                     )
                 )

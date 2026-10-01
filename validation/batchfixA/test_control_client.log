@@ -1,0 +1,50 @@
+........................hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+5
+.5
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+.usage: python.exe -m unittest [-h] --state-file STATE_FILE
+                              [--control-port CONTROL_PORT] [--tcp-shadow]
+                              [--decision-log DECISION_LOG]
+                              [--capture-home-entry] [--capture-latch-onset]
+                              [--economy-log ECONOMY_LOG]
+                              [--wait-log WAIT_LOG]
+                              [--monrace-definitions MONRACE_DEFINITIONS]
+                              [--outpost-map OUTPOST_MAP]
+                              [--dungeon-definitions DUNGEON_DEFINITIONS]
+                              [--quest-definitions QUEST_DEFINITIONS]
+                              [--quest-strategies QUEST_STRATEGIES] [--once]
+                              [--enforce-town-claims]
+                              [--enforce-crossarea-fundraising]
+                              [--poll-interval POLL_INTERVAL]
+                              [--send-to-window] [--window-title WINDOW_TITLE]
+                              [--window-title-contains]
+                              [--window-class WINDOW_CLASS]
+                              [--window-pid WINDOW_PID] [--list-windows]
+                              [--input-key-delay INPUT_KEY_DELAY]
+                              [--input-item-prompt-delay INPUT_ITEM_PROMPT_DELAY]
+                              [--input-tunnel-prompt-delay INPUT_TUNNEL_PROMPT_DELAY]
+                              [--input-travel-prompt-delay INPUT_TRAVEL_PROMPT_DELAY]
+                              [--stall-timeout STALL_TIMEOUT]
+                              [--recorder-budget-bytes RECORDER_BUDGET_BYTES]
+                              [--recorder-checkpoint-decisions RECORDER_CHECKPOINT_DECISIONS]
+                              [--recorder-log-rotate-bytes RECORDER_LOG_ROTATE_BYTES]
+                              [--recorder-log-generations RECORDER_LOG_GENERATIONS]
+python.exe -m unittest: error: argument --control-port: invalid int value: 'not-a-port'
+.5
+<no-key:equipment-transaction:restore-blocked-terminal>
+<no-key-exhausted> no new snapshot arrived within 1.5s after a decision produced no command; stopping the bot
+.hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+5
+..hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+5
+.hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+5
+<stuck-prompt> owner=test:routing phase=keys transport=acceptance-unknown request_id=1 reason=lost ACK
+.hengbot startup enforce_town_claims=False enforce_crossarea_fundraising=False
+<stuck-prompt> owner=bootstrap phase=bootstrap transport=wm-only request_id=None reason=wm-only degraded mode
+.
+----------------------------------------------------------------------
+Ran 33 tests in 15.105s
+
+OK

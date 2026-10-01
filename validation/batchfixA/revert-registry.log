@@ -1,0 +1,15 @@
+test_cached_registry_callbacks_follow_the_restored_policy (tests.test_live32_shop_leave.Live32ShopLeaveTest.test_cached_registry_callbacks_follow_the_restored_policy) ... ERROR
+
+======================================================================
+ERROR: test_cached_registry_callbacks_follow_the_restored_policy (tests.test_live32_shop_leave.Live32ShopLeaveTest.test_cached_registry_callbacks_follow_the_restored_policy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live32_shop_leave.py", line 47, in test_cached_registry_callbacks_follow_the_restored_policy
+    policy = pickle.loads(pickle.dumps(policy))
+                          ~~~~~~~~~~~~^^^^^^^^
+AttributeError: Can't get local object '_town_need_registry.<locals>.<lambda>'
+
+----------------------------------------------------------------------
+Ran 1 test in 3.254s
+
+FAILED (errors=1)

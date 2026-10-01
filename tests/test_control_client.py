@@ -460,6 +460,11 @@ class ControlClientTest(unittest.TestCase):
 
 
 class DisabledCliPinTest(unittest.TestCase):
+    def setUp(self):
+        # These pins mock the TCP endpoint, so they must also own a private
+        # endpoint lease. The real cross-process mutex is pinned in test_cli.
+        self.enterContext(patch("hengbot.cli._acquire_control_owner", return_value=object()))
+
     def test_tcp_shadow_yields_while_executor_operation_is_active(self):
         from hengbot import cli
 

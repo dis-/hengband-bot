@@ -1,0 +1,13 @@
+E
+======================================================================
+ERROR: test_recorded_rebuild_keeps_posted_route_and_shadow_agrees (tests.test_live32_shop_leave.Live32ShopLeaveTest.test_recorded_rebuild_keeps_posted_route_and_shadow_agrees)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_live32_shop_leave.py", line 150, in test_recorded_rebuild_keeps_posted_route_and_shadow_agrees
+    before = pickle.dumps(policy)
+AttributeError: Can't get local object 'TownMixin._town_need_registry.<locals>.<lambda>'
+
+----------------------------------------------------------------------
+Ran 1 test in 2.240s
+
+FAILED (errors=1)

@@ -1,0 +1,17 @@
+test_p1b_rewritten_store_key_releases_the_posting_it_armed (tests.test_posted_effect_unobserved.PostedEffectUnobservedTest.test_p1b_rewritten_store_key_releases_the_posting_it_armed)
+The 20:10 substitution no longer strands the visit it armed. ... FAIL
+
+======================================================================
+FAIL: test_p1b_rewritten_store_key_releases_the_posting_it_armed (tests.test_posted_effect_unobserved.PostedEffectUnobservedTest.test_p1b_rewritten_store_key_releases_the_posting_it_armed)
+The 20:10 substitution no longer strands the visit it armed.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-decl-r3b\tests\test_posted_effect_unobserved.py", line 276, in test_p1b_rewritten_store_key_releases_the_posting_it_armed
+    self.assertIsNone(policy._store_visit)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: StoreVisit(owner='town-errand', purpose='shopping', store_type=7, phase=<StoreVisitPhase.LEAVING: 'leaving'>, composed_key='\x1b', goal=None, opened_sequence=5427, armed_sequence=None, posted_sequence=5429, posted_turn=5172662, operation_posted=False, operation_key=None, operation_released=False, operation_effect_observed=False, outcome=None, visit_origin='acquire') is not None
+
+----------------------------------------------------------------------
+Ran 1 test in 1.076s
+
+FAILED (failures=1)
