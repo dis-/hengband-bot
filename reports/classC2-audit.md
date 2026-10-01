@@ -14,6 +14,8 @@ decision 11411, turn 1493887. The work is confined to bot-client-c2.
    pre-decision pickle and the catalog. The fixture attaches real Home/skill
    knowledge, shelves, purchase quantities, conquest latch, and ledger; the
    optimizer runs normally, with the run's calibration. No gate is mocked.
+   The two diggers observed deposited by dkdjdd are added to the prior full
+   Home knowledge; the resulting catalog contains the recorded 40 items.
    The calibration's file modification time was 14:19:18 (before this run),
    and the confirmation file was 16:16:26 (before the stop); both were frozen.
 
@@ -41,17 +43,17 @@ decision 11411, turn 1493887. The work is confined to bot-client-c2.
    `policy_helpers.py:324-429` admits deeper guardian alternatives;
    `policy.py:13723-13760` commits the selected target. However, the only
    town recall invocation is inside `departure_ok` at
-   `policy_town.py:5556-5683`. Residual weight prevents entry, and the generic
-   terminal at `policy_town.py:5726-5769` stops first.
+   `policy_town.py:5562-5683`. Residual weight prevents entry, and the generic
+   terminal at `policy_town.py:5742-5782` stops first.
 
 4. **The Home cycle was catalog work, not a failed deposit.** After the
    successful deposit, knowledge is invalidated. On incomplete open Home
    pages, `policy.py:8979-9038` chooses ESC to leave before a full knowledge
    scan (the recorded requests are absent). Outside, the equipment-catalog
-   need routes back to Home; 9 approaches the entrance, 1 backs out to the
-   adjacent outside operation context, and the same incomplete page is
-   reopened. Three no-effect passes exhaust the ordinary Home bound
-   (`policy_town.py:3723-3768`). The ledger blocks Home with unsatisfied
+   need routes back to Home; 9 steps off the entrance (45,123) to the
+   adjacent outside cell (44,124), and 1 re-enters Home at (45,123). The
+   same incomplete page is reopened. Three no-effect passes exhaust the
+   ordinary Home bound (`policy_town.py:3736-3768`). The ledger blocks Home with unsatisfied
    passes 3, visits 7, approach failures empty. Subsequent optional shop
    pages are observed and left; the final failed weight leaf has no deposit
    need. No successful deposit is reclassified as a failed operation here.

@@ -1,0 +1,263 @@
+{
+  "topic": "classC2",
+  "implementer": "gpt-6.1-sol",
+  "status": "implemented-with-preexisting-test-failure",
+  "base": "e8824223",
+  "audit_commit": "1a61d10b",
+  "modules": [
+    {
+      "module": "tests.test_classC2_departure_recorded",
+      "tests": 5,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_classC_departure_remedies",
+      "tests": 5,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_live36_weight",
+      "tests": 7,
+      "failures": 1,
+      "result": "preexisting-fixture-hash-failure"
+    },
+    {
+      "module": "tests.test_identify_staff_live27_recorded",
+      "tests": 1,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_departure_unsatisfiable_weight_recorded",
+      "tests": 7,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_guardian_recall_pingpong_recorded",
+      "tests": 7,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_town_progress_invariant",
+      "tests": 22,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_ownership_s2a_classification",
+      "tests": 16,
+      "failures": 0,
+      "result": "pass"
+    },
+    {
+      "module": "tests.test_test_fakery_lint",
+      "tests": 13,
+      "failures": 0,
+      "result": "pass"
+    }
+  ],
+  "tests": 83,
+  "passed": 82,
+  "failures": 1,
+  "guardian_modules": [
+    "tests.test_guardian_recall_pingpong_recorded"
+  ],
+  "fixtures": [
+    {
+      "case": "stuck",
+      "mode": "off",
+      "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+      "first_divergence": null,
+      "trajectory_defect": null
+    },
+    {
+      "case": "stuck",
+      "mode": "s33",
+      "off_sha256": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
+      "first_divergence": null,
+      "trajectory_defect": null
+    },
+    {
+      "case": "withdraw",
+      "mode": "off",
+      "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+      "first_divergence": null,
+      "trajectory_defect": null
+    },
+    {
+      "case": "withdraw",
+      "mode": "s33",
+      "off_sha256": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
+      "first_divergence": {
+        "historical": {
+          "key": "~9\u001b",
+          "reason": "home:request-knowledge-scan"
+        },
+        "historical_sequence": 3,
+        "historical_sequence_source": "fixture",
+        "list_index": 3,
+        "new_sequence": 3,
+        "off": [
+          "~9\u001b",
+          "home:request-knowledge-scan"
+        ],
+        "off_sequence": 3,
+        "on": [
+          "\u001b",
+          "equipment-transaction:catalogue-leave-for-scan"
+        ],
+        "pre_decision_off": {
+          "delegates": [
+            {
+              "budget_reference": "town-travel-progress-budget",
+              "delegate_family": "store-router",
+              "ending": "exit-owner-mismatch",
+              "execution": null,
+              "expected_effect": "arrived-or-entered",
+              "lifecycle": "released",
+              "opening_decision": 2,
+              "parent_claim_id": null,
+              "parent_family": "store-router",
+              "purpose_identity": [
+                "trip",
+                "equipment-txn",
+                "recovered-shopping",
+                7
+              ],
+              "work_identity": [
+                "route",
+                1,
+                7
+              ]
+            }
+          ],
+          "operation": {
+            "claim_id": 3,
+            "identity": null,
+            "phase": "entering",
+            "posted": false,
+            "producer": null,
+            "purpose": "recovered-shopping",
+            "released": false,
+            "store_type": 7
+          },
+          "parent": {
+            "claim_id": 3,
+            "family": "equipment-txn",
+            "goal": {
+              "expectation": [
+                "5550750",
+                "7",
+                "knowledge"
+              ],
+              "kind": "Observe",
+              "source": "knowledge",
+              "within": 8
+            },
+            "state": "active"
+          },
+          "plan": null,
+          "session": null
+        },
+        "pre_decision_on": {
+          "delegates": [
+            {
+              "budget_reference": "town-travel-progress-budget",
+              "delegate_family": "store-router",
+              "ending": "exit-owner-mismatch",
+              "execution": null,
+              "expected_effect": "arrived-or-entered",
+              "lifecycle": "released",
+              "opening_decision": 2,
+              "parent_claim_id": null,
+              "parent_family": "store-router",
+              "purpose_identity": [
+                "trip",
+                "equipment-txn",
+                "recovered-shopping",
+                7
+              ],
+              "work_identity": [
+                "route",
+                1,
+                7
+              ]
+            }
+          ],
+          "operation": {
+            "claim_id": 3,
+            "identity": null,
+            "phase": "entering",
+            "posted": false,
+            "producer": null,
+            "purpose": "recovered-shopping",
+            "released": false,
+            "store_type": 7
+          },
+          "parent": {
+            "claim_id": 3,
+            "family": "equipment-txn",
+            "goal": {
+              "expectation": [
+                "5550750",
+                "7",
+                "knowledge"
+              ],
+              "kind": "Observe",
+              "source": "knowledge",
+              "within": 8
+            },
+            "state": "active"
+          },
+          "plan": null,
+          "session": null
+        }
+      },
+      "trajectory_defect": null
+    }
+  ],
+  "baseline": "b24fd077: exact recorded key/reason and failed leaves reproduced at public entry with declared attachment",
+  "single_revert": "e8824223 town runtime: exactly 2 remedy pins fail; byte-for-byte restoration; final new module passes",
+  "weight": {
+    "before": 1983,
+    "after": 1768,
+    "limit": 1750,
+    "excess": 18,
+    "safe_deposit_remaining": false
+  },
+  "remedy": {
+    "old_target": [
+      2,
+      12
+    ],
+    "new_target": [
+      3,
+      18
+    ],
+    "recall_posted": false
+  },
+  "changed_preexisting_assertions": [],
+  "assertion_audit": "No changed pre-existing assertions or forbidden test edits.",
+  "blockers": [
+    "pre-existing live36 fixture SHA mismatch (unchanged since e3adcc42)"
+  ],
+  "pending_for_claude": [
+    "tests.test_cli",
+    "tests.test_policy_town",
+    "tests.test_policy_shop",
+    "tests.test_absorbing_states",
+    "long tour/town/overweight recorded replays",
+    "town producer purity parts",
+    "full-fixture runs/sweeps of scripts/first_divergence_s3_3.py",
+    "scripts/test_parallel_runner.py",
+    "scripts/test_timing_runner.py",
+    "scripts/hunk_guard.py",
+    "scripts/verify_scope.py",
+    "scripts/mutation_battery.py",
+    "full-suite gates"
+  ]
+}

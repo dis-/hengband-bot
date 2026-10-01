@@ -5482,8 +5482,8 @@ class TownMixin:
         # the current kit cannot pass still runs the whole departure flow:
         # its supplies, scrolls and readiness gates are those of a recall that
         # will be read (to the switched landing), and the refusal is recorded
-        # as a failed departure leaf.  The switch itself happens only where
-        # the recall key would otherwise be read.
+        # as a failed departure leaf. Switch at the recall read point, or after
+        # the other remedies have no remaining step, before a terminal verdict.
         guardian_blocked = False
         if recall_dest is None:
             gated_dest, gated_dungeon = self._town_recall_destination(
@@ -5659,11 +5659,11 @@ class TownMixin:
                     # made it the target (a conquest latch committed on an
                     # earlier kit, a latched alternate whose landing has since
                     # reached its guardian floor), the dive would come
-                    # straight back (guardian-kit-insufficient).  Only here,
-                    # with every departure leaf ready -- a departure-blocking
+                    # straight back (guardian-kit-insufficient). At this read
+                    # point every departure leaf is ready; a departure-blocking
                     # withdrawal or purchase still pending (a consumable that
                     # can make the guardian beatable again) keeps the target
-                    # and the latch -- switch the way the guardian valve
+                    # and the latch. Switch the way the guardian valve
                     # does, and with no landing left stop visibly (user
                     # decisions 2026-09-25, guardian-recall-pingpong r2/r3).
                     # Optional town claims do not hold the switch back, just
@@ -5778,6 +5778,26 @@ class TownMixin:
                 restock = self._town_restock_wait_key(snapshot)
                 if restock is not None:
                     return restock
+                if guardian_blocked and not snapshot.player.recalling:
+                    # All procurement/deposit owners above have had their
+                    # opportunity. A different unresolved leaf (including
+                    # weight with no safe surplus) must not silence the
+                    # decided guardian remedy. Select the safe target only;
+                    # the next board still has to satisfy every departure
+                    # gate before a recall can be read.
+                    if self._guardian_blocked_recall_switch(
+                        snapshot, recall_dungeon_id
+                    ):
+                        self.last_reason = "town:unsafe-recall-fallback"
+                        self._offer_execution(
+                            WAIT_KEY, producer="departure",
+                            work_id="town:guardian-recall-fallback",
+                            next_step="recall.observe-fallback",
+                            expected_effect="safe-destination-selected",
+                        )
+                        return WAIT_KEY
+                    self._town_blocked_reason = "guardian-bounce-no-alternate"
+                    return self._town_blocked_key(snapshot)
                 self._town_blocked_reason = "departure-unsatisfiable"
                 return self._town_blocked_key(snapshot)
         # Destination safety is a departure assertion, not an errand-router
