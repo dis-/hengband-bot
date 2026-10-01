@@ -1,4 +1,4 @@
-﻿# tpstockout: stocked supplier owner failure (CORRECTION applied)
+# tpstockout: stocked supplier owner failure (CORRECTION applied)
 
 Continued from ed59a8eb on tpstockout. Work is confined to this worktree;
 recorder-owned jsonlog and other worktrees are read-only. The original
@@ -73,7 +73,7 @@ MINE ON STOCK-OUT" remains intact: these stocked boards replenish in town.
 Class C's "remedy ... offered and genuinely failed" now permits the stocked
 supplier's remedy to actually be produced.
 
-## Step 2 (verification in progress)
+## Step 2: fix and completed verification
 
 Reserve lookup coverage for Home plus every ordinary supplier: Recall 3,
 Teleport 2, Critical Cure 3, Oil 2; Food remains 2. Preserve an already
@@ -88,7 +88,52 @@ Printed source mapping: `model.py:335` says `STORE_ALCHEMIST = 4`;
 `TOWN_TRAVEL_STORE_SYMBOLS = ("!", '"', "#", "$", "%", "&", "'", "(")`.
 The pin asserts travel, not an unobserved future purchase result.
 
-Verification results and final JSON event follow after completion.
+One module per Python process; explicit requested list only:
+
+| Module | Tests | Result |
+| --- | ---: | --- |
+| tests.test_tpstockout_restart_recorded | 2 | pass; fresh + checkpoint public entry |
+| tests.test_tpstockout_recorded | 1 | pass; original shelf evidence unchanged |
+| tests.test_identify_staff_live27_recorded | 1 | pass; first divergence remains 104, mining plan 1 |
+| tests.test_classC_departure_remedies | 5 | pass |
+| tests.test_classC2_departure_recorded | 9 | pass |
+| tests.test_live36_weight | 7 | pass |
+| tests.test_town_progress_invariant | 22 | pass |
+| tests.test_recall_stockout_set_end_recorded | 5 | pass |
+| tests.test_recall_stockout_surplus_pins | 8 | pass |
+| tests.test_town_restock_trajectory | 21 | pass |
+| tests.test_test_fakery_lint | 13 | pass |
+
+Total: 94 tests. Explicit stockout/restock module list is the two tpstockout
+modules plus the two recall_stockout modules and town_restock_trajectory above.
+No discovery/all-matching sweep was run.
+
+The first live27 run exposed an early divergence at 35: a pending Home batch
+handoff was redirected to the newly registered supplier. The fix preserves
+that selected batch before trying another shop; the unchanged pin then
+reproduces the prefix to 104 and chooses the intended one-run mining action.
+The initial lint run found UTF-8 BOMs in newly created Python files; removing
+the BOMs made all 13 lint tests pass without changing lint expectations.
+
+Single final production-file revert check against ed59a8eb: new module exits
+1 with six failing subcases (four missing supplier lookups, fresh blocked,
+restored blocked). Both public-entry cases print the actual recorded
+`5 / town:blocked:no-actionable-claim-owner`. After restoring the final code,
+the same module passes, both printing `\x1b`n%. / shop:travel`.
+
+Explicitly authorized stuck/withdraw runs of first_divergence_s3_3.py:
+
+| Case/mode | Rows | OFF hash / designed first divergence | Result |
+| --- | ---: | --- | --- |
+| stuck/off | 4 | c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5 | matching |
+| stuck/s33 | 4 | none | trajectory_defect null |
+| withdraw/off | 34 | a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9 | matching |
+| withdraw/s33 | 4 | index 3, sequence 3, ESC / equipment-transaction:catalogue-leave-for-scan | trajectory_defect null |
+
+Step-1 commit: bce3c16a. Implementation commit is recorded below after git
+creates it. The original evidence/assertions and EXPECTED_FIRST are unchanged.
+No live game/bot interaction, generic mining remedy, publishing or other
+worktree write was performed.
 
 For Claude, DO NOT RUN: `scripts/test_parallel_runner.py`,
 `scripts/test_timing_runner.py`, `scripts/hunk_guard.py`,
@@ -105,3 +150,9 @@ No changed pre-existing assertions or forbidden test edits.
 ```
 
 Changed pre-existing assertions: []. EXPECTED_FIRST is unchanged.
+
+Assertion audit before step-2 commit, base ed59a8eb, verbatim:
+
+```
+No changed pre-existing assertions or forbidden test edits.
+```
