@@ -399,21 +399,6 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             5,
         )
 
-    def test_calibration_transaction_observes_still_complete(self):
-        endings = {
-            row["claim"]["decision_sequence"]: row["claim"]["closed_claim"]
-            for row in self._replay()
-            if row["claim"]["decision_sequence"] in {3755, 3767}
-        }
-        self.assertEqual(set(endings), {3755, 3767})
-        for sequence in (3755, 3767):
-            self.assertEqual(
-                (endings[sequence]["owner"], endings[sequence]["goal_kind"],
-                 endings[sequence]["closed"], endings[sequence]["closed_reason"]),
-                ("calibration", "Observe", "complete",
-                 "equipment-transaction-complete"),
-            )
-
     def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
         # S2b.2 (record-only, switch off; the decisions are pinned above).
         # Seven hunts lost their monster (``target-lost``) and were barred
@@ -510,9 +495,9 @@ class HomeSuccessResetsTheVisitBoundTest(unittest.TestCase):
     Home the character really cannot approach, is a visible stop.
 
     Each successful Home operation is confirmed by a production observer,
-    ``_observe_calibration_restore_batch`` (the outside board of an
-    entrance-composed Home take, the observer of the recorded 3770-3775
-    restores), on a board whose pack shows the taken item.  The unsuccessful
+    ``_observe_home_atomic_withdrawal_outside`` (the outside board of an
+    entrance-composed Home take), on a board whose pack shows the taken
+    item.  The unsuccessful
     passes are charged by the ledger producer the recorded visit's
     store-context exits and transaction approaches used.  The verdict is the
     public claim evaluation that set the recorded terminal.
@@ -540,11 +525,11 @@ class HomeSuccessResetsTheVisitBoundTest(unittest.TestCase):
     def _observed_home_take(self):
         """One posted Home take whose item the next outside board carries."""
         signature = self.policy._item_signature(self.remains)
-        entry = (signature, 0, self.remains, 1, 0)
-        self.policy._home_atomic_withdraw_pending = (*entry[:4], (entry,))
-        self.policy._observe_calibration_restore_batch(
-            self.snapshot, self.policy._home_atomic_withdraw_pending
-        )
+        # The single-item take observer (the batch restore observer used
+        # here before was retired with the strip calibration).
+        self.policy._home_atomic_withdraw_pending = (
+            signature, 0, self.remains, 1)
+        self.policy._observe_home_atomic_withdrawal_outside(self.snapshot)
         self.assertIsNone(self.policy._home_atomic_withdraw_pending)
 
     def _successful_home_operations(self, rounds):

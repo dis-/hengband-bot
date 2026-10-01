@@ -10,6 +10,18 @@ from hengbot.warrior_optimization import CharacterCalibration, load_character_ca
 DUMP_MTIME_TOLERANCE_NS = 100_000_000
 
 
+_PROCESS_SESSION_ID: str | None = None
+
+
+def process_calibration_session_id() -> str:
+    """The calibration session identity of this bot process."""
+    global _PROCESS_SESSION_ID
+    if _PROCESS_SESSION_ID is None:
+        import uuid
+        _PROCESS_SESSION_ID = uuid.uuid4().hex
+    return _PROCESS_SESSION_ID
+
+
 class LegacyCalibrationDebtError(RuntimeError):
     """Manual recovery is required before attaching an old stripped session."""
 

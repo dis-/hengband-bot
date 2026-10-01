@@ -44,22 +44,23 @@ class TownOwnerClusterIncidentTest(unittest.TestCase):
         visit = policy._store_visit
         self.assertIsNotNone(visit)
         self.assertTrue(visit.operation_posted)
-        self.assertEqual(visit.phase, StoreVisitPhase.ENTERING)
+        # Equipped C-sheet calibration rework: on this open-loop replay of a
+        # fresh policy the base code armed the strip calibration, which kept
+        # the posted Home entry ENTERING and waited ("") on the lagged board.
+        # Without it (the base code with its strip re-arming disabled decides
+        # the same) the composed entry already carries its Home operation and
+        # the lagged board is decided as a step; the pinned invariant -- a
+        # posted Home entry never becomes an inert approach -- is unchanged.
+        self.assertEqual(visit.phase, StoreVisitPhase.OPERATING)
 
-        self.assertEqual(policy.choose_key(lagged[0]), "")
-        visit = policy._store_visit
-        self.assertIsNotNone(visit)
-        self.assertTrue(visit.operation_posted)
-        self.assertEqual(visit.phase, StoreVisitPhase.ENTERING)
-        self.assertIsNotNone(visit.posted_sequence)
-
-        policy.choose_key(matching_home[0])
-        visit = policy._store_visit
-        self.assertFalse(
-            visit is not None
-            and visit.phase == StoreVisitPhase.APPROACHING
-            and visit.operation_posted
-        )
+        for board in (lagged[0], matching_home[0]):
+            policy.choose_key(board)
+            visit = policy._store_visit
+            self.assertFalse(
+                visit is not None
+                and visit.phase == StoreVisitPhase.APPROACHING
+                and visit.operation_posted
+            )
 
     def test_captured_staged_home_owner_releases_instead_of_wandering(self):
         policy = self._captured_policy_through(46)

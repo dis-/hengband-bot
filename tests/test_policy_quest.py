@@ -4097,7 +4097,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         uncalibrated = self._policy()
         preparation = uncalibrated._prepare_equipment_optimization(board)
         self.assertEqual(preparation.blockers, ("calibration-required",))
-        self.assertFalse(uncalibrated._equipment_departure_ready(board))
+        # R1 (equipped C-sheet calibration rework): unavailable calibration
+        # skips optimization and permits departure with the current gear.
+        self.assertTrue(uncalibrated._equipment_departure_ready(board))
         self.assertTrue(policy._evaluate_fixed_quest_readiness(
             board, 34, require_target_town=True
         ))
@@ -6353,17 +6355,19 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             name for name, source in sources.items()
             if "_q2_blue_recovery_perceived" in source
         }
+        # The calibration rework moved the checkpoint-restore default from
+        # latch_onset_capture.py into the single upgrade, policy_state.py (R5).
         self.assertEqual(
             writers,
             {
-                "latch_onset_capture.py",
+                "policy_state.py",
                 "policy.py",
                 "policy_observation.py",
                 "policy_quest.py",
             },
         )
         self.assertEqual(
-            sources["latch_onset_capture.py"].count(
+            sources["policy_state.py"].count(
                 "_q2_blue_recovery_perceived"
             ),
             1,

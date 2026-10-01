@@ -2655,10 +2655,13 @@ class IdentifyStaffTest(unittest.TestCase):
                 drained_stats=("con",),
             ),
         )
-        pol.choose_key(drained)
-        self.assertEqual(
-            pol._home_pending_item, pol._item_signature(restore), pol.last_reason
-        )
+        # The drained-stat Home restore was queued by the retired strip
+        # calibration's entry blocker (equipped C-sheet calibration rework:
+        # drained stats no longer block calibration).  Queue the same Home
+        # withdrawal through its producer; the pin's subject, the deferred
+        # item filter below, is unchanged.
+        pol._queue_home_stat_restore(drained)
+        self.assertEqual(pol._home_pending_item, pol._item_signature(restore))
         self.assertEqual(pol.choose_key(inside), LEAVE_STORE_KEY)
         self.assertEqual(pol.choose_key(replace(outside, turn=1)), "5pa\x1b")
         self.assertEqual(pol.choose_key(replace(inside, turn=2)), LEAVE_STORE_KEY)

@@ -118,8 +118,8 @@ def normalize_policy_state(restored, *, restart=False):
         restored._calibration_dump_prepared = None
         restored._calibration_dump_response = None
         if not restored.__dict__.get("_calibration_session_id"):
-            import uuid
-            restored._calibration_session_id = uuid.uuid4().hex
+            from hengbot.policy_calibration import process_calibration_session_id
+            restored._calibration_session_id = process_calibration_session_id()
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     restored.__dict__.setdefault("_remembered_grid_sources", {})
     restored.__dict__.setdefault("_remembered_grid_signatures", {})

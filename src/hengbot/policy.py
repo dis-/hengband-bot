@@ -2306,8 +2306,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._calibration_dump_response = None
         self._calibration_unavailable_reason = None
         self._calibration_rejection = None
-        import uuid
-        self._calibration_session_id = uuid.uuid4().hex
+        # One identity per bot process: a persisted equipped record is
+        # accepted only from this process (policies of one process agree).
+        from hengbot.policy_calibration import process_calibration_session_id
+        self._calibration_session_id = process_calibration_session_id()
         self._character_response_sequence = None
         self._confirmed_loadout: ConfirmedLoadoutRecord | None = None
         self._confirmed_loadout_path: Path | None = None

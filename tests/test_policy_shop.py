@@ -4008,7 +4008,13 @@ class TownErrandPlanTest(unittest.TestCase):
         key = policy._atomic_shop_transaction_key(entrance)
 
         signature = policy._item_signature(home_staff)
-        self.assertIsNone(key)
+        # The incident policy was in the strip calibration's capture phase,
+        # which held the town sequence (key None).  Without the strip phase
+        # (equipped C-sheet calibration rework; the base code with its strip
+        # state cleared decides the same) the home-first branch emits its
+        # step at once; the routing facts below are unchanged.
+        self.assertEqual(key, "5")
+        self.assertEqual(policy.last_reason, "shop:home-first-before-purchase")
         self.assertEqual(
             policy._home_gate_telemetry["branch"],
             "wrapper-candidate-home-first",
