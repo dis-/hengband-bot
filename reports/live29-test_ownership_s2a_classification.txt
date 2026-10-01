@@ -1,0 +1,11 @@
+python.exe : ................
+発生場所 行:2 文字:59
++ ... ONUTF8='1'; & 'C:\Users\user\.cache\codex-runtimes\codex-primary-runt ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (................:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+----------------------------------------------------------------------
+Ran 16 tests in 50.664s
+
+OK
