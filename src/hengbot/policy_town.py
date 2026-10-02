@@ -1365,11 +1365,12 @@ class TownMixin:
             # posted) and Home's own pass/approach bound remains: route Home
             # again.  Each unfulfilled pass is charged to that bound.
             self._rearm_town_store_for_new_work(STORE_HOME)
+            # The router's own required stop; _shopping_approach_step files
+            # and begins the Home visit request (the authorized approach).
             if (
                 STORE_HOME not in self._town_store_attempted
-                and self._next_required_store_type(snapshot) == STORE_HOME
                 and (step := self._shopping_approach_step(
-                    snapshot, STORE_HOME, router_plan_stop=True)) is not None
+                    snapshot, router_plan_stop=True)) is not None
                 and (rearmed := self._shopping_approach_key(
                     snapshot, step, "shop:travel")) is not None
             ):

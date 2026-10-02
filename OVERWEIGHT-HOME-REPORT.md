@@ -251,3 +251,56 @@ claim 48 が `queue-digging-tool-withdraw`（fundraising mode prepare、採掘�
 - 着地が安全条件で拒まれている目標で、安全な切り替え先も無い場合、帰還を 10 枚持とうとしてから
   `no-safe-recall-destination` で止まる（以前は 9 枚で止まった）。停止の形は変わらない。
 - 自宅で預け入れが出ないまま戻る原因が他に残っていれば、自宅への往復が最大 3 回続いてから名前付きの停止になる。
+
+---
+
+## 追補 2（81e314e8 で全体テスト 5 件が落ちた件、9cf0af6f をマージして続行）
+
+### P1 が原因の 2 件（修正済み）
+
+- `tests.test_home_visit.test_whole_file_home_approach_ratchet_and_evasion_controls`
+- `tests.test_policy_calibration.test_p4_calibration_restore_has_no_direct_home_approach_bypass`
+
+どちらも src 全体の静的検査（`_direct_home_approach_bypasses`, `tests/test_home_visit.py:314`）。81e314e8 の P1 は、
+同じ関数の中で `_ensure_home_visit_request` を呼ばずに `_shopping_approach_step(snapshot, STORE_HOME, ...)` を書いていた
+（`policy_town.py` の再武装の分岐）。修正: ルーターの必須の行き先を `_shopping_approach_step(snapshot, router_plan_stop=True)`
+で求める（`town:repetition-required-shopping` と同じ既存の形）。自宅なら `_shopping_approach_step` の中で
+`_ensure_home_visit_request` が自宅の訪問の申請と接近の開始を行う（`policy_shop.py:4487`）ので、承認なしの接近ではない。
+`STORE_HOME` の明示と `_next_required_store_type` の二重呼びも消した。差し戻すと test_home_visit が再び失敗する
+（`reports/overweight-home-fix2-revert.txt`）。
+
+### P2 が原因の 3 件（意図した変更なので assert は直していない。判断をお願いします）
+
+`_town_recall_destination(..., safety_gate=False)` を一時的に元に戻す（出発の 1 枚を安全条件つきの行き先でだけ数える）と、
+3 件とも合格する（スクラッチで確認）。行き先の選択は変わっていない: `safety_gate=False` を使うのは
+`policy_supply.py:196` の帳簿の +1 だけで、`_activate_safe_recall_fallback` や `_pick_alternate_dungeon` は使わない。
+変わるのは帰還の買う数と、それに伴う店の順番だけ。
+
+- `tests.test_guardian_recall_pingpong_recorded` の `test_live_replay_reproduces_every_recorded_decision`
+  （新しい食い違い [5, 6, 8, 12, 13]）と `test_g1_fallback_does_not_choose_a_blocked_guardian_landing`
+  （0〜12 を実機と一致させる最初の assert で失敗。行き先の assert には届いていない）。
+  記録: index 5 `ph1\r\r\x1b`（帰還 1 枚）、index 8 で Angband の着地が拒まれて別のダンジョンに切り替え、
+  index 11 `ph1\r\r\x1b`（出発用の 1 枚を買い直し）、13 `rfc`。修正後は index 5 で `ph2`（2 枚まとめて）。
+- `tests.test_town_approach_retired_recorded.test_replay_reproduces_every_recorded_decision_before_the_stop`
+  （新しい食い違い index 52 だけ。それ以外は前と同じ）: 51 で帰還を買った後、記録は `\x1b`n'.` へ、修正後は
+  帰還がまだ 1 枚足りないので `\x1b`n$.` へ向かう。53 以降の理由は実機と同じ。
+
+これは 9cf0af6f で `test_oneshot_preempt_recorded` を `pl2` に合わせたのと同じ変化（09-20「目標＋出発で読む1枚」を
+切り替えの前から買う）。選べる道は 2 つ:
+1. P2 の変化を受け入れ、上の 3 件にも 9cf0af6f と同じ形で合わせる（または宣言した壁で修正前の数え方にする）。
+2. P2 の +1 を自宅の保持（`_retention_reservation_baseline_detail` の帰還）だけに使い、買う数は元に戻す。
+   この場合は 3 件が元どおり合格し、代わりに 9cf0af6f の `pl2` が `pl1` に戻る。
+今のコミットは 1 のまま（買う数は 2）。
+
+### 実行したテスト（1 プロセス 1 モジュール）
+
+| モジュール | 結果 |
+| --- | --- |
+| tests.test_home_visit | OK（21 件、skip 3 は従来どおり） |
+| tests.test_policy_calibration | OK（75 件） |
+| tests.test_guardian_recall_pingpong_recorded | FAILED 2（P2、上記） |
+| tests.test_town_approach_retired_recorded | FAILED 1（P2、上記） |
+| tests.test_overweight_home_hold_recorded | OK（6 件） |
+| tests.test_departure_unsatisfiable_weight_recorded | OK（8 件） |
+| tests.test_oneshot_preempt_recorded | OK（4 件） |
+| tests.test_test_fakery_lint | OK（13 件） |

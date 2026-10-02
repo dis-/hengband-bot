@@ -1,0 +1,34 @@
+.....F..
+======================================================================
+FAIL: test_replay_reproduces_every_recorded_decision_before_the_stop (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-ovw\tests\test_town_approach_retired_recorded.py", line 374, in test_replay_reproduces_every_recorded_decision_before_the_stop
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        [
+        ^
+    ...<6 lines>...
+        [*STALE_GATE_WINDOW, STOP],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: [52, 1944, 1949, 1950, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 2051] != [1944, 1949, 1950, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 2051]
+
+First differing element 0:
+52
+1944
+
+First list contains 1 additional elements.
+First extra element 12:
+2051
+
+- [52, 1944, 1949, 1950, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 2051]
+?  ----
+
++ [1944, 1949, 1950, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 2051]
+
+----------------------------------------------------------------------
+Ran 8 tests in 143.646s
+
+FAILED (failures=1)
