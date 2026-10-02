@@ -233,7 +233,8 @@ from hengbot.model import (
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
-    NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, PLAYER_ACTION_ENERGY_MAX, RUBBLE_DIG_LIMIT,
+    MONSTER_SPELL_MAX_RANGE, NAV_ESCAPE_STEP_LIMIT, OPEN_KEY,
+    PLAYER_ACTION_ENERGY_MAX, RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT, STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW,
     VISIT_PENALTY, speed_energy,
 )
@@ -1823,8 +1824,16 @@ class CombatMixin:
             and all(monster.race_id in immediate_races for monster in summoners)
             and len(hostiles) < SWARM_COUNT
         )
+        # USER DECISION 2026-10-03 06:1x: 「届かず、というのが「次のターン召喚を
+        # 受ける可能性がない」という意味であれば1」 -- a summoner that cannot
+        # summon at the player before the player's next action is no reason
+        # to read (nor a dive emergency); the ranged-kill / retreat rules
+        # below and elsewhere are unchanged.
         summoner_open = (
-            bool(summoners)
+            any(
+                self._summoner_may_summon_next_turn(snapshot, monster)
+                for monster in summoners
+            )
             and not committed_summoner_engagement
             and self._open_neighbor_count(snapshot, player.position)
             >= SUMMONER_EXPOSED_NEIGHBORS
@@ -3569,6 +3578,143 @@ class CombatMixin:
             if grid is None or not grid.allows_los:
                 return False
         return True
+    # -- summoner reach (USER DECISION 2026-10-03 06:1x) -----------------------
+    @staticmethod
+    def _monster_cast_distance(origin: Position, target: Position) -> int:
+        """The monster's ``cdis`` (monster-update.cpp:196-198)."""
+        dy, dx = abs(origin.y - target.y), abs(origin.x - target.x)
+        return dy + (dx >> 1) if dy > dx else dx + (dy >> 1)
+
+    @staticmethod
+    def _may_block_projection(snapshot: Snapshot, position: Position) -> bool:
+        """Only a known grid without PROJECTION can stop a bolt.  The board
+        carries LOS and MOVE; the only PROJECTION terrain without LOS is the
+        closed curtain, which has MOVE (TerrainDefinitions.jsonc), and LOS
+        without PROJECTION (glass) is read as open: an over-estimate of reach."""
+        grid = snapshot.grid_at(position)
+        return (
+            grid is not None
+            and grid.known
+            and not (grid.allows_los or grid.passable)
+        )
+
+    def _may_project(
+        self, snapshot: Snapshot, source: Position, target: Position
+    ) -> bool:
+        """projectable() (projection-path-calculator.cpp:254-270) over the
+        known map with unknown grids open: the ported bolt path, range
+        get_max_range() = 18 (angband-system.cpp:45-48), ends on the target."""
+        if source == target:
+            return True
+        path = projection_path(
+            source, target, MONSTER_SPELL_MAX_RANGE,
+            lambda position: self._may_block_projection(snapshot, position),
+        )
+        return bool(path) and path[-1] == target
+
+    def _summoner_may_summon_next_turn(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether ``monster`` may cast a summon at the player before the
+        player's next action (USER DECISION 2026-10-03 06:1x).
+
+        Game rules, read with the player's information only:
+        - a counter-attack target -- the player's grid when the player's shot
+          or projection damaged it (shoot.cpp:846, effect-monster.cpp:644) --
+          lets it cast the indirect spells, summons included, at that grid
+          from any range without projection (mspell-attack.cpp:318-321,
+          mspell-lite.cpp:176-186, race-ability-mask.cpp:101-105) until its
+          next spell attempt, which the player cannot see: a summoner fired
+          at on this floor stays able to summon;
+        - otherwise beyond get_max_range() (cdis, monster-update.cpp:196-198,
+          over 18) it does not cast (mspell-attack.cpp:318-321);
+        - it casts at the player when the player's grid, or a grid next to
+          it that has PROJECTION (adjacent_grid_check), is projectable from
+          it (decide_lite_projection and adjacent_grid_check,
+          mspell-lite.cpp:38-88 and 208-230); summons are
+          not among the spells refused at such an offset grid
+          (check_thrown_mspell, mspell-attack.cpp:211-262);
+        - asleep is no bar: a sleeping monster near or in view of the player
+          can wake during the player's turn (monster-status.cpp:116-170) and
+          act on its next move;
+        - before its cast it may move: within one player turn it takes up to
+          _monster_actions(speed, player speed, 1) actions, all but the last
+          spent walking (unknown grids and doors open; PASS_WALL / KILL_WALL
+          through anything; NEVER_MOVE not at all).
+        """
+        if (snapshot.floor_key, monster.index) in getattr(
+            self, "_summoner_counter_targets", frozenset()
+        ):
+            return True
+        player = snapshot.player.position
+        targets = [player] + [
+            cell
+            for dy, dx in NEIGHBOR_OFFSETS
+            if not self._may_block_projection(
+                snapshot, cell := Position(player.y + dy, player.x + dx)
+            )
+        ]
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        flags = knowledge.flags if knowledge is not None else frozenset()
+        steps = (
+            0
+            if "NEVER_MOVE" in flags
+            else self._monster_actions(monster.speed, snapshot.player.speed, 1) - 1
+        )
+        through_walls = bool({"PASS_WALL", "KILL_WALL"} & set(flags))
+        frontier = [monster.position]
+        seen = {monster.position}
+        for depth in range(steps + 1):
+            for origin in frontier:
+                if self._monster_cast_distance(
+                    origin, player
+                ) <= MONSTER_SPELL_MAX_RANGE and any(
+                    self._may_project(snapshot, origin, target)
+                    for target in targets
+                ):
+                    return True
+            if depth == steps:
+                break
+            following = []
+            for origin in frontier:
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    cell = Position(origin.y + dy, origin.x + dx)
+                    if cell in seen or cell == player:
+                        continue
+                    grid = snapshot.grid_at(cell)
+                    if (
+                        through_walls
+                        or grid is None
+                        or not grid.known
+                        or grid.passable
+                        or grid.is_door
+                    ):
+                        seen.add(cell)
+                        following.append(cell)
+            frontier = following
+        return False
+
+    def _note_summoner_counter_targets(
+        self, snapshot: Snapshot, key: object
+    ) -> None:
+        """A posted shot or throw may damage any summoner in its line: each
+        may hold a counter-attack target from then on (see above)."""
+        if not str(key or "").startswith((FIRE_KEY, THROW_KEY)):
+            return
+        player = snapshot.player.position
+        noted = {
+            entry
+            for entry in getattr(self, "_summoner_counter_targets", frozenset())
+            if entry[0] == snapshot.floor_key
+        }
+        noted.update(
+            (snapshot.floor_key, monster.index)
+            for monster in snapshot.visible_monsters
+            if monster.hostile
+            and monster.can_summon
+            and self._may_project(snapshot, player, monster.position)
+        )
+        self._summoner_counter_targets = frozenset(noted)
     @claims(ClaimOwner.ESCAPE)
     def _flee_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         # Material-engagement retreat records each abandoned square so later

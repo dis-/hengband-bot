@@ -245,6 +245,7 @@ def normalize_policy_state(restored, *, restart=False):
         restored.__dict__["_home_knowledge_scan_inflight"] = False
     restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
     # (floor, loss, deadline turn); a carry without its deadline is dropped.
+    restored.__dict__.setdefault("_summoner_counter_targets", frozenset())
     carry = restored.__dict__.setdefault("_blind_cure_escape_carry", None)
     if carry is not None and len(carry) != 3:
         restored.__dict__["_blind_cure_escape_carry"] = None

@@ -163,6 +163,13 @@ def speed_energy(speed: int) -> int:
 # 16-bit uniforms, so it is truncated at mean +/- 6 sigma (100 + 150).
 PLAYER_ACTION_ENERGY_MAX = 100 + 6 * 25
 
+# A monster's spell range and projection length: AngbandSystem::
+# get_max_range() is 18 outside the monster arena (angband-system.cpp:45-48);
+# make_attack_spell gives up beyond it without a counter-attack target
+# (mspell-attack.cpp:318-321) and projectable() walks at most that far
+# (projection-path-calculator.cpp:262-270).
+MONSTER_SPELL_MAX_RANGE = 18
+
 
 DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (-1, -1): "7",
