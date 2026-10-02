@@ -9993,6 +9993,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, corridor_threats, strategic_hostiles
             )
             if step is not None:
+                # The same navigation veto as the flee / threat:reposition
+                # retreats: persist the abandoned (exposed, in-view) square.
+                # One step later the summoner is out of view, the retreat
+                # rung falls silent, and a remembered loot target routed
+                # straight back into this square -- summoner:retreat '3' /
+                # seek-loot '7' between (23,115)/(24,116) until the loop
+                # detector stopped the bot (Castle 20F, 2026-10-02 15:14-15:16).
+                self._claim_engagement_avoid_cells((snapshot.player.position,))
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "summoner:retreat"
                 return self._step_toward(snapshot, step)
 
