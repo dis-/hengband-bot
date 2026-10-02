@@ -10478,17 +10478,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if equipment_transaction is not None:
             return equipment_transaction
 
+        # USER DECISION 2026-10-02 「帰還が進んでいる間だけ止める」: the
+        # emergency return shuts ordinary loot out only while it progresses
+        # (recall read and waiting, or walking to the exit); on a floor it
+        # cannot leave, the bot picks up even with the flag set.
+        emergency_return_progressing = self._emergency_return_progressing(snapshot)
         if (
-            not self._emergency_return_active
+            not emergency_return_progressing
             and not self._required_supply_suppresses_normal_loot(snapshot)
         ):
             loot = self._town_producer_entry("_normal_loot_key#2", lambda: self._normal_loot_key(snapshot, strategic_hostiles))
             if loot is not None:
                 return loot
-        elif self._emergency_return_active:
-            # S2b.1b, record-only: the emergency return shuts ordinary loot
-            # out for the rest of the floor, so the committed loot walk (often
-            # suspended by the emergency that set the flag) ends here.
+        elif emergency_return_progressing:
+            # S2b.1b, record-only: the progressing emergency return shuts
+            # ordinary loot out, so the committed loot walk (often suspended
+            # by the emergency that set the flag) ends here.
             self._release_claim_goal(
                 "loot-suppressed:emergency-return",
                 self._loot_target,

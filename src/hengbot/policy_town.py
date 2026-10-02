@@ -6315,6 +6315,36 @@ class TownMixin:
             )
         return key
 
+    def _return_exit_locked(self, snapshot: Snapshot) -> bool:
+        """The ordinary town return may not leave this floor (quest lock).
+
+        Shared by the return owner and the emergency-return loot gate.
+        """
+        active_fixed = self._active_fixed_quest_id(snapshot)
+        return bool(
+            self._quest_floor_exit_locked(snapshot)
+            or active_fixed is not None and self._fixed_quest_is_once(active_fixed)
+        )
+
+    def _emergency_return_progressing(self, snapshot: Snapshot) -> bool:
+        """Whether the emergency return is actually under way on this board.
+
+        USER DECISION 2026-10-02 19:0x 「帰還が進んでいる間だけ止める」: normal
+        loot is shut out by ``_emergency_return_active`` only while the
+        return progresses -- Word of Recall read and waiting (game-reported
+        ``recalling``, or a recall read whose activation is still being
+        confirmed), or the latched return walking to the exit.  On a floor
+        the return may not leave (quest exit lock) and with no recall under
+        way, the flag no longer blocks pickups.
+        """
+        if not self._emergency_return_active:
+            return False
+        if snapshot.player.recalling:
+            return True
+        if self._dungeon_recall_issue_watch is not None:
+            return True
+        return self._returning_to_town and not self._return_exit_locked(snapshot)
+
     @claims(ClaimOwner.DEPARTURE)
     def _return_to_town_key(
         self,
@@ -6331,11 +6361,7 @@ class TownMixin:
                 cause="already-in-town",
             )
             return None
-        active_fixed = self._active_fixed_quest_id(snapshot)
-        if (
-            self._quest_floor_exit_locked(snapshot)
-            or active_fixed is not None and self._fixed_quest_is_once(active_fixed)
-        ):
+        if self._return_exit_locked(snapshot):
             # A quest exit is represented as up-stairs, but ordinary pack/light/
             # supply returns must never fail a one-shot quest. Survival escapes
             # run earlier and remain intentionally permitted.
