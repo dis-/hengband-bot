@@ -25,8 +25,11 @@ same registry now keeps ``launcher-enchant`` active, and the unsafe-Angband
 branch (landing 21 needs resist_conf; no alternate landing) returns None
 because a claim is active.  Nobody owns the decision.
 
-Fix: release the stale latch before the router's claim evaluation as well,
-so both seams read the same verdict.  Board 4 then routes to the Alchemist
+Fix: when the stale latch is the only failing departure leaf, release it
+before the router's claim evaluation as well, so both seams read the same
+verdict.  With another leaf failing both seams already read "not ready" and
+the latch is left as it was (tests/test_oneshot_preempt_recorded.py board 8
+keeps its live Home step-off).  Board 4 then routes to the Alchemist
 (store 4, ``%``) for the live claim.  That key differs from live, so no
 later board is the effect of the fixed key (R4); the pin stops at 4.
 """

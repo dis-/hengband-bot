@@ -10567,12 +10567,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The departure seam (_town_special_key) releases a stale Home
             # candidate latch before it evaluates departure; _observe re-derives
             # that latch on every in-town board (a Home identify scroll alone
-            # sets it).  Release it here too, so the claim registry below and
-            # the departure seam read one departure verdict in one decision
-            # (live 2026-10-02 17:00:51: departure not ready here hid the
-            # optional launcher-enchant claim from this router, departure ready
-            # there kept it active and deferred departure -> no owner).
-            self._release_stale_home_candidate_waiting(snapshot)
+            # sets it).  When that latch is the only failing departure leaf,
+            # the release flips the verdict the claim registry reads (optional
+            # claims register only when departure is ready).  Release it here
+            # in exactly that case, so the registry below and the departure
+            # seam read one departure verdict in one decision (live 2026-10-02
+            # 17:00:51: not ready here hid the optional launcher-enchant claim
+            # from this router, ready there kept it active and deferred the
+            # departure verdict -> no owner).  With another leaf failing both
+            # seams already read "not ready"; the latch is left as it was.
+            if self._home_candidate_waiting and [
+                name for name, ready
+                in self._town_departure_conjuncts(snapshot).items()
+                if not ready
+            ] == ["home_candidate_resolved"]:
+                self._release_stale_home_candidate_waiting(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:
                 # The former router performed terminal bookkeeping before it
