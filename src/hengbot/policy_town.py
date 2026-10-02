@@ -204,6 +204,30 @@ class TownMixin:
                 declaration.destination_town_id, declaration.goal,
                 declaration.bfs_rank,
             ),)
+        elif owner == "quest-request" and self._fixed_quest_teleport_walk_reason(
+            snapshot, reason or self.last_reason
+        ):
+            # The other fixed quests' town-to-town travel (Q2 to Telmora)
+            # walks to this town's teleport building through
+            # _town_teleport_key and declares no route, so its vector held
+            # only durable facts: every step after the first scored no
+            # progress and the arbiter retired quest-request four steps into
+            # the walk (2026-10-02 13:40/13:41 ``town:blocked:owner-retired``,
+            # inn route edges 9 -> 5).  Measure the walk as the cross-town
+            # walk to the same building is measured; a walk that stops
+            # closing the route repeats this vector and stays bounded by the
+            # owner's existing budget.
+            positions = self._town_teleport_building_positions(snapshot)
+            route = (
+                self._town_teleport_building_route(snapshot, positions)
+                if positions else None
+            )
+            if route is None:
+                return durable
+            return durable + ((
+                "locomotion", owner, snapshot.floor_key, route.target,
+                route.remaining_edges,
+            ),)
         elif owner == "quest-request" and (reason or self.last_reason or "").startswith("bounty:"):
             slot = getattr(self, "_decision_goal", None)
             if slot is not None and slot[0] == owner and slot[1].cell is not None:
@@ -321,6 +345,20 @@ class TownMixin:
             )
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
+        )
+
+    def _fixed_quest_teleport_walk_reason(
+        self, snapshot: Snapshot, reason: str | None
+    ) -> bool:
+        """Whether ``reason`` is _fixed_quest_key's undeclared travel walk.
+
+        That producer names the walk ``fixedquest:q<id>-travel`` after the
+        fixed-quest head; Q22's travel carries its own route declaration.
+        """
+        head = self._fixed_quest_head(snapshot)
+        return (
+            head is not None and head.id != 22
+            and reason == f"fixedquest:q{head.id}-travel"
         )
 
     def _shop_buy_shelf_store(self, snapshot: Snapshot) -> int | None:

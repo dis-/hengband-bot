@@ -1,0 +1,324 @@
+{
+ "source": {
+  "autorecover-20261002-134152-town-blocked-owner-retired.bot-decisions.jsonl.gz": "d9892dac416a4ac594a01bb32e54d1e1cf223f014554a2eb983b7b0e73b5db01",
+  "autorecover-20261002-134152-town-blocked-owner-retired.bot-state-fixed.jsonl.gz": "368dc64db372c1ee7cb05ca615b22e4f7203cb3314a3ddf500a9bfdf127bf6d9"
+ },
+ "state_rows": [
+  78,
+  88
+ ],
+ "input_rows": [
+  3,
+  2,
+  2,
+  1,
+  1,
+  1,
+  1
+ ],
+ "recorded_fields": [
+  "decision_sequence",
+  "turn",
+  "key",
+  "reason",
+  "position"
+ ],
+ "recorded": [
+  [
+   0,
+   3718162,
+   "~f\u001b",
+   "periodic:skill-exp-knowledge",
+   [
+    34,
+    110
+   ]
+  ],
+  [
+   1,
+   3718162,
+   "~9\u001b\u001b",
+   "home:request-knowledge-scan",
+   [
+    34,
+    110
+   ]
+  ],
+  [
+   2,
+   3718162,
+   "9",
+   "fixedquest:q2-travel",
+   [
+    34,
+    110
+   ]
+  ],
+  [
+   3,
+   3718171,
+   "9",
+   "fixedquest:q2-travel",
+   [
+    33,
+    111
+   ]
+  ],
+  [
+   4,
+   3718175,
+   "9",
+   "fixedquest:q2-travel",
+   [
+    32,
+    112
+   ]
+  ],
+  [
+   5,
+   3718189,
+   "3",
+   "fixedquest:q2-travel",
+   [
+    31,
+    113
+   ]
+  ],
+  [
+   6,
+   3718196,
+   "5",
+   "town:blocked:owner-retired",
+   [
+    32,
+    114
+   ]
+  ]
+ ],
+ "detail": {
+  "2": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "quest-request",
+    "producer_owner": "quest-request",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 3,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "quest-request"
+   },
+   "claim": {
+    "claim_id": 3,
+    "owner": "quest-request",
+    "state": "active",
+    "budget": 3,
+    "rung": "_fixed_quest_key#2"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 8138
+  },
+  "3": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "quest-request",
+    "producer_owner": "quest-request",
+    "tenure": 2,
+    "progress": false,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "quest-request"
+   },
+   "claim": {
+    "claim_id": 3,
+    "owner": "quest-request",
+    "state": "active",
+    "budget": 3,
+    "rung": "_fixed_quest_key#2"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 8138
+  },
+  "4": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "quest-request",
+    "producer_owner": "quest-request",
+    "tenure": 3,
+    "progress": false,
+    "budget_remaining_estimate": 1,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "quest-request"
+   },
+   "claim": {
+    "claim_id": 3,
+    "owner": "quest-request",
+    "state": "active",
+    "budget": 3,
+    "rung": "_fixed_quest_key#2"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 8138
+  },
+  "5": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "quest-request",
+    "producer_owner": "quest-request",
+    "tenure": 4,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "quest-request"
+    ],
+    "decision_attribution": "quest-request"
+   },
+   "claim": {
+    "claim_id": 3,
+    "owner": "quest-request",
+    "state": "retired",
+    "budget": 3,
+    "rung": "_fixed_quest_key#2"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 8138
+  },
+  "6": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-plan",
+    "producer_owner": "town-plan",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [
+     "quest-request"
+    ],
+    "decision_attribution": "town-plan"
+   },
+   "claim": {
+    "claim_id": 4,
+    "owner": "town-plan",
+    "state": "active",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 8138
+  }
+ }
+}
