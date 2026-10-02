@@ -847,6 +847,8 @@ class ObservationMixin:
             self._loot_safety_rearmed.clear()
             self._loot_defer_blocker = None
             self._remembered_paralyzers.clear()
+            # A new level reuses the floor key and the monster indices.
+            self._status_threat_latch = None
             self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
@@ -947,6 +949,20 @@ class ObservationMixin:
         self._last_damage_amount = (
             hp_without_damage - hp if self._took_damage else 0
         )
+        # An unseen hit whose own decision was pre-empted (the emergency cure
+        # of the blindness its darkness breath caused) must still reach the
+        # unseen-attacker retreat: on the next board the cure has raised HP,
+        # so ``_took_damage`` -- and with it the evidence -- is gone, and the
+        # floor looked empty (Castle 20F 2026-10-02 13:06:08-14: シャドウ・
+        # ハウンド in the dark, emergency:cure-critical then explore/probe).
+        if (
+            self._unseen_attack_evidence is not None
+            and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
+        ):
+            self._unseen_hit_pending_floor = snapshot.floor_key
+        elif getattr(self, "_unseen_hit_pending_floor", None) != snapshot.floor_key:
+            self._unseen_hit_pending_floor = None
         unexplained = (
             self._took_damage
             and not snapshot.in_town

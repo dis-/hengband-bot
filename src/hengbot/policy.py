@@ -1873,6 +1873,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
         self._unexplained_damage_streak = 0
+        # Floor of an unseen hit not yet seen by the unseen-attacker retreat
+        # (read with getattr: restored checkpoints predate it).
+        self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
+        # (floor, {(index, race_id)}) of status threats already fled from;
+        # read with getattr (restored checkpoints predate it).
+        self._status_threat_latch: tuple[
+            tuple[int, int, int], frozenset[tuple[int, int]]
+        ] | None = None
 
         # threat_prediction results for the CURRENT snapshot, keyed by object
         # identity — see threat_prediction. Bounded; cleared when it fills.
@@ -9825,8 +9833,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return swarm_combat
 
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
+        # Once a confusion/paralysis attacker has triggered this rung on the
+        # floor, it stays a threat while it can reach us: a one-step retreat
+        # (or a speed potion) pushes it just outside its 3-turn reach, and
+        # the ordinary ladder then fired at / meleed it until it closed again
+        # (Castle 20F 2026-10-02 13:10:57-13:11:05, ピンク・ホラー: retreat at
+        # path distance 3, ranged:fire-target at 4, alternating).
+        latch = getattr(self, "_status_threat_latch", None)
+        latched = (
+            latch[1] if latch is not None and latch[0] == snapshot.floor_key
+            else frozenset()
+        )
         status_threats = self._unresisted_melee_status_threats(
-            snapshot, physical_hostiles
+            snapshot, physical_hostiles, latched=latched
         )
         if physical_adjacent and not any(
             monster.distance <= 1 for monster in status_threats
@@ -9841,6 +9860,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # monster must not pull us away from a different adjacent enemy.
             status_threats = []
         if status_threats:
+            self._status_threat_latch = (
+                snapshot.floor_key,
+                latched | {
+                    (monster.index, monster.race_id) for monster in status_threats
+                },
+            )
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
                 self.last_reason = "status-threat:stairs"
@@ -16495,8 +16520,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         hostiles: list[MonsterState],
         *,
         turns: int = 3,
+        latched: frozenset[tuple[int, int]] = frozenset(),
     ) -> list[MonsterState]:
         """Find awake melee attackers that can soon confuse or paralyze us.
+
+        ``latched`` holds the (index, race_id) of monsters that already
+        triggered the status-threat escape on this floor; a latched mover
+        stays a threat at any reachable path distance.
 
         HP-only prediction undervalues these blows: confusion disables aimed
         movement and scroll reading, while paralysis removes whole turns.  Treat
@@ -16535,7 +16565,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if never_moves
                 else max(0, actions - (path_distance - 1))
             )
-            if attacks > 0:
+            if attacks > 0 or (
+                not never_moves and (monster.index, monster.race_id) in latched
+            ):
                 threats.append(monster)
         return threats
 
