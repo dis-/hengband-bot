@@ -131,10 +131,12 @@ class CalibrationMixin:
             if sequence is None or (pending["sequence"] is not None
                                     and int(sequence) <= int(pending["sequence"])):
                 raise CharacterSheetUnavailable("uncorrelated-character-response")
-            snapshot = (
+            # choose_key completes the dump before it fills the protocol-3
+            # ~f skill_exp into its board, so fill it here as well (live
+            # 2026-10-02: the raw board made every dump skill-exp-unknown).
+            snapshot = self._with_cached_skill_exp(
                 board if board is not None
-                else self._with_cached_skill_exp(parse_snapshot(envelope, self._monrace_knowledge))
-            )
+                else parse_snapshot(envelope, self._monrace_knowledge))
             bars = envelope.get("player", {}).get("status_bar", [])
             if "status_bar" not in envelope.get("player", {}):
                 raise CharacterSheetUnavailable("timed-effect-observation-missing")

@@ -223,7 +223,10 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     if heading is None:
         raise CharacterSheetUnavailable("dump-equipment-missing")
     block = re.split(r"(?m)^\s*\[", sheet.text[heading.end():], maxsplit=1)[0]
-    names = dict(re.findall(r"(?m)^([a-l])\) (.+)$", block))
+    # The game writes the dump with CRLF line ends on Windows; ``$`` stops
+    # before ``\n`` only, so ``.+`` kept the ``\r`` and no worn name ever
+    # matched (live 2026-10-02: every dump failed dump-equipment-mismatch).
+    names = dict(re.findall(r"(?m)^([a-l])\) ([^\r\n]+)\r?$", block))
     slots = ("main_hand", "sub_hand", "bow", "main_ring", "sub_ring", "neck",
              "light", "body", "outer", "head", "arms", "feet")
     for item in snapshot.equipment:

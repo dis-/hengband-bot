@@ -3654,7 +3654,11 @@ def _run_follow(
         look_barrier_pending: str | None = None
         look_barrier_seen = False
         look_barrier_started_at = 0.0
-        next_dump_at = time.monotonic() + DUMP_INTERVAL_SECONDS
+        # A new process holds no calibration of its own session (the file
+        # record is bound to the process that wrote it), so the first dump is
+        # due at once; waiting the interval left every short-lived restarted
+        # process without an equipment optimization (live 2026-10-02 17:00).
+        next_dump_at = time.monotonic()
         poll_wait_started_at = time.perf_counter()
         barrier_board_seen = None
         while True:
