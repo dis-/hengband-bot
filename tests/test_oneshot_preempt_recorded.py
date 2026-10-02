@@ -58,6 +58,7 @@ from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
+from recorded_loadout import pre_ratio_optimizer_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "oneshot-preempt-20261002.jsonl.gz"
@@ -113,6 +114,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
             start += count
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def _replay(self, last, *, pre_fix_through=-1, inspect=None):
         """Replay the frozen process through ``last`` on one policy."""
         rows = []

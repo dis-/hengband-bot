@@ -74,7 +74,7 @@ from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.equipment_optimizer import Loadout, current_loadout
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_ratio_optimizer_replay, recorded_loadout_replay
 from hengbot.model import SV_SCROLL_DETECT_TREASURE, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, speed_energy
@@ -262,6 +262,9 @@ class HomeWithdrawFailedStockPresentRecordedTest(unittest.TestCase):
         return cls.replay
 
     # ------------------------------------------------------------ recorded
+    # The ratio rule's choice on this board (shield off, Avabia two-handed)
+    # is pinned in tests/test_margin_ratio_home_withdraw_divergence_recorded.py.
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_shield_and_weapon_survival_terms_on_first_changed_board(self):
         """The shield protects; Theoden's CON and two-hand offense explain the swap."""
         with TemporaryDirectory() as raw_directory:
