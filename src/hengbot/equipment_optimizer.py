@@ -1139,6 +1139,29 @@ def _selection_equivalence_key(
 SUFFICIENT_SURVIVAL_TURNS = 30.0
 
 
+def _dangerous_field_pool(
+    pool: list[EvaluatedLoadout],
+) -> list[EvaluatedLoadout]:
+    """Filter a field where no loadout reaches SUFFICIENT_SURVIVAL_TURNS.
+
+    User decision 2026-10-02 18:5x (「足切りも比に置き換える」): the
+    survival-per-kill ratio decides, within the existing 1% band, not survival
+    alone.  The former "survival >= 95% of the maximum" floor (2026-07-24)
+    dropped the live ダメージの指輪 (+9) set (10.18 vs 11.10 turns) before its
+    better ratio (2.69 vs 2.47) was consulted.  tests/recorded_loadout.py
+    restores that floor for replays held on their recorded gear.
+    """
+    max_margin = max(entry.metrics.combat_margin for entry in pool)
+    if isfinite(max_margin):
+        return [
+            entry
+            for entry in pool
+            if entry.metrics.combat_margin
+            >= max_margin - abs(max_margin) * 0.01
+        ]
+    return [entry for entry in pool if entry.metrics.combat_margin == max_margin]
+
+
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
@@ -1215,26 +1238,7 @@ def _stable_operational_best(
     if safe_enough:
         pool = safe_enough
     elif isfinite(max_survival):
-        # User decision 2026-10-02 18:5x (「足切りも比に置き換える」): in a
-        # dangerous field (nothing clears SUFFICIENT_SURVIVAL_TURNS) the
-        # survival-per-kill ratio decides, within the existing 1% band, not
-        # survival alone.  The former "survival >= 95% of the maximum" floor
-        # (2026-07-24) dropped the live ダメージの指輪 (+9) set (10.18 vs 11.10
-        # turns) before its better ratio (2.69 vs 2.47) was consulted.
-        dangerous_max_margin = max(entry.metrics.combat_margin for entry in pool)
-        if isfinite(dangerous_max_margin):
-            pool = [
-                entry
-                for entry in pool
-                if entry.metrics.combat_margin
-                >= dangerous_max_margin - abs(dangerous_max_margin) * 0.01
-            ]
-        else:
-            pool = [
-                entry
-                for entry in pool
-                if entry.metrics.combat_margin == dangerous_max_margin
-            ]
+        pool = _dangerous_field_pool(pool)
     else:
         pool = [
             entry for entry in pool

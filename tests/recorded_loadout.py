@@ -3,7 +3,12 @@
 The captures predate speed-adjusted survival.  Their subsequent boards do not
 confirm a new optimizer choice, so measuring ownership after that choice would
 measure a fabricated equipment transaction.  This wrapper restores only the
-old survival and combat-margin values during a recorded ownership replay.
+old survival and combat-margin values during a recorded ownership replay,
+and the dangerous-field floor they were selected with ("survival >= 95% of
+the field maximum", 2026-07-24; production replaced it by the survival / kill
+ratio on 2026-10-02).  Without that floor the old values alone moved the tour
+capture's index-2 choice from the recorded ★更正せるセオデン王のビークド・アックス set to a
+殺戮の野太刀 (9d4) set and broke its sale-path revert proof.
 Production optimization and dedicated optimizer tests remain untouched.
 """
 
@@ -12,7 +17,15 @@ from functools import wraps
 from math import isinf
 from unittest.mock import patch
 
+import hengbot.equipment_optimizer as optimizer
 import hengbot.warrior_loadout_evaluator as evaluator
+
+
+def recorded_dangerous_field_pool(pool):
+    """The recorded-era floor: survival within 95% of the field maximum."""
+    max_survival = max(entry.metrics.survival_turns for entry in pool)
+    return [entry for entry in pool
+            if entry.metrics.survival_turns >= max_survival * 0.95]
 
 
 def recorded_loadout_replay(replay):
@@ -38,7 +51,8 @@ def recorded_loadout_replay(replay):
                 result.metrics, survival_turns=survival, combat_margin=margin,
             ))
 
-        with patch.object(evaluator, "_combine_warrior_results", recorded_survival):
+        with patch.object(evaluator, "_combine_warrior_results", recorded_survival),                 patch.object(optimizer, "_dangerous_field_pool",
+                             recorded_dangerous_field_pool):
             return replay(*args, **kwargs)
 
     return wrapped
