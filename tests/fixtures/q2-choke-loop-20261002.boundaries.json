@@ -1,0 +1,679 @@
+{
+ "source": {
+  "autorecover-20261002-141622-loop-detected.bot-decisions.jsonl.gz": "079050b3336979f8073c6005f08a6037279b45e8065b7be1e26094d24698d114",
+  "autorecover-20261002-141622-loop-detected.bot-state-fixed.jsonl.gz": "ddb8d4f14917ae2abb1252ddced96b72052380fe1f57914c936fe78cc2a1c1ee"
+ },
+ "state_rows": [
+  86,
+  111
+ ],
+ "input_rows": [
+  3,
+  2,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ],
+ "recorded_fields": [
+  "decision_sequence",
+  "turn",
+  "key",
+  "reason",
+  "position"
+ ],
+ "recorded": [
+  [
+   0,
+   3719675,
+   "~f\u001b",
+   "periodic:skill-exp-knowledge",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   1,
+   3719675,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   2,
+   3719683,
+   "3",
+   "detected:prepare-choke",
+   [
+    11,
+    61
+   ]
+  ],
+  [
+   3,
+   3719692,
+   "3",
+   "detected:prepare-choke",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   4,
+   3719702,
+   "2",
+   "detected:prepare-choke",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   5,
+   3719714,
+   "5",
+   "summoner:hold-choke",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   6,
+   3719722,
+   "8",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   7,
+   3719733,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   8,
+   3719743,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   9,
+   3719756,
+   "3",
+   "detected:prepare-choke",
+   [
+    11,
+    61
+   ]
+  ],
+  [
+   10,
+   3719769,
+   "3",
+   "detected:prepare-choke",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   11,
+   3719782,
+   "2",
+   "detected:prepare-choke",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   12,
+   3719789,
+   "5",
+   "summoner:hold-choke",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   13,
+   3719799,
+   "8",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   14,
+   3719810,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   15,
+   3719821,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   16,
+   3719832,
+   "3",
+   "detected:prepare-choke",
+   [
+    11,
+    61
+   ]
+  ],
+  [
+   17,
+   3719843,
+   "3",
+   "detected:prepare-choke",
+   [
+    12,
+    62
+   ]
+  ],
+  [
+   18,
+   3719854,
+   "2",
+   "detected:prepare-choke",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   19,
+   3719865,
+   "5",
+   "summoner:hold-choke",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   20,
+   3719874,
+   "8",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    14,
+    63
+   ]
+  ],
+  [
+   21,
+   3719885,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    13,
+    63
+   ]
+  ],
+  [
+   22,
+   3719895,
+   "7",
+   "quest-strategy:q2-post-blue-nether-worm",
+   [
+    12,
+    62
+   ]
+  ]
+ ],
+ "detail": {
+  "0": {
+   "claim": {
+    "owner": "bookkeeping",
+    "rung": "_skill_exp_request_key",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "1": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "2": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "3": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "4": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "5": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "6": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "7": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "8": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "9": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "10": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "11": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "12": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "13": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "14": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "15": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "16": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "17": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "18": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": [
+     [
+      42,
+      153
+     ],
+     [
+      48,
+      153
+     ]
+    ]
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "19": {
+   "claim": {
+    "owner": "positioning",
+    "rung": "_detected_threat_preparation_key",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "20": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "21": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  },
+  "22": {
+   "claim": {
+    "owner": "quest-sweep",
+    "rung": "navigator.decide",
+    "trigger_monsters": null
+   },
+   "visible_hostiles": 0,
+   "floor": {
+    "dungeon_id": 0,
+    "level": 15,
+    "quest_id": 2,
+    "feeling": 0
+   }
+  }
+ }
+}

@@ -16825,6 +16825,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return destination, step
 
 
+    def _quest_plan_owns_detected(
+        self, snapshot: Snapshot, monsters: list[MonsterState]
+    ) -> bool:
+        """Whether the approved Q2 phase strategy's plan names every monster."""
+        profile = self.approved_quest_strategy(snapshot.floor_key[2])
+        return (
+            profile is not None
+            and profile.quest_id == 2
+            and bool(monsters)
+            and all(
+                monster.race_id in profile.priority_targets
+                for monster in monsters
+            )
+        )
+
     @claims(ClaimOwner.POSITIONING)
     def _detected_threat_preparation_key(
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
@@ -16897,6 +16912,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if route is not None
             else []
         )
+        if self._quest_plan_owns_detected(
+            snapshot, [*breeders, *melee_threats, *committed]
+        ):
+            # Inside the Sewer (Q2) the approved phase strategy owns every
+            # monster its plan names, breeders included (formation P1-P9).
+            # Retreating from them here only hands the turn back to that
+            # strategy one cell later, which walks back into the window: two
+            # owners alternating until the loop detector stopped the bot
+            # (live 2026-10-02 14:15:27-14:16:21, detected gremlins 153).
+            self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-quest-plan-owns", route[1], owners=("positioning",))
+            self._detected_threat_route = None
+            return None
         if not breeders and len(melee_threats) < 2 and not committed:
             self._detected_threat_hold = None
             if route is not None:
