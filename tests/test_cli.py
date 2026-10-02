@@ -1328,7 +1328,8 @@ class DecisionTimingTest(unittest.TestCase):
             timing = row["timing"]
             phase_keys = {
                 "record_snapshot_lines_ms", "decode_ms", "parse_snapshot_ms",
-                "choose_key_ms", "send_ms",
+                "choose_key_ms", "validate_emit_ms", "stall_checks_ms",
+                "facts_ms", "pre_send_checks_ms", "send_ms",
             }
             gap_keys = {"read_ms", "batch_bytes", "poll_wait_ms"}
 
@@ -1339,6 +1340,8 @@ class DecisionTimingTest(unittest.TestCase):
             self.assertTrue(all(timing[name] >= 0 for name in phase_keys))
             self.assertTrue(all(timing[name] >= 0 for name in gap_keys))
             self.assertLessEqual(sum(timing[name] for name in phase_keys), timing["total_ms"])
+            # The decision-row facts capture runs on every decision.
+            self.assertGreater(timing["facts_ms"], 0)
             self.assertEqual(timing["batch_bytes"], len(decision_line))
             self.assertEqual(timing["snapshot_bytes"], len(decision_line.encode("utf-8")))
             self.assertEqual(

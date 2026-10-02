@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import deque
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 
 from hengbot.claim_register import ClaimOwner, claims
@@ -30,6 +32,32 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
+
+
+# Decision-row telemetry (cli._capture_decision_facts) evaluates the supply
+# ledger hundreds of times per town decision with one board and one policy
+# state.  While such an observer capture runs, this holds its private memo of
+# ledger results; outside a capture it is None and every call recomputes.
+_SUPPLY_LEDGER_OBSERVER_MEMO: ContextVar[dict | None] = ContextVar(
+    "_SUPPLY_LEDGER_OBSERVER_MEMO", default=None
+)
+
+
+@contextmanager
+def supply_ledger_observer_memo():
+    """Reuse supply-ledger results for the duration of one observer capture.
+
+    Only for a pure observer (cli._PolicyObserverScope).  Results are keyed by
+    the policy and board object identities, the depth argument and the ledger
+    inputs the observer itself can write (_supply_ledger_observer_inputs), and
+    the memo is dropped when the block exits: nothing carries across
+    decisions or observations.
+    """
+    token = _SUPPLY_LEDGER_OBSERVER_MEMO.set({})
+    try:
+        yield
+    finally:
+        _SUPPLY_LEDGER_OBSERVER_MEMO.reset(token)
 
 
 class SupplyMixin:
@@ -103,6 +131,37 @@ class SupplyMixin:
         return self._find_light(snapshot, include_unknown=False) is None
 
     def _supply_ledger(self, snapshot: Snapshot, depth: int) -> dict[str, SupplyStatus]:
+        memo = _SUPPLY_LEDGER_OBSERVER_MEMO.get()
+        if memo is None:
+            return self._compute_supply_ledger(snapshot, depth)
+        key = (id(self), id(snapshot), depth, self._supply_ledger_observer_inputs())
+        hit = memo.get(key)
+        if hit is not None and hit[0] is self and hit[1] is snapshot:
+            return dict(hit[2])
+        statuses = self._compute_supply_ledger(snapshot, depth)
+        # The entry holds the policy and board so their ids cannot be reused.
+        memo[key] = (self, snapshot, statuses)
+        return dict(statuses)
+
+    def _supply_ledger_observer_inputs(self) -> tuple:
+        """The ledger inputs an observer capture itself can change.
+
+        The facts evaluators write private copies of policy state, and a few of
+        those writes reach state the ledger reads (a temporary fundraising-mode
+        swap, the equipment-optimization depth, deferred Home items).  Keying
+        the memo on them means such a write is a miss, never a stale hit.
+        tests/test_supply_ledger_observer_memo.py pins this list against a
+        static scan of what the capture writes and the ledger reads.
+        """
+        return (
+            self._fundraising_mode,
+            self._equipment_optimization_last_depth,
+            frozenset(self._deferred_home_items),
+        )
+
+    def _compute_supply_ledger(
+        self, snapshot: Snapshot, depth: int
+    ) -> dict[str, SupplyStatus]:
         """Compute counts, thresholds and present-town obtainability once.
 
         An unvisited supplier has unknown stock/price and is optimistically
