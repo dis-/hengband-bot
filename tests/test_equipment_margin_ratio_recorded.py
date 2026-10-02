@@ -14,6 +14,12 @@ gear.  The 30F band leaves exactly two sets (both wear 耐混乱の指輪):
 As a difference the protection ring won (6.600 vs 6.389, outside the 1% band);
 as the ratio the damage ring wins (2.47 vs 2.69).  The pin checks the metric
 and the pairwise comparison ``_prefer`` that uses it.
+
+User decision 2026-10-02 18:5x (「足切りも比に置き換える」): neither set
+survives 30 turns, and the former dangerous-field floor "survival >= 95% of
+the maximum" dropped the damage set (10.18 < 0.95 * 11.10) before the margin
+was consulted.  The ratio now filters there too, so the optimizer's best is
+ダメージの指輪 (+9) + 耐混乱の指輪.
 """
 
 from __future__ import annotations
@@ -107,6 +113,12 @@ class EquipmentMarginRatioRecordedTest(unittest.TestCase):
         )
         self.assertTrue(_prefer(damage, protection, self.worn_ids))
         self.assertFalse(_prefer(protection, damage, self.worn_ids))
+
+    def test_optimizer_best_is_damage_and_resist_confusion(self):
+        best = self.preparation.result.best
+        self.assertEqual(self.preparation.result.chosen_depth, 30)
+        self.assertEqual(_rings(best), frozenset({DAMAGE, RESIST_CONF}))
+        self.assertAlmostEqual(best.metrics.combat_margin, 2.686, places=3)
 
 
 if __name__ == "__main__":

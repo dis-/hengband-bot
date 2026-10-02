@@ -1204,8 +1204,8 @@ def _stable_operational_best(
     # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
     # and margin filters below choose offense-first among them (this is why a
     # higher-DPS weapon is no longer culled merely for a few percent less
-    # survival).  Only when NO loadout clears the floor does survival dominate,
-    # preserving the safety-first behavior for genuinely dangerous fields.
+    # survival).  When NO loadout clears the floor, the survival / kill ratio
+    # (combat_margin) filters first (user decision 2026-10-02).
     max_survival = max(entry.metrics.survival_turns for entry in pool)
     safe_enough = [
         entry
@@ -1215,11 +1215,26 @@ def _stable_operational_best(
     if safe_enough:
         pool = safe_enough
     elif isfinite(max_survival):
-        pool = [
-            entry
-            for entry in pool
-            if entry.metrics.survival_turns >= max_survival * 0.95
-        ]
+        # User decision 2026-10-02 18:5x (「足切りも比に置き換える」): in a
+        # dangerous field (nothing clears SUFFICIENT_SURVIVAL_TURNS) the
+        # survival-per-kill ratio decides, within the existing 1% band, not
+        # survival alone.  The former "survival >= 95% of the maximum" floor
+        # (2026-07-24) dropped the live ダメージの指輪 (+9) set (10.18 vs 11.10
+        # turns) before its better ratio (2.69 vs 2.47) was consulted.
+        dangerous_max_margin = max(entry.metrics.combat_margin for entry in pool)
+        if isfinite(dangerous_max_margin):
+            pool = [
+                entry
+                for entry in pool
+                if entry.metrics.combat_margin
+                >= dangerous_max_margin - abs(dangerous_max_margin) * 0.01
+            ]
+        else:
+            pool = [
+                entry
+                for entry in pool
+                if entry.metrics.combat_margin == dangerous_max_margin
+            ]
     else:
         pool = [
             entry for entry in pool

@@ -67,13 +67,18 @@ class RecordedDualWieldTest(unittest.TestCase):
         self.assertEqual(result.timed_out, False)
         self.assertEqual(result.chosen_depth, 20)
         self.assertEqual(result.best.loadout.hand_mode, "two_handed")
+        # User decision 2026-10-02 18:5x (「足切りも比に置き換える」, after
+        # 「生存÷撃破の比で比べる」): no 20F set survives 30 turns, so the
+        # survival / kill ratio decides instead of "survival >= 95% of max".
+        # Spear surv 6.97 / DPS 87.2 / ratio 0.978 vs ★大鎌『アヴァビア』
+        # surv 5.91 / DPS 153.1 / ratio 1.456 -> the scythe (was: the spear).
         self.assertEqual(result.best.loadout.item_at("main_hand").id,
-                         self.current.item_at("main_hand").id)
+                         self.current.item_at("sub_hand").id)
         self.assertEqual(result.best.loadout.item_at("sub_hand"), None)
         for loadout, expected in ((self.spear, 87.23033856),
                                   (self.scythe, 153.10963194),
                                   (self.current, 15.19430805),
-                                  (result.best.loadout, 87.23033856)):
+                                  (result.best.loadout, 153.10963194)):
             with self.subTest(mode=loadout.hand_mode, weapon=loadout.item_at("main_hand").id):
                 self.assertAlmostEqual(self.evaluator(loadout).metrics.expected_dps, expected, places=7)
         self.assertAlmostEqual(result.chosen_decision.melee_free, 153.10963194, places=7)
@@ -87,8 +92,13 @@ class RecordedDualWieldTest(unittest.TestCase):
             ),
         )
         self.assertEqual(result.best.loadout.hand_mode, "two_handed")
+        # User decision 2026-10-02 18:5x (「足切りも比に置き換える」, after
+        # 「生存÷撃破の比で比べる」): no 20F set survives 30 turns, so the
+        # survival / kill ratio decides instead of "survival >= 95% of max".
+        # Spear surv 6.97 / DPS 87.2 / ratio 0.978 vs ★大鎌『アヴァビア』
+        # surv 5.91 / DPS 153.1 / ratio 1.456 -> the scythe (was: the spear).
         self.assertEqual(result.best.loadout.item_at("main_hand").id,
-                         self.spear.item_at("main_hand").id)
+                         self.scythe.item_at("main_hand").id)
 
     def test_two_handed_bonus_includes_both_rings(self):
         ring = self.spear.item_at("sub_ring")
@@ -109,7 +119,9 @@ class RecordedDualWieldTest(unittest.TestCase):
         self.assertEqual(report["combat_inputs"]["two_weapon_skill"], 4556)
         self.assertEqual(report["combat_inputs"]["melee_skill"], 175)
         self.assertEqual(report["candidates"][0]["melee_hands"][0]["to_hit"], 28)
-        self.assertEqual(report["candidates"][0]["melee_hands"][0]["hit_reliability"], 292)
+        # Candidate 1 is the scythe set since the 2026-10-02 ratio decision
+        # (was the spear set: 292).
+        self.assertEqual(report["candidates"][0]["melee_hands"][0]["hit_reliability"], 283)
 
 
 if __name__ == "__main__":
