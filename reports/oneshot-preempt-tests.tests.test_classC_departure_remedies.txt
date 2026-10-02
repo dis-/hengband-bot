@@ -1,0 +1,23 @@
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 47.100s
+
+OK
+CLASS C SAME BOARD food_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD light_ready 'R300\r' town:wait-restock:general
+CLASS C SAME BOARD teleport_ready 'R300\r' town:wait-restock:alchemist
+CLASS C SAME BOARD cure_critical_ready 'R300\r' town:wait-restock:temple
+CLASS C SUPPLIER identify_staff_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER identify_staff_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER recall_departure_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER recall_departure_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER food_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER food_ready 5 '\x1b`n&.' shop:travel
+CLASS C SUPPLIER teleport_ready 4 '\x1b`n%.' shop:travel
+CLASS C SUPPLIER teleport_ready 4 '\x1b`n%.' shop:travel
+CLASS C SUPPLIER cure_critical_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER cure_critical_ready 3 '\x1b`n$.' shop:travel
+CLASS C SUPPLIER light_ready 0 '5' shop:travel:await-entry
+CLASS C SUPPLIER light_ready 0 '5' shop:travel:await-entry
+CLASS C SUPPLIER inventory_weight_ready 7 '\x1b`n(.' shop:travel
+CLASS C SUPPLIER inventory_weight_ready 7 '\x1b`n(.' shop:travel
