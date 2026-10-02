@@ -22,6 +22,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import SUPPLY_STORES
 from test_esp_threat_rest_recorded import _policy, EDIT
 from xbow_pref_walls import apply_shelf_wall
+from extraction_calibration import install_extraction_calibration
 
 FIXTURES = Path(__file__).parent / 'fixtures'
 ROUTES = FIXTURES / 'tpstockout-routes-20261002.json.gz'
@@ -35,6 +36,7 @@ def attachment(directory):
     routes = routes[restart:]
     policy = _policy(Path(directory), load_monrace_knowledge(EDIT / 'MonraceDefinitions.jsonc'))
     policy._character_calibration_path.write_text(json.dumps(capture['calibration']), encoding='utf8')
+    install_extraction_calibration(policy)
     board = parse_snapshot(capture['board'], policy._monrace_knowledge)
     policy.prime(board)
     policy.consume_skill_knowledge({'knowledge': capture['knowledge']['skill_exp'],

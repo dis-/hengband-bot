@@ -39,6 +39,7 @@ import test_classC2_departure_recorded as classC2
 import test_identify_staff_live27_recorded as live27
 import test_tpstockout_restart_recorded as tpstockout
 from test_esp_threat_rest_recorded import EDIT, _policy
+from extraction_calibration import install_extraction_calibration
 
 SWAP_KEY = "\x1b`n(."
 SWAP_REASON = "equipment-transaction:travel-home"
@@ -64,6 +65,8 @@ def swap_plan(policy):
 def classC2_public_board_decisions():
     with frozen.recorded_equipment_decisions("classC2"), TemporaryDirectory() as raw:
         policy, board, _capture = classC2.attachment(Path(raw))
+        # The recorded process decided with the frozen calibration.
+        install_extraction_calibration(policy)
         bolts = plain_bolts(policy._town_supplier_stock[STORE_WEAPON])
         saved = checkpoint(policy)
         outcomes = []
@@ -87,6 +90,7 @@ def live27_unwalled_first_divergence():
         policy._crossarea_fundraising_enforced = True
         policy._character_calibration_path.write_bytes(
             fixture.with_suffix(".calibration.json").read_bytes())
+        install_extraction_calibration(policy)
         cursor = 0
         for index, count in enumerate(data["input_rows"]):
             segment = lines[cursor:cursor + count]

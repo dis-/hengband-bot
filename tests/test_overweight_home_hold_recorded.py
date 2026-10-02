@@ -58,6 +58,7 @@ from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, STORE_HOME
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
+from extraction_calibration import install_extraction_calibration
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -104,6 +105,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
             directory = Path(raw)
             policy = _policy(directory, self.monrace)
             policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            install_extraction_calibration(policy)
             policy._crossarea_fundraising_enforced = True  # live argv
             for index in range(last + 1):
                 _decoded, snapshots = _consume_response_sequence(
