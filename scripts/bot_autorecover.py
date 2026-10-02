@@ -86,6 +86,19 @@ def pid_alive(path: Path) -> bool:
     return str(pid) in out.stdout
 
 
+def died_prompt() -> bool:
+    """The game's death prompt 「画面を保存しますか？」 (player-damage.cpp) as
+    the bot's stuck-prompt line reports it.  The stderr log carries the game
+    text in cp932 (2026-10-03 05:33: a death was treated as a stuck prompt,
+    resumed, and escalated only as resume-failed)."""
+    try:
+        err = (J / "bot-stderr.log").read_bytes()[-8000:]
+    except OSError:
+        return False
+    text = "画面を保存しますか"
+    return text.encode("cp932") in err or text.encode("utf-8") in err
+
+
 def stop_reason() -> str:
     """Normalised reason from the last marker the bot printed."""
     try:
@@ -215,7 +228,7 @@ def main() -> int:
             log({"event": "escalate", "why": "game-dead", "reason": reason})
             return 3
         tail = (J / "bot-stdout.log").read_text(encoding="utf-8", errors="replace")[-2000:]
-        if "player-death" in tail or "死んだ" in tail:
+        if "player-death" in tail or "死んだ" in tail or died_prompt():
             HOLD.touch()
             log({"event": "escalate", "why": "death", "reason": reason})
             return 3
