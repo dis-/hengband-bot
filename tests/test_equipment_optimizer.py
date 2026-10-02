@@ -396,6 +396,10 @@ class EquipmentOptimizerTest(unittest.TestCase):
         result = optimize_loadout(
             (self.light, deep, strong), evaluate, depth=None, has_destruction=True,
             candidate_loadouts=candidates,
+            # The helmet is only a flag carrier for the band descent; the
+            # hand-built candidate list has no helmet+weapon set, so the
+            # empty-armour-slot fill rule is switched off for this pin.
+            require_armor_slots=frozenset(),
         )
 
         self.assertEqual(result.chosen_depth, 80)

@@ -61,6 +61,11 @@ FIXED_SLOTS = (
     SLOT_FEET,
 )
 
+# USER DECISION 2026-09-29 「空いた鎧の欄は必ず埋める」, generalised from the
+# body slot (``require_body``) to the other armour slots on 2026-10-02.  The
+# shield is a hand configuration (sub_hand) and is deliberately not listed.
+FILL_REQUIRED_ARMOR_SLOTS = (SLOT_OUTER, SLOT_HEAD, SLOT_ARMS, SLOT_FEET)
+
 TR_FREE_ACT = 46
 TR_RES_ACID = 48
 TR_RES_ELEC = 49
@@ -842,6 +847,25 @@ def _meets_requirements(
     return True
 
 
+def owned_armor_fill_slots(
+    items: Iterable[OwnedEquipment],
+    excluded_item_ids: frozenset[str] = frozenset(),
+) -> frozenset[str]:
+    """Return the non-body armour slots an owned, usable piece can fill.
+
+    Mirrors the body rule's candidate test (``exploration_legal``: known,
+    uncursed, unbroken, no forbidden flag).  The catalogue holds only owned
+    items (equipped, pack, Home), never store stock.
+    """
+    return frozenset(
+        slot
+        for item in items
+        if item.id not in excluded_item_ids
+        and item.exploration_legal
+        and (slot := slot_for(item.item)) in FILL_REQUIRED_ARMOR_SLOTS
+    )
+
+
 def usable_light_candidate(owned: OwnedEquipment) -> bool:
     """Return whether a light can participate in an exploration loadout."""
     return (
@@ -1251,6 +1275,7 @@ def optimize_loadout(
     require_body: bool | None = None,
     identification_exempt_item_ids: frozenset[str] = frozenset(),
     obtainable_ammunition: Iterable[EquipmentItem] = (),
+    require_armor_slots: frozenset[str] | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out."""
     catalog = tuple(items)
@@ -1278,6 +1303,8 @@ def optimize_loadout(
             item.exploration_legal and slot_for(item.item) == SLOT_BODY
             for item in catalog
         )
+    if require_armor_slots is None:
+        require_armor_slots = owned_armor_fill_slots(catalog)
     incomplete = frozenset(
         item.id
         for item in catalog
@@ -1291,7 +1318,14 @@ def optimize_loadout(
     # catalogue is complete, but still score the known candidates.  Otherwise
     # one unknown Home item suppresses every valid loadout in the catalogue.
     considered = evaluated_count = invalid = 0
-    evaluated_by_metrics: dict[tuple[object, ...], EvaluatedLoadout] = {}
+    # Valid loadouts are kept per armour-fill tier: the number of
+    # ``require_armor_slots`` the loadout fills.  Only the highest non-empty
+    # tier competes, so an owned piece for an empty outer/head/arms/feet slot is
+    # worn whenever a valid loadout wearing it exists; when none is valid the
+    # lower tier still yields a loadout (no new stop).  With no such owned
+    # piece every loadout is tier 0 and selection is unchanged.
+    evaluated_by_tier: dict[int, dict[tuple[object, ...], EvaluatedLoadout]] = {}
+    evaluated_count_by_tier: dict[int, int] = {}
     timed_out = False
     body_static_valid = False
     deferred_bodyless: list[Loadout] = []
@@ -1311,6 +1345,11 @@ def optimize_loadout(
             return
         entry = EvaluatedLoadout(loadout, metrics)
         evaluated_count += 1
+        tier = sum(
+            loadout.item_at(slot) is not None for slot in require_armor_slots
+        )
+        evaluated_count_by_tier[tier] = evaluated_count_by_tier.get(tier, 0) + 1
+        evaluated_by_metrics = evaluated_by_tier.setdefault(tier, {})
         equivalence_key = _selection_equivalence_key(entry, current_item_ids)
         incumbent = evaluated_by_metrics.get(equivalence_key)
         if incumbent is None or _prefer(
@@ -1363,7 +1402,14 @@ def optimize_loadout(
                 break
             evaluate_candidate(loadout)
 
-    evaluated = list(evaluated_by_metrics.values())
+    fill_tier = max(evaluated_by_tier, default=0)
+    for tier, count in evaluated_count_by_tier.items():
+        if tier != fill_tier:
+            # Valid but leaves an owned armour piece off: rejected like a
+            # bodyless set under the body rule.
+            evaluated_count -= count
+            invalid += count
+    evaluated = list(evaluated_by_tier.get(fill_tier, {}).values())
     chosen_depth = None
     band_decisions: list[BandDecision] = []
     chosen_decision = None
