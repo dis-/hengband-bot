@@ -346,12 +346,17 @@ def _combine_warrior_results(
         player_hp / incoming if incoming > 0 else float("inf")
     )
     kill_turns = melee.expected_kill_turns
+    # User decision 2026-10-02 (verbatim: 「指輪で優先度が低いのはどう見ても守りの
+    # 指輪。ACの評価が高すぎる。」 -> 「生存÷撃破の比で比べる」): the combat
+    # margin is the ratio survival / kill, not the difference.  A difference
+    # in turns let a few turns of AC survival outweigh a 16% faster kill.
+    # expected_kill_turns is either inf or strictly positive.
     if isinf(kill_turns):
         combat_margin = -float("inf")
     elif isinf(survival_turns):
         combat_margin = float("inf")
     else:
-        combat_margin = survival_turns - kill_turns
+        combat_margin = survival_turns / kill_turns
     complete = defense.melee_complete and ranged.ranged_complete
     secondary_value = secondary_risk_value(defense, ranged)
     ranged_offense_dps = warrior_ranged_offense_dps(loadout, inputs.combat)

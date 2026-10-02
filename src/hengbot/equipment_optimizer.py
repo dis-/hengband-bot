@@ -1061,9 +1061,10 @@ def _prefer(
         return candidate_is_current and not incumbent_is_current
     # A modest survival loss must not hide a material damage gain. In the live
     # Might Crown regression, ten points of head AC improved modeled survival by
-    # only 2.7% while dropping melee DPS by 33%. Combat-margin subtraction still
-    # ranked the helmet first because the survival value is measured in hundreds
-    # of turns. Compare the relative trade directly before that scaled metric.
+    # only 2.7% while dropping melee DPS by 33%. The combat margin of that time
+    # (survival minus kill turns) still ranked the helmet first because the
+    # survival value is measured in hundreds of turns. Compare the relative
+    # trade directly before the margin.
     candidate_material_offense = cm.expected_dps > im.expected_dps * 1.05
     incumbent_material_offense = im.expected_dps > cm.expected_dps * 1.05
     candidate_preserves_survival = cm.survival_turns >= im.survival_turns * 0.95
@@ -1072,6 +1073,10 @@ def _prefer(
         return True
     if incumbent_material_offense and incumbent_preserves_survival:
         return False
+    # combat_margin is the dimensionless ratio survival / kill turns (user
+    # decision 2026-10-02).  The 1% band is relative, so it keeps its meaning
+    # for the ratio: two loadouts within 1% of each other's survival-per-kill
+    # are operationally equivalent.
     threshold = abs(im.combat_margin) * 0.01
     difference = cm.combat_margin - im.combat_margin
     if difference > threshold:
@@ -1079,10 +1084,10 @@ def _prefer(
     if difference < -threshold:
         return False
     # Inside the existing 1% combat-margin equivalence band, preserve real
-    # offensive output before consulting secondary-risk tie breakers.  Margin
-    # is measured in turns and can let a small AC gain hide a large DPS loss
-    # when expected kill time is short (the live Might Crown regression was
-    # 62.7 vs 82.3 melee DPS for only 0.9% margin).
+    # offensive output before consulting secondary-risk tie breakers.  A small
+    # AC gain can still hide a large DPS loss inside the band (the live Might
+    # Crown regression was 62.7 vs 82.3 melee DPS for only 0.9% margin when
+    # the margin was a difference in turns).
     dps_threshold = abs(im.expected_dps) * 0.05
     dps_difference = cm.expected_dps - im.expected_dps
     if dps_difference > dps_threshold:
@@ -1199,8 +1204,8 @@ def _stable_operational_best(
     # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
     # and margin filters below choose offense-first among them (this is why a
     # higher-DPS weapon is no longer culled merely for a few percent less
-    # survival).  Only when NO loadout clears the floor does survival dominate,
-    # preserving the safety-first behavior for genuinely dangerous fields.
+    # survival).  When NO loadout clears the floor, the survival / kill ratio
+    # (combat_margin) filters first (user decision 2026-10-02).
     max_survival = max(entry.metrics.survival_turns for entry in pool)
     safe_enough = [
         entry
@@ -1210,11 +1215,26 @@ def _stable_operational_best(
     if safe_enough:
         pool = safe_enough
     elif isfinite(max_survival):
-        pool = [
-            entry
-            for entry in pool
-            if entry.metrics.survival_turns >= max_survival * 0.95
-        ]
+        # User decision 2026-10-02 18:5x (「足切りも比に置き換える」): in a
+        # dangerous field (nothing clears SUFFICIENT_SURVIVAL_TURNS) the
+        # survival-per-kill ratio decides, within the existing 1% band, not
+        # survival alone.  The former "survival >= 95% of the maximum" floor
+        # (2026-07-24) dropped the live ダメージの指輪 (+9) set (10.18 vs 11.10
+        # turns) before its better ratio (2.69 vs 2.47) was consulted.
+        dangerous_max_margin = max(entry.metrics.combat_margin for entry in pool)
+        if isfinite(dangerous_max_margin):
+            pool = [
+                entry
+                for entry in pool
+                if entry.metrics.combat_margin
+                >= dangerous_max_margin - abs(dangerous_max_margin) * 0.01
+            ]
+        else:
+            pool = [
+                entry
+                for entry in pool
+                if entry.metrics.combat_margin == dangerous_max_margin
+            ]
     else:
         pool = [
             entry for entry in pool
@@ -1229,6 +1249,8 @@ def _stable_operational_best(
             if entry.metrics.expected_dps >= max_dps * 0.95
         ]
 
+    # combat_margin is the ratio survival / kill turns (user decision
+    # 2026-10-02); the 1% band is relative and so unchanged by that.
     max_margin = max(entry.metrics.combat_margin for entry in pool)
     if isfinite(max_margin):
         margin_band = abs(max_margin) * 0.01

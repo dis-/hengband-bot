@@ -68,6 +68,12 @@ def input_signature(items, kwargs):
     # catalog, depth, worn IDs and all requirement/ammunition inputs are facts.
     facts = {key: value for key, value in kwargs.items()
              if key not in {"candidate_loadouts", "timeout_seconds"}}
+    # require_armor_slots (cb7cc236, the empty-armour-slot fill rule) postdates
+    # every capture.  When it is exactly the derivation from the catalog this
+    # signature already covers (optimize_loadout's own default), it adds no
+    # fact; a value narrowed by search exclusions stays in and fails closed.
+    if facts.get("require_armor_slots") == equipment_optimizer.owned_armor_fill_slots(items):
+        del facts["require_armor_slots"]
     return hashlib.sha256(json.dumps(encode((items, facts)), sort_keys=True,
                                     ensure_ascii=True).encode()).hexdigest()
 
