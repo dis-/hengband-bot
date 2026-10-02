@@ -39,6 +39,9 @@ from hengbot.home_visit import (
     HomeVisitExecutor, HomeVisitKind, HomeVisitRequest,
 )
 from hengbot.latch_onset_capture import restore_checkpoint
+# Recorded captures replay the calibration their process held (the
+# checkpoint upgrade drops constants this process did not observe).
+from extraction_calibration import restore_recorded_checkpoint
 from hengbot.town_arbiter import _new_town_turn_arbiter
 
 from absorbing_state_harness import AbsorbingState
@@ -171,7 +174,7 @@ def _captured_home_deferral_retry():
     """Build the live fully-deferred class through its real public producer."""
     with gzip.open(HOME_DEFERRAL_CAPTURE, "rt", encoding="utf-8") as stream:
         capture = json.load(stream)
-    policy = restore_checkpoint(
+    policy = restore_recorded_checkpoint(
         HengbotPolicy, capture["producer_checkpoint_pickle_b64"]
     )
     decoded = [
@@ -544,7 +547,7 @@ def _departure_unsatisfiable_captures():
 def _captured_departure_unsatisfiable():
     """Restore the final Home row and consume its real public decision."""
     row = _departure_unsatisfiable_captures()[1248]
-    policy = restore_checkpoint(
+    policy = restore_recorded_checkpoint(
         HengbotPolicy, row["predecision_policy_checkpoint_pickle_b64"]
     )
     inside = pickle.loads(base64.b64decode(row["decision_snapshot_pickle_b64"]))

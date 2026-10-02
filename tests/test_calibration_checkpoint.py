@@ -134,3 +134,86 @@ class CalibrationCheckpointTest(unittest.TestCase):
         policy._calibration_restore_signatures = []
         normalize_policy_state(policy)
         self.assertEqual(set(vars(policy)), set(vars(HengbotPolicy(monrace_knowledge={}))))
+
+
+class RestoredCalibrationBoundaryTest(unittest.TestCase):
+    """Review P2/P3 of the merge: a restore never continues the strip and
+    never keeps constants this process did not observe."""
+
+    @staticmethod
+    def _session(prefix):
+        from hengbot.equipment_transaction_planner import (
+            EquipmentTransaction, EquipmentTransactionPlan)
+        from hengbot.equipment_transaction_session import EquipmentTransactionSession
+        actions = tuple(
+            EquipmentTransaction("equip", "takeoff", f"{prefix}{slot}", slot,
+                                 f"identity-{slot}", f"move-{slot}")
+            for slot in ("body", "head", "feet"))
+        session = EquipmentTransactionSession(EquipmentTransactionPlan(actions, (), 20))
+        session.index = 1  # mid-takeoff: one item already off
+        return session
+
+    def test_restored_strip_session_mid_takeoff_is_cancelled(self):
+        from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+        for marker in ("target", "action-id"):
+            with self.subTest(marker=marker):
+                policy = HengbotPolicy(monrace_knowledge={})
+                session = self._session("calibration:" if marker == "action-id" else "x:")
+                policy._equipment_transaction_session = session
+                policy._equipment_transaction_prepared_key = "tb"
+                policy._calibration_phase = "strip"
+                policy._calibration_stripped_unrestored = True
+                if marker == "target":
+                    policy._calibration_session_target = session.target_loadout_id
+                policy._open_execution_delegation(
+                    "calibration", "equipment-txn", ("session", "strip"),
+                    ("calibration", "strip"), "observed-takeoffs", "budget")
+                restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+                self.assertIsNone(restored._equipment_transaction_session)
+                self.assertIsNone(restored._equipment_transaction_prepared_key)
+                self.assertFalse(any(record.parent_family == "calibration"
+                                     for record in restored._execution_delegations))
+                self.assertNotIn("_calibration_phase", vars(restored))
+
+    def test_ordinary_equipment_session_survives_restore(self):
+        from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+        policy = HengbotPolicy(monrace_knowledge={})
+        policy._equipment_transaction_session = self._session("pack:")
+        restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+        self.assertIsNotNone(restored._equipment_transaction_session)
+        self.assertEqual(restored._equipment_transaction_session.index, 1)
+
+    def test_restore_drops_constants_this_process_did_not_observe(self):
+        from dataclasses import replace
+        from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+        from hengbot.policy_calibration import process_calibration_session_id
+        from hengbot.warrior_optimization import CharacterCalibration
+        legacy = CharacterCalibration(
+            race_id=0, class_id=0, personality_id=0, level=1,
+            stat_cur=(10,) * 6, base_stats=(10,) * 6, base_hp=10,
+            base_ac_bonus=0, intrinsic_abilities=frozenset())
+        current = replace(legacy, schema_version=2, source="equipped-c-screen",
+                          session_id=process_calibration_session_id())
+        foreign = replace(current, session_id="another-process")
+        for calibration, kept in ((legacy, False), (foreign, False), (current, True)):
+            with self.subTest(schema=calibration.schema_version,
+                              session=calibration.session_id[:8]):
+                policy = HengbotPolicy(monrace_knowledge={})
+                policy._character_calibration = calibration
+                policy._character_calibration_loaded = True
+                policy._equipment_optimization_signature = ("signature",)
+                policy._confirmed_loadout_loaded = True
+                policy._calibration_session_id = "recorded-process"
+                state = pickle.loads(__import__("base64").b64decode(checkpoint(policy)))
+                restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))
+                self.assertEqual(restored._calibration_session_id,
+                                 process_calibration_session_id())
+                self.assertEqual(state["_calibration_session_id"], "recorded-process")
+                if kept:
+                    self.assertEqual(restored._character_calibration, calibration)
+                else:
+                    self.assertIsNone(restored._character_calibration)
+                    self.assertFalse(restored._character_calibration_loaded)
+                    self.assertIsNone(restored._equipment_optimization_signature)
+                    self.assertIsNone(restored._confirmed_loadout)
+                    self.assertFalse(restored._confirmed_loadout_loaded)

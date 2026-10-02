@@ -19,3 +19,31 @@ def install_extraction_calibration(policy):
     policy._character_calibration = calibration
     policy._character_calibration_loaded = True
     return calibration
+
+
+def restore_recorded_checkpoint(policy_type, encoded):
+    """Restore a recorded checkpoint with the calibration its process held.
+
+    The checkpoint upgrade drops constants this process did not observe
+    (schema-1 or another session).  A recorded capture that is replayed as
+    evidence of the recorded process re-injects its own record explicitly.
+    """
+    import base64
+    import io
+    import pathlib
+    import pickle
+    from hengbot.latch_onset_capture import restore_checkpoint
+
+    class _Unpickler(pickle.Unpickler):
+        def find_class(self, module, name):
+            if module == "pathlib._local":
+                return getattr(pathlib, name)
+            return super().find_class(module, name)
+
+    state = _Unpickler(io.BytesIO(base64.b64decode(encoded))).load()
+    policy = restore_checkpoint(policy_type, encoded)
+    recorded = state.get("_character_calibration")
+    if recorded is not None:
+        policy._character_calibration = recorded
+        policy._character_calibration_loaded = True
+    return policy

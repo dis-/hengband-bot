@@ -23,6 +23,9 @@ def retire_strip_calibration_state(restored) -> None:
     the restored policy is an ordinary session with no calibration phase.
     """
     state = restored.__dict__
+    # Before the markers go: a strip or restore session still open in the
+    # checkpoint must never continue (its takeoffs would strip again).
+    _cancel_calibration_transaction(state)
     for name in tuple(state):
         if name.startswith("_calibration_") and name not in _RETAINED_CALIBRATION_NAMES:
             del state[name]
@@ -52,6 +55,67 @@ def retire_strip_calibration_state(restored) -> None:
         pops = registry.__dict__.get("_pops")
         if isinstance(pops, list):
             pops[:] = [pop for pop in pops if pop[0] != "calibration"]
+
+
+_CALIBRATION_ACTION_PREFIXES = ("calibration:", "calibration-restore:")
+
+
+def _cancel_calibration_transaction(state) -> None:
+    """Cancel an equipment session owned by the retired strip calibration.
+
+    Identified as the base code did (``_calibration_session_owned``: the
+    session's target loadout is the calibration session target) or by the
+    strip/restore action ids it planned.  Gear it already took off stays in
+    the pack (or Home), where the ordinary optimizer re-equips it.
+    """
+    session = state.get("_equipment_transaction_session")
+    if session is None:
+        return
+    target = state.get("_calibration_session_target")
+    actions = getattr(getattr(session, "plan", None), "actions", ()) or ()
+    owned = (
+        (target is not None
+         and getattr(session, "target_loadout_id", None) == target)
+        or any(str(getattr(action, "item_id", "")).startswith(
+            _CALIBRATION_ACTION_PREFIXES) for action in actions)
+    )
+    if not owned:
+        return
+    state["_equipment_transaction_session"] = None
+    state["_equipment_transaction_prepared_key"] = None
+    state["_equipment_transaction_prepared_catalog_update"] = None
+    state["_equipment_transaction_restoring"] = False
+    state["_equipment_transaction_restore_remainder"] = ()
+    delegations = state.get("_execution_delegations")
+    if isinstance(delegations, list):
+        delegations[:] = [
+            record for record in delegations
+            if getattr(record, "parent_family", None) != "calibration"
+        ]
+
+
+def _invalidate_foreign_calibration(state) -> None:
+    """Drop constants that this process did not observe (schema/session).
+
+    The disk loader accepts only this session's equipped (schema 2) record;
+    a restored or upgraded policy obeys the same boundary, and the optimizer
+    and confirmed-loadout caches derived from dropped constants go with it.
+    Tests that replay a recorded process inject its record explicitly
+    (tests/extraction_calibration.py).
+    """
+    calibration = state.get("_character_calibration")
+    if calibration is None:
+        return
+    if (getattr(calibration, "schema_version", 1) == 2
+            and getattr(calibration, "session_id", "")
+            == state.get("_calibration_session_id")):
+        return
+    state["_character_calibration"] = None
+    state["_character_calibration_loaded"] = False
+    state["_equipment_optimization_signature"] = None
+    state["_equipment_optimizer_input_key"] = None
+    state["_confirmed_loadout"] = None
+    state["_confirmed_loadout_loaded"] = False
 
 
 def _retire_home_visit_kind(visit) -> None:
@@ -117,9 +181,11 @@ def normalize_policy_state(restored, *, restart=False):
         restored._calibration_dump_pending = None
         restored._calibration_dump_prepared = None
         restored._calibration_dump_response = None
-        if not restored.__dict__.get("_calibration_session_id"):
-            from hengbot.policy_calibration import process_calibration_session_id
-            restored._calibration_session_id = process_calibration_session_id()
+    if restart or not restored.__dict__.get("_calibration_session_id"):
+        # A restored or upgraded policy belongs to this process's session.
+        from hengbot.policy_calibration import process_calibration_session_id
+        restored._calibration_session_id = process_calibration_session_id()
+    _invalidate_foreign_calibration(restored.__dict__)
     token_was_present = "_home_knowledge_scan_epoch" in restored.__dict__
     restored.__dict__.setdefault("_remembered_grid_sources", {})
     restored.__dict__.setdefault("_remembered_grid_signatures", {})

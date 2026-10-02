@@ -193,7 +193,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 
     def test_captured_progressing_home_work_keeps_failure_gate(self):
         row = cat._departure_unsatisfiable_captures()[1201]
-        policy = cat.restore_checkpoint(
+        policy = cat.restore_recorded_checkpoint(
             cat.HengbotPolicy,
             row["predecision_policy_checkpoint_pickle_b64"],
         )
@@ -229,7 +229,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
 
     def test_captured_progressing_home_work_never_becomes_blocked(self):
         row = cat._departure_unsatisfiable_captures()[1201]
-        policy = cat.restore_checkpoint(
+        policy = cat.restore_recorded_checkpoint(
             cat.HengbotPolicy,
             row["predecision_policy_checkpoint_pickle_b64"],
         )
