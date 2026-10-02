@@ -23,6 +23,7 @@ from hengbot.policy_constants import SUPPLY_STORES
 from test_esp_threat_rest_recorded import _policy, EDIT
 from xbow_pref_walls import apply_shelf_wall
 from extraction_calibration import install_extraction_calibration
+from recorded_loadout import pre_ratio_optimizer_replay
 
 FIXTURES = Path(__file__).parent / 'fixtures'
 ROUTES = FIXTURES / 'tpstockout-routes-20261002.json.gz'
@@ -78,6 +79,7 @@ def attachment(directory):
 
 
 class StockedSupplierRestartTest(unittest.TestCase):
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_recorded_restart_and_checkpoint_travel_to_stocked_alchemist(self):
         self.assertEqual(hashlib.sha256(ROUTES.read_bytes().replace(b'\r\n', b'\n')).hexdigest(),
                          '4730d0e32b3eba2db712448bf1f293d573a07e09db2250da85e44a243bdac3ed')

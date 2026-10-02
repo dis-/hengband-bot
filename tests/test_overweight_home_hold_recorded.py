@@ -59,6 +59,7 @@ from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, STORE_HOME
 from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
+from recorded_loadout import pre_ratio_optimizer_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -98,6 +99,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
             start += count
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def _replay(self, last, *, walls=False, inspect=None, prepare=None):
         """Replay the frozen process through ``last`` on one policy."""
         rows = []

@@ -75,7 +75,7 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_ratio_optimizer_replay, recorded_loadout_replay
 from extraction_calibration import install_extraction_calibration
 
 
@@ -368,6 +368,9 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             cls.lines = list(stream)
         assert len(cls.lines) == sum(cls.boundaries["input_rows"])
 
+    # The ratio rule's choice on this board (Home trip for 殺戮の野太刀) is
+    # pinned in tests/test_margin_ratio_tour_divergence_recorded.py.
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_s0_replay_stops_at_first_changed_equipment_choice(self):
         """Recorded boards are authoritative only until the first changed key."""
         with TemporaryDirectory() as raw_directory:

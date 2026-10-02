@@ -88,7 +88,7 @@ import absorbing_state_catalog
 import test_esp_threat_rest_recorded as esp_recorded
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
-from recorded_loadout import recorded_loadout_replay
+from recorded_loadout import pre_ratio_optimizer_replay, recorded_loadout_replay
 
 
 # List indices into the recorded decisions (decision_sequence + 4).
@@ -533,6 +533,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
             (restore.count, "experience-restore"),
         )
 
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_x5_potion_at_home_is_withdrawn_then_drunk(self):
         replay = self._replay()
         experience = replay["experience_item"]
@@ -572,6 +573,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         self.assertEqual(_decide(policy, withdrawn), ("q" + slot, "experience:quaff"))
         self.assertEqual(policy._home_errand.state.value, "done")
 
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_x5_route_from_the_recorded_board_claims_the_home_withdrawal(self):
         replay = self._replay()
         policy, snapshot = self._board(HOME_SCAN)

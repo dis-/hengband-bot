@@ -78,6 +78,7 @@ from hengbot.policy_constants import STORE_HOME
 from test_esp_threat_rest_recorded import EDIT, _policy
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from extraction_calibration import install_extraction_calibration
+from recorded_loadout import pre_ratio_optimizer_replay
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -177,6 +178,7 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
         return json.loads(cls.lines[cls.starts[index + 1] - 1])
 
     @classmethod
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def _replay(cls):
         """Replay the whole recorded process on one policy."""
         if cls.replay is not None:
@@ -272,6 +274,10 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
         ]
         self.assertEqual([item["weight"] for item in claymore], [200])
 
+    # "No wall" below predates the 2026-10-02 survival / kill ratio, under
+    # which this board's optimizer first chooses a 'tb' takeoff; the declared
+    # wall keeps the subject (the departure recall purchase).
+    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_production_buys_the_departure_recall_with_the_target(self):
         """No wall: the first changed decision is the recall quantity at 68."""
         self.assertEqual(
