@@ -687,6 +687,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol._target_dungeon_id = 14
         pol._char_dump_done_this_visit = True
         pol._shopping_stuck = True
+        # Isolate the free-slot rule: the destination's ability gate is not
+        # what this test is about.  Since bf298cae an unsafe alt-dungeon
+        # target takes town:unsafe-recall-fallback first (user 2026-10-02,
+        # no-safe-recall item 9: the same fallback and named stop as Angband).
+        pol._recall_destination_safe = lambda *_args, **_kw: True
 
         self.assertIsNone(pol._town_special_key(snap))
         self.assertNotEqual(pol.last_reason, "town:recall-to-alt-dungeon")
