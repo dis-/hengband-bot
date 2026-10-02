@@ -1323,11 +1323,22 @@ class SupplyMixin:
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
         player = snapshot.player
+        # A hit observed on an earlier board of this floor whose decision a
+        # higher rung (the emergency cure) took; consumed here either way.
+        pending_hit = (
+            getattr(self, "_unseen_hit_pending_floor", None) == snapshot.floor_key
+        )
+        self._unseen_hit_pending_floor = None
         eligible_hit = (
-            self._took_damage
-            and self._unseen_attack_evidence is not None
-            and not self._took_curse_damage
-            and not self._took_trap_or_terrain_damage
+            (
+                pending_hit
+                or (
+                    self._took_damage
+                    and self._unseen_attack_evidence is not None
+                    and not self._took_curse_damage
+                    and not self._took_trap_or_terrain_damage
+                )
+            )
             and not snapshot.visible_monsters
             and not player.poisoned
             and not player.cut

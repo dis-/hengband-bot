@@ -1873,6 +1873,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
         self._unexplained_damage_streak = 0
+        # Floor of an unseen hit not yet seen by the unseen-attacker retreat
+        # (read with getattr: restored checkpoints predate it).
+        self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
         # (floor, {(index, race_id)}) of status threats already fled from;
         # read with getattr (restored checkpoints predate it).
         self._status_threat_latch: tuple[
