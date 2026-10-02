@@ -692,6 +692,18 @@ class HomeMixin:
             # whole stack is reserved, so no sale, deposit or destruction
             # selector can pick it.
             return item.count, "destruction-gate"
+        if (
+            item.known
+            and item.tval == TVAL_STAFF
+            and item.sval == SV_STAFF_IDENTIFY
+            and (release := self._identify_staff_release_plan(snapshot))
+        ):
+            # User 2026-10-03: at most four carried Identify staves.  The plan
+            # names how many of each stack go (fewest charges first, or the
+            # emptiest one swapped for a fuller shelf staff); the rest stay, so
+            # every sale/deposit path moves exactly the released quantity.
+            kept = item.count - min(item.count, release.get(item.slot, 0))
+            return kept, ("identify-staff-cap" if kept > 0 else None)
         if item.is_recall_scroll:
             target = max(
                 ledger["recall"].required_departure,
@@ -1189,6 +1201,19 @@ class HomeMixin:
         # charge-food left in it — so stash it at once (do not wait out the idle
         # counter). The magic-missile wand (0 回分) the user flagged is exactly this.
         depleted_device = item.is_wand_staff and item.known and item.charges <= 0
+        # User 2026-10-03: an Identify staff released by the four-staff cap
+        # (or the swap for a fuller one) is sold first; only when no sale
+        # outlet remains for it does Home take it.
+        unsellable_identify_staff_release = (
+            snapshot is not None
+            and item.known
+            and item.tval == TVAL_STAFF
+            and item.sval == SV_STAFF_IDENTIFY
+            and (released := self._find_surplus_identify_staff(snapshot)) is not None
+            and released.slot == item.slot
+            and self._identify_staff_release_plan(snapshot).get(item.slot, 0) > 0
+            and self._town_organization_sale_store(snapshot, item) is None
+        )
         reserved_stack_surplus = (
             snapshot is not None
             and self._retention_surplus(snapshot, item) > 0
@@ -1228,6 +1253,7 @@ class HomeMixin:
             or mining_gear_off_duty
             or idle_dead_weight
             or depleted_device
+            or unsellable_identify_staff_release
             or reserved_stack_surplus
             or throwing_torches_replaced
             or obsolete_oil
