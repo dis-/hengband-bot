@@ -19,6 +19,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import TVAL_STAFF, SV_STAFF_IDENTIFY
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import frozen_equipment_replay
+from xbow_pref_walls import shelf_wall_on_replay
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'identify-staff-live27.jsonl.gz'
 
@@ -27,6 +28,7 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
     # fixer-reconcile-prompt.txt STEP 2: retain live27's mining/charge/restore
     # assertions while supplying the equipment decisions its boards confirm.
     @frozen_equipment_replay("live27")
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap
     def test_recorded_shortfall_enters_one_run_mining(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(), '09ab28d21a633391954394f4c244800e75e3ca68238440b7a319cb255d72262d')
         boundary = FIXTURE.with_suffix('.boundaries.json')

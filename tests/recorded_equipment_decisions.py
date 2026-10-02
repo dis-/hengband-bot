@@ -25,6 +25,16 @@ FIXTURE_SHA256 = {
     "classC2": "ecfe01c2c70926975f8fde3e612f5380c27d80027cf4101018c939aabdfaa116",
 }
 
+# Declared ADDITIONAL entries, not capture-time outputs: the current optimizer's
+# results for inputs that first arise under the 2026-10-02 launcher rule (plain
+# shelf bolts make the Home Light Crossbow usable). Produced by
+# tests/extract_xbow_pref_optimizer_supplement.py; recorded entries above are
+# unchanged and may not be overridden. Hashes per R9 (CRLF -> LF).
+SUPPLEMENT_SHA256 = {
+    "classC2": "4d7610a6358d3762d4d315888b72af42c00bb9d1d068706ac6cd3d09ea358f4d",
+    "live27": "02d2542ca460904f98b4a73c5d4a74ee228126d733ac27a879baa3116c829888",
+}
+
 
 def encode(value):
     if is_dataclass(value):
@@ -62,6 +72,22 @@ def input_signature(items, kwargs):
                                     ensure_ascii=True).encode()).hexdigest()
 
 
+def supplement_path(name):
+    return Path(__file__).parent / "fixtures" / f"{name}.optimizer.xbow-pref-supplement.json.gz"
+
+
+def supplement_records(name, records):
+    if name not in SUPPLEMENT_SHA256:
+        return {}
+    payload = gzip.decompress(supplement_path(name).read_bytes()).replace(b"\r\n", b"\n")
+    if hashlib.sha256(payload).hexdigest() != SUPPLEMENT_SHA256[name]:
+        raise AssertionError(f"changed optimizer supplement: {name}")
+    extra = json.loads(payload)["results"]
+    if records.keys() & extra.keys():
+        raise AssertionError(f"supplement overrides recorded entries: {name}")
+    return extra
+
+
 @contextmanager
 def recorded_equipment_decisions(name):
     path = Path(__file__).parent / "fixtures" / f"{name}.optimizer.json.gz"
@@ -70,6 +96,7 @@ def recorded_equipment_decisions(name):
     if hashlib.sha256(payload).hexdigest() != FIXTURE_SHA256[name]:
         raise AssertionError(f"changed optimizer fixture: {name}")
     records = json.loads(payload)["results"]
+    records = {**records, **supplement_records(name, records)}
 
     def recorded(items, evaluator, **kwargs):
         signature = input_signature(items, kwargs)

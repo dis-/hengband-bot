@@ -21,6 +21,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import SUPPLY_STORES
 from test_esp_threat_rest_recorded import _policy, EDIT
+from xbow_pref_walls import apply_shelf_wall
 
 FIXTURES = Path(__file__).parent / 'fixtures'
 ROUTES = FIXTURES / 'tpstockout-routes-20261002.json.gz'
@@ -80,6 +81,9 @@ class StockedSupplierRestartTest(unittest.TestCase):
                          '4730d0e32b3eba2db712448bf1f293d573a07e09db2250da85e44a243bdac3ed')
         with TemporaryDirectory() as directory:
             policy, board, capture = attachment(directory)
+            # Declared wall (tests/xbow_pref_walls.py): shelves without plain
+            # bolts, so the 2026-10-02 crossbow swap does not apply here.
+            apply_shelf_wall(policy)
             saved = checkpoint(policy)
             for subject in (policy, restore_checkpoint(HengbotPolicy, saved)):
                 with self.subTest(restored=subject is not policy):

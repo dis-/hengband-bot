@@ -24,6 +24,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import recorded_equipment_decisions
+from xbow_pref_walls import apply_shelf_wall
 
 FIXTURE = Path(__file__).parent / "fixtures/classC2-departure-20261001.json.gz"
 
@@ -113,6 +114,9 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.policy, self.board, self.capture = attachment(Path(directory.name))
+        # Declared wall (tests/xbow_pref_walls.py): shelves without plain
+        # bolts, so the 2026-10-02 crossbow swap does not apply here.
+        apply_shelf_wall(self.policy)
 
     def test_recorded_residual_weight_deposits_exactly_four_shots_after_restore(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
