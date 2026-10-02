@@ -1,0 +1,741 @@
+{
+ "source": "jsonlog/bot-decisions.jsonl (live 2026-10-02, process started 22:09:40; rotated to bot-decisions.jsonl.1 at 22:38)",
+ "rows": [
+  {
+   "decision_sequence": 2031,
+   "time": "2026-10-02T22:18:39+0900",
+   "reason": "explore",
+   "key": "8",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 2678,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     9,
+     "mining:detection"
+    ],
+    [
+     "つるはし (1d3) (+0,+0) (+1) {+掘}",
+     20,
+     4,
+     1,
+     "mining:digging-tool"
+    ],
+    [
+     "穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}",
+     20,
+     6,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2182,
+   "time": "2026-10-02T22:18:58+0900",
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 3407,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     8,
+     "mining:detection"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2191,
+   "time": "2026-10-02T22:19:07+0900",
+   "reason": "fundraise:seek-loot",
+   "key": "9",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 3407,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     8,
+     "mining:detection"
+    ],
+    [
+     "つるはし (1d3) (+0,+0) (+1) {+掘}",
+     20,
+     4,
+     1,
+     "mining:digging-tool"
+    ],
+    [
+     "穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}",
+     20,
+     6,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2435,
+   "time": "2026-10-02T22:19:40+0900",
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 5705,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     7,
+     "mining:detection"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2453,
+   "time": "2026-10-02T22:19:57+0900",
+   "reason": "explore",
+   "key": "7",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 5683,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     8,
+     "mining:detection"
+    ],
+    [
+     "つるはし (1d3) (+0,+0) (+1) {+掘}",
+     20,
+     4,
+     1,
+     "mining:digging-tool"
+    ],
+    [
+     "穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}",
+     20,
+     6,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2826,
+   "time": "2026-10-02T22:20:45+0900",
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 11157,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     7,
+     "mining:detection"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2837,
+   "time": "2026-10-02T22:20:55+0900",
+   "reason": "fundraise:seek-loot",
+   "key": "9",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 11157,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     7,
+     "mining:detection"
+    ],
+    [
+     "つるはし (1d3) (+0,+0) (+1) {+掘}",
+     20,
+     4,
+     1,
+     "mining:digging-tool"
+    ],
+    [
+     "穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}",
+     20,
+     6,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2896,
+   "time": "2026-10-02T22:21:08+0900",
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 11353,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     6,
+     "mining:detection"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 2903,
+   "time": "2026-10-02T22:21:14+0900",
+   "reason": "explore",
+   "key": "4",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 11353,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     6,
+     "mining:detection"
+    ],
+    [
+     "つるはし (1d3) (+0,+0) (+1) {+掘}",
+     20,
+     4,
+     1,
+     "mining:digging-tool"
+    ],
+    [
+     "穴掘りのドワーフのつるはし (1d4) (+4,+1) (+6) {+掘|酸}",
+     20,
+     6,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 3622,
+   "time": "2026-10-02T22:23:36+0900",
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 20122,
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [],
+   "mining_kit_retention": [
+    [
+     "財宝感知の巻物",
+     70,
+     26,
+     5,
+     "mining:detection"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 3628,
+   "time": "2026-10-02T22:23:44+0900",
+   "reason": "shop:travel",
+   "key": "\u001b`n(.",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 20122,
+   "fundraising": {
+    "mode": null,
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 10,
+     "target": 11,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": []
+  },
+  {
+   "decision_sequence": 3649,
+   "time": "2026-10-02T22:24:11+0900",
+   "reason": "home:atomic-deposit",
+   "key": "di5\r\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 20172,
+   "fundraising": {
+    "mode": null,
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 10,
+     "target": 11,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": []
+  },
+  {
+   "decision_sequence": 5072,
+   "time": "2026-10-02T22:34:38+0900",
+   "reason": "shop:travel",
+   "key": "\u001b`n(.",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 0,
+     "target": 2,
+     "missing": 2
+    }
+   ],
+   "mining_kit_retention": []
+  },
+  {
+   "decision_sequence": 5074,
+   "time": "2026-10-02T22:34:41+0900",
+   "reason": "home:queue-catalogue-shortage",
+   "key": "\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 0,
+     "target": 2,
+     "missing": 2
+    }
+   ],
+   "mining_kit_retention": []
+  },
+  {
+   "decision_sequence": 5075,
+   "time": "2026-10-02T22:34:42+0900",
+   "reason": "home:atomic-withdraw",
+   "key": "5  pC\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 0,
+     "target": 2,
+     "missing": 2
+    }
+   ],
+   "mining_kit_retention": []
+  },
+  {
+   "decision_sequence": 5076,
+   "time": "2026-10-02T22:34:43+0900",
+   "reason": "town:entrance-step-off:home:process-next-batch-item",
+   "key": "9",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 1,
+     "target": 2,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": [
+    [
+     "シャベル (1d2) (+0,+0) (+1) {+掘}",
+     20,
+     1,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 5078,
+   "time": "2026-10-02T22:34:45+0900",
+   "reason": "shop:approach",
+   "key": "1",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 1,
+     "target": 2,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": [
+    [
+     "シャベル (1d2) (+0,+0) (+1) {+掘}",
+     20,
+     1,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 5079,
+   "time": "2026-10-02T22:34:46+0900",
+   "reason": "home:route-claim-unfulfilled",
+   "key": "\u001b",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "prepare",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 9,
+     "target": 10,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Digging tool",
+     "current": 1,
+     "target": 2,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": [
+    [
+     "シャベル (1d2) (+0,+0) (+1) {+掘}",
+     20,
+     1,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 5080,
+   "time": "2026-10-02T22:34:48+0900",
+   "reason": "town:travel-entrance",
+   "key": "\u001b`n>.",
+   "floor": [
+    0,
+    0
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "scavenge",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": true
+   },
+   "procurement_requirements": [
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Treasure Detection scrolls",
+     "current": 0,
+     "target": 5,
+     "missing": 5
+    },
+    {
+     "item": "Digging tool",
+     "current": 1,
+     "target": 2,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": [
+    [
+     "シャベル (1d2) (+0,+0) (+1) {+掘}",
+     20,
+     1,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  },
+  {
+   "decision_sequence": 5082,
+   "time": "2026-10-02T22:34:51+0900",
+   "reason": "fundraise:scavenge",
+   "key": "4",
+   "floor": [
+    2,
+    1
+   ],
+   "gold": 2208,
+   "fundraising": {
+    "mode": "scavenge",
+    "planned_runs": null,
+    "kit_secured": false,
+    "gold_trigger": false
+   },
+   "procurement_requirements": [
+    {
+     "item": "Teleport scrolls",
+     "current": 13,
+     "target": 15,
+     "missing": 2
+    },
+    {
+     "item": "Treasure Detection scrolls",
+     "current": 0,
+     "target": 5,
+     "missing": 5
+    },
+    {
+     "item": "Digging tool",
+     "current": 1,
+     "target": 2,
+     "missing": 1
+    }
+   ],
+   "mining_kit_retention": [
+    [
+     "シャベル (1d2) (+0,+0) (+1) {+掘}",
+     20,
+     1,
+     1,
+     "mining:digging-tool"
+    ]
+   ]
+  }
+ ]
+}

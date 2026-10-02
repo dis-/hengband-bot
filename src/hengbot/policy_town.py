@@ -4137,6 +4137,11 @@ class TownMixin:
         ):
             self._fundraising_mode = None
             self._planned_mining_runs = None
+            # The set's run count ends with the set, exactly as the run-count
+            # end does.  Carried into the next set it zeroed the detection
+            # scroll target, so Home never handed back the stored scrolls and
+            # prepare fell through to scavenge (live 2026-10-02 22:34).
+            self._mining_runs_completed = 0
             self._identify_staff_mining_plan = False
             self._recall_stockout_mining_plan = False
             self._town_store_attempted.clear()
