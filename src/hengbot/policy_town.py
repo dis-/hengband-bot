@@ -170,6 +170,22 @@ class TownMixin:
                     "locomotion", owner, snapshot.floor_key, route.target,
                     route.remaining_edges,
                 ),)
+        elif owner == "shop-buy":
+            # The purchase owner's work is one store's shelf, as the store
+            # router's work is one walk.  Its durable facts (gold, pack) do not
+            # move until a purchase lands, so without the shelf every shop-buy
+            # decision in one durable state read as the same work: the Home
+            # stop's ``shop:observed-operation-uncomposable`` step-off counted
+            # the first recurrence, and the first one-shot composed from the
+            # Weapon Smith page counted the second and retired at its own
+            # entry, dropping the bound tail (2026-10-02 09:03/09:04/09:27
+            # ``town:blocked:owner-retired``).  Repeated attempts on the same
+            # shelf repeat this vector and stay bounded by the existing
+            # recurrence and budget.
+            shelf = self._shop_buy_shelf_store(snapshot)
+            if shelf is not None:
+                return durable + (("shelf", owner, snapshot.floor_key, shelf),)
+            return durable
         elif owner == "survival":
             goal = self._town_hunt_target
         elif owner == "departure":
@@ -306,6 +322,23 @@ class TownMixin:
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )
+
+    def _shop_buy_shelf_store(self, snapshot: Snapshot) -> int | None:
+        """The store whose shelf a shop-buy decision acts on, from the board.
+
+        The open store page names itself; outside, the store visit the
+        decision opened or kept (a composed one-shot acquires its own), then
+        the observed page awaiting composition, then the approached store.
+        """
+        if snapshot.store is not None:
+            return snapshot.store.store_type
+        visit = getattr(self, "_store_visit", None)
+        if visit is not None and visit.store_type is not None:
+            return visit.store_type
+        observation = getattr(self, "_shop_observation", None)
+        if observation is not None:
+            return observation[0].store_type
+        return getattr(self, "_shopping_approach_store_type", None)
 
     @staticmethod
     def _locomotion_part(
@@ -1311,6 +1344,37 @@ class TownMixin:
             # commands. Procurement resumes only on an observed outside board.
             return key
         progress = self._town_procurement_progress_key(snapshot)
+        overweight_home_pending = (
+            progress is None
+            and enforce
+            and movement_key
+            and claims_active
+            and (proposed_reason == "stuck:wander"
+                 or proposed_reason.startswith("novel:"))
+            and not getattr(self, "_town_liveness_claim_retired", False)
+            and "weight-overload"
+            in (getattr(self, "_town_claim_categories", ()) or ())
+            and self._inventory_overweight(snapshot)
+        )
+        if (
+            overweight_home_pending
+            and STORE_HOME in self._town_store_attempted
+            and not self._overweight_home_bound_exhausted()
+        ):
+            # The Home pass ended without a failed deposit (deferred or never
+            # posted) and Home's own pass/approach bound remains: route Home
+            # again.  Each unfulfilled pass is charged to that bound.
+            self._rearm_town_store_for_new_work(STORE_HOME)
+            if (
+                STORE_HOME not in self._town_store_attempted
+                and self._next_required_store_type(snapshot) == STORE_HOME
+                and (step := self._shopping_approach_step(
+                    snapshot, STORE_HOME, router_plan_stop=True)) is not None
+                and (rearmed := self._shopping_approach_key(
+                    snapshot, step, "shop:travel")) is not None
+            ):
+                self._record_shop_selector_diagnostics(snapshot, rearmed)
+                return rearmed
         if progress is None:
             liveness_candidate = (
                 proposed_reason == "stuck:wander"
@@ -1324,17 +1388,15 @@ class TownMixin:
                     if getattr(self, "_town_liveness_claim_retired", False)
                     else "no-actionable-claim-owner"
                 )
-                if (
-                    blocked_reason == "no-actionable-claim-owner"
-                    and "weight-overload"
-                    in (getattr(self, "_town_claim_categories", ()) or ())
-                    and STORE_HOME in self._town_store_attempted
-                    and self._inventory_overweight(snapshot)
+                if overweight_home_pending and (
+                    STORE_HOME in self._town_store_attempted
+                    or self._overweight_home_bound_exhausted()
                 ):
                     # User 2026-09-03: a deposit that really fails is a stop.
-                    # This visit's Home pass ended with a deposit candidate
-                    # still carried and Home is the overload's only supplier,
-                    # so name that stop instead of waiting/probing unowned.
+                    # Home is the overload's only supplier and its bound is
+                    # exhausted (or it refused a re-arm), with a deposit
+                    # candidate still carried: name that stop instead of
+                    # waiting/probing unowned.
                     self._town_blocked_reason = "overweight-home-unreachable"
                     blocked_reason = self._town_blocked_reason
                 self.last_reason = f"town:blocked:{blocked_reason}"
@@ -3837,6 +3899,19 @@ class TownMixin:
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
+    def _overweight_home_bound_exhausted(self) -> bool:
+        """Home's existing pass/approach/visit bounds, as the router applies them."""
+        ledger = self._town_visit_ledger
+        limit = self._town_store_visit_limit(STORE_HOME)
+        home_visit = getattr(self, "_home_visit", None)
+        return bool(
+            self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            or ledger.approach_fails[STORE_HOME] >= limit
+            or ledger.unsatisfied_passes[STORE_HOME] >= limit
+            or (home_visit is not None
+                and home_visit.attempts_used >= home_visit.attempt_limit)
+        )
+
     def _town_store_blocked_under_applicable_bound(self, store_type: int) -> bool:
         """Return whether the recorded block has authority over current work."""
         if store_type != STORE_HOME:
@@ -5168,15 +5243,21 @@ class TownMixin:
         return WAIT_KEY
 
     def _town_recall_destination(
-        self, snapshot: Snapshot, *, guardian_gate: bool = True
+        self, snapshot: Snapshot, *, guardian_gate: bool = True,
+        safety_gate: bool = True,
     ) -> tuple[str | None, int]:
         """Choose the voluntary town-recall destination without issuing it.
 
         ``guardian_gate=False`` names the destination that would be chosen
         if landings on a blocked guardian floor were not refused; the
         departure gate below uses it to tell that refusal apart.
+        ``safety_gate=False`` also ignores the landing's depth gates: an
+        unsafe recall target is switched to a safe fallback landing at the
+        departure read point, which still reads one recall.
         """
         def safe(dungeon_id: int) -> bool:
+            if not safety_gate:
+                return True
             if self._recall_destination_safe(snapshot, dungeon_id):
                 return True
             return not guardian_gate and self._recall_refused_only_for_guardian(

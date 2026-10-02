@@ -22,10 +22,14 @@ S3.3 switch off), frozen by tests/extract_overweight_home_hold_fixture.py:
 
 Fix 1: the cross-area Home hold reads the board's observed arrival (the same
 evidence ``_claim_exit_completion`` closes a cell Reach on) and does not
-count that finished route as a holder.  Fix 2: a Home pass that left the
-overload with a deposit candidate is the user's 2026-09-03 failed-deposit
-stop; name it ``town:blocked:overweight-home-unreachable`` instead of the
-unowned wait.
+count that finished route as a holder.  Fix 2 (review P1): a Home pass
+that left the overload without a failed deposit (deferred / never posted) is
+re-armed and routed Home again while Home's own pass/approach/visit bound
+remains; with the bound exhausted the unowned wait is the user's 2026-09-03
+failed-deposit stop, ``town:blocked:overweight-home-unreachable``.  Fix 3
+(review P2): the departure recall scroll (user 2026-09-20) is required
+whether or not the recall target still awaits its safe-landing switch, so
+Home retention keeps 10 recall scrolls as the departure board does.
 
 Walls (declared): ``WALL_PRE_FIX_HOLD`` replays index 3 with the pre-fix
 hold (no arrival board), reproducing the live key, so that the later
@@ -47,13 +51,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from xbow_pref_walls import shelf_wall_on_replay
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, STORE_HOME
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from xbow_pref_walls import shelf_wall_on_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -93,7 +97,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
             start += count
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def _replay(self, last, *, walls=False, inspect=None):
+    def _replay(self, last, *, walls=False, inspect=None, prepare=None):
         """Replay the frozen process through ``last`` on one policy."""
         rows = []
         with TemporaryDirectory() as raw:
@@ -107,6 +111,8 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                     knowledge_ledger_path=directory / "knowledge.jsonl",
                 )
                 board = snapshots[-1]
+                if prepare is not None:
+                    prepare(index, policy, board)
                 if walls and index == WALL_PRE_FIX_HOLD:
                     # create=True: the pre-fix source has no such seam.
                     with patch.object(HengbotPolicy, "_home_hold_board",
@@ -188,13 +194,13 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                          (1, 150, True))
         # Required supplies stay carried (09-03 #1): every reserved stack.
         self.assertEqual(seen["reservations"], [
-            ("a", 6, 6), ("b", 10, 10), ("c", 3, 3), ("d", 15, 15), ("e", 10, 9),
+            ("a", 6, 6), ("b", 10, 10), ("c", 3, 3), ("d", 15, 15), ("e", 10, 10),
             ("f", 6, 6), ("g", 1, 0), ("h", 2, 2), ("i", 2, 0), ("j", 1, 0),
             ("k", 1, 0), ("l", 63, 63)])
         # Retention surplus clears the overload, so the 10-01 iron-shot
         # deposit keeps all shots (fits 99) and offers none.
         self.assertEqual(seen["ammo_target"], 99)
-        self.assertEqual(seen["candidates"], ["k", "j", "i", "e"])
+        self.assertEqual(seen["candidates"], ["k", "j", "i"])
         remaining = replace(board, store=None, inventory=tuple(
             item for item in board.inventory if item.slot != "k"))
         self.assertEqual(policy._inventory_weight(remaining), 1602)
@@ -211,24 +217,67 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(rows, [self._live(index) for index in range(HOME + 1)])
 
     # ------------------------------------------------------------ fix 2
-    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
-    def test_failed_home_pass_ends_in_the_named_overweight_stop(self):
-        state = {}
-
+    def _stop_board_state(self, state):
         def inspect(index, policy, board):
             if index == STOP:
                 state["attempted"] = STORE_HOME in policy._town_store_attempted
                 state["overweight"] = policy._inventory_overweight(board)
                 state["blocked"] = policy._town_blocked_reason
+        return inspect
 
-        rows = self._replay(STOP, walls=True, inspect=inspect)
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
+    def test_unposted_home_deposit_routes_home_again(self):
+        """Deferred, never-posted Home work within its bound: travel Home."""
+        state = {}
+        rows = self._replay(STOP, walls=True, inspect=self._stop_board_state(state))
         for index in range(STEP_OFF_WALL):
             self.assertEqual(rows[index], self._live(index), index)
         self.assertEqual(rows[STEP_OFF_WALL][1], self._live(STEP_OFF_WALL)[1])
-        self.assertEqual(rows[STOP], ("5", "town:blocked:overweight-home-unreachable"))
-        self.assertIn(rows[STOP][1], POLICY_FINAL_STOP_REASONS)
-        self.assertEqual(state, {"attempted": True, "overweight": True,
-                                 "blocked": "overweight-home-unreachable"})
+        # First changed key versus live (5 no-actionable-claim-owner): stop here.
+        self.assertEqual(rows[STOP], ("`n(.", "shop:travel"))
+        self.assertEqual(state, {"attempted": False, "overweight": True,
+                                 "blocked": None})
+
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
+    def test_exhausted_home_bound_ends_in_the_named_overweight_stop(self):
+        """Counterfactual bound on the same board: the genuine-failure stop."""
+        for counter in ("unsatisfied_passes", "approach_fails"):
+            with self.subTest(counter=counter):
+                state = {}
+
+                def prepare(index, policy, board, counter=counter):
+                    if index == STOP:
+                        ledger = policy._town_visit_ledger
+                        self.assertEqual(ledger.unsatisfied_passes[STORE_HOME], 2)
+                        getattr(ledger, counter)[STORE_HOME] = (
+                            policy._town_store_visit_limit(STORE_HOME))
+
+                rows = self._replay(STOP, walls=True, prepare=prepare,
+                                    inspect=self._stop_board_state(state))
+                self.assertEqual(rows[STOP],
+                                 ("5", "town:blocked:overweight-home-unreachable"))
+                self.assertIn(rows[STOP][1], POLICY_FINAL_STOP_REASONS)
+                self.assertEqual(state, {"attempted": True, "overweight": True,
+                                         "blocked": "overweight-home-unreachable"})
+
+    # ------------------------------------------------------------ fix 3
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
+    def test_recall_reservation_inside_home_matches_departure_board(self):
+        seen = {}
+
+        def inspect(index, policy, board):
+            if index in (HOME, STOP):
+                recall = next(item for item in board.inventory if item.is_recall_scroll)
+                seen[index] = (
+                    board.store is not None,
+                    policy._supply_ledger(board, policy._planned_depth())[
+                        "recall"].required_departure,
+                    policy._retention_reservation(board, recall),
+                )
+
+        self._replay(STOP, walls=True, inspect=inspect)
+        # Inside Home before the safe-landing switch; outside after it.
+        self.assertEqual(seen, {HOME: (True, 10, 10), STOP: (False, 10, 10)})
 
 
 if __name__ == "__main__":
