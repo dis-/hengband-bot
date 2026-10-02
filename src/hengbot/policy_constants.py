@@ -751,6 +751,17 @@ EMERGENCY_ESCAPE_REASONS = frozenset(
     }
 )
 
+# Relocating escapes from an unresisted confusion/paralysis attacker (user
+# 2026-10-02 13:4x: 「逃走も緊急脱出に数える」).  They join the per-dive
+# emergency count once their effect is observed (new position or floor);
+# a walking retreat (status-threat:retreat) never counts.
+STATUS_THREAT_RELOCATION_REASONS = frozenset(
+    {
+        "status-threat:scroll",
+        "status-threat:stairs",
+    }
+)
+
 EMPTY_DIVE_LIMIT = 3  # consecutive over-extended dives before switching dungeons
 
 HOME_PLAN_OWNED_PROCESSING_REASONS = {
