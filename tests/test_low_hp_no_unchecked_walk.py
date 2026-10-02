@@ -33,7 +33,7 @@ from dataclasses import replace
 from hengbot.model import Position, SV_POTION_SPEED
 from hengbot.policy_constants import HEAL_POTION_SVALS, QUAFF_KEY
 
-from test_unseen_retreat_visible_attacker_recorded import _Replay
+from unseen_retreat_visible_replay import ReplayMixin
 
 PINK_HORROR = 242
 ZOMBIE = 125
@@ -52,7 +52,7 @@ def _strip(board, *, heal=True, speed=False, teleport=False, recall=False):
     return replace(board, inventory=[i for i in board.inventory if not drop(i)])
 
 
-class _Boards(_Replay):
+class _Boards(ReplayMixin, unittest.TestCase):
     def _decide(self, board):
         policy = copy.deepcopy(self.policy)
         key = policy.choose_key(board)
