@@ -9140,10 +9140,16 @@ class TownRecallReturnTest(unittest.TestCase):
             pol, "_activate_safe_recall_fallback", return_value=None
         ):
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+        # USER DECISION 2026-10-02 17:4x (no-safe-destination-2 item 4):
+        # 「帰還先が全部条件不足の時は止めず ... イークの洞穴へ歩いて資金稼ぎ」;
+        # the refusal is still named and the gate is not relaxed.
         self.assertEqual(
             pol.last_reason,
-            "town:blocked:depth-gate:destination-34:missing-resist_chaos",
+            "fundraising:no-safe-destination:"
+            "depth-gate:destination-34:missing-resist_chaos",
         )
+        self.assertEqual(pol._fundraising_mode, "prepare")
+        self.assertFalse(pol._recall_destination_safe(snap, DUNGEON_ANGBAND))
 
     def test_recall_to_34_with_chaos_posts_exact_derived_characters(self):
         pol, snap = self._ready_town(

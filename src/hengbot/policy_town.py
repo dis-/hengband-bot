@@ -5934,16 +5934,30 @@ class TownMixin:
         # supply plan before its next shop stop.  With no town claim left, make
         # the genuine no-destination state a visible terminal instead of an
         # unlatched WAIT that is reconsidered forever.
+        # One rule for every recall target (no-safe-destination-2 item 9,
+        # live 2026-10-02 17:00:27): an alternate dungeon (Castle 12, landing
+        # 22 needs resist_conf) is refused exactly like Angband.  The target
+        # is a recall target of _town_recall_destination (its Angband and
+        # alt-dungeon conditions without the safety gate), so Angband before
+        # its recall unlock, and the walk-in Yeek cave, stay outside this rule
+        # as before.
+        unsafe_target_id = self._target_dungeon_id
         if (
-            self._target_dungeon_id == DUNGEON_ANGBAND
-            and snapshot.angband_recall_unlocked
+            (
+                unsafe_target_id == DUNGEON_ANGBAND
+                and snapshot.angband_recall_unlocked
+            ) or (
+                unsafe_target_id not in (DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE)
+                and unsafe_target_id in snapshot.entered_dungeon_ids
+            )
+        ) and (
             # Ability refusal only; a guardian-landing refusal is the switch
             # at the read point above.
-            and not guardian_blocked
-            and not self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+            not guardian_blocked
+            and not self._recall_destination_safe(snapshot, unsafe_target_id)
         ):
             destination_depth = self._dungeon_entry_depth(
-                snapshot, DUNGEON_ANGBAND, via_recall=True
+                snapshot, unsafe_target_id, via_recall=True
             )
             if self._activate_safe_recall_fallback(
                 snapshot, destination_depth
@@ -5968,7 +5982,24 @@ class TownMixin:
                 self._town_blocked_reason = "equipment-work-home-route-exhausted"
                 return self._town_blocked_key(snapshot)
             if not self._destination_depth_allowed(snapshot, destination_depth):
-                self._town_blocked_reason = self.last_reason
+                gate_reason = self.last_reason
+                # No safe landing anywhere: fundraise at the Yeek cave instead
+                # of stopping (user decision 2026-10-02, no-safe-destination-2
+                # item 4); the gate itself is not relaxed.
+                if self._start_no_safe_destination_fundraising(
+                    snapshot, destination_depth
+                ):
+                    self.last_reason = (
+                        f"fundraising:no-safe-destination:{gate_reason}"
+                    )
+                    self._offer_execution(
+                        WAIT_KEY, producer="fundraising",
+                        work_id="fundraise:no-safe-destination",
+                        next_step="fundraising.prepare",
+                        expected_effect="fundraising-set-started",
+                    )
+                    return WAIT_KEY
+                self._town_blocked_reason = gate_reason
                 return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)

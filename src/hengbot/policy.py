@@ -14269,6 +14269,42 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_store_attempted.clear()
         return True
 
+    def _start_no_safe_destination_fundraising(
+        self, snapshot: Snapshot, destination_depth: int
+    ) -> bool:
+        """Enter the ordinary fundraising set when no recall landing is safe.
+
+        USER DECISION 2026-10-02 17:4x (no-safe-recall-fundraise-and-quests):
+        「帰還先が全部条件不足の時は止めず ... イークの洞穴へ歩いて資金稼ぎ ...
+        必要な能力の条件は緩めない」.  A ready fixed quest is chosen before
+        this point (``_fixed_quest_key#2`` runs before ``_town_special_key``).
+
+        It enters the same ``prepare`` set ``_start_fundraising`` opens, only
+        without its poverty threshold, and therefore ends by the same rules:
+        the gold set-end (``_end_fundraising_set_at_gold_target``) and the
+        run-count end.  It is never opened at or above
+        FUNDRAISING_GOLD_TARGET, where the gold set-end would close it on the
+        next board and the next refusal would reopen it (a town cycle); there
+        the named depth-gate stop stays.  Only equipment abilities qualify:
+        the *Destruction* and speed gates are not answered by gold.
+        """
+        if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
+            return False
+        missing = self._missing_required_abilities(snapshot, destination_depth)
+        if not missing or missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}:
+            return False
+        if snapshot.player.gold >= FUNDRAISING_GOLD_TARGET:
+            return False
+        if self._opening_q34_active(snapshot):
+            return False
+        self._planned_mining_runs = None
+        self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
+        self._fundraising_mode = "prepare"
+        self._town_store_attempted.clear()
+        self._retire_town_errand_plan_for_rebuild()
+        return True
+
     def _try_normal_expedition_after_detection_stockout(
         self, snapshot: Snapshot
     ) -> bool:
