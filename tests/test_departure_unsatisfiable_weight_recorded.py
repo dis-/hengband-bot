@@ -67,6 +67,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.equipment_mutation import EquipmentMutationState
@@ -90,6 +91,24 @@ BOUNDARIES_SHA256 = (
 CALIBRATION_SHA256 = (
     "05348a09b560e690e641a12441217b86867dbb783605cbec9453e2bcdbe83f94"
 )
+# overweight-home review P2 (2026-10-02): the departure recall scroll is now
+# required while the Angband target still awaits its safe-landing switch
+# (user 2026-09-20).  Production therefore buys it with the target at index 68
+# ('pi2' where live bought 'pi1' and the 2nd scroll later at 115).  Declared
+# wall for the H1 replay below: the pre-P2 departure count (safety-gated
+# destination), so this pin keeps reaching its subject on boards that are the
+# effect of the live keys.  test_production_buys_the_departure_recall_with_the
+# _target pins the changed decision itself.
+DEPARTURE_RECALL_BUY = 68  # sequence 67, live 'pi1\r\r\x1b'
+_PRODUCTION_RECALL_DESTINATION = HengbotPolicy._town_recall_destination
+
+
+def _pre_p2_recall_destination(self, snapshot, *, guardian_gate=True,
+                               safety_gate=True):
+    return _PRODUCTION_RECALL_DESTINATION(
+        self, snapshot, guardian_gate=guardian_gate)
+
+
 # Decisions are addressed by log index; the first town decision reuses the
 # countdown's last sequence (46 twice), so index = sequence + 1 from there.
 WEIGHT_DEPOSIT = 54  # sequence 53, 'dt2\rdsdrdp\x1b'
@@ -162,7 +181,10 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
         if cls.replay is not None:
             return cls.replay
         replay = []
-        with TemporaryDirectory() as raw_directory:
+        with TemporaryDirectory() as raw_directory, patch.object(
+            HengbotPolicy, "_town_recall_destination",
+            _pre_p2_recall_destination,
+        ):
             directory = Path(raw_directory)
             policy = _policy(directory, cls.monrace)
             policy._character_calibration_path.write_bytes(
@@ -247,6 +269,42 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
             item for item in board["inventory"] if CLAYMORE in item["name"]
         ]
         self.assertEqual([item["weight"] for item in claymore], [200])
+
+    def test_production_buys_the_departure_recall_with_the_target(self):
+        """No wall: the first changed decision is the recall quantity at 68."""
+        self.assertEqual(
+            [(self.recorded[index]["key"], self.recorded[index]["reason"])
+             for index in (DEPARTURE_RECALL_BUY, RECALL_BUY)],
+            [("pi1\r\r\x1b", "shop:one-shot-buy")] * 2,
+        )
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = _policy(directory, self.monrace)
+            policy._character_calibration_path.write_bytes(
+                CALIBRATION.read_bytes())
+            for index in range(DEPARTURE_RECALL_BUY + 1):
+                _decoded, snapshots = _consume_response_sequence(
+                    self._board_lines(index), policy, lambda _key: True,
+                    self.monrace,
+                    knowledge_ledger_path=directory / "knowledge.jsonl",
+                )
+                key = policy.choose_key(snapshots[-1])
+                recorded = self.recorded[index]
+                if index < DEPARTURE_RECALL_BUY:
+                    expected = recorded["key"]
+                    if index == 63:  # singleton deposit quantity (see H1)
+                        expected = "dm"
+                    self.assertEqual((str(key), policy.last_reason),
+                                     (expected, recorded["reason"]), index)
+                    policy.confirm_key_posted(key)
+            self.assertEqual((str(key), policy.last_reason),
+                             ("pi2\r\r\x1b", "shop:one-shot-buy"))
+            board = snapshots[-1]
+            recall = policy._supply_ledger(board, policy._planned_depth())["recall"]
+            self.assertEqual(policy._town_recall_destination(board)[0], None)
+            self.assertEqual(policy._town_recall_destination(
+                board, guardian_gate=False, safety_gate=False)[0], "angband")
+            self.assertEqual(recall.required_departure, recall.required_return + 1)
 
     # ------------------------------------------------------------ H1
     def test_replay_decides_as_live_until_the_first_overweight_board(self):
