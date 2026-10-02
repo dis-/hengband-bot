@@ -157,5 +157,71 @@ class LowHpFleeStepTest(_Boards):
         )
 
 
+class LowHpNoKitUnseenHitTest(_Boards):
+    """追加決定2 (10-03 05:1x, verbatim): 「近接で敵の方向が分からなければ
+    ランダムな方向に攻撃。遠距離で射線が切れなければ遮蔽と敵のうち近い方に
+    移動。」  Board 534 (nothing in view) at HP 420 after a hit, with no
+    healing potion, teleport or recall scroll -- DECLARED CONSTRUCTED."""
+
+    def _hit_board(self, message):
+        _rows, _board = self._replay(532, 533)
+        from hengbot.cli import _consume_response_sequence
+        from pathlib import Path
+        _decoded, snapshots = _consume_response_sequence(
+            [self.boards[534]], self.policy, lambda _key: True, self.monrace,
+            knowledge_ledger_path=Path(self._tmp.name) / "knowledge.jsonl",
+        )
+        board = snapshots[-1]
+        self.assertFalse([m for m in board.visible_monsters if m.hostile])
+        board = replace(
+            board, player=replace(board.player, hp=JUST_BELOW),
+            messages=[message],
+        )
+        return _strip(board, teleport=True, recall=True)
+
+    def test_unseen_melee_attacks_a_direction_instead_of_walking(self):
+        board = self._hit_board("何かに噛まれた。")
+        key, reason = self._decide(board)
+        self.assertEqual(reason, "no-wait:attack")
+        self.assertEqual(key[0], "+")  # do_cmd_alter: attacks what is there
+        self.assertIn(key[1:], set("12346789"))
+
+    def test_unseen_ranged_steps_to_cover(self):
+        board = self._hit_board("何かが魔力の矢の呪文を唱えた。")
+        key, reason = self._decide(board)
+        self.assertEqual(reason, "no-wait:flee")
+        offsets = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+                   "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+        dy, dx = offsets[key]
+        here = board.player.position
+        step = Position(here.y + dy, here.x + dx)
+        # Cover for an attacker of unknown square: the nearest choke square
+        # (independent BFS over the known walkable squares).
+        from collections import deque
+        from hengbot.policy_constants import SUMMONER_CHOKE_NEIGHBORS
+        policy = copy.deepcopy(self.policy)
+        policy._build_grid_index(board)
+
+        def cover(cell):
+            return policy._open_neighbor_count(board, cell) <= SUMMONER_CHOKE_NEIGHBORS - 1
+
+        distance = {here: 0}
+        queue = deque([here])
+        while queue:
+            cell = queue.popleft()
+            for neighbor in policy._walkable_neighbors(board, cell):
+                if neighbor not in distance:
+                    distance[neighbor] = distance[cell] + 1
+                    queue.append(neighbor)
+        nearest = min(d for cell, d in distance.items() if d and cover(cell))
+        self.assertIn(step, distance)
+        self.assertTrue(cover(step) or any(
+            cover(cell) and d == nearest and max(
+                abs(cell.y - step.y), abs(cell.x - step.x)
+            ) <= nearest - 1
+            for cell, d in distance.items()
+        ), (key, nearest))
+
+
 if __name__ == "__main__":
     unittest.main()

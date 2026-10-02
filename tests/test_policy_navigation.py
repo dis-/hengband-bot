@@ -358,7 +358,13 @@ class UnseenAttackerTest(unittest.TestCase):
             )
         )
         self.assertNotEqual(key, REST_MACRO)
-        self.assertTrue(pol.last_reason.startswith("unseen"), pol.last_reason)
+        # USER DECISION 2026-10-03 (low-hp-no-unchecked-walk, 追加決定2):
+        # below max(max_hp*0.5, max_hp-300) with no heal/teleport/recall and
+        # nothing adjacent, 「近接で敵の方向が分からなければランダムな方向に
+        # 攻撃」 -- no walk; the alter command attacks a direction.
+        # Was: last_reason startswith "unseen" (unseen:reverse-choke walk).
+        self.assertEqual(pol.last_reason, "no-wait:attack")
+        self.assertTrue(key.startswith("+") and key[1:] in set("12346789"), key)
 
     def test_unseen_hit_does_not_flee_to_upstairs(self):
         grids = {Position(10, x): grid(10, x) for x in range(10, 14)}
@@ -377,8 +383,13 @@ class UnseenAttackerTest(unittest.TestCase):
                 floor_key=(1, 5, 0),
             )
         )
-        self.assertIn(key, set("12346789"))
-        self.assertEqual(pol.last_reason, "unseen:reverse-choke")
+        # USER DECISION 2026-10-03 (low-hp-no-unchecked-walk, 追加決定2):
+        # below max(max_hp*0.5, max_hp-300) with no heal/teleport/recall and
+        # nothing adjacent, 「近接で敵の方向が分からなければランダムな方向に
+        # 攻撃」 -- no walk; the alter command attacks a direction.
+        # Was: key in "12346789" with last_reason "unseen:reverse-choke".
+        self.assertTrue(key.startswith("+") and key[1:] in set("12346789"), key)
+        self.assertEqual(pol.last_reason, "no-wait:attack")
         self.assertNotEqual(key, "<")
 
     def test_real_modest_unseen_hit_reverses_toward_choke_without_return(self):
@@ -487,7 +498,11 @@ class UnseenAttackerTest(unittest.TestCase):
                 self.assertEqual(pol._unseen_wait_remaining, 0)
                 self.assertFalse(pol._emergency_escape_pending)
                 self.assertFalse(pol._emergency_return_active)
-                self.assertNotEqual(key, WAIT_KEY)
+                # USER DECISION 2026-10-03 (low-hp-no-unchecked-walk): HP 100
+                # of 227 is below max(113.5, -73); a curse drain is no attack
+                # (追加決定2 covers melee/ranged hits only), so no walk.
+                # Was: assertNotEqual(key, WAIT_KEY) (a no-wait walk).
+                self.assertEqual((key, pol.last_reason), (WAIT_KEY, "emergency:wait"))
 
     def _assert_attributed_damage_does_not_trigger_unseen(
         self, message, *, initial_hp=160, damaged_hp=159
