@@ -1,0 +1,1089 @@
+{
+ "source": {
+  "autorecover-20261002-090414-town-blocked-owner-retired.bot-decisions.jsonl.gz": "7bdfc184cdca759978fa3a418e9dbc44128c2846af47408ce8c7fd5bae43afa3",
+  "autorecover-20261002-090414-town-blocked-owner-retired.bot-state-fixed.jsonl.gz": "62a975db1fd158056daf6c138c4bc708dde16192588ac88dbe279de3ff3b78f2"
+ },
+ "state_rows": [
+  84,
+  120
+ ],
+ "input_rows": [
+  3,
+  2,
+  3,
+  1,
+  1,
+  2,
+  2,
+  1,
+  5,
+  1,
+  3,
+  1,
+  2,
+  1,
+  3,
+  1,
+  2,
+  1,
+  2
+ ],
+ "recorded_fields": [
+  "decision_sequence",
+  "turn",
+  "key",
+  "reason",
+  "position"
+ ],
+ "recorded": [
+  [
+   0,
+   3091055,
+   "~f\u001b",
+   "periodic:skill-exp-knowledge",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   1,
+   3091055,
+   "\u001b`n(.",
+   "shop:travel",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   2,
+   3091541,
+   "\u001b",
+   "home:scan-incomplete-open-page",
+   [
+    45,
+    123
+   ]
+  ],
+  [
+   3,
+   3091551,
+   "9",
+   "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
+   [
+    45,
+    123
+   ]
+  ],
+  [
+   4,
+   3091562,
+   "~9\u001b\u001b",
+   "home:request-knowledge-scan",
+   [
+    44,
+    124
+   ]
+  ],
+  [
+   5,
+   3091562,
+   "1",
+   "shop:approach",
+   [
+    44,
+    124
+   ]
+  ],
+  [
+   6,
+   3091562,
+   "\u001b",
+   "home:leave-for-pending-withdraw",
+   [
+    45,
+    123
+   ]
+  ],
+  [
+   7,
+   3091571,
+   "5 pW13\r\u001b",
+   "home:atomic-withdraw",
+   [
+    45,
+    123
+   ]
+  ],
+  [
+   8,
+   3091580,
+   "6",
+   "town:entrance-step-off:shop:observed-operation-uncomposable",
+   [
+    45,
+    123
+   ]
+  ],
+  [
+   9,
+   3091587,
+   "\u001b`n#.",
+   "shop:travel",
+   [
+    45,
+    124
+   ]
+  ],
+  [
+   10,
+   3091883,
+   "\u001b",
+   "town-progress-invariant:continue-observed-shop",
+   [
+    31,
+    91
+   ]
+  ],
+  [
+   11,
+   3091889,
+   "5",
+   "shop:one-shot-buy",
+   [
+    31,
+    91
+   ]
+  ],
+  [
+   12,
+   3091889,
+   "\u001b",
+   "town-progress-invariant:continue-observed-shop",
+   [
+    31,
+    91
+   ]
+  ],
+  [
+   13,
+   3091901,
+   "\u001b`n$.",
+   "shop:travel",
+   [
+    31,
+    91
+   ]
+  ],
+  [
+   14,
+   3092027,
+   "\u001b",
+   "town-progress-invariant:continue-observed-shop",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   15,
+   3092033,
+   "5",
+   "shop:travel:await-entry",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   16,
+   3092033,
+   "\u001b",
+   "town-progress-invariant:continue-observed-shop",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   17,
+   3092043,
+   "5",
+   "shop:travel:await-entry",
+   [
+    31,
+    77
+   ]
+  ],
+  [
+   18,
+   3092043,
+   "5",
+   "town:blocked:owner-retired",
+   [
+    31,
+    77
+   ]
+  ]
+ ],
+ "detail": {
+  "8": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "shop-buy",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 8,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 9,
+    "owner": "shop-buy",
+    "state": "active",
+    "budget": 8,
+    "rung": "town-errand:shop-buy"
+   },
+   "execution": {
+    "producer": "shop-buy",
+    "work_id": "town:entrance-step-off",
+    "next_step": "departure.step-off-entrance",
+    "arguments": [
+     45,
+     124
+    ],
+    "expected_effect": "entrance-cell-cleared",
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 7,
+    "visit_origin": "acquire",
+    "phase": "approaching"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
+    "wanted_purchase": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:approach",
+     "progress_action": "town:entrance-step-off:home:scan-step-off",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "10": {
+   "store_type": 2,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "detectors",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 11,
+    "owner": "detectors",
+    "state": "active",
+    "budget": 2,
+    "rung": "_refuse_no_progress_cycle"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 2,
+    "visit_origin": "acquire",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "ammo",
+     "name": "鉄弾 (1d3) (+0,+0) (28/shot 56/turn)",
+     "letter": "l",
+     "price": 3,
+     "count": 99
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "11": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "shop-buy",
+    "producer_owner": "shop-buy",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "shop-buy"
+    ],
+    "decision_attribution": "shop-buy"
+   },
+   "claim": {
+    "claim_id": 12,
+    "owner": "shop-buy",
+    "state": "retired",
+    "budget": 8,
+    "rung": "town-errand:shop-buy"
+   },
+   "execution": {
+    "producer": "shop-buy",
+    "work_id": "shop-operation:11:2:pl9\r\r\u001b",
+    "next_step": "shop.one-shot.dispatch",
+    "arguments": [
+     2,
+     "pl9\r\r\u001b"
+    ],
+    "expected_effect": "store-page-open",
+    "continuation": "shop.one-shot.send"
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "ammo",
+     "name": "鉄弾 (1d3) (+0,+0) (28/shot 56/turn)",
+     "letter": "l",
+     "price": 3,
+     "count": 99
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "12": {
+   "store_type": 2,
+   "arbiter": {
+    "owner": "shop-buy",
+    "producer_owner": "detectors",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "detectors"
+    ],
+    "decision_attribution": "shop-buy"
+   },
+   "claim": {
+    "claim_id": 13,
+    "owner": "detectors",
+    "state": "retired",
+    "budget": 2,
+    "rung": "_refuse_no_progress_cycle"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "shop-handler",
+    "purpose": "recovered-shopping",
+    "store_type": 2,
+    "visit_origin": "shop-handler-recovery",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "ammo",
+     "name": "鉄弾 (1d3) (+0,+0) (28/shot 56/turn)",
+     "letter": "l",
+     "price": 3,
+     "count": 99
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "14": {
+   "store_type": 3,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "detectors",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 15,
+    "owner": "detectors",
+    "state": "active",
+    "budget": 2,
+    "rung": "_refuse_no_progress_cycle"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 3,
+    "visit_origin": "acquire",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "recall",
+     "name": "帰還の詔の巻物",
+     "letter": "l",
+     "price": 231,
+     "count": 4
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "15": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "store-router",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 8,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 16,
+    "owner": "store-router",
+    "state": "active",
+    "budget": 8,
+    "rung": "_shopping_approach_key#2"
+   },
+   "execution": {
+    "producer": "store-router",
+    "work_id": "store-entry:3:31,77",
+    "next_step": "store.entry.observe",
+    "arguments": [
+     3,
+     [
+      31,
+      77
+     ]
+    ],
+    "expected_effect": "store-page-open",
+    "continuation": "store.entry.observe"
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 3,
+    "visit_origin": "acquire",
+    "phase": "entering"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "recall",
+     "name": "帰還の詔の巻物",
+     "letter": "l",
+     "price": 231,
+     "count": 4
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "16": {
+   "store_type": 3,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "detectors",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "detectors"
+    ],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 17,
+    "owner": "detectors",
+    "state": "retired",
+    "budget": 2,
+    "rung": "_refuse_no_progress_cycle"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 3,
+    "visit_origin": "acquire",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "recall",
+     "name": "帰還の詔の巻物",
+     "letter": "l",
+     "price": 231,
+     "count": 4
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "17": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "store-router",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "store-router"
+    ],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 18,
+    "owner": "store-router",
+    "state": "retired",
+    "budget": 8,
+    "rung": "_shopping_approach_key#2"
+   },
+   "execution": {
+    "producer": "store-router",
+    "work_id": "store-entry:3:31,77",
+    "next_step": "store.entry.observe",
+    "arguments": [
+     3,
+     [
+      31,
+      77
+     ]
+    ],
+    "expected_effect": "store-page-open",
+    "continuation": "store.entry.observe"
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 3,
+    "visit_origin": "acquire",
+    "phase": "entering"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "recall",
+     "name": "帰還の詔の巻物",
+     "letter": "l",
+     "price": 231,
+     "count": 4
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  },
+  "18": {
+   "store_type": 3,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "town-plan",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 19,
+    "owner": "town-plan",
+    "state": "active",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 3,
+    "visit_origin": "acquire",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "town-progress-invariant:continue-observed-shop",
+    "wanted_purchase": {
+     "category": "recall",
+     "name": "帰還の詔の巻物",
+     "letter": "l",
+     "price": 231,
+     "count": 4
+    },
+    "rejection_reason": "preempted",
+    "town_progress_invariant": {
+     "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+     "winning_rung": "shop:observe-and-leave",
+     "progress_action": "town-progress-invariant:continue-observed-shop",
+     "gold": 17342,
+     "allow_set": []
+    }
+   },
+   "procurement_requirements": [
+    {
+     "item": "Word of Recall scrolls",
+     "current": 8,
+     "target": 9,
+     "missing": 1
+    },
+    {
+     "item": "Teleport scrolls",
+     "current": 12,
+     "target": 15,
+     "missing": 3
+    },
+    {
+     "item": "Cure Critical Wounds potions",
+     "current": 0,
+     "target": 10,
+     "missing": 10
+    },
+    {
+     "item": "Quest launcher",
+     "current": 0,
+     "target": 1,
+     "missing": 1
+    },
+    {
+     "item": "Quest carry: launcher.average_damage",
+     "current": 24,
+     "target": 25,
+     "missing": 1
+    },
+    {
+     "item": "Quest launcher ammunition",
+     "current": 90,
+     "target": 99,
+     "missing": 9
+    }
+   ],
+   "gold": 17342
+  }
+ }
+}

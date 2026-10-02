@@ -170,6 +170,22 @@ class TownMixin:
                     "locomotion", owner, snapshot.floor_key, route.target,
                     route.remaining_edges,
                 ),)
+        elif owner == "shop-buy":
+            # The purchase owner's work is one store's shelf, as the store
+            # router's work is one walk.  Its durable facts (gold, pack) do not
+            # move until a purchase lands, so without the shelf every shop-buy
+            # decision in one durable state read as the same work: the Home
+            # stop's ``shop:observed-operation-uncomposable`` step-off counted
+            # the first recurrence, and the first one-shot composed from the
+            # Weapon Smith page counted the second and retired at its own
+            # entry, dropping the bound tail (2026-10-02 09:03/09:04/09:27
+            # ``town:blocked:owner-retired``).  Repeated attempts on the same
+            # shelf repeat this vector and stay bounded by the existing
+            # recurrence and budget.
+            shelf = self._shop_buy_shelf_store(snapshot)
+            if shelf is not None:
+                return durable + (("shelf", owner, snapshot.floor_key, shelf),)
+            return durable
         elif owner == "survival":
             goal = self._town_hunt_target
         elif owner == "departure":
@@ -306,6 +322,23 @@ class TownMixin:
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )
+
+    def _shop_buy_shelf_store(self, snapshot: Snapshot) -> int | None:
+        """The store whose shelf a shop-buy decision acts on, from the board.
+
+        The open store page names itself; outside, the store visit the
+        decision opened or kept (a composed one-shot acquires its own), then
+        the observed page awaiting composition, then the approached store.
+        """
+        if snapshot.store is not None:
+            return snapshot.store.store_type
+        visit = getattr(self, "_store_visit", None)
+        if visit is not None and visit.store_type is not None:
+            return visit.store_type
+        observation = getattr(self, "_shop_observation", None)
+        if observation is not None:
+            return observation[0].store_type
+        return getattr(self, "_shopping_approach_store_type", None)
 
     @staticmethod
     def _locomotion_part(
