@@ -847,6 +847,8 @@ class ObservationMixin:
             self._loot_safety_rearmed.clear()
             self._loot_defer_blocker = None
             self._remembered_paralyzers.clear()
+            # A new level reuses the floor key and the monster indices.
+            self._status_threat_latch = None
             self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
