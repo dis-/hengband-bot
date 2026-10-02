@@ -15785,6 +15785,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if snapshot.in_town:
             return False
+        # Below the heal threshold the board is not calm, monsters or not:
+        # live Forest 32F 2026-10-03 03:46:39, return:seek-loot at HP 108/731
+        # right after an emergency teleport away from unseen casters.
+        if snapshot.player.hp_ratio < HEAL_HP_RATIO:
+            return False
         hostiles = [
             monster for monster in snapshot.visible_monsters if monster.hostile
         ]
