@@ -9328,6 +9328,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         low = player.hp < self._low_hp_walk_threshold(player.max_hp)
         return low, low
 
+    @claims(ClaimOwner.DETECTORS)
     def _low_hp_no_kit_hit_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:

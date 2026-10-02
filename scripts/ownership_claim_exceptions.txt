@@ -64,6 +64,7 @@ policy.py:_town_holder_wait_key  # relays the open town claim's route key or its
 policy.py:_silent_holder_stop  # relays the unresolved holder's own family into the typed town stop
 policy.py:_town_holder_declared_key  # dispatches the bound holder step across route, stair, calibration, and equipment families
 policy.py:_enforce_town_claim_result  # reports a gate leak from the family of the selected producer
+policy.py:_low_hp_walk_gate  # post-decision low-HP walk veto (665d0c25, 297282cd): survival heal/rest, combat melee, escape wait, and relayed escape consumables
 
 # -- 2. relays ---------------------------------------------------------------
 policy.py:__init__  # initialises last_reason to design 4's idle default before any producer runs
