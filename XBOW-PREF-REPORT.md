@@ -278,3 +278,39 @@ rule pick the crossbow. Decision needed: re-capture/extend those optimizer fixtu
 new first divergence in tpstockout), which edits recorded expectations and is outside my mandate.
 
 {"topic":"xbow-pref","implementer":"opus-5.5","round":3,"base":"5afa8525","commits":["cd9c8574"],"passing":{"test_light_crossbow_preference":16,"test_no_live_state_artifact":1,"test_policy_supply":202,"test_overweight_home_unreachable_recorded":12,"test_classC_departure_remedies":5,"test_recall_stockout_set_end_recorded":5,"test_declarations_r14":2,"test_unaffordable_claim_tour_recorded":7,"test_town_approach_retired_recorded":8,"test_policy_town":598,"test_test_fakery_lint":13},"intended_change_failures":{"test_tpstockout_restart_recorded":2,"test_classC2_departure_recorded":4,"test_identify_staff_live27_recorded":1},"assertions_edited":0,"new_attributes":[],"decision_needed":"re-capture classC2/live27 frozen optimizer fixtures and accept tpstockout first divergence (crossbow swap) or not"}
+
+## Round 4 (reviewer decision: accept the swap; R4 pins + declared walls) - commit e8b6c667
+
+- Declared wall `tests/xbow_pref_walls.py`: the same recorded supplier shelves without their plain
+  bolt stacks (closest board where the swap does not apply: no obtainable bolts -> no swap INTO the
+  crossbow; nothing else changes). Chosen over "swap already done" because it changes one shelf
+  item instead of the worn kit. Applied without editing assertions: tpstockout right after
+  `attachment` (+4 lines), classC2 `setUp` (+4 lines), live27 one import + one decorator line
+  (`@shelf_wall_on_replay`, wraps `cli.parse_snapshot`) to keep the merge with 2b50c90c easy.
+- New `tests/test_xbow_pref_recorded_divergence.py` (R4, unwalled boards, first divergence only):
+  - tpstockout: shelf store 2 plain bolts [(83, 3)]; live '5' town:blocked:no-actionable-claim-owner,
+    new '\x1b`n(.' `equipment-transaction:travel-home`; plan withdraw/equip Home Light Crossbow
+    (+4,+3), takeoff/deposit the Sling; original and restored checkpoint.
+  - classC2 (seq 11411 public board): shelf store 2 plain bolts [(99, 3)]; same key/reason; the
+    transaction also shelves the sub-hand weapon. Probe: the current optimizer single-wields the
+    Spear on this board even behind the wall (key 'tb' equipment-transaction:takeoff), so this is
+    today's dual-wield choice, not the launcher rule; the capture-time fixture froze the old one.
+  - live27: first divergence at index 11 (General Store shelf plain bolts [(98, 3)]): live
+    '{f.\r' vs new '{g.\r', both `equipment:suppress-random-teleport`; the new target holds the
+    Home crossbow and the War Hammer alone (no sub-hand), so the suppression inscribes g instead
+    of f. No transaction session yet at that decision.
+- Frozen optimizer supplements (declared ADDITIONAL, not capture-time): classC2 1 entry (8548c6b9...),
+  live27 2 entries (2ceaf2f8..., dc581429...), files
+  `tests/fixtures/{classC2,live27}.optimizer.xbow-pref-supplement.json.gz`, producer
+  `tests/extract_xbow_pref_optimizer_supplement.py` (runs the unwalled scenarios; misses fall back to
+  the current optimizer at source_revision 82fe2f05), R9 hashes in `SUPPLEMENT_SHA256`
+  (classC2 4d7610a6..., live27 02d2542c...). Recorded entries and FIXTURE_SHA256 unchanged; the
+  loader refuses a supplement that overlaps recorded signatures.
+
+Results (one module per process): test_xbow_pref_recorded_divergence 3 OK,
+test_tpstockout_restart_recorded 2 OK, test_classC2_departure_recorded 9 OK,
+test_identify_staff_live27_recorded 1 OK (first divergence still 104), test_light_crossbow_preference
+16 OK, test_no_live_state_artifact 1 OK, test_test_fakery_lint 13 OK. assertion_change_audit
+--base c4677d7a: no changed pre-existing assertions.
+
+{"topic":"xbow-pref","implementer":"opus-5.5","round":4,"base":"5afa8525","commits":["cd9c8574","e8b6c667"],"wall":"recorded supplier shelves without plain bolt stacks","first_divergence":{"tpstockout":"travel-home swap (83 bolts @3)","classC2":"travel-home swap + sub-hand shelved (current optimizer single-wield)","live27":"index 11 {g. vs {f. (new target: crossbow + War Hammer alone)"},"supplement":{"classC2":1,"live27":2},"assertions_edited":0,"verified":{"test_xbow_pref_recorded_divergence":3,"test_tpstockout_restart_recorded":2,"test_classC2_departure_recorded":9,"test_identify_staff_live27_recorded":1,"test_light_crossbow_preference":16,"test_no_live_state_artifact":1,"test_test_fakery_lint":13}}
