@@ -10564,6 +10564,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._end_fundraising_set_at_gold_target(snapshot)
             self._town_order_select_required_supply(snapshot)
             self._bind_home_star_remove_curse_withdrawal(snapshot)
+            # The departure seam (_town_special_key) releases a stale Home
+            # candidate latch before it evaluates departure; _observe re-derives
+            # that latch on every in-town board (a Home identify scroll alone
+            # sets it).  Release it here too, so the claim registry below and
+            # the departure seam read one departure verdict in one decision
+            # (live 2026-10-02 17:00:51: departure not ready here hid the
+            # optional launcher-enchant claim from this router, departure ready
+            # there kept it active and deferred departure -> no owner).
+            self._release_stale_home_candidate_waiting(snapshot)
             claims_active = self._town_claims_active(snapshot)
             if not claims_active:
                 # The former router performed terminal bookkeeping before it

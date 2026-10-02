@@ -1,0 +1,487 @@
+{
+ "source": {
+  "autorecover-20261002-170148-town-blocked-owner-retired.bot-decisions.jsonl.gz": "f8b823fc961ac4da04599790fab9b1c07724ab4832417f24441a77d10493b23c",
+  "autorecover-20261002-170148-town-blocked-owner-retired.bot-state-fixed.jsonl.gz": "3526c6e178d9372911f2c4187e5b83e135a6e055c69b5a4ed290b53cedde46bf"
+ },
+ "state_rows": [
+  96,
+  108
+ ],
+ "input_rows": [
+  3,
+  2,
+  2,
+  2,
+  1,
+  1,
+  1,
+  1
+ ],
+ "recorded_fields": [
+  "decision_sequence",
+  "turn",
+  "key",
+  "reason",
+  "position"
+ ],
+ "recorded": [
+  [
+   0,
+   3962719,
+   "~f\u001b",
+   "periodic:skill-exp-knowledge",
+   [
+    46,
+    83
+   ]
+  ],
+  [
+   1,
+   3962719,
+   "~9\u001b\u001b",
+   "home:request-knowledge-scan",
+   [
+    46,
+    83
+   ]
+  ],
+  [
+   2,
+   3962719,
+   "9",
+   "shop:approach",
+   [
+    46,
+    83
+   ]
+  ],
+  [
+   3,
+   3962719,
+   "\u001b",
+   "shop:observe-and-leave",
+   [
+    45,
+    84
+   ]
+  ],
+  [
+   4,
+   3962729,
+   "3",
+   "town:blocked:no-actionable-claim-owner",
+   [
+    45,
+    84
+   ]
+  ],
+  [
+   5,
+   3962741,
+   "5",
+   "town:blocked:no-actionable-claim-owner",
+   [
+    46,
+    85
+   ]
+  ],
+  [
+   6,
+   3962753,
+   "5",
+   "town:blocked:no-actionable-claim-owner",
+   [
+    46,
+    85
+   ]
+  ],
+  [
+   7,
+   3962761,
+   "5",
+   "town:blocked:owner-retired",
+   [
+    46,
+    85
+   ]
+  ]
+ ],
+ "detail": {
+  "0": {
+   "store_type": null,
+   "arbiter": {
+    "decision_attribution": "detectors"
+   },
+   "claim": {
+    "claim_id": 1,
+    "owner": "bookkeeping",
+    "state": "active",
+    "budget": null,
+    "rung": "_skill_exp_request_key"
+   },
+   "execution": {
+    "producer": "bookkeeping",
+    "work_id": "skill-exp-knowledge",
+    "next_step": "knowledge.skill-exp.request",
+    "arguments": [],
+    "expected_effect": "skill-exp-list-observed",
+    "continuation": "bookkeeping.resume"
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "1": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "home-scan",
+    "producer_owner": "home-scan",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 300,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "home-scan"
+   },
+   "claim": {
+    "claim_id": 2,
+    "owner": "home-scan",
+    "state": "active",
+    "budget": 300,
+    "rung": "town-errand:home-scan"
+   },
+   "execution": {
+    "producer": "home-scan",
+    "work_id": "home-knowledge:3962719",
+    "next_step": "home.knowledge.request",
+    "arguments": [],
+    "expected_effect": "catalogue-adopted",
+    "continuation": "home.knowledge.observe"
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "2": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "store-router",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 8,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 3,
+    "owner": "store-router",
+    "state": "active",
+    "budget": 8,
+    "rung": "_shopping_approach_key#2"
+   },
+   "execution": {
+    "producer": "store-router",
+    "work_id": "route:store:45,84",
+    "next_step": "route.resume",
+    "arguments": [
+     "store",
+     [
+      45,
+      84
+     ]
+    ],
+    "expected_effect": "arrive:45,84",
+    "continuation": "route.resume"
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 6,
+    "visit_origin": "acquire",
+    "phase": "entering"
+   },
+   "shop_selector": {
+    "winning_rung": null,
+    "wanted_purchase": null,
+    "rejection_reason": null,
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "3": {
+   "store_type": 6,
+   "arbiter": {
+    "owner": "town-errand",
+    "producer_owner": "shop-buy",
+    "tenure": 1,
+    "progress": true,
+    "budget_remaining_estimate": 8,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-errand"
+   },
+   "claim": {
+    "claim_id": 4,
+    "owner": "shop-buy",
+    "state": "active",
+    "budget": 8,
+    "rung": "town-errand:shop-buy"
+   },
+   "execution": {
+    "producer": "shop-buy",
+    "work_id": "shop:observe-shelf",
+    "next_step": "store.leave.send",
+    "arguments": [
+     6
+    ],
+    "expected_effect": "outside-store",
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": "town-errand",
+    "purpose": "shopping",
+    "store_type": 6,
+    "visit_origin": "acquire",
+    "phase": "leaving"
+   },
+   "shop_selector": {
+    "winning_rung": "shop:observe-and-leave",
+    "wanted_purchase": null,
+    "rejection_reason": "observed-page-nothing-wanted",
+    "town_progress_invariant": null
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "4": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-plan",
+    "producer_owner": "town-plan",
+    "tenure": 1,
+    "progress": false,
+    "budget_remaining_estimate": 2,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-plan"
+   },
+   "claim": {
+    "claim_id": 5,
+    "owner": "town-plan",
+    "state": "active",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": "town:blocked:no-actionable-claim-owner",
+    "wanted_purchase": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
+     "winning_rung": "stuck:wander",
+     "resolution": "town:blocked:no-actionable-claim-owner",
+     "claim_retired": false
+    }
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "5": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-plan",
+    "producer_owner": "town-plan",
+    "tenure": 2,
+    "progress": false,
+    "budget_remaining_estimate": 1,
+    "would_retire": false,
+    "retired": false,
+    "retirement_set": [],
+    "decision_attribution": "town-plan"
+   },
+   "claim": {
+    "claim_id": 5,
+    "owner": "town-plan",
+    "state": "active",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": "town:blocked:no-actionable-claim-owner",
+    "wanted_purchase": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
+     "winning_rung": "stuck:wander",
+     "resolution": "town:blocked:no-actionable-claim-owner",
+     "claim_retired": false
+    }
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "6": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-plan",
+    "producer_owner": "town-plan",
+    "tenure": 3,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "town-plan"
+    ],
+    "decision_attribution": "town-plan"
+   },
+   "claim": {
+    "claim_id": 5,
+    "owner": "town-plan",
+    "state": "retired",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": "town:blocked:no-actionable-claim-owner",
+    "wanted_purchase": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
+     "winning_rung": "stuck:wander",
+     "resolution": "town:blocked:no-actionable-claim-owner",
+     "claim_retired": false
+    }
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  },
+  "7": {
+   "store_type": null,
+   "arbiter": {
+    "owner": "town-plan",
+    "producer_owner": "town-plan",
+    "tenure": 4,
+    "progress": false,
+    "budget_remaining_estimate": 0,
+    "would_retire": true,
+    "retired": true,
+    "retirement_set": [
+     "town-plan"
+    ],
+    "decision_attribution": "town-plan"
+   },
+   "claim": {
+    "claim_id": 6,
+    "owner": "town-plan",
+    "state": "retired",
+    "budget": 3,
+    "rung": "_town_procurement_decision"
+   },
+   "execution": {
+    "producer": null,
+    "work_id": null,
+    "next_step": null,
+    "arguments": null,
+    "expected_effect": null,
+    "continuation": null
+   },
+   "store_visit": {
+    "owner": null,
+    "purpose": null,
+    "store_type": null,
+    "visit_origin": null,
+    "phase": null
+   },
+   "shop_selector": {
+    "winning_rung": "town:blocked:no-actionable-claim-owner",
+    "wanted_purchase": null,
+    "rejection_reason": "no-store-page-observed",
+    "town_progress_invariant": {
+     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
+     "winning_rung": "stuck:wander",
+     "resolution": "town:blocked:no-actionable-claim-owner",
+     "claim_retired": false
+    }
+   },
+   "procurement_requirements": [],
+   "gold": 12522
+  }
+ }
+}
