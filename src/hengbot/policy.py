@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, deque
+import random
 from dataclasses import dataclass, field, replace
 from heapq import heappop, heappush
 from itertools import count
@@ -392,6 +393,7 @@ from hengbot.policy_constants import (
     TOWN_WANDER_REASONS,
     STAIR_OBSERVATION_WAIT_LIMIT,
     SHOP_APPROACH_STUCK_LIMIT,
+    ALTER_KEY,
     OPEN_KEY,
     VISIT_PENALTY,
     BACKTRACK_PENALTY,
@@ -9312,17 +9314,114 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return max(max_hp * LOW_HP_WALK_RATIO, max_hp - LOW_HP_WALK_MARGIN)
 
     def _low_hp_walk_gate_active(self, snapshot: Snapshot) -> tuple[bool, bool]:
-        """(gate active, below the HP threshold)."""
+        """(gate active, below the HP threshold).
+
+        追加決定 (10-03 05:0x): 「含めない（閾値未満だけ）」 -- a hit alone
+        does not arm the gate."""
         player = snapshot.player
         low = player.hp < self._low_hp_walk_threshold(player.max_hp)
-        hit = (
-            getattr(self, "_took_damage", False)
-            and not getattr(self, "_took_curse_damage", False)
-            and not getattr(self, "_took_trap_or_terrain_damage", False)
-            and not player.poisoned
-            and not player.cut
+        return low, low
+
+    def _low_hp_no_kit_hit_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """Below the threshold with no heal/escape/recall and nothing adjacent,
+        after a hit (追加決定2, 10-03 05:1x): 「近接で敵の方向が分からなければ
+        ランダムな方向に攻撃。遠距離で射線が切れなければ遮蔽と敵のうち近い方に
+        移動。」  Melee by an unseen attacker: attack a direction with the
+        alter command (do_cmd_alter attacks a monster there, seen or not).
+        Ranged: one step out of the line of fire, not next to a hostile; else
+        toward the nearer of cover and the attacker."""
+        if (
+            not getattr(self, "_took_damage", False)
+            or getattr(self, "_took_curse_damage", False)
+            or getattr(self, "_took_trap_or_terrain_damage", False)
+        ):
+            return None
+        player = snapshot.player
+        here = player.position
+        messages = [re.sub(r" <x[1-9]\d*>$", "", m) for m in snapshot.messages]
+        unseen = [m for m in messages if self._is_unseen_attack_message(m)]
+        named_shooters = [
+            monster for monster in hostiles
+            if monster.name
+            and any(
+                m.startswith(monster.name) and self._is_unseen_spell_message(m)
+                for m in messages
+            )
+        ]
+        melee = [m for m in unseen if not self._is_unseen_spell_message(m)]
+        ranged = [m for m in unseen if self._is_unseen_spell_message(m)]
+        if melee:
+            cells = sorted(
+                (
+                    Position(here.y + dy, here.x + dx)
+                    for dy, dx in DIRECTION_KEYS
+                ),
+                key=lambda cell: (cell.y, cell.x),
+            )
+            candidates = [
+                cell for cell in cells
+                if (grid := snapshot.grid_at(cell)) is not None
+                and grid.passable
+                and not grid.is_door
+                and not any(m.position == cell for m in hostiles)
+            ]
+            if candidates:
+                cell = random.Random(snapshot.turn).choice(candidates)
+                self.last_reason = "no-wait:attack"
+                return ALTER_KEY + self._direction_key(here, cell)
+            return None
+        if not (ranged or named_shooters):
+            return None
+
+        def exposed_to(cell: Position) -> bool:
+            if named_shooters:
+                return any(
+                    self._has_line_of_fire(snapshot, m.position, cell)
+                    for m in named_shooters
+                )
+            # The attacker's square is unknown: a choke square is the cover.
+            return self._open_neighbor_count(snapshot, cell) > (
+                SUMMONER_CHOKE_NEIGHBORS - 1
+            )
+
+        def next_to_hostile(cell: Position) -> bool:
+            return any(m.position.distance_to(cell) <= 1 for m in hostiles)
+
+        neighbors = [
+            cell for cell in self._walkable_neighbors(snapshot, here)
+            if not next_to_hostile(cell)
+        ]
+        for cell in neighbors:
+            if not exposed_to(cell):
+                self.last_reason = "no-wait:flee"
+                return self._direction_key(here, cell)
+        # Nearest cover by walking distance, against the nearest attacker.
+        queue = deque((cell, cell, 1) for cell in neighbors)
+        seen = {here, *neighbors}
+        cover = None
+        while queue:
+            cell, first, depth = queue.popleft()
+            if not exposed_to(cell):
+                cover = (depth, first)
+                break
+            for neighbor in self._walkable_neighbors(snapshot, cell):
+                if neighbor not in seen and not next_to_hostile(neighbor):
+                    seen.add(neighbor)
+                    queue.append((neighbor, first, depth + 1))
+        enemy = min(
+            named_shooters, key=lambda m: m.position.distance_to(here), default=None
         )
-        return low or hit, low
+        if enemy is not None and (
+            cover is None or enemy.position.distance_to(here) <= cover[0]
+        ):
+            self.last_reason = "no-wait:flee"
+            return self._direction_key(here, enemy.position)
+        if cover is not None:
+            self.last_reason = "no-wait:flee"
+            return self._direction_key(here, cover[1])
+        return None
 
     def _walk_step_target(self, snapshot: Snapshot, key: str | None) -> Position | None:
         if not key:
@@ -9398,6 +9497,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
             )
+        if low:
+            answer = self._low_hp_no_kit_hit_key(snapshot, hostiles)
+            if answer is not None:
+                return answer
         if (
             not hostiles
             and not getattr(self, "_took_damage", False)

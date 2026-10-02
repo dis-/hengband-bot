@@ -250,6 +250,9 @@ TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 STAIR_OBSERVATION_WAIT_LIMIT = TOWN_TRAVEL_STALL_LIMIT
 
 OPEN_KEY = "o"
+# do_cmd_alter (input-key-processor.cpp '+'): attacks a monster in the
+# direction, seen or not (cmd-others.cpp exe_alter).
+ALTER_KEY = "+"
 VISIT_PENALTY = 4
 BACKTRACK_PENALTY = 30
 DOOR_OPEN_LIMIT = 3
