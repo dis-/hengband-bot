@@ -67,6 +67,13 @@ def bot_pids() -> list[int]:
                 (J / "bot.pid").write_text(str(pids[0]))
         except OSError:
             pass
+    elif not pids:
+        # A stale bot.pid whose number Windows reused for another process makes
+        # the skill refuse to resume ("already running", 2026-10-02 09:00).
+        try:
+            (J / "bot.pid").unlink()
+        except OSError:
+            pass
     return pids
 
 

@@ -1324,6 +1324,19 @@ class TownMixin:
                     if getattr(self, "_town_liveness_claim_retired", False)
                     else "no-actionable-claim-owner"
                 )
+                if (
+                    blocked_reason == "no-actionable-claim-owner"
+                    and "weight-overload"
+                    in (getattr(self, "_town_claim_categories", ()) or ())
+                    and STORE_HOME in self._town_store_attempted
+                    and self._inventory_overweight(snapshot)
+                ):
+                    # User 2026-09-03: a deposit that really fails is a stop.
+                    # This visit's Home pass ended with a deposit candidate
+                    # still carried and Home is the overload's only supplier,
+                    # so name that stop instead of waiting/probing unowned.
+                    self._town_blocked_reason = "overweight-home-unreachable"
+                    blocked_reason = self._town_blocked_reason
                 self.last_reason = f"town:blocked:{blocked_reason}"
                 self._town_liveness_invariant_defect = {
                     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",

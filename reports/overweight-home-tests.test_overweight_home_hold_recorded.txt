@@ -1,0 +1,9 @@
+test_failed_home_pass_ends_in_the_named_overweight_stop (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_failed_home_pass_ends_in_the_named_overweight_stop) ... ok
+test_pre_fix_hold_reproduces_the_live_home_pass (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_pre_fix_hold_reproduces_the_live_home_pass) ... ok
+test_recorded_home_pass_was_held_by_the_arrived_route (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_recorded_home_pass_was_held_by_the_arrived_route) ... ok
+test_routed_home_arrival_deposits_the_minimal_overload (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 37.906s
+
+OK
