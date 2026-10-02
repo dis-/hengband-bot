@@ -360,10 +360,14 @@ class PickupTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "seek-loot")
 
-    def test_emergency_return_active_suppresses_normal_loot_seek(self):
+    # USER DECISION 2026-10-02 19:0x 「帰還が進んでいる間だけ止める」 (6c0910fb):
+    # the emergency-return flag suppresses normal loot only while the return
+    # progresses (recall read and waiting / recall-issue watch / exit walk on
+    # a floor the return may leave); with no progressing return it is sought.
+    def _emergency_flag_loot_board(self, **player_fields):
         loot = Position(10, 11)
         snapshot = Snapshot(
-            player(10, 10),
+            player(10, 10, **player_fields),
             {
                 Position(10, 10): grid(10, 10),
                 loot: grid(10, 11, objects=1),
@@ -374,11 +378,43 @@ class PickupTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._observe(snapshot)
         policy._emergency_return_active = True
+        return policy, snapshot, loot
+
+    def test_emergency_return_exit_walk_suppresses_normal_loot_seek(self):
+        policy, snapshot, _loot = self._emergency_flag_loot_board()
+        policy._returning_to_town = True
+        self.assertTrue(policy._emergency_return_progressing(snapshot))
 
         policy.choose_key(snapshot)
 
         self.assertNotEqual(policy.last_reason, "seek-loot")
         self.assertIsNone(policy._loot_target)
+
+    def test_emergency_return_recall_issue_watch_suppresses_normal_loot_seek(self):
+        policy, snapshot, _loot = self._emergency_flag_loot_board()
+        policy._dungeon_recall_issue_watch = (snapshot.floor_key, snapshot.turn, 1)
+        self.assertTrue(policy._emergency_return_progressing(snapshot))
+
+        policy.choose_key(snapshot)
+
+        self.assertNotEqual(policy.last_reason, "seek-loot")
+        self.assertIsNone(policy._loot_target)
+
+    def test_emergency_return_recalling_counts_as_progressing(self):
+        policy, snapshot, _loot = self._emergency_flag_loot_board(word_recall=15)
+        self.assertTrue(snapshot.player.recalling)
+        self.assertTrue(policy._emergency_return_progressing(snapshot))
+
+    def test_emergency_flag_without_progressing_return_seeks_loot(self):
+        policy, snapshot, loot = self._emergency_flag_loot_board()
+        self.assertFalse(policy._returning_to_town)
+        self.assertIsNone(policy._dungeon_recall_issue_watch)
+        self.assertFalse(policy._emergency_return_progressing(snapshot))
+
+        policy.choose_key(snapshot)
+
+        self.assertEqual(policy.last_reason, "seek-loot")
+        self.assertEqual(policy._loot_target, loot)
 
     def test_material_ranged_threat_blocks_loot(self):
         monster = hostile(1, 10, 13, distance=3, max_ranged_damage=100)
