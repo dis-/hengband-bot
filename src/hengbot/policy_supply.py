@@ -1346,6 +1346,23 @@ class SupplyMixin:
         active = self._unseen_retreat_floor == snapshot.floor_key
         if not eligible_hit and not active:
             return None
+        # The retreat is for attackers the player cannot see.  A visible
+        # hostile that is adjacent, or that this turn's messages name, belongs
+        # to the ordinary combat/survival ladder: walking on donated free
+        # blows (Forest 32F 2026-10-03 03:46:28-37, サーベル・タイガー adjacent
+        # for 25 reverse-choke steps, HP 599 -> 257).
+        if any(
+            monster.position.distance_to(player.position) <= 1
+            or (
+                monster.name
+                and any(
+                    message.startswith(monster.name)
+                    for message in snapshot.messages
+                )
+            )
+            for monster in hostiles
+        ):
+            return None
 
         if not active:
             self._unseen_retreat_floor = snapshot.floor_key
