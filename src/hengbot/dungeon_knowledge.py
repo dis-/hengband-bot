@@ -29,6 +29,11 @@ class DungeonInfo:
     min_player_level: int
     flags: frozenset[str] = frozenset()
     guardian_id: int = 0
+    # The surface tile of the dungeon's entrance (``position.wild_y/wild_x``);
+    # going up from the top floor lands there (src/floor/floor-leaver.cpp
+    # exit_to_wilderness).  None when the definition does not say.
+    wild_y: int | None = None
+    wild_x: int | None = None
 
 
 def load_dungeon_knowledge(path: Path) -> dict[int, DungeonInfo]:
@@ -46,8 +51,14 @@ def load_dungeon_knowledge(path: Path) -> dict[int, DungeonInfo]:
             min_player_level=int(generation.get("minPlayerLevel", 0)),
             flags=frozenset(str(flag) for flag in dungeon.get("flags", [])),
             guardian_id=int(dungeon.get("final_floor", {}).get("guardian", 0)),
+            wild_y=_optional_int(dungeon.get("position", {}).get("wild_y")),
+            wild_x=_optional_int(dungeon.get("position", {}).get("wild_x")),
         )
     return result
+
+
+def _optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
 
 
 def find_dungeon_definitions(state_file: Path, override: Path | None = None) -> Path | None:

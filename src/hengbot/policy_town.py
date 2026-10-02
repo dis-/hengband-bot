@@ -170,6 +170,22 @@ class TownMixin:
                     "locomotion", owner, snapshot.floor_key, route.target,
                     route.remaining_edges,
                 ),)
+        elif owner == "shop-buy":
+            # The purchase owner's work is one store's shelf, as the store
+            # router's work is one walk.  Its durable facts (gold, pack) do not
+            # move until a purchase lands, so without the shelf every shop-buy
+            # decision in one durable state read as the same work: the Home
+            # stop's ``shop:observed-operation-uncomposable`` step-off counted
+            # the first recurrence, and the first one-shot composed from the
+            # Weapon Smith page counted the second and retired at its own
+            # entry, dropping the bound tail (2026-10-02 09:03/09:04/09:27
+            # ``town:blocked:owner-retired``).  Repeated attempts on the same
+            # shelf repeat this vector and stay bounded by the existing
+            # recurrence and budget.
+            shelf = self._shop_buy_shelf_store(snapshot)
+            if shelf is not None:
+                return durable + (("shelf", owner, snapshot.floor_key, shelf),)
+            return durable
         elif owner == "survival":
             goal = self._town_hunt_target
         elif owner == "departure":
@@ -306,6 +322,23 @@ class TownMixin:
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )
+
+    def _shop_buy_shelf_store(self, snapshot: Snapshot) -> int | None:
+        """The store whose shelf a shop-buy decision acts on, from the board.
+
+        The open store page names itself; outside, the store visit the
+        decision opened or kept (a composed one-shot acquires its own), then
+        the observed page awaiting composition, then the approached store.
+        """
+        if snapshot.store is not None:
+            return snapshot.store.store_type
+        visit = getattr(self, "_store_visit", None)
+        if visit is not None and visit.store_type is not None:
+            return visit.store_type
+        observation = getattr(self, "_shop_observation", None)
+        if observation is not None:
+            return observation[0].store_type
+        return getattr(self, "_shopping_approach_store_type", None)
 
     @staticmethod
     def _locomotion_part(
@@ -1027,6 +1060,12 @@ class TownMixin:
             if mana is not None and self._town_result_makes_progress(snapshot, mana):
                 return mana, self.last_reason
 
+        # The next item in an already selected Home batch belongs to that
+        # continuation. A newly visible shop supplier must not redirect the
+        # item-processing handoff before the batch producer consumes it.
+        if self._home_pending_batch:
+            return None
+
         # A27 bookkeeping belongs to candidate availability: stale terminal
         # ownership and an inert visit cannot make a released supplier appear
         # unreachable.  Posted operations remain authoritative.
@@ -1305,6 +1344,38 @@ class TownMixin:
             # commands. Procurement resumes only on an observed outside board.
             return key
         progress = self._town_procurement_progress_key(snapshot)
+        overweight_home_pending = (
+            progress is None
+            and enforce
+            and movement_key
+            and claims_active
+            and (proposed_reason == "stuck:wander"
+                 or proposed_reason.startswith("novel:"))
+            and not getattr(self, "_town_liveness_claim_retired", False)
+            and "weight-overload"
+            in (getattr(self, "_town_claim_categories", ()) or ())
+            and self._inventory_overweight(snapshot)
+        )
+        if (
+            overweight_home_pending
+            and STORE_HOME in self._town_store_attempted
+            and not self._overweight_home_bound_exhausted()
+        ):
+            # The Home pass ended without a failed deposit (deferred or never
+            # posted) and Home's own pass/approach bound remains: route Home
+            # again.  Each unfulfilled pass is charged to that bound.
+            self._rearm_town_store_for_new_work(STORE_HOME)
+            # The router's own required stop; _shopping_approach_step files
+            # and begins the Home visit request (the authorized approach).
+            if (
+                STORE_HOME not in self._town_store_attempted
+                and (step := self._shopping_approach_step(
+                    snapshot, router_plan_stop=True)) is not None
+                and (rearmed := self._shopping_approach_key(
+                    snapshot, step, "shop:travel")) is not None
+            ):
+                self._record_shop_selector_diagnostics(snapshot, rearmed)
+                return rearmed
         if progress is None:
             liveness_candidate = (
                 proposed_reason == "stuck:wander"
@@ -1318,6 +1389,17 @@ class TownMixin:
                     if getattr(self, "_town_liveness_claim_retired", False)
                     else "no-actionable-claim-owner"
                 )
+                if overweight_home_pending and (
+                    STORE_HOME in self._town_store_attempted
+                    or self._overweight_home_bound_exhausted()
+                ):
+                    # User 2026-09-03: a deposit that really fails is a stop.
+                    # Home is the overload's only supplier and its bound is
+                    # exhausted (or it refused a re-arm), with a deposit
+                    # candidate still carried: name that stop instead of
+                    # waiting/probing unowned.
+                    self._town_blocked_reason = "overweight-home-unreachable"
+                    blocked_reason = self._town_blocked_reason
                 self.last_reason = f"town:blocked:{blocked_reason}"
                 self._town_liveness_invariant_defect = {
                     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
@@ -2583,12 +2665,15 @@ class TownMixin:
                 )
             )
             if mandatory_supplies_ready:
+                launcher = self._equipped_launcher(snapshot)
                 if (
-                    self._equipped_launcher(snapshot) is not None
+                    launcher is not None
                     and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
-                    and STORE_WEAPON not in self._town_store_attempted
+                    and (ammo_store := self._launcher_ammo_errand_store(
+                        snapshot, launcher.ammo_tval
+                    )) is not None
                 ):
-                    add(STORE_WEAPON, "ammo")
+                    add(ammo_store, "ammo")
                 if (
                     self._fundraising_mode in {"prepare", "mine", "scavenge"}
                     and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
@@ -2734,7 +2819,7 @@ class TownMixin:
                         snapshot, quest_strategy, name, STORE_WEAPON
                     )
                     for name in missing_carries
-                    if STORE_WEAPON in self._quest_carry_suppliers(name)
+                    if STORE_WEAPON in self._quest_carry_supplier_stores(snapshot, name)
                 )
                 if (
                     STORE_WEAPON not in self._town_store_attempted
@@ -2759,7 +2844,7 @@ class TownMixin:
             # all of its suppliers have been tried).
             quest_carry_need_added = False
             for name in sorted(missing_carries):
-                for supplier in self._quest_carry_suppliers(name):
+                for supplier in self._quest_carry_supplier_stores(snapshot, name):
                     if any(
                         need.store_type == supplier
                         and need.category in {
@@ -2803,13 +2888,17 @@ class TownMixin:
                 return needs
             add(STORE_MAGIC, "identify-staff")
         # Ammo is an optional supply: restock when low, but never block the
-        # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
+        # visit on it. The Weapon Smith is tried first; the General Store when
+        # the Weapon Smith was attempted or shows no affordable plain ammo.
+        launcher = self._equipped_launcher(snapshot)
         if (
-            self._equipped_launcher(snapshot) is not None
+            launcher is not None
             and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
-            and STORE_WEAPON not in self._town_store_attempted
+            and (ammo_store := self._launcher_ammo_errand_store(
+                snapshot, launcher.ammo_tval
+            )) is not None
         ):
-            add(STORE_WEAPON, "ammo")
+            add(ammo_store, "ammo")
         # Throwing torches for the early floors (user directive). Routed only
         # for fundraising trips (the shallow 1-10F fighting happens there);
         # ordinary visits still buy torches opportunistically when the General
@@ -2895,7 +2984,73 @@ class TownMixin:
         cached = getattr(self, "_town_need_specs", None)
         if cached is not None:
             return cached
-        entries = (('idle-consumable-scan', 'home-first', 1, False), ('home-disposal-identify', 'normal', 1, False), ('home-disposal-sale', 'normal', 1, False), ('birth-supplies', 'normal', 2, True), ('quest-throwing-items', 'opening-quest', 1, True), ('quest-throwing-items', 'home-first', 1, True), ('disposal', 'normal', 1, False), ('safe-weapon', 'home-first', 1, True), ('combat-weapon', 'home-first', 1, True), ('book-sale', 'normal', 1, False), ('organization-sale', 'normal', 1, True), ('weight-overload', 'home-first', 1, True), ('space-deposit', 'home-first', 1, True), ('deposit', 'home-first', 1, False), ('stat-restore', 'normal', 1, True), ('experience-restore', 'normal', 1, False), ('experience-restore-check', 'normal', 1, False), ('experience-potion-home', 'home-first', 1, False), ('low-level-sale', 'normal', 1, False), ('mana-food-sale', 'normal', 1, False), ('device-sale', 'normal', 1, False), ('weapon-sale', 'normal', 1, False), ('light-sale', 'normal', 1, False), ('fundraising-kit', 'home-first', 1, True), ('fundraising-digger', 'normal', 1, True), ('fundraising-detection', 'normal', 1, True), ('fundraising-food', 'normal', 1, True), ('stored-detection', 'home-first', 1, True), ('mining-detection', 'normal', 1, True), ('stored-digger', 'home-first', 1, True), ('mining-digger', 'normal', 1, True), ('fundraising-light', 'normal', 1, True), ('fundraising-oil', 'normal', 1, True), ('identification-source', 'before-withdrawal', 1, True), ('identification-withdrawal', 'post-alchemist-home', 1, True), ('recall', 'normal', 2, True), ('teleport', 'normal', 1, True), ('cure-critical', 'normal', 2, True), ('oil', 'normal', 1, True), ('food', 'normal', 2, True), ('quest-throwing-items', 'normal', 1, True), ('quest-launcher', 'home-first', 1, True), ('quest-ranged-kit', 'normal', 1, True), ('quest-scrolls', 'normal', 1, True), ('quest-carry', 'normal', 1, True), ('quest-speed', 'normal', 1, True), ('quest-healing', 'normal', 2, True), ('light', 'normal', 1, True), ('identify-staff', 'normal', 1, True), ('ammo-home-first', 'home-first', 1, False), ('ammo', 'normal', 1, False), ('throwing-torches', 'normal', 1, False), ('remove-curse', 'normal', 1, True), ('home-star-remove-curse-use', 'home-first', 1, True), ('home-star-remove-curse-check', 'home-first', 1, False), ('home-star-remove-curse-stock', 'normal', 1, False), ('star-remove-curse', 'normal', 1, False), ('launcher-enchant', 'normal', 1, False), ('equipment-catalog', 'home-first', 1, False), ('equipment-work', 'home-first', 1, True), ('equipment-transaction', 'home-first', 1, True), ('black-market', 'normal', 1, False))
+        entries = (
+            ("idle-consumable-scan", "home-first", 1, False),  # Idle Home scans are opportunistic.
+            ("home-disposal-identify", "normal", 1, False),  # Disposal identification is opportunistic.
+            ("home-disposal-sale", "normal", 1, False),  # Disposal sales are opportunistic.
+            ("birth-supplies", "normal", 2, True),  # Birth supplies are required before the opening departure.
+            ("quest-throwing-items", "opening-quest", 1, True),  # Opening Q34 stock gates quest acceptance.
+            ("quest-throwing-items", "home-first", 1, True),  # Stored required throwing stock gates departure.
+            ("disposal", "normal", 1, False),  # Dominated-item disposal is opportunistic.
+            ("safe-weapon", "home-first", 1, True),  # A teleport-safe weapon is a departure safety gate.
+            ("combat-weapon", "home-first", 1, True),  # Combat weapon readiness gates departure.
+            ("book-sale", "normal", 1, False),  # Book sales are opportunistic.
+            ("organization-sale", "normal", 1, True),  # Recognized surplus gates departure.
+            ("weight-overload", "home-first", 1, True),  # Overweight inventory blocks departure.
+            ("space-deposit", "home-first", 1, True),  # Pack reserve gates all later town transactions.
+            ("deposit", "home-first", 1, False),  # Non-mandatory Home deposits are convenience work.
+            ("stat-restore", "normal", 1, True),  # Drained stats make departure unsafe.
+            ("experience-restore", "normal", 1, False),  # Restore before the Experience potion; never blocks departure.
+            ("experience-restore-check", "normal", 1, False),  # One look at the Temple shelf per visit; never blocks departure.
+            ("experience-potion-home", "home-first", 1, False),  # A stored Experience potion is withdrawn to drink.
+            ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
+            ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
+            ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
+            ("weapon-sale", "normal", 1, False),  # Inferior weapon sales are opportunistic.
+            ("light-sale", "normal", 1, False),  # Surplus light sales are opportunistic.
+            ("fundraising-kit", "home-first", 1, True),  # The mining kit gates a fundraising run.
+            ("fundraising-digger", "normal", 1, True),  # A digger gates a fundraising run.
+            ("fundraising-detection", "normal", 1, True),  # Detection gates a fundraising run.
+            ("fundraising-food", "normal", 1, True),  # Food gates a fundraising run.
+            ("stored-detection", "home-first", 1, True),  # Stored detection gates a fundraising run.
+            ("mining-detection", "normal", 1, True),  # Purchased detection gates a fundraising run.
+            ("stored-digger", "home-first", 1, True),  # A stored digger gates a fundraising run.
+            ("mining-digger", "normal", 1, True),  # A purchased digger gates a fundraising run.
+            ("fundraising-light", "normal", 1, True),  # Light gates a fundraising run.
+            ("fundraising-oil", "normal", 1, True),  # Oil gates a fundraising run.
+            ("identification-source", "before-withdrawal", 1, True),  # Identification is consumed by departure readiness.
+            ("identification-withdrawal", "post-alchemist-home", 1, True),  # The identification handoff gates departure.
+            # The ledger prepends Home when it holds supplies. Reserve a lookup
+            # for it as well as every ordinary supplier; otherwise Home hides
+            # the last shop and its purchase owner after a restart.
+            ("recall", "normal", 3, True),  # Home, Temple, Alchemist.
+            ("teleport", "normal", 2, True),  # Home, Alchemist.
+            ("cure-critical", "normal", 3, True),  # Home, Temple, Alchemist.
+            ("oil", "normal", 2, True),  # Home, General.
+            ("food", "normal", 2, True),  # Food supply feeds the departure ledger.
+            ("quest-throwing-items", "normal", 1, True),  # Required throwing stock gates the quest departure.
+            ("quest-launcher", "home-first", 1, True),  # A required launcher gates the quest departure.
+            ("quest-ranged-kit", "normal", 1, True),  # Required ranged gear gates the quest departure.
+            ("quest-scrolls", "normal", 1, True),  # Required scrolls gate the quest departure.
+            ("quest-carry", "normal", 1, True),  # Declared quest-carry suppliers gate departure.
+            ("quest-speed", "normal", 1, True),  # Required speed potions gate the quest departure.
+            ("quest-healing", "normal", 2, True),  # Required healing potions gate the quest departure.
+            ("light", "normal", 1, True),  # Expedition light gates departure.
+            ("identify-staff", "normal", 1, True),  # Identification capacity gates departure.
+            ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
+            ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
+            ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
+            ("remove-curse", "normal", 1, True),  # An actionable carried curse makes departure unsafe.
+            ("home-star-remove-curse-use", "home-first", 1, True),
+            ("home-star-remove-curse-check", "home-first", 1, False),
+            ("home-star-remove-curse-stock", "normal", 1, False),
+            ("star-remove-curse", "normal", 1, False),  # Shelf-proven heavy-curse service is opportunistic.
+            ("launcher-enchant", "normal", 1, False),  # Launcher enchanting is an optimization.
+            ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
+            ("equipment-work", "home-first", 1, True),
+            ("equipment-transaction", "home-first", 1, True),
+            ("black-market", "normal", 1, False),  # Black Market browsing is opportunistic.
+        )
         specs: list[NeedSpec] = []
         for category, ordering_class, count, departure_blocking in entries:
             for occurrence in range(count):
@@ -3697,6 +3852,19 @@ class TownMixin:
         if store_type == STORE_HOME and self._outstanding_equipment_work():
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
+
+    def _overweight_home_bound_exhausted(self) -> bool:
+        """Home's existing pass/approach/visit bounds, as the router applies them."""
+        ledger = self._town_visit_ledger
+        limit = self._town_store_visit_limit(STORE_HOME)
+        home_visit = getattr(self, "_home_visit", None)
+        return bool(
+            self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            or ledger.approach_fails[STORE_HOME] >= limit
+            or ledger.unsatisfied_passes[STORE_HOME] >= limit
+            or (home_visit is not None
+                and home_visit.attempts_used >= home_visit.attempt_limit)
+        )
 
     def _town_store_blocked_under_applicable_bound(self, store_type: int) -> bool:
         """Return whether the recorded block has authority over current work."""
@@ -5016,15 +5184,21 @@ class TownMixin:
         return WAIT_KEY
 
     def _town_recall_destination(
-        self, snapshot: Snapshot, *, guardian_gate: bool = True
+        self, snapshot: Snapshot, *, guardian_gate: bool = True,
+        safety_gate: bool = True,
     ) -> tuple[str | None, int]:
         """Choose the voluntary town-recall destination without issuing it.
 
         ``guardian_gate=False`` names the destination that would be chosen
         if landings on a blocked guardian floor were not refused; the
         departure gate below uses it to tell that refusal apart.
+        ``safety_gate=False`` also ignores the landing's depth gates: an
+        unsafe recall target is switched to a safe fallback landing at the
+        departure read point, which still reads one recall.
         """
         def safe(dungeon_id: int) -> bool:
+            if not safety_gate:
+                return True
             if self._recall_destination_safe(snapshot, dungeon_id):
                 return True
             return not guardian_gate and self._recall_refused_only_for_guardian(

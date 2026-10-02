@@ -1,0 +1,10 @@
+test_pre_fix_vector_reproduces_every_live_key (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_pre_fix_vector_reproduces_every_live_key) ... ok
+test_recorded_one_shot_retired_at_its_own_entry (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_recorded_one_shot_retired_at_its_own_entry) ... ok
+test_temple_entry_composes_and_releases_the_recall_purchase (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase) ... FAIL
+test_weapon_smith_one_shot_keeps_its_tail_and_buys (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys) ... FAIL
+FAIL: test_temple_entry_composes_and_releases_the_recall_purchase (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_temple_entry_composes_and_releases_the_recall_purchase)
+AssertionError: Tuples differ: ('5', 'shop:travel:await-entry') != ('5', 'shop:one-shot-buy')
+FAIL: test_weapon_smith_one_shot_keeps_its_tail_and_buys (tests.test_oneshot_preempt_recorded.OneShotPreemptRecordedTest.test_weapon_smith_one_shot_keeps_its_tail_and_buys)
+AssertionError: Tuples differ: (True, False, None) != (False, True, None)
+Ran 4 tests in 34.236s
+FAILED (failures=2)

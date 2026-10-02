@@ -3983,6 +3983,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and tuple(cell) == (entrance.y, entrance.x)
         )
 
+    def _claim_reach_arrival(self, snapshot: Snapshot, claim) -> str | None:
+        """The observed arrival that completes a cell Reach claim, read-only.
+
+        The same evidence ``_claim_exit_completion`` closes the claim on: the
+        player stands on the goal cell of the claim's own floor (never the
+        open wilderness), or is inside the store whose entrance is the cell.
+        """
+        goal = claim.goal
+        if (goal.kind != CLAIM_GOAL_REACH or goal.monster is not None
+                or goal.cell is None):
+            return None
+        if claim.floor is not None and tuple(claim.floor) != tuple(snapshot.floor_key):
+            return None
+        if snapshot.on_open_wilderness:
+            return None
+        position = snapshot.player.position
+        if goal.cell == (position.y, position.x):
+            return "reached"
+        if self._claim_entered_store_at(snapshot, goal.cell):
+            return "entered-store"
+        return None
+
     def _claim_exit_completion(self, snapshot: Snapshot, standing, pops) -> None:
         """Close the standing claim on what this board shows.
 
@@ -4025,11 +4047,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return
             if not same_floor or snapshot.on_open_wilderness:
                 return
-            if goal.cell == (position.y, position.x):
-                self._complete_claim_goal("reached", owners=own)
-                return
-            if self._claim_entered_store_at(snapshot, goal.cell):
-                self._complete_claim_goal("entered-store", owners=own)
+            arrival = self._claim_reach_arrival(snapshot, standing)
+            if arrival is not None:
+                self._complete_claim_goal(arrival, owners=own)
                 return
             visit = getattr(self, "_store_visit", None)
             entrance = getattr(visit, "goal", None)
@@ -5352,12 +5372,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return False
 
-    def _claim_errand_hold(self, family: str, *, enforced: bool | None = None):
+    def _claim_errand_hold(self, family: str, *, enforced: bool | None = None,
+                           arrival_board: Snapshot | None = None):
         """Return the open town errand that owns a different producer's turn.
 
         Callers ask before changing their own session, plan, or selection
         state. ON also restores a town errand suspended by a higher owner
         before a different errand can displace it.
+
+        ``arrival_board``: a standing cell Reach whose arrival that board
+        shows is finished work, not a holder.  S3.3 ON closes it on the same
+        evidence before any town producer asks (``choose_key``); the
+        cross-area Home hold reads that evidence without closing the claim.
         """
         def town_errand(claim):
             execution = getattr(claim, "execution", None)
@@ -5375,6 +5401,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and town_errand(standing)
             and standing.owner.value != family
             and standing.goal.kind in {CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE}
+            and not (arrival_board is not None
+                     and self._claim_reach_arrival(arrival_board, standing)
+                     is not None)
         ):
             return standing
         if enforced is None:
@@ -5553,7 +5582,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
 
     def _town_errand_deferral(self, family, reason, snapshot=None,
-                              *, work_identity=None, enforced=True):
+                              *, work_identity=None, enforced=True,
+                              arrival_board=None):
         """Pure entry admission verdict; recording belongs to the caller."""
         register = getattr(self, "_claim_register", None)
         if enforced and snapshot is not None and register is not None:
@@ -5566,7 +5596,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             "deferred_family": family, "deferred_reason": reason,
                             "token_would_admit": False, "token_work_identity": None,
                             "active_bar": True}
-        holder = self._claim_errand_hold(family, enforced=enforced)
+        holder = self._claim_errand_hold(
+            family, enforced=enforced, arrival_board=arrival_board)
         if holder is None:
             return None
         token = self._recorded_execution_token(
@@ -5584,7 +5615,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     or self._home_sequence_has_holder())
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
-            work_identity=work_identity, enforced=enforced)
+            work_identity=work_identity, enforced=enforced,
+            arrival_board=self._home_hold_board() if enforced else None)
         if row is None:
             return False
         active_bar = row.pop("active_bar", False)
@@ -6452,10 +6484,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return holder
         return None
 
+    def _home_hold_board(self) -> Snapshot | None:
+        """The board whose observed arrival ends a route for the Home hold.
+
+        S3.3 ON already closed that arrival before the producers ask, so ON
+        passes no board and keeps its own verdicts unchanged.
+        """
+        if getattr(self, "_town_claim_bar_enforced", False):
+            return None
+        return getattr(self, "_map_predicate_snapshot", None)
+
     def _home_sequence_has_holder(self) -> bool:
         if not self._home_catalogue_sequence_enforced():
             return False
-        holder = self._claim_errand_hold("__none__", enforced=True)
+        # A route that this board shows arrived (at the Home it reached) is
+        # not a physical Home sequence; holding Home producers for it made
+        # every routed Home pass leave unfulfilled (live 2026-10-02 06:16).
+        holder = self._claim_errand_hold(
+            "__none__", enforced=True, arrival_board=self._home_hold_board())
         visit = getattr(self, "_store_visit", None)
         return bool(holder is not None and (
             self._home_catalogue_work_holder() is not None
@@ -11027,8 +11073,39 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -------------------------------------------------------------- observers
 
 
+    def _up_stairs_exit_to_wilderness(self) -> bool:
+        """Whether '<' on this floor leaves the dungeon for the open wilderness.
+
+        Going up from a floor whose ``dun_level - 1`` is below the dungeon's
+        ``mindepth`` lands on the surface (src/floor/floor-leaver.cpp:335-338)
+        at the dungeon's entrance tile (``exit_to_wilderness``).  That tile is
+        a town only for a dungeon entered from a town (Yeek cave, Outpost);
+        for every other dungeon the top floor's '<' puts the player in the
+        wilderness, which the bot must never enter -- it returns to town by
+        recall (live 2026-10-02 11:50: Castle 20F, ``status-threat:stairs``).
+        Unknown floor, dungeon or map answers False (the previous behaviour).
+        """
+        floor_key = self._floor_key
+        if floor_key is None:
+            return False
+        dungeon_id, level, _quest = floor_key
+        if dungeon_id <= 0 or level <= 0:
+            return False
+        info = self._dungeon_knowledge.get(dungeon_id)
+        wilderness = self._wilderness_map
+        if info is None or wilderness is None:
+            return False
+        if level - 1 >= info.min_depth:
+            return False
+        y, x = getattr(info, "wild_y", None), getattr(info, "wild_x", None)
+        if y is None or x is None:
+            return False
+        rows = wilderness.rows
+        cell = rows[y][x] if 0 <= y < len(rows) and 0 <= x < len(rows[y]) else ""
+        return not (cell.isdigit() and cell != "0")
+
     def _is_upstairs_target(self, grid: GridState) -> bool:
-        return grid.has_up_stairs and (
+        return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness() and (
             (
                 grid.in_view
                 and self._stair_rejection_strikes[(UP_STAIRS_KEY, grid.position)] < 2

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
-from hengbot.ammo_carry import ammo_carry_plan
+from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -38,6 +38,7 @@ from hengbot.equipment_optimizer import (
     OwnedEquipmentCatalog,
     current_loadout,
     divable_depth,
+    ordinary_launcher_yields_to_light_crossbow,
     equipment_identity,
     equipment_move_identity,
     operational_equipment_candidate,
@@ -478,6 +479,137 @@ class EquipmentMixin:
                 if owned[1] not in replacements
                 or owned[0] in replacements[owned[1]]
             ]
+
+    # Stores whose shelves carry plain launcher ammunition, in errand order:
+    # the Weapon Smith first, the General Store when the Weapon Smith cannot
+    # supply it (the 012442 live pages show plain bolts in both).
+    LAUNCHER_AMMO_SUPPLIERS = (STORE_WEAPON, STORE_GENERAL)
+
+    def _current_town_supplier_page(
+        self, snapshot: Snapshot, store_type: int
+    ) -> StoreState | None:
+        """The supplier page observed in this town visit, or None.
+
+        Same freshness as the other observed-shelf consumers: the open page,
+        or a remembered page whose observation is in this town and younger
+        than the restock turnover. Observations are cleared on a town change
+        and on every fresh town visit (policy_observation).
+        """
+        if snapshot.store is not None and snapshot.store.store_type == store_type:
+            return snapshot.store
+        observation = self._town_supplier_stock_observations.get(store_type)
+        page = self._town_supplier_stock.get(store_type)
+        if (
+            page is None
+            or observation is None
+            or observation[0] != self._effective_town_id(snapshot)
+            or observation[1] > snapshot.turn
+            or snapshot.turn - observation[1] >= STORE_RESTOCK_WAIT_TURNS
+        ):
+            return None
+        return page
+
+    def _launcher_ammo_offers(
+        self,
+        snapshot: Snapshot,
+        store_type: int,
+        ammo_tval: int | None = None,
+        *,
+        remembered: bool = False,
+    ) -> tuple[StoreItem, ...]:
+        """Affordable plain ammunition on a supplier page.
+
+        The page is the current-town one (``_current_town_supplier_page``);
+        with ``remembered`` the last remembered page of that store also
+        counts, like ``_quest_carry_remembered_affordable``.  Plain is what
+        the ``tail:ammo`` rung buys (``is_plain_store_ammo``); affordable
+        means a positive purchasable quantity (count > 0 and one unit's price
+        within the carried gold).
+        """
+        page = self._current_town_supplier_page(snapshot, store_type)
+        if page is None and remembered:
+            page = self._town_supplier_stock.get(store_type)
+        if page is None:
+            return ()
+        return tuple(
+            item
+            for item in page.items
+            if item.is_ammo
+            and (ammo_tval is None or item.tval == ammo_tval)
+            and item.count > 0
+            and item.price <= snapshot.player.gold
+            and is_plain_store_ammo(item)
+        )
+
+    def _weapon_smith_lacks_launcher_ammo(
+        self, snapshot: Snapshot, ammo_tval: int
+    ) -> bool:
+        """The current-town Weapon Smith page shows no affordable plain ammo."""
+        return (
+            self._current_town_supplier_page(snapshot, STORE_WEAPON) is not None
+            and not self._launcher_ammo_offers(snapshot, STORE_WEAPON, ammo_tval)
+        )
+
+    def _launcher_ammo_errand_store(
+        self, snapshot: Snapshot, ammo_tval: int
+    ) -> int | None:
+        """The supplier the ammo errand walks to.
+
+        The Weapon Smith (unless already attempted this visit), exactly as
+        before.  Only when its page observed in this town visit shows no
+        affordable plain ammunition of the type, the General Store was not
+        attempted this visit, and its page (current or remembered) shows an
+        affordable plain stack of the type, does the errand go to the General
+        Store instead.
+        """
+        if (
+            self._weapon_smith_lacks_launcher_ammo(snapshot, ammo_tval)
+            and STORE_GENERAL not in self._town_store_attempted
+            and self._launcher_ammo_offers(
+                snapshot, STORE_GENERAL, ammo_tval, remembered=True
+            )
+        ):
+            return STORE_GENERAL
+        return None if STORE_WEAPON in self._town_store_attempted else STORE_WEAPON
+
+    def _obtainable_launcher_ammunition(
+        self, snapshot: Snapshot
+    ) -> tuple[InventoryItem | StoreItem, ...]:
+        """Ammunition the optimizer counts as obtainable for a launcher.
+
+        Carried and Home stacks, plus - only for the ammunition type of an
+        owned launcher (worn, carried or in Home) that has no owned stack of
+        its type - affordable plain ammunition on the launcher-ammo suppliers'
+        pages observed in this town visit (the same offers the ammo errand
+        routes to).  Store evidence thus only turns an otherwise unusable
+        launcher usable; launchers with owned ammunition are ranked by it as
+        before.  Swapping INTO a Light Crossbow needs such evidence; an
+        equipped one is kept regardless
+        (equipment_optimizer.yields_to_light_crossbow).
+        """
+        owned = tuple(
+            item
+            for item in (*snapshot.inventory, *self._home_knowledge_items)
+            if item.is_ammo and item.count > 0
+        )
+        owned_tvals = {item.tval for item in owned}
+        unsupplied_tvals = {
+            launcher.ammo_tval
+            for launcher in (
+                *snapshot.equipment,
+                *snapshot.inventory,
+                *self._home_knowledge_items,
+            )
+            if launcher.ammo_tval is not None
+            and launcher.ammo_tval not in owned_tvals
+        }
+        stocked = tuple(
+            item
+            for store_type in self.LAUNCHER_AMMO_SUPPLIERS
+            for item in self._launcher_ammo_offers(snapshot, store_type)
+            if item.tval in unsupplied_tvals
+        )
+        return owned + stocked
 
     @staticmethod
     def _launcher_average_damage(item: InventoryItem | StoreItem | None) -> float:
@@ -990,8 +1122,7 @@ class EquipmentMixin:
             )),
             tuple(sorted(
                 self._item_signature(item)
-                for item in (*snapshot.inventory, *self._home_knowledge_items)
-                if item.is_ammo and item.count > 0
+                for item in self._obtainable_launcher_ammunition(snapshot)
             )),
         )
         if (
@@ -1212,11 +1343,7 @@ class EquipmentMixin:
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
-            obtainable_ammunition=tuple(
-                item
-                for item in (*snapshot.inventory, *self._home_knowledge_items)
-                if item.is_ammo and item.count > 0
-            ),
+            obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
         )
         result = getattr(preparation, "result", None)
         if result is not None:
@@ -2644,6 +2771,10 @@ class EquipmentMixin:
             )
             or self._equipment_disposal_reserved(snapshot, candidate)
         ):
+            return False
+        # The user launcher rule ranks a Light Crossbow above an ordinary
+        # Sling/Short Bow regardless of damage, so it is never their spare.
+        if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
             return False
 
         equipped_damage = self._launcher_average_damage(equipped)

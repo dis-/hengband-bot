@@ -1,0 +1,4 @@
+REVERT (fix2): src/hengbot/policy_town.py restored to 9cf0af6f
+FAIL: test_whole_file_home_approach_ratchet_and_evasion_controls (tests.test_home_visit.HomeVisitCaptureAcceptanceTest.test_whole_file_home_approach_ratchet_and_evasion_controls)
+Ran 21 tests in 3.270s
+FAILED (failures=1, skipped=3)

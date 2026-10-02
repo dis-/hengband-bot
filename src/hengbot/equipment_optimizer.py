@@ -21,6 +21,7 @@ from typing import Callable, Iterable, Iterator, Mapping
 from hengbot.model import (
     SV_BOW_LIGHT_XBOW,
     SV_BOW_SHORT,
+    SV_BOW_SLING,
     SV_LITE_FEANOR,
     SV_LITE_LANTERN,
     TVAL_ARROW,
@@ -898,21 +899,79 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     return no_worse and strictly_better
 
 
+def launcher_is_high_grade(item: EquipmentItem) -> bool:
+    """High grade (koukyuuhin ijou): ego, artifact, or excellent/special pseudo-ID."""
+    return (
+        item.is_ego
+        or item.is_artifact
+        or item.pseudo_feeling in {"excellent", "special"}
+    )
+
+
+# User decisions 2026-07-19 (Short Bow) and 2026-10-02 (Sling, verbatim:
+# 「上質以下同士の比較ならスリングよりライトクロスボウを優先。スリングが高級品以上なら
+# 威力評価。」): an ordinary Sling or Short Bow yields to a Light Crossbow before
+# any damage comparison; a high-grade one competes on damage.
+_YIELDS_TO_LIGHT_XBOW_SVALS = frozenset({SV_BOW_SLING, SV_BOW_SHORT})
+
+
+def ordinary_launcher_yields_to_light_crossbow(
+    launcher: EquipmentItem, crossbow: EquipmentItem
+) -> bool:
+    """The user grade rule: ordinary Sling/Short Bow < Light Crossbow."""
+    return (
+        crossbow.tval == launcher.tval
+        and crossbow.sval == SV_BOW_LIGHT_XBOW
+        and launcher.sval in _YIELDS_TO_LIGHT_XBOW_SVALS
+        and not launcher_is_high_grade(launcher)
+    )
+
+
+def yields_to_light_crossbow(
+    launcher: OwnedEquipment,
+    crossbow: OwnedEquipment,
+    usable_launcher_ids: frozenset[str] = frozenset(),
+) -> bool:
+    """Whether the user launcher rule replaces ``launcher`` by ``crossbow``.
+
+    ``usable_launcher_ids`` holds the launchers with obtainable ammunition
+    (see ``optimize_loadout``).  The missing-bolts exception only blocks a
+    swap INTO a Light Crossbow: one without obtainable bolts never displaces
+    a launcher that can shoot.  An equipped Light Crossbow keeps the rule
+    regardless of ammunition evidence (zero bolts or a forgotten supplier
+    page after a restart never swaps it back); bolts are procured as usual.
+    When neither launcher has ammunition evidence the rule applies unchanged.
+    """
+    return ordinary_launcher_yields_to_light_crossbow(
+        launcher.item, crossbow.item
+    ) and (
+        crossbow.origin == "equipped"
+        or crossbow.id in usable_launcher_ids
+        or launcher.id not in usable_launcher_ids
+    )
+
+
 def _prefer(
     candidate: EvaluatedLoadout,
     incumbent: EvaluatedLoadout,
     current_item_ids: frozenset[str],
     launcher_damage: Mapping[str, float] | None = None,
+    usable_launcher_ids: frozenset[str] = frozenset(),
 ) -> bool:
     cm = candidate.metrics
     im = incumbent.metrics
     candidate_bow = candidate.loadout.item_at(SLOT_BOW)
     incumbent_bow = incumbent.loadout.item_at(SLOT_BOW)
-    launcher_pair = (
-        {candidate_bow.item.sval, incumbent_bow.item.sval}
-        if candidate_bow is not None and incumbent_bow is not None
-        else set()
-    )
+    if candidate_bow is not None and incumbent_bow is not None:
+        # The grade rule precedes the obtainable-ammo damage comparison.
+        if yields_to_light_crossbow(
+            incumbent_bow, candidate_bow, usable_launcher_ids
+        ):
+            return True
+        if yields_to_light_crossbow(
+            candidate_bow, incumbent_bow, usable_launcher_ids
+        ):
+            return False
     if (
         launcher_damage is not None
         and candidate_bow is not None
@@ -923,19 +982,6 @@ def _prefer(
         incumbent_damage = launcher_damage.get(incumbent_bow.id, 0.0)
         if candidate_damage != incumbent_damage:
             return candidate_damage > incumbent_damage
-    if launcher_pair == {SV_BOW_SHORT, SV_BOW_LIGHT_XBOW}:
-        short_bow = next(
-            bow.item
-            for bow in (candidate_bow, incumbent_bow)
-            if bow.item.sval == SV_BOW_SHORT
-        )
-        short_bow_high_grade = (
-            short_bow.is_ego
-            or short_bow.is_artifact
-            or short_bow.pseudo_feeling in {"excellent", "special"}
-        )
-        if not short_bow_high_grade:
-            return candidate_bow.item.sval == SV_BOW_LIGHT_XBOW
     # A permanent light is a strict operational upgrade over a lantern or
     # torch when every modeled combat result is identical. Keep this separate
     # from combat metrics so light quality cannot trade against defense or DPS.
@@ -1043,12 +1089,7 @@ def _selection_equivalence_key(
     if bow is None:
         bow_policy = None
     else:
-        bow_policy = (
-            bow.item.sval,
-            bow.item.is_ego
-            or bow.item.is_artifact
-            or bow.item.pseudo_feeling in {"excellent", "special"},
-        )
+        bow_policy = (bow.item.sval, launcher_is_high_grade(bow.item))
     return (
         entry.metrics,
         entry.loadout.hand_mode,
@@ -1073,6 +1114,7 @@ def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
     launcher_damage: Mapping[str, float] | None = None,
+    usable_launcher_ids: frozenset[str] = frozenset(),
 ) -> EvaluatedLoadout | None:
     """Select from the whole field without a non-transitive winner chain.
 
@@ -1086,23 +1128,24 @@ def _stable_operational_best(
     if not pool:
         return None
 
-    # Preserve the explicit launcher policy: an ordinary Short Bow does not
-    # compete with an available Light Crossbow. High-grade Short Bows remain
-    # in the normal comparison.
-    has_light_xbow = any(
-        (bow := entry.loadout.item_at(SLOT_BOW)) is not None
-        and bow.item.sval == SV_BOW_LIGHT_XBOW
+    # Preserve the explicit launcher policy: an ordinary Sling or Short Bow
+    # does not compete with an available Light Crossbow (before the damage
+    # filter below). High-grade ones remain in the normal comparison.
+    light_crossbows = [
+        bow
         for entry in pool
-    )
-    if has_light_xbow:
+        if (bow := entry.loadout.item_at(SLOT_BOW)) is not None
+        and bow.item.sval == SV_BOW_LIGHT_XBOW
+    ]
+    if light_crossbows:
         pool = [
             entry
             for entry in pool
             if (bow := entry.loadout.item_at(SLOT_BOW)) is None
-            or bow.item.sval != SV_BOW_SHORT
-            or bow.item.is_ego
-            or bow.item.is_artifact
-            or bow.item.pseudo_feeling in {"excellent", "special"}
+            or not any(
+                yields_to_light_crossbow(bow, crossbow, usable_launcher_ids)
+                for crossbow in light_crossbows
+            )
         ]
 
     if launcher_damage is not None:
@@ -1217,6 +1260,17 @@ def optimize_loadout(
         for owned in catalog
         if owned.item.ammo_tval is not None
     }
+    # "Obtainable" is exactly the caller's ammunition list (the policy passes
+    # carried, Home and remembered plain store stock).
+    usable_launcher_ids = frozenset(
+        owned.id
+        for owned in catalog
+        if owned.item.ammo_tval is not None
+        and any(
+            ammo.tval == owned.item.ammo_tval and ammo.count > 0
+            for ammo in ammunition
+        )
+    )
     if require_light is None:
         require_light = any(usable_light_candidate(item) for item in catalog)
     if require_body is None:
@@ -1260,7 +1314,8 @@ def optimize_loadout(
         equivalence_key = _selection_equivalence_key(entry, current_item_ids)
         incumbent = evaluated_by_metrics.get(equivalence_key)
         if incumbent is None or _prefer(
-            entry, incumbent, current_item_ids, launcher_damage
+            entry, incumbent, current_item_ids, launcher_damage,
+            usable_launcher_ids,
         ):
             evaluated_by_metrics[equivalence_key] = entry
 
@@ -1314,7 +1369,7 @@ def optimize_loadout(
     chosen_decision = None
     if depth is None and evaluated and not timed_out:
         free_best = _stable_operational_best(
-            evaluated, current_item_ids, launcher_damage
+            evaluated, current_item_ids, launcher_damage, usable_launcher_ids
         )
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
@@ -1333,7 +1388,8 @@ def optimize_loadout(
                 )
             ]
             band_best = _stable_operational_best(
-                satisfying, current_item_ids, launcher_damage
+                satisfying, current_item_ids, launcher_damage,
+                usable_launcher_ids,
             )
             if band_best is None:
                 band_decisions.append(BandDecision(
@@ -1376,7 +1432,7 @@ def optimize_loadout(
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
         best = _stable_operational_best(
-            evaluated, current_item_ids, launcher_damage
+            evaluated, current_item_ids, launcher_damage, usable_launcher_ids
         )
         if depth is not None and best is not None:
             chosen_depth = divable_depth(
@@ -1400,8 +1456,14 @@ def optimize_loadout(
         (entry for entry in evaluated if entry is not best),
         key=cmp_to_key(
             lambda left, right: (
-                -1 if _prefer(left, right, current_item_ids, launcher_damage)
-                else 1 if _prefer(right, left, current_item_ids, launcher_damage)
+                -1 if _prefer(
+                    left, right, current_item_ids, launcher_damage,
+                    usable_launcher_ids,
+                )
+                else 1 if _prefer(
+                    right, left, current_item_ids, launcher_damage,
+                    usable_launcher_ids,
+                )
                 else 0
             )
         ),

@@ -1,0 +1,11 @@
+REVERT (fix3): src/hengbot/policy_supply.py restored to 769595e0 (pre-P2 departure count)
+== tests.test_guardian_recall_pingpong_recorded
+FAIL: test_p2_buys_the_departure_recall_with_the_target (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_p2_buys_the_departure_recall_with_the_target)
+- ('ph1\r\r\x1b', 'shop:one-shot-buy')
++ ('ph2\r\r\x1b', 'shop:one-shot-buy')
+Ran 8 tests in 101.469s
+FAILED (failures=1)
+== tests.test_town_approach_retired_recorded
+FAIL: test_p2_routes_to_the_departure_recall_supplier (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_p2_routes_to_the_departure_recall_supplier)
+Ran 9 tests in 154.298s
+FAILED (failures=1)

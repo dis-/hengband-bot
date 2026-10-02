@@ -1,0 +1,17 @@
+test_a1_walk_whose_claimed_distance_falls_is_not_retired (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_a1_walk_whose_claimed_distance_falls_is_not_retired) ... ok
+test_b1_path_is_the_conquest_latch_held_after_the_kit_changed (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_path_is_the_conquest_latch_held_after_the_kit_changed)
+The path that made the Orc cave the recall target, on the replay. ... ok
+test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_b1_the_0622_decision_no_longer_recalls_to_the_orc_cave)
+User decisions 2026-09-25 (guardian-recall-pingpong r2/r3). ... ok
+test_p2_routes_to_the_departure_recall_supplier (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_p2_routes_to_the_departure_recall_supplier)
+No wall: USER DECISION 2026-09-20, target + the departure scroll. ... ok
+test_recorded_recall_onto_the_orc_cave_guardian_floor (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_recorded_recall_onto_the_orc_cave_guardian_floor) ... ok
+test_recorded_walk_closes_its_claimed_distance_and_is_retired (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_recorded_walk_closes_its_claimed_distance_and_is_retired) ... ok
+test_replay_reproduces_every_recorded_decision_before_the_stop (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_replay_reproduces_every_recorded_decision_before_the_stop) ... ok
+test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off) ... ok
+test_s3_new_code_replay_names_remaining_violations (tests.test_town_approach_retired_recorded.TownApproachRetiredRecordedTest.test_s3_new_code_replay_names_remaining_violations) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 153.391s
+
+OK

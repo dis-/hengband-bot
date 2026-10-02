@@ -1,0 +1,50 @@
+F..F...
+======================================================================
+FAIL: test_g1_fallback_does_not_choose_a_blocked_guardian_landing (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-ovw\tests\test_guardian_recall_pingpong_recorded.py", line 409, in test_g1_fallback_does_not_choose_a_blocked_guardian_landing
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        decided,
+        ^^^^^^^^
+    ...<3 lines>...
+        ],
+        ^^
+    )
+    ^
+AssertionError: Lists differ: [('~f[203 chars] ('ph2\r\r\x1b', 'shop:one-shot-buy'), ('\x1b`[268 chars]ck')] != [('~f[203 chars] ('ph1\r\r\x1b', 'shop:one-shot-buy'), ("\x1b`[330 chars]mp')]
+
+First differing element 5:
+('ph2\r\r\x1b', 'shop:one-shot-buy')
+('ph1\r\r\x1b', 'shop:one-shot-buy')
+
+Diff is 853 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_live_replay_reproduces_every_recorded_decision (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_live_replay_reproduces_every_recorded_decision)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-ovw\tests\test_guardian_recall_pingpong_recorded.py", line 294, in test_live_replay_reproduces_every_recorded_decision
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        [
+        ^
+    ...<4 lines>...
+        [],
+        ^^^
+    )
+    ^
+AssertionError: Lists differ: [5, 6, 8, 12, 13] != []
+
+First list contains 5 additional elements.
+First extra element 0:
+5
+
+- [5, 6, 8, 12, 13]
++ []
+
+----------------------------------------------------------------------
+Ran 7 tests in 93.222s
+
+FAILED (failures=2)
