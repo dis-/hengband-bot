@@ -77,7 +77,10 @@ TEMPLE_ENTRY = 15
 TEMPLE_REENTRY = 16
 STOP = 18
 AMMO_TAIL = "pl9\r\r\x1b"
-RECALL_TAIL = "pl1\r\r\x1b"
+# Integration with overweight-home 81e314e8 (USER DECISION 2026-09-20: buy the
+# recall target plus the scroll read at departure): the ledger now counts the
+# departure scroll before the safe-landing switch, so the Temple buys 2.
+RECALL_TAIL = "pl2\r\r\x1b"
 
 
 def _sha(path: Path) -> str:
