@@ -2199,6 +2199,7 @@ def _send_new_decision_key(
     decision: dict | None = None,
     snapshot=None,
     posting_contract: PostingContract | None = None,
+    quest_leave_owned: bool = False,
 ) -> tuple[bool, str]:
     """Post a policy key after ownership checks.
 
@@ -2233,6 +2234,7 @@ def _send_new_decision_key(
     ):
         return SendResult.DESIGNED_WAIT, posted_line
     quest_continuations = _quest_entry_continuations(snapshot, key, owner)
+    quest_leave = _quest_leave_continuations(snapshot, key, quest_leave_owned)
     dungeon_entrance = _dungeon_entrance_continuation(snapshot, key, owner)
     if dungeon_entrance is not None and not isinstance(send, _ExecutorInputPort):
         # A bare sender cannot observe the message/confirmation boundary.
@@ -2266,6 +2268,10 @@ def _send_new_decision_key(
     elif quest_continuations and isinstance(send, _ExecutorInputPort):
         sent = send.submit_operation(
             key, decision=decision, continuations=quest_continuations
+        )
+    elif quest_leave and isinstance(send, _ExecutorInputPort):
+        sent = send.submit_operation(
+            key, decision=decision, continuations=quest_leave
         )
     else:
         sent = send(key, in_store=in_store, decision=decision)
@@ -2413,6 +2419,30 @@ def _quest_entry_continuations(snapshot, key: str, owner: str) -> list[Continuat
     return [Continuation(
         frozenset({ScreenKind.CONFIRM}), "y", _QUEST_ENTRY_QUESTIONS,
         exact_feature=True,
+    )]
+
+
+# cmd-move.cpp confirm_leave_level: input_check appends "[y/n]"; the Japanese
+# text is the feature the live executor classified on Angband 24F (2026-10-02
+# 18:28:13 / 18:29:04 stderr: "unowned confirm: 本当にこの階を去りますか？[y/n]").
+_QUEST_LEAVE_QUESTIONS = (
+    "本当にこの階を去りますか？[y/n]",
+    "Really leave this floor? [y/n]",
+)
+
+
+def _quest_leave_continuations(snapshot, key: str, owned: bool) -> list[Continuation]:
+    """Bind the quest-floor leave question to a stair key the policy owns.
+
+    ``owned`` is ``HengbotPolicy.quest_leave_confirmation_owned``: true only
+    after the quest exit lock released.  Optional: a quest that does not
+    caution (or confirm_quest off) changes floor without asking.
+    """
+    if owned is not True or snapshot is None or key not in {"<", ">"}:
+        return []
+    return [Continuation(
+        frozenset({ScreenKind.CONFIRM}), "y", _QUEST_LEAVE_QUESTIONS,
+        exact_feature=True, optional=True,
     )]
 
 
@@ -2714,6 +2744,7 @@ def _send_decision_key_with_prompt_chain(
             ),
             "escape_posted": False,
         }
+    owned = getattr(policy, "quest_leave_confirmation_owned", None)
     sent, posted_line = _send_new_decision_key(
         send,
         snapshot_line,
@@ -2725,6 +2756,10 @@ def _send_decision_key_with_prompt_chain(
         decision=decision,
         snapshot=snapshot,
         posting_contract=posting_contract,
+        quest_leave_owned=(
+            snapshot is not None and callable(owned)
+            and owned(snapshot, key) is True
+        ),
     )
     return sent, posted_line, None, None
 

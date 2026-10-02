@@ -3105,6 +3105,17 @@ class CombatMixin:
         stair-seeking, nav-exhausted floor departure) — never an unbounded
         WAIT here.
         """
+        # Every exit below ends in '<'.  On a locked quest floor that stair
+        # asks 「本当にこの階を去りますか？」 and answering it forfeits the quest,
+        # which the user allows only on the progress-based give-up
+        # (_quest_floor_exit_locked; Angband 24F random quest 41, 2026-10-02
+        # 18:28/18:29: '<' posted into that unowned confirm and the bot
+        # stopped).  The latch proves the breeders cannot be exterminated,
+        # not that the quest is lost, so while the lock holds the ordinary
+        # ladder (fight, teleport) owns the decision, exactly like the
+        # flee/emergency stair escapes (_escape_by_stairs).
+        if self._quest_floor_exit_locked(snapshot):
+            return None
         here = snapshot.grid_at(snapshot.player.position)
         if here is not None and self._is_upstairs_target(here):
             if self._active_quest_id(snapshot) is None:

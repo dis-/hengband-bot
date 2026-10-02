@@ -4374,6 +4374,24 @@ class QuestMixin:
             return False
         return True
 
+    def quest_leave_confirmation_owned(self, snapshot: Snapshot, key) -> bool:
+        """Whether a stair key posted now owns 「本当にこの階を去りますか？」.
+
+        cmd-move.cpp confirm_leave_level asks it on an incomplete RANDOM (or
+        ONCE) quest floor, and 'y' forfeits the quest.  The stair operation
+        answers it only when the runtime kill quest's exit lock has released
+        (the progress-based give-up or a survival release); a stair posted
+        while the lock holds, or on a fixed-quest floor, leaves the question
+        unowned so the executor stops visibly.
+        """
+        return (
+            key in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
+            and not snapshot.in_town
+            and self._active_fixed_quest_id(snapshot) is None
+            and self._active_kill_quest_id(snapshot) is not None
+            and not self._quest_floor_exit_locked(snapshot)
+        )
+
     def _quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
         """Match Hengband's leave_quest_check for visible escape reasons."""
         active_fixed = self._active_fixed_quest_id(snapshot)
