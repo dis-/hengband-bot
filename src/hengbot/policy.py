@@ -1887,6 +1887,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._summoner_counter_targets: frozenset[
             tuple[tuple[int, int, int], int]
         ] = frozenset()
+        # Floor of the strong-fight run whose start was handled (a Speed
+        # potion quaffed, or haste already shown); None between runs.
+        self._strong_fight_speed_floor: tuple[int, int, int] | None = None
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None

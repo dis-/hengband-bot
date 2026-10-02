@@ -153,8 +153,18 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         # one-turn p95, clarified 08:5x) moved:
         # 170 emergency:teleport -> item:heal (HP 145 < 268.5 among 16 fire
         # trolls: the lethal ladder, next turn 239 <= Healing 300).
-        self.assertEqual(divergent, [153, 155, 158, 170])
+        # USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start,
+        # 3-turn prediction >= HP x 0.5) quaffs Speed on the first board of
+        # each strong run: 61 (ブラック・レイス, the observed hit), 153 (in
+        # place of the teleport), 157 (闘トロル; the boards between were not
+        # strong, and the replayed boards never show the haste) and 184.
+        # 158 then fights in the same run.
+        self.assertEqual(divergent, [61, 153, 155, 157, 158, 170, 184])
         self.assertEqual(decided[170][1], "item:heal")
+        for sequence in (61, 153, 157, 184):
+            self.assertEqual(
+                decided[sequence], ["qb", "item:strong-fight-speed"], sequence
+            )
         # The recorded boundary is the strip session: Home trip, deposit of
         # the whole pack, takeoff of every worn item, naked capture.
         self.assertEqual(recorded[STRIP_BOUNDARY - 1], ["\x1b`n(.", "shop:travel"])

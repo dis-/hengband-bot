@@ -22,10 +22,11 @@ Recorded pin: the death capture (fixture of test_lethal_unseen_caster_recorded)
 board 06036472, HP 182 with 29 visible hostiles and the unseen caster's line:
 the observed loss 295 -> 182 = 113 and the one-turn p95 projection are both
 below the Healing potion's 300, so the heal goes first -- the live key.
-Warm-up: 06036445 (recorded) and 06036459 with its unseen caster's line
-removed (DECLARED CONSTRUCTED warm-up: with the line the board itself now
-heals first, unlike live, and every later board would be counterfactual;
-without it the board decides as live).
+Warm-up: 06036445 without its Speed stack (DECLARED CONSTRUCTED, see
+_Replay._warm_up_c: the recorded board now quaffs Speed) and 06036459 with its
+unseen caster's line removed (DECLARED CONSTRUCTED warm-up: with the line the
+board itself now heals first, unlike live, and every later board would be
+counterfactual; without it the board decides as live).
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ import json
 import unittest
 
 import test_lethal_unseen_caster_recorded as lethal
-from test_lethal_unseen_caster_recorded import B_ONLY, C_BOARD, C_WARMUP
+from test_lethal_unseen_caster_recorded import B_ONLY, C_BOARD
 
 HEALING = 37
 CURE_SERIOUS = 35
@@ -43,8 +44,7 @@ CURE_SERIOUS = 35
 
 class DeathBoardHealFirstRecordedTest(lethal._Replay):
     def _warm(self):
-        _board, key, reason = self._decide(C_WARMUP)
-        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self._warm_up_c()
         _board, key, reason = self._decide(C_BOARD, self._without_unseen_cast(C_BOARD))
         self.assertEqual((key, reason), self._live(C_BOARD))
 

@@ -42,7 +42,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import Position, Snapshot
+from hengbot.model import SV_POTION_SPEED, Position, Snapshot
 from hengbot.monrace_knowledge import (
     MonraceKnowledge,
     MonsterBlow,
@@ -219,7 +219,19 @@ class RecordedTrollBoardTest(unittest.TestCase):
 
         # Live: operational 372 (six actions of every blow at maximum dice)
         # >= HP 341 -> emergency:teleport.  Now the p95 is 210 < 341 and the
-        # adjacent troll is fought.
+        # adjacent troll is fought.  USER DECISION 2026-10-03 06:2x (Speed
+        # at a strong fight's start, 3-turn prediction >= HP x 0.5): 210 >=
+        # 170.5, so the fight opens with the carried Speed potion.
+        speed = policy._find_exact_potion(snapshot, SV_POTION_SPEED)
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("q" + speed.slot, "item:strong-fight-speed"),
+        )
+        # DECLARED CONSTRUCTED state: a restarted bot whose strong run on
+        # this floor is already handled fights the troll.
+        policy, snapshot = self._fresh(TROLL_DECISION)
+        policy._strong_fight_speed_floor = snapshot.floor_key
+        key = policy.choose_key(snapshot)
         self.assertEqual((key, policy.last_reason), ("6", "melee"))
         prediction = policy.threat_prediction(snapshot, [troll], 3)
         self.assertEqual(

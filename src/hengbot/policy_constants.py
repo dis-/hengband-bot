@@ -452,6 +452,10 @@ CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO = 0.10
 ESP_THREAT_WEAK_RATIO = 0.10
 ESP_THREAT_STRONG_RATIO = 0.50
 ESP_THREAT_POTION_RESERVE = 2
+# USER DECISION 2026-10-03 06:2x (speed potion at a strong fight's start):
+# 「強敵との戦闘開始時に飲む」 with the ratio 「HP の5割 (Recommended)」 --
+# quaff when the 3-turn predicted damage is at least half the current HP.
+STRONG_FIGHT_SPEED_HP_RATIO = 0.5
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
 

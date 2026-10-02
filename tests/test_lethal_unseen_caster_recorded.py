@@ -139,6 +139,32 @@ class _Replay(unittest.TestCase):
         self.assertEqual(len(messages), len(board["messages"]) - 1, turn)
         return self._constructed(turn, messages=messages)
 
+    def _warm_up_c(self):
+        """06036445 as the warm-up of the (C) boards, the Speed stack removed.
+
+        DECLARED CONSTRUCTED: only the inventory entry of the Speed potions
+        (slot a, 10 of SV 29) is dropped; every other field is recorded.
+        USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start)
+        makes the recorded board quaff Speed (StrongFightSpeedRecordedTest);
+        the recorded game meleed, so every later board would be
+        counterfactual.  Without the stack the board decides as live (melee)
+        and the strong fight's start is handled on this floor, so the later
+        recorded boards keep their own Speed stack and decide as before."""
+        board = json.loads(self.boards[C_WARMUP])
+        inventory = [
+            entry
+            for entry in board["inventory"]
+            if not (entry.get("tval") == 75 and entry.get("sval") == 29)
+        ]
+        self.assertEqual(len(inventory), len(board["inventory"]) - 1)
+        _board, key, reason = self._decide(
+            C_WARMUP, self._constructed(C_WARMUP, inventory=inventory)
+        )
+        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self.assertEqual(
+            self.policy._strong_fight_speed_floor, _board.floor_key
+        )
+
     def _next_turn(self, board):
         hostiles = self.policy._strategic_hostiles(board)
         return self.policy._low_hp_next_turn_damage(board, hostiles)
@@ -216,8 +242,7 @@ class LethalUnseenCasterRecordedTest(_Replay):
         self.assertHealFirst(board, key, reason, next_turn=290)
 
     def test_c_unseen_cast_among_visible_hostiles_heals_first(self):
-        _board, key, reason = self._decide(C_WARMUP)
-        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self._warm_up_c()
         board, key, reason = self._decide(C_BOARD)
         self.assertGreater(len(board.visible_monsters), 20)
         self.assertLethalLadder()
@@ -243,8 +268,7 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
         # 28-29 visible hostiles and every other field are recorded; the
         # observed loss on 06036472 (295 -> 182 = 113) comes from the real
         # observation pipeline over the recorded 06036459 HP.
-        _board, key, reason = self._decide(C_WARMUP)
-        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self._warm_up_c()
         _board, key, reason = self._decide(
             C_BOARD, self._without_unseen_cast(C_BOARD)
         )

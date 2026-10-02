@@ -124,6 +124,14 @@ CHOKE_ALTERNATION_FIXED = {
     2014: (("8", "explore"), ("s", "search")),
 }
 
+# USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start, 3-turn
+# prediction >= HP x 0.5): the replay quaffs Speed on these dungeon boards
+# where the recorded bot meleed.  Recorded pair -> replayed pair.
+STRONG_FIGHT_SPEED_STARTS = {
+    1843: (("1", "melee"), ("qb", "item:strong-fight-speed")),
+    2548: (("6", "melee"), ("qb", "item:strong-fight-speed")),
+}
+
 
 def _potion(snapshot, sval):
     return next(
@@ -307,15 +315,24 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         )
         # Substrate check: the walled replay reproduces the recorded dungeon
         # decisions of the drained span, apart from the eight boards of the
-        # declared choke-alternation divergence.
+        # declared choke-alternation divergence and the two strong-fight
+        # starts (USER DECISION 2026-10-03 06:2x).
         self.assertEqual(
             [
                 index for index in range(DRAINED_LAST + 1)
                 if not decisions[index][1]
                 and list(decisions[index][0]) != recorded[index]
                 and index not in CHOKE_ALTERNATION_FIXED
+                and index not in STRONG_FIGHT_SPEED_STARTS
             ],
             [],
+        )
+        self.assertEqual(
+            {
+                index: (tuple(recorded[index]), tuple(decisions[index][0]))
+                for index in STRONG_FIGHT_SPEED_STARTS
+            },
+            STRONG_FIGHT_SPEED_STARTS,
         )
         # Both sides of that divergence are pinned: the recorded abandonment
         # and the committed retreat that replaces it.
@@ -653,9 +670,10 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
             # comparison ran to sequence 682: its max-HP clamps at 218/268
             # were strip takeoffs and its quantity prompt at 683 lies beyond
             # the strip boundary; see CALIBRATION-OBSOLETE-PINS.md.  170:
-            # the heal-vs-teleport decision (2026-10-03) heals first
-            # (test_morivant_travel_retired_recorded).
-            [153, 155, 158, 170],
+            # the heal-vs-teleport decision (2026-10-03) heals first; 61,
+            # 153, 157, 184: Speed at a strong fight's start (2026-10-03),
+            # 158 then fights (test_morivant_travel_retired_recorded).
+            [61, 153, 155, 157, 158, 170, 184],
         )
         self.assertFalse(any(reason.startswith("experience:") for _key, reason in decided))
 

@@ -31,6 +31,7 @@ from hengbot.policy_constants import (
     ESP_THREAT_POTION_RESERVE,
     ESP_THREAT_STRONG_RATIO,
     ESP_THREAT_WEAK_RATIO,
+    STRONG_FIGHT_SPEED_HP_RATIO,
     FIRE_KEY,
     FIXED_QUEST_HEAL_HP_RATIO,
     FLEE_HP_RATIO,
@@ -2155,6 +2156,14 @@ class CombatMixin:
             if potion is not None:
                 self.last_reason = "item:heal"
                 return QUAFF_KEY + potion.slot
+        # USER DECISION 2026-10-03 06:2x: a Speed potion when a strong fight
+        # starts.  A lethal board is the emergency ladder's above (an escape
+        # is never delayed for it), and a low-HP heal goes first.
+        strong_fight_speed = self._strong_fight_speed_key(
+            snapshot, hostiles, observed_loss
+        )
+        if strong_fight_speed is not None:
+            return strong_fight_speed
         # Eat before we faint from hunger.
         if player.fainting:
             food = self._find_edible(snapshot)
@@ -2380,6 +2389,80 @@ class CombatMixin:
     ) -> int:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
+
+    @staticmethod
+    def _player_hasted(snapshot: Snapshot) -> bool:
+        """The speed field shows haste: yellow while is_fast() and not slowed
+        (main-window-stat-poster.cpp:277-278 and 295-296; the bot board's
+        speed_display carries the same colour, bot-json-output.cpp:1471-1479).
+        At a displayed speed of exactly +0 the field is blank, so haste there
+        is not observable."""
+        display = snapshot.player.speed_display
+        return (
+            display is not None
+            and not display[3]
+            and display[2] == "yellow"
+        )
+
+    @claims(ClaimOwner.SURVIVAL)
+    def _strong_fight_speed_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        observed_loss: int,
+    ) -> str | None:
+        """USER DECISION 2026-10-03 06:2x: 「強敵との戦闘開始時に飲む」 --
+        「予測被害が HP の一定割合を超える戦闘に入った時点で飲む。消費は増えるが
+        被害は減る。」 with the ratio 「HP の5割 (Recommended)」.
+
+        A fight (a hostile in view, or a hit from a monster out of sight) is
+        strong while its 3-turn predicted damage -- the operational
+        projection, at least three repeats of the observed one-move loss --
+        is at least half the current HP.  While poisoned or cut the loss
+        counts only with an unseen attacker's message (the lethal ladder's
+        observed-loss test): a poison or bleeding tick is no fight.  Entering
+        a strong fight is the first board of a run of strong boards on one
+        floor that the bot does not flee (on a fleeing board the 09-18 escape
+        rule alone judges Speed, 「逃走時の判定はそのまま」): then, unless the
+        speed field already shows haste, quaff a Speed potion once.  The run
+        ends on the first board that is not strong."""
+        player = snapshot.player
+        fight_loss = (
+            observed_loss
+            if (
+                self._unseen_attack_evidence is not None
+                or not (player.poisoned or player.cut)
+            )
+            else 0
+        )
+        strong = (
+            not snapshot.in_town
+            and (bool(hostiles) or fight_loss > 0)
+            and self._corrected_predicted_damage(
+                snapshot, hostiles, 3, observed_loss=fight_loss
+            )
+            >= player.hp * STRONG_FIGHT_SPEED_HP_RATIO
+        )
+        if not strong:
+            self._strong_fight_speed_floor = None
+            return None
+        if getattr(self, "_strong_fight_speed_floor", None) == snapshot.floor_key:
+            return None
+        # 「逃走時の判定はそのまま」: on a board the bot flees, the 09-18
+        # escape rule (_flee_sustain_key: only when nothing else breaks
+        # contact) alone judges Speed; the fight starts when it fights.
+        if self._should_flee(
+            snapshot, hostiles, [m for m in hostiles if m.distance <= 1]
+        ):
+            return None
+        self._strong_fight_speed_floor = snapshot.floor_key
+        if self._player_hasted(snapshot):
+            return None
+        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+        if speed is None:
+            return None
+        self.last_reason = "item:strong-fight-speed"
+        return QUAFF_KEY + speed.slot
 
     def _attributable_observed_loss(self, snapshot: Snapshot) -> int:
         """HP one move just cost when a monster plausibly caused it.

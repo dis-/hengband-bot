@@ -48,9 +48,13 @@ divergence), and the recorded ``~f`` skill list of the same character and run.
 
 Replay fidelity: a restarted policy fed the frozen boards reproduces the
 recorded REASON of all 108 decisions and the recorded (reason, key) of the last
-eight up to and including the recall read; the earlier exploration keys differ
-because a restart has no visit history.  Decision 5387 is the single divergence
-in the window and is exactly the fix.
+eight up to and including the recall read (5383 aside, below); the earlier
+exploration keys differ because a restart has no visit history.  Decision 5387 is the single divergence
+in the window and is exactly the fix -- except decision 5383: USER DECISION
+2026-10-03 06:2x (Speed at a strong fight's start, 3-turn prediction >= HP x
+0.5) quaffs Speed there (HP 497, prediction 357 among the ghoul pack, speed
++4 shown green, not haste) where live meleed; the later boards are the
+recorded ones and still decide as live.
 
 Walls: tests/__init__ runtime-file isolation only; every board is a dungeon
 floor, so no Home/town/shop producer with a file of its own is reached.
@@ -147,15 +151,30 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         """The frozen boards are the live decisions, not a re-derived story."""
         policy, replayed, countdown = self._replay_to_recall()
         self.assertEqual(len(replayed) + 1, 108)
+        # USER DECISION 2026-10-03 06:2x (strong fight's start): decision
+        # 5383 quaffs Speed where the live bot meleed.
+        strong_fight_start = [
+            (record["decision_sequence"], record["reason"], reason, key)
+            for record, reason, key in replayed
+            if reason != record["reason"]
+        ]
+        self.assertEqual(
+            strong_fight_start,
+            [(5383, "melee", "item:strong-fight-speed", "qa")],
+        )
+        replayed = [
+            entry for entry in replayed
+            if entry[0]["decision_sequence"] != 5383
+        ]
         self.assertEqual(
             [record["reason"] for record, _reason, _key in replayed],
             [reason for _record, reason, _key in replayed],
         )
         self.assertEqual(
-            [(reason, key) for _record, reason, key in replayed[-8:]],
+            [(reason, key) for _record, reason, key in replayed[-7:]],
             [
                 (record["reason"], record["key"])
-                for record, _reason, _key in replayed[-8:]
+                for record, _reason, _key in replayed[-7:]
             ],
         )
         # The scroll was read on the recorded decision, with its recorded key.
