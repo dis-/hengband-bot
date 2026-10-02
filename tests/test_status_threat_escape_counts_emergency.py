@@ -32,10 +32,13 @@ from hengbot.model import Position
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import READ_KEY, UP_STAIRS_KEY
 
-import test_policy_combat
-
-# Module attribute, not a name import: unittest must not re-collect the class.
-_Recorded = test_policy_combat.RecordedAdjacentParalyzerEscapeTest
+# Fixture helpers, not the TestCase: a bound foreign TestCase would be
+# re-collected here (test_policy_structure forbids it).
+from test_policy_combat import (
+    PARALYZER_ESCAPE_FIXTURE,
+    PARALYZER_ESCAPE_KNOWLEDGE,
+    paralyzer_escape_snapshots,
+)
 
 ESCAPE_TURN = 3305879
 # R9: digest of the fixture bytes with CRLF normalized to LF.
@@ -49,12 +52,11 @@ def _sha(path) -> str:
 class StatusThreatEscapeCountsEmergencyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        _Recorded.setUpClass()
-        cls.knowledge = _Recorded.KNOWLEDGE
-        cls.board = _Recorded.snapshots[ESCAPE_TURN]
+        cls.knowledge = PARALYZER_ESCAPE_KNOWLEDGE
+        cls.board = paralyzer_escape_snapshots(cls.knowledge)[ESCAPE_TURN]
 
     def setUp(self):
-        self.assertEqual(_sha(_Recorded.FIXTURE), FIXTURE_SHA256)
+        self.assertEqual(_sha(PARALYZER_ESCAPE_FIXTURE), FIXTURE_SHA256)
 
     # -- constructed boards ------------------------------------------------
     def _landing(self, board, *, turn_offset: int):

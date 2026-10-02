@@ -5362,58 +5362,67 @@ class CombatTest(unittest.TestCase):
         )
 
 
-class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
-    FIXTURE = (
-        Path(__file__).parent
-        / "fixtures"
-        / "incident-paralyzer-adjacent-escape.jsonl"
-    )
-    MONRACES = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
-    KNOWLEDGE = {
-        141: MonraceKnowledge(
-            max_hp=32, speed=110, can_summon=False, friendly=False,
-            max_melee_damage=14,
+# Helpers of the recorded adjacent-paralyzer escape (turn 3305879), shared by
+# test_status_threat_escape_counts_emergency without binding the TestCase.
+PARALYZER_ESCAPE_FIXTURE = (
+    Path(__file__).parent
+    / "fixtures"
+    / "incident-paralyzer-adjacent-escape.jsonl"
+)
+PARALYZER_ESCAPE_KNOWLEDGE = {
+    141: MonraceKnowledge(
+        max_hp=32, speed=110, can_summon=False, friendly=False,
+        max_melee_damage=14,
+    ),
+    280: MonraceKnowledge(
+        max_hp=64,
+        speed=110,
+        can_summon=False,
+        friendly=False,
+        max_melee_damage=12,
+        blows=(
+            MonsterBlow("HIT", "PARALYZE", 1, 2),
+            MonsterBlow("HIT", "HURT", 1, 10),
         ),
-        280: MonraceKnowledge(
-            max_hp=64,
-            speed=110,
-            can_summon=False,
-            friendly=False,
-            max_melee_damage=12,
-            blows=(
-                MonsterBlow("HIT", "PARALYZE", 1, 2),
-                MonsterBlow("HIT", "HURT", 1, 10),
-            ),
-        ),
-        1398: MonraceKnowledge(
-            max_hp=28, speed=110, can_summon=False, friendly=False,
-            max_melee_damage=14,
-        ),
-        1400: MonraceKnowledge(
-            max_hp=12, speed=115, can_summon=False, friendly=False,
-            max_melee_damage=6,
-        ),
-        1402: MonraceKnowledge(
-            max_hp=32, speed=110, can_summon=False, friendly=False,
-            max_melee_damage=20,
-        ),
+    ),
+    1398: MonraceKnowledge(
+        max_hp=28, speed=110, can_summon=False, friendly=False,
+        max_melee_damage=14,
+    ),
+    1400: MonraceKnowledge(
+        max_hp=12, speed=115, can_summon=False, friendly=False,
+        max_melee_damage=6,
+    ),
+    1402: MonraceKnowledge(
+        max_hp=32, speed=110, can_summon=False, friendly=False,
+        max_melee_damage=20,
+    ),
+}
+
+
+def paralyzer_escape_snapshots(knowledge):
+    """The recorded escape boards by turn, parsed with ``knowledge``."""
+    return {
+        row["turn"]: parse_snapshot(row, knowledge)
+        for row in (
+            json.loads(line)
+            for line in PARALYZER_ESCAPE_FIXTURE.read_text(
+                encoding="utf-8"
+            ).splitlines()
+        )
     }
+
+
+class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
+    FIXTURE = PARALYZER_ESCAPE_FIXTURE
+    MONRACES = Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc")
+    KNOWLEDGE = PARALYZER_ESCAPE_KNOWLEDGE
 
     @classmethod
     def setUpClass(cls):
-        rows = [
-            json.loads(line)
-            for line in cls.FIXTURE.read_text(encoding="utf-8").splitlines()
-        ]
-        cls.snapshots = {
-            row["turn"]: parse_snapshot(row, cls.KNOWLEDGE)
-            for row in rows
-        }
+        cls.snapshots = paralyzer_escape_snapshots(cls.KNOWLEDGE)
         cls.real_knowledge = load_monrace_knowledge(cls.MONRACES)
-        cls.real_snapshots = {
-            row["turn"]: parse_snapshot(row, cls.real_knowledge)
-            for row in rows
-        }
+        cls.real_snapshots = paralyzer_escape_snapshots(cls.real_knowledge)
 
     def test_adjacent_paralyzer_uses_teleport_scroll_before_walking(self):
         policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
