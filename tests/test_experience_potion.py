@@ -652,8 +652,10 @@ class ExperiencePotionProtocol2Test(unittest.TestCase):
             # M0's combat moves (melee-threat-p95-adjacency).  The base
             # comparison ran to sequence 682: its max-HP clamps at 218/268
             # were strip takeoffs and its quantity prompt at 683 lies beyond
-            # the strip boundary; see CALIBRATION-OBSOLETE-PINS.md.
-            [153, 155, 158],
+            # the strip boundary; see CALIBRATION-OBSOLETE-PINS.md.  170:
+            # the heal-vs-teleport decision (2026-10-03) heals first
+            # (test_morivant_travel_retired_recorded).
+            [153, 155, 158, 170],
         )
         self.assertFalse(any(reason.startswith("experience:") for _key, reason in decided))
 

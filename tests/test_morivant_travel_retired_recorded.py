@@ -149,7 +149,12 @@ class MorivantTravelRetiredRecordedTest(unittest.TestCase):
         # 153 emergency:teleport -> melee (HP 370, operational 554 -> 316),
         # 155 return:recall -> rest (follows 153: no teleport was read),
         # 158 emergency:teleport -> melee (HP 341, 372 -> 210).
-        self.assertEqual(divergent, [153, 155, 158])
+        # USER DECISION 2026-10-03 06:0x (heal-vs-teleport; next turn = the
+        # one-turn p95, clarified 08:5x) moved:
+        # 170 emergency:teleport -> item:heal (HP 145 < 268.5 among 16 fire
+        # trolls: the lethal ladder, next turn 239 <= Healing 300).
+        self.assertEqual(divergent, [153, 155, 158, 170])
+        self.assertEqual(decided[170][1], "item:heal")
         # The recorded boundary is the strip session: Home trip, deposit of
         # the whole pack, takeoff of every worn item, naked capture.
         self.assertEqual(recorded[STRIP_BOUNDARY - 1], ["\x1b`n(.", "shop:travel"])

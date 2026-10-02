@@ -1683,6 +1683,17 @@ class CombatMixin:
                 or player.hp_ratio < 0.55
                 or self._last_damage_amount >= player.max_hp * 0.10
             )
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+            # low-HP threshold, heal before relocating unless the next turn
+            # (here the observed hit) outdamages the potion.
+            if (
+                (urgent_relocation or player.hp_ratio < HEAL_HP_RATIO)
+                and player.hp < self._low_hp_walk_threshold(player.max_hp)
+            ):
+                potion = self._low_hp_heal_first_potion(snapshot, hostiles)
+                if potion is not None:
+                    self.last_reason = "unseen-recall:heal"
+                    return QUAFF_KEY + potion.slot
             if urgent_relocation and not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
@@ -1776,6 +1787,9 @@ class CombatMixin:
             and (unseen_caster_hit or not (player.poisoned or player.cut))
             and self._last_damage_amount * 3 >= player.hp
         )
+        # The next-turn evidence of the heal-vs-teleport decision, read before
+        # (3) consumes the carry.
+        observed_loss = self._attributable_observed_loss(snapshot)
         # (3) A lethal escape pre-empted by the blindness/confusion cure stays
         # owed on the next readable board unless HP now survives the same
         # observed-loss test.  Only the board right after the cure owes it:
@@ -1973,6 +1987,19 @@ class CombatMixin:
                     return QUAFF_KEY + potion.slot
 
             if lethal or summoner_open:
+                # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+                # low-HP threshold the escape waits for a heal unless the next
+                # turn's predicted damage exceeds the potion's heal.
+                if player.hp < self._low_hp_walk_threshold(player.max_hp):
+                    potion = self._low_hp_heal_first_potion(
+                        snapshot, hostiles, observed_loss=observed_loss
+                    )
+                    if potion is not None:
+                        # Not an escape action: the 09-18 escape-speed rule
+                        # (_flee_sustain_key) judges escapes, and none is
+                        # taken on this board.
+                        self.last_reason = "item:heal"
+                        return QUAFF_KEY + potion.slot
                 if not player.blind and not player.confused:
                     scroll = self._escape_scroll(snapshot)
                     if scroll is not None:
@@ -2092,6 +2119,24 @@ class CombatMixin:
             and not q22_reposition_active
             and player.hp_ratio < heal_ratio
         ):
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+            # low-HP threshold heal first unless the next turn's predicted
+            # damage exceeds the potion's heal; then teleport/recall first.
+            # (Death 2026-10-03, 06036472: HP 182, 29 hostiles, a heal drunk
+            # with a teleport carried.)
+            if player.hp < self._low_hp_walk_threshold(player.max_hp):
+                potion = self._low_hp_heal_first_potion(
+                    snapshot, hostiles, observed_loss=observed_loss
+                )
+                if potion is not None:
+                    self.last_reason = "item:heal"
+                    return QUAFF_KEY + potion.slot
+                # Carried potions all heal less than the next turn takes
+                # (with none carried the decision does not arise).
+                if self._find_heal_potion(snapshot, expected_damage=1) is not None:
+                    escape = self._low_hp_escape_read(snapshot)
+                    if escape is not None:
+                        return escape
             expected_damage = self._predicted_damage(
                 snapshot, hostiles, turns=1, expected=True
             )
@@ -2326,6 +2371,135 @@ class CombatMixin:
     ) -> int:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
+
+    def _attributable_observed_loss(self, snapshot: Snapshot) -> int:
+        """HP one move just cost when a monster plausibly caused it.
+
+        The projection weighs visible/detected hostiles only; the observed
+        loss is the fair-play correction for what it cannot weigh, such as
+        an unseen caster (death fix 2026-10-03).  A lethal escape the
+        blindness/confusion cure pre-empted on this floor carries its loss
+        until the cure's deadline turn."""
+        loss = (
+            self._last_damage_amount
+            if (
+                self._took_damage
+                and not self._took_curse_damage
+                and not self._took_trap_or_terrain_damage
+                and not snapshot.in_town
+            )
+            else 0
+        )
+        carried = getattr(self, "_blind_cure_escape_carry", None)
+        if (
+            carried is not None
+            and carried[0] == snapshot.floor_key
+            and snapshot.turn <= carried[2]
+        ):
+            loss = max(loss, carried[1])
+        return loss
+
+    def _corrected_predicted_damage(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        turns: int,
+        *,
+        observed_loss: int | None = None,
+    ) -> int:
+        """The ``turns``-turn operational (p95) projection, at least
+        ``turns`` repeats of the observed one-move loss."""
+        if observed_loss is None:
+            observed_loss = self._attributable_observed_loss(snapshot)
+        return max(
+            self._predicted_damage(snapshot, hostiles, turns=turns),
+            turns * observed_loss,
+        )
+
+    def _low_hp_heal_first_potion(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        observed_loss: int | None = None,
+    ) -> InventoryItem | None:
+        """The potion to quaff BEFORE any teleport/recall below the low-HP
+        threshold, or None when teleport goes first.
+
+        USER DECISION 2026-10-03 06:0x (verbatim): 「次に受けるダメージ予測で
+        判断する。基本的には回復を優先するが、回復量を上回るならテレポートを
+        優先する。回復しても状況が悪化するだけだからである。」
+        Clarified 2026-10-03 08:5x, 「1ターン分の95%値 (Recommended)」: 「見える
+        敵の1ターン分の運用値（95%）と、直近1手の実被害の大きい方を使う。」
+
+        The next turn is the operational (p95) projection with a one-turn
+        horizon -- threat_prediction(turns=1)["operational_total"], the value
+        _ranged_scroll_lock_escape_needed charges for its forced cure turn.
+        It is not the 3-turn value divided by three: the predictor takes the
+        95th percentile of the damage summed over the monster actions that
+        fit the horizon (_monster_actions(speed, player speed, turns);
+        melee_damage_percentile over that many attacks, the aggregate ranged
+        percentile over that many actions), so one turn is its own p95.  The
+        monsters are the hostiles in view plus the detected ones on the map
+        (ESP/detection, shown on screen; the two lists are disjoint,
+        bot-json-output.cpp:480 and 509-511).  At least the observed one-move
+        loss counts (a blindness-cure carry included).  The heal amount is
+        the potion's expected heal capped by the missing HP
+        (_healing_potion_effective_hp: Cure Serious 4d8, Healing 300,
+        *Healing* 1200, Life to full -- quaff-effects.cpp:124-133).  Heal
+        first with the smallest potion whose heal is at least that damage;
+        none -> teleport first."""
+        if self._find_heal_potion(snapshot, expected_damage=1) is None:
+            return None
+        next_turn = self._low_hp_next_turn_damage(
+            snapshot, hostiles, observed_loss=observed_loss
+        )
+        return self._find_heal_potion(snapshot, expected_damage=next_turn)
+
+    def _low_hp_next_turn_damage(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        observed_loss: int | None = None,
+    ) -> int:
+        """The heal-vs-teleport decision's next-turn damage: the one-turn
+        operational (p95) projection of the visible and detected hostiles,
+        at least the observed one-move loss."""
+        perceived = list(hostiles) + [
+            monster
+            for monster in self._strategic_subset(
+                snapshot, snapshot.detected_monsters
+            )
+            if monster not in hostiles
+        ]
+        return self._corrected_predicted_damage(
+            snapshot, perceived, 1, observed_loss=observed_loss
+        )
+
+    def _low_hp_escape_read(self, snapshot: Snapshot) -> str | None:
+        """Teleport (or phase), else Word of Recall: the low-HP ladder's
+        second rung."""
+        player = snapshot.player
+        if not player.blind and not player.confused:
+            scroll = self._escape_scroll(snapshot)
+            if scroll is not None:
+                return self._issue_emergency_consumable(
+                    snapshot, scroll,
+                    "emergency:teleport" if scroll.is_teleport_scroll
+                    else "emergency:phase",
+                )
+        if (
+            not player.recalling
+            and not self._quest_floor_exit_locked(snapshot)
+            and self._can_read_scrolls(snapshot)
+        ):
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                return self._issue_emergency_consumable(
+                    snapshot, recall, "emergency:recall"
+                )
+        return None
     def threat_prediction(
         self,
         snapshot: Snapshot,

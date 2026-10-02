@@ -9480,13 +9480,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return key
         if low:
-            potion = self._find_heal_potion(snapshot, expected_damage=1)
-            if potion is not None:
-                self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot
             threatened = bool(hostiles) or bool(
                 [m for m in snapshot.detected_monsters if m.hostile]
             ) or getattr(self, "_took_damage", False)
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): with an enemy
+            # about, heal first only with a potion whose heal is at least the
+            # next turn's predicted damage; otherwise teleport/recall first.
+            potion = (
+                self._low_hp_heal_first_potion(snapshot, hostiles)
+                if threatened
+                else self._find_heal_potion(snapshot, expected_damage=1)
+            )
+            if potion is not None:
+                self.last_reason = "item:heal"
+                return QUAFF_KEY + potion.slot
             scroll = self._escape_scroll(snapshot) if threatened else None
             if scroll is not None:
                 return self._issue_emergency_consumable(
@@ -9504,6 +9511,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return self._issue_emergency_consumable(
                         snapshot, recall, "emergency:recall"
                     )
+            # No escape: the heal that loses to the next turn still beats a walk.
+            potion = self._find_heal_potion(snapshot, expected_damage=1)
+            if potion is not None:
+                self.last_reason = "item:heal"
+                return QUAFF_KEY + potion.slot
         if adjacent and not player.afraid:
             self.last_reason = "melee"
             return self._direction_key(
