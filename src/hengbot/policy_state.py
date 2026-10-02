@@ -244,6 +244,10 @@ def normalize_policy_state(restored, *, restart=False):
     if not token_was_present:
         restored.__dict__["_home_knowledge_scan_inflight"] = False
     restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
+    # (floor, loss, deadline turn); a carry without its deadline is dropped.
+    carry = restored.__dict__.setdefault("_blind_cure_escape_carry", None)
+    if carry is not None and len(carry) != 3:
+        restored.__dict__["_blind_cure_escape_carry"] = None
     pending_deposit = restored.__dict__.get("_home_atomic_deposit_pending")
     if (
         pending_deposit is not None
