@@ -237,6 +237,8 @@ from hengbot.policy_constants import (
     FIXED_QUEST_HEAL_HP_RATIO,
     FLEE_HP_RATIO,
     HEAL_HP_RATIO,
+    LOW_HP_WALK_MARGIN,
+    LOW_HP_WALK_RATIO,
     HEAL_POTION_SVALS,
     HUNT_HP_RATIO,
     HUNT_MAX_HOSTILES,
@@ -2807,6 +2809,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # after the holder's producer and the two retirement rewrites have
         # passed the holder check. They do not masquerade as another errand.
         key = self._forbid_wait_while_damaged(snapshot, key)
+        # USER DECISION 2026-10-03: the last word on a walking move at low HP
+        # or right after a hit, after every producer and the no-wait rewrite.
+        key = self._low_hp_walk_gate(snapshot, key)
         if (
             unresolved_quest_candidate is not None
             and key is not unresolved_quest_candidate
@@ -9286,6 +9291,125 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             grid.currently_observed and grid.object_count > 0
             for grid in snapshot.grids.values()
         )
+
+    # -- low-HP walk gate (USER DECISION 2026-10-03 04:0x) -------------------
+    # 「低HPのときの優先度を再度確認。特に「危険を確認せず歩行」は最悪手。
+    # 普通に死ぬ。」 / 「HP50%と最大HP-300の大きい方を閾値とする」.  Below the
+    # threshold, or right after taking damage, no producer's walking move is
+    # posted unless it is a flee/reposition step that neither adds adjacent
+    # hostiles nor turns away from an adjacent attacker at least as fast.
+    # Instead: healing potion -> teleport/recall -> fight the adjacent enemy.
+    LOW_HP_CHECKED_STEP_REASONS = frozenset({
+        "flee", "no-wait:flee", "status-threat:retreat", "threat:reposition",
+        "threat:avoid-engagement", "threat:paralyzer-avoid", "summoner:retreat",
+        "combat:disengage-step", "melee:choke-reposition",
+        "emergency:seek-upstairs", "emergency:clear-escape-path",
+        "unseen-recall:move",
+    })
+
+    @staticmethod
+    def _low_hp_walk_threshold(max_hp: int) -> float:
+        return max(max_hp * LOW_HP_WALK_RATIO, max_hp - LOW_HP_WALK_MARGIN)
+
+    def _low_hp_walk_gate_active(self, snapshot: Snapshot) -> tuple[bool, bool]:
+        """(gate active, below the HP threshold)."""
+        player = snapshot.player
+        low = player.hp < self._low_hp_walk_threshold(player.max_hp)
+        hit = (
+            getattr(self, "_took_damage", False)
+            and not getattr(self, "_took_curse_damage", False)
+            and not getattr(self, "_took_trap_or_terrain_damage", False)
+            and not player.poisoned
+            and not player.cut
+        )
+        return low or hit, low
+
+    def _walk_step_target(self, snapshot: Snapshot, key: str | None) -> Position | None:
+        if not key:
+            return None
+        direction = key[1:] if key[0] in (OPEN_KEY, TUNNEL_KEY) else key
+        delta = next(
+            (offset for offset, value in DIRECTION_KEYS.items() if value == direction),
+            None,
+        )
+        if delta is None:
+            return None
+        here = snapshot.player.position
+        return Position(here.y + delta[0], here.x + delta[1])
+
+    def _low_hp_walk_gate(self, snapshot: Snapshot, key: str | None) -> str | None:
+        if (
+            snapshot.in_town
+            or snapshot.store is not None
+            or self._on_global_wilderness_map(snapshot)
+        ):
+            return key
+        target = self._walk_step_target(snapshot, key)
+        if target is None:
+            return key
+        active, low = self._low_hp_walk_gate_active(snapshot)
+        if not active:
+            return key
+        player = snapshot.player
+        hostiles = [m for m in snapshot.visible_monsters if m.hostile]
+        if key in DIRECTION_KEYS.values() and any(
+            monster.position == target for monster in hostiles
+        ):
+            return key  # an attack, not a walk
+        adjacent = [
+            m for m in hostiles if m.position.distance_to(player.position) <= 1
+        ]
+        if (
+            key in DIRECTION_KEYS.values()
+            and self.last_reason in self.LOW_HP_CHECKED_STEP_REASONS
+            and len([
+                m for m in hostiles if m.position.distance_to(target) <= 1
+            ]) <= len(adjacent)
+            and not any(m.speed >= player.speed for m in adjacent)
+        ):
+            return key
+        if low:
+            potion = self._find_heal_potion(snapshot, expected_damage=1)
+            if potion is not None:
+                self.last_reason = "item:heal"
+                return QUAFF_KEY + potion.slot
+            threatened = bool(hostiles) or bool(
+                [m for m in snapshot.detected_monsters if m.hostile]
+            ) or getattr(self, "_took_damage", False)
+            scroll = self._escape_scroll(snapshot) if threatened else None
+            if scroll is not None:
+                return self._issue_emergency_consumable(
+                    snapshot, scroll,
+                    "emergency:teleport" if scroll.is_teleport_scroll
+                    else "emergency:phase",
+                )
+            if (
+                not player.recalling
+                and not self._quest_floor_exit_locked(snapshot)
+                and self._can_read_scrolls(snapshot)
+            ):
+                recall = self._find_recall_scroll(snapshot)
+                if recall is not None:
+                    return self._issue_emergency_consumable(
+                        snapshot, recall, "emergency:recall"
+                    )
+        if adjacent and not player.afraid:
+            self.last_reason = "melee"
+            return self._direction_key(
+                player.position, self._weakest(adjacent).position
+            )
+        if (
+            not hostiles
+            and not getattr(self, "_took_damage", False)
+            and not player.poisoned
+            and not player.cut
+            and not player.confused
+            and player.food_state in {"normal", "full", "gorged"}
+        ):
+            self.last_reason = "rest"
+            return REST_MACRO
+        self.last_reason = "emergency:wait"
+        return WAIT_KEY
 
     def _decide(self, snapshot: Snapshot) -> str:
         self._evaluate_cross_decision_latches(snapshot)
@@ -15785,10 +15909,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if snapshot.in_town:
             return False
-        # Below the heal threshold the board is not calm, monsters or not:
+        # Below the low-HP walk threshold (user 2026-10-03) the board is not
+        # calm, monsters or not:
         # live Forest 32F 2026-10-03 03:46:39, return:seek-loot at HP 108/731
         # right after an emergency teleport away from unseen casters.
-        if snapshot.player.hp_ratio < HEAL_HP_RATIO:
+        if snapshot.player.hp < self._low_hp_walk_threshold(snapshot.player.max_hp):
             return False
         hostiles = [
             monster for monster in snapshot.visible_monsters if monster.hostile

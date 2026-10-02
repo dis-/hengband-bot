@@ -410,6 +410,11 @@ RANGED_TARGET_FAILURE_LIMIT = 3
 RANGED_SLEEPER_MAX_DISTANCE = 4
 TORCH_THROW_MAX_DEPTH = 10
 HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
+# USER DECISION 2026-10-03 04:0x (low-hp-no-unchecked-walk): below
+# max(max_hp * 0.5, max_hp - 300) no walking move that has not been checked
+# for danger; heal -> teleport/recall -> fight instead.  The one definition.
+LOW_HP_WALK_RATIO = 0.5
+LOW_HP_WALK_MARGIN = 300
 FIXED_QUEST_HEAL_HP_RATIO = 0.30
 EMERGENCY_RETURN_COUNT = 2
 ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
