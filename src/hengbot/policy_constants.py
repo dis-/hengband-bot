@@ -363,7 +363,11 @@ SUPPLY_STORES: dict[str, tuple[int, ...]] = {
     "food": (STORE_GENERAL,),  # MANA races are replaced with Magic in ledger.
 }
 STAFF_IDENTIFY_MIN_CHARGES = 20
-STAFF_IDENTIFY_MAX_COUNT = 5
+# User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」: at most four carried
+# Identify staves (a stack of N counts N).  Staves above the cap are released
+# fewest-charges first even below 20 charges; below 20 charges at the cap the
+# fewest-charges staff is swapped for a fuller store staff.
+STAFF_IDENTIFY_MAX_COUNT = 4
 IDENTIFY_STAFF_LEVEL = 10
 USE_DEVICE_MIN = 3
 

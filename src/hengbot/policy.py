@@ -8141,6 +8141,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 item.tval == TVAL_STAFF
                 and item.sval == SV_STAFF_IDENTIFY
                 and item.charges > 0
+                and self._identify_staff_acquisition_worthwhile(
+                    snapshot, item.charges
+                )
                 and self._item_signature(item) not in self._deferred_home_items
                 for item in self._home_knowledge_items
             )
@@ -8434,7 +8437,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                 )
             elif (
-                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
             ):
                 # The Home entry owner, unlike _shop(), is on the live path.
                 # Bind the catalogue item here so the outside owner can compose
@@ -8538,12 +8541,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 key = open_page_deposit
             elif (
-                self._home_atomic_deposit_pending is None and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (STORE_HOME not in self._town_store_attempted) and (PACK_CAPACITY - len(snapshot.inventory) <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS) or not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items)))
+                self._home_atomic_deposit_pending is None and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (STORE_HOME not in self._town_store_attempted) and (PACK_CAPACITY - len(snapshot.inventory) <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS) or not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items)))
             ):
                 has_usable_staff = any(
                     item.tval == TVAL_STAFF
                     and item.sval == SV_STAFF_IDENTIFY
                     and item.charges > 0
+                    and self._identify_staff_acquisition_worthwhile(
+                        snapshot, item.charges
+                    )
                     and self._item_signature(item)
                     not in self._deferred_home_items
                     for item in self._home_knowledge_items
@@ -14221,19 +14227,34 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and STORE_HOME not in self._town_visit_ledger.blocked_stores
         ):
             return False
-        carried = self._total_identify_staff_charges(snapshot)
-        home_charges = sum(
-            self._stack_charges(item)
-            for item in self._home_knowledge_items
-            if item.tval == TVAL_STAFF
-            and item.aware
-            and item.known
-            and item.sval == SV_STAFF_IDENTIFY
-            and self._item_signature(item) not in self._deferred_home_items
+        # User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT carried staves, so
+        # Home helps only up to the fullest four staves of pack plus Home.
+        per_staff_charges = [
+            max(0, item.charges)
+            for item in (
+                *(
+                    it for it in snapshot.inventory
+                    if it.tval == TVAL_STAFF
+                    and it.aware
+                    and it.sval == SV_STAFF_IDENTIFY
+                ),
+                *(
+                    it for it in self._home_knowledge_items
+                    if it.tval == TVAL_STAFF
+                    and it.aware
+                    and it.known
+                    and it.sval == SV_STAFF_IDENTIFY
+                    and self._item_signature(it) not in self._deferred_home_items
+                ),
+            )
+            for _ in range(max(1, item.count))
+        ]
+        reachable = sum(
+            sorted(per_staff_charges, reverse=True)[:STAFF_IDENTIFY_MAX_COUNT]
         )
         if (
             self._home_knowledge_current
-            and carried + home_charges >= STAFF_IDENTIFY_MIN_CHARGES
+            and reachable >= STAFF_IDENTIFY_MIN_CHARGES
         ):
             return False
         supplier_pages = dict(self._town_supplier_stock)
@@ -14247,6 +14268,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 item.tval == TVAL_STAFF
                 and item.sval == SV_STAFF_IDENTIFY
                 and item.price <= snapshot.player.gold
+                # At the four-staff cap a shelf staff is a supplier only when
+                # it is fuller than the emptiest carried one (the swap).
+                and self._identify_staff_acquisition_worthwhile(
+                    snapshot, max(item.charges, item.pval)
+                )
                 for item in page.items
             )
             for store_type in (STORE_MAGIC, STORE_BLACK)

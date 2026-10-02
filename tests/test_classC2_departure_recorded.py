@@ -25,6 +25,7 @@ from hengbot.policy import HengbotPolicy
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import recorded_equipment_decisions
 from xbow_pref_walls import apply_shelf_wall
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURE = Path(__file__).parent / "fixtures/classC2-departure-20261001.json.gz"
 
@@ -117,6 +118,10 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         # Declared wall (tests/xbow_pref_walls.py): shelves without plain
         # bolts, so the 2026-10-02 crossbow swap does not apply here.
         apply_shelf_wall(self.policy)
+        # Declared wall (tests/identify_staff_cap_walls.py): the recorded
+        # 「鑑定の杖 (5x 4回分)」 kit is judged under its recorded five-staff
+        # cap, so the 2026-10-03 four-staff cap does not move the weight remedy.
+        self.enterContext(pre_four_staff_cap_rule())
 
     def test_recorded_residual_weight_deposits_exactly_four_shots_after_restore(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
@@ -291,6 +296,36 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
             self.assertEqual(policy._shopping_approach_store_type, 7)
             self.assertEqual(policy._target_dungeon_id, 2)
             self.assertEqual(policy._town_blocked_reason, None)
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """The same recorded board, unwalled, under the 2026-10-03 cap.
+
+    User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「少ない杖から手放し
+    買い直す」: the fifth staff of 「鑑定の杖 (5x 4回分)」 is released even though
+    twenty charges then drop to sixteen; on this overweight Home board the
+    weight remedy now deposits exactly that one staff (5.0 lb clears the 1.8 lb
+    excess) instead of four iron shots.
+    """
+
+    def setUp(self):
+        self.enterContext(recorded_equipment_decisions("classC2"))
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.policy, self.board, self.capture = attachment(Path(directory.name))
+        apply_shelf_wall(self.policy)
+
+    def test_fifth_staff_is_the_weight_deposit(self):
+        staff = next(item for item in self.board.inventory if item.slot == "h")
+        self.assertEqual((staff.count, staff.charges), (5, 4))
+        self.assertEqual(self.policy._total_identify_staff_charges(self.board), 20)
+        self.assertEqual(self.policy._identify_staff_release_plan(self.board), {"h": 1})
+        saved = checkpoint(self.policy)
+        for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
+            self.assertEqual(policy._retention_reservation(self.board, staff), 4)
+            deposit = policy._overweight_home_deposit(self.board)
+            self.assertEqual((deposit.slot, deposit.count), ("h", 5))
+            self.assertEqual(policy._retention_surplus(self.board, deposit), 1)
 
 
 if __name__ == "__main__":

@@ -3594,7 +3594,9 @@ class IdentifyStaffTest(unittest.TestCase):
         self.assertIsNotNone(sale)
         self.assertEqual(sale.slot, "s")
 
-    def test_identify_staffs_above_five_sell_lowest_charge_first(self):
+    def test_identify_staffs_above_four_sell_lowest_charge_first(self):
+        # User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」: the cap was
+        # 5; now four staves stay and the fifth (fewest charges) is sold.
         pol = HengbotPolicy()
         staffs = [
             item(
@@ -3613,9 +3615,12 @@ class IdentifyStaffTest(unittest.TestCase):
             inventory=staffs,
         )
 
-        self.assertEqual(STAFF_IDENTIFY_MAX_COUNT, 5)
+        self.assertEqual(STAFF_IDENTIFY_MAX_COUNT, 4)
         self.assertEqual(pol._find_device_sale(snap).slot, "f")
-        self.assertIsNone(pol._find_device_sale(replace(snap, inventory=staffs[:5])))
+        self.assertEqual(
+            pol._find_device_sale(replace(snap, inventory=staffs[:5])).slot, "e"
+        )
+        self.assertIsNone(pol._find_device_sale(replace(snap, inventory=staffs[:4])))
 
     def test_stacked_identify_staff_count_is_capped(self):
         pol = HengbotPolicy()
@@ -3693,10 +3698,16 @@ class IdentifyStaffTest(unittest.TestCase):
             player(10, 10, class_id=PLAYER_CLASS_WARRIOR),
             {Position(10, 10): grid(10, 10)}, [], inventory=staffs,
         )
+        # User 2026-10-03 (four-staff cap): six staves must shed two, but the
+        # staff bought this visit is kept first, so it is never the sale.
+        staffs[-1] = replace(staffs[-1], name="Staff of Identify (bought)")
+        snap = replace(snap, inventory=staffs)
         pol = HengbotPolicy()
         pol._town_visit_purchases.add(pol._item_signature(staffs[-1]))
 
-        self.assertIsNone(pol._find_surplus_identify_staff(snap))
+        release = pol._find_surplus_identify_staff(snap)
+        self.assertEqual(release.slot, "d")
+        self.assertEqual(pol._identify_staff_release_plan(snap), {"d": 1, "e": 1})
 
     def test_identify_staff_sale_honours_all_obligations_and_allows_true_surplus(self):
         def mana_snapshot(charges):
@@ -3714,7 +3725,16 @@ class IdentifyStaffTest(unittest.TestCase):
         below_identify_and_food = mana_snapshot([3] * 6)
         self.assertEqual(pol._total_identify_staff_charges(below_identify_and_food), 18)
         self.assertEqual(pol._count_mana_food_uses(below_identify_and_food), 13)
-        self.assertIsNone(pol._find_surplus_identify_staff(below_identify_and_food))
+        # User 2026-10-03 (four-staff cap): six staves shed two even below 20
+        # Identify charges and below the MANA food stock; the food shortfall is
+        # the ordinary departure shortage that buys a non-Identify device.
+        self.assertEqual(
+            pol._find_surplus_identify_staff(below_identify_and_food).slot, "e"
+        )
+        self.assertEqual(
+            pol._identify_staff_release_plan(below_identify_and_food),
+            {"e": 1, "f": 1},
+        )
 
         five_devices = item(
             "a", TVAL_STAFF, SV_STAFF_IDENTIFY,
@@ -3727,12 +3747,134 @@ class IdentifyStaffTest(unittest.TestCase):
         device_bound = replace(
             mana_snapshot([]), inventory=[five_devices, sole_device]
         )
-        self.assertIsNone(pol._find_surplus_identify_staff(device_bound))
+        # User 2026-10-03 (four-staff cap): six staves release two of the
+        # 1-charge stack (not all five), which keeps the MANA device and food
+        # obligations, so the stack is now a partial-quantity release.
+        released = pol._find_surplus_identify_staff(device_bound)
+        self.assertEqual(released.slot, "a")
+        self.assertEqual(pol._retention_surplus(device_bound, released), 2)
 
         surplus = mana_snapshot([30, 30, 30, 30, 30, 1])
         self.assertEqual(pol._find_surplus_identify_staff(surplus).slot, "f")
         with patch.object(pol, "_retention_surplus", return_value=0):
             self.assertIsNone(pol._find_surplus_identify_staff(surplus))
+
+    # User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「少ない杖から手放し
+    # 買い直す」: above four staves the fewest-charges staves go even below
+    # 20 charges; at four below 20 the emptiest is swapped for a fuller one.
+    def _live_staves(self):
+        stack = item(
+            "j", TVAL_STAFF, SV_STAFF_IDENTIFY, count=5, charges=3,
+            name="鑑定の杖 (5x 3回分)",
+        )
+        single = item(
+            "k", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=2,
+            name="鑑定の杖 (2回分)",
+        )
+        return stack, single
+
+    def test_live_six_staves_release_fewest_charges_below_twenty(self):
+        # 10-03 05:1x: j (5x 3回分) + k (2回分) = 6 staves, 17 charges.  The old
+        # rule kept all six because no sale preserved 20 charges.
+        stack, single = self._live_staves()
+        pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=[stack, single])
+        self.assertEqual(pol._total_identify_staff_charges(snap), 17)
+        self.assertEqual(pol._identify_staff_release_plan(snap), {"j": 1, "k": 1})
+        sale = pol._find_device_sale(snap)
+        self.assertEqual(sale.slot, "k")
+        self.assertEqual(pol._retention_surplus(snap, sale), 1)
+        self.assertEqual(pol._retention_surplus(snap, stack), 1)
+
+        # The observed inventory after k is sold: only one of the stack goes.
+        after = replace(snap, inventory=[stack])
+        sale = pol._find_device_sale(after)
+        self.assertEqual(sale.slot, "j")
+        self.assertEqual(pol._retention_surplus(after, sale), 1)
+        self.assertEqual(
+            pol._batch_sale_entry(after, sale, "1")["quantity"], 1,
+        )
+        # Four staves remain: the cap holds and nothing more is released
+        # without a fuller shelf staff.
+        four = replace(after, inventory=[replace(stack, count=4, name="鑑定の杖 (4x 3回分)")])
+        self.assertEqual(pol._identify_staff_release_plan(four), {})
+        self.assertIsNone(pol._find_device_sale(four))
+
+    def test_four_staves_below_twenty_swap_emptiest_for_fuller_store_staff(self):
+        staves = [
+            item(chr(97 + index), TVAL_STAFF, SV_STAFF_IDENTIFY,
+                 charges=value, name=f"鑑定の杖 ({value}回分) #{index}")
+            for index, value in enumerate([3, 3, 3, 2])
+        ]
+        fuller = store_item(
+            "z", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=10, pval=10,
+            price=400, name="鑑定の杖 (10回分)",
+        )
+        poorer = store_item(
+            "y", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=2, pval=2,
+            price=100, name="鑑定の杖 (2回分)",
+        )
+        pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=staves)
+        magic = replace(
+            snap, store=StoreState(STORE_MAGIC, [poorer, fuller]),
+        )
+        self.assertFalse(pol._identify_staff_ready(magic))
+        # At the cap nothing is bought before the release.
+        self.assertIsNone(pol._next_purchase(magic))
+        sale = pol._find_device_sale(magic)
+        self.assertEqual(sale.slot, "d")
+        self.assertEqual(pol._retention_surplus(magic, sale), 1)
+        self.assertIsNone(pol._find_device_sale(replace(magic, store=StoreState(STORE_MAGIC, [poorer]))))
+
+        released = replace(magic, inventory=staves[:3])
+        purchase = pol._next_purchase(released)
+        self.assertEqual(purchase.letter, "z")
+        self.assertEqual(pol._purchase_quantity(released, purchase), 1)
+        self.assertEqual(
+            sum(it.count for it in released.inventory) + 1,
+            STAFF_IDENTIFY_MAX_COUNT,
+        )
+        # A full shelf stack never lifts the pack above four staves.
+        stack = replace(fuller, count=5, name="鑑定の杖 (5x 10回分)")
+        two = replace(released, inventory=staves[:2], store=StoreState(STORE_MAGIC, [stack]))
+        self.assertEqual(pol._identify_staff_purchase_room_count(two), 2)
+        self.assertLessEqual(pol._purchase_quantity(two, stack), 2)
+
+    def test_swap_needs_a_fuller_affordable_staff(self):
+        staves = [
+            item(chr(97 + index), TVAL_STAFF, SV_STAFF_IDENTIFY,
+                 charges=value, name=f"鑑定の杖 ({value}回分) #{index}")
+            for index, value in enumerate([3, 3, 3, 3])
+        ]
+        same = store_item(
+            "y", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=3, pval=3,
+            price=100, name="鑑定の杖 (3回分)",
+        )
+        pricey = store_item(
+            "z", TVAL_STAFF, SV_STAFF_IDENTIFY, charges=15, pval=15,
+            price=10**7, name="鑑定の杖 (15回分)",
+        )
+        pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=staves)
+        magic = replace(snap, store=StoreState(STORE_MAGIC, [same, pricey]))
+        self.assertEqual(pol._identify_staff_release_plan(magic), {})
+        self.assertIsNone(pol._find_device_sale(magic))
+        self.assertIsNone(pol._next_purchase(magic))
+
+    def test_unsellable_capped_staff_is_deposited_at_home(self):
+        stack, single = self._live_staves()
+        pol, snap = self._town(STAFF_IDENTIFY_MIN_DEPTH, inventory=[stack, single])
+        home = replace(snap, store=StoreState(STORE_HOME, []))
+        # Sell first: while the Magic shop can still take it, Home does not.
+        with patch.object(pol, "_town_need_supplier_reachable", return_value=True):
+            self.assertFalse(pol._home_deposit_candidate(single, home))
+        pol._unsellable_items.add(pol._item_signature(single))
+        with patch.object(pol, "_town_need_supplier_reachable", return_value=True):
+            self.assertTrue(pol._home_deposit_candidate(single, home))
+        self.assertIsNone(pol._find_device_sale(home))
+        self.assertTrue(pol._home_deposit_candidate(single, home))
+        self.assertFalse(pol._home_deposit_candidate(stack, home))
+        deposit = pol._find_home_deposit(home)
+        self.assertEqual(deposit.slot, "k")
+        self.assertEqual(pol._retention_surplus(home, deposit), 1)
 
     def test_mana_food_purchase_caps_identify_slots_with_survival_exception(self):
         identify = store_item(

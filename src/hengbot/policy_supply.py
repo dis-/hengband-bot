@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
-    STORE_ALCHEMIST, STORE_HOME, STORE_MAGIC, STORE_WEAPON,
+    STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE,
     SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY,
@@ -511,17 +511,129 @@ class SupplyMixin:
 
         return requirements
 
-    def _find_surplus_identify_staff(
-        self, snapshot: Snapshot, *, pending_home_sale: bool = False,
-        for_weight_overload: bool = False,
-    ) -> InventoryItem | None:
-        staffs = [
+    @staticmethod
+    def _carried_identify_staves(snapshot: Snapshot) -> list[InventoryItem]:
+        """Known carried Identify staves; a stack's ``charges`` is per staff.
+
+        Hengband stacks staves only when their charges are equal and keeps
+        ``pval`` per staff (item-entity.cpp STAFF similarity; use-execution.cpp
+        "You unstack your staff"), so a stack of N holds N * charges.
+        """
+        return [
             item
             for item in snapshot.inventory
             if item.known
             and item.tval == TVAL_STAFF
             and item.sval == SV_STAFF_IDENTIFY
         ]
+
+    def _identify_staff_offer_pages(self, snapshot: Snapshot) -> list[object]:
+        """Observed Identify-staff supplier pages of the current town."""
+        pages: dict[int, object] = {}
+        town = self._effective_town_id(snapshot)
+        observations = getattr(self, "_town_supplier_stock_observations", {})
+        for store_type, page in getattr(self, "_town_supplier_stock", {}).items():
+            if store_type not in {STORE_MAGIC, STORE_BLACK}:
+                continue
+            observed = observations.get(store_type)
+            if observed is None or observed[0] != town:
+                continue
+            pages[store_type] = page
+        if snapshot.store is not None and snapshot.store.store_type in {
+            STORE_MAGIC, STORE_BLACK,
+        }:
+            pages[snapshot.store.store_type] = snapshot.store
+        return list(pages.values())
+
+    def _identify_staff_store_offer_charges(self, snapshot: Snapshot) -> int:
+        """Most per-staff charges of an affordable observed shelf staff (0: none)."""
+        return max(
+            (
+                max(item.charges, item.pval)
+                for page in self._identify_staff_offer_pages(snapshot)
+                for item in page.items
+                if item.tval == TVAL_STAFF
+                and item.sval == SV_STAFF_IDENTIFY
+                and item.price <= snapshot.player.gold
+            ),
+            default=0,
+        )
+
+    def _identify_staff_acquisition_worthwhile(
+        self, snapshot: Snapshot, charges: int
+    ) -> bool:
+        """Whether taking one more staff with ``charges`` helps under the cap.
+
+        User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT staves.  Below the
+        cap any charged staff adds charges; at the cap only a staff fuller than
+        the emptiest carried one does, because that emptiest one is released.
+        """
+        if charges <= 0:
+            return False
+        staves = self._carried_identify_staves(snapshot)
+        if sum(item.count for item in staves) < STAFF_IDENTIFY_MAX_COUNT:
+            return True
+        return charges > min((item.charges for item in staves), default=0)
+
+    def _identify_staff_release_plan(self, snapshot: Snapshot) -> dict[str, int]:
+        """Per-slot quantity of carried Identify staves to release (sell/Home).
+
+        User 2026-10-03 (swap the emptiest staff for a fuller one): above
+        STAFF_IDENTIFY_MAX_COUNT the excess goes fewest-charges first, even
+        when the remaining charges fall below STAFF_IDENTIFY_MIN_CHARGES.  At
+        the cap, below the charge requirement, the emptiest staff is released
+        only when an affordable observed shelf staff has more charges, so the
+        swap always raises the total.  Ties keep the MANA-food reserve slot.
+        """
+        staves = self._carried_identify_staves(snapshot)
+        total = sum(item.count for item in staves)
+        if not staves or total < STAFF_IDENTIFY_MAX_COUNT:
+            return {}
+        if total == STAFF_IDENTIFY_MAX_COUNT and not snapshot.in_town:
+            # The swap is a town transaction against an observed shelf.
+            return {}
+        reserve_slot = self._device_food_reserve_slot(snapshot)
+        if total > STAFF_IDENTIFY_MAX_COUNT:
+            purchased = getattr(self, "_town_visit_purchases", set())
+            # A staff bought this visit is kept first so the cap never sells
+            # back what was just bought; then the fullest staves stay.
+            keep_order = sorted(
+                staves,
+                key=lambda item: (
+                    self._item_signature(item) not in purchased,
+                    -item.charges,
+                    item.slot != reserve_slot,
+                    item.slot,
+                ),
+            )
+            remaining = STAFF_IDENTIFY_MAX_COUNT
+            release: dict[str, int] = {}
+            for item in keep_order:
+                kept = min(item.count, remaining)
+                remaining -= kept
+                if item.count > kept:
+                    release[item.slot] = item.count - kept
+            return release
+        if self._identify_staff_ready(snapshot):
+            return {}
+        emptiest = min(
+            staves,
+            key=lambda item: (item.charges, item.slot == reserve_slot, item.slot),
+        )
+        if self._identify_staff_store_offer_charges(snapshot) <= emptiest.charges:
+            return {}
+        return {emptiest.slot: 1}
+
+    def _find_surplus_identify_staff(
+        self, snapshot: Snapshot, *, pending_home_sale: bool = False,
+        for_weight_overload: bool = False,
+    ) -> InventoryItem | None:
+        staffs = self._carried_identify_staves(snapshot)
+        release = self._identify_staff_release_plan(snapshot)
+        if release:
+            return self._find_capped_identify_staff_release(
+                snapshot, staffs, release
+            )
         if (
             not (pending_home_sale or for_weight_overload)
             and sum(item.count for item in staffs) <= STAFF_IDENTIFY_MAX_COUNT
@@ -590,6 +702,34 @@ class SupplyMixin:
             ),
         )
 
+    def _find_capped_identify_staff_release(
+        self,
+        snapshot: Snapshot,
+        staffs: list[InventoryItem],
+        release: dict[str, int],
+    ) -> InventoryItem | None:
+        """The next staff of the cap/swap release plan, fewest charges first.
+
+        The released quantity is the plan's, carried by the retention
+        reservation, so a sale or Home deposit moves only that many staves of
+        a stack.  The MANA-food reserve slot goes last.  The user's cap
+        (2026-10-03) outranks the old rule that kept staves for MANA food:
+        any food shortfall is the ordinary departure shortage, restocked by
+        ``_mana_food_purchase`` (which never buys a fifth Identify staff).
+        """
+        reserve_slot = self._device_food_reserve_slot(snapshot)
+        candidates = [
+            item
+            for item in staffs
+            if release.get(item.slot, 0) > 0
+            and self._retention_surplus(snapshot, item) > 0
+        ]
+        return min(
+            candidates,
+            key=lambda item: (item.charges, item.slot == reserve_slot, item.slot),
+            default=None,
+        )
+
     def _identify_staff_success_rate(self, snapshot: Snapshot) -> float:
         """Model a carried Staff of Identify's activation chance (0..1).
 
@@ -627,13 +767,22 @@ class SupplyMixin:
             for item in snapshot.inventory
             if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
         )
+        identify_staves = sum(
+            item.count
+            for item in snapshot.inventory
+            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+        )
         compliant = [
             item
             for item in candidates
             if not (
                 item.tval == TVAL_STAFF
                 and item.sval == SV_STAFF_IDENTIFY
-                and identify_slots >= 2
+                and (
+                    identify_slots >= 2
+                    # User 2026-10-03: never above four carried staves.
+                    or identify_staves >= STAFF_IDENTIFY_MAX_COUNT
+                )
             )
         ]
         if compliant:

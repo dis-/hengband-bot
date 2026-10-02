@@ -2330,7 +2330,7 @@ class ShopMixin:
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
-        add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
+        add(rung("tail:identify-staff", "identify-staff", lambda: not self._identify_staff_ready(snapshot) and self._identify_staff_purchase_room(snapshot), lambda i: i.tval == TVAL_STAFF and i.sval == SV_STAFF_IDENTIFY))
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
@@ -2877,8 +2877,13 @@ class ShopMixin:
             )
             if ammo is not None:
                 return ammo
-        if not self._identify_staff_ready(snapshot):
-            identify = next(
+        if (
+            not self._identify_staff_ready(snapshot)
+            and self._identify_staff_purchase_room(snapshot)
+        ):
+            # User 2026-10-03: at most four staves, so each staff bought is
+            # the fullest affordable one (the first such shelf entry on ties).
+            identify = max(
                 (
                     it
                     for it in store.items
@@ -2886,7 +2891,8 @@ class ShopMixin:
                     and it.sval == SV_STAFF_IDENTIFY
                     and it.price <= gold
                 ),
-                None,
+                key=lambda it: max(it.charges, it.pval),
+                default=None,
             )
             if identify is not None:
                 return identify
@@ -2919,6 +2925,21 @@ class ShopMixin:
         if launcher_enchant is not None:
             return launcher_enchant
         return None
+
+    def _identify_staff_purchase_room_count(self, snapshot: Snapshot) -> int:
+        """Staves that may still be bought under STAFF_IDENTIFY_MAX_COUNT."""
+        from hengbot.policy_constants import STAFF_IDENTIFY_MAX_COUNT
+
+        carried = sum(item.count for item in self._carried_identify_staves(snapshot))
+        return max(0, STAFF_IDENTIFY_MAX_COUNT - carried)
+
+    def _identify_staff_purchase_room(self, snapshot: Snapshot) -> bool:
+        """User 2026-10-03: buy an Identify staff only below the four-staff cap.
+
+        At the cap the emptiest staff is released first (see
+        ``_identify_staff_release_plan``); the purchase follows the release.
+        """
+        return self._identify_staff_purchase_room_count(snapshot) > 0
 
     def _purchase_quantity(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Buy this ware's complete shortage in one transaction."""
@@ -3003,6 +3024,9 @@ class ShopMixin:
                          - self._count_matching_ammo(snapshot))
             if needed <= 0:
                 return 0
+        if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
+            # User 2026-10-03: a purchase never carries more than four staves.
+            needed = min(needed, self._identify_staff_purchase_room_count(snapshot))
         affordable = snapshot.player.gold // item.price if item.price > 0 else item.count
         quantity = max(1, min(item.count, affordable, max(1, needed)))
         reserve_cap = self._black_market_optional_reserve_cap(snapshot, item)
@@ -3752,12 +3776,29 @@ class ShopMixin:
                 item for item in stored_identify
                 if self._item_signature(item) not in queued_withdrawals
             ]
+            identify_ready = self._identify_staff_ready(snapshot)
+            if identify_ready:
+                # A staff the cap already sent here as unsellable this
+                # expedition is not withdrawn again for another refused sale.
+                stored_identify = [
+                    item for item in stored_identify
+                    if self._item_signature(item) not in self._unsellable_items
+                ]
+            else:
+                # User 2026-10-03: at the four-staff cap a Home staff helps
+                # only when it is fuller than the emptiest carried one.
+                stored_identify = [
+                    item for item in stored_identify
+                    if self._identify_staff_acquisition_worthwhile(
+                        snapshot, item.charges
+                    )
+                ]
             if (
                 stored_identify
                 and PACK_CAPACITY - len(snapshot.inventory)
                 > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
             ):
-                if not self._identify_staff_ready(snapshot):
+                if not identify_ready:
                     candidate = max(
                         stored_identify,
                         key=lambda item: (
