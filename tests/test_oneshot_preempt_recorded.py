@@ -56,6 +56,7 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from xbow_pref_walls import shelf_wall_on_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "oneshot-preempt-20261002.jsonl.gz"
@@ -195,11 +196,13 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
                              ["wanted_purchase"]["category"], "recall")
         self.assertEqual(self._live(STOP), ("5", "town:blocked:owner-retired"))
 
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_pre_fix_vector_reproduces_every_live_key(self):
         rows = self._replay(STOP, pre_fix_through=STOP)
         self.assertEqual(rows, [self._live(index) for index in range(STOP + 1)])
 
     # ------------------------------------------------------------ fix
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_weapon_smith_one_shot_keeps_its_tail_and_buys(self):
         seen = {}
 
@@ -230,6 +233,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         self.assertTrue(items["l"][0].startswith("鉄弾 (1d3)"))
         self.assertEqual(items["l"][1], 3)
 
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_temple_entry_composes_and_releases_the_recall_purchase(self):
         seen = {}
 

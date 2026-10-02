@@ -57,6 +57,7 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, STORE_HOME
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from xbow_pref_walls import shelf_wall_on_replay
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -224,6 +225,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                 state["blocked"] = policy._town_blocked_reason
         return inspect
 
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_unposted_home_deposit_routes_home_again(self):
         """Deferred, never-posted Home work within its bound: travel Home."""
         state = {}
@@ -236,6 +238,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(state, {"attempted": False, "overweight": True,
                                  "blocked": None})
 
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_exhausted_home_bound_ends_in_the_named_overweight_stop(self):
         """Counterfactual bound on the same board: the genuine-failure stop."""
         for counter in ("unsatisfied_passes", "approach_fails"):
@@ -258,6 +261,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                                          "blocked": "overweight-home-unreachable"})
 
     # ------------------------------------------------------------ fix 3
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_recall_reservation_inside_home_matches_departure_board(self):
         seen = {}
 

@@ -2695,12 +2695,15 @@ class TownMixin:
                 )
             )
             if mandatory_supplies_ready:
+                launcher = self._equipped_launcher(snapshot)
                 if (
-                    self._equipped_launcher(snapshot) is not None
+                    launcher is not None
                     and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
-                    and STORE_WEAPON not in self._town_store_attempted
+                    and (ammo_store := self._launcher_ammo_errand_store(
+                        snapshot, launcher.ammo_tval
+                    )) is not None
                 ):
-                    add(STORE_WEAPON, "ammo")
+                    add(ammo_store, "ammo")
                 if (
                     self._fundraising_mode in {"prepare", "mine", "scavenge"}
                     and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
@@ -2846,7 +2849,7 @@ class TownMixin:
                         snapshot, quest_strategy, name, STORE_WEAPON
                     )
                     for name in missing_carries
-                    if STORE_WEAPON in self._quest_carry_suppliers(name)
+                    if STORE_WEAPON in self._quest_carry_supplier_stores(snapshot, name)
                 )
                 if (
                     STORE_WEAPON not in self._town_store_attempted
@@ -2871,7 +2874,7 @@ class TownMixin:
             # all of its suppliers have been tried).
             quest_carry_need_added = False
             for name in sorted(missing_carries):
-                for supplier in self._quest_carry_suppliers(name):
+                for supplier in self._quest_carry_supplier_stores(snapshot, name):
                     if any(
                         need.store_type == supplier
                         and need.category in {
@@ -2915,13 +2918,17 @@ class TownMixin:
                 return needs
             add(STORE_MAGIC, "identify-staff")
         # Ammo is an optional supply: restock when low, but never block the
-        # visit on it (the Weapon Smith always stocks SHOT/ARROW/BOLT).
+        # visit on it. The Weapon Smith is tried first; the General Store when
+        # the Weapon Smith was attempted or shows no affordable plain ammo.
+        launcher = self._equipped_launcher(snapshot)
         if (
-            self._equipped_launcher(snapshot) is not None
+            launcher is not None
             and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot)
-            and STORE_WEAPON not in self._town_store_attempted
+            and (ammo_store := self._launcher_ammo_errand_store(
+                snapshot, launcher.ammo_tval
+            )) is not None
         ):
-            add(STORE_WEAPON, "ammo")
+            add(ammo_store, "ammo")
         # Throwing torches for the early floors (user directive). Routed only
         # for fundraising trips (the shallow 1-10F fighting happens there);
         # ordinary visits still buy torches opportunistically when the General
