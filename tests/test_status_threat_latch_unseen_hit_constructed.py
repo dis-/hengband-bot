@@ -8,8 +8,8 @@ Both scenes are Castle 20F (dungeon 12) of 2026-10-02 with the same character
 rings of 13:12 start at turn 3644500 and the live state log was truncated by
 the 15:0x relaunch.  What remains is printed rows only:
 
-* 13:10:57-13:11:05 (decision rows, incident-captures/20261002-131626-no-key-
-  exhausted/decision-tail.jsonl; threat_prediction of each row): after
+* 13:10:57-13:11:05 (decision rows: the decision tail of the 13:16:26
+  no-key-exhausted incident capture; threat_prediction of each row): after
   ``emergency:quaff-speed`` (5361) the hasted player's 3-turn reach of the
   ピンク・ホラー (race 242, CONFUSE bite) is 3 actions, so the status-threat
   rung fires at path distance 3 and is silent at 4:
