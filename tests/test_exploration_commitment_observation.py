@@ -83,6 +83,12 @@ class ExplorationPathInventoryTest(unittest.TestCase):
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
+                # summoner:retreat vetoes the square it abandons (as the flee
+                # and threat:reposition retreats do), so a committed path
+                # through that square is dropped with it -- else the next
+                # decision walks straight back (two-cell oscillation, Castle
+                # 20F, 2026-10-02 15:14-15:16).
+                ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_observe", "ExplorationPathOutcome.INVALIDATE"),
                 ("_refresh_paralyzer_avoidance", "ExplorationPathOutcome.INVALIDATE"),
                 ("_paralyzer_prevention_key", "ExplorationPathOutcome.INVALIDATE"),
