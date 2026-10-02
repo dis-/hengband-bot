@@ -169,3 +169,85 @@ claim 48 が `queue-digging-tool-withdraw`（fundraising mode prepare、採掘�
 - b9f139d4 test(overweight-home): 06:14 プロセスの凍結（STEP 1 の証拠）
 - 2b50c90c fix(overweight-home): 到着した経路は自宅の訪問を保留しない（修正＋ピン＋live27）
 - （この報告のコミット）
+
+---
+
+## 追補（レビュー gpt-6.1-sol「merge after fixes」の P1・P2、769595e0 の続き）
+
+### P1: 自宅が試行済みというだけで名前付きの停止にしない（`src/hengbot/policy_town.py`）
+
+- `_overweight_home_bound_exhausted`（新規、`_town_store_blocked_under_applicable_bound` の直前）: 自宅の既存の
+  上限だけを見る。上限による封鎖、接近失敗が上限、未充足の回数が上限、自宅の訪問予算（300）の使い切り。
+- 持ち主のない待ちになる所（`stuck:wander` を町の進捗不変条件が止める所）で、`weight-overload` の需要があり、
+  重量超過で、自宅が試行済みで、上限が残っている場合: `_rearm_town_store_for_new_work(STORE_HOME)` で自宅を戻し、
+  ルーターが自宅を選べば同じ決定で `shop:travel` で自宅へ向かう。預け入れが保留された・出されなかった回は、
+  ここで再び自宅へ行く。空振りの回は既存どおり未充足として数えられるので、往復は上限 3 で止まる。
+- 名前付きの停止 `town:blocked:overweight-home-unreachable` は、上限を使い切った時（または戻しが拒まれた時）だけ。
+  09-03「本当に預け入れに失敗するならそれは停止するべき事案である。」
+- 06:16 の記録（未充足 2 回、預け入れは一度も出ていない）の index 11 は、`5` 停止ではなく
+  `\x1b`n(.` / `shop:travel` になる（実機のキーと最初に食い違う所。ここで再生を止める）。
+
+### P2: 自宅の中でも出発時に読む帰還 1 枚を残す（`src/hengbot/policy_supply.py`・`policy_town.py`）
+
+- 原因（再生で印字）: 自宅の中か外かではなかった。`_supply_ledger` は「今、帰還の行き先がある」時だけ出発で読む
+  1 枚を足す。06:16 では目標のダンジョン 1 の着地が安全条件で拒まれており、行き先なし → 必要数 9。
+  index 10 の `town:unsafe-recall-fallback` が安全な別のダンジョン 7 に切り替えた後は行き先あり → 10。
+  自宅（index 3）は切り替え前なので 9 で、帰還 1 枚が余剰に見えていた。
+- 修正: `_town_recall_destination(..., safety_gate=False)` を足し、帳簿の +1 だけがこれを使う。着地が拒まれた
+  目標も、出発時には安全な着地に切り替えて帰還を 1 枚読むので、切り替えの前後で必要数が同じになる
+  （09-20「目標＋出発で読む1枚」）。歩いて入る出発（イークの洞穴の浅い階、採掘、クエストの歩き入り、
+  未踏のダンジョン）は従来どおり +1 しない。
+- 06:16 の盤面: 自宅の中（index 3）と出発盤面（index 11）の両方で required_departure 10、帰還の予約 10。
+  預ける候補は `[k, j, i]` になり、帰還は候補から外れた。選ばれる預け入れは変わらず k（つるはし）1 本。
+
+### ピン（`tests/test_overweight_home_hold_recorded.py`、6 件）
+
+| テスト | 修正前（769595e0） | 修正後 |
+| --- | --- | --- |
+| unposted_home_deposit_routes_home_again（index 11 → `shop:travel` で自宅へ、自宅の試行済みは解除） | 失敗（`5` overweight-home-unreachable） | 合格 |
+| exhausted_home_bound_ends_in_the_named_overweight_stop（同じ盤面で未充足／接近失敗を上限にした反実仮想 → 名前付き停止） | 合格（停止を保つピン） | 合格 |
+| recall_reservation_inside_home_matches_departure_board（index 3 と 11 で 10/10） | 失敗（index 3 が 9/9） | 合格 |
+| routed_home_arrival_deposits_the_minimal_overload | 失敗（帰還の予約 9） | 合格 |
+| 他 2 件（記録の事実、壁の検証） | 合格 | 合格 |
+
+差し戻し確認の出力は `reports/overweight-home-followup-revert.txt`。
+
+変更した既存の assert（769595e0 で入れた自分のピン。`assertion_change_audit --base 769595e0` の出力どおり）:
+- `test_routed_home_arrival_deposits_the_minimal_overload`: 帰還の予約 `("e", 10, 9)` → `("e", 10, 10)`、
+  候補 `["k","j","i","e"]` → `["k","j","i"]`。理由: P2（09-20 の決定。出発時の 1 枚は余剰ではない）。
+- `test_failed_home_pass_ends_in_the_named_overweight_stop` を 2 つに分けた: 記録の盤面（上限が残る）は自宅へ戻る、
+  上限を使い切った盤面は従来の名前付き停止。理由: P1（09-03 の決定は「本当に失敗した」時の停止）。
+
+### 実行したテスト（1 プロセス 1 モジュール）
+
+| モジュール | 件数 | 結果 |
+| --- | ---: | --- |
+| tests.test_overweight_home_hold_recorded | 6 | OK |
+| tests.test_identify_staff_live27_recorded | 2 | OK |
+| tests.test_live36_weight | 7 | OK |
+| tests.test_overweight_home_unreachable_recorded | 12 | OK |
+| tests.test_departure_unsatisfiable_weight_recorded（壁と新テスト追加） | 8 | OK |
+| tests.test_recall_stockout_set_end_recorded | 5 | OK |
+| tests.test_recall_stockout_surplus_pins | 8 | OK |
+| tests.test_home_disposal | 15 | OK |
+| tests.test_town_progress_invariant | 22 | OK |
+| tests.test_test_fakery_lint | 13 | OK |
+
+出力は `reports/overweight-home-followup-*.txt`。
+
+### P2 が既存ピン departure_unsatisfiable_weight に与えた影響
+
+`tests.test_departure_unsatisfiable_weight_recorded` の H1 再生が最初の実行で失敗した（食い違いが index 68 から）。
+印字した事実: index 68（seq 67）は目標 Angband（ダンジョン 1）の着地が安全条件で拒まれていて
+（安全条件つきの行き先 None、外すと "angband"）、実機は帰還を 1 枚買い（`pi1`）、index 115（seq 114）で
+出発用の 1 枚をもう一度買っていた（`pi1`）。修正後の本番は 68 で 2 枚まとめて買う（`pi2`）。09-20 の決定どおり。
+既存の assert は変えていない。やったこと:
+- 新テスト `test_production_buys_the_departure_recall_with_the_target`: 本番で 0〜67 が実機と一致し、68 が `pi2`。
+  修正を戻すと `pi1` で失敗する。
+- H1 の再生に宣言した壁: 修正前の帰還の必要数（安全条件つきの行き先）で再生し、元の主題に行動が一致する盤面で届く。
+
+### 実機のリスク（追補）
+
+- 着地が安全条件で拒まれている目標で、安全な切り替え先も無い場合、帰還を 10 枚持とうとしてから
+  `no-safe-recall-destination` で止まる（以前は 9 枚で止まった）。停止の形は変わらない。
+- 自宅で預け入れが出ないまま戻る原因が他に残っていれば、自宅への往復が最大 3 回続いてから名前付きの停止になる。

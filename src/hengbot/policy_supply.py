@@ -187,10 +187,13 @@ class SupplyMixin:
                     and snapshot.in_town
                     and not snapshot.player.recalling
                     and self._fundraising_mode is None
-                    # A destination refused only for its blocked guardian
-                    # landing still reads a recall, to the switched landing.
+                    # A destination refused for its landing (blocked guardian
+                    # or depth gates) still reads a recall, to the switched
+                    # landing.  Home retention and the departure board must
+                    # agree on this scroll (user 2026-09-20: buy target + the
+                    # one read at departure), before and after the switch.
                     and self._town_recall_destination(
-                        snapshot, guardian_gate=False
+                        snapshot, guardian_gate=False, safety_gate=False
                     )[0] is not None
                 ):
                     # The departure action consumes one scroll before dungeon

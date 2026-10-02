@@ -1,0 +1,22 @@
+REVERT (follow-up): src/hengbot/policy_town.py src/hengbot/policy_supply.py restored to 769595e0
+FAIL: test_recall_reservation_inside_home_matches_departure_board (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_recall_reservation_inside_home_matches_departure_board)
+AssertionError: {3: (True, 9, 9), 11: (False, 10, 10)} != {3: (True, 10, 10), 11: (False, 10, 10)}
+- {3: (True, 9, 9), 11: (False, 10, 10)}
++ {3: (True, 10, 10), 11: (False, 10, 10)}
+FAIL: test_routed_home_arrival_deposits_the_minimal_overload (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_routed_home_arrival_deposits_the_minimal_overload)
+AssertionError: Lists differ: [('a'[57 chars] 10, 9), ('f', 6, 6), ('g', 1, 0), ('h', 2, 2)[50 chars] 63)] != [('a'[57 chars] 10, 10), ('f', 6, 6), ('g', 1, 0), ('h', 2, 2[51 chars] 63)]
+-  ('e', 10, 9),
++  ('e', 10, 10),
+FAIL: test_unposted_home_deposit_routes_home_again (tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again)
+AssertionError: Tuples differ: ('5', 'town:blocked:overweight-home-unreachable') != ('\x1b`n(.', 'shop:travel')
+- ('5', 'town:blocked:overweight-home-unreachable')
++ ('\x1b`n(.', 'shop:travel')
+Ran 6 tests in 79.719s
+FAILED (failures=3)
+== tests.test_departure_unsatisfiable_weight_recorded (follow-up runtime reverted)
+FAIL: test_production_buys_the_departure_recall_with_the_target (tests.test_departure_unsatisfiable_weight_recorded.DepartureUnsatisfiableWeightRecordedTest.test_production_buys_the_departure_recall_with_the_target)
+AssertionError: Tuples differ: ('pi1\r\r\x1b', 'shop:one-shot-buy') != ('pi2\r\r\x1b', 'shop:one-shot-buy')
+- ('pi1\r\r\x1b', 'shop:one-shot-buy')
++ ('pi2\r\r\x1b', 'shop:one-shot-buy')
+Ran 8 tests in 41.226s
+FAILED (failures=1)
