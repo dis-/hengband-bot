@@ -73,6 +73,7 @@ import test_golden_trajectory as golden
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
 from recorded_loadout import recorded_loadout_replay
+from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 
 
 # The tour lifetime's first town visit: list index 20 is the recorded
@@ -602,6 +603,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             lockstep.decide(boards, boundaries["recorded"][index][1], index)
         lockstep.assert_pure()
 
+    @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     def test_t1_t2_protocol2_morivant_lifetime_prefix(self):
         lockstep, boundaries = self._recorded_lifetime(
             morivant.FIXTURE, morivant.FIXTURE_SHA256, _esp_build, None,

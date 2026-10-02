@@ -109,6 +109,7 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from recorded_loadout import recorded_loadout_replay
+from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 from recorded_equipment_decisions import frozen_equipment_replay
 from extraction_calibration import install_extraction_calibration
 
@@ -192,6 +193,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         return segment
 
     @classmethod
+    @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     @recorded_loadout_replay
     # batchfixB / approved dual-wield half-max-melee selection, ruling #9:
     # Home-ledger and ownership pins consume the captured equipment decision.

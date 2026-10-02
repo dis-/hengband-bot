@@ -89,6 +89,7 @@ import test_esp_threat_rest_recorded as esp_recorded
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
 from recorded_loadout import pre_ratio_optimizer_replay, recorded_loadout_replay
+from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 
 
 # List indices into the recorded decisions (decision_sequence + 4).
@@ -594,6 +595,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
 
 
 class ExperiencePotionProtocol2Test(unittest.TestCase):
+    @pre_progressing_loot_gate_replay  # declared wall: pre-6c0910fb loot gate (tests/recorded_emergency_loot_gate.py)
     @recorded_loadout_replay
     def test_x7_protocol2_lifetime_decisions_are_unchanged(self):
         """X7: a recorded protocol-2 lifetime carrying the Experience potion."""

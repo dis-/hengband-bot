@@ -424,8 +424,15 @@ class SuspendedChaseTargetLostTest(unittest.TestCase):
 
 class SuspendedNamedReleaseTest(unittest.TestCase):
     """``floor-loot>explore`` (2): seek-loot, an escape preempts it, the
-    emergency teleport sets ``_emergency_return_active`` and ordinary loot is
-    shut out for the floor; the next decision probes / explores."""
+    emergency teleport sets ``_emergency_return_active`` and, while that
+    return progresses, ordinary loot is shut out; the next decision probes /
+    explores.
+
+    USER DECISION 2026-10-02 19:0x 「帰還が進んでいる間だけ止める」 (6c0910fb):
+    the flag alone no longer closes the gate, so the emergency return here is
+    a progressing one -- a Word of Recall read whose activation is being
+    confirmed (``_dungeon_recall_issue_watch``), the state that reaches the
+    gate without the return owner emitting first."""
 
     def _loot_walk(self, board):
         policy = _dungeon_policy(board)
@@ -435,10 +442,15 @@ class SuspendedNamedReleaseTest(unittest.TestCase):
         policy._loot_target = loot
         return policy, claim, loot
 
+    @staticmethod
+    def _progressing_emergency_return(policy, board):
+        policy._emergency_return_active = True
+        policy._dungeon_recall_issue_watch = (board.floor_key, board.turn, 1)
+
     def test_the_emergency_return_gate_releases_the_suspended_walk(self):
         board = _quiet_dungeon_board()
         policy, claim, _loot = self._loot_walk(board)
-        policy._emergency_return_active = True
+        self._progressing_emergency_return(policy, board)
         policy.choose_key(board)
         row = policy.decision_claim
         self.assertEqual(policy.last_reason, "explore")
@@ -449,10 +461,22 @@ class SuspendedNamedReleaseTest(unittest.TestCase):
             (claim.claim_id, "release", "loot-suppressed:emergency-return"),
         )
 
+    def test_the_flag_without_a_progressing_return_does_not_close_the_walk(self):
+        board = _quiet_dungeon_board()
+        policy, claim, _loot = self._loot_walk(board)
+        policy._emergency_return_active = True
+        self.assertFalse(policy._emergency_return_progressing(board))
+        policy.choose_key(board)
+        self.assertNotIn(
+            "loot-suppressed:emergency-return",
+            [closing["closed_reason"]
+             for closing in policy.decision_claim["suspended_closed"] or ()],
+        )
+
     def test_revert_proof_without_the_release_explore_displaces_it(self):
         board = _quiet_dungeon_board()
         policy, _claim, _loot = self._loot_walk(board)
-        policy._emergency_return_active = True
+        self._progressing_emergency_return(policy, board)
         with patch.object(policy, "_release_claim_goal", _no_release):
             policy.choose_key(board)
         (closing,) = policy.decision_claim["suspended_closed"]
