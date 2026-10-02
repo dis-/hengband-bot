@@ -24,6 +24,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
     required_abilities,
     slot_for,
+    owned_armor_fill_slots,
     usable_light_candidate,
 )
 from hengbot.equipment_transaction_planner import (
@@ -850,6 +851,9 @@ def prepare_warrior_optimization(
         candidate_loadouts=candidate_loadouts,
         require_light=require_light,
         require_body=require_body,
+        require_armor_slots=owned_armor_fill_slots(
+            items, search_excluded_item_ids
+        ),
         identification_exempt_item_ids=identification_exempt_item_ids,
         obtainable_ammunition=(
             tuple(snapshot.inventory)

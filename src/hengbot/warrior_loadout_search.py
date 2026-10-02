@@ -8,6 +8,7 @@ from typing import Iterable, Iterator, Mapping
 
 from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
+    FILL_REQUIRED_ARMOR_SLOTS,
     FIXED_SLOTS,
     SLOT_BOW,
     SLOT_LIGHT,
@@ -291,6 +292,13 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
         launcher_item.to_h if launcher_item is not None else 0,
         launcher_item.to_d if launcher_item is not None else 0,
         light_source_quality(loadout),
+        # 「空いた鎧の欄は必ず埋める」: a worn outer/head/arms/feet piece whose
+        # AC nets to zero (e.g. [1,-1]) must not be compressed away as
+        # equivalent to the empty slot before the optimizer's fill rule sees it.
+        sum(
+            loadout.item_at(slot) is not None
+            for slot in FILL_REQUIRED_ARMOR_SLOTS
+        ),
     )
     key = (
         loadout.hand_mode,
