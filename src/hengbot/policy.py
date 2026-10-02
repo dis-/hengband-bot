@@ -2495,7 +2495,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         normalize_policy_state(self)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
-        self._complete_character_dump()
+        self._complete_character_dump(snapshot)
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
         self._cancel_unbound_execution_delegations()

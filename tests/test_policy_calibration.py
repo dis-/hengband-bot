@@ -83,6 +83,30 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
         policy.observe_character_snapshot(data["character"], envelope=data)
         policy._complete_character_dump()
 
+    def test_protocol3_character_response_uses_the_decision_board(self):
+        """Live 2026-10-02 14:48-15:00: a protocol-3 C response is type
+        ``character``, not a board; parsing it raised ProtocolSchemaError in
+        choose_key and crashed the bot after every periodic dump."""
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory)
+            legacy = self.envelope()
+            board = parse_snapshot(legacy, {})
+            data = dict(legacy, protocol_version=3)
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            policy._complete_character_dump(board)
+            # The board was read (the protocol-2 fixture board lacks the
+            # protocol-3 stat modifiers, so this board is rejected by name).
+            self.assertEqual(policy._calibration_unavailable_reason,
+                             "stat-modifiers-missing")
+        with TemporaryDirectory() as directory:
+            # Without a board the response is unavailable, never a crash (R1).
+            policy = self.posted_policy(directory)
+            data = dict(self.envelope(), protocol_version=3)
+            policy.observe_character_snapshot(data["character"], envelope=data)
+            policy._complete_character_dump()
+            self.assertIsNone(policy._character_calibration)
+            self.assertIn("ProtocolSchemaError", policy._calibration_unavailable_reason)
+
     def test_posted_dump_publishes_atomically_and_restore_drops_the_posted_request(self):
         with TemporaryDirectory() as directory:
             policy = self.posted_policy(directory)

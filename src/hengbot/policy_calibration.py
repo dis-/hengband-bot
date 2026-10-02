@@ -90,8 +90,14 @@ class CalibrationMixin:
             return
         self._calibration_dump_response = (pending, character, dict(envelope))
 
-    def _complete_character_dump(self):
-        """Read and validate the stable dump once after the posted macro ended."""
+    def _complete_character_dump(self, board=None):
+        """Read and validate the stable dump once after the posted macro ended.
+
+        ``board`` is the decision board that follows the C macro.  The
+        retained C response is a protocol-3 ``character`` snapshot, which is
+        not a board (``parse_snapshot`` rejects it), so the equipment and
+        player facts come from that board (live 2026-10-02 14:48-15:00 crash).
+        """
         retained = self._calibration_dump_response
         if retained is None:
             return
@@ -99,13 +105,13 @@ class CalibrationMixin:
         self._calibration_dump_response = None
         if self._calibration_dump_pending is pending:
             self._calibration_dump_pending = None
-        self._publish_character_dump(pending, character, envelope)
+        self._publish_character_dump(pending, character, envelope, board)
 
-    def _publish_character_dump(self, pending, character, envelope):
+    def _publish_character_dump(self, pending, character, envelope, board=None):
         from hengbot.character_sheet import (CharacterSheetUnavailable, parse_character_sheet,
                                             derive_equipped_calibration)
         from hengbot.model import parse_snapshot
-        from hengbot.protocol import snapshot_protocol_version
+        from hengbot.protocol import ProtocolSchemaError, snapshot_protocol_version
         from hengbot.warrior_optimization import save_character_calibration
         try:
             if pending.get("started_ns") is None:
@@ -125,7 +131,10 @@ class CalibrationMixin:
             if sequence is None or (pending["sequence"] is not None
                                     and int(sequence) <= int(pending["sequence"])):
                 raise CharacterSheetUnavailable("uncorrelated-character-response")
-            snapshot = self._with_cached_skill_exp(parse_snapshot(envelope, self._monrace_knowledge))
+            snapshot = (
+                board if board is not None
+                else self._with_cached_skill_exp(parse_snapshot(envelope, self._monrace_knowledge))
+            )
             bars = envelope.get("player", {}).get("status_bar", [])
             if "status_bar" not in envelope.get("player", {}):
                 raise CharacterSheetUnavailable("timed-effect-observation-missing")
@@ -135,7 +144,7 @@ class CalibrationMixin:
                 protocol_version=snapshot_protocol_version(envelope),
                 session_id=self._calibration_session_id,
             )
-        except (OSError, ValueError, KeyError, TypeError) as exc:
+        except (OSError, ValueError, KeyError, TypeError, ProtocolSchemaError) as exc:
             self._character_calibration = None
             reason = (str(exc) if isinstance(exc, CharacterSheetUnavailable) else
                       "dump-unreadable:" + type(exc).__name__ if isinstance(exc, OSError) else
