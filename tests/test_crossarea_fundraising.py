@@ -337,6 +337,10 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._crossarea_fundraising_enforced = True
         policy._fundraising_mode = "mine"
+        # This process posted a fundraising departure (the in-run case).  A
+        # process that posted none is a restart and leaves the floor instead
+        # (test_restart_without_purpose_leaves_the_floor; live 2026-10-03).
+        policy._fundraising_runs_started = 1
         board = SimpleNamespace(
             floor_key=(DUNGEON_YEEK_CAVE, 1, 1), dungeon_level=1,
             in_town=False, player=SimpleNamespace(hungry=False),
@@ -349,6 +353,26 @@ class CrossAreaFundraisingTest(unittest.TestCase):
               patch.object(policy, "_leave_fundraising_floor",
                            return_value="<")):
             self.assertEqual(policy._fundraising_key(board, []), "<")
+
+    def test_restart_without_purpose_leaves_the_floor(self):
+        policy = HengbotPolicy()
+        policy._crossarea_fundraising_enforced = True
+        policy._fundraising_mode = "mine"
+        board = SimpleNamespace(
+            floor_key=(DUNGEON_YEEK_CAVE, 1, 1), dungeon_level=1,
+            in_town=False, player=SimpleNamespace(hungry=False),
+        )
+        with patch.object(policy, "_leave_fundraising_floor",
+                          return_value="<"):
+            self.assertEqual(policy._fundraising_key(board, []), "<")
+        # A record that exists but failed is still a conflict in a restart.
+        policy._fundraising_run_purpose = self.purpose
+        policy._fundraising_purpose_record = replace(
+            FundraisingPurposeRecord(self.purpose), status="failed"
+        )
+        self.assertEqual(policy._fundraising_key(board, []), "5")
+        self.assertEqual(policy.last_reason,
+                         "ownership:contract-conflict:fundraising:missing-purpose")
 
     def test_checkpoint_keeps_waiver_and_legacy_checkpoint_gets_defaults(self):
         policy = HengbotPolicy()

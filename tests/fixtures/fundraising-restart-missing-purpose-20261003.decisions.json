@@ -1,0 +1,96 @@
+{
+ "source": "jsonlog/autorecover-20261003-045218-ownership-contract-conflict-fundraising-missing-purpose.bot-decisions.jsonl.gz",
+ "rows": [
+  {
+   "index": 243,
+   "time": "2026-10-03T03:49:25+0900",
+   "turn": 5957300,
+   "reason": "fundraise:seek-loot",
+   "key": "3",
+   "floor": [
+    2,
+    1
+   ],
+   "position": {
+    "y": 23,
+    "x": 85
+   },
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   }
+  },
+  {
+   "index": 244,
+   "time": "2026-10-03T03:49:25+0900",
+   "turn": 5957310,
+   "reason": "fundraise:seek-loot",
+   "key": "3",
+   "floor": [
+    2,
+    1
+   ],
+   "position": {
+    "y": 24,
+    "x": 86
+   },
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   }
+  },
+  {
+   "index": 245,
+   "time": "2026-10-03T04:52:04+0900",
+   "kind": "session-start",
+   "git_commit": "c779634b",
+   "enforce_crossarea_fundraising": true
+  },
+  {
+   "index": 246,
+   "time": "2026-10-03T04:52:10+0900",
+   "turn": 5957318,
+   "reason": "periodic:skill-exp-knowledge",
+   "key": "~f\u001b",
+   "floor": [
+    2,
+    1
+   ],
+   "position": {
+    "y": 25,
+    "x": 87
+   },
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   }
+  },
+  {
+   "index": 247,
+   "time": "2026-10-03T04:52:11+0900",
+   "turn": 5957318,
+   "reason": "ownership:contract-conflict:fundraising:missing-purpose",
+   "key": "5",
+   "floor": [
+    2,
+    1
+   ],
+   "position": {
+    "y": 25,
+    "x": 87
+   },
+   "fundraising": {
+    "mode": "mine",
+    "planned_runs": null,
+    "kit_secured": true,
+    "gold_trigger": false
+   }
+  }
+ ]
+}

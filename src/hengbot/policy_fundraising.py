@@ -1085,7 +1085,19 @@ class FundraisingMixin:
                              and child.state == "complete")
                             or (child.direction == "return"
                                 and child.state == "posted"))):
-                if snapshot.player.hungry and self._find_edible(snapshot) is None:
+                # A bot restart mid-run: the purpose lives only in the process
+                # that posted the departure, and this process has posted none
+                # (``prime`` re-adopted the mode from the board).  Without a
+                # purpose to continue, leave the floor and let town re-plan
+                # (live 2026-10-03 04:52: every resume stopped here).  A record
+                # that exists but failed/mismatched stays a contract conflict.
+                restarted_without_purpose = (
+                    purpose is None and record is None
+                    and getattr(self, "_fundraising_runs_started", None) is None
+                )
+                if restarted_without_purpose or (
+                    snapshot.player.hungry and self._find_edible(snapshot) is None
+                ):
                     return self._leave_fundraising_floor(snapshot)
                 self.last_reason = (
                     "ownership:contract-conflict:fundraising:missing-purpose"
