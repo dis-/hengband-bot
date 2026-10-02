@@ -102,6 +102,11 @@ def stop_reason() -> str:
     markers = re.findall(r"<([a-z][a-z0-9:_\-]*)[^>]*>", tail)
     markers = [m for m in markers if m not in {"identify:staged-tail-released", "floor-transition:esc"}]
     if not markers:
+        # A stuck prompt is reported on stderr only (2026-10-02 18:28-18:33,
+        # three "exit:no-marker" stops that were one named prompt stop).
+        stuck = re.findall(r"<stuck-prompt> owner=(\S+)", err)
+        if stuck:
+            return "stuck-prompt:" + stuck[-1]
         return "exit:no-marker"
     # Collapse variable parts (request ids, counts) so repeats match.
     return re.sub(r"\d+", "#", markers[-1])

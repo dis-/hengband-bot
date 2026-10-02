@@ -1313,7 +1313,10 @@ class SurvivalTriggerTest(unittest.TestCase):
                             ):
                                 unpaired.append(where)
         self.assertEqual(unpaired, [])
-        self.assertEqual(len(triggers), 30)
+        # 31: + policy_observation.py:_observe "emergency-repeat" -- the second
+        # status-threat relocation of a dive latches the return (user
+        # 2026-10-02 13:4x 「逃走も緊急脱出に数える」).
+        self.assertEqual(len(triggers), 31)
         for where, trigger in triggers.items():
             if (
                 where.startswith("policy_fundraising.py:")
