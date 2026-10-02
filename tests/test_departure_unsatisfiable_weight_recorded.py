@@ -284,6 +284,7 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
             policy = _policy(directory, self.monrace)
             policy._character_calibration_path.write_bytes(
                 CALIBRATION.read_bytes())
+            install_extraction_calibration(policy)
             for index in range(DEPARTURE_RECALL_BUY + 1):
                 _decoded, snapshots = _consume_response_sequence(
                     self._board_lines(index), policy, lambda _key: True,
