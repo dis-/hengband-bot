@@ -60,6 +60,7 @@ from hengbot.policy_constants import (
     TERMINAL_NUDGE_LIMIT,
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
+from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.runtime_paths import runtime_dir, runtime_path
 from hengbot.emit_ownership import emit_ownership_verdict, movement_destination
@@ -1494,13 +1495,31 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     known_board = getattr(policy, "with_known_skill_exp", None)
     if known_board is not None:
         snapshot = known_board(snapshot)
-    with _PolicyObserverScope(policy):
+    # The capture reads the supply ledger of this board hundreds of times in
+    # town; those reads share results (keyed on the ledger inputs the capture
+    # itself can write) and the memo is dropped with the scope.
+    with _PolicyObserverScope(policy), supply_ledger_observer_memo():
         try:
             return _capture_decision_facts_unchecked(snapshot, policy)
         except RecursionError as exc:
             facts = _empty_decision_facts()
             facts["capture_error"] = f"{type(exc).__name__}: {exc}"
             return facts
+
+
+def _timed_decision_facts(snapshot, policy, timing: dict) -> dict:
+    """Capture decision facts and add the elapsed time to ``facts_ms``."""
+    started_at = time.perf_counter()
+    try:
+        return _capture_decision_facts(snapshot, policy)
+    finally:
+        _add_phase_ms(timing, "facts_ms", started_at)
+
+
+def _add_phase_ms(timing: dict, name: str, started_at: float) -> None:
+    timing[name] = round(
+        timing.get(name, 0.0) + (time.perf_counter() - started_at) * 1000, 3
+    )
 
 
 def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
@@ -3725,6 +3744,14 @@ def _run_follow(
                     "decode_ms": 0.0,
                     "parse_snapshot_ms": 0.0,
                     "choose_key_ms": 0.0,
+                    # Work between choose_key and send that the phases above
+                    # do not cover: read validation and the emit-ownership
+                    # verdict, the repeat/town-block iteration, the
+                    # decision-row facts capture, and the stop checks.
+                    "validate_emit_ms": 0.0,
+                    "stall_checks_ms": 0.0,
+                    "facts_ms": 0.0,
+                    "pre_send_checks_ms": 0.0,
                     "send_ms": 0.0,
                     "shadow_ms": 0.0,
                 }
@@ -3964,15 +3991,21 @@ def _run_follow(
                     decision_timing["choose_key_ms"] = round(
                         (time.perf_counter() - phase_started_at) * 1000, 3
                     )
+                    phase_started_at = time.perf_counter()
                     key = policy.validate_read_key(snapshot, chosen_key)
                     emit_ownership = emit_ownership_verdict(
                         emit_visit, snapshot, key, emit_approach_store
                     ).as_dict()
+                    _add_phase_ms(
+                        decision_timing, "validate_emit_ms", phase_started_at
+                    )
                     # JSONL has already supplied the policy input and chosen
                     # command. TCP observations remain structurally downstream.
                     pending_batch_row["decided"] = True
                     if key is None or key == "":
-                        decision_facts = _capture_decision_facts(snapshot, policy)
+                        decision_facts = _timed_decision_facts(
+                            snapshot, policy, decision_timing
+                        )
                         recorder.after_decision(policy, snapshot)
                         decision_timing["total_ms"] = round(
                             (time.perf_counter() - decision_started_at) * 1000, 3
@@ -4001,6 +4034,7 @@ def _run_follow(
                         poll_wait_started_at = time.perf_counter()
                         continue
                     policy._cli_no_key_streak = 0
+                    phase_started_at = time.perf_counter()
                     suppress_unconfirmed_store_leave = (
                         store_leave_was_inflight
                         and policy._store_leave_inflight is not None
@@ -4044,7 +4078,13 @@ def _run_follow(
                     )
                     if stopping_town_stall_report is not None:
                         town_stall_report = stopping_town_stall_report
-                    decision_facts = _capture_decision_facts(snapshot, policy)
+                    _add_phase_ms(
+                        decision_timing, "stall_checks_ms", phase_started_at
+                    )
+                    decision_facts = _timed_decision_facts(
+                        snapshot, policy, decision_timing
+                    )
+                    phase_started_at = time.perf_counter()
                     if policy.last_reason == "periodic:game-save":
                         save_archive.before_post(snapshot, policy._decision_sequence)
                     recent_reasons.append(policy.last_reason)
@@ -4209,6 +4249,9 @@ def _run_follow(
                         print("<store-leave-key:suppressed>", flush=True)
                     else:
                         print(key, flush=True)
+                    _add_phase_ms(
+                        decision_timing, "pre_send_checks_ms", phase_started_at
+                    )
                     phase_started_at = time.perf_counter()
                     decision = {
                         "sequence": policy._decision_sequence,
@@ -4302,12 +4345,18 @@ def _run_follow(
                         decision_timing["choose_key_ms"] += round(
                             (time.perf_counter() - phase_started_at) * 1000, 3
                         )
+                        phase_started_at = time.perf_counter()
                         key = policy.validate_read_key(snapshot, key)
                         emit_ownership = emit_ownership_verdict(
                             emit_visit, snapshot, key, emit_approach_store
                         ).as_dict()
+                        _add_phase_ms(
+                            decision_timing, "validate_emit_ms", phase_started_at
+                        )
                         if key is None:
-                            decision_facts = _capture_decision_facts(snapshot, policy)
+                            decision_facts = _timed_decision_facts(
+                                snapshot, policy, decision_timing
+                            )
                             recorder.after_decision(policy, snapshot)
                             decision_timing["total_ms"] = round(
                                 (time.perf_counter() - decision_started_at) * 1000, 3
@@ -4366,7 +4415,9 @@ def _run_follow(
                             (time.perf_counter() - decision_started_at) * 1000, 3
                         )
                         poll_wait_started_at = time.perf_counter()
-                        decision_facts = _capture_decision_facts(snapshot, policy)
+                        decision_facts = _timed_decision_facts(
+                            snapshot, policy, decision_timing
+                        )
                         if chain is not None:
                             _commit_prompt_chain_result(
                                 policy, decision_facts, chain_result
