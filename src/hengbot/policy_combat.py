@@ -3114,6 +3114,19 @@ class CombatMixin:
             self._defer_descent(snapshot)
             self.last_reason = "breeder-breakthrough:ascend"
             return UP_STAIRS_KEY
+        # The latch says the BREEDERS cannot be exterminated; it says nothing
+        # about another hostile standing next to the player.  Walking past it
+        # leaves it free to strike every turn and the frontier route then
+        # wanders in front of it (Castle 20F, 2026-10-02 13:12: a ブルー・ホラー
+        # adjacent through 5678-5698 while seek-frontier alternated '6'/'4').
+        # Yield the decision to the ordinary combat ladder below (its survival
+        # rules may still flee); the breakthrough resumes once no such hostile
+        # is adjacent.  Afraid players cannot melee, so they keep moving.
+        if not snapshot.player.afraid and any(
+            not monster.can_multiply
+            for monster in self._strategic_adjacent_hostiles(snapshot)
+        ):
+            return None
         step = self._breeder_breakthrough_step(snapshot)
         seek_reason = "breeder-breakthrough:seek-upstairs"
         if step is None:
