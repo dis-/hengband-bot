@@ -1834,8 +1834,19 @@ class CombatTest(unittest.TestCase):
         policy._floor_key = snapshot.floor_key
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
-        self.assertEqual(policy.choose_key(snapshot), UP_STAIRS_KEY)
-        self.assertEqual(policy.last_reason, "breeder-breakthrough:ascend")
+        # Origin e423a665 (2026-08-04) pinned "does not recall" and also
+        # transcribed the then-current '<' / breeder-breakthrough:ascend.
+        # That stair half contradicted USER RULE 2026-07-26
+        # (bot-random-quest-teleport-giveup): a random-quest floor is left
+        # only on the progress-based give-up.  Here the exit lock holds
+        # (TAKEN, no stall streak, escape kit carried), so since c404cc8d the
+        # breakthrough takes no stair exit (reviewer decision A, 2026-10-02).
+        self.assertTrue(policy._quest_floor_exit_locked(snapshot))
+        key = policy.choose_key(snapshot)
+        self.assertNotEqual(key, UP_STAIRS_KEY)
+        self.assertFalse(policy.last_reason.startswith("breeder-breakthrough:"))
+        self.assertIsNone(policy._dungeon_recall_issue_watch)
+        self.assertNotIn("recall", policy.last_reason)
         self.assertIsNone(policy._breeder_fled_floor)
 
     def test_latched_mining_walks_upstairs_without_spending_recall(self):
