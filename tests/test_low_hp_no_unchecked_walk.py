@@ -80,6 +80,12 @@ class _Boards(ReplayMixin, unittest.TestCase):
 
     def _board_545(self, *, speed, extras=()):
         _rows, _board = self._replay(532, 544)
+        # DECLARED CONSTRUCTED (2026-10-03 lethal-unseen-caster): the board's
+        # HP is set to 300; the previous observation is lowered with it so
+        # the 545 hit stays the recorded 5 HP (599 -> 594).  A fabricated
+        # 299-HP one-move loss is itself the observed-loss emergency
+        # (loss x 3 >= HP) and would pre-empt the ladder this test pins.
+        self.policy._last_hp = LOW_HP + 5
         from hengbot.cli import _consume_response_sequence
         from pathlib import Path
         _decoded, snapshots = _consume_response_sequence(

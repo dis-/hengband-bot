@@ -158,6 +158,12 @@ def speed_energy(speed: int) -> int:
     return SPEED_ENERGY_90[speed - 90]
 
 
+# Most energy one 100-energy player action can cost: core/speed-table.h
+# ENERGY_NEED() is randnor(100, 25), and term/z-rand.cpp randnor sums twelve
+# 16-bit uniforms, so it is truncated at mean +/- 6 sigma (100 + 150).
+PLAYER_ACTION_ENERGY_MAX = 100 + 6 * 25
+
+
 DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (-1, -1): "7",
     (-1, 0): "8",

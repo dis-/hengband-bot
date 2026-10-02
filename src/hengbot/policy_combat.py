@@ -233,8 +233,9 @@ from hengbot.model import (
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
-    NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, RUBBLE_DIG_LIMIT, RUBBLE_REJECT_LIMIT,
-    STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW, VISIT_PENALTY,
+    NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, PLAYER_ACTION_ENERGY_MAX, RUBBLE_DIG_LIMIT,
+    RUBBLE_REJECT_LIMIT, STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW,
+    VISIT_PENALTY, speed_energy,
 )
 
 
@@ -1738,6 +1739,59 @@ class CombatMixin:
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
             )
         )
+        # The projection only weighs visible/detected hostiles: an unseen
+        # caster contributes nothing to ``predicted`` however hard it hits.
+        # Observed HP loss is the fair-play correction (Forest 2026-10-03
+        # 05:33, シェロブ out of sight: 12-29 visible hostiles projected
+        # 127-230 against HP 600-731 while one move cost 101, then 290).
+        attributable_loss = (
+            self._took_damage
+            and not self._took_curse_damage
+            and not self._took_trap_or_terrain_damage
+            and not snapshot.in_town
+        )
+        unseen_caster_hit = attributable_loss and any(
+            self._is_unseen_attack_message(message)
+            and self._is_unseen_spell_message(message)
+            for message in snapshot.messages
+        )
+        # (1) An unseen spell/breath/curse that drew HP while visible hostiles
+        # engage us: the caster cannot be meleed or bounded, so it is a lethal
+        # candidate once the hit is material (10% of max HP, the unseen-recall
+        # relocation bound) or HP is under the user's low-HP threshold.  A
+        # 3-HP gas breath from a hound pack member just out of view at 99% HP
+        # (overweight-home capture, index 1611) is not.
+        unseen_caster_in_combat = (
+            unseen_caster_hit
+            and bool(hostiles or snapshot.visible_monsters)
+            and (
+                self._last_damage_amount >= player.max_hp * 0.10
+                or player.hp < self._low_hp_walk_threshold(player.max_hp)
+            )
+        )
+        # (2) One observed move that would kill us in three repeats.
+        observed_loss_lethal = (
+            attributable_loss
+            and bool(hostiles)
+            and (unseen_caster_hit or not (player.poisoned or player.cut))
+            and self._last_damage_amount * 3 >= player.hp
+        )
+        # (3) A lethal escape pre-empted by the blindness/confusion cure stays
+        # owed on the next readable board unless HP now survives the same
+        # observed-loss test.  Only the board right after the cure owes it:
+        # past the cure's deadline turn another decision has acted already.
+        carried = getattr(self, "_blind_cure_escape_carry", None)
+        carried_escape = False
+        if carried is not None:
+            carried_floor, carried_loss, carried_deadline = carried
+            if (
+                carried_floor != snapshot.floor_key
+                or snapshot.turn > carried_deadline
+            ):
+                self._blind_cure_escape_carry = None
+            elif not player.blind and not player.confused:
+                self._blind_cure_escape_carry = None
+                carried_escape = carried_loss * 3 >= player.hp
         ranged_scroll_lock = self._ranged_scroll_lock_escape_needed(
             snapshot, hostiles, predicted=predicted
         )
@@ -1836,6 +1890,18 @@ class CombatMixin:
         lethal = (
             unseen_lethal
             or (
+                (
+                    unseen_caster_in_combat
+                    or observed_loss_lethal
+                    or (
+                        carried_escape
+                        and bool(hostiles or snapshot.visible_monsters)
+                    )
+                )
+                and not protected_q31_hold
+                and not protected_q31_stationary_engagement
+            )
+            or (
                 bool(hostiles)
                 and (predicted >= player.hp or ranged_scroll_lock)
                 and not protected_q31_hold
@@ -1886,6 +1952,24 @@ class CombatMixin:
                         if potion.sval == SV_POTION_CURE_CRITICAL
                         else "emergency:cure-status-healing"
                     )
+                    if lethal and (player.blind or player.confused):
+                        # The scroll could not be read; the escape is still
+                        # owed (death 2026-10-03: the cured board 06036437 at
+                        # HP 337 dropped it and meleed 21 visible hostiles).
+                        previous = getattr(self, "_blind_cure_escape_carry", None)
+                        loss = self._last_damage_amount
+                        if previous is not None and previous[0] == snapshot.floor_key:
+                            loss = max(loss, previous[1])
+                        # The quaff costs one action: the next player board
+                        # comes within the action's largest energy need at
+                        # this speed (6036428 -> 6036437 took 9 game turns
+                        # at speed +0, 10 energy a turn; the bound is 25).
+                        deadline = snapshot.turn + ceil(
+                            PLAYER_ACTION_ENERGY_MAX / speed_energy(player.speed)
+                        )
+                        self._blind_cure_escape_carry = (
+                            snapshot.floor_key, loss, deadline,
+                        )
                     return QUAFF_KEY + potion.slot
 
             if lethal or summoner_open:

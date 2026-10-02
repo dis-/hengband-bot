@@ -1877,6 +1877,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
         self._unexplained_damage_streak = 0
+        # (floor, observed loss, deadline game turn) of a lethal escape the
+        # blindness/confusion cure pre-empted; the next readable board owes it.
+        self._blind_cure_escape_carry: (
+            tuple[tuple[int, int, int], int, int] | None
+        ) = None
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None

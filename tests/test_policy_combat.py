@@ -3138,6 +3138,11 @@ class CombatTest(unittest.TestCase):
             ],
             inventory=[item("p", TVAL_SCROLL, SV_SCROLL_PHASE_DOOR)],
         )
+        # DECLARED CONSTRUCTED (2026-10-03 lethal-unseen-caster): the
+        # previous observation is lowered so the observed hit is that 3-damage
+        # trigger; a fabricated 545-HP one-move loss (565 -> 20) is itself the
+        # observed-loss emergency (loss x 3 >= HP) and records hp-emergency.
+        emergency._last_hp = 20 + 3
         emergency.choose_key(danger)
         self.assertEqual(
             emergency.choke_engagement_state()["release_cause"], "hp-authority"
