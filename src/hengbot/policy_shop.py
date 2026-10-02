@@ -3004,7 +3004,37 @@ class ShopMixin:
             if needed <= 0:
                 return 0
         affordable = snapshot.player.gold // item.price if item.price > 0 else item.count
-        return max(1, min(item.count, affordable, max(1, needed)))
+        quantity = max(1, min(item.count, affordable, max(1, needed)))
+        reserve_cap = self._black_market_optional_reserve_cap(snapshot, item)
+        if reserve_cap is not None:
+            # User 2026-09-15: an optional Black Market buy may only spend the
+            # gold left over after the outstanding required supplies; the
+            # one-unit check in _black_market_optional_purchase does not bound
+            # a multi-unit stack.
+            quantity = min(quantity, reserve_cap)
+        return quantity
+
+    def _black_market_optional_reserve_cap(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> int | None:
+        """Units of an optional Black Market buy that keep the required reserve.
+
+        ``None`` when this purchase is not the optional Black Market pick (no
+        cap: required purchases are unchanged).  Otherwise the largest ``n``
+        with ``gold - n * price >= reserve`` (0 when the reserve is unknown).
+        """
+        store = snapshot.store
+        if store is None or store.store_type != STORE_BLACK:
+            return None
+        matches = self._matching_live_purchase_rungs(snapshot, item)
+        if not matches or not matches[0].rung_id.startswith("black-market:"):
+            return None
+        if item.price <= 0:
+            return None
+        reserve = self._required_departure_supply_reserve(snapshot)
+        if reserve is None:
+            return 0
+        return max(0, (snapshot.player.gold - reserve) // item.price)
 
     @staticmethod
     def _store_accepts_sale(store_type: int, item: InventoryItem) -> bool:
