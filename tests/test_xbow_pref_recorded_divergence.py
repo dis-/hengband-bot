@@ -24,7 +24,7 @@ import unittest
 
 from hengbot.ammo_carry import is_plain_store_ammo
 from hengbot.cli import _consume_response_sequence
-from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
+from hengbot.latch_onset_capture import checkpoint
 from hengbot.model import (
     STORE_GENERAL,
     STORE_WEAPON,
@@ -39,7 +39,10 @@ import test_classC2_departure_recorded as classC2
 import test_identify_staff_live27_recorded as live27
 import test_tpstockout_restart_recorded as tpstockout
 from test_esp_threat_rest_recorded import EDIT, _policy
-from extraction_calibration import install_extraction_calibration
+from extraction_calibration import (
+    install_extraction_calibration,
+    restore_recorded_checkpoint,
+)
 
 SWAP_KEY = "\x1b`n(."
 SWAP_REASON = "equipment-transaction:travel-home"
@@ -70,7 +73,7 @@ def classC2_public_board_decisions():
         bolts = plain_bolts(policy._town_supplier_stock[STORE_WEAPON])
         saved = checkpoint(policy)
         outcomes = []
-        for subject in (policy, restore_checkpoint(HengbotPolicy, saved)):
+        for subject in (policy, restore_recorded_checkpoint(HengbotPolicy, saved)):
             key = subject.choose_key(board)
             outcomes.append((str(key), subject.last_reason, *swap_plan(subject)))
         sling = next(item for item in board.equipment if item.slot == "bow")
@@ -157,7 +160,7 @@ class XbowPrefRecordedDivergenceTest(unittest.TestCase):
                              [(83, 3)])
             sling = next(item for item in board.equipment if item.slot == "bow")
             saved = checkpoint(policy)
-            for subject in (policy, restore_checkpoint(HengbotPolicy, saved)):
+            for subject in (policy, restore_recorded_checkpoint(HengbotPolicy, saved)):
                 with self.subTest(restored=subject is not policy):
                     key = subject.choose_key(board)
                     print("TPSTOCKOUT XBOW FIRST DIVERGENCE live",
