@@ -304,3 +304,29 @@ claim 48 が `queue-digging-tool-withdraw`（fundraising mode prepare、採掘�
 | tests.test_departure_unsatisfiable_weight_recorded | OK（8 件） |
 | tests.test_oneshot_preempt_recorded | OK（4 件） |
 | tests.test_test_fakery_lint | OK（13 件） |
+
+---
+
+## 追補 3（レビュー判断: 案 1、P2 の買い方を維持）
+
+- `tests/test_guardian_recall_pingpong_recorded.py`: 宣言した壁（修正前の安全条件つきの出発の数え方、
+  `_pre_p2_departure_count`）を live 再生（`_live`）と g1 の 0〜12（`_fixed_until_first_recall`）に追加。
+  g1 は塞がれた着地の assert（Orc cave 23 は塞がれ、Forest 24 は通れる、キーは `rfe`）まで届いて合格。
+  新テスト `test_p2_buys_the_departure_recall_with_the_target`: 本番で 0〜4 が実機と一致し、5 が `ph2`
+  （記録は 5 と 11 で `ph1` を 2 回）。09-20 の決定を引用。
+- `tests/test_town_approach_retired_recorded.py`: 同じ壁を `_replay` に追加。新テスト
+  `test_p2_routes_to_the_departure_recall_supplier`: 本番で 0〜51 が実機と一致し、52 が `\x1b`n$.` / `shop:travel`
+  （記録は `\x1b`n'.`）、その盤面で required_departure = required_return + 1。
+- 既存の assert は不変（`assertion_change_audit --base bd7f1856`: 変更なし）。P2 を戻すと新テスト 2 件が失敗
+  （`reports/overweight-home-fix3-revert.txt`）。
+
+| モジュール | 結果 |
+| --- | --- |
+| tests.test_guardian_recall_pingpong_recorded | OK（8 件） |
+| tests.test_town_approach_retired_recorded | OK（9 件） |
+| tests.test_home_visit | OK（21 件、skip 3） |
+| tests.test_policy_calibration | OK（75 件） |
+| tests.test_oneshot_preempt_recorded | OK（4 件） |
+| tests.test_overweight_home_hold_recorded | OK（6 件） |
+| tests.test_departure_unsatisfiable_weight_recorded | OK（8 件） |
+| tests.test_test_fakery_lint | OK（13 件） |

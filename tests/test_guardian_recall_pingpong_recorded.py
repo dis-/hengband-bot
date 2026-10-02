@@ -87,6 +87,26 @@ from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
 from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_equipment_decisions import recorded_equipment_decisions
 
+# overweight-home review P2 (USER DECISION 2026-09-20 「帰還の巻物は目標＋出発で
+# 読む1枚を買う」): the departure recall scroll is now counted, and bought with
+# the target, while the recall target still awaits its safe-landing switch.
+# DECLARED WALL for the replays below: the pre-P2 (safety-gated) departure
+# count, so they keep proving their own subjects on boards that are the effect
+# of the live keys.  A separate test pins the first changed decision.
+from hengbot.policy import HengbotPolicy as _P2Policy
+_PRODUCTION_RECALL_DESTINATION = _P2Policy._town_recall_destination
+
+
+def _pre_p2_recall_destination(self, snapshot, *, guardian_gate=True,
+                               safety_gate=True):
+    return _PRODUCTION_RECALL_DESTINATION(
+        self, snapshot, guardian_gate=guardian_gate)
+
+
+def _pre_p2_departure_count():
+    return patch.object(_P2Policy, "_town_recall_destination",
+                        _pre_p2_recall_destination)
+
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "guardian-recall-pingpong-20260925.jsonl.gz"
@@ -215,7 +235,7 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
                 ), patch.object(
                     policy, "_recall_landing_guardian_blocked",
                     return_value=False, create=True,
-                ):
+                ), _pre_p2_departure_count():  # DECLARED WALL (P2, above)
                     key = policy.choose_key(snapshot)
                 decided.append((str(key), policy.last_reason))
                 bars.append(_bar_record(policy))
@@ -252,7 +272,8 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             snapshot = self._consume(policy, index, self.directory)
             if index == FIRST_RECALL:
                 return policy, decided, snapshot
-            key = policy.choose_key(snapshot)
+            with _pre_p2_departure_count():  # DECLARED WALL (P2, above)
+                key = policy.choose_key(snapshot)
             decided.append((str(key), policy.last_reason))
             policy.confirm_key_posted(key)
         raise AssertionError("unreachable")
@@ -431,6 +452,27 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "town:recall-to-alt-dungeon")
         self.assertEqual(key, "rf" + policy._recall_selection_key(board, FOREST))
         self.assertEqual(key, "rfe")
+
+    def test_p2_buys_the_departure_recall_with_the_target(self):
+        """No wall: USER DECISION 2026-09-20, target + the departure scroll."""
+        recorded = [(self.recorded[index]["key"], self.recorded[index]["reason"])
+                    for index in (5, 11)]
+        # Live bought one scroll at 5 and the departure scroll again at 11,
+        # after the unsafe-recall fallback at 8 switched the landing.
+        self.assertEqual(recorded, [("ph1\r\r\x1b", "shop:one-shot-buy")] * 2)
+        policy = self._new_policy(self.directory)
+        for index in range(6):
+            snapshot = self._consume(policy, index, self.directory)
+            key = policy.choose_key(snapshot)
+            if index < 5:
+                self.assertEqual(
+                    (str(key), policy.last_reason),
+                    (self.recorded[index]["key"], self.recorded[index]["reason"]),
+                    index)
+                policy.confirm_key_posted(key)
+        # First changed decision versus live: stop here (R4).
+        self.assertEqual((str(key), policy.last_reason),
+                         ("ph2\r\r\x1b", "shop:one-shot-buy"))
 
 
 if __name__ == "__main__":

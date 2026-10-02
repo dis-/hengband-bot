@@ -1,0 +1,16 @@
+test_g1_fallback_does_not_choose_a_blocked_guardian_landing (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_fallback_does_not_choose_a_blocked_guardian_landing) ... ok
+test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g1_guardian_valve_leaves_the_orc_cave_for_a_deeper_landing)
+User decision 2026-09-25 「倒せない階でなければ深くても可」. ... ok
+test_g2_every_guardian_bounce_is_counted_and_the_valve_fires (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_g2_every_guardian_bounce_is_counted_and_the_valve_fires) ... ok
+test_live_replay_reproduces_every_recorded_decision (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_live_replay_reproduces_every_recorded_decision) ... ok
+test_p2_buys_the_departure_recall_with_the_target (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_p2_buys_the_departure_recall_with_the_target)
+No wall: USER DECISION 2026-09-20, target + the departure scroll. ... ok
+test_r3_no_qualifying_alternate_stops_the_run_visibly (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_r3_no_qualifying_alternate_stops_the_run_visibly)
+User decision 2026-09-25 「見える形で停止する」. ... ok
+test_recorded_run_is_the_uncounted_guardian_bounce (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_recorded_run_is_the_uncounted_guardian_bounce) ... ok
+test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off (tests.test_guardian_recall_pingpong_recorded.GuardianRecallPingPongRecordedTest.test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 101.192s
+
+OK

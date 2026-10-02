@@ -93,6 +93,26 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
 
+# overweight-home review P2 (USER DECISION 2026-09-20 「帰還の巻物は目標＋出発で
+# 読む1枚を買う」): the departure recall scroll is now counted, and bought with
+# the target, while the recall target still awaits its safe-landing switch.
+# DECLARED WALL for the replays below: the pre-P2 (safety-gated) departure
+# count, so they keep proving their own subjects on boards that are the effect
+# of the live keys.  A separate test pins the first changed decision.
+from hengbot.policy import HengbotPolicy as _P2Policy
+_PRODUCTION_RECALL_DESTINATION = _P2Policy._town_recall_destination
+
+
+def _pre_p2_recall_destination(self, snapshot, *, guardian_gate=True,
+                               safety_gate=True):
+    return _PRODUCTION_RECALL_DESTINATION(
+        self, snapshot, guardian_gate=guardian_gate)
+
+
+def _pre_p2_departure_count():
+    return patch.object(_P2Policy, "_town_recall_destination",
+                        _pre_p2_recall_destination)
+
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "town-approach-retired-20260925.jsonl.gz"
@@ -122,6 +142,9 @@ KIT_CHANGED = 1899  # sequence 1896: the shield is on, the guardian unbeatable
 RECALL = 1966  # sequence 1963, 06:22:31: 'rhc' town:recall-to-alt-dungeon
 BOUNCE = 1991  # sequence 1988, 06:22:50: 'rh' return:recall from (3, 23)
 PATH = (LATCH - 1, LATCH, KIT_CHANGED - 1, KIT_CHANGED, RECALL, BOUNCE)
+
+
+P2_FIRST = 52  # first decision changed by the P2 departure recall count
 
 
 class TownApproachRetiredRecordedTest(unittest.TestCase):
@@ -285,7 +308,8 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         if cls.replay is not None:
             return cls.replay
         cls.path = {}
-        with TemporaryDirectory() as raw_directory:
+        # DECLARED WALL (P2, above): pre-P2 departure recall count.
+        with TemporaryDirectory() as raw_directory, _pre_p2_departure_count():
             directory = Path(raw_directory)
             policy = cls._new_policy(directory)
             replay = []
@@ -357,6 +381,31 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         self.assertEqual(
             min(TOWN_TRAVEL_STALL_LIMIT, SHOP_APPROACH_STUCK_LIMIT), 8
         )
+
+    # ------------------------------------------------------------ P2
+    @recorded_loadout_replay
+    @frozen_equipment_replay("town")
+    def test_p2_routes_to_the_departure_recall_supplier(self):
+        """No wall: USER DECISION 2026-09-20, target + the departure scroll."""
+        self.assertEqual(
+            (self.recorded[P2_FIRST]["key"], self.recorded[P2_FIRST]["reason"]),
+            ("\x1b`n'.", "shop:travel"))
+        with TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            policy = self._new_policy(directory)
+            for index in range(P2_FIRST + 1):
+                snapshot = self._consume(policy, index, directory)
+                row = self._decide(policy, snapshot)
+                if index < P2_FIRST:
+                    self.assertEqual(
+                        (row["key"], row["reason"]),
+                        (self.recorded[index]["key"], self.recorded[index]["reason"]),
+                        index)
+            recall = policy._supply_ledger(snapshot, policy._planned_depth())["recall"]
+        # One recall scroll short of target + departure scroll: the router
+        # travels to its supplier first.  First changed key: stop here (R4).
+        self.assertEqual(recall.required_departure, recall.required_return + 1)
+        self.assertEqual((row["key"], row["reason"]), ("\x1b`n$.", "shop:travel"))
 
     # ------------------------------------------------------------ A1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
