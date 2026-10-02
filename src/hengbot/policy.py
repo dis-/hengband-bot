@@ -9993,6 +9993,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, corridor_threats, strategic_hostiles
             )
             if step is not None:
+                # The same navigation veto as the flee / threat:reposition
+                # retreats: persist the abandoned (exposed, in-view) square.
+                # One step later the summoner is out of view, the retreat
+                # rung falls silent, and a remembered loot target routed
+                # straight back into this square -- summoner:retreat '3' /
+                # seek-loot '7' between (23,115)/(24,116) until the loop
+                # detector stopped the bot (Castle 20F, 2026-10-02 15:14-15:16).
+                self._claim_engagement_avoid_cells((snapshot.player.position,))
+                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "summoner:retreat"
                 return self._step_toward(snapshot, step)
 
@@ -17977,15 +17986,26 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
         if not candidates:
             return None
-        previous = self._recent[-2] if len(self._recent) >= 2 else None
+        # The square we last stood on that is not this one.  ``_recent`` also
+        # records stationary decisions (searches), so ``_recent[-2]`` is often
+        # this very square and cannot name where we came from.
+        here = snapshot.player.position
+        previous = next(
+            (position for position in reversed(self._recent) if position != here),
+            None,
+        )
 
         def score(pos: Position) -> tuple[int, int, int]:
             # In town, never wander onto the border ring (it exits into the open
-            # wilderness); then prefer least-visited and avoid bouncing straight
-            # back. The border penalty is first, so an edge tile is chosen only if
-            # every neighbour is an edge (which cannot happen in the interior).
+            # wilderness); then never bounce straight back while another
+            # neighbour exists, then prefer least-visited.  The border penalty is
+            # first, so an edge tile is chosen only if every neighbour is an edge
+            # (which cannot happen in the interior).  Bouncing back ranks above
+            # visits: a dead-end square is always the least visited one, so
+            # visits alone walked '8'/'2' between a corridor's last two squares
+            # (Castle 20F, 2026-10-02 13:03:47, decisions 3580-3589).
             border = 1 if self._on_town_border(snapshot, pos) else 0
-            return (border, self._visit_counts[pos], 1 if pos == previous else 0)
+            return (border, 1 if pos == previous else 0, self._visit_counts[pos])
 
         return min(candidates, key=score)
 
