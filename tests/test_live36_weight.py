@@ -18,6 +18,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.policy import HengbotPolicy
 from test_esp_threat_rest_recorded import EDIT, _policy
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURE = Path(__file__).parent / "fixtures/live36-weight.json"
 
@@ -64,6 +65,11 @@ class Live36WeightTest(unittest.TestCase):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.policy, self.board, self.capture = attachment(Path(directory.name))
+        # Declared wall (tests/identify_staff_cap_walls.py): the recorded
+        # five-staff Identify kit (17 + 2x5 + 2x4 charges) is judged under its
+        # recorded five-staff cap, so the 2026-10-03 four-staff cap does not
+        # move the weight deposit or the retained quantities.
+        self.enterContext(pre_four_staff_cap_rule())
 
     def test_frozen_stop_and_retained_quantities(self):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes().replace(b"\r\n", b"\n")).hexdigest(),
@@ -136,6 +142,44 @@ class Live36WeightTest(unittest.TestCase):
             self.board, deposit)], [("l", 6)])
         self.policy._town_claims_active(self.board)
         self.assertEqual("weight-overload" in self.policy._town_claim_categories, True)
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """The same frozen board, unwalled, under the 2026-10-03 cap.
+
+    User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「4本を超えた分は回数の
+    少ない杖から売る（売れなければ自宅に預ける）」: of 「鑑定の杖」 i (17),
+    j (2x 5) and k (2x 4) one 4-charge staff of k is above the cap, so the Home
+    weight batch deposits that one staff (50 lb clears the 30 lb excess)
+    instead of both k staves.
+    """
+
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.policy, self.board, self.capture = attachment(Path(directory.name))
+
+    def test_fewest_charges_staff_above_the_cap_is_the_weight_batch(self):
+        policy, board = self.policy, self.board
+        self.assertEqual([(i.slot, i.count, i.charges)
+                          for i in policy._carried_identify_staves(board)],
+                         [("i", 1, 17), ("j", 2, 5), ("k", 2, 4)])
+        self.assertEqual(policy._identify_staff_release_plan(board), {"k": 1})
+        self.assertEqual([(i.slot, policy._retention_reservation(board, i))
+                          for i in board.inventory if i.slot in "ijk"],
+                         [("i", 1), ("j", 2), ("k", 1)])
+        first = policy._overweight_home_deposit(board)
+        batch = policy._home_deposit_batch(board, first)
+        self.assertEqual([(item.slot, count) for item, count in batch], [("k", 1)])
+        staff = next(i for i in board.inventory if i.slot == "k")
+        remaining = replace(board, inventory=tuple(
+            replace(i, count=1) if i.slot == "k" else i for i in board.inventory))
+        self.assertEqual(policy._inventory_weight(remaining),
+                         policy._inventory_weight(board) - staff.weight)
+        self.assertEqual(policy._inventory_weight(remaining), 1730)
+        self.assertFalse(policy._inventory_overweight(remaining))
+        self.assertEqual(policy._total_identify_staff_charges(remaining), 31)
+        self.assertTrue(policy._identify_staff_ready(remaining))
 
 
 if __name__ == "__main__":

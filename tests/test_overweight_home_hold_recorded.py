@@ -36,7 +36,10 @@ hold (no arrival board), reproducing the live key, so that the later
 recorded boards are the effect of the same keys; ``STEP_OFF_WALL`` index 10:
 the step-off tie between equally unvisited cells is broken by visit history
 this capture does not contain (replay '1', live '3', same reason); the live
-key is posted.  No board after a changed key is used (R4).
+key is posted.  No board after a changed key is used (R4).  The Home,
+bound and recall pins also run under the recorded five-staff Identify cap
+(tests/identify_staff_cap_walls.py); the 2026-10-03 four-staff cap's first
+changed key on this board is pinned unwalled in IdentifyStaffCapDivergenceTest.
 """
 
 from __future__ import annotations
@@ -54,12 +57,15 @@ from unittest.mock import patch
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
-from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, STORE_HOME
+from hengbot.policy_constants import (
+    POLICY_FINAL_STOP_REASONS, STORE_HOME, STORE_MAGIC, TOWN_TRAVEL_STORE_SYMBOLS,
+)
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -167,6 +173,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(block["town_ledger"]["unsatisfied_passes"], {"7": 2})
 
     # ------------------------------------------------------------ fix 1
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     def test_routed_home_arrival_deposits_the_minimal_overload(self):
         seen = {}
 
@@ -229,6 +236,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                 state["blocked"] = policy._town_blocked_reason
         return inspect
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_unposted_home_deposit_routes_home_again(self):
         """Deferred, never-posted Home work within its bound: travel Home."""
@@ -242,6 +250,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(state, {"attempted": False, "overweight": True,
                                  "blocked": None})
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_exhausted_home_bound_ends_in_the_named_overweight_stop(self):
         """Counterfactual bound on the same board: the genuine-failure stop."""
@@ -265,6 +274,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                                          "blocked": "overweight-home-unreachable"})
 
     # ------------------------------------------------------------ fix 3
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_recall_reservation_inside_home_matches_departure_board(self):
         seen = {}
@@ -282,6 +292,62 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self._replay(STOP, walls=True, inspect=inspect)
         # Inside Home before the safe-landing switch; outside after it.
         self.assertEqual(seen, {HOME: (True, 10, 10), STOP: (False, 10, 10)})
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """The same recorded process, without the cap wall, under the 10-03 cap.
+
+    User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「4本を超えた分は回数の
+    少ない杖から売る（売れなければ自宅に預ける）」: the board carries five staves
+    「鑑定の杖 (9回分)」 (g), 「(2x 8回分)」 (h), 「(2x 3回分)」 (i), 31 charges.
+    One 3-charge staff of i is above the cap, so after the Home pass (index 3,
+    pre-fix hold wall only) the first changed key is index 4: travel to the
+    Magic shop to sell it (shop-sell) instead of the live Weaponsmith trip.
+    """
+
+    # The same frozen process and replay as the walled pins above.
+    setUpClass = OverweightHomeHoldRecordedTest.__dict__["setUpClass"]
+    _replay = OverweightHomeHoldRecordedTest._replay
+    _live = OverweightHomeHoldRecordedTest._live
+
+    def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
+        first_changed = HOME + 1
+        seen = {}
+        original = HengbotPolicy.choose_key
+
+        def choose_key(policy, board):
+            if len(seen.setdefault("keys", [])) == first_changed:
+                staves = policy._carried_identify_staves(board)
+                seen["staves"] = [(item.slot, item.count, item.charges)
+                                  for item in staves]
+                seen["charges"] = policy._total_identify_staff_charges(board)
+                seen["release"] = policy._identify_staff_release_plan(board)
+                seen["reservation"] = {
+                    item.slot: policy._retention_reservation(board, item)
+                    for item in staves}
+                sale = policy._find_device_sale(board)
+                seen["sale"] = sale and (sale.slot, sale.count, sale.charges)
+            key = original(policy, board)
+            seen["keys"].append(key)
+            if len(seen["keys"]) == first_changed + 1:
+                seen["requesters"] = (policy.decision_claim or {}).get(
+                    "requester_families")
+            return key
+
+        with patch.object(HengbotPolicy, "choose_key", choose_key):
+            rows = self._replay(first_changed, walls=True)
+        self.assertEqual(rows[:first_changed],
+                         [self._live(index) for index in range(first_changed)])
+        self.assertEqual(seen["staves"], [("g", 1, 9), ("h", 2, 8), ("i", 2, 3)])
+        self.assertEqual(seen["charges"], 31)
+        self.assertEqual(seen["release"], {"i": 1})
+        self.assertEqual(seen["reservation"], {"g": 1, "h": 2, "i": 1})
+        self.assertEqual(seen["sale"], ("i", 2, 3))
+        # First changed key versus live (Weaponsmith '#'): stop here (R4).
+        self.assertEqual(self._live(first_changed), ("\x1b`n#.", "shop:travel"))
+        self.assertEqual(rows[first_changed], ("\x1b`n&.", "shop:travel"))
+        self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS.index("&"), STORE_MAGIC)
+        self.assertIn("shop-sell", seen["requesters"])
 
 
 if __name__ == "__main__":
