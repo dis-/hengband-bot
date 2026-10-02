@@ -207,8 +207,9 @@ class TownMixin:
         elif owner == "quest-request" and self._fixed_quest_teleport_walk_reason(
             snapshot, reason or self.last_reason
         ):
-            # The other fixed quests' town-to-town travel (Q2 to Telmora)
-            # walks to this town's teleport building through
+            # The other fixed quests' town-to-town travel (Q2 to Telmora, and
+            # ``fixedquest:q2-teleport`` both ways) walks to this town's
+            # teleport building through
             # _town_teleport_key and declares no route, so its vector held
             # only durable facts: every step after the first scored no
             # progress and the arbiter retired quest-request four steps into
@@ -350,11 +351,16 @@ class TownMixin:
     def _fixed_quest_teleport_walk_reason(
         self, snapshot: Snapshot, reason: str | None
     ) -> bool:
-        """Whether ``reason`` is _fixed_quest_key's undeclared travel walk.
+        """Whether ``reason`` is an undeclared fixed-quest walk to the inn.
 
-        That producer names the walk ``fixedquest:q<id>-travel`` after the
+        _fixed_quest_key names the walk ``fixedquest:q<id>-travel`` after the
         fixed-quest head; Q22's travel carries its own route declaration.
+        ``fixedquest:q2-teleport`` (_telmora_q2_travel_key both ways, and
+        _fixed_quest_key's return from Telmora) is the same _town_teleport_key
+        walk to the current town's teleport building.
         """
+        if reason == "fixedquest:q2-teleport":
+            return True
         head = self._fixed_quest_head(snapshot)
         return (
             head is not None and head.id != 22

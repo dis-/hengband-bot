@@ -43,6 +43,7 @@ from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import FIXED_QUEST_TOWNS
+from hengbot.town_arbiter import _new_town_turn_arbiter
 
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -59,6 +60,7 @@ FIRST_STEP = 2
 RETIRED = 5
 STOP = 6
 TRAVEL = "fixedquest:q2-travel"
+TELEPORT = "fixedquest:q2-teleport"
 INN = Position(37, 119)
 
 
@@ -195,6 +197,54 @@ class Q2TravelProgressRecordedTest(unittest.TestCase):
             ("9", TRAVEL, ("quest-request", False, False)),
             ("9", TRAVEL, ("quest-request", False, False)),
             ("9", TRAVEL, ("quest-request", False, True)),
+        ])
+
+    # ------------------------------------------------- constructed (declared)
+    # CONSTRUCTED, not recorded: no live board of a ``fixedquest:q2-teleport``
+    # walk exists.  _telmora_q2_travel_key (policy.py) and _fixed_quest_key's
+    # return from Telmora (policy_quest.py) emit that reason for the same
+    # _town_teleport_key walk to the current town's teleport building, so the
+    # recorded boards 2..6 above (the same inn route, 9 -> 5 edges) are read
+    # with that reason in place of the recorded one, and the vectors are fed
+    # to a fresh arbiter.
+    def _teleport_vectors(self):
+        vectors = {}
+
+        def inspect(index, policy, board):
+            if index >= FIRST_STEP:
+                vectors[index] = policy._town_arbiter_progress_vector(board, TELEPORT)
+
+        self._replay(STOP, inspect=inspect)
+        return [vectors[index] for index in range(FIRST_STEP, STOP + 1)]
+
+    @staticmethod
+    def _observe(arbiter, vector):
+        telemetry = arbiter.observe(in_town=True, reason=TELEPORT,
+                                    progress_vector=vector) or {}
+        return (telemetry.get("producer_owner"), telemetry.get("progress"),
+                telemetry.get("retired"))
+
+    def test_constructed_q2_teleport_walk_is_progress(self):
+        vectors = self._teleport_vectors()
+        self.assertEqual([vector[-1] for vector in vectors], [
+            ("locomotion", "quest-request", (0, 0, 0), INN, edges)
+            for edges in (9, 8, 7, 6, 5)
+        ])
+        arbiter = _new_town_turn_arbiter()
+        self.assertEqual([self._observe(arbiter, vector) for vector in vectors],
+                         [("quest-request", True, False)] * len(vectors))
+
+    def test_constructed_q2_teleport_walk_that_does_not_close_still_retires(self):
+        first, second = self._teleport_vectors()[:2]
+        arbiter = _new_town_turn_arbiter()
+        rows = [self._observe(arbiter, vector)
+                for vector in (first, second, second, second, second)]
+        self.assertEqual(rows, [
+            ("quest-request", True, False),
+            ("quest-request", True, False),
+            ("quest-request", False, False),
+            ("quest-request", False, False),
+            ("quest-request", False, True),
         ])
 
 
