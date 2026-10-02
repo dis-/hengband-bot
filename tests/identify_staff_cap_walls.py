@@ -15,6 +15,23 @@ five staves (STAFF_IDENTIFY_MAX_COUNT = 5), which also disables the swap
 because twenty charges are ready.  Nothing else changes.  The new choice on the
 same unwalled board is pinned in
 tests/test_classC2_departure_recorded.py::IdentifyStaffCapDivergenceTest.
+
+The overweight-home-hold capture (2026-10-02 06:14..06:16) carries
+「鑑定の杖 (9回分)」, 「(2x 8回分)」 and 「(2x 3回分)」: five staves, 31 charges.
+Under the four-staff cap one 3-charge staff is released, which changes the
+Home retention reservations at index 3 and, at index 4, sends the bot to the
+Magic shop to sell it instead of the recorded Weaponsmith trip.  Those pins'
+subjects are the Home arrival deposit, the Home pass bound and the recall
+reservation, so they run under the same five-staff wall.  The new choice is
+pinned in
+tests/test_overweight_home_hold_recorded.py::IdentifyStaffCapDivergenceTest.
+
+The live36-weight frozen board (decision 7520) carries 「鑑定の杖」 17, 2x 5 and
+2x 4 charges: five staves, 35 charges.  Under the four-staff cap one 4-charge
+staff is released, so the Home weight batch deposits one staff instead of
+both and the retained quantities change.  That pin's subject is the weight
+deposit and required-supply retention, so it runs under the same wall; the
+new choice is pinned in tests/test_live36_weight.py::IdentifyStaffCapDivergenceTest.
 """
 from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
