@@ -24,10 +24,24 @@ free_action, resist_conf and resist_fire.  The other entered dungeons give no
 safe alternate: 3 and 7 land on 21, 14 on 25, 18 on 30; 2 is the Yeek cave and
 4 the conquered forgetting maze.
 
+Home holds 耐混乱の指輪 (recorded Home scan).  It does not make a landing safe:
+the depth gate reads the worn abilities only (``_missing_required_abilities``),
+and the town optimizer runs without a depth requirement, so no removal needs
+to be declared; ``test_board_facts`` pins both facts.
+
 ITEM 9: an unsafe alternate-dungeon target is refused by the same rule as
 the unsafe Angband target (same safe-fallback search, same named stop when
 none), instead of returning no key (live: probe -> stuck:wander ->
 owner-retired).
+
+ITEM 4, USER DECISION 2026-10-02 17:4x (verbatim answer: 「1 ただし、クエストが
+正常に進行すれば混乱耐性は獲得できる」; option 1: 停止せず、イークの洞穴（町から
+歩いて入れる）で資金稼ぎを続けながら、町に戻るたびに店と闇市で耐混乱の付いた装備
+を探して買う。手に入ったら通常の潜行に戻る): with no safe landing the town enters
+the ordinary fundraising set (``prepare``) instead of the named stop, below the
+fundraising gold target; the gate is not relaxed.  The first changed key is
+pinned; the set's next owner is shown by re-deciding the SAME board (no later
+recorded board is the effect of the new key, R4).
 """
 
 from __future__ import annotations
@@ -46,7 +60,12 @@ from hengbot.model import (
     SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
 )
 from hengbot.policy import staged_prompt_chain_matches
-from hengbot.policy_constants import FUNDRAISING_GOLD_TARGET
+from hengbot.model import STORE_HOME
+from hengbot.policy_constants import (
+    FUNDRAISING_GOLD_TARGET,
+    TOWN_TRAVEL_STORE_SYMBOLS,
+    WAIT_KEY,
+)
 
 from test_esp_threat_rest_recorded import _policy
 import test_town_blackmarket_stall_recorded as stall
@@ -109,6 +128,11 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         self.assertNotEqual(DUNGEON_YEEK_CAVE, CASTLE)
         self.assertIsNone(policy._pick_alternate_dungeon(
             board, max_entry_depth=21))
+        self.assertTrue(any(
+            item.name == "耐混乱の指輪" for item in policy._home_knowledge_items))
+        self.assertEqual(
+            policy._missing_required_abilities(board, 21),
+            frozenset({"resist_conf"}))
 
     # ------------------------------------------------------------ item 9
     def test_unsafe_alternate_target_stops_like_angband_when_no_fallback(self):
@@ -124,6 +148,41 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         self.assertEqual(
             angband[:2],
             ("1", "town:blocked:depth-gate:destination-21:missing-resist_conf"))
+
+    # ------------------------------------------------------------ item 4
+    def _assert_fundraising_entered(self, alternate):
+        key, reason, policy, board = self._decide_board_4(alternate=alternate)
+        target = alternate if alternate is not None else DUNGEON_ANGBAND
+        self.assertEqual(policy._target_dungeon_id, target)
+        # The board's player stands on an entrance: the WAIT is posted as the
+        # existing one-step step-off, and the reason carries the owner.
+        landing = 22 if alternate == CASTLE else 21
+        self.assertEqual(
+            (key, reason),
+            ("2", "town:entrance-step-off:fundraising:no-safe-destination:"
+                  f"depth-gate:destination-{landing}:missing-resist_conf"))
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertIsNone(policy._town_blocked_reason)
+        # The gate is not relaxed: the landing is still refused.
+        self.assertFalse(policy._recall_destination_safe(board, target))
+        # The set's first owner (same board, re-decided): Home holds the
+        # mining kit, so the plan travels to the Home for it.
+        self.assertEqual(
+            [(need.store_type, need.category)
+             for need in policy._town_need_candidates(board)],
+            [(STORE_HOME, "fundraising-kit")])
+        policy.confirm_key_posted(key)
+        again = policy.choose_key(board)
+        self.assertEqual(
+            (str(again), policy.last_reason),
+            (f"`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
+        self.assertNotEqual(WAIT_KEY, again)
+
+    def test_no_safe_angband_landing_enters_fundraising(self):
+        self._assert_fundraising_entered(None)
+
+    def test_no_safe_alternate_landing_enters_fundraising(self):
+        self._assert_fundraising_entered(CASTLE)
 
 
 if __name__ == "__main__":

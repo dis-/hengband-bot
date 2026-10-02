@@ -5982,7 +5982,24 @@ class TownMixin:
                 self._town_blocked_reason = "equipment-work-home-route-exhausted"
                 return self._town_blocked_key(snapshot)
             if not self._destination_depth_allowed(snapshot, destination_depth):
-                self._town_blocked_reason = self.last_reason
+                gate_reason = self.last_reason
+                # No safe landing anywhere: fundraise at the Yeek cave instead
+                # of stopping (user decision 2026-10-02, no-safe-destination-2
+                # item 4); the gate itself is not relaxed.
+                if self._start_no_safe_destination_fundraising(
+                    snapshot, destination_depth
+                ):
+                    self.last_reason = (
+                        f"fundraising:no-safe-destination:{gate_reason}"
+                    )
+                    self._offer_execution(
+                        WAIT_KEY, producer="fundraising",
+                        work_id="fundraise:no-safe-destination",
+                        next_step="fundraising.prepare",
+                        expected_effect="fundraising-set-started",
+                    )
+                    return WAIT_KEY
+                self._town_blocked_reason = gate_reason
                 return self._town_blocked_key(snapshot)
             self._town_blocked_reason = "no-safe-recall-destination"
             return self._town_blocked_key(snapshot)
