@@ -1061,9 +1061,10 @@ def _prefer(
         return candidate_is_current and not incumbent_is_current
     # A modest survival loss must not hide a material damage gain. In the live
     # Might Crown regression, ten points of head AC improved modeled survival by
-    # only 2.7% while dropping melee DPS by 33%. Combat-margin subtraction still
-    # ranked the helmet first because the survival value is measured in hundreds
-    # of turns. Compare the relative trade directly before that scaled metric.
+    # only 2.7% while dropping melee DPS by 33%. The combat margin of that time
+    # (survival minus kill turns) still ranked the helmet first because the
+    # survival value is measured in hundreds of turns. Compare the relative
+    # trade directly before the margin.
     candidate_material_offense = cm.expected_dps > im.expected_dps * 1.05
     incumbent_material_offense = im.expected_dps > cm.expected_dps * 1.05
     candidate_preserves_survival = cm.survival_turns >= im.survival_turns * 0.95
@@ -1072,6 +1073,10 @@ def _prefer(
         return True
     if incumbent_material_offense and incumbent_preserves_survival:
         return False
+    # combat_margin is the dimensionless ratio survival / kill turns (user
+    # decision 2026-10-02).  The 1% band is relative, so it keeps its meaning
+    # for the ratio: two loadouts within 1% of each other's survival-per-kill
+    # are operationally equivalent.
     threshold = abs(im.combat_margin) * 0.01
     difference = cm.combat_margin - im.combat_margin
     if difference > threshold:
@@ -1079,10 +1084,10 @@ def _prefer(
     if difference < -threshold:
         return False
     # Inside the existing 1% combat-margin equivalence band, preserve real
-    # offensive output before consulting secondary-risk tie breakers.  Margin
-    # is measured in turns and can let a small AC gain hide a large DPS loss
-    # when expected kill time is short (the live Might Crown regression was
-    # 62.7 vs 82.3 melee DPS for only 0.9% margin).
+    # offensive output before consulting secondary-risk tie breakers.  A small
+    # AC gain can still hide a large DPS loss inside the band (the live Might
+    # Crown regression was 62.7 vs 82.3 melee DPS for only 0.9% margin when
+    # the margin was a difference in turns).
     dps_threshold = abs(im.expected_dps) * 0.05
     dps_difference = cm.expected_dps - im.expected_dps
     if dps_difference > dps_threshold:
@@ -1229,6 +1234,8 @@ def _stable_operational_best(
             if entry.metrics.expected_dps >= max_dps * 0.95
         ]
 
+    # combat_margin is the ratio survival / kill turns (user decision
+    # 2026-10-02); the 1% band is relative and so unchanged by that.
     max_margin = max(entry.metrics.combat_margin for entry in pool)
     if isfinite(max_margin):
         margin_band = abs(max_margin) * 0.01
