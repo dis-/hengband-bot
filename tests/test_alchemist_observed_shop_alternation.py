@@ -215,12 +215,18 @@ class AlchemistObservedShopAlternationTest(unittest.TestCase):
             for _ in range(3)
         ]
 
+        # R1 (USER DECISION 2026-10-01, C-sheet calibration rework): an
+        # unavailable calibration never creates Home work.  This fresh policy
+        # has no calibration, so its only optimization blocker is
+        # calibration-required and the strip-era ("equipment-work",
+        # "post-alchemist-home") claim no longer exists.  The pin stays
+        # revert-proof without it: dropping the carried-identify condition
+        # added in 0ba90daf turns the decisions below into STORE_HOME x3.
         self.assertEqual(
             [(need.category, need.ordering_class) for need in home_claims],
             [
                 ("identification-withdrawal", "post-alchemist-home"),
                 ("equipment-catalog", "home-first"),
-                ("equipment-work", "post-alchemist-home"),
             ],
         )
         self.assertEqual(decisions, [STORE_MAGIC, STORE_MAGIC, STORE_MAGIC])
