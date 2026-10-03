@@ -558,6 +558,28 @@ class StoreReentryRecordedTest(unittest.TestCase):
                 self.assertEqual((key, reason), self._live(index))
 
     # ------------------------------------------------------------ P5 / P6
+    def test_p5_shelf_proven_fruitless_stops_are_skipped(self):
+        for index, (store, category) in P5_SKIPS.items():
+            with self.subTest(index=index):
+                off = self._resume(index)
+                key, reason = self._decide(off, self._board(index))
+                self.assertEqual((key, reason), self._live(index))
+                would = off.in_store_decision_telemetry()["plan_shadow_would_skip"]
+                self.assertIn((store, category),
+                              {(entry["store"], entry["category"]) for entry in would})
+                on = self._switch_on(self._resume(index))
+                key, reason = self._decide(on, self._board(index))
+                skips = on.in_store_decision_telemetry()["shelf_evidence_skips"]
+                self.assertIn((store, category),
+                              {(entry["store"], entry["category"]) for entry in skips})
+                # The skipped shelf is not this decision's destination.
+                self.assertNotEqual(self._live(index), (key, reason))
+                self.assertNotEqual(on._shopping_approach_store_type, store)
+                state = _town_plan_state(on)
+                names = ("General Store", "Armoury", "Weapon Smiths", "Temple",
+                         "Alchemist", "Magic Shop", "Black Market", "Home")
+                self.assertIn(names[store], state["skipped_latched"])
+                self.assertEqual(state["skipped_reasons"][names[store]], "shelf-evidence")
 
     def test_p6_stops_are_kept_when_the_shelf_can_supply_or_evidence_expired(self):
         for index, store in P6_KEEPS.items():

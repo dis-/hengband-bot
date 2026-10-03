@@ -829,7 +829,7 @@ class InStoreMixin:
             self._in_store_attribute("_plan_shadow_pending").pop(
                 (self._effective_town_id(snapshot), store_type), None)
             return False
-        if False:
+        if getattr(self, "_in_store_ops_enabled", False):
             skips = self._in_store_decision_list("shelf_evidence_skips")
             if entry not in skips:
                 skips.append(entry)
