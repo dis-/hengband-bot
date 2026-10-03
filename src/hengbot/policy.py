@@ -1797,6 +1797,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ] | None = None
         # Latest authoritative normal-shop page, consumed only while outside.
         self._shop_observation: tuple[StoreState, int] | None = None
+        # In-store shop operations and shelf evidence
+        # (SOL-DESIGN-store-reentry-20261003, policy_instore.py).  The switch
+        # is the CLI's ``--in-store-shop-ops``; the breaker survives restarts
+        # through its sidecar file.
+        self._in_store_ops_enabled = False
+        self._in_store_breaker: tuple[str, int | None] | None = None
+        self._in_store_breaker_path: Path | None = None
+        self._in_store_entry_ledger: dict | None = None
+        self._in_store_screen_verified: bool | None = None
+        self._in_store_shop_fallback: dict | None = None
+        self._in_store_shadow_last: dict[int, dict] = {}
+        self._in_store_telemetry: dict | None = None
+        self._shelf_evidence: dict = {}
+        self._shelf_evidence_cache: dict = {}
+        self._plan_shadow_pending: dict = {}
+        self._plan_shadow_visits: dict = {}
         # Store actions share the decision sequence as a monotonic correctness
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
@@ -7749,6 +7765,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
+                self._note_shelf_trade(
+                    snapshot, watched_store, "buy", watched_signature, bought,
+                    gold_spent=before_gold - snapshot.player.gold,
+                )
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
                 self._close_store_visit("one-shot-buy-unconfirmed")
@@ -7794,8 +7814,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._batch_sell_key(
                     replace(snapshot, store=StoreState(pending_store, []))
                 )
+                if confirmed:
+                    for entry in entries:
+                        self._note_shelf_trade(
+                            snapshot, pending_store, "sell",
+                            entry["signature"], int(entry.get("quantity", 0)),
+                        )
             else:
                 pending["wait_count"] = wait_count + 1
+        self._in_store_shadow_visit_outcome(snapshot)
         self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
@@ -9670,6 +9697,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot.turn,
                 )
                 self._observe_restock_supplier_page(snapshot)
+                self._observe_shelf_evidence(snapshot)
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
                     self.last_reason = "town:recall-stockout-mining"
                     self._offer_execution(
@@ -9692,6 +9720,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if staged_operation.startswith(BUY_KEY)
                     else "shop:one-shot-sell"
                 )
+                if snapshot.store.store_type != STORE_HOME:
+                    self._in_store_shadow_agreement(snapshot, staged_operation)
                 return staged_operation
             if (
                 (self._store_visit is not None
@@ -9708,6 +9738,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # Its queued tail is the only input; policy contributes none.
                 self.last_reason = "shop:one-shot-in-flight"
                 return ""
+            if snapshot.store.store_type != STORE_HOME:
+                self._in_store_shadow(snapshot)
             # Observation visit: never select or answer an item prompt here.
             self._shop_observation = (snapshot.store, self._decision_sequence)
             self.last_reason = "shop:observe-and-leave"

@@ -20,6 +20,7 @@ from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
+from hengbot.policy_instore import InStoreMixin
 from hengbot.purchase_rungs import (
     PurchaseContext,
     PurchaseMatch,
@@ -47,7 +48,7 @@ class _SignatureScopedStoreVerdict(str):
         return 0
 
 
-class ShopMixin:
+class ShopMixin(InStoreMixin):
     def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
         """Return the known cost of unmet required stock, or unknown.
 

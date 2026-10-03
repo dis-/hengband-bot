@@ -90,6 +90,7 @@ from hengbot.input_executor import (
     compose_barrier_board,
     ScreenKind,
     Transport,
+    _store_page_is_on_screen,
 )
 
 CAPTURE_LEDGER_ROOT = Path(__file__).resolve().parents[2] / "capture-ledger"
@@ -1192,12 +1193,25 @@ def _town_plan_state(policy) -> dict:
     def name(store_type):
         return names[store_type] if 0 <= store_type < len(names) else str(store_type)
 
-    return {
+    skipped = [name(store_type) for store_type in plan.skipped_latched]
+    in_store = (
+        policy.in_store_decision_telemetry()
+        if hasattr(policy, "in_store_decision_telemetry") else None
+    ) or {}
+    # SOL-DESIGN-store-reentry-20261003 3.3.3: stops not added because a
+    # valid shelf observation proves them fruitless.
+    shelf_skips = sorted({
+        name(entry["store"]) for entry in in_store.get("shelf_evidence_skips", ())
+    })
+    state = {
         "stops": [name(store_type) for store_type in plan.stops],
         "index": plan.index,
         "inserted_this_visit": [name(store_type) for store_type in plan.inserted_this_visit],
-        "skipped_latched": [name(store_type) for store_type in plan.skipped_latched],
+        "skipped_latched": skipped + [store for store in shelf_skips if store not in skipped],
     }
+    if shelf_skips:
+        state["skipped_reasons"] = {store: "shelf-evidence" for store in shelf_skips}
+    return state
 
 
 def _town_stall_report(
@@ -1804,6 +1818,19 @@ def _write_decision(
                         else None
                     ),
                 )
+            in_store = (
+                policy.in_store_decision_telemetry()
+                if policy is not None
+                and hasattr(policy, "in_store_decision_telemetry")
+                else None
+            )
+            if in_store:
+                # SOL-DESIGN-store-reentry-20261003 3.6: the shadow, the
+                # in-store operation and the shelf-evidence (would-be) skips.
+                record["in_store"] = {
+                    name: value for name, value in in_store.items()
+                    if name != "decision_sequence"
+                }
             json.dump(record, file, ensure_ascii=False)
             file.write("\n")
             if ownership_ledger is not None:
@@ -2463,6 +2490,18 @@ def _quest_leave_continuations(snapshot, key: str, owned: bool) -> list[Continua
         frozenset({ScreenKind.CONFIRM}), "y", _QUEST_LEAVE_QUESTIONS,
         exact_feature=True, optional=True,
     )]
+
+
+def _decision_store_screen_verified(executor, board) -> bool | None:
+    """Design 3.1 condition 3 for the executor's ready board, else None."""
+    screen = getattr(executor, "ready_screen", None)
+    store = board.get("store") if isinstance(board, Mapping) else None
+    if screen is None or screen.kind is not ScreenKind.STORE or not isinstance(store, Mapping):
+        return None
+    screen_value = getattr(executor, "ready_screen_value", None)
+    if not isinstance(screen_value, Mapping):
+        return False
+    return _store_page_is_on_screen(screen_value, store)
 
 
 def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuation]] | None:
@@ -3829,6 +3868,7 @@ def _run_follow(
                 # the existing look channel. Byte-identical boards are decided
                 # again so policy loop breakers advance, but their already-posted
                 # keys are suppressed at the send boundary below.
+                store_screen_verified = None
                 if look_barrier_pending is not None:
                     (
                         eligible_lines,
@@ -3872,6 +3912,7 @@ def _run_follow(
                         file.seek(consumed_offset)
                         pending = ""
                     decision_board = executor.ready_board
+                    store_screen_verified = _decision_store_screen_verified(executor, decision_board)
                     phase_started_at = time.perf_counter()
                     try:
                         barrier_snapshot = parse_snapshot(decision_board, monrace_knowledge)
@@ -3983,6 +4024,7 @@ def _run_follow(
                     phase_started_at = time.perf_counter()
                     emit_visit = copy.copy(policy._store_visit)
                     emit_approach_store = policy._shopping_approach_store_type
+                    policy.observe_store_screen(store_screen_verified)
                     chosen_key = policy.choose_key(snapshot)
                     _record_atomic_home_page(
                         policy, snapshot, observed_store=last_observed_home_page,

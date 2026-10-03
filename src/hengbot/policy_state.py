@@ -303,6 +303,21 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_decision_bar_skips", None)
     restored.__dict__.setdefault("_claim_bar_enforced", False)
     restored.__dict__.setdefault("_town_claim_bar_enforced", False)
+    # In-store shop operations (SOL-DESIGN-store-reentry-20261003 3.2):
+    # captures before the switch existed held no in-store entry, breaker,
+    # shelf evidence or shadow state; off/empty is what they behaved as.
+    restored.__dict__.setdefault("_in_store_ops_enabled", False)
+    restored.__dict__.setdefault("_in_store_breaker", None)
+    restored.__dict__.setdefault("_in_store_breaker_path", None)
+    restored.__dict__.setdefault("_in_store_entry_ledger", None)
+    restored.__dict__.setdefault("_in_store_screen_verified", None)
+    restored.__dict__.setdefault("_in_store_shop_fallback", None)
+    restored.__dict__.setdefault("_in_store_shadow_last", {})
+    restored.__dict__.setdefault("_in_store_telemetry", None)
+    restored.__dict__.setdefault("_shelf_evidence", {})
+    restored.__dict__.setdefault("_shelf_evidence_cache", {})
+    restored.__dict__.setdefault("_plan_shadow_pending", {})
+    restored.__dict__.setdefault("_plan_shadow_visits", {})
     restored.__dict__.setdefault("_hunt_step_target", None)
     # Rev 9.2 (S): a checkpoint taken before the shadow existed does not know
     # which trigger its running return began with; unknown is not survival.
