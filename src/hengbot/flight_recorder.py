@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_DISK_BUDGET_BYTES = 3 * 1024**3
+# User 2026-10-03: 10 GB allowed until the ownership (S3.3) work is resolved;
+# then logs are tidied back to the 5 GB total.
+DEFAULT_DISK_BUDGET_BYTES = 10 * 1024**3
 DEFAULT_CHECKPOINT_INTERVAL = 100
 DEFAULT_LOG_ROTATE_BYTES = 128 * 1024**2
 DEFAULT_LOG_GENERATIONS = 8
