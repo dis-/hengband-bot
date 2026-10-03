@@ -1885,11 +1885,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
-        # (floor, position, game turn) of a posted Teleportation read whose
-        # relocation has not been observed yet; read with getattr (restored
-        # checkpoints predate it).
+        # (floor, position, game turn, Teleportation scrolls carried) of a
+        # posted Teleportation read whose landing has not been observed yet;
+        # read with getattr (restored checkpoints predate it).
         self._teleport_read_watch: (
-            tuple[tuple[int, int, int], Position, int] | None
+            tuple[tuple[int, int, int], Position, int, int] | None
         ) = None
         # (floor, positions observed since) the player's own teleport landed
         # on this floor: ``_recent`` entries older than these are the far
@@ -13027,9 +13027,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not board.in_town
         ):
             # The player's own Teleportation read: its landing is observed on
-            # a later board as the position leaving this cell.
+            # a later board as the stack one scroll smaller and the player two
+            # or more cells from here.
             self._teleport_read_watch = (
-                board.floor_key, board.player.position, board.turn
+                board.floor_key,
+                board.player.position,
+                board.turn,
+                sum(
+                    item.count
+                    for item in board.inventory
+                    if item.tval == TVAL_SCROLL
+                    and item.sval == SV_SCROLL_TELEPORT
+                ),
             )
         if (
             self._quest_strategy_recovery_pickup_prepared

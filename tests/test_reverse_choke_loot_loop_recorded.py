@@ -52,6 +52,13 @@ Two branches start from the replayed policy as it stood after the read at
   the quiet recorded landing, the player still on the landing cell -- the
   retreat arms, and its reverse direction is taken only from movement after
   the landing (none yet), never the pre-teleport cell (-1, 75).
+- CONSTRUCTED continuations: the retreat (b) arms, with nothing walked
+  since the landing, takes a heading fixed at arming, and ends (retires or
+  finishes its choke wait) within RETREAT_BOUND boards; the same holds for a
+  fresh process bitten before its first step on the floor.  Boards after
+  the posted read that are not its landing -- a refused read then a step, a
+  spent read whose teleport was blocked then a step, a refused read then a
+  jump not of the player's making -- record no landing.
 - The dead-end retirement of 0f71f358 is still pinned on the recorded boards
   4639-4775: that branch forgets the posted Teleportation read before the
   landing (declared private-state injection), so the pre-teleport hit arms
@@ -104,6 +111,22 @@ LANDING = Position(27, 72)
 PRE_TELEPORT = Position(26, 147)
 # An unseen spell hit is itself an emergency teleport; a bite is the retreat's.
 UNSEEN_BITE = "何かに噛まれた。"
+# Keypad steps (the bot's movement keys).
+STEPS = {
+    "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+    "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
+}
+# Boards allowed for a retreat to end: the walk to a choke plus the choke
+# wait (BREEDER_CONTAINMENT_WINDOW, 60 boards) with room to spare.
+RETREAT_BOUND = 150
+TELEPORT_SCROLLS_BEFORE_READ = 15
+
+
+def _teleport_stack(board):
+    return next(
+        item for item in board["inventory"]
+        if item["tval"] == 70 and item["sval"] == 9
+    )
 
 
 def _sha(path: Path) -> str:
@@ -177,6 +200,68 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
         cls.new_hit_policy = copy.deepcopy(cls.landing_policy)
         cls.new_hit_row, cls.new_hit_board = decide(
             cls.new_hit_policy, json.dumps(after_landing, ensure_ascii=False))
+
+        def walk_out(policy, key, board, bound):
+            """CONSTRUCTED continuation: the quiet board repeated with the
+            player moved by each posted step, until the retreat ends."""
+            y, x = board["player"]["y"], board["player"]["x"]
+            turn, rows = board["turn"], []
+            for _ in range(bound):
+                dy, dx = STEPS.get(key, (0, 0))
+                y, x, turn = y + dy, x + dx, turn + 10
+                quiet = copy.deepcopy(board)
+                quiet["turn"] = turn
+                quiet["player"]["y"], quiet["player"]["x"] = y, x
+                quiet["messages"] = []
+                (key, reason), _board = decide(
+                    policy, json.dumps(quiet, ensure_ascii=False))
+                rows.append((reason, (y, x), policy._unseen_retreat_floor))
+                if policy._unseen_retreat_floor is None:
+                    break
+            return rows
+
+        # F1: the retreat armed by (b) ends within a bounded number of boards.
+        cls.walk_policy = copy.deepcopy(cls.new_hit_policy)
+        cls.walk_rows = walk_out(
+            cls.walk_policy, cls.new_hit_row[0], after_landing, RETREAT_BOUND)
+
+        # F1, the older path with nothing walked yet: a fresh process whose
+        # first board of the floor is the landing board, bitten on the next
+        # board without having moved.
+        arrival = _policy(directory, monrace)
+        arrival._character_calibration_path.write_bytes(
+            CALIBRATION.read_bytes())
+        arrival.consume_skill_knowledge(knowledge)
+        cls.arrival_first_row, _board = decide(arrival, inputs[ARMED])
+        cls.arrival_hit_row, cls.arrival_hit_board = decide(
+            arrival, json.dumps(after_landing, ensure_ascii=False))
+        cls.arrival_direction = arrival._unseen_retreat_direction
+        cls.arrival_rows = walk_out(
+            arrival, cls.arrival_hit_row[0], after_landing, RETREAT_BOUND)
+
+        # F2 (CONSTRUCTED from the read board 4638): boards after the posted
+        # read that are not its landing.
+        def after_read(position, scrolls, source):
+            board = json.loads(inputs[source])
+            board["turn"] = json.loads(inputs[ARMED])["turn"]
+            board["player"]["y"], board["player"]["x"] = position
+            board["messages"] = []
+            _teleport_stack(board)["count"] = scrolls
+            branch = copy.deepcopy(policy)
+            row, observed = decide(branch, json.dumps(board, ensure_ascii=False))
+            return row, observed, branch
+
+        # (i) refused read (confused/blind: no energy, stack intact), then a
+        # step back to (25, 146).
+        cls.refused_step = after_read(
+            (25, 146), TELEPORT_SCROLLS_BEFORE_READ, TELEPORT)
+        # (ii) read spent but the teleport blocked, then the same step.
+        cls.blocked_step = after_read(
+            (25, 146), TELEPORT_SCROLLS_BEFORE_READ - 1, TELEPORT)
+        # (iii) refused read, then a jump not of the player's making (the
+        # recorded landing board with the stack intact).
+        cls.refused_jump = after_read(
+            (LANDING.y, LANDING.x), TELEPORT_SCROLLS_BEFORE_READ, ARMED)
 
         # The dead-end retirement branch: the retreat armed as live armed it.
         # DECLARED private-state injection: forgets the posted Teleportation read so the pre-teleport hit arms the retreat as live did, keeping the 0f71f358 dead-end pin on recorded boards.
@@ -293,10 +378,52 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "unseen:reverse-choke")
         self.assertEqual(policy._unseen_retreat_floor, board.floor_key)
         self.assertEqual(policy._escape_state.owner, "unseen")
-        # No movement since the landing: no direction, never the jump's far
-        # side (-1, 75), the 100+ cell walk back to the attack.
-        self.assertIsNone(policy._unseen_retreat_direction)
+        # No movement since the landing: the heading is fixed at arming from
+        # one step out of the landing cell, never the jump's far side
+        # (-1, 75), the 100+ cell walk back to the attack.
+        dy, dx = policy._unseen_retreat_direction
+        self.assertEqual(max(abs(dy), abs(dx)), 1)
         self.assertNotEqual(key, self._live(ARMED)[0])
+
+    def _assert_retreat_ends(self, rows):
+        reasons = [row[0] for row in rows]
+        self.assertTrue(rows, "no board after the arming")
+        # The retreat ran and then ended: retired with its owner released.
+        self.assertIsNone(rows[-1][2], reasons[-5:])
+        self.assertLessEqual(len(rows), RETREAT_BOUND)
+        self.assertTrue(all(r.startswith("unseen:") for r in reasons[:-1]),
+                        reasons)
+        self.assertIn("unseen:reverse-choke", reasons)
+
+    def test_post_landing_retreat_ends_within_bound(self):
+        # CONSTRUCTED continuation of (b).
+        self.assertEqual(self.new_hit_row[1], "unseen:reverse-choke")
+        self._assert_retreat_ends(self.walk_rows)
+        self.assertNotEqual(self.walk_policy._escape_state.owner, "unseen")
+
+    def test_first_board_hit_retreat_ends_within_bound(self):
+        # CONSTRUCTED: a hit before the first step on a floor.
+        self.assertFalse(self.arrival_first_row[1].startswith("unseen:"))
+        self.assertEqual(self.arrival_hit_board.player.position, LANDING)
+        self.assertEqual(self.arrival_hit_row[1], "unseen:reverse-choke")
+        dy, dx = self.arrival_direction
+        self.assertEqual(max(abs(dy), abs(dx)), 1)
+        self._assert_retreat_ends(self.arrival_rows)
+
+    def test_read_without_a_landing_is_not_a_landing(self):
+        # CONSTRUCTED boards (F2).
+        for name, (row, board, policy) in (
+            ("refused-then-step", self.refused_step),
+            ("blocked-then-step", self.blocked_step),
+            ("refused-then-jump", self.refused_jump),
+        ):
+            with self.subTest(name):
+                self.assertNotEqual(board.player.position, PRE_TELEPORT)
+                self.assertIsNone(policy._recent_since_teleport)
+                self.assertIsNone(policy._teleport_read_watch)
+                # The hit was not escaped by the player's own teleport, so it
+                # still arms the retreat.
+                self.assertEqual(row[1], "unseen:reverse-choke", row)
 
     def test_retired_retreat_does_not_take_the_dead_end_back(self):
         self.assertEqual(self._live(REVERSAL), ("6", "unseen:reverse-choke"))

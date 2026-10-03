@@ -6,7 +6,7 @@ from hengbot.claim_goal_typing import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, Snapshot
+from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile
 from hengbot.policy_types import TownVisitLedger
@@ -975,10 +975,27 @@ class ObservationMixin:
         # the last pre-teleport cell, walked 100+ cells back to the attack.
         teleport_watch = getattr(self, "_teleport_read_watch", None)
         if teleport_watch is not None:
-            read_floor, read_position, read_turn = teleport_watch
+            read_floor, read_position, read_turn, read_count = teleport_watch
+            position = snapshot.player.position
+            # A landing is the read spent (one scroll fewer) AND a jump (two
+            # or more cells).  Either alone misleads: a refused read (cmd-
+            # read.cpp: no reading while confused/blind, no energy spent)
+            # followed by a step moves the player one cell with the stack
+            # intact; a read whose teleport was blocked spends the scroll and
+            # a later step moves one cell; a refused read followed by a
+            # monster's teleport-to jumps with the stack intact.
+            spent = sum(
+                item.count
+                for item in snapshot.inventory
+                if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_TELEPORT
+            ) < read_count
+            jumped = max(
+                abs(position.y - read_position.y),
+                abs(position.x - read_position.x),
+            ) >= 2
             if read_floor != snapshot.floor_key:
                 self._teleport_read_watch = None
-            elif snapshot.player.position != read_position:
+            elif spent and jumped:
                 self._teleport_read_watch = None
                 self._recent_since_teleport = (snapshot.floor_key, 0)
                 landing_hit = (
@@ -989,8 +1006,9 @@ class ObservationMixin:
                 if not landing_hit:
                     self._unseen_hit_pending_floor = None
                 self._clear_unseen_retreat()
-            elif snapshot.turn > read_turn:
-                # The turn passed without the jump: the read did not teleport.
+            elif snapshot.turn > read_turn or position != read_position:
+                # The game moved on without the landing: the read did not
+                # teleport the player.
                 self._teleport_read_watch = None
         unexplained = (
             self._took_damage

@@ -1602,9 +1602,20 @@ class SupplyMixin:
 
         if not active:
             self._unseen_retreat_floor = snapshot.floor_key
-            self._unseen_retreat_direction = self._recent_reverse_direction(
-                player.position
-            )
+            direction = self._recent_reverse_direction(player.position)
+            if direction is None:
+                # Nothing walked to reverse yet (hit on the landing cell of
+                # the player's own teleport, or before the first step on a
+                # floor).  Fix one heading now: without one every board took
+                # an unaimed step, never set a choke target, and the retreat
+                # neither waited nor retired until the floor changed.
+                first_step = self._least_visited_neighbor(snapshot)
+                if first_step is not None:
+                    direction = (
+                        first_step.y - player.position.y,
+                        first_step.x - player.position.x,
+                    )
+            self._unseen_retreat_direction = direction
             self._unseen_retreat_target = None
             self._unseen_choke_position = None
             self._unseen_wait_remaining = 0
