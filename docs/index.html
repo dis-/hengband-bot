@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>判断ラダー — Hengband bot</title>
+<meta name="description" content="変愚蛮怒の外部ボットが毎ターン相談する判断の段を、上から順に並べた地図。実機の決定ログでの発火回数を重ねている。">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f6f5f2;
+  --surface-1: #fcfcfb;
+  --surface-2: #f0efec;
+  --border:    #dcdbd5;
+  --border-strong: #c3c2b7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #76756f;
+  --accent:    #2a78d6;
+  --seq-100: #cde2fb; --seq-250: #86b6ef; --seq-400: #3987e5;
+  --seq-550: #1c5cab; --seq-700: #0d366b;
+  --cold: #c3c2b7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #141413;
+    --surface-1: #1a1a19;
+    --surface-2: #242423;
+    --border:    #35352f;
+    --border-strong: #4a4a44;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #8f8e85;
+    --accent:    #3987e5;
+    --seq-100: #184f95; --seq-250: #1c5cab; --seq-400: #2a78d6;
+    --seq-550: #5598e7; --seq-700: #9ec5f4;
+    --cold: #4a4a44;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #141413;
+  --surface-1: #1a1a19;
+  --surface-2: #242423;
+  --border:    #35352f;
+  --border-strong: #4a4a44;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #8f8e85;
+  --accent:    #3987e5;
+  --seq-100: #184f95; --seq-250: #1c5cab; --seq-400: #2a78d6;
+  --seq-550: #5598e7; --seq-700: #9ec5f4;
+  --cold: #4a4a44;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 32px 16px 96px; }
+a { color: var(--accent); }
+code, .mono {
+  font-family: "Cascadia Mono", "Consolas", ui-monospace, SFMono-Regular,
+    Menlo, monospace;
+  font-size: 0.86em;
+}
+
+header h1 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: .01em; }
+header p.lede { margin: 0 0 18px; color: var(--text-secondary); max-width: 62ch; }
+.meta {
+  display: flex; flex-wrap: wrap; gap: 6px 20px;
+  padding: 12px 14px; margin-bottom: 20px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  font-size: .82rem; color: var(--text-secondary);
+}
+.meta b { color: var(--text-primary); font-weight: 600; }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-bottom: 14px;
+}
+.controls input[type="search"], .controls select {
+  font: inherit; font-size: .88rem;
+  padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-1); color: var(--text-primary);
+}
+.controls input[type="search"] { min-width: 220px; flex: 1 1 220px; }
+.controls label.check {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .85rem; color: var(--text-secondary); cursor: pointer;
+}
+.controls button {
+  font: inherit; font-size: .85rem; cursor: pointer;
+  padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-1); color: var(--text-primary);
+}
+.controls button[aria-pressed="true"] {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+.legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: .78rem; color: var(--text-muted); margin-bottom: 22px;
+}
+.legend .sw {
+  display: inline-block; width: 26px; height: 10px; border-radius: 3px;
+  border: 1px solid rgba(128,128,128,.25);
+}
+
+section.band { margin-bottom: 34px; }
+section.band > h2 {
+  font-size: 1.02rem; margin: 0 0 2px;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+section.band > h2 .en { font-size: .74rem; color: var(--text-muted); font-weight: 400; }
+section.band > p.note { margin: 0 0 12px; font-size: .84rem; color: var(--text-secondary); }
+
+.rung {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.rung.cold { background: transparent; border-style: dashed; }
+.rung > .row { list-style: none; }
+.rung > .row::-webkit-details-marker { display: none; }
+.rung > .row {
+  display: grid;
+  grid-template-columns: 44px minmax(0,1fr) 150px 74px;
+  gap: 10px; align-items: center;
+  width: 100%; text-align: left;
+  padding: 9px 12px;
+  background: none; border: 0; color: inherit; font: inherit; cursor: pointer;
+}
+.rung > .row:hover { background: var(--surface-2); }
+.rung > .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rank {
+  font-size: .72rem; color: var(--text-muted);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.name { min-width: 0; }
+.name .pname {
+  font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  font-size: .82rem; color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.name .fam {
+  margin-left: 8px; font-size: .72rem; color: var(--text-secondary);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+}
+.name .doc {
+  display: block; font-size: .78rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bar { height: 10px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 4px; }
+.hits {
+  font-size: .8rem; text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.rung.cold .hits { color: var(--text-muted); }
+
+.detail {
+  display: none;
+  padding: 2px 14px 16px 66px;
+  border-top: 1px solid var(--border);
+  font-size: .86rem;
+}
+.rung[open] .detail { display: block; }
+.detail .docfull { margin: 10px 0; color: var(--text-secondary); max-width: 74ch; }
+.detail dl { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 4px 14px; margin: 8px 0; }
+.detail dt { color: var(--text-muted); font-size: .78rem; }
+.detail dd { margin: 0; }
+.detail ul.counts { list-style: none; margin: 2px 0; padding: 0; }
+.detail ul.counts li {
+  display: grid; grid-template-columns: minmax(0,1fr) 54px; gap: 10px;
+  align-items: center; padding: 1px 0;
+}
+.detail ul.counts span.n { text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.detail .src a { font-size: .82rem; }
+
+table.grid { width: 100%; border-collapse: collapse; font-size: .84rem; }
+table.grid th, table.grid td {
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.grid th { color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.grid td:nth-child(2), table.grid td:nth-child(3),
+table.grid td:nth-child(4) { white-space: nowrap; }
+table.grid td:last-child { color: var(--text-secondary); }
+.scroller { overflow-x: auto; }
+
+.empty { color: var(--text-muted); font-size: .88rem; padding: 18px 0; }
+footer { margin-top: 48px; font-size: .78rem; color: var(--text-muted); }
+
+@media (max-width: 720px) {
+  .wrap { padding: 20px 14px 72px; }
+  .rung > .row { grid-template-columns: 34px minmax(0,1fr) 62px; gap: 8px; }
+  .bar { display: none; }
+  .detail { padding-left: 14px; }
+  .name .doc { white-space: normal; }
+  .name .pname { display: block; }
+  .name .fam { display: inline-block; margin: 2px 0 0; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>判断ラダー</h1>
+  <p class="lede">
+    変愚蛮怒の外部ボットは、毎ターンこの段を上から順に相談して、次の1手を決める。
+    先に答えた段が勝つ。色の濃さと棒は、実機の決定ログでその段が実際に答えた回数。
+  </p>
+</header>
+
+<div class="meta" id="meta"></div>
+
+<div class="controls">
+  <input type="search" id="q" placeholder="段・家族・理由で絞る" aria-label="絞り込み">
+  <select id="fam" aria-label="家族で絞る"><option value="">すべての家族</option></select>
+  <label class="check"><input type="checkbox" id="hot"> 答えた段だけ</label>
+  <button id="view" aria-pressed="false">表で見る</button>
+  <button id="theme" aria-pressed="false" title="明暗を切り替える">明暗</button>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<main id="out" aria-live="polite"></main>
+
+<footer>
+  <span id="src"></span>
+</footer>
+</div>
+
+<script>
+const STEPS = [
+  [1,     'var(--seq-100)'],
+  [10,    'var(--seq-250)'],
+  [100,   'var(--seq-400)'],
+  [1000,  'var(--seq-550)'],
+  [Infinity, 'var(--seq-700)'],
+];
+const shade = n => n <= 0 ? 'var(--cold)' : STEPS.find(s => n < s[0] * 10)[1];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = n => n.toLocaleString('ja-JP');
+
+let DATA = null, MAX = 1;
+
+function barWidth(n) {
+  if (n <= 0) return 0;
+  return Math.max(3, Math.log10(n + 1) / Math.log10(MAX + 1) * 100);
+}
+
+function counts(title, rows, total) {
+  if (!rows.length) return '';
+  const items = rows.map(([name, n]) => `<li><code>${esc(name)}</code>` +
+    `<span class="n">${num(n)}</span></li>`).join('');
+  return `<dt>${title}</dt><dd><ul class="counts">${items}</ul></dd>`;
+}
+
+function sourceLink(r) {
+  if (!r.file) return '<span class="mono">（呼び出し点のない仮想の段）</span>';
+  const href = DATA.blob_base + r.file + '#L' + r.line;
+  return `<a href="${href}" target="_blank" rel="noopener">` +
+    `<code>${esc(r.file)}:${r.line}</code></a>`;
+}
+
+function detail(r) {
+  const parts = [];
+  if (r.doc) {
+    parts.push(`<p class="docfull">${esc(r.doc)}` +
+      (r.doc_from === 'call-site'
+        ? ' <span class="mono" style="color:var(--text-muted)">（呼び出し点の注記）</span>' : '') +
+      '</p>');
+  }
+  const dl = [];
+  dl.push(`<dt>順位</dt><dd>rank ${r.rank}` +
+    (r.town_rank ? '（町の用事と同順位）' : '') +
+    (r.ordinary ? '・家族の既定の段' : '') +
+    (r.owns_transaction ? '・取引を握る段' : '') + '</dd>');
+  if (r.reasons.length) {
+    dl.push('<dt>受け持つ理由</dt><dd>' +
+      r.reasons.map(x => `<code>${esc(x)}</code>`).join(' ') + '</dd>');
+  }
+  dl.push(counts('実機の理由', r.log_reasons));
+  dl.push(counts('目的', r.log_objectives));
+  dl.push(counts('送ったキー', r.log_keys));
+  dl.push(`<dt>ソース</dt><dd class="src">${sourceLink(r)}</dd>`);
+  parts.push('<dl>' + dl.filter(Boolean).join('') + '</dl>');
+  return `<div class="detail">${parts.join('')}</div>`;
+}
+
+function rungHtml(r) {
+  const cold = r.hits === 0;
+  const w = barWidth(r.hits);
+  return `<details class="rung${cold ? ' cold' : ''}" id="r-${esc(r.name)}">` +
+    `<summary class="row">` +
+      `<span class="rank">${r.rank}</span>` +
+      `<span class="name"><span class="pname">${esc(r.name)}</span>` +
+        `<span class="fam">${esc(r.family_ja)}</span>` +
+        (r.doc ? `<span class="doc">${esc(r.doc)}</span>` : '') +
+      `</span>` +
+      `<span class="bar" aria-hidden="true">` +
+        (w ? `<i style="width:${w.toFixed(1)}%;background:${shade(r.hits)}"></i>` : '') +
+      `</span>` +
+      `<span class="hits">${cold ? '—' : num(r.hits)}</span>` +
+    `</summary>${detail(r)}</details>`;
+}
+
+function tableHtml(rows) {
+  const body = rows.map(r => `<tr>` +
+    `<td class="num">${r.rank}</td>` +
+    `<td><code>${esc(r.name)}</code></td>` +
+    `<td>${esc(r.family_ja)}</td>` +
+    `<td>${esc(sectionLabel(r.section))}</td>` +
+    `<td class="num">${r.hits ? num(r.hits) : '—'}</td>` +
+    `<td>${esc(r.doc)}</td></tr>`).join('');
+  return `<div class="scroller"><table class="grid"><thead><tr>` +
+    `<th>rank</th><th>段</th><th>家族</th><th>区分</th>` +
+    `<th>答えた回数</th><th>説明</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+const sectionLabel = name =>
+  (DATA.sections.find(s => s.name === name) || {}).label || name;
+
+function filtered() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const fam = document.getElementById('fam').value;
+  const hot = document.getElementById('hot').checked;
+  return DATA.rungs.filter(r => {
+    if (hot && !r.hits) return false;
+    if (fam && r.family !== fam) return false;
+    if (!q) return true;
+    const hay = [r.name, r.family, r.family_ja, r.doc, r.reasons.join(' '),
+      r.log_reasons.map(x => x[0]).join(' ')].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function render() {
+  const rows = filtered();
+  const out = document.getElementById('out');
+  const asTable = document.getElementById('view').getAttribute('aria-pressed') === 'true';
+  if (!rows.length) { out.innerHTML = '<p class="empty">当てはまる段がない。</p>'; return; }
+  if (asTable) { out.innerHTML = tableHtml(rows); return; }
+  out.innerHTML = DATA.sections.map(sec => {
+    const mine = rows.filter(r => r.section === sec.name);
+    if (!mine.length) return '';
+    const hits = mine.reduce((a, r) => a + r.hits, 0);
+    return `<section class="band"><h2>${esc(sec.label)}` +
+      `<span class="en">${esc(sec.name)} · ${mine.length}段 · ${num(hits)}回</span></h2>` +
+      `<p class="note">${esc(sec.note)}</p>` +
+      mine.map(rungHtml).join('') + '</section>';
+  }).join('');
+}
+
+function boot(data) {
+  DATA = data;
+  MAX = Math.max(1, ...data.rungs.map(r => r.hits));
+  const hot = data.rungs.filter(r => r.hits).length;
+  const span = data.log.first && data.log.last
+    ? `${data.log.first.slice(0, 16).replace('T', ' ')} 〜 ${data.log.last.slice(0, 16).replace('T', ' ')}`
+    : '—';
+  document.getElementById('meta').innerHTML = [
+    `段の数 <b>${data.rungs.length}</b>`,
+    `答えた段 <b>${hot}</b> ／ 眠っている段 <b>${data.rungs.length - hot}</b>`,
+    `決定 <b>${num(data.log.decisions)}</b> 件（${data.log.files} 本のログ）`,
+    `期間 <b>${span}</b>`,
+  ].map(x => `<span>${x}</span>`).join('');
+
+  const sel = document.getElementById('fam');
+  data.families.slice().sort((a, b) => b.hits - a.hits).forEach(f => {
+    const o = document.createElement('option');
+    o.value = f.name;
+    o.textContent = `${f.label}（${f.count}段・${num(f.hits)}回）`;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('legend').innerHTML =
+    '<span>答えた回数</span>' +
+    [['0（未観測）', 'var(--cold)'], ['1〜9', 'var(--seq-100)'],
+     ['10〜99', 'var(--seq-250)'], ['100〜999', 'var(--seq-400)'],
+     ['1,000〜9,999', 'var(--seq-550)'], ['10,000以上', 'var(--seq-700)']]
+    .map(([t, c]) => `<span><i class="sw" style="background:${c}"></i> ${t}</span>`)
+    .join('');
+
+  document.getElementById('src').innerHTML =
+    `claim_ladder.py と実機の bot-decisions.jsonl から生成（` +
+    `<code>scripts/build_ladder_page.py</code>）。` +
+    `commit <code>${esc(data.commit.slice(0, 8))}</code>・${esc(data.generated)}`;
+
+  ['q', 'fam', 'hot'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render));
+  document.getElementById('view').addEventListener('click', e => {
+    const on = e.currentTarget.getAttribute('aria-pressed') === 'true';
+    e.currentTarget.setAttribute('aria-pressed', String(!on));
+    e.currentTarget.textContent = on ? '表で見る' : '地図で見る';
+    render();
+  });
+  document.getElementById('theme').addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  });
+  render();
+}
+
+fetch('data/ladder.json')
+  .then(r => r.json())
+  .then(boot)
+  .catch(e => {
+    document.getElementById('out').innerHTML =
+      '<p class="empty">data/ladder.json を読めなかった。' + esc(e.message) + '</p>';
+  });
+</script>
+</body>
+</html>

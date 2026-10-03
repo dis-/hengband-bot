@@ -1,0 +1,4801 @@
+{
+ "generated": "2026-10-03T22:06:58Z",
+ "commit": "2ab89e0da1eee9fd54d8a610452110b0897c6736",
+ "blob_base": "https://github.com/dis-/hengband-bot/blob/2ab89e0da1eee9fd54d8a610452110b0897c6736/",
+ "sections": [
+  {
+   "name": "rewrite",
+   "label": "書き換え",
+   "note": "ラダーが答えを出した後に、その答えを差し替える段"
+  },
+  {
+   "name": "decide",
+   "label": "本体の優先順位",
+   "note": "_decide が上から順に相談していく段"
+  },
+  {
+   "name": "town",
+   "label": "町の用事",
+   "note": "_decide に呼び出し点がなく、町の調停役が選ぶ段"
+  },
+  {
+   "name": "fallback",
+   "label": "最後の受け皿",
+   "note": "どの段も答えなかったときに拾う段"
+  }
+ ],
+ "families": [
+  {
+   "name": "bookkeeping",
+   "label": "記録と保存",
+   "count": 3,
+   "hits": 374
+  },
+  {
+   "name": "combat",
+   "label": "戦闘",
+   "count": 4,
+   "hits": 2153
+  },
+  {
+   "name": "cross-town",
+   "label": "町の間の移動",
+   "count": 1,
+   "hits": 85
+  },
+  {
+   "name": "curse-enchant",
+   "label": "呪いと強化",
+   "count": 2,
+   "hits": 22
+  },
+  {
+   "name": "departure",
+   "label": "出発と帰還",
+   "count": 7,
+   "hits": 1103
+  },
+  {
+   "name": "detectors",
+   "label": "異常の検出",
+   "count": 10,
+   "hits": 1023
+  },
+  {
+   "name": "equipment-opt",
+   "label": "装備の最適化",
+   "count": 1,
+   "hits": 0
+  },
+  {
+   "name": "equipment-txn",
+   "label": "装備の取引",
+   "count": 7,
+   "hits": 642
+  },
+  {
+   "name": "escape",
+   "label": "脱出",
+   "count": 8,
+   "hits": 3145
+  },
+  {
+   "name": "esp-threat",
+   "label": "テレパシーの脅威",
+   "count": 2,
+   "hits": 0
+  },
+  {
+   "name": "explore",
+   "label": "探索",
+   "count": 2,
+   "hits": 14654
+  },
+  {
+   "name": "floor-loot",
+   "label": "床の戦利品",
+   "count": 5,
+   "hits": 2338
+  },
+  {
+   "name": "fundraising",
+   "label": "資金稼ぎ",
+   "count": 2,
+   "hits": 2877
+  },
+  {
+   "name": "home-errand",
+   "label": "自宅の用事",
+   "count": 1,
+   "hits": 32
+  },
+  {
+   "name": "home-scan",
+   "label": "自宅の確認",
+   "count": 1,
+   "hits": 236
+  },
+  {
+   "name": "home-visit",
+   "label": "自宅の訪問",
+   "count": 2,
+   "hits": 363
+  },
+  {
+   "name": "hunt",
+   "label": "狩り",
+   "count": 2,
+   "hits": 84
+  },
+  {
+   "name": "identification",
+   "label": "鑑定",
+   "count": 2,
+   "hits": 126
+  },
+  {
+   "name": "idle",
+   "label": "手待ち",
+   "count": 1,
+   "hits": 163
+  },
+  {
+   "name": "misc",
+   "label": "その他",
+   "count": 1,
+   "hits": 0
+  },
+  {
+   "name": "positioning",
+   "label": "位置取り",
+   "count": 7,
+   "hits": 261
+  },
+  {
+   "name": "quest-request",
+   "label": "クエストの受注",
+   "count": 6,
+   "hits": 1315
+  },
+  {
+   "name": "quest-sweep",
+   "label": "クエストの掃討",
+   "count": 1,
+   "hits": 829
+  },
+  {
+   "name": "rumor",
+   "label": "うわさ集め",
+   "count": 1,
+   "hits": 0
+  },
+  {
+   "name": "shop-buy",
+   "label": "店での購入",
+   "count": 1,
+   "hits": 584
+  },
+  {
+   "name": "shop-sell",
+   "label": "店での売却",
+   "count": 1,
+   "hits": 74
+  },
+  {
+   "name": "store-router",
+   "label": "店の出入り",
+   "count": 3,
+   "hits": 1384
+  },
+  {
+   "name": "survival",
+   "label": "生存",
+   "count": 9,
+   "hits": 416
+  },
+  {
+   "name": "town-plan",
+   "label": "町の段取り",
+   "count": 2,
+   "hits": 583
+  },
+  {
+   "name": "unregistered",
+   "label": "未登録",
+   "count": 1,
+   "hits": 0
+  }
+ ],
+ "log": {
+  "files": 109,
+  "decisions": 35088,
+  "unrunged": 101,
+  "first": "2026-10-01T21:57:17+0900",
+  "last": "2026-10-04T07:06:51+0900"
+ },
+ "rungs": [
+  {
+   "index": 0,
+   "name": "_refuse_no_progress_cycle",
+   "producer": "_refuse_no_progress_cycle",
+   "family": "detectors",
+   "section": "rewrite",
+   "rank": 0,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_helpers.py",
+   "line": 103,
+   "doc": "Refuse a repeated transition after an equivalent-state cycle.",
+   "doc_from": "docstring",
+   "hits": 373,
+   "log_reasons": [
+    [
+     "town-progress-invariant:continue-observed-shop",
+     280
+    ],
+    [
+     "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach",
+     14
+    ],
+    [
+     "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
+     12
+    ],
+    [
+     "town-progress-invariant:defect:town:unsafe-recall-fallback=>town-progress-invariant:approach",
+     8
+    ],
+    [
+     "town-progress-invariant:defect:shop:approach=>town-progress-invariant:approach",
+     7
+    ],
+    [
+     "town-progress-invariant:defect:fixedquest:q2-travel=>shop:one-shot-sell",
+     7
+    ],
+    [
+     "town-progress-invariant:defect:home:await-fresh-knowledge=>town-progress-invariant:approach",
+     5
+    ],
+    [
+     "town-progress-invariant:defect:periodic:character-dump=>town-progress-invariant:approach",
+     5
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     366
+    ],
+    [
+     "Explore and break out of dead ends",
+     4
+    ],
+    [
+     "Town maintenance and resupply",
+     3
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u001b",
+     280
+    ],
+    [
+     "\u001b`n%.",
+     42
+    ],
+    [
+     "5",
+     15
+    ],
+    [
+     "\u001b`n$.",
+     10
+    ],
+    [
+     "9",
+     9
+    ],
+    [
+     "3",
+     4
+    ]
+   ]
+  },
+  {
+   "index": 1,
+   "name": "_forbid_wait_while_damaged",
+   "producer": "_forbid_wait_while_damaged",
+   "family": "detectors",
+   "section": "rewrite",
+   "rank": 0,
+   "reasons": [
+    "no-wait:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 299,
+   "doc": "Reject every bare no-op after an observed HP loss.",
+   "doc_from": "docstring",
+   "hits": 93,
+   "log_reasons": [
+    [
+     "no-wait:least-visited",
+     54
+    ],
+    [
+     "no-wait:escape-scroll",
+     38
+    ],
+    [
+     "no-wait:melee",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     93
+    ]
+   ],
+   "log_keys": [
+    [
+     "6",
+     18
+    ],
+    [
+     "re",
+     17
+    ],
+    [
+     "4",
+     13
+    ],
+    [
+     "7",
+     8
+    ],
+    [
+     "rh",
+     8
+    ],
+    [
+     "rf",
+     8
+    ]
+   ]
+  },
+  {
+   "index": 2,
+   "name": "_break_positional_oscillation",
+   "producer": "_break_positional_oscillation",
+   "family": "detectors",
+   "section": "rewrite",
+   "rank": 0,
+   "reasons": [
+    "nav:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 552,
+   "doc": "Break a combat-interspersed small-cell navigation oscillation.",
+   "doc_from": "docstring",
+   "hits": 20,
+   "log_reasons": [
+    [
+     "nav:break-oscillation",
+     20
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     20
+    ]
+   ],
+   "log_keys": [
+    [
+     "8",
+     8
+    ],
+    [
+     "6",
+     5
+    ],
+    [
+     "2",
+     3
+    ],
+    [
+     "1",
+     2
+    ],
+    [
+     "9",
+     1
+    ],
+    [
+     "7",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 3,
+   "name": "_break_livelock",
+   "producer": "_break_livelock",
+   "family": "detectors",
+   "section": "rewrite",
+   "rank": 0,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy.py",
+   "line": 9489,
+   "doc": "Guard against re-issuing a move the game keeps rejecting.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 4,
+   "name": "_bound_escape_wait",
+   "producer": "_bound_escape_wait",
+   "family": "detectors",
+   "section": "rewrite",
+   "rank": 0,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy.py",
+   "line": 16698,
+   "doc": "Let registered escape WAITs spend their policy budget, then stop.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 5,
+   "name": "_town_procurement_decision",
+   "producer": "_town_procurement_decision",
+   "family": "town-plan",
+   "section": "rewrite",
+   "rank": 1,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "町の段取り",
+   "file": "src/hengbot/policy_town.py",
+   "line": 1230,
+   "doc": "Enforce composable progress at the one downstream town-result seam.",
+   "doc_from": "docstring",
+   "hits": 577,
+   "log_reasons": [
+    [
+     "town:blocked:no-actionable-claim-owner",
+     373
+    ],
+    [
+     "town:blocked:owner-retired",
+     61
+    ],
+    [
+     "town:blocked:route-nonprogress:quest-request",
+     51
+    ],
+    [
+     "town:blocked:equipment-home-unavailable",
+     27
+    ],
+    [
+     "town:blocked:overweight-home-unreachable",
+     17
+    ],
+    [
+     "town:blocked:restock-store-unreachable",
+     10
+    ],
+    [
+     "town:blocked:repetition",
+     8
+    ],
+    [
+     "town:blocked:departure-unsatisfiable",
+     7
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     577
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     524
+    ],
+    [
+     "9",
+     28
+    ],
+    [
+     "7",
+     9
+    ],
+    [
+     "1",
+     6
+    ],
+    [
+     "3",
+     3
+    ],
+    [
+     "\u001b`n(.",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 6,
+   "name": "_skill_exp_request_key",
+   "producer": "_skill_exp_request_key",
+   "family": "bookkeeping",
+   "section": "rewrite",
+   "rank": 2,
+   "reasons": [
+    "periodic:skill-exp"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "記録と保存",
+   "file": "src/hengbot/policy.py",
+   "line": 9243,
+   "doc": "Request ~f while a protocol-3 board lacks the skill list values.",
+   "doc_from": "docstring",
+   "hits": 175,
+   "log_reasons": [
+    [
+     "periodic:skill-exp-knowledge",
+     175
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     175
+    ]
+   ],
+   "log_keys": [
+    [
+     "~f\u001b",
+     175
+    ]
+   ]
+  },
+  {
+   "index": 7,
+   "name": "_periodic_game_save_key",
+   "producer": "_periodic_game_save_key",
+   "family": "bookkeeping",
+   "section": "rewrite",
+   "rank": 2,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "rewrite: after the ladder has spoken (design 3.3.1)",
+   "family_ja": "記録と保存",
+   "file": "src/hengbot/policy.py",
+   "line": 9330,
+   "doc": "Replace a safe filler with Ctrl-S; saving consumes no game energy.",
+   "doc_from": "docstring",
+   "hits": 89,
+   "log_reasons": [
+    [
+     "periodic:game-save",
+     89
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     89
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u0013",
+     89
+    ]
+   ]
+  },
+  {
+   "index": 8,
+   "name": "_periodic_character_dump_key",
+   "producer": "_periodic_character_dump_key",
+   "family": "bookkeeping",
+   "section": "rewrite",
+   "rank": 2,
+   "reasons": [
+    "periodic:character-dump",
+    "town:character-dump"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "",
+   "family_ja": "記録と保存",
+   "file": "src/hengbot/policy.py",
+   "line": 9347,
+   "doc": "Replace a safe filler action without delaying combat or prompts.",
+   "doc_from": "docstring",
+   "hits": 110,
+   "log_reasons": [
+    [
+     "periodic:character-dump",
+     102
+    ],
+    [
+     "town:character-dump",
+     8
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     102
+    ],
+    [
+     "Town maintenance and resupply",
+     8
+    ]
+   ],
+   "log_keys": [
+    [
+     "Cf\ry\u001b\u001b",
+     110
+    ]
+   ]
+  },
+  {
+   "index": 9,
+   "name": "_equipment_transaction_town_key#1",
+   "producer": "_equipment_transaction_town_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 3,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": true,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 2335,
+   "doc": "Equipment changes have one owner: after Home identification and the complete-page scan, execute the globally optimized loadout transaction. Legacy per-item weapon trials and jewellery upgrades must not race this plan or repeatedly withdraw and re-deposit candidates.",
+   "doc_from": "call-site",
+   "hits": 283,
+   "log_reasons": [
+    [
+     "equipment-transaction:equip",
+     127
+    ],
+    [
+     "equipment-transaction:takeoff",
+     37
+    ],
+    [
+     "equipment-transaction:abandon-blocked",
+     29
+    ],
+    [
+     "equipment-transaction:home-route-unavailable",
+     24
+    ],
+    [
+     "town:entrance-step-off:equipment-transaction:home-route-unavailable",
+     14
+    ],
+    [
+     "equipment-transaction:atomic-deposit",
+     12
+    ],
+    [
+     "equipment-transaction:deposit",
+     12
+    ],
+    [
+     "home:atomic-deposit",
+     11
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     256
+    ],
+    [
+     "Town maintenance and resupply",
+     27
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     71
+    ],
+    [
+     "wj",
+     39
+    ],
+    [
+     "ta",
+     37
+    ],
+    [
+     "wky",
+     36
+    ],
+    [
+     "wja",
+     36
+    ],
+    [
+     "9",
+     9
+    ]
+   ]
+  },
+  {
+   "index": 10,
+   "name": "_equipment_transaction_town_owner_key",
+   "producer": "_equipment_transaction_town_owner_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 4,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": true,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 1841,
+   "doc": "Give a stripped transaction exclusive ownership of town decisions.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 11,
+   "name": "_town_order_step4_key#1",
+   "producer": "_town_order_step4_key",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 5,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy_town.py",
+   "line": 1904,
+   "doc": "Select normal-order step 4 through the permanent town owner.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 12,
+   "name": "_esp_threat_hunt_key",
+   "producer": "_esp_threat_hunt_key",
+   "family": "esp-threat",
+   "section": "decide",
+   "rank": 6,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "テレパシーの脅威",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 805,
+   "doc": "Own the fight of a committed STRONG-tier hunt (esp-threat-rest).",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 13,
+   "name": "_summoner_ranged_kill_key",
+   "producer": "_summoner_ranged_kill_key",
+   "family": "combat",
+   "section": "decide",
+   "rank": 7,
+   "reasons": [
+    "summoner:ranged-kill"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "戦闘",
+   "file": "src/hengbot/policy.py",
+   "line": 11888,
+   "doc": "Finish a summoner in at most three shots before summoning-space flee.",
+   "doc_from": "docstring",
+   "hits": 13,
+   "log_reasons": [
+    [
+     "summoner:ranged-kill",
+     13
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Survive and disengage",
+     13
+    ]
+   ],
+   "log_keys": [
+    [
+     "fm*t5\u001b",
+     8
+    ],
+    [
+     "ft*p96666666t5\u001b",
+     1
+    ],
+    [
+     "fp*p1444t5\u001b",
+     1
+    ],
+    [
+     "fp*t5\u001b",
+     1
+    ],
+    [
+     "fq*t5\u001b",
+     1
+    ],
+    [
+     "fq1",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 14,
+   "name": "_emergency_item",
+   "producer": "_emergency_item",
+   "family": "escape",
+   "section": "decide",
+   "rank": 8,
+   "reasons": [
+    "emergency:",
+    "unseen-recall:",
+    "guardian:teleport-to-cover"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 1580,
+   "doc": "",
+   "doc_from": "",
+   "hits": 125,
+   "log_reasons": [
+    [
+     "emergency:cure-critical",
+     45
+    ],
+    [
+     "emergency:teleport",
+     43
+    ],
+    [
+     "unseen-recall:move",
+     32
+    ],
+    [
+     "emergency:quaff-speed",
+     4
+    ],
+    [
+     "guardian:teleport-to-cover",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     125
+    ]
+   ],
+   "log_keys": [
+    [
+     "qb",
+     45
+    ],
+    [
+     "7",
+     26
+    ],
+    [
+     "rg",
+     11
+    ],
+    [
+     "re",
+     11
+    ],
+    [
+     "rf",
+     9
+    ],
+    [
+     "rd",
+     7
+    ]
+   ]
+  },
+  {
+   "index": 15,
+   "name": "_mana_food_survival_override_key",
+   "producer": "_mana_food_survival_override_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 9,
+   "reasons": [
+    "survival:mana-"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1304,
+   "doc": "Hard weak/fainting MANA-food acquisition and absorption owner.",
+   "doc_from": "docstring",
+   "hits": 21,
+   "log_reasons": [
+    [
+     "survival:mana-absorb",
+     21
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     21
+    ]
+   ],
+   "log_keys": [
+    [
+     "Ei",
+     6
+    ],
+    [
+     "Eh",
+     5
+    ],
+    [
+     "Ek",
+     4
+    ],
+    [
+     "Ej",
+     4
+    ],
+    [
+     "Em",
+     1
+    ],
+    [
+     "Eg",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 16,
+   "name": "_paralyzer_prevention_key",
+   "producer": "_paralyzer_prevention_key",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 10,
+   "reasons": [
+    "threat:paralyzer-avoid",
+    "paralyzer-guard:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 2272,
+   "doc": "Refuse melee and walk away whenever a paralyzer is adjacent.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 17,
+   "name": "_unseen_retreat_intercept_key",
+   "producer": "_unseen_retreat_intercept_key",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 11,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1553,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 18,
+   "name": "_unseen_retreat_key",
+   "producer": "_unseen_retreat_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 12,
+   "reasons": [
+    "unseen:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1576,
+   "doc": "",
+   "doc_from": "",
+   "hits": 1889,
+   "log_reasons": [
+    [
+     "unseen:reverse-choke",
+     1225
+    ],
+    [
+     "unseen:choke-wait",
+     660
+    ],
+    [
+     "loop-detected",
+     4
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Survive and disengage",
+     1885
+    ],
+    [
+     "Stopped for loop investigation",
+     4
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     660
+    ],
+    [
+     "7",
+     251
+    ],
+    [
+     "6",
+     241
+    ],
+    [
+     "1",
+     188
+    ],
+    [
+     "4",
+     186
+    ],
+    [
+     "9",
+     136
+    ]
+   ]
+  },
+  {
+   "index": 19,
+   "name": "_detected_threat_preparation_key",
+   "producer": "_detected_threat_preparation_key",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 13,
+   "reasons": [
+    "detected:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy.py",
+   "line": 17586,
+   "doc": "Anticipate detected threats without treating them as attack targets.",
+   "doc_from": "docstring",
+   "hits": 210,
+   "log_reasons": [
+    [
+     "detected:prepare-choke",
+     140
+    ],
+    [
+     "summoner:hold-choke",
+     68
+    ],
+    [
+     "loop-detected",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     140
+    ],
+    [
+     "Survive and disengage",
+     68
+    ],
+    [
+     "Stopped for loop investigation",
+     2
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     68
+    ],
+    [
+     "3",
+     60
+    ],
+    [
+     "2",
+     32
+    ],
+    [
+     "4",
+     13
+    ],
+    [
+     "6",
+     10
+    ],
+    [
+     "9",
+     8
+    ]
+   ]
+  },
+  {
+   "index": 20,
+   "name": "_return_to_town_key#1",
+   "producer": "_return_to_town_key",
+   "family": "departure",
+   "section": "decide",
+   "rank": 14,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_town.py",
+   "line": 6457,
+   "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 21,
+   "name": "_dark_locomotion_key",
+   "producer": "_dark_locomotion_key",
+   "family": "detectors",
+   "section": "decide",
+   "rank": 15,
+   "reasons": [
+    "dark:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 324,
+   "doc": "Move without light, then expose exhaustion as a visible stop.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 22,
+   "name": "_breakout_restore_weapon_key#1",
+   "producer": "_breakout_restore_weapon_key",
+   "family": "detectors",
+   "section": "decide",
+   "rank": 16,
+   "reasons": [
+    "breakout:restore-combat-weapon"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy.py",
+   "line": 15632,
+   "doc": "Re-arm the weapon displaced solely for a dig-to-stairs breakout.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 23,
+   "name": "_survival_gate_key#1",
+   "producer": "_survival_gate_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 17,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1224,
+   "doc": "Starvation safety, independent of mode and objective (R1).",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 24,
+   "name": "_chest_processing_key#1",
+   "producer": "_chest_processing_key",
+   "family": "floor-loot",
+   "section": "decide",
+   "rank": 18,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "床の戦利品",
+   "file": "src/hengbot/policy_identification.py",
+   "line": 74,
+   "doc": "User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 25,
+   "name": "navigator.decide",
+   "producer": "navigator.decide",
+   "family": "quest-sweep",
+   "section": "decide",
+   "rank": 19,
+   "reasons": [
+    "quest-strategy:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの掃討",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 829,
+   "log_reasons": [
+    [
+     "quest-strategy:placement-sweep",
+     512
+    ],
+    [
+     "quest-strategy:q2-post-blue-nether-worm",
+     83
+    ],
+    [
+     "quest-strategy:q2-fire",
+     52
+    ],
+    [
+     "quest-strategy:q2-residual-153-sweep",
+     36
+    ],
+    [
+     "quest-strategy:melee",
+     30
+    ],
+    [
+     "quest-strategy:q2-light-area",
+     24
+    ],
+    [
+     "quest-strategy:q2-residual-86-sweep",
+     23
+    ],
+    [
+     "quest-strategy:q2-approach-residual-multiplier",
+     20
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     826
+    ],
+    [
+     "Stopped for loop investigation",
+     3
+    ]
+   ],
+   "log_keys": [
+    [
+     "4",
+     238
+    ],
+    [
+     "6",
+     228
+    ],
+    [
+     "8",
+     110
+    ],
+    [
+     "2",
+     72
+    ],
+    [
+     "7",
+     65
+    ],
+    [
+     "rh",
+     24
+    ]
+   ]
+  },
+  {
+   "index": 26,
+   "name": "_town_kill_mob_key",
+   "producer": "_town_kill_mob_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 20,
+   "reasons": [
+    "town:kill-mob"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_town.py",
+   "line": 4500,
+   "doc": "Approach and kill every visible town monster except the player's pets.",
+   "doc_from": "docstring",
+   "hits": 302,
+   "log_reasons": [
+    [
+     "town:kill-mob-approach",
+     302
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     302
+    ]
+   ],
+   "log_keys": [
+    [
+     "7",
+     109
+    ],
+    [
+     "6",
+     39
+    ],
+    [
+     "1",
+     33
+    ],
+    [
+     "4",
+     33
+    ],
+    [
+     "9",
+     30
+    ],
+    [
+     "3",
+     26
+    ]
+   ]
+  },
+  {
+   "index": 27,
+   "name": "_breeder_breakthrough_key",
+   "producer": "_breeder_breakthrough_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 21,
+   "reasons": [
+    "breeder-breakthrough:recall",
+    "breeder-breakthrough:wait-recall"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3484,
+   "doc": "Leave upward once extermination on this floor proved impossible.",
+   "doc_from": "docstring",
+   "hits": 156,
+   "log_reasons": [
+    [
+     "breeder-breakthrough:wait-recall",
+     147
+    ],
+    [
+     "breeder-breakthrough:recall",
+     9
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     156
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     147
+    ],
+    [
+     "re",
+     3
+    ],
+    [
+     "ri",
+     2
+    ],
+    [
+     "rh",
+     1
+    ],
+    [
+     "rd",
+     1
+    ],
+    [
+     "rf",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 28,
+   "name": "_choke_engagement_key",
+   "producer": "_choke_engagement_key",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 22,
+   "reasons": [
+    "melee:choke"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3340,
+   "doc": "",
+   "doc_from": "",
+   "hits": 46,
+   "log_reasons": [
+    [
+     "melee:choke",
+     17
+    ],
+    [
+     "melee:choke-hold",
+     15
+    ],
+    [
+     "melee:choke-reposition",
+     14
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Fight visible threats",
+     46
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     15
+    ],
+    [
+     "2",
+     7
+    ],
+    [
+     "9",
+     7
+    ],
+    [
+     "3",
+     7
+    ],
+    [
+     "4",
+     5
+    ],
+    [
+     "1",
+     4
+    ]
+   ]
+  },
+  {
+   "index": 29,
+   "name": "_ranged_attack_key#1",
+   "producer": "_ranged_attack_key",
+   "family": "combat",
+   "section": "decide",
+   "rank": 23,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "戦闘",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 1120,
+   "doc": "Fire at (or throw oil at) a hostile before it closes.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 30,
+   "name": "_fruitless_disengage_key",
+   "producer": "_fruitless_disengage_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 24,
+   "reasons": [
+    "combat:disengage",
+    "combat:fruitless"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy.py",
+   "line": 16814,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 31,
+   "name": "_breeder_breakthrough_escape_key",
+   "producer": "_breeder_breakthrough_escape_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 25,
+   "reasons": [
+    "breeder-breakthrough:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3542,
+   "doc": "The breakthrough's own exits: ascend, route upstairs, or discover.",
+   "doc_from": "docstring",
+   "hits": 675,
+   "log_reasons": [
+    [
+     "breeder-breakthrough:seek-frontier",
+     410
+    ],
+    [
+     "breeder-breakthrough:seek-upstairs",
+     130
+    ],
+    [
+     "breeder-breakthrough:clear-escape-path",
+     123
+    ],
+    [
+     "loop-detected",
+     7
+    ],
+    [
+     "breeder-breakthrough:ascend",
+     5
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     668
+    ],
+    [
+     "Stopped for loop investigation",
+     7
+    ]
+   ],
+   "log_keys": [
+    [
+     "4",
+     310
+    ],
+    [
+     "6",
+     189
+    ],
+    [
+     "7",
+     72
+    ],
+    [
+     "1",
+     43
+    ],
+    [
+     "8",
+     22
+    ],
+    [
+     "2",
+     16
+    ]
+   ]
+  },
+  {
+   "index": 32,
+   "name": "_melee_swarm_combat_key",
+   "producer": "_melee_swarm_combat_key",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 26,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3113,
+   "doc": "Order ranged repelling, re-arming, and choke combat for melee swarms.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 33,
+   "name": "_flee_step#1",
+   "producer": "_flee_step",
+   "family": "survival",
+   "section": "decide",
+   "rank": 27,
+   "reasons": [
+    "status-threat:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3895,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 35,
+   "log_reasons": [
+    [
+     "status-threat:retreat",
+     18
+    ],
+    [
+     "status-threat:scroll",
+     14
+    ],
+    [
+     "status-threat:stairs",
+     3
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     35
+    ]
+   ],
+   "log_keys": [
+    [
+     "rd",
+     8
+    ],
+    [
+     "re",
+     6
+    ],
+    [
+     "8",
+     6
+    ],
+    [
+     "6",
+     3
+    ],
+    [
+     "9",
+     3
+    ],
+    [
+     "<",
+     3
+    ]
+   ]
+  },
+  {
+   "index": 34,
+   "name": "_blocking_escape_melee_key",
+   "producer": "_blocking_escape_melee_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 28,
+   "reasons": [
+    "combat:disengage-clear-path"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy.py",
+   "line": 18148,
+   "doc": "Bump a weak adjacent blocker when it is the door to an escape route.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 35,
+   "name": "_flee_step#2",
+   "producer": "_flee_step",
+   "family": "escape",
+   "section": "decide",
+   "rank": 29,
+   "reasons": [
+    "flee"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3895,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 300,
+   "log_reasons": [
+    [
+     "summoner:retreat",
+     291
+    ],
+    [
+     "loop-detected",
+     9
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Survive and disengage",
+     291
+    ],
+    [
+     "Stopped for loop investigation",
+     9
+    ]
+   ],
+   "log_keys": [
+    [
+     "3",
+     233
+    ],
+    [
+     "6",
+     21
+    ],
+    [
+     "1",
+     19
+    ],
+    [
+     "2",
+     10
+    ],
+    [
+     "",
+     9
+    ],
+    [
+     "8",
+     4
+    ]
+   ]
+  },
+  {
+   "index": 36,
+   "name": "_direction_key#1",
+   "producer": "_direction_key",
+   "family": "escape",
+   "section": "decide",
+   "rank": 30,
+   "reasons": [
+    "flee:cornered-attack"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "脱出",
+   "file": "src/hengbot/policy.py",
+   "line": 18847,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 37,
+   "name": "_direction_key#2",
+   "producer": "_direction_key",
+   "family": "combat",
+   "section": "decide",
+   "rank": 31,
+   "reasons": [
+    "melee"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "戦闘",
+   "file": "src/hengbot/policy.py",
+   "line": 18847,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 980,
+   "log_reasons": [
+    [
+     "melee",
+     974
+    ],
+    [
+     "melee:restore-weapon",
+     4
+    ],
+    [
+     "unique:quaff-speed",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Fight visible threats",
+     978
+    ],
+    [
+     "Continue conservative progression",
+     2
+    ]
+   ],
+   "log_keys": [
+    [
+     "9",
+     167
+    ],
+    [
+     "7",
+     139
+    ],
+    [
+     "6",
+     135
+    ],
+    [
+     "8",
+     126
+    ],
+    [
+     "3",
+     124
+    ],
+    [
+     "4",
+     124
+    ]
+   ]
+  },
+  {
+   "index": 38,
+   "name": "_ranged_attack_key#2",
+   "producer": "_ranged_attack_key",
+   "family": "combat",
+   "section": "decide",
+   "rank": 32,
+   "reasons": [
+    "ranged:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "戦闘",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 1120,
+   "doc": "Fire at (or throw oil at) a hostile before it closes.",
+   "doc_from": "docstring",
+   "hits": 1160,
+   "log_reasons": [
+    [
+     "ranged:fire-target",
+     530
+    ],
+    [
+     "ranged:fire",
+     526
+    ],
+    [
+     "ranged:fire-offset",
+     104
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     1160
+    ]
+   ],
+   "log_keys": [
+    [
+     "fn*t5\u001b",
+     104
+    ],
+    [
+     "fq*t5\u001b",
+     84
+    ],
+    [
+     "fu*t5\u001b",
+     58
+    ],
+    [
+     "fn6",
+     56
+    ],
+    [
+     "fr*t5\u001b",
+     55
+    ],
+    [
+     "fk*t5\u001b",
+     52
+    ]
+   ]
+  },
+  {
+   "index": 39,
+   "name": "_flee_step#3",
+   "producer": "_flee_step",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 33,
+   "reasons": [
+    "threat:reposition"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3895,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 40,
+   "name": "_hunt_step#1",
+   "producer": "_hunt_step",
+   "family": "hunt",
+   "section": "decide",
+   "rank": 34,
+   "reasons": [
+    "hunt:quest-target"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "狩り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3950,
+   "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 41,
+   "name": "_survival_gate_key#2",
+   "producer": "_survival_gate_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 35,
+   "reasons": [
+    "survival:",
+    "weak-fainting"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1224,
+   "doc": "Starvation safety, independent of mode and objective (R1).",
+   "doc_from": "docstring",
+   "hits": 54,
+   "log_reasons": [
+    [
+     "town:recover",
+     20
+    ],
+    [
+     "item:cure-critical",
+     19
+    ],
+    [
+     "item:cure-status-healing",
+     5
+    ],
+    [
+     "item:heal",
+     4
+    ],
+    [
+     "wilderness:flee",
+     3
+    ],
+    [
+     "rest",
+     2
+    ],
+    [
+     "town:seek-shelter",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Survive and disengage",
+     28
+    ],
+    [
+     "Town maintenance and resupply",
+     21
+    ],
+    [
+     "Continue conservative progression",
+     3
+    ],
+    [
+     "Recover and maintain supplies",
+     2
+    ]
+   ],
+   "log_keys": [
+    [
+     "R&\r",
+     22
+    ],
+    [
+     "qb",
+     20
+    ],
+    [
+     "qc",
+     5
+    ],
+    [
+     "1",
+     3
+    ],
+    [
+     "qa",
+     3
+    ],
+    [
+     "6",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 42,
+   "name": "_mana_food_loot_key",
+   "producer": "_mana_food_loot_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 36,
+   "reasons": [
+    "mana-food:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_supply.py",
+   "line": 1128,
+   "doc": "Recover visible device food before stairs or an ordinary return.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 43,
+   "name": "_kill_quest_floor_recovery_key",
+   "producer": "_kill_quest_floor_recovery_key",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 37,
+   "reasons": [
+    "quest:regen:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy_quest.py",
+   "line": 5706,
+   "doc": "Recover an overshoot, or finish the downward half of regeneration.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 44,
+   "name": "_home_disposal_processing_key",
+   "producer": "_home_disposal_processing_key",
+   "family": "home-visit",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [
+    "home-disposal:"
+   ],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "自宅の訪問",
+   "file": "src/hengbot/policy_home.py",
+   "line": 2925,
+   "doc": "",
+   "doc_from": "",
+   "hits": 358,
+   "log_reasons": [
+    [
+     "home:route-claim-unfulfilled",
+     73
+    ],
+    [
+     "home:weight-overload-deposit",
+     69
+    ],
+    [
+     "home:leave-for-pending-withdraw",
+     59
+    ],
+    [
+     "home:atomic-withdraw",
+     59
+    ],
+    [
+     "home:atomic-deposit",
+     50
+    ],
+    [
+     "home:queue-catalogue-shortage",
+     17
+    ],
+    [
+     "home:store-context-exit",
+     14
+    ],
+    [
+     "town:entrance-step-off:home:atomic-withdraw-complete",
+     4
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     358
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u001b",
+     169
+    ],
+    [
+     "5",
+     31
+    ],
+    [
+     "dn28\rdk\u001b",
+     11
+    ],
+    [
+     "do28\rdl\u001b",
+     10
+    ],
+    [
+     "dk\u001b",
+     8
+    ],
+    [
+     "dn7\r\u001b",
+     8
+    ]
+   ]
+  },
+  {
+   "index": 45,
+   "name": "_home_full_relief_key",
+   "producer": "_home_full_relief_key",
+   "family": "home-visit",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [
+    "home:full-"
+   ],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "自宅の訪問",
+   "file": "src/hengbot/policy_home.py",
+   "line": 91,
+   "doc": "",
+   "doc_from": "",
+   "hits": 5,
+   "log_reasons": [
+    [
+     "home:full-queue-surplus-withdraw",
+     4
+    ],
+    [
+     "home:full-await-knowledge",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     5
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u001b",
+     4
+    ],
+    [
+     "~9\u001b",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 46,
+   "name": "_town_restore_weapon_key",
+   "producer": "_town_restore_weapon_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 3216,
+   "doc": "An already-required combat-weapon restoration is an equipment safety continuation, not new town work.  Finish it before pack-pressure routing can relocate the player and invalidate the prepared mutation.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 47,
+   "name": "_fixed_quest_key#1",
+   "producer": "_fixed_quest_key",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 38,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy_quest.py",
+   "line": 3898,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 48,
+   "name": "_town_space_deposit_key",
+   "producer": "_town_space_deposit_key",
+   "family": "store-router",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "店の出入り",
+   "file": "src/hengbot/policy_town.py",
+   "line": 1868,
+   "doc": "Route shortage relief before any transaction that may need a slot.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 49,
+   "name": "_victory_loot_key",
+   "producer": "_victory_loot_key",
+   "family": "floor-loot",
+   "section": "decide",
+   "rank": 39,
+   "reasons": [
+    "victory:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "床の戦利品",
+   "file": "src/hengbot/policy.py",
+   "line": 15870,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 50,
+   "name": "_conquest_loot_key",
+   "producer": "_conquest_loot_key",
+   "family": "floor-loot",
+   "section": "decide",
+   "rank": 40,
+   "reasons": [
+    "conquest:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "床の戦利品",
+   "file": "src/hengbot/policy_quest.py",
+   "line": 1549,
+   "doc": "",
+   "doc_from": "",
+   "hits": 37,
+   "log_reasons": [
+    [
+     "conquest:seek-loot",
+     29
+    ],
+    [
+     "conquest:pickup",
+     6
+    ],
+    [
+     "conquest:trigger-autodestroy",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     37
+    ]
+   ],
+   "log_keys": [
+    [
+     "9",
+     7
+    ],
+    [
+     "1",
+     7
+    ],
+    [
+     "g",
+     6
+    ],
+    [
+     "3",
+     6
+    ],
+    [
+     "7",
+     4
+    ],
+    [
+     "6",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 51,
+   "name": "_fixed_quest_key#2",
+   "producer": "_fixed_quest_key",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 41,
+   "reasons": [
+    "fixedquest:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy_quest.py",
+   "line": 3898,
+   "doc": "",
+   "doc_from": "",
+   "hits": 1097,
+   "log_reasons": [
+    [
+     "quest:sweep:collect",
+     495
+    ],
+    [
+     "quest:blocked:q2-breeder-recommit",
+     144
+    ],
+    [
+     "fixedquest:q2-travel",
+     132
+    ],
+    [
+     "quest:exit:route",
+     110
+    ],
+    [
+     "fixedquest:request:approach",
+     58
+    ],
+    [
+     "fixedquest:prepare-return",
+     36
+    ],
+    [
+     "fixedquest:claim:approach",
+     36
+    ],
+    [
+     "quest:enter:approach",
+     33
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     1093
+    ],
+    [
+     "Stopped for loop investigation",
+     4
+    ]
+   ],
+   "log_keys": [
+    [
+     "4",
+     253
+    ],
+    [
+     "5",
+     168
+    ],
+    [
+     "6",
+     166
+    ],
+    [
+     "8",
+     116
+    ],
+    [
+     "9",
+     113
+    ],
+    [
+     "2",
+     86
+    ]
+   ]
+  },
+  {
+   "index": 52,
+   "name": "_stat_restore_quaff_key",
+   "producer": "_stat_restore_quaff_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 42,
+   "reasons": [
+    "restore:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_shop.py",
+   "line": 490,
+   "doc": "",
+   "doc_from": "",
+   "hits": 4,
+   "log_reasons": [
+    [
+     "restore:quaff-str",
+     3
+    ],
+    [
+     "restore:quaff-dex",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     4
+    ]
+   ],
+   "log_keys": [
+    [
+     "qd",
+     2
+    ],
+    [
+     "qb",
+     1
+    ],
+    [
+     "qe",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 53,
+   "name": "_experience_potion_quaff_key",
+   "producer": "_experience_potion_quaff_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 43,
+   "reasons": [
+    "experience:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy_shop.py",
+   "line": 662,
+   "doc": "Drink Restore Life Levels, then the Potion of Experience.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 54,
+   "name": "_stat_gain_quaff_key",
+   "producer": "_stat_gain_quaff_key",
+   "family": "survival",
+   "section": "decide",
+   "rank": 44,
+   "reasons": [
+    "stat-gain:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "生存",
+   "file": "src/hengbot/policy.py",
+   "line": 14273,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 55,
+   "name": "_town_order_step4_key#2",
+   "producer": "_town_order_step4_key",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 45,
+   "reasons": [
+    "bounty:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy_town.py",
+   "line": 1904,
+   "doc": "Select normal-order step 4 through the permanent town owner.",
+   "doc_from": "docstring",
+   "hits": 218,
+   "log_reasons": [
+    [
+     "bounty:approach",
+     205
+    ],
+    [
+     "bounty:leave-supplier",
+     13
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     218
+    ]
+   ],
+   "log_keys": [
+    [
+     "7",
+     92
+    ],
+    [
+     "4",
+     83
+    ],
+    [
+     "1",
+     30
+    ],
+    [
+     "\u001b",
+     13
+    ]
+   ]
+  },
+  {
+   "index": 56,
+   "name": "_fundraising_key#1",
+   "producer": "_fundraising_key",
+   "family": "fundraising",
+   "section": "decide",
+   "rank": 46,
+   "reasons": [
+    "fundraise:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "資金稼ぎ",
+   "file": "src/hengbot/policy_fundraising.py",
+   "line": 1100,
+   "doc": "",
+   "doc_from": "",
+   "hits": 2877,
+   "log_reasons": [
+    [
+     "fundraise:dig-to-treasure",
+     886
+    ],
+    [
+     "fundraise:seek-treasure",
+     828
+    ],
+    [
+     "fundraise:seek-loot",
+     646
+    ],
+    [
+     "fundraise:seek-upstairs",
+     324
+    ],
+    [
+     "fundraise:seek-upstairs-explore",
+     60
+    ],
+    [
+     "fundraise:eliminate-multiplier-last-seen",
+     36
+    ],
+    [
+     "fundraise:mining-hard-limit",
+     33
+    ],
+    [
+     "fundraise:eliminate-multiplier",
+     24
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Raise funds on Yeek cave level 1",
+     2877
+    ]
+   ],
+   "log_keys": [
+    [
+     "3",
+     491
+    ],
+    [
+     "7",
+     384
+    ],
+    [
+     "1",
+     368
+    ],
+    [
+     "9",
+     319
+    ],
+    [
+     "T3",
+     275
+    ],
+    [
+     "T1",
+     211
+    ]
+   ]
+  },
+  {
+   "index": 57,
+   "name": "_chest_processing_key#2",
+   "producer": "_chest_processing_key",
+   "family": "floor-loot",
+   "section": "decide",
+   "rank": 47,
+   "reasons": [
+    "chest:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "床の戦利品",
+   "file": "src/hengbot/policy_identification.py",
+   "line": 74,
+   "doc": "User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.",
+   "doc_from": "docstring",
+   "hits": 43,
+   "log_reasons": [
+    [
+     "chest:search",
+     14
+    ],
+    [
+     "chest:collect-contents",
+     12
+    ],
+    [
+     "chest:disarm",
+     6
+    ],
+    [
+     "chest:step-off",
+     6
+    ],
+    [
+     "chest:open",
+     3
+    ],
+    [
+     "chest:approach",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     43
+    ]
+   ],
+   "log_keys": [
+    [
+     "s",
+     14
+    ],
+    [
+     "g",
+     6
+    ],
+    [
+     "9",
+     6
+    ],
+    [
+     "6",
+     3
+    ],
+    [
+     "D6",
+     3
+    ],
+    [
+     "1",
+     3
+    ]
+   ]
+  },
+  {
+   "index": 58,
+   "name": "_normal_loot_key#1",
+   "producer": "_normal_loot_key",
+   "family": "departure",
+   "section": "decide",
+   "rank": 48,
+   "reasons": [
+    "return:seek-loot"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_identification.py",
+   "line": 1110,
+   "doc": "Collect visible drops before shopping or ordinary exploration.",
+   "doc_from": "docstring",
+   "hits": 121,
+   "log_reasons": [
+    [
+     "return:seek-loot",
+     121
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Return to town",
+     121
+    ]
+   ],
+   "log_keys": [
+    [
+     "6",
+     52
+    ],
+    [
+     "3",
+     22
+    ],
+    [
+     "7",
+     14
+    ],
+    [
+     "9",
+     9
+    ],
+    [
+     "1",
+     8
+    ],
+    [
+     "4",
+     7
+    ]
+   ]
+  },
+  {
+   "index": 59,
+   "name": "_navigation_livelock_key",
+   "producer": "_navigation_livelock_key",
+   "family": "detectors",
+   "section": "decide",
+   "rank": 49,
+   "reasons": [
+    "livelock:ascend",
+    "livelock:recall-escape",
+    "livelock:seek-",
+    "livelock:teleport-explore"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 698,
+   "doc": "Leave (or visibly stop on) a floor where navigation is exhausted (R1).",
+   "doc_from": "docstring",
+   "hits": 7,
+   "log_reasons": [
+    [
+     "livelock:recall-escape",
+     6
+    ],
+    [
+     "livelock:seek-window-edge",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     7
+    ]
+   ],
+   "log_keys": [
+    [
+     "rf",
+     6
+    ],
+    [
+     "7",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 60,
+   "name": "_return_to_town_key#2",
+   "producer": "_return_to_town_key",
+   "family": "departure",
+   "section": "decide",
+   "rank": 50,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_town.py",
+   "line": 6457,
+   "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 61,
+   "name": "_return_to_town_key#3",
+   "producer": "_return_to_town_key",
+   "family": "departure",
+   "section": "decide",
+   "rank": 51,
+   "reasons": [
+    "return:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_town.py",
+   "line": 6457,
+   "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
+   "doc_from": "call-site",
+   "hits": 734,
+   "log_reasons": [
+    [
+     "return:wait-recall",
+     697
+    ],
+    [
+     "return:recall",
+     35
+    ],
+    [
+     "descend",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Return to town",
+     732
+    ],
+    [
+     "Reach the next dungeon level",
+     2
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     697
+    ],
+    [
+     "rf",
+     14
+    ],
+    [
+     "rg",
+     7
+    ],
+    [
+     "re",
+     7
+    ],
+    [
+     "rk",
+     3
+    ],
+    [
+     ">\ry",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 62,
+   "name": "_shopping_approach_key#1",
+   "producer": "_shopping_approach_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [
+    "equipment-transaction:acquire-home-catalog",
+    "equipment-transaction:travel-home"
+   ],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_shop.py",
+   "line": 4923,
+   "doc": "Ride native town travel toward the store, walking only as fallback.",
+   "doc_from": "docstring",
+   "hits": 54,
+   "log_reasons": [
+    [
+     "equipment-transaction:travel-home",
+     30
+    ],
+    [
+     "equipment-transaction:travel-home:await-entry",
+     24
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     54
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u001b`n(.",
+     30
+    ],
+    [
+     "5",
+     24
+    ]
+   ]
+  },
+  {
+   "index": 63,
+   "name": "_town_equipped_identification_key",
+   "producer": "_town_equipped_identification_key",
+   "family": "identification",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "鑑定",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 2738,
+   "doc": "Identify worn gear that the equipment optimizer counts incomplete.",
+   "doc_from": "docstring",
+   "hits": 117,
+   "log_reasons": [
+    [
+     "identify:dungeon-equipment",
+     73
+    ],
+    [
+     "identify:normal",
+     19
+    ],
+    [
+     "identify:full",
+     15
+    ],
+    [
+     "identify:pack-pressure",
+     4
+    ],
+    [
+     "identify:full-equipped",
+     4
+    ],
+    [
+     "identify:normal-equipped",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     117
+    ]
+   ],
+   "log_keys": [
+    [
+     "uik",
+     14
+    ],
+    [
+     "rhm",
+     11
+    ],
+    [
+     "ukm",
+     7
+    ],
+    [
+     "ukn",
+     6
+    ],
+    [
+     "rhl\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+     5
+    ],
+    [
+     "rhm\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
+     5
+    ]
+   ]
+  },
+  {
+   "index": 64,
+   "name": "_town_device_processing_key",
+   "producer": "_town_device_processing_key",
+   "family": "identification",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [
+    "identify:device"
+   ],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "鑑定",
+   "file": "src/hengbot/policy_town.py",
+   "line": 2030,
+   "doc": "",
+   "doc_from": "",
+   "hits": 9,
+   "log_reasons": [
+    [
+     "identify:device",
+     9
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     9
+    ]
+   ],
+   "log_keys": [
+    [
+     "rhl",
+     4
+    ],
+    [
+     "rfk",
+     2
+    ],
+    [
+     "rhn",
+     1
+    ],
+    [
+     "reg",
+     1
+    ],
+    [
+     "rgh",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 65,
+   "name": "_heavy_curse_inscription_key",
+   "producer": "_heavy_curse_inscription_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy.py",
+   "line": 15376,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 66,
+   "name": "_town_remove_curse_key",
+   "producer": "_town_remove_curse_key",
+   "family": "curse-enchant",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "呪いと強化",
+   "file": "src/hengbot/policy_town.py",
+   "line": 4724,
+   "doc": "Read a Remove Curse scroll during town prep when a cursed item is worn, so it can be swapped/upgraded and its penalties lifted before diving.",
+   "doc_from": "docstring",
+   "hits": 22,
+   "log_reasons": [
+    [
+     "town:enchant-launcher-tohit",
+     10
+    ],
+    [
+     "town:enchant-launcher-todam",
+     7
+    ],
+    [
+     "town:remove-curse",
+     5
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     22
+    ]
+   ],
+   "log_keys": [
+    [
+     "rhc",
+     13
+    ],
+    [
+     "rg",
+     3
+    ],
+    [
+     "rgc",
+     2
+    ],
+    [
+     "rf",
+     2
+    ],
+    [
+     "rec",
+     1
+    ],
+    [
+     "rfc",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 67,
+   "name": "_town_enchant_launcher_key",
+   "producer": "_town_enchant_launcher_key",
+   "family": "curse-enchant",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "呪いと強化",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 3389,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 68,
+   "name": "_town_random_teleport_suppression_key",
+   "producer": "_town_random_teleport_suppression_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_town.py",
+   "line": 4804,
+   "doc": "Suppress visible or still-hidden random teleport before equipping.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 69,
+   "name": "_equipment_transaction_town_key#2",
+   "producer": "_equipment_transaction_town_key",
+   "family": "equipment-txn",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "装備の取引",
+   "file": "src/hengbot/policy_equipment.py",
+   "line": 2335,
+   "doc": "Equipment changes have one owner: after Home identification and the complete-page scan, execute the globally optimized loadout transaction. Legacy per-item weapon trials and jewellery upgrades must not race this plan or repeatedly withdraw and re-deposit candidates.",
+   "doc_from": "call-site",
+   "hits": 305,
+   "log_reasons": [
+    [
+     "equipment-transaction:takeoff",
+     53
+    ],
+    [
+     "equipment-transaction:await-confirmation",
+     45
+    ],
+    [
+     "town:restore-combat-weapon",
+     38
+    ],
+    [
+     "home:store-context-exit",
+     24
+    ],
+    [
+     "equipment-transaction:deposit",
+     19
+    ],
+    [
+     "equipment-transaction:seek-home-page",
+     16
+    ],
+    [
+     "equipment-transaction:withdraw-missing",
+     15
+    ],
+    [
+     "equipment-transaction:approach-home",
+     13
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     218
+    ],
+    [
+     "Town maintenance and resupply",
+     87
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     73
+    ],
+    [
+     "\u001b",
+     63
+    ],
+    [
+     "tb",
+     47
+    ],
+    [
+     " ",
+     16
+    ],
+    [
+     "dl",
+     12
+    ],
+    [
+     "wkb",
+     8
+    ]
+   ]
+  },
+  {
+   "index": 70,
+   "name": "_normal_loot_key#2",
+   "producer": "_normal_loot_key",
+   "family": "floor-loot",
+   "section": "decide",
+   "rank": 52,
+   "reasons": [
+    "seek-loot",
+    "loot:"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "床の戦利品",
+   "file": "src/hengbot/policy_identification.py",
+   "line": 1110,
+   "doc": "Collect visible drops before shopping or ordinary exploration.",
+   "doc_from": "docstring",
+   "hits": 2258,
+   "log_reasons": [
+    [
+     "seek-loot",
+     2114
+    ],
+    [
+     "pickup",
+     77
+    ],
+    [
+     "trigger-autodestroy",
+     63
+    ],
+    [
+     "loop-detected",
+     4
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Collect visible floor items",
+     2191
+    ],
+    [
+     "Continue conservative progression",
+     63
+    ],
+    [
+     "Stopped for loop investigation",
+     4
+    ]
+   ],
+   "log_keys": [
+    [
+     "7",
+     474
+    ],
+    [
+     "6",
+     364
+    ],
+    [
+     "1",
+     279
+    ],
+    [
+     "3",
+     258
+    ],
+    [
+     "4",
+     251
+    ],
+    [
+     "9",
+     240
+    ]
+   ]
+  },
+  {
+   "index": 71,
+   "name": "_shopping_approach_key#2",
+   "producer": "_shopping_approach_key",
+   "family": "store-router",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "店の出入り",
+   "file": "src/hengbot/policy_shop.py",
+   "line": 4923,
+   "doc": "Ride native town travel toward the store, walking only as fallback.",
+   "doc_from": "docstring",
+   "hits": 1384,
+   "log_reasons": [
+    [
+     "shop:approach",
+     638
+    ],
+    [
+     "shop:travel",
+     558
+    ],
+    [
+     "wilderness:enter-global",
+     75
+    ],
+    [
+     "shop:travel:await-entry",
+     66
+    ],
+    [
+     "wilderness:global-travel",
+     27
+    ],
+    [
+     "store:entry-interrupted-replan",
+     10
+    ],
+    [
+     "loop-detected",
+     6
+    ],
+    [
+     "town:entrance-step-off:shop:approach",
+     2
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     1266
+    ],
+    [
+     "Continue conservative progression",
+     112
+    ],
+    [
+     "Stopped for loop investigation",
+     6
+    ]
+   ],
+   "log_keys": [
+    [
+     "1",
+     247
+    ],
+    [
+     "9",
+     230
+    ],
+    [
+     "\u001b`n(.",
+     204
+    ],
+    [
+     "\u001b`n%.",
+     102
+    ],
+    [
+     "\u001b`n#.",
+     97
+    ],
+    [
+     "3",
+     81
+    ]
+   ]
+  },
+  {
+   "index": 72,
+   "name": "_town_overflow_destroy_key",
+   "producer": "_town_overflow_destroy_key",
+   "family": "town-plan",
+   "section": "decide",
+   "rank": 53,
+   "reasons": [
+    "town:blocked:overflow-no-legal-disposal"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "町の段取り",
+   "file": "src/hengbot/policy_town.py",
+   "line": 2011,
+   "doc": "Free town pack space without creating floor-item pickup loops.",
+   "doc_from": "docstring",
+   "hits": 6,
+   "log_reasons": [
+    [
+     "town:blocked:overflow-no-legal-disposal",
+     6
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     6
+    ]
+   ],
+   "log_keys": [
+    [
+     "1",
+     6
+    ]
+   ]
+  },
+  {
+   "index": 73,
+   "name": "_fundraising_key#2",
+   "producer": "_fundraising_key",
+   "family": "fundraising",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [
+    "town:"
+   ],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "資金稼ぎ",
+   "file": "src/hengbot/policy_fundraising.py",
+   "line": 1100,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 74,
+   "name": "_released_restock_store_key",
+   "producer": "_released_restock_store_key",
+   "family": "store-router",
+   "section": "decide",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "店の出入り",
+   "file": "src/hengbot/policy_shop.py",
+   "line": 768,
+   "doc": "Route to a supplier made eligible by completed stock turnover.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 75,
+   "name": "_esp_threat_rest_key",
+   "producer": "_esp_threat_rest_key",
+   "family": "esp-threat",
+   "section": "decide",
+   "rank": 54,
+   "reasons": [
+    "esp-threat:hunt-weak",
+    "esp-threat:hunt-medium"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "テレパシーの脅威",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 967,
+   "doc": "Replace a rest that awake detection-only hostiles would interrupt.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 76,
+   "name": "_flee_step#4",
+   "producer": "_flee_step",
+   "family": "positioning",
+   "section": "decide",
+   "rank": 55,
+   "reasons": [
+    "threat:avoid-engagement"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "位置取り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3895,
+   "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
+   "doc_from": "call-site",
+   "hits": 5,
+   "log_reasons": [
+    [
+     "threat:avoid-engagement",
+     5
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     5
+    ]
+   ],
+   "log_keys": [
+    [
+     "6",
+     3
+    ],
+    [
+     "1",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 77,
+   "name": "_descent_step",
+   "producer": "_descent_step",
+   "family": "departure",
+   "section": "decide",
+   "rank": 56,
+   "reasons": [
+    "seek-downstairs",
+    "approach-descent"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 1164,
+   "doc": "Follow the ledger-owned route to one committed descent target.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 78,
+   "name": "_hunt_step#2",
+   "producer": "_hunt_step",
+   "family": "departure",
+   "section": "decide",
+   "rank": 57,
+   "reasons": [
+    "clear-descent"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "出発と帰還",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3950,
+   "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 79,
+   "name": "_hunt_step#3",
+   "producer": "_hunt_step",
+   "family": "hunt",
+   "section": "decide",
+   "rank": 58,
+   "reasons": [
+    "hunt"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "狩り",
+   "file": "src/hengbot/policy_combat.py",
+   "line": 3950,
+   "doc": "7. Opportunistic hunt for easy XP while no downstairs is in sight.",
+   "doc_from": "call-site",
+   "hits": 84,
+   "log_reasons": [
+    [
+     "hunt",
+     84
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Fight visible threats",
+     84
+    ]
+   ],
+   "log_keys": [
+    [
+     "8",
+     66
+    ],
+    [
+     "4",
+     7
+    ],
+    [
+     "9",
+     5
+    ],
+    [
+     "7",
+     4
+    ],
+    [
+     "6",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 80,
+   "name": "_breakout_restore_weapon_key#2",
+   "producer": "_breakout_restore_weapon_key",
+   "family": "detectors",
+   "section": "decide",
+   "rank": 59,
+   "reasons": [],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy.py",
+   "line": 15632,
+   "doc": "Re-arm the weapon displaced solely for a dig-to-stairs breakout.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 81,
+   "name": "_explore_step#1",
+   "producer": "_explore_step",
+   "family": "detectors",
+   "section": "decide",
+   "rank": 60,
+   "reasons": [
+    "breakout:",
+    "stuck:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "異常の検出",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 1367,
+   "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
+   "doc_from": "call-site",
+   "hits": 530,
+   "log_reasons": [
+    [
+     "stuck:wander",
+     477
+    ],
+    [
+     "breakout:seek-frontier",
+     47
+    ],
+    [
+     "breakout:least-visited",
+     6
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Explore and break out of dead ends",
+     530
+    ]
+   ],
+   "log_keys": [
+    [
+     "6",
+     185
+    ],
+    [
+     "4",
+     124
+    ],
+    [
+     "7",
+     73
+    ],
+    [
+     "8",
+     37
+    ],
+    [
+     "9",
+     36
+    ],
+    [
+     "1",
+     34
+    ]
+   ]
+  },
+  {
+   "index": 82,
+   "name": "_immobile_breeder_giveup_key",
+   "producer": "_immobile_breeder_giveup_key",
+   "family": "explore",
+   "section": "decide",
+   "rank": 61,
+   "reasons": [
+    "explore:"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "探索",
+   "file": "src/hengbot/policy.py",
+   "line": 17493,
+   "doc": "A released immobile-breeder plan is only an exploration fallback. Ordinary combat, threat, loot, descent, and hunting owners above must retain their normal priority when another mobile hostile is present.",
+   "doc_from": "call-site",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 83,
+   "name": "_explore_step#2",
+   "producer": "_explore_step",
+   "family": "explore",
+   "section": "decide",
+   "rank": 62,
+   "reasons": [
+    "explore",
+    "search",
+    "probe",
+    "seek-secret-wall"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "探索",
+   "file": "src/hengbot/policy_navigation.py",
+   "line": 1367,
+   "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
+   "doc_from": "call-site",
+   "hits": 14654,
+   "log_reasons": [
+    [
+     "explore",
+     13962
+    ],
+    [
+     "probe",
+     363
+    ],
+    [
+     "search",
+     328
+    ],
+    [
+     "loop-detected",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Explore and break out of dead ends",
+     14653
+    ],
+    [
+     "Stopped for loop investigation",
+     1
+    ]
+   ],
+   "log_keys": [
+    [
+     "6",
+     4221
+    ],
+    [
+     "4",
+     3075
+    ],
+    [
+     "7",
+     1529
+    ],
+    [
+     "1",
+     1358
+    ],
+    [
+     "8",
+     1309
+    ],
+    [
+     "2",
+     1194
+    ]
+   ]
+  },
+  {
+   "index": 84,
+   "name": "_start_kill_quest_regeneration",
+   "producer": "_start_kill_quest_regeneration",
+   "family": "quest-request",
+   "section": "decide",
+   "rank": 63,
+   "reasons": [
+    "quest:regen:exhausted"
+   ],
+   "ordinary": false,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "decide: the order _decide consults them",
+   "family_ja": "クエストの受注",
+   "file": "src/hengbot/policy.py",
+   "line": 17925,
+   "doc": "Start UP-then-DOWN regeneration at the existing exhausted-floor seam.",
+   "doc_from": "docstring",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 85,
+   "name": "town-errand:home-errand",
+   "producer": "town-errand:home-errand",
+   "family": "home-errand",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "自宅の用事",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 32,
+   "log_reasons": [
+    [
+     "home-errand:atomic-withdraw:identification-catalog",
+     10
+    ],
+    [
+     "home-errand:atomic-withdraw:identification",
+     7
+    ],
+    [
+     "home-errand:request-knowledge:identification",
+     6
+    ],
+    [
+     "home-errand:atomic-withdraw:full-home-sale",
+     4
+    ],
+    [
+     "home-errand:await-fresh-knowledge:identification-catalog",
+     2
+    ],
+    [
+     "home-errand:request-knowledge:identification-catalog",
+     2
+    ],
+    [
+     "home-errand:await-fresh-knowledge:identification",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     32
+    ]
+   ],
+   "log_keys": [
+    [
+     "~9\u001b\u001b",
+     8
+    ],
+    [
+     "5pD1\r\u001b",
+     4
+    ],
+    [
+     "5   pC\u001b",
+     4
+    ],
+    [
+     "5   pB\u001b",
+     4
+    ],
+    [
+     "9",
+     3
+    ],
+    [
+     "5pa\u001b",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 86,
+   "name": "town-errand:home-scan",
+   "producer": "town-errand:home-scan",
+   "family": "home-scan",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "自宅の確認",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 236,
+   "log_reasons": [
+    [
+     "home:request-knowledge-scan",
+     188
+    ],
+    [
+     "home:scan-incomplete-open-page",
+     48
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     236
+    ]
+   ],
+   "log_keys": [
+    [
+     "~9\u001b\u001b",
+     170
+    ],
+    [
+     "\u001b",
+     48
+    ],
+    [
+     "~9\u001b",
+     17
+    ],
+    [
+     "1",
+     1
+    ]
+   ]
+  },
+  {
+   "index": 87,
+   "name": "town-errand:shop-buy",
+   "producer": "town-errand:shop-buy",
+   "family": "shop-buy",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "店での購入",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 584,
+   "log_reasons": [
+    [
+     "shop:one-shot-buy",
+     356
+    ],
+    [
+     "shop:observe-and-leave",
+     152
+    ],
+    [
+     "shop:in-store-buy",
+     36
+    ],
+    [
+     "shop:in-store-done",
+     23
+    ],
+    [
+     "town:entrance-step-off:shop:observed-operation-uncomposable",
+     14
+    ],
+    [
+     "town:wait-restock:temple",
+     3
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     584
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     184
+    ],
+    [
+     "\u001b",
+     175
+    ],
+    [
+     "ph1\r\r\u001b",
+     13
+    ],
+    [
+     "pn1\r\r\u001b",
+     10
+    ],
+    [
+     "pi2\r\r\u001b",
+     9
+    ],
+    [
+     "9",
+     9
+    ]
+   ]
+  },
+  {
+   "index": 88,
+   "name": "town-errand:shop-sell",
+   "producer": "town-errand:shop-sell",
+   "family": "shop-sell",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "店での売却",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 74,
+   "log_reasons": [
+    [
+     "shop:one-shot-sell",
+     43
+    ],
+    [
+     "shop:batch-inscribe",
+     25
+    ],
+    [
+     "town:destroy-overflow",
+     4
+    ],
+    [
+     "shop:in-store-inscribe",
+     1
+    ],
+    [
+     "shop:in-store-sell",
+     1
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     74
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     18
+    ],
+    [
+     "d0y\u001b",
+     9
+    ],
+    [
+     "{i@1\r",
+     8
+    ],
+    [
+     "d15\ry\u001b",
+     7
+    ],
+    [
+     "d1y\u001b",
+     6
+    ],
+    [
+     "{b@1\r",
+     5
+    ]
+   ]
+  },
+  {
+   "index": 89,
+   "name": "town-errand:equipment-opt",
+   "producer": "town-errand:equipment-opt",
+   "family": "equipment-opt",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "装備の最適化",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 90,
+   "name": "town-errand:cross-town",
+   "producer": "town-errand:cross-town",
+   "family": "cross-town",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "町の間の移動",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 85,
+   "log_reasons": [
+    [
+     "town:cross-town-shopping:travel-1",
+     85
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     85
+    ]
+   ],
+   "log_keys": [
+    [
+     "9",
+     37
+    ],
+    [
+     "3",
+     33
+    ],
+    [
+     "6",
+     12
+    ],
+    [
+     "3mb",
+     3
+    ]
+   ]
+  },
+  {
+   "index": 91,
+   "name": "town-errand:rumor",
+   "producer": "town-errand:rumor",
+   "family": "rumor",
+   "section": "town",
+   "rank": 64,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "town: errands no _decide call site names; departure in town",
+   "family_ja": "うわさ集め",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 92,
+   "name": "town-errand:departure",
+   "producer": "town-errand:departure",
+   "family": "departure",
+   "section": "town",
+   "rank": 64,
+   "reasons": [
+    "town:",
+    "depart",
+    "repetition-depart",
+    "wilderness:"
+   ],
+   "ordinary": false,
+   "town_rank": true,
+   "owns_transaction": false,
+   "group": "",
+   "family_ja": "出発と帰還",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 248,
+   "log_reasons": [
+    [
+     "town:wait-recall",
+     220
+    ],
+    [
+     "town:entrance-step-off:town:unsafe-recall-fallback",
+     14
+    ],
+    [
+     "town:recall-to-alt-dungeon",
+     6
+    ],
+    [
+     "town:wait-recall-step-off",
+     5
+    ],
+    [
+     "town:repetition-depart:recall",
+     3
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Town maintenance and resupply",
+     248
+    ]
+   ],
+   "log_keys": [
+    [
+     "5",
+     220
+    ],
+    [
+     "1",
+     7
+    ],
+    [
+     "3",
+     5
+    ],
+    [
+     "2",
+     5
+    ],
+    [
+     "rfc",
+     4
+    ],
+    [
+     "6",
+     2
+    ]
+   ]
+  },
+  {
+   "index": 93,
+   "name": "fallback:idle",
+   "producer": "fallback:idle",
+   "family": "idle",
+   "section": "fallback",
+   "rank": 65,
+   "reasons": [
+    "policy:",
+    "wait"
+   ],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "fallback",
+   "family_ja": "手待ち",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 163,
+   "log_reasons": [
+    [
+     "policy:none-store-exit",
+     143
+    ],
+    [
+     "town:entrance-step-off:policy:none-wait",
+     15
+    ],
+    [
+     "policy:none-wait",
+     5
+    ]
+   ],
+   "log_objectives": [
+    [
+     "Continue conservative progression",
+     148
+    ],
+    [
+     "Town maintenance and resupply",
+     15
+    ]
+   ],
+   "log_keys": [
+    [
+     "\u001b",
+     143
+    ],
+    [
+     "1",
+     12
+    ],
+    [
+     "5",
+     5
+    ],
+    [
+     "8",
+     3
+    ]
+   ]
+  },
+  {
+   "index": 94,
+   "name": "fallback:misc",
+   "producer": "fallback:misc",
+   "family": "misc",
+   "section": "fallback",
+   "rank": 65,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "fallback",
+   "family_ja": "その他",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  },
+  {
+   "index": 95,
+   "name": "fallback:unregistered",
+   "producer": "fallback:unregistered",
+   "family": "unregistered",
+   "section": "fallback",
+   "rank": 65,
+   "reasons": [],
+   "ordinary": true,
+   "town_rank": false,
+   "owns_transaction": false,
+   "group": "fallback",
+   "family_ja": "未登録",
+   "file": null,
+   "line": null,
+   "doc": "",
+   "doc_from": "",
+   "hits": 0,
+   "log_reasons": [],
+   "log_objectives": [],
+   "log_keys": []
+  }
+ ]
+}
