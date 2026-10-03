@@ -2791,7 +2791,25 @@ class TownMixin:
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         for status in self._ledger_departure_shortages(ledger):
             for store_type in status.stores:
-                remembered = self._town_supplier_stock.get(store_type)
+                # A shelf observed in this town visit (the open page, or a
+                # remembered one younger than the restock turnover) answers
+                # whether this store supplies the shortage, as the supply
+                # ledger already reads a known page: a store whose page is
+                # known is a supplier only when it shows an affordable ware
+                # (``_compute_supply_ledger``: ``candidates``).  Without
+                # this the shortage stayed on a store the bot had just left
+                # with nothing to buy while it was "not attempted" (it had
+                # bought something else there), so the router walked back to
+                # the empty shelf and the arbiter retired it before it
+                # reached the stocked supplier (live 2026-10-03 12:04:21:
+                # Alchemist without 致命傷の治療の薬 ahead of the Temple's 18).
+                observed = self._shortage_supplier_visit_page(
+                    snapshot, store_type
+                )
+                remembered = (
+                    observed if observed is not None
+                    else self._town_supplier_stock.get(store_type)
+                )
                 remembered_affordable = bool(
                     remembered is not None
                     and any(
@@ -2801,7 +2819,8 @@ class TownMixin:
                     )
                 )
                 if (
-                    store_type not in self._town_store_attempted
+                    (store_type not in self._town_store_attempted
+                     and observed is None)
                     or store_type == STORE_HOME
                     or remembered_affordable
                 ):
@@ -3231,6 +3250,20 @@ class TownMixin:
                 claims.append(need.category)
         self._town_claim_categories = claims
         return bool(claims)
+
+    def _shortage_supplier_visit_page(
+        self, snapshot: Snapshot, store_type: int
+    ):
+        """This town visit's shelf of a departure-supply store, or None.
+
+        Home is never answered by a shop page.  For a shop it is the open
+        page or the remembered one observed in this town before the restock
+        turnover (``_current_town_supplier_page``); an older or other-town
+        page is unknown stock, so the store stays a candidate supplier.
+        """
+        if store_type == STORE_HOME:
+            return None
+        return self._current_town_supplier_page(snapshot, store_type)
 
     def _observed_supplier_page_wants_nothing(
         self, snapshot: Snapshot, need: TownNeed
