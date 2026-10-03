@@ -2550,6 +2550,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def choose_key(self, snapshot: Snapshot) -> str | None:
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
+        self._observe_cross_town_shopping_arrival(snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -15811,6 +15812,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
         """Use the inn service for the approved Q2 errand, never wilderness."""
+        if self._cross_town_shopping_holds_quest_travel(snapshot):
+            return None
         if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
             return None
         if (

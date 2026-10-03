@@ -1,0 +1,150 @@
+{
+  "kind": "CONSTRUCTED seams; decision provenance only, no snapshot replay",
+  "source": "bot-decisions.1.jsonl",
+  "rows": [
+    {
+      "physical_row": 3512,
+      "raw_sha256": "cddd3992d413d4099e0ef169dc4d4252a62e85c662feab7dcfe12d26373358ff",
+      "decision": {
+        "time": "2026-10-03T20:31:55+0900",
+        "decision_sequence": 243,
+        "turn": 7578146,
+        "reason": "fixedquest:q2-teleport",
+        "key": "7",
+        "identification_need": "full",
+        "floor": {
+          "dungeon_id": 0,
+          "level": 0,
+          "quest_id": 0,
+          "feeling": 0
+        },
+        "position": {
+          "y": 28,
+          "x": 56
+        },
+        "player": {
+          "level": 38,
+          "hp": 770,
+          "max_hp": 770,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 13155,
+          "food_state": "normal",
+          "status": []
+        },
+        "procurement_requirements": [
+          {
+            "item": "*Identify* source",
+            "current": 0,
+            "target": 1,
+            "missing": 1
+          }
+        ],
+        "fundraising": {
+          "mode": null,
+          "planned_runs": null,
+          "kit_secured": false,
+          "gold_trigger": false
+        },
+        "cross_town_shopping": {
+          "trigger_town_id": 0,
+          "blocking_categories": [
+            "identification-source:full"
+          ],
+          "shortage_costs": {
+            "identification-source:full": 11815
+          },
+          "reserve": 1000,
+          "required_gold": 12815,
+          "candidate_order": [
+            1,
+            2,
+            3
+          ],
+          "tried_towns": [],
+          "target_town_id": 1
+        }
+      }
+    },
+    {
+      "physical_row": 3691,
+      "raw_sha256": "963c419da34b3781a22800b583d5c7554bee4a1c3eb6dc56ad753c10e6e6e26b",
+      "decision": {
+        "time": "2026-10-03T20:36:29+0900",
+        "decision_sequence": 422,
+        "turn": 7580107,
+        "reason": "town:cycle-break",
+        "key": "5",
+        "identification_need": "full",
+        "floor": {
+          "dungeon_id": 0,
+          "level": 0,
+          "quest_id": 0,
+          "feeling": 0
+        },
+        "position": {
+          "y": 27,
+          "x": 73
+        },
+        "player": {
+          "level": 38,
+          "hp": 770,
+          "max_hp": 770,
+          "mp": 0,
+          "max_mp": 0,
+          "gold": 655,
+          "food_state": "normal",
+          "status": []
+        },
+        "procurement_requirements": [
+          {
+            "item": "Treasure Detection scrolls",
+            "current": 0,
+            "target": 5,
+            "missing": 5
+          },
+          {
+            "item": "Digging tool",
+            "current": 1,
+            "target": 2,
+            "missing": 1
+          },
+          {
+            "item": "*Identify* source",
+            "current": 0,
+            "target": 1,
+            "missing": 1
+          }
+        ],
+        "fundraising": {
+          "mode": "scavenge",
+          "planned_runs": null,
+          "kit_secured": false,
+          "gold_trigger": true
+        },
+        "cross_town_shopping": {
+          "trigger_town_id": 0,
+          "blocking_categories": [
+            "identification-source:full"
+          ],
+          "shortage_costs": {
+            "identification-source:full": 11815
+          },
+          "reserve": 1000,
+          "required_gold": 12815,
+          "candidate_order": [
+            1,
+            2,
+            3
+          ],
+          "tried_towns": [
+            1,
+            2,
+            3
+          ],
+          "target_town_id": null
+        }
+      }
+    }
+  ]
+}

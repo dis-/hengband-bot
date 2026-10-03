@@ -95,6 +95,9 @@ class ObservationMixin:
             and current_town_id != self._observed_town_id
         )
         if town_changed:
+            # Shelf facts and store bounds describe the town just left.
+            # Arrival must observe the new suppliers before declaring stock-out.
+            self._town_visit_ledger = TownVisitLedger()
             self._town_supplier_stock_observations.clear()
         self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot, observation=observation)

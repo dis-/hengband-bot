@@ -122,6 +122,8 @@ class TownMixin:
             position=Position(0, 0),
             turn=0,
             decision_sequence=0,
+            # Spending is not work: inventory/shelf/goal changes prove procurement.
+            gold=0,
         )
         home_blocked = (
             STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -978,7 +980,6 @@ class TownMixin:
         """Measured town progress fields used by the result arbitration seam."""
         return (
             snapshot.floor_key,
-            snapshot.player.gold,
             snapshot.player.food_state,
             snapshot.player.food_type,
             snapshot.player.exp,
