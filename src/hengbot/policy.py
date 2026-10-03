@@ -8937,12 +8937,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and (snapshot.in_town or snapshot.store is not None)
                     and self._claim_errand_hold("__none__") is not None):
                 return None
-            if snapshot.store is not None:
-                self.last_reason = "policy:none-store-exit"
-                key = LEAVE_STORE_KEY
-            else:
-                self.last_reason = "policy:none-wait"
-                key = WAIT_KEY
+            def fallback():
+                self.last_reason = (
+                    "policy:none-store-exit" if snapshot.store is not None
+                    else "policy:none-wait"
+                )
+                return LEAVE_STORE_KEY if snapshot.store is not None else WAIT_KEY
+            key = self._town_producer_entry(
+                "idle-fallback", fallback, family="idle",
+            )
+            if key is None:
+                return None
         if snapshot.store is not None and key == WAIT_KEY:
             # Hengband's store command loop rejects the normal rest command.
             # Carriage return is an explicit no-op in the store command loop.

@@ -255,7 +255,9 @@ class TestTreeFakeryLint(unittest.TestCase):
     }
     EXPECTED_UNDECLARED_INSTANCES = 13
     # Retired calibration phases removed seven additional declared sites.
-    DECLARED_FINDING_RATCHET = 120
+    # S3.3 phase-2 adds two explicitly declared final-fallback seams for the
+    # missing B checkpoint; only the ladder's None sentinel is substituted.
+    DECLARED_FINDING_RATCHET = 122
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
         bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'
