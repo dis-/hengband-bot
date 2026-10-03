@@ -212,6 +212,18 @@ class _Unpickler(pickle.Unpickler):
         super().__init__(stream)
         self.monrace = monrace
 
+    def find_class(self, module, name):
+        # Python 3.13 checkpoints moved concrete Path classes into this
+        # module; the Codex Python 3.12 runtime exposes the same classes in
+        # pathlib. Restore the path value without altering policy state.
+        if module == "pathlib._local" and name in {
+            "Path", "WindowsPath", "PosixPath", "PurePath",
+            "PureWindowsPath", "PurePosixPath",
+        }:
+            import pathlib
+            return getattr(pathlib, name)
+        return super().find_class(module, name)
+
     def persistent_load(self, pid):
         assert pid == "monrace"
         return self.monrace
