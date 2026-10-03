@@ -3268,9 +3268,12 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         self.assertEqual(
             policy.last_reason,
-            "equipment-transaction:await-fresh-knowledge",
+            "equipment-transaction:leave-for-atomic-withdraw",
         )
-        self.assertFalse(policy._home_knowledge_current)
+        self.assertTrue(policy._home_knowledge_current)
+        # The selected target is at index 1; its existing reservation
+        # invalidates that suffix while preserving the observed prefix.
+        self.assertEqual(policy._home_knowledge_valid_before, 1)
         self.assertIsNone(policy._town_blocked_reason)
 
     def test_complete_cached_open_page_repairs_atomic_prefix_mismatch(self):

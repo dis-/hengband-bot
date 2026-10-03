@@ -2417,6 +2417,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_transaction_prepared_catalog_update: tuple[
             str, object, tuple[object, ...]
         ] | None = None
+        self._equipment_transaction_posted_catalog_update = None
+        self._equipment_transaction_home_pages = None
+        self._equipment_optional_failure_departure = None
         # Item ids readmitted to the optimizer view because a quarantine held
         # every owned source of a mandatory depth gate (strictly diagnostic).
         self._equipment_quarantine_readmitted_ids: tuple[str, ...] = ()
@@ -2451,7 +2454,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
-        self._policy_state_version = 3
+        self._policy_state_version = 4
         self._execution_pending_post = None
         self._decision_goal = None
         self._decision_expectation = None
@@ -2575,6 +2578,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_bar_skips = None
         self._decision_errand_deferred = []
         self._decision_gate_final_count = 0
+        self._equipment_optional_failure_departure = None
         self._decision_rewrite_refused = []
         self._decision_no_step_release = False
         self._decision_cancelled_home_reservation = None
@@ -6815,8 +6819,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 action = session.current_action if session is not None else None
                 if (family == "equipment-txn" and session is not None
                         and session.executable and action is not None
-                        and session.prepared_action == action
-                        and self._equipment_transaction_prepared_key == key
+                        and ((session.prepared_action == action
+                              and self._equipment_transaction_prepared_key == key)
+                             or (key == " " and action.kind == "withdraw"
+                                 and session.required_context == "home"
+                                 and snapshot.store is not None
+                                 and snapshot.store.store_type == STORE_HOME
+                                 and any(offer[5] == "home-page-changed" for offer in own)))
                         and declaration.continuation == "equipment.next-action"
                         and any(
                             offer[2] == f"equipment:{session.target_loadout_id}:{session.index}"
@@ -7505,9 +7514,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
             and not snapshot.store.items
+            and (snapshot.store.stock_num == 0
+                 or (snapshot.store.stock_num is None
+                     and snapshot.store.page_top is None
+                     and snapshot.store.page_size is None))
         ):
-            # An empty STORE board is a complete catalogue in its own right;
-            # do not leave to ask ``~9`` for the same absence evidence.
+            # Zero stock (or the legacy unpaged envelope) proves empty Home.
+            # An empty page of known nonzero stock cannot prove absence.
             self._adopt_home_catalogue(())
             self._home_scan_item_count = 0
             self._home_scan_source = "observed-home-page"
@@ -7949,6 +7962,32 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, operation_outcome=operation_outcome,
             ))
             self._equipment_transaction_operation_outcome = None
+            if (advanced and pending is not None and pending.kind in {"deposit", "withdraw"}
+                    and self._equipment_transaction_posted_catalog_update is not None):
+                # Legacy atomic Home operations reconcile their knowledge at
+                # their own observed effect seam. Direct prepared transaction
+                # operations carry the update fenced to this session below.
+                self._invalidate_home_observation()
+                self._equipment_transaction_home_pages = None
+            catalog_update = self._equipment_transaction_posted_catalog_update
+            if advanced and catalog_update is not None:
+                target_id, action_index, command, kind, item, intent = catalog_update
+                if (target_id == session.target_loadout_id
+                        and action_index == session.index - 1
+                        and command == posted_command):
+                    if self._open_home_page_is_complete(snapshot):
+                        self._adopt_home_catalogue(tuple(
+                            self._inventory_item_from_store_item(ware)
+                            for ware in snapshot.store.items))
+                    elif item.count > 1:
+                        # Reacquire a split stack's actual name/count from
+                        # observed pages, preserving its physical move identity.
+                        self._equipment_catalog.invalidate_home()
+                    elif kind == "deposit":
+                        self._equipment_catalog.record_home_deposit(item, intent=intent)
+                    elif kind == "withdraw":
+                        self._equipment_catalog.record_home_withdrawal(item, intent=intent)
+                self._equipment_transaction_posted_catalog_update = None
             if (
                 advanced
                 and pending is not None
@@ -7987,6 +8026,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._release_equipment_transaction_owned_item(
                         pending.move_identity or pending.item_identity
                     )
+            reconciled_any = False
+            reconciled_index = session.index
+            while session.reconcile_carried(snapshot):
+                reconciled_any = True
+                # Only already observed carried/worn targets can advance here.
+                for reconciled in session.plan.actions[reconciled_index:session.index]:
+                    if reconciled.kind in {"equip", "reposition"}:
+                        self._release_equipment_transaction_owned_item(
+                            reconciled.move_identity or reconciled.item_identity)
+                reconciled_index = session.index
+            if reconciled_any and not session.complete:
+                held = self._claim_register.current
+                declaration = getattr(held, "execution", None)
+                if (held is not None and held.owner.value == "equipment-txn"
+                        and declaration is not None
+                        and declaration.continuation == "equipment.next-action"):
+                    action = session.current_action
+                    self._claim_register.declare_execution(
+                        held.claim_id, producer="equipment-txn",
+                        work_id=f"equipment:{session.target_loadout_id}:{session.index}",
+                        state="acting", next_step="equipment.next-action",
+                        arguments=(action.kind, action.target_slot, action.item_identity),
+                        expected_effect="equipment-action-confirmed",
+                        continuation="equipment.next-action", budget_ref=declaration.budget_ref)
             if self._equipment_transaction_session.complete:
                 self._retire_replaced_equipment_transaction_owned_items(
                     snapshot, self._equipment_transaction_session
@@ -12816,6 +12879,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ) -> None:
         """Install a plan; the plan may request but never re-arm a Home visit."""
         previous = self._equipment_transaction_session
+        if session is not previous:
+            self._equipment_transaction_posted_catalog_update = None
+            self._equipment_transaction_home_pages = None
         self._equipment_transaction_session = session
         if session is not None and session is not previous:
             action = getattr(session, "current_action", None)
@@ -13070,6 +13136,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             state["transaction_last_failure"] = dict(
                 self._equipment_transaction_last_failure
             )
+        if self._equipment_optional_failure_departure is not None:
+            state["optional_failure_departure"] = dict(self._equipment_optional_failure_departure)
         if self._equipment_transaction_restore_remainder:
             state["transaction_restore_remainder"] = list(
                 self._equipment_transaction_restore_remainder
@@ -13292,8 +13360,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
         if committed and self._equipment_transaction_prepared_catalog_update is not None:
             kind, item, intent = self._equipment_transaction_prepared_catalog_update
-            if kind == "deposit":
-                self._equipment_catalog.record_home_deposit(item, intent=intent)
+            self._equipment_transaction_posted_catalog_update = (
+                session.target_loadout_id, session.index, key, kind, item, intent)
         self._equipment_transaction_prepared_key = None
         self._equipment_transaction_prepared_catalog_update = None
         return committed or mutation_committed
@@ -14542,9 +14610,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (self.last_reason or "").startswith("equipment-transaction:"):
             return False
         preparation = self._equipment_optimization_preparation
-        if not self._equipment_failure_unexecutable_this_visit(
-            snapshot, preparation, require_confirmed=False
-        ):
+        if not self._safe_optional_equipment_failure_departure(snapshot, preparation):
             return False
         live_carried = OwnedEquipmentCatalog()
         live_carried.refresh_carried(snapshot.inventory, snapshot.equipment)

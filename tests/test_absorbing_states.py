@@ -173,6 +173,9 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             world.captured_false_leaves,
             {"equipment_departure_ready", "home_candidate_resolved"},
         )
+        self.assertEqual(world.current_false_leaves, {"home_candidate_resolved"})
+        self.assertEqual(policy.equipment_optimization_state()["optional_failure_departure"]["reason"],
+                         "optional-optimization-failure-confirmed-loadout")
         self.assertEqual(
             world.captured_failed_items,
             {"identity:e4cc76ab18be2ac6", "pack:e4cc76ab18be2ac6:0"},

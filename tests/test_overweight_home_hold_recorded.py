@@ -31,7 +31,14 @@ failed-deposit stop, ``town:blocked:overweight-home-unreachable``.  Fix 3
 whether or not the recall target still awaits its safe-landing switch, so
 Home retention keeps 10 recall scrolls as the departure board does.
 
-Walls (declared): ``WALL_PRE_FIX_HOLD`` replays index 3 with the pre-fix
+S3.3 migration: current shared admission always consumes observed arrival.
+The current prefix therefore ends at HOME (3). Later bound/cap sites use
+DECLARED CONSTRUCTED independent baseline-policy checkpoints from 0d2ef6d6,
+frozen by extract_s33_overweight_checkpoints.py. The old failed arrival is
+historical evidence, not a patched current admission verdict or a continued
+current trajectory.
+
+Original construction walls (declared): ``WALL_PRE_FIX_HOLD`` replays index 3 with the pre-fix
 hold (no arrival board), reproducing the live key, so that the later
 recorded boards are the effect of the same keys; ``STEP_OFF_WALL`` index 10:
 the step-off tie between equally unvisited cells is broken by visit history
@@ -46,6 +53,8 @@ from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation
 import gzip
+import base64
+import io
 import hashlib
 import json
 import unittest
@@ -66,6 +75,8 @@ from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay
 from identify_staff_cap_walls import pre_four_staff_cap_rule
+from test_store_reentry_recorded import _Unpickler
+from hengbot.policy_state import normalize_policy_state
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "overweight-home-hold-20261002.jsonl.gz"
@@ -80,6 +91,8 @@ HOME = 3
 WALL_PRE_FIX_HOLD = 3
 STEP_OFF_WALL = 10
 STOP = 11
+S33_CHECKPOINTS = FIXTURES / "overweight-home.s33-independent-checkpoints.json.gz"
+S33_CHECKPOINTS_SHA256 = "2cbcd3e4caf966b88367f3e745f790ba0e8b7244c5de39dbb520111f8cf6656c"
 
 
 def _sha(path: Path) -> str:
@@ -104,10 +117,17 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
             cls.segments.append(lines[start:start + count])
             start += count
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        assert hashlib.sha256(S33_CHECKPOINTS.read_bytes()).hexdigest() == S33_CHECKPOINTS_SHA256
+        independent = json.loads(gzip.decompress(S33_CHECKPOINTS.read_bytes()))
+        assert independent["source_revision"] == "0d2ef6d6"
+        assert independent["input_sha256"] == SHA256[FIXTURE]
+        cls.independent = {int(index): base64.b64decode(data)
+                           for index, data in independent["checkpoints"].items()}
 
     @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
-    def _replay(self, last, *, walls=False, inspect=None, prepare=None):
-        """Replay the frozen process through ``last`` on one policy."""
+    def _replay(self, last, *, inspect=None, prepare=None):
+        """Current prefix only; the corrected Home key ends this trajectory."""
+        assert last <= HOME
         rows = []
         with TemporaryDirectory() as raw:
             directory = Path(raw)
@@ -123,26 +143,35 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                 board = snapshots[-1]
                 if prepare is not None:
                     prepare(index, policy, board)
-                if walls and index == WALL_PRE_FIX_HOLD:
-                    # create=True: the pre-fix source has no such seam.
-                    with patch.object(HengbotPolicy, "_home_hold_board",
-                                      lambda _self: None, create=True):
-                        key = policy.choose_key(board)
-                else:
-                    key = policy.choose_key(board)
+                key = policy.choose_key(board)
                 rows.append((str(key), policy.last_reason))
                 if inspect is not None:
                     inspect(index, policy, board)
                 posted = key
-                if walls and index == STEP_OFF_WALL:
-                    self.assertEqual(policy.last_reason, self.recorded[index]["reason"])
-                    posted = self.recorded[index]["key"]
                 policy.confirm_key_posted(posted)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, posted):
                     policy.commit_staged_prompt_chain(
                         {"outcome": "released", "posted": str(posted)})
         return rows
+
+    @pre_ratio_optimizer_replay
+    def _independent_scene(self, index, *, inspect=None, prepare=None):
+        """Run one real current decision on the declared independent site."""
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy, board = _Unpickler(io.BytesIO(self.independent[index]), self.monrace).load()
+            old_directory = policy._character_calibration_path.parent
+            for name, value in tuple(vars(policy).items()):
+                if isinstance(value, Path) and value.is_relative_to(old_directory):
+                    setattr(policy, name, directory / value.relative_to(old_directory))
+            normalize_policy_state(policy)
+            if prepare is not None:
+                prepare(index, policy, board)
+            key = policy.choose_key(board)
+            if inspect is not None:
+                inspect(index, policy, board)
+            return str(key), policy.last_reason
 
     def _live(self, index):
         row = self.recorded[index]
@@ -223,9 +252,13 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                           seen["closed"]["closed_reason"]),
                          (3, "store-router", "reached"))
 
-    def test_pre_fix_hold_reproduces_the_live_home_pass(self):
-        rows = self._replay(HOME, walls=True)
-        self.assertEqual(rows, [self._live(index) for index in range(HOME + 1)])
+    def test_pre_fix_checkpoint_retains_the_historical_arrived_open_route(self):
+        policy, board = _Unpickler(io.BytesIO(self.independent[HOME]), self.monrace).load()
+        holder = policy._claim_register.current
+        self.assertTrue(holder.is_open)
+        self.assertEqual(holder.owner.value, "store-router")
+        self.assertEqual(holder.goal.cell, (board.player.position.y, board.player.position.x))
+        self.assertEqual(self._live(HOME), ("\x1b", "home:route-claim-unfulfilled"))
 
     # ------------------------------------------------------------ fix 2
     def _stop_board_state(self, state):
@@ -241,12 +274,8 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
     def test_unposted_home_deposit_routes_home_again(self):
         """Deferred, never-posted Home work within its bound: travel Home."""
         state = {}
-        rows = self._replay(STOP, walls=True, inspect=self._stop_board_state(state))
-        for index in range(STEP_OFF_WALL):
-            self.assertEqual(rows[index], self._live(index), index)
-        self.assertEqual(rows[STEP_OFF_WALL][1], self._live(STEP_OFF_WALL)[1])
-        # First changed key versus live (5 no-actionable-claim-owner): stop here.
-        self.assertEqual(rows[STOP], ("`n(.", "shop:travel"))
+        row = self._independent_scene(STOP, inspect=self._stop_board_state(state))
+        self.assertEqual(row, ("`n(.", "shop:travel"))
         self.assertEqual(state, {"attempted": False, "overweight": True,
                                  "blocked": None})
 
@@ -265,11 +294,11 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                         getattr(ledger, counter)[STORE_HOME] = (
                             policy._town_store_visit_limit(STORE_HOME))
 
-                rows = self._replay(STOP, walls=True, prepare=prepare,
-                                    inspect=self._stop_board_state(state))
-                self.assertEqual(rows[STOP],
+                row = self._independent_scene(STOP, prepare=prepare,
+                                              inspect=self._stop_board_state(state))
+                self.assertEqual(row,
                                  ("5", "town:blocked:overweight-home-unreachable"))
-                self.assertIn(rows[STOP][1], POLICY_FINAL_STOP_REASONS)
+                self.assertIn(row[1], POLICY_FINAL_STOP_REASONS)
                 self.assertEqual(state, {"attempted": True, "overweight": True,
                                          "blocked": "overweight-home-unreachable"})
 
@@ -289,7 +318,8 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                     policy._retention_reservation(board, recall),
                 )
 
-        self._replay(STOP, walls=True, inspect=inspect)
+        self._independent_scene(HOME, inspect=inspect)
+        self._independent_scene(STOP, inspect=inspect)
         # Inside Home before the safe-landing switch; outside after it.
         self.assertEqual(seen, {HOME: (True, 10, 10), STOP: (False, 10, 10)})
 
@@ -307,7 +337,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
 
     # The same frozen process and replay as the walled pins above.
     setUpClass = OverweightHomeHoldRecordedTest.__dict__["setUpClass"]
-    _replay = OverweightHomeHoldRecordedTest._replay
+    _independent_scene = OverweightHomeHoldRecordedTest._independent_scene
     _live = OverweightHomeHoldRecordedTest._live
 
     def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
@@ -316,7 +346,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
         original = HengbotPolicy.choose_key
 
         def choose_key(policy, board):
-            if len(seen.setdefault("keys", [])) == first_changed:
+            if not seen.setdefault("keys", []):
                 staves = policy._carried_identify_staves(board)
                 seen["staves"] = [(item.slot, item.count, item.charges)
                                   for item in staves]
@@ -329,15 +359,13 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
                 seen["sale"] = sale and (sale.slot, sale.count, sale.charges)
             key = original(policy, board)
             seen["keys"].append(key)
-            if len(seen["keys"]) == first_changed + 1:
+            if len(seen["keys"]) == 1:
                 seen["requesters"] = (policy.decision_claim or {}).get(
                     "requester_families")
             return key
 
         with patch.object(HengbotPolicy, "choose_key", choose_key):
-            rows = self._replay(first_changed, walls=True)
-        self.assertEqual(rows[:first_changed],
-                         [self._live(index) for index in range(first_changed)])
+            row = self._independent_scene(first_changed)
         self.assertEqual(seen["staves"], [("g", 1, 9), ("h", 2, 8), ("i", 2, 3)])
         self.assertEqual(seen["charges"], 31)
         self.assertEqual(seen["release"], {"i": 1})
@@ -345,7 +373,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
         self.assertEqual(seen["sale"], ("i", 2, 3))
         # First changed key versus live (Weaponsmith '#'): stop here (R4).
         self.assertEqual(self._live(first_changed), ("\x1b`n#.", "shop:travel"))
-        self.assertEqual(rows[first_changed], ("\x1b`n&.", "shop:travel"))
+        self.assertEqual(row, ("\x1b`n&.", "shop:travel"))
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS.index("&"), STORE_MAGIC)
         self.assertIn("shop-sell", seen["requesters"])
 

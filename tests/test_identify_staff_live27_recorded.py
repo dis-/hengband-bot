@@ -1,4 +1,10 @@
-"""Live27: replay actual response batches through the first changed decision.
+"""Live27: independent current Home-arrival and mining decisions.
+
+S3.3 migration: shared admission corrects the old Home hold; the old
+prefix cannot supply later equipment inputs or mining boards. The sites
+at 63 and 104 are DECLARED CONSTRUCTED baseline-policy checkpoints from
+0d2ef6d6, frozen by extract_s33_live27_checkpoints.py. They are independent
+operation substrates, not a current trajectory or recovered live state.
 
 Walls: isolate runtime paths, freeze the calibration available at extraction,
 and bind each previous posted operation as the live CLI does. No later board
@@ -6,6 +12,8 @@ is interpreted as the effect of the changed mining decision.
 """
 import tests  # noqa: F401
 import gzip
+import base64
+import io
 import hashlib
 import json
 import unittest
@@ -24,16 +32,36 @@ from xbow_pref_walls import shelf_wall_on_replay
 from unittest.mock import patch
 
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_state import normalize_policy_state
+from test_store_reentry_recorded import _Unpickler
 
 # overweight-home (2026-10-02): live decision 63 left Home with ESC
 # home:route-claim-unfulfilled because the arrived store-router Reach (claim 48)
 # held every Home producer (recorded errand_deferred, incl.
 # queue-digging-tool-withdraw).  Production now runs the Home producers on that
-# arrival.  Declared wall: index 63 replays the recorded pre-fix hold so this
-# pin keeps reaching its own subject (index 104) on action-consistent boards.
+# arrival. Independent baseline sites preserve the separate 63 and 104
+# subjects without supplying any old effect after a changed current key.
 PRE_FIX_HOME_HOLD = 63
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'identify-staff-live27.jsonl.gz'
+
+
+INDEPENDENT = FIXTURE.parent / "live27.s33-independent-checkpoints.json.gz"
+INDEPENDENT_SHA256 = "b9c31df3f9c630cb3ca138926649cb0e38aca3c8fbcc38426d6bda0acc5334ef"
+
+
+def independent_scene(directory, monrace, index):
+    assert hashlib.sha256(INDEPENDENT.read_bytes()).hexdigest() == INDEPENDENT_SHA256
+    payload = json.loads(gzip.decompress(INDEPENDENT.read_bytes()))
+    assert payload["source_revision"] == "0d2ef6d6"
+    assert payload["input_sha256"] == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
+    policy, board = _Unpickler(io.BytesIO(base64.b64decode(payload["checkpoints"][str(index)])), monrace).load()
+    old_directory = policy._character_calibration_path.parent
+    for name, value in tuple(vars(policy).items()):
+        if isinstance(value, Path) and value.is_relative_to(old_directory):
+            setattr(policy, name, directory / value.relative_to(old_directory))
+    normalize_policy_state(policy)
+    return policy, board
 
 
 class IdentifyStaffLive27RecordedTest(unittest.TestCase):
@@ -50,38 +78,11 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
         monrace = load_monrace_knowledge(EDIT / 'MonraceDefinitions.jsonc')
         with TemporaryDirectory() as raw:
             directory = Path(raw)
-            policy = _policy(directory, monrace)
-            policy._crossarea_fundraising_enforced = True
-            policy._character_calibration_path.write_bytes(FIXTURE.with_suffix('.calibration.json').read_bytes())
-            install_extraction_calibration(policy)
-            cursor = 0
-            for index, count in enumerate(data['input_rows']):
-                segment = lines[cursor:cursor + count]
-                cursor += count
-                if index:
-                    previous = data['recorded'][index - 1]
-                    row = json.loads(segment[-1])
-                    row['_completed_operation_sequence'] = previous['decision_sequence']
-                    row['_completed_operation_owner'] = previous['reason']
-                    segment = segment[:-1] + [json.dumps(row, ensure_ascii=False) + '\n']
-                _, snapshots = _consume_response_sequence(segment, policy, lambda _key: True, monrace, knowledge_ledger_path=directory / 'knowledge.jsonl')
-                board = snapshots[-1]
-                recorded = data['recorded'][index]
-                if recorded['reason'] == 'periodic:game-save':
-                    policy.request_game_save()
-                elif recorded['reason'] == 'periodic:character-dump':
-                    policy.request_character_dump()
-                if index == 104:
-                    restored = restore_checkpoint(type(policy), checkpoint(policy))
-                if index == PRE_FIX_HOME_HOLD:
-                    with patch.object(HengbotPolicy, '_home_hold_board', lambda _self: None, create=True):
-                        key = policy.choose_key(board)
-                else:
-                    key = policy.choose_key(board)
-                if (str(key), policy.last_reason) != (recorded['key'], recorded['reason']):
-                    print('FIRST DIVERGENCE', index, 'live', repr(recorded['key']), recorded['reason'], 'replay', repr(str(key)), policy.last_reason)
-                    break
-                policy.confirm_key_posted(key)
+            index = 104
+            policy, board = independent_scene(directory, monrace, index)
+            recorded = data['recorded'][index]
+            restored = restore_checkpoint(type(policy), checkpoint(policy))
+            key = policy.choose_key(board)
             print('SHORTFALL', policy._total_identify_staff_charges(board), 'mode', policy._fundraising_mode, 'planned', policy._planned_mining_runs, 'home_current', policy._home_knowledge_current, 'stores', policy._town_store_attempted)
             self.assertEqual(index, 104)
             self.assertEqual(recorded['departure_block']['failed'], ['identify_staff_ready'])
@@ -134,30 +135,8 @@ class IdentifyStaffLive27RecordedTest(unittest.TestCase):
              ('store-router', 48, 'entry:_open_home_deposit_key')])
         with TemporaryDirectory() as raw:
             directory = Path(raw)
-            policy = _policy(directory, monrace)
-            policy._crossarea_fundraising_enforced = True
-            policy._character_calibration_path.write_bytes(FIXTURE.with_suffix('.calibration.json').read_bytes())
-            install_extraction_calibration(policy)
-            cursor = 0
-            for index, count in enumerate(data['input_rows'][:PRE_FIX_HOME_HOLD + 1]):
-                segment = lines[cursor:cursor + count]
-                cursor += count
-                if index:
-                    previous = data['recorded'][index - 1]
-                    row = json.loads(segment[-1])
-                    row['_completed_operation_sequence'] = previous['decision_sequence']
-                    row['_completed_operation_owner'] = previous['reason']
-                    segment = segment[:-1] + [json.dumps(row, ensure_ascii=False) + '\n']
-                _, snapshots = _consume_response_sequence(segment, policy, lambda _key: True, monrace, knowledge_ledger_path=directory / 'knowledge.jsonl')
-                live = data['recorded'][index]
-                if live['reason'] == 'periodic:game-save':
-                    policy.request_game_save()
-                elif live['reason'] == 'periodic:character-dump':
-                    policy.request_character_dump()
-                key = policy.choose_key(snapshots[-1])
-                if index < PRE_FIX_HOME_HOLD:
-                    self.assertEqual((str(key), policy.last_reason), (live['key'], live['reason']), index)
-                    policy.confirm_key_posted(key)
+            policy, board = independent_scene(directory, monrace, PRE_FIX_HOME_HOLD)
+            key = policy.choose_key(board)
             # 09-18: carry diggers when departing for mining (mode prepare).
             self.assertEqual((str(key), policy.last_reason), ('\x1b', 'home:queue-digging-tool-withdraw'))
 

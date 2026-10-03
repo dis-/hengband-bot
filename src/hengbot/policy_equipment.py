@@ -1900,6 +1900,31 @@ class EquipmentMixin:
         """Name a Home transaction exit that has no prepared action offer."""
         work_id = f"equipment:home:{label}"
         producer = 'equipment-txn'
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if key is not None and session is not None and not session.executable:
+            held = self._claim_register.current
+            declaration = getattr(held, "execution", None)
+            if held is not None and held.owner.value == producer and declaration is not None:
+                # The item-specific failure belongs to this work's exit.
+                # The blocked session and any restoration debt remain intact
+                # for the existing abandonment/restoration path outside Home.
+                self._offer_execution(
+                    key, producer=producer, work_id=declaration.work_id,
+                    next_step=declaration.next_step, arguments=declaration.arguments,
+                    state="acting", cause=";".join(session.blockers),
+                    expected_effect="store-exited", continuation="equipment.next-action",
+                    budget_ref=declaration.budget_ref, post_on_emit=False)
+                return key
+        if (label == "seek-home-page" and key == " " and action is not None
+                and action.kind == "withdraw" and session.required_context == "home"):
+            self._offer_execution(
+                key, producer=producer,
+                work_id=f"equipment:{session.target_loadout_id}:{session.index}",
+                next_step="equipment.next-action",
+                arguments=(action.kind, action.target_slot, action.item_identity),
+                expected_effect="home-page-changed", continuation="equipment.next-action")
+            return key
         if key is None:
             self._offer_execution_no_step(
                 producer=producer, work_id=work_id, cause=label,
@@ -1960,6 +1985,7 @@ class EquipmentMixin:
             return self._equipment_home_outcome(
                 None, label="home-action-context-unavailable",
             )
+        self._observe_equipment_home_pages(snapshot, session)
         observation = observe_equipment_transactions(snapshot)
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
@@ -2037,7 +2063,9 @@ class EquipmentMixin:
                     item
                     for item in snapshot.inventory
                     if item.is_equipment
-                    and equipment_identity(item) == action.item_identity
+                    and (equipment_identity(item) == action.item_identity
+                         or (action.move_identity is not None
+                             and equipment_move_identity(item) == action.move_identity))
                 ),
                 None,
             )
@@ -2190,8 +2218,15 @@ class EquipmentMixin:
                 matches_withdrawal(item)
                 for index, item in enumerate(self._home_knowledge_items)
                 if index < self._home_knowledge_valid_before
-            )
+            ) or any(owned.origin == "home" and matches_withdrawal(owned.item)
+                     for owned in self._equipment_catalog.items)
             if not target_observed:
+                if not (self._open_home_page_is_complete(snapshot)
+                        or self._equipment_catalog.home_scan_complete):
+                    # Absence on one page does not establish missing stock.
+                    self.last_reason = "equipment-transaction:seek-home-page"
+                    return self._equipment_home_outcome(
+                        " ", label="seek-home-page", effect="home-page-changed")
                 if (
                     self._open_home_page_is_complete(snapshot)
                     and any(
@@ -2246,6 +2281,38 @@ class EquipmentMixin:
         return self._equipment_home_outcome(
             LEAVE_STORE_KEY, label="invalid-home-action",
         )
+
+    def _observe_equipment_home_pages(self, snapshot, session) -> None:
+        """Prove completeness by observed stock positions, not repeated content.
+
+        The cache holds actual pages for this immutable plan and stock shape.
+        Its bound comes from stock_num/page_size, not a new retry allowance.
+        """
+        # Existing complete knowledge and legacy atomic Home operations own
+        # their mutation reconciliation. Do not replace that catalogue while
+        # seeking an address, or resurrect contents they invalidate.
+        if (session.current_action is None
+                or session.current_action.kind != "withdraw"
+                or self._equipment_catalog.home_scan_complete):
+            return
+        store = snapshot.store
+        stock, size, top = store.stock_num, store.page_size, store.page_top
+        if (stock is None or size is None or size <= 0 or top is None
+                or top < 0 or top % size or top > stock
+                or len(store.items) != min(size, stock - top)):
+            return
+        identity = (session.target_loadout_id, stock, size)
+        cached = self._equipment_transaction_home_pages
+        if cached is None or cached[0] != identity:
+            cached = (identity, {})
+            self._equipment_transaction_home_pages = cached
+        pages = cached[1]
+        pages[top] = tuple(store.items)
+        positions = tuple(range(0, stock, size)) or (0,)
+        if all(position in pages for position in positions):
+            self._adopt_home_catalogue(tuple(
+                self._inventory_item_from_store_item(item)
+                for position in positions for item in pages[position]))
 
     def _equipment_town_outcome(self, key: str | None, *, label: str,
                                 effect: str = "transaction-progress") -> str | None:
@@ -2398,7 +2465,9 @@ class EquipmentMixin:
                     item
                     for item in snapshot.inventory
                     if item.is_equipment
-                    and equipment_identity(item) == action.item_identity
+                    and (equipment_identity(item) == action.item_identity
+                         or (action.move_identity is not None
+                             and equipment_move_identity(item) == action.move_identity))
                 ),
                 None,
             )
@@ -2476,7 +2545,8 @@ class EquipmentMixin:
             and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
-        ready = complete_now or False
+        ready = complete_now or self._safe_optional_equipment_failure_departure(
+            snapshot, preparation)
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
@@ -2521,14 +2591,41 @@ class EquipmentMixin:
                     )
                     for owned in incomplete
                 )
-            elif self._equipment_failure_unexecutable_this_visit(
-                snapshot, preparation
-            ):
-                ready = True
         if cacheable:
             self._equipment_departure_cache_token = self._decision_sequence
             self._equipment_departure_cache_value = ready
         return ready
+
+    def _safe_optional_equipment_failure_departure(self, snapshot, preparation) -> bool:
+        """Record the user's confirmed-current-loadout optional failure outcome."""
+        if (self._equipment_transaction_owned_items
+                or self._equipment_transaction_restoring
+                or self._equipment_transaction_restore_remainder
+                or self._equipment_transaction_restore_terminal
+                or self._equipment_transaction_posted_catalog_update is not None
+                or self._home_atomic_withdraw_pending is not None
+                or self._home_atomic_deposit_pending is not None
+                or preparation is None
+                or getattr(getattr(preparation, "transaction", None), "actions", ())
+                or not self._equipment_failure_unexecutable_this_visit(
+                    snapshot, preparation, require_confirmed=False)):
+            return False
+        depth = max(self._equipment_optimization_depth(snapshot),
+                    snapshot.dungeon_recall_depths.get(self._target_dungeon_id, 0))
+        if self._missing_required_abilities(snapshot, depth):
+            return False
+        # All physical debt is settled and the observed current kit satisfies
+        # the intended depth. Persist that kit before allowing the outcome.
+        self._record_confirmed_loadout(snapshot)
+        if not self._current_worn_loadout_confirmed(snapshot, preparation):
+            return False
+        self._equipment_optional_failure_departure = {
+            "reason": "optional-optimization-failure-confirmed-loadout",
+            "depth": depth,
+            "item_ids": sorted(self._validated_confirmed_loadout().item_ids),
+            "failed_item_ids": sorted(self._equipment_transaction_failed_items),
+        }
+        return True
 
     @staticmethod
     def _retained_ammo_slots(snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:

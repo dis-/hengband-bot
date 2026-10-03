@@ -16,7 +16,15 @@ its 13 shop transactions was observed in one entry and performed in a second
 (design 1.3); the one-shot release keys are the operation bodies an in-store
 operation must reproduce.
 
-One replay of the whole process, switch off, is shared by every pin
+The current replay stops at its first changed key, index 802: a partial
+Home page cannot prove withdrawal absence. Later ordinary-shop pins use
+DECLARED CONSTRUCTED independent baseline-policy checkpoints from group 2
+(90fca3b7), produced by extract_s33_store_checkpoints.py and frozen with a
+hash. These are independent operation substrates, not a continued current
+trajectory or recovered live checkpoints. Their runtime files are redirected
+to this test's temporary directory.
+
+The prefix replay, switch off, is shared by every pin
 (setUpClass); checkpoints are pickled before the boards the pins decide, and
 every pin continues from its own copy (R4: no recorded board after a changed
 key is used, except the DECLARED CONSTRUCTED substitutions named in a pin).
@@ -51,6 +59,7 @@ from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation
 import gzip
+import base64
 import hashlib
 import io
 import json
@@ -131,6 +140,10 @@ SHA256 = {
 # 159: main ranged-fire precedence replaces return:wait-recall.
 # 267, 273: main strong-fight-speed decisions added after capture.
 LIVE_KEY_WALL = frozenset({9, 10, 11, 12, 17, 159, 171, 219, 267, 273})
+S33_FIRST_CHANGED = 802
+S33_CHECKPOINTS = FIXTURES / "store-reentry.s33-independent-checkpoints.json.gz"
+S33_CHECKPOINTS_SHA256 = "3a56680f4c0dcf802b89757ab9e4395d8415a6439745893218da95caf6ccd824"
+
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
     "periodic:game-save": "request_game_save",
@@ -233,13 +246,32 @@ class StoreReentryRecordedTest(unittest.TestCase):
         policy._character_dump_path = cls.directory / "character-dump.txt"
         cls.checkpoints = {}
         cls.prefix = []
+        cls.first_changed = None
         with _dump_wall():
             for index in range(len(cls.segments)):
                 if index in CHECKPOINTS:
                     buffer = io.BytesIO()
                     _Pickler(buffer, cls.monrace).dump(policy)
                     cls.checkpoints[index] = buffer.getvalue()
-                cls.prefix.append(cls._step(policy, index)[:2])
+                key, reason, board = cls._step(policy, index)
+                cls.prefix.append((key, reason))
+                if (index not in LIVE_KEY_WALL
+                        and (key, reason) != (cls.recorded[index]["key"], cls.recorded[index]["reason"])):
+                    cls.first_changed = index
+                    cls.first_diagnostics = dict(
+                        would_stop=policy._s33_shadow_verdict(board, key)["would_stop"],
+                        declaration_mismatch=policy.decision_claim["declaration_mismatch"],
+                        claim_verdict_conflict=policy.decision_claim["claim_verdict_conflict"])
+                    break  # Never feed an old effect board after this changed key.
+        assert cls.first_changed == S33_FIRST_CHANGED, cls.first_changed
+        assert hashlib.sha256(S33_CHECKPOINTS.read_bytes()).hexdigest() == S33_CHECKPOINTS_SHA256
+        independent = json.loads(gzip.decompress(S33_CHECKPOINTS.read_bytes()))
+        assert independent["source_revision"] == "90fca3b7"
+        assert independent["input_sha256"] == SHA256[FIXTURE]
+        cls.independent_indices = {int(index) for index in independent["checkpoints"]}
+        assert all(index > S33_FIRST_CHANGED for index in cls.independent_indices)
+        cls.checkpoints.update({int(index): base64.b64decode(data)
+                                for index, data in independent["checkpoints"].items()})
 
     @classmethod
     def tearDownClass(cls):
@@ -290,6 +322,12 @@ class StoreReentryRecordedTest(unittest.TestCase):
 
     def _resume(self, index):
         policy = _Unpickler(io.BytesIO(self.checkpoints[index]), self.monrace).load()
+        if index in self.independent_indices:
+            old_directory = policy._character_calibration_path.parent
+            for name, value in tuple(vars(policy).items()):
+                if isinstance(value, Path) and value.is_relative_to(old_directory):
+                    setattr(policy, name, self.directory / value.relative_to(old_directory))
+        normalize_policy_state(policy)
         return policy
 
     def _switch_on(self, policy, breaker_dir=None):
@@ -317,11 +355,19 @@ class StoreReentryRecordedTest(unittest.TestCase):
         row = self.recorded[index]
         return row["key"], row["reason"]
 
+    def test_current_missing_item_replay_stops_before_counterfactual_effects(self):
+        self.assertEqual(len(self.prefix), S33_FIRST_CHANGED + 1)
+        self.assertEqual(self.first_diagnostics, dict(
+            would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
+
     # ------------------------------------------------------------ P0
     def test_p0_switch_off_replay_reproduces_every_recorded_key(self):
-        """Flag off: the recorded keys and reasons, byte for byte (walls aside)."""
+        """Flag off: faithful prefix, then the required absence-proof divergence."""
         for index, row in enumerate(self.prefix):
-            if index not in LIVE_KEY_WALL:
+            if index == S33_FIRST_CHANGED:
+                self.assertEqual(row, (" ", "equipment-transaction:seek-home-page"))
+                self.assertEqual(self._live(index), ("\x1b", "equipment-transaction:withdraw-missing"))
+            elif index not in LIVE_KEY_WALL:
                 self.assertEqual(row, self._live(index), index)
         # The live-key wall is load-bearing.
         for index in LIVE_KEY_WALL:
