@@ -546,7 +546,11 @@ class TownTurnArbiter:
                 self._visit_transfers[transfer] if transfer else None
             )
         self._owner = owner
-        self._last_pair = recurrence_key
+        # Exempt waits do not enter recurrence accounting, so they must not
+        # split its last counted pair either. Otherwise a cancelled recall
+        # manufactures a recurrence of the board before the designed wait.
+        if not observation_wait and not recall_wait_progress:
+            self._last_pair = recurrence_key
         return dict(self.telemetry)
 
     def may_select(
