@@ -1752,9 +1752,8 @@ class CombatMixin:
                 # 読まず潜行を続ける。」 -- the bounds of unseen_caster_in_combat.
                 or (
                     unseen_spell_hit
-                    and (
-                        self._last_damage_amount >= player.max_hp * 0.10
-                        or player.hp < self._low_hp_walk_threshold(player.max_hp)
+                    and self._unseen_loss_is_material(
+                        player, self._last_damage_amount
                     )
                 )
                 or player.hp_ratio < HEAL_HP_RATIO
@@ -1763,10 +1762,9 @@ class CombatMixin:
                 # か低HP閾値未満でなければ読まず潜行を続ける。」
                 or (
                     getattr(self, "_unexplained_damage_streak", 0) >= 2
-                    and (
-                        getattr(self, "_unexplained_damage_streak_loss", 0)
-                        >= player.max_hp * 0.10
-                        or player.hp < self._low_hp_walk_threshold(player.max_hp)
+                    and self._unseen_loss_is_material(
+                        player,
+                        getattr(self, "_unexplained_damage_streak_loss", 0),
                     )
                 )
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
@@ -2483,6 +2481,16 @@ class CombatMixin:
             return None
         self.last_reason = "item:strong-fight-speed"
         return QUAFF_KEY + speed.slot
+
+    def _unseen_loss_is_material(self, player, loss: int) -> bool:
+        """USER DECISIONS 2026-10-03 (an unseen hit with nothing in view, and
+        two in a row): read only when the loss -- one move's, or the
+        streak's total -- is at least a tenth of max HP, or HP is below the
+        low-HP threshold max(max HP x 0.5, max HP - 300)."""
+        return (
+            loss >= player.max_hp * 0.10
+            or player.hp < self._low_hp_walk_threshold(player.max_hp)
+        )
 
     def _attributable_observed_loss(self, snapshot: Snapshot) -> int:
         """HP one move just cost when a monster plausibly caused it.

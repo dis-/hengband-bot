@@ -86,6 +86,7 @@ from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from unseen_scratch_walls import pre_unseen_scratch_bound_rule
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "reverse-choke-loot-loop-20261003.jsonl.gz"
@@ -133,9 +134,31 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+def _load():
+    for path, digest in SHA256.items():
+        assert _sha(path) == digest, path
+    with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+        records = [json.loads(line) for line in stream]
+    knowledge = json.loads(
+        next(r for r in records if r["role"] == "skill-knowledge")["line"])
+    warm_up = [r["line"] for r in records if r["role"] == "warm-up"]
+    inputs = {
+        r["sequence"]: r["line"] for r in records if r["role"] == "decision-input"
+    }
+    return knowledge, warm_up, inputs
+
+
 class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # Declared wall (tests/unseen_scratch_walls.py): the recorded 4638
+        # read, and every pin built on its landing, run under the recorded-era
+        # unseen-hit rule.
+        with pre_unseen_scratch_bound_rule():
+            cls._set_up_recorded_era()
+
+    @classmethod
+    def _set_up_recorded_era(cls):
         for path, digest in SHA256.items():
             assert _sha(path) == digest, path
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
@@ -432,6 +455,60 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
         self.assertEqual((key, reason), ("4", "seek-loot"))
         # '4' is the step west, away from the vacated dead end, toward the loot.
         self.assertNotEqual(key, self._live(REVERSAL)[0])
+
+
+class UnseenScratchDivergenceTest(unittest.TestCase):
+    """The new choice on the unwalled recorded board 4638.
+
+    USER DECISION 2026-10-03 (unseen spell, nothing in view): 「1回で最大HPの
+    1割以上削られた時か、HPが低HPの閾値…未満の時だけ読む。かすり傷では読まず
+    潜行を続ける。」  4638: HP 731 -> 730 after 「何かが混乱のブレスを吐いた。」,
+    nothing in view -- a scratch.  A fresh process reproduces 4552-4637 and
+    no longer reads the teleport there; the unseen-attacker retreat arms on
+    the hit instead.  Nothing later is asserted (every later recorded board
+    follows the recorded teleport).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        knowledge, warm_up, inputs = _load()
+        payload = json.loads(RECORDED.read_text(encoding="utf-8"))
+        cls.recorded = {row[0]: row for row in payload["recorded"]}
+        monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        tmp = TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        directory = Path(tmp.name)
+        policy = _policy(directory, monrace)
+        policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+        policy.consume_skill_knowledge(knowledge)
+        cls.rows, cls.boards = {}, {}
+        for sequence, line in [(None, line) for line in warm_up] + [
+            (n, inputs[n]) for n in range(FIRST, TELEPORT + 1)
+        ]:
+            _decoded, snapshots = _consume_response_sequence(
+                [line], policy, lambda _key: True, monrace,
+                knowledge_ledger_path=directory / "knowledge.jsonl",
+            )
+            key = policy.choose_key(snapshots[-1])
+            if sequence is not None:
+                cls.rows[sequence] = (str(key), policy.last_reason)
+                cls.boards[sequence] = snapshots[-1]
+            policy.confirm_key_posted(key)
+        cls.policy = policy
+
+    def test_scratch_at_4638_is_no_longer_a_teleport(self):
+        live = {n: tuple(self.recorded[n][2:4]) for n in range(FIRST, TELEPORT + 1)}
+        self.assertEqual(live[TELEPORT], ("rg", "emergency:teleport"))
+        self.assertEqual(
+            {n: self.rows[n] for n in range(FIRST, TELEPORT)},
+            {n: live[n] for n in range(FIRST, TELEPORT)},
+        )
+        board = self.boards[TELEPORT]
+        self.assertEqual((board.player.hp, board.player.max_hp), (730, 731))
+        self.assertEqual(list(board.visible_monsters), [])
+        self.assertEqual(self.policy._last_damage_amount, 1)
+        self.assertIsNotNone(self.policy._unseen_attack_evidence)
+        self.assertEqual(self.rows[TELEPORT], ("7", "unseen:reverse-choke"))
 
 
 if __name__ == "__main__":
