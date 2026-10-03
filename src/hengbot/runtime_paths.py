@@ -26,6 +26,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_loadout_report_path",
     "_character_calibration_path",
     "_latch_capture_path",
+    "_in_store_breaker_path",
 )
 
 

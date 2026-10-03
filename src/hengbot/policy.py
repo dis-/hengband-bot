@@ -1797,6 +1797,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ] | None = None
         # Latest authoritative normal-shop page, consumed only while outside.
         self._shop_observation: tuple[StoreState, int] | None = None
+        # In-store shop operations and shelf evidence
+        # (SOL-DESIGN-store-reentry-20261003, policy_instore.py).  The switch
+        # is the CLI's ``--in-store-shop-ops``; the breaker survives restarts
+        # through its sidecar file.
+        self._in_store_ops_enabled = False
+        self._in_store_breaker: tuple[str, int | None] | None = None
+        self._in_store_breaker_path: Path | None = None
+        self._in_store_entry_ledger: dict | None = None
+        self._in_store_screen_verified: bool | None = None
+        self._in_store_shop_fallback: dict | None = None
+        self._in_store_shadow_last: dict[int, dict] = {}
+        self._in_store_telemetry: dict | None = None
+        self._shelf_evidence: dict = {}
+        self._shelf_evidence_cache: dict = {}
+        self._plan_shadow_pending: dict = {}
+        self._plan_shadow_visits: dict = {}
         # Store actions share the decision sequence as a monotonic correctness
         # generation.  A leave owns older store snapshots until the feed shows
         # either the surface or a non-older in-store action generation.
@@ -7722,9 +7738,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._observe_home_atomic_withdrawal_outside(snapshot)
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
-        # owns a key.
+        # owns a key.  An in-store operation's own post-operation store board
+        # is state-bound by the executor and confirms it in place
+        # (SOL-DESIGN-store-reentry-20261003 3.1 "effect confirmation").
+        in_store_board = self._in_store_post_op_board(snapshot)
         if (
-            snapshot.store is None
+            (snapshot.store is None or in_store_board)
             and self._store_buy_inflight is not None
             and (
                 self._store_visit is None
@@ -7772,6 +7791,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
+                self._in_store_best_effort("_note_shelf_trade",
+                    snapshot, watched_store, "buy", watched_signature, bought,
+                    gold_spent=before_gold - snapshot.player.gold,
+                )
+                if in_store_board:
+                    self._in_store_effect_confirmed(snapshot)
+            elif in_store_board:
+                # No effect on the state-bound page: no in-store retry and no
+                # outside wait is charged here; the entry ends.
+                pass
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
                 self._close_store_visit("one-shot-buy-unconfirmed")
@@ -7785,7 +7814,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     action_generation,
                 )
         if (
-            snapshot.store is None
+            (snapshot.store is None or in_store_board)
             and self._batch_sell_pending is not None
             and self._batch_sell_pending.get("phase") == "await-sale"
             and (
@@ -7812,13 +7841,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if survivor is None or survivor.count <= expected:
                     confirmed = True
             wait_count = int(pending.get("wait_count", 0))
-            if confirmed or wait_count + 1 >= STORE_STUCK_LIMIT:
+            if confirmed or (not in_store_board and wait_count + 1 >= STORE_STUCK_LIMIT):
                 pending_store = int(pending["store_type"])
                 self._batch_sell_key(
                     replace(snapshot, store=StoreState(pending_store, []))
                 )
-            else:
+                if confirmed:
+                    for entry in entries:
+                        self._in_store_best_effort("_note_shelf_trade",
+                            snapshot, pending_store, "sell",
+                            entry["signature"], int(entry.get("quantity", 0)),
+                        )
+                    if in_store_board:
+                        self._in_store_effect_confirmed(snapshot)
+            elif not in_store_board:
                 pending["wait_count"] = wait_count + 1
+        self._in_store_best_effort("_in_store_shadow_visit_outcome", snapshot)
         self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
@@ -9708,6 +9746,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot.turn,
                 )
                 self._observe_restock_supplier_page(snapshot)
+                self._in_store_best_effort("_observe_shelf_evidence", snapshot)
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
                     self.last_reason = "town:recall-stockout-mining"
                     self._offer_execution(
@@ -9718,6 +9757,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         expected_effect="outside-store",
                     )
                     return LEAVE_STORE_KEY
+            if snapshot.store.store_type != STORE_HOME:
+                # An entry that already emitted an in-store operation continues
+                # in the store or leaves; it never mixes with the one-shot
+                # path (SOL-DESIGN-store-reentry-20261003 3.1).
+                in_store_key = self._in_store_entry_key(snapshot)
+                if in_store_key is not None:
+                    return in_store_key
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
             if staged_operation is not None:
@@ -9730,6 +9776,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if staged_operation.startswith(BUY_KEY)
                     else "shop:one-shot-sell"
                 )
+                if snapshot.store.store_type != STORE_HOME:
+                    self._in_store_best_effort("_in_store_shadow_agreement", snapshot, staged_operation)
                 return staged_operation
             if (
                 (self._store_visit is not None
@@ -9746,6 +9794,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # Its queued tail is the only input; policy contributes none.
                 self.last_reason = "shop:one-shot-in-flight"
                 return ""
+            if snapshot.store.store_type != STORE_HOME:
+                # Phase 0 shadow (pure), then Phase 1 when switched on.
+                self._in_store_best_effort("_in_store_shadow", snapshot)
+                in_store_key = self._in_store_try_start(snapshot)
+                if in_store_key is not None:
+                    return in_store_key
             # Observation visit: never select or answer an item prompt here.
             self._shop_observation = (snapshot.store, self._decision_sequence)
             self.last_reason = "shop:observe-and-leave"
@@ -13172,6 +13226,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if owner == "shop:one-shot-buy" and business_outcome == "failed:purchase-refused":
             self._store_buy_inflight = None
             self._close_store_visit("one-shot-buy-refused")
+        self._in_store_reconcile(owner, business_outcome)
 
     def peek_staged_prompt_chain(self) -> dict | None:
         """Return the current decision's prompt chain without consuming it."""

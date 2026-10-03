@@ -16,6 +16,7 @@ from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
+    IN_STORE_BUY_REASON,
 )
 
 
@@ -64,6 +65,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     Read/device/identify, LOOK, knowledge and quantity reuse the established
     classifier and captured screens. Missing forms remain unfixed blockers.
     """
+    if owner == IN_STORE_BUY_REASON and (key != "p" or not continuations):
+        # SOL-DESIGN-store-reentry-20261003 3.1: an in-store purchase is only
+        # 'p' followed by answers gated on its own observed prompts
+        # (cli._in_store_buy_continuations); never a composed macro.
+        raise ValueError("in-store buy without observed prompt gates")
     # The captured Class A store prompts are Japanese. The established
     # English store plans bind composed transactions to the observed store
     # boundary, with any existing quantity/confirmation gates kept separately.

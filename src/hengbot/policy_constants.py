@@ -186,6 +186,21 @@ CARDINAL_OFFSETS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 STORE_RESTOCK_WAIT_TURNS = 1000
 STORE_RESTOCK_REST_GAME_TURNS = 3000
 STORE_RETRY_TURNS = 5000
+# Game fact, not a tunable: a store restocks only on the player's own entry
+# once (game_turn - last_visit) / (TURNS_PER_TICK * STORE_TICKS) >= 1
+# (store/cmd-store.cpp:93-101; gamevalue.h TURNS_PER_TICK 10, store.h
+# STORE_TICKS 1000).  SOL-DESIGN-store-reentry-20261003 3.3.2.
+STORE_MAINTENANCE_INTERVAL_TURNS = 10 * 1000
+# In-store shop operations (SOL-DESIGN-store-reentry-20261003 3.1/3.2).
+IN_STORE_BUY_REASON = "shop:in-store-buy"
+IN_STORE_SELL_REASON = "shop:in-store-sell"
+IN_STORE_INSCRIBE_REASON = "shop:in-store-inscribe"
+IN_STORE_DONE_REASON = "shop:in-store-done"
+IN_STORE_OPERATION_REASONS = frozenset({
+    IN_STORE_BUY_REASON, IN_STORE_SELL_REASON, IN_STORE_INSCRIBE_REASON,
+})
+IN_STORE_BREAKER_REASON_PREFIX = "store:in-store-breaker:"
+IN_STORE_BREAKER_FILE_NAME = "in-store-breaker.json"
 PROBE_LIMIT = 2
 READ_KEY = "r"
 RANGED_MAX_DISTANCE = 10

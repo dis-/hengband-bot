@@ -122,8 +122,12 @@ ARBITRATING_FAMILIES = (
 # store-router rows to the quest-request family, so the bounty errand's
 # walk is owned by the family that cashes the bounty out (recorded incident
 # incident-20261001-0625-town-loop-bounty-approach, shadow gate leak).
+# SOL-DESIGN-store-reentry-20261003 3.2 (review change 11): the in-store
+# operation labels join the families of the one-shot they replace --
+# ``shop:in-store-sell``/``-inscribe`` in shop-sell, ``shop:in-store-buy``/
+# ``-done`` in shop-buy (town_arbiter.py registrations).
 ARBITRATION_TABLE_SHA256 = (
-    "40aed34a5ca1306a53ebecc4a63ae88f3ea5745b1f3ccbce92dce56ef62040ba"
+    "9ef9e4b94bb107ff2083992d9834944a444d5c75acbc6ed4975a260f38e5f5cf"
 )
 
 # The ten families S2a adds, each named after what it owns.  They are

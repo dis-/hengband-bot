@@ -613,7 +613,26 @@ _PURCHASE_REFUSAL_MESSAGES = {
     "You cannot carry that many items.",
     "\u304a\u91d1\u304c\u8db3\u308a\u307e\u305b\u3093\u3002",
     "You do not have enough gold.",
+    # purchase-order.cpp:170-178: an empty shelf answers 'p' at once,
+    # before any item chooser (SOL-DESIGN-store-reentry-20261003 3.1).
+    "\u73fe\u5728\u5546\u54c1\u306e\u5728\u5eab\u3092\u5207\u3089\u3057\u3066\u3044\u307e\u3059\u3002",
+    "I am currently out of stock.",
 }
+
+# Owners of an in-store shop operation (policy_constants IN_STORE_*_REASON,
+# SOL-DESIGN-store-reentry-20261003 3.1).  Spelled here so the executor needs
+# no policy import.
+_IN_STORE_BUY_OWNER = "shop:in-store-buy"
+_IN_STORE_OPERATION_OWNERS = frozenset({
+    _IN_STORE_BUY_OWNER, "shop:in-store-sell", "shop:in-store-inscribe",
+})
+# purchase-order.cpp prompt_to_buy through input_check_strict(DEFAULT_Y):
+# any total.  An in-store buy gates on its exact total; this generic form
+# recognizes the same prompt showing another total (a price mismatch).
+_ANY_BUY_PRICE_PROMPTS = (
+    r"\s*\u8cb7\u5024 \$\d+ \u3067\u8cb7\u3044\u307e\u3059\u304b\uff1f\[Y/n\]",
+    r"\s*Do you buy for \$\d+\? \[Y/n\]",
+)
 
 # cmd-item/cmd-equipment.cpp:229-234,383-386 and
 # store/store-key-processor.cpp:269-277.  These messages return to the outer
@@ -973,6 +992,29 @@ class OperationExecutor:
             return self._terminal(None, "bootstrap", "wm-only degraded mode", transport_name="wm-only")
         return self._observe_decidable(None, deadline)
 
+    def cancel_in_store_terminal(self, result: OperationResult, *, deadline: float) -> OperationResult:
+        """Cancel a failed IST operation, retaining its ownership and receipts.
+
+        No transaction segment is retried. Read a fresh screen, send only
+        Escape, and require the usual state-bound barrier before continuing.
+        A failed cancellation remains a transport incident.
+        """
+        operation = result.operation
+        if (operation is None or operation.owner not in _IN_STORE_OPERATION_OWNERS
+                or self.active is not None or self.client is None):
+            return result
+        screen = self._request("screen", deadline, term=0, attrs=False)
+        if screen is None:
+            return result
+        match = self._classify(screen)
+        if match.kind is ScreenKind.DEATH:
+            return self._death(operation, match)
+        operation.dropped_continuations.extend(step.keys for step in operation.continuations)
+        operation.continuations.clear()
+        operation.business_outcome = "failed:terminal"
+        self.active = operation
+        return self._post_and_barrier("\x1b", deadline, role="exit")
+
     def submit(self, operation: Operation, *, deadline: float) -> OperationResult:
         if self.active is not None:
             # Admission refusal must never retire or poison the owning operation.
@@ -1318,7 +1360,35 @@ class OperationExecutor:
             )
         ):
             return self._post_and_barrier("n", deadline, role="answer")
+        if (
+            self.active.owner == _IN_STORE_BUY_OWNER
+            and match.kind is ScreenKind.CONFIRM
+            and self.active.continuations
+            and ScreenKind.CONFIRM in self.active.continuations[0].kinds
+            and any(re.fullmatch(prompt, match.feature) is not None
+                    for prompt in _ANY_BUY_PRICE_PROMPTS)
+        ):
+            # SOL-DESIGN-store-reentry-20261003 3.1 (Q4): the purchase prompt
+            # asks another total than the observed row's.  Decline it; the
+            # policy ends the entry and trips the in-store breaker.
+            self.active.business_outcome = "failed:price-mismatch"
+            self.active.dropped_continuations.extend(
+                item.keys for item in self.active.continuations
+            )
+            self.active.continuations.clear()
+            return self._post_and_barrier("n", deadline, role="answer")
         if match.kind not in (ScreenKind.COMMAND, ScreenKind.STORE):
+            if (self.active.owner in _IN_STORE_OPERATION_OWNERS
+                    and self.active.business_outcome not in {
+                        "failed:unowned-screen", "failed:terminal"}):
+                # The IST operation owns its cancellation. Drop every item
+                # answer, then require a fresh barrier after Escape; never
+                # answer the unexpected chooser with a cached letter.
+                self.active.business_outcome = "failed:unowned-screen"
+                self.active.dropped_continuations.extend(
+                    item.keys for item in self.active.continuations)
+                self.active.continuations.clear()
+                return self._post_and_barrier("\x1b", deadline, role="exit")
             return self._terminal(self.active, "continuation", f"unowned {match.kind.value}: {match.feature}", match, outcome)
         screen_epoch = self.client.observation_epoch
         state = self._request("state", deadline, map=True)
@@ -1345,7 +1415,19 @@ class OperationExecutor:
             return self._terminal(
                 self.active, "store-state",
                 "missing or mismatching current store page", match, outcome)
-        if self.active.owner == "shop:one-shot-buy" and any(
+        if (
+            self.active.owner in _IN_STORE_OPERATION_OWNERS
+            and match.kind is ScreenKind.STORE
+            and any(
+                message in _HOME_EQUIPMENT_REFUSAL_MESSAGES
+                for message in _operation_messages(screen_value, board)
+            )
+        ):
+            # 「そのコマンドは店の中では使えません。」 after an in-store
+            # operation: its keys reached the store command loop as commands
+            # (SOL-DESIGN-store-reentry-20261003 3.1 breaker, Q5).
+            self.active.business_outcome = "refused:store-command"
+        if self.active.owner in {"shop:one-shot-buy", _IN_STORE_BUY_OWNER} and any(
                 message in _PURCHASE_REFUSAL_MESSAGES
                 for message in _operation_messages(screen_value, board)):
             self.active.business_outcome = "failed:purchase-refused"

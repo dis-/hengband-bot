@@ -20,6 +20,7 @@ from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
+from hengbot.policy_instore import InStoreMixin
 from hengbot.purchase_rungs import (
     PurchaseContext,
     PurchaseMatch,
@@ -47,7 +48,7 @@ class _SignatureScopedStoreVerdict(str):
         return 0
 
 
-class ShopMixin:
+class ShopMixin(InStoreMixin):
     def _required_departure_supply_reserve(self, snapshot: Snapshot) -> int | None:
         """Return the known cost of unmet required stock, or unknown.
 
@@ -5079,7 +5080,12 @@ class ShopMixin:
         # Current inventory/gold are paired with exactly this latest page at
         # the composition boundary; no cached item candidate is trusted.
         reason_before_composition = self.last_reason
-        inner = self._shop(replace(snapshot, store=observed_store))
+        # An in-store page whose ``_shop`` result was not an in-store
+        # operation hands that result here, so the page is not run through
+        # ``_shop`` twice (SOL-DESIGN-store-reentry-20261003 3.0/3.4).
+        cached, inner = self._in_store_cached_shop(observation)
+        if not cached:
+            inner = self._shop(replace(snapshot, store=observed_store))
         if inner is None:
             # A held purchase legitimately has no command to compose. Keep the
             # observed page for the holder's continuation or a later purchase.
