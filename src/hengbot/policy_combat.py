@@ -2446,6 +2446,7 @@ class CombatMixin:
         )
         return key if speed is None else speed
 
+    @claims(ClaimOwner.SURVIVAL)
     def _strong_fight_speed_key(
         self,
         snapshot: Snapshot,
