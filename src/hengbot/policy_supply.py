@@ -1655,6 +1655,12 @@ class SupplyMixin:
         if step is not None:
             self.last_reason = "unseen:reverse-choke"
             return self._step_toward(snapshot, step)
+        # The reverse route is exhausted without reaching a choke: the retreat
+        # retires here, as it does when its choke wait ends.  Left armed it
+        # takes back every board a lower owner moves it off this cell
+        # (Forest 32F 2026-10-03 11:11:23: dead end (1, 196), seek-loot '4'
+        # and unseen:reverse-choke '6' alternated until the loop detector).
+        self._clear_unseen_retreat()
         return None
 
     def _nearest_goal_step(self, snapshot: Snapshot, predicate) -> Position | None:
