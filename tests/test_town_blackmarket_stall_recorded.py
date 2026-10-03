@@ -32,6 +32,10 @@ the latch is left as it was (tests/test_oneshot_preempt_recorded.py board 8
 keeps its live Home step-off).  Board 4 then routes to the Alchemist
 (store 4, ``%``) for the live claim.  That key differs from live, so no
 later board is the effect of the fixed key (R4); the pin stops at 4.
+The fix pin runs under the recorded five-staff Identify cap
+(tests/identify_staff_cap_walls.py); the 2026-10-03 four-staff cap's first
+changed key on this board (index 2) is pinned unwalled in
+IdentifyStaffCapDivergenceTest.
 """
 
 from __future__ import annotations
@@ -43,14 +47,16 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import STORE_ALCHEMIST, STORE_BLACK, TVAL_SCROLL
+from hengbot.model import STORE_ALCHEMIST, STORE_BLACK, STORE_MAGIC, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy import staged_prompt_chain_matches
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "town-blackmarket-stall-20261002.jsonl.gz"
@@ -131,6 +137,7 @@ class TownBlackMarketStallRecordedTest(unittest.TestCase):
         self.assertEqual(self.detail[str(STOP)]["procurement_requirements"], [])
 
     # ------------------------------------------------------------ fix
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     def test_router_and_departure_seam_agree_and_route_the_live_claim(self):
         seen = {}
 
@@ -156,6 +163,58 @@ class TownBlackMarketStallRecordedTest(unittest.TestCase):
         # First changed key versus live (no-actionable-claim-owner): stop here.
         self.assertEqual(rows[FIRST_NO_OWNER], ("\x1b`n%.", "shop:travel"),
                          self._live(FIRST_NO_OWNER))
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """The same recorded process, without the cap wall, under the 10-03 cap.
+
+    User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「4本を超えた分は回数の
+    少ない杖から売る（売れなければ自宅に預ける）」: the board carries five staves
+    「鑑定の杖」 j (18), k (5) and l (3x 4), 35 charges.  One 4-charge staff of
+    l is above the cap, so the first changed key is index 2: travel to the
+    Magic shop to sell it (shop-sell) instead of the live Black Market
+    approach.
+    """
+
+    # The same frozen process and replay as the walled pin above.
+    setUpClass = TownBlackMarketStallRecordedTest.__dict__["setUpClass"]
+    _replay = TownBlackMarketStallRecordedTest._replay
+    _live = TownBlackMarketStallRecordedTest._live
+
+    def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
+        first_changed = 2
+        seen = {}
+        original = HengbotPolicy.choose_key
+
+        def choose_key(policy, board):
+            if len(seen.setdefault("keys", [])) == first_changed:
+                staves = policy._carried_identify_staves(board)
+                seen["staves"] = [(item.slot, item.count, item.charges)
+                                  for item in staves]
+                seen["charges"] = policy._total_identify_staff_charges(board)
+                seen["release"] = policy._identify_staff_release_plan(board)
+                sale = policy._find_device_sale(board)
+                seen["sale"] = sale and (sale.slot, sale.count, sale.charges)
+            key = original(policy, board)
+            seen["keys"].append(key)
+            if len(seen["keys"]) == first_changed + 1:
+                seen["requesters"] = (policy.decision_claim or {}).get(
+                    "requester_families")
+            return key
+
+        with patch.object(HengbotPolicy, "choose_key", choose_key):
+            rows = self._replay(first_changed)
+        self.assertEqual(rows[:first_changed],
+                         [self._live(index) for index in range(first_changed)])
+        self.assertEqual(seen["staves"], [("j", 1, 18), ("k", 1, 5), ("l", 3, 4)])
+        self.assertEqual(seen["charges"], 35)
+        self.assertEqual(seen["release"], {"l": 1})
+        self.assertEqual(seen["sale"], ("l", 3, 4))
+        # First changed key versus live (Black Market approach): stop here (R4).
+        self.assertEqual(self._live(first_changed), ("9", "shop:approach"))
+        self.assertEqual(rows[first_changed], ("`n&.", "shop:travel"))
+        self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS.index("&"), STORE_MAGIC)
+        self.assertIn("shop-sell", seen["requesters"])
 
 
 if __name__ == "__main__":

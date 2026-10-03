@@ -3332,6 +3332,7 @@ class ShopMixin:
                     (int(entry["signature"][1]), int(entry["signature"][2]))
                     for entry in entries
                 )
+                self._record_identify_staff_sale_charges(entries)
             elif not confirmed:
                 self._close_store_visit("one-shot-sale-unconfirmed")
             # A completed batch can compact every following inventory slot.
@@ -3427,6 +3428,39 @@ class ShopMixin:
             rf"@{re.escape(tag)}(?!\d)", cls._sale_inscription_text(item)
         ) is not None
 
+    def _record_identify_staff_sale_charges(
+        self, entries: list[dict[str, object]]
+    ) -> None:
+        """Remember the fullest Identify staff confirmed sold this visit."""
+        for entry in entries:
+            signature = entry["signature"]
+            if (int(signature[1]), int(signature[2])) != (
+                TVAL_STAFF, SV_STAFF_IDENTIFY,
+            ) or "charges" not in entry:
+                continue
+            charges = int(entry["charges"])
+            previous = self._town_visit_sale_identify_charges
+            self._town_visit_sale_identify_charges = (
+                charges if previous is None else max(previous, charges)
+            )
+
+    def _identify_staff_swap_purchase(self, item: StoreItem) -> bool:
+        """Whether buying ``item`` completes the emptiest-for-fuller swap.
+
+        User 2026-10-03: 「20回分に届かない時は、回数の一番少ない杖を手放して
+        店の回数の多い杖に買い替える」.  A shelf Identify staff with more
+        per-staff charges than every Identify staff sold this visit is the
+        replacement the sale was for, not a sell-then-rebuy of the same item;
+        an equal-or-emptier one still is.
+        """
+        sold = self._town_visit_sale_identify_charges
+        return (
+            item.tval == TVAL_STAFF
+            and item.sval == SV_STAFF_IDENTIFY
+            and sold is not None
+            and max(item.charges, item.pval) > sold
+        )
+
     @staticmethod
     def _sale_item_identity(item: InventoryItem) -> tuple[str, int, int]:
         # Live snapshots currently expose inscription=None while appending the
@@ -3463,6 +3497,7 @@ class ShopMixin:
         return {
             "count": item.count,
             "quantity": quantity,
+            "charges": item.charges,
             "sell": SELL_KEY + tag + quantity_answer + "y",
         }
 
@@ -4243,7 +4278,10 @@ class ShopMixin:
                 self._shop_selector_diagnostics["purchase_provenance"] = (
                     "unmatched-fail-open"
                 )
-            if (item.tval, item.sval) in self._town_visit_sale_signatures:
+            if (
+                (item.tval, item.sval) in self._town_visit_sale_signatures
+                and not self._identify_staff_swap_purchase(item)
+            ):
                 self.town_visit_report = (
                     f"town-visit:sell-rebuy-churn:{item.tval}:{item.sval}"
                 )

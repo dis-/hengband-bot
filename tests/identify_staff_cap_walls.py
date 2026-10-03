@@ -32,6 +32,24 @@ staff is released, so the Home weight batch deposits one staff instead of
 both and the retained quantities change.  That pin's subject is the weight
 deposit and required-supply retention, so it runs under the same wall; the
 new choice is pinned in tests/test_live36_weight.py::IdentifyStaffCapDivergenceTest.
+
+The oneshot-preempt capture (2026-10-02 09:03:38 process) carries the same
+five staves as overweight-home-hold: 「鑑定の杖 (9回分)」, 「(2x 8回分)」 and
+「(2x 3回分)」, 31 charges.  Under the four-staff cap one 3-charge staff is
+released, so at index 9 (after the Home step-off) the bot travels to the
+Magic shop to sell it instead of the recorded Weapon Smith trip.  Those pins'
+subjects are the shop-buy progress vector, the Weapon Smith one-shot and the
+Temple recall one-shot, so their replays run under the same five-staff wall.
+The new choice is pinned in
+tests/test_oneshot_preempt_recorded.py::IdentifyStaffCapDivergenceTest.
+
+The town-blackmarket-stall capture (2026-10-02 17:01:12 process) carries
+「鑑定の杖」 18, 5 and 3x 4 charges: five staves, 35 charges.  Under the
+four-staff cap one 4-charge staff is released, so at index 2 the bot travels
+to the Magic shop to sell it instead of the recorded Black Market approach.
+That pin's subject is the router/departure-seam verdict at index 4, so its
+replay runs under the same five-staff wall.  The new choice is pinned in
+tests/test_town_blackmarket_stall_recorded.py::IdentifyStaffCapDivergenceTest.
 """
 from contextlib import ExitStack, contextmanager
 from unittest.mock import patch

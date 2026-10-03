@@ -308,7 +308,15 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
         self.assertFalse(board.player.blind)
         self.assertEqual(board.visible_monsters, [])
         self.assertNotEqual(reason, "emergency:teleport")
-        self.assertFalse(key.startswith("r"), key)
+        # No escape scroll is read.  The one read this board may make is the
+        # low-HP town return's recall (HP 337/731): the unseen-hit retreat
+        # armed here has no step from this cell and now retires instead of
+        # holding the escape slot silently, which had kept that return from
+        # starting (the reverse-choke / seek-loot alternation, 2026-10-03).
+        if key.startswith("r"):
+            read = next(item for item in board.inventory if item.slot == key[1])
+            self.assertTrue(read.is_recall_scroll, (key, reason, read.name))
+            self.assertEqual(reason, "return:recall")
 
     def test_expired_carry_does_not_teleport(self):
         self._cure_sets_the_carry()
