@@ -104,6 +104,10 @@ class HomeMixin:
             if self._find_home_deposit(snapshot) is None:
                 self._home_full_retry_deposits = None
                 return None
+            if not self._home_knowledge_current:
+                return self._town_producer_entry(
+                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                    family="home-scan")
             if snapshot.store is not None:
                 if snapshot.store.store_type == STORE_HOME:
                     return self._open_home_deposit_key(snapshot)
@@ -176,9 +180,6 @@ class HomeMixin:
                     self._invalidate_home_observation()
                     self._rearm_town_store_for_new_work(STORE_HOME,
                                                        release_visit_bound=True)
-                    self.last_reason = "home:full-space-ready"
-                    if snapshot.store is not None:
-                        return self._home_full_leave_key("home:full-space-ready")
                     return self._home_full_relief_key(snapshot)
                 sale = None
             elif self._home_errand.state.value in {"failed", "stopped"}:
@@ -186,11 +187,9 @@ class HomeMixin:
                 return self._town_blocked_key(snapshot)
         if sale is None:
             if not self._home_knowledge_current:
-                self.last_reason = "home:full-await-knowledge"
-                if snapshot.store is not None:
-                    return self._home_full_leave_key("home:full-await-knowledge")
-                self._offer_home_knowledge_request(producer="home-visit")
-                return HOME_KNOWLEDGE_MACRO
+                return self._town_producer_entry(
+                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                    family="home-scan")
             candidates = [result for item in self._home_knowledge_items
                           if not item.is_equipment
                           and (result := self._home_full_sale_candidate(snapshot, item))]
@@ -224,6 +223,22 @@ class HomeMixin:
             self._town_blocked_reason = "home-full-surplus-store-unreachable"
             return self._town_blocked_key(snapshot)
         return self._shopping_approach_key(snapshot, step, "shop:travel")
+
+    @claims(ClaimOwner.HOME_SCAN)
+    def _home_full_knowledge_key(self, snapshot: Snapshot) -> str:
+        """Reacquire changed stock through the existing observed scan owner."""
+        if self._home_knowledge_scan_inflight:
+            self.last_reason = "home:scan-await-observation"
+            self._offer_execution(
+                WAIT_KEY, producer="home-scan",
+                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch")
+            return WAIT_KEY
+        self.last_reason = "home:request-knowledge-scan"
+        self._offer_home_knowledge_request(producer="home-scan")
+        return HOME_KNOWLEDGE_MACRO
 
 
 

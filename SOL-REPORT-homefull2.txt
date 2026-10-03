@@ -1,0 +1,112 @@
+Fix Home knowledge ownership after surplus sales
+
+Workspace: C:\hengband\bot-client-homefull2
+Branch: home-full-await-knowledge; base: 2ab89e0d.
+
+Cause and evidence
+
+Evidence is the read-only home-full-await-knowledge-20261004-0710 backup.
+Line references below to archived decisions/states mean decompressed JSONL
+lines in the autorecover-20261004-071054-town-blocked-owner-retired captures.
+
+Decision line 208 (9887, 07:10:30, turn 8050883) posted ~9 ESC under
+home-visit, with a Terminal goal and arbiter progress=False/retired=True.
+State line 54 contains the resulting complete Home knowledge. Thus the
+07:10:30 request did receive knowledge; the failure concerns reacquisition
+after the next sale, rather than absence of that earlier response.
+
+State lines 70-72 show the next sale: gold rises from 40969 to 42859 and
+the slot-i surplus disappears. Decision line 217 instead routes to another
+store. At 07:10:40, decision line 218 (9897, turn 8051658), paired with
+state line 75, has store_type=5 and posts only ESC. The former stale-knowledge
+branch returned _home_full_leave_key whenever any store was visible, before
+offering a knowledge request. Outside, its scan was incorrectly attributed
+to home-visit. Catalogue adoption completes Observe/knowledge claims only
+for home-scan (src/hengbot/policy_home.py:539), so that Terminal home-visit
+claim could not receive the scan's observed completion and spent the wrong
+recurrence budget.
+
+Decision lines 220-224 show further ESC, store-router '9', and detector '1'
+outputs; no new Home knowledge follows state line 54 in this capture.
+Decision line 225 (9904, 07:10:49, turn 8051865) stops with
+town:blocked:owner-retired after the owners have been retired.
+
+The blocked batch originates in the deposit observer
+(src/hengbot/policy.py:7396, especially :7471). Relief is bound and surplus
+is screened in src/hengbot/policy_home.py:24, :29, :42, :82, :91.
+While it is pending, ordinary deposits are suppressed at :2341, :2572,
+and :2761. Dispatch reaches this flow from src/hengbot/policy.py:8460
+and :9855. These existing gates are retained.
+
+Fix
+
+Stale knowledge before another withdrawal or the final deposit retry now
+enters the existing home-scan owner through the normal producer gate
+(src/hengbot/policy_home.py:109, :191, :228). It posts the existing
+HOME_KNOWLEDGE_MACRO with expected effect catalogue-adopted. Stores support
+the knowledge command, so the scan can run directly on a visible store page.
+No ESC/re-entry cycle is needed for reacquisition.
+
+A posted scan keeps home-scan while awaiting its response, including when
+the selling store remains visible (src/hengbot/policy.py:7553). Existing
+catalogue adoption completes its Observe/knowledge claim. Selection and
+physical Home work resume after that observed effect. Owner families,
+claim contracts, admission gates, budgets, and equipment rules are unchanged;
+no new production constants were introduced.
+
+Recorded pins and replay boundary
+
+Fixture: tests/fixtures/home-full-await-knowledge-20261004.json.gz
+Size: 83342 bytes.
+SHA256: 9ec426659c3767361e9e4037488d1ae2909c2ce4cec8848ab429214136d28165
+Reproduction: python scripts/extract_home_full_await_knowledge.py
+The fixture includes source hashes, original row numbers, prior skill
+knowledge, and the relevant static base-item costs. Tests read only fixtures.
+
+The new module pins ~9 ESC on the 07:10:40 board and a delayed-response
+wait under home-scan, with S3.3 OFF and ON. Its sale prefix matches all four
+recorded commands (inscription, ESC, stay, sale) before the first divergence:
+the observed sale now requests knowledge instead of the recorded route.
+After that divergence, the response and arrival/withdrawal observations are
+explicitly constructed alternatives. The cycle completes an atomic next
+withdrawal and observes its inventory increase. The existing relief pin also
+asserts a final scan before retrying and completing the original deposit.
+
+No policy checkpoint survives. The pending ledger, two-stack relief budget,
+and prior page/terrain context are explicitly reconstructed; this is a bounded
+recorded-prefix pin, not a claimed exact replay of the entire live process.
+Historical boards after a changed key are never replayed as its consequences.
+
+Revert proof
+
+Restoring policy_home.py alone from 2ab89e0d produces four subtest failures:
+the 07:10:40 pin emits ESC and the cycle scan belongs to home-visit.
+Restoring policy.py alone produces two subtest failures: the delayed store
+board falls through to CR/shop-buy, including ownership:gate-missing:shop-buy.
+Both files were restored byte-for-byte to the fix; the new module then passes.
+
+Validation
+
+Modules ran sequentially with PYTHONPATH=src;tests;scripts, using the runnable
+Python 3.13 interpreter, not a WindowsApps stub. Final results:
+
+test_home_full_await_knowledge_recorded: 2 OK
+test_home_full_relief_recorded: 4 OK
+test_home_route_release_recorded: 5 OK
+test_policy_home: 171 OK, 4 existing skips
+test_policy_shop: 273 OK, 1 existing skip
+test_s33_batch_admission: 9 OK
+test_s33_batch_context: 8 OK
+test_town_arbiter: 30 OK
+test_test_fakery_lint: 13 OK
+test_policy_structure: 7 OK
+test_no_live_state_artifact: 1 OK
+Total: 523 tests, 5 skips, no failures. git diff --check also passes.
+
+No full suite or test_policy_town execution was performed. No push or live
+bot operation was performed. Writes were confined to this worktree; the
+backup, other worktrees, and live jsonlog were not modified. Existing
+untracked task/evidence files are excluded from the implementation commit.
+
+Commit subject: Fix Home knowledge ownership after surplus sales
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

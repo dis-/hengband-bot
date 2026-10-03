@@ -7550,6 +7550,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_exit_completion(snapshot, catalogue_holder, [])
             else:
                 return self._home_catalogue_work_key(snapshot)
+        if (snapshot.in_town and self._home_knowledge_scan_inflight
+                and not self._home_knowledge_current
+                and (self._home_full_relief is not None
+                     or self._home_full_retry_deposits is not None)):
+            # A posted surplus-sale census keeps its observed scan owner even
+            # when the unchanged board still shows the selling store.
+            scan_key = self._town_producer_entry(
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
+            if scan_key is not None:
+                return scan_key
         if (
             snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (not (getattr(self, '_town_claim_bar_enforced', False) and self._store_leave_inflight is not None)) and (not (getattr(self, '_town_claim_bar_enforced', False) and (self._home_atomic_deposit_pending is not None or self._home_atomic_withdraw_pending is not None))) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
         ):
