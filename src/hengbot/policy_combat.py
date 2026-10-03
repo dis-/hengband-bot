@@ -2599,10 +2599,46 @@ class CombatMixin:
         none -> teleport first."""
         if self._find_heal_potion(snapshot, expected_damage=1) is None:
             return None
+        if self._teleport_before_heal(snapshot, hostiles):
+            return None
         next_turn = self._low_hp_next_turn_damage(
             snapshot, hostiles, observed_loss=observed_loss
         )
         return self._find_heal_potion(snapshot, expected_damage=next_turn)
+
+    def _teleport_before_heal(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """USER DECISION 2026-10-03 (verbatim): 「耐性のない麻痺攻撃の敵が隣に
+        いる時と、巻物を読めなくする攻撃（盲目・混乱）を避けるための緊急脱出の
+        時は、回復量に関係なくテレポートを先に読む。それ以外は決定1どおり被害の
+        量で決める。」
+
+        True while a teleport/phase scroll can be read now and either an
+        awake adjacent monster has an unresisted paralysing or confusing blow
+        (_unresisted_melee_status_threats: no Free Action / no resist_conf,
+        the same blows the status-threat rung reads the scroll for), or the
+        ranged blind/confuse escape holds (_ranged_scroll_lock_escape_needed,
+        the lethal ladder's scroll-lock trigger)."""
+        player = snapshot.player
+        if (
+            player.blind
+            or player.confused
+            or self._escape_scroll(snapshot) is None
+        ):
+            return False
+        if any(
+            monster.distance <= 1
+            for monster in self._unresisted_melee_status_threats(
+                snapshot, hostiles, turns=1
+            )
+        ):
+            return True
+        return self._ranged_scroll_lock_escape_needed(
+            snapshot,
+            hostiles,
+            predicted=self._predicted_damage(snapshot, hostiles, turns=3),
+        )
 
     def _low_hp_next_turn_damage(
         self,
