@@ -33,10 +33,13 @@ Declared walls, all in ``_step``/``_dump_wall``/``_switch_on``:
 - CLI TIMER WALL: the periodic dump/save requests come from the CLI wall
   clock; each is delivered on the board where the live process posted it
   (also when the live row shows it rewritten by the progress invariant).
-- LIVE-KEY WALL 9-12, 17, 171, 219: the replay's own decision differs there
-  (the Home identify-staff reserve right after the first dumps, and two town
-  kill-mob reasons); the cause was not investigated (outside this change),
-  so the live keys are posted.  With the walls every other recorded key and
+- UNSEEN-HIT WALL: pre_unseen_scratch_bound_rule restores the capture-era
+  unseen-hit threshold (main now ignores immaterial scratches).
+- LIVE-KEY WALL 9-12, 17, 159, 171, 219, 267, 273: main-only src reproduces
+  these divergences: Home travel/scan/reserve after dumps (9-12), town
+  probe versus boxed-breakout travel (17), store observation ownership
+  rewriting/suppressing kill-mob approach (171, 219), ranged fire before recall wait (159),
+  and strong-fight-speed use (267, 273). The live keys are posted.  With the walls every other recorded key and
   reason is reproduced, switch off (pin P0).
 - SCREEN WALL: the capture holds no screen.  Phase 1 acts only when the
   executor's slot-by-slot screen check passed on the same board (design 3.1
@@ -97,6 +100,7 @@ from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_types import StoreVisitPhase
 from hengbot.warrior_optimization import load_character_calibration
 
+from unseen_scratch_walls import pre_unseen_scratch_bound_rule
 from test_esp_threat_rest_recorded import EDIT, _policy
 from test_input_executor import (
     FaithfulHookGame, command_screen, prompt_screen, store_screen,
@@ -117,7 +121,13 @@ SHA256 = {
     CALIBRATION_0747: "5ce8f502589e2d96662f96819b5ec034762a9ee8ba6b1d4e9746ad3824235cbc",
     DRAINED_CALIBRATION: "89681faaab50a350d0994cd790788bb424bd4f8a12f1f7801767c327c7773f4c",
 }
-LIVE_KEY_WALL = frozenset({9, 10, 11, 12, 17, 171, 219})
+# Verified against main-only src at a9767a0e (same divergence indices):
+# 9-12: legacy Home travel/scan/identify-staff reserve replay after dumps.
+# 17: legacy town probe versus recorded boxed-breakout travel.
+# 171, 219: store observation ownership rewrites/suppresses kill-mob approach.
+# 159: main ranged-fire precedence replaces return:wait-recall.
+# 267, 273: main strong-fight-speed decisions added after capture.
+LIVE_KEY_WALL = frozenset({9, 10, 11, 12, 17, 159, 171, 219, 267, 273})
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
     "periodic:game-save": "request_game_save",
@@ -167,7 +177,8 @@ def _recorded_dump(self, pending, character, envelope, board=None):
 
 @contextmanager
 def _dump_wall():
-    with patch.object(HengbotPolicy, "_publish_character_dump", _recorded_dump):
+    with pre_unseen_scratch_bound_rule(), patch.object(
+            HengbotPolicy, "_publish_character_dump", _recorded_dump):
         yield
 
 
