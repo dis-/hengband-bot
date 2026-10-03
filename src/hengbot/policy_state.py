@@ -203,6 +203,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
     restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
+    restored.__dict__.setdefault("_town_visit_sale_identify_charges", None)
     restored.__dict__.setdefault("_crossarea_fundraising_enforced", False)
     restored.__dict__.setdefault("_fundraising_run_purpose", None)
     restored.__dict__.setdefault("_fundraising_purpose_record", None)

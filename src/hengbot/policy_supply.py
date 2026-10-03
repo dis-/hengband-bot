@@ -623,16 +623,44 @@ class SupplyMixin:
     ) -> bool:
         """Whether taking one more staff with ``charges`` helps under the cap.
 
-        User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT staves.  Below the
-        cap any charged staff adds charges; at the cap only a staff fuller than
-        the emptiest carried one does, because that emptiest one is released.
+        User 2026-10-03: at most STAFF_IDENTIFY_MAX_COUNT staves; 「20回分に
+        届かない時は、回数の一番少ない杖を手放して店の回数の多い杖に買い替える」.
+        A staff helps only when the charges kept after the release plan rises:
+        at the cap only a staff fuller than the emptiest carried one does; a
+        staff that fills the cap below 20 charges while a fuller affordable
+        shelf staff is observed is itself the emptiest, so the swap would
+        release it again at once (Home 3-charge staff, 2026-10-03 07:47).
         """
         if charges <= 0:
             return False
         staves = self._carried_identify_staves(snapshot)
-        if sum(item.count for item in staves) < STAFF_IDENTIFY_MAX_COUNT:
+        if sum(item.count for item in staves) + 1 < STAFF_IDENTIFY_MAX_COUNT:
             return True
-        return charges > min((item.charges for item in staves), default=0)
+        acquired = replace(
+            staves[0], slot="identify-staff-acquisition", count=1,
+            charges=charges, pval=charges,
+        )
+        after = replace(snapshot, inventory=[*snapshot.inventory, acquired])
+
+        def kept_charges(board: Snapshot) -> int:
+            # The plan is applied until it releases nothing more: an excess
+            # release can leave four staves that the swap then thins again.
+            for _ in range(len(board.inventory) + 1):
+                release = self._identify_staff_release_plan(board)
+                if not release:
+                    break
+                board = replace(board, inventory=[
+                    replace(item, count=item.count - release[item.slot])
+                    if item.slot in release else item
+                    for item in board.inventory
+                    if item.count > release.get(item.slot, 0)
+                ])
+            return sum(
+                item.charges * item.count
+                for item in self._carried_identify_staves(board)
+            )
+
+        return kept_charges(after) > kept_charges(snapshot)
 
     def _identify_staff_release_plan(self, snapshot: Snapshot) -> dict[str, int]:
         """Per-slot quantity of carried Identify staves to release (sell/Home).

@@ -2067,6 +2067,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Successful sales are retained for the same town visit. Buying the
         # same tval/sval item back is semantic churn, not shopping progress.
         self._town_visit_sale_signatures: set[tuple[int, int]] = set()
+        # Most per-staff charges of an Identify staff sold this visit.  The
+        # 2026-10-03 swap sells the emptiest staff to buy a fuller one, which
+        # is an upgrade, not a sell-then-rebuy of the same item.
+        self._town_visit_sale_identify_charges: int | None = None
         self.town_visit_report: str | None = None
         # A6a: Home remains the preferred source for the two-tool mining kit.
         # The count remains useful as terminal-failure evidence, but no longer
