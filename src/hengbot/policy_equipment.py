@@ -162,6 +162,7 @@ from hengbot.policy_constants import (
     CHEST_SEARCH_KEY,
     DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
+    ENTER_DUNGEON_MACRO,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     EAT_KEY,
@@ -2511,16 +2512,29 @@ class EquipmentMixin:
             WAIT_KEY, label="invalid-equip-action",
         )
 
-    def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
+    def _equipment_departure_destination_depth(self, snapshot: Snapshot) -> int:
+        """Use the planned departure's landing, not the optimizer's ceiling."""
+        destination, dungeon_id = self._town_recall_destination(
+            snapshot, safety_gate=False)
+        return self._dungeon_entry_depth(
+            snapshot, dungeon_id if destination is not None else self._active_dungeon_target(),
+            via_recall=destination is not None)
+
+    def _equipment_departure_ready(
+        self, snapshot: Snapshot, *, destination_depth: int | None = None,
+    ) -> bool:
         """Permit completion now or a recorded loadout with no visit-local work."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         # Calibration controls optimization, never ordinary movement. Depth
         # abilities are checked separately from the current ability_sources.
         cacheable = snapshot is self._map_predicate_snapshot
+        depth = (self._equipment_departure_destination_depth(snapshot)
+                 if destination_depth is None else destination_depth)
+        cache_token = (self._decision_sequence, depth)
         if (
             cacheable
-            and self._equipment_departure_cache_token == self._decision_sequence
+            and self._equipment_departure_cache_token == cache_token
         ):
             return self._equipment_departure_cache_value
         preparation = self._prepare_equipment_optimization(snapshot)
@@ -2545,8 +2559,11 @@ class EquipmentMixin:
             and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
-        ready = complete_now or self._safe_optional_equipment_failure_departure(
-            snapshot, preparation)
+        optional_ready = self._safe_optional_equipment_failure_departure(
+            snapshot, preparation, destination_depth=depth)
+        if optional_ready:
+            self._stage_optional_equipment_failure_departure(snapshot, depth)
+        ready = complete_now or optional_ready
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
@@ -2592,12 +2609,14 @@ class EquipmentMixin:
                     for owned in incomplete
                 )
         if cacheable:
-            self._equipment_departure_cache_token = self._decision_sequence
+            self._equipment_departure_cache_token = cache_token
             self._equipment_departure_cache_value = ready
         return ready
 
-    def _safe_optional_equipment_failure_departure(self, snapshot, preparation) -> bool:
-        """Record the user's confirmed-current-loadout optional failure outcome."""
+    def _safe_optional_equipment_failure_departure(
+        self, snapshot, preparation, *, destination_depth=None,
+    ) -> bool:
+        """Check the confirmed current kit without writing a confirmation."""
         if (self._equipment_transaction_owned_items
                 or self._equipment_transaction_restoring
                 or self._equipment_transaction_restore_remainder
@@ -2610,22 +2629,88 @@ class EquipmentMixin:
                 or not self._equipment_failure_unexecutable_this_visit(
                     snapshot, preparation, require_confirmed=False)):
             return False
-        depth = max(self._equipment_optimization_depth(snapshot),
-                    snapshot.dungeon_recall_depths.get(self._target_dungeon_id, 0))
+        depth = (self._equipment_departure_destination_depth(snapshot)
+                 if destination_depth is None else destination_depth)
         if self._missing_required_abilities(snapshot, depth):
             return False
-        # All physical debt is settled and the observed current kit satisfies
-        # the intended depth. Persist that kit before allowing the outcome.
-        self._record_confirmed_loadout(snapshot)
-        if not self._current_worn_loadout_confirmed(snapshot, preparation):
-            return False
-        self._equipment_optional_failure_departure = {
+        return bool(self._optional_failure_current_loadout(snapshot, preparation))
+
+    def _optional_failure_current_loadout(self, snapshot, preparation):
+        """Validate the observed kit that departure will persist, without I/O."""
+        best = getattr(getattr(preparation, "result", None), "best", None)
+        if (self._equipment_optimizer_input_key is None
+                or self._confirmed_loadout_path is None
+                or (best is not None
+                    and not isinstance(getattr(best, "loadout", None), Loadout))):
+            return frozenset()
+        carried = OwnedEquipmentCatalog()
+        carried.refresh_carried(snapshot.inventory, snapshot.equipment)
+        return current_loadout(carried.items).item_ids
+
+    def _stage_optional_equipment_failure_departure(self, snapshot, depth):
+        """Keep abnormal failure evidence through latch retirement until posting."""
+        record = {
             "reason": "optional-optimization-failure-confirmed-loadout",
+            "posted": False,
             "depth": depth,
-            "item_ids": sorted(self._validated_confirmed_loadout().item_ids),
+            "item_ids": sorted(self._optional_failure_current_loadout(
+                snapshot, self._equipment_optimization_preparation)),
             "failed_item_ids": sorted(self._equipment_transaction_failed_items),
         }
-        return True
+        self._equipment_optional_failure_pending = record
+
+    def _confirm_optional_equipment_failure_departure(self, snapshot, key):
+        """Persist the named outcome only for a posted entry or recall command."""
+        pending = self._equipment_optional_failure_pending
+        if pending is None or snapshot is None or not snapshot.in_town:
+            return
+        if (key.startswith(READ_KEY) and self._read_binding is not None
+                and self._read_binding[:2] == (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)):
+            dungeon_id = self._pending_recall_dungeon_id
+            if dungeon_id is None:
+                # Repetition departure uses the same selector without opening
+                # the ordinary recall watch.
+                destination, dungeon_id = self._town_recall_destination(snapshot)
+                if destination is None:
+                    return
+            depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
+        elif self.last_reason in {"quest:enter", "fixedquest:enter", "quest:enter:approach"}:
+            target = (snapshot.player.position if key == DOWN_STAIRS_KEY
+                      else self._walk_step_target(snapshot, key))
+            if target is None:
+                return
+            grid = snapshot.grid_at(target)
+            if (self.last_reason == "quest:enter:approach"
+                    and (grid is None or not grid.has_quest_enter)):
+                return
+            depth = pending["depth"]
+            if grid is not None and grid.has_quest_enter:
+                info = self._quest_knowledge.get(grid.quest_id)
+                quest = snapshot.quests.get(grid.quest_id)
+                depth = max(1, info.level if info is not None
+                            else quest.level if quest is not None else depth)
+        elif key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
+            depth = self._dungeon_entry_depth(
+                snapshot, self._active_dungeon_target(), via_recall=False)
+        else:
+            return
+        if (self._missing_required_abilities(snapshot, depth)
+                or self._equipment_transaction_owned_items
+                or self._equipment_transaction_restoring
+                or self._equipment_transaction_restore_remainder
+                or self._equipment_transaction_restore_terminal
+                or self._equipment_transaction_posted_catalog_update is not None
+                or self._home_atomic_withdraw_pending is not None
+                or self._home_atomic_deposit_pending is not None
+                or self._equipment_transaction_session is not None):
+            return
+        current_ids = self._optional_failure_current_loadout(
+            snapshot, self._equipment_optimization_preparation)
+        if not current_ids or sorted(current_ids) != pending["item_ids"]:
+            return
+        self._record_confirmed_loadout(snapshot)
+        self._equipment_optional_failure_departure = {**pending, "depth": depth, "posted": True}
+        self._equipment_optional_failure_pending = None
 
     @staticmethod
     def _retained_ammo_slots(snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:

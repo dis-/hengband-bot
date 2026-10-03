@@ -205,9 +205,9 @@ class ReconciliationTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_posted_catalog_update)
         self.assertEqual(sum(owned.origin == "home" for owned in policy._equipment_catalog.items), 1)
 
-    def optional_policy(self, directory):
+    def optional_policy(self, directory, *, inventory=()):
         gear = replace(target(), slot="body")
-        board = replace(corridor(), equipment=(gear,),
+        board = replace(corridor(), equipment=(gear,), inventory=inventory,
                         player=replace(corridor().player, class_id=0,
                                        stat_cur=(18, 10, 10, 18), stat_use=(18, 10, 10, 18)))
         policy = HengbotPolicy(monrace_knowledge={1: MonraceKnowledge(
@@ -226,6 +226,7 @@ class ReconciliationTest(unittest.TestCase):
         preparation = policy._prepare_equipment_optimization(board)
         self.assertEqual(preparation.blockers, ("equipment-transaction-failed",))
         self.assertIsNone(policy._equipment_transaction_session)
+        policy._record_confirmed_loadout(board)
         return policy, board, preparation
 
     def test_optional_failure_records_real_current_loadout_and_reason(self):
@@ -233,13 +234,15 @@ class ReconciliationTest(unittest.TestCase):
             policy, board, preparation = self.optional_policy(directory)
             self.assertTrue(policy._equipment_departure_ready(board))
             self.assertTrue(policy._confirmed_loadout_path.is_file())
+            policy._decision_input_snapshot = board
+            policy.last_reason = "descend"
+            policy.confirm_key_posted(">")
             self.assertEqual(policy.equipment_optimization_state()["optional_failure_departure"]["reason"],
                              "optional-optimization-failure-confirmed-loadout")
             self.assertTrue(policy._current_worn_loadout_confirmed(board, preparation))
             policy._town_claim_bar_enforced = True
             policy._char_dump_done_this_visit = True
             key = policy.choose_key(board)
-            self.assertIsNotNone(policy._equipment_optional_failure_departure)
             self.assertIsNone(policy.decision_claim["declaration_mismatch"])
             self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
             self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
@@ -251,9 +254,123 @@ class ReconciliationTest(unittest.TestCase):
             self.assertFalse(policy._safe_optional_equipment_failure_departure(board, preparation))
             policy._equipment_transaction_owned_items.clear()
             policy._target_dungeon_id = 1
-            board = replace(board, dungeon_recall_depths={1: 31})
+            board = replace(board, dungeon_recall_depths={1: 31}, angband_recall_unlocked=True)
             self.assertFalse(policy._equipment_departure_ready(board))
+            self.assertIsNone(policy._equipment_optional_failure_departure)
+
+    def test_optional_failure_uses_shallow_walk_in_and_records_only_posted_departure(self):
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory)
+            policy._target_dungeon_id = 1
+            board = replace(board, dungeon_recall_depths={1: 31})
+            self.assertIn("resist_chaos", policy._missing_required_abilities(board, 31))
+            before = policy._confirmed_loadout_path.stat().st_mtime_ns
+            self.assertTrue(policy._equipment_departure_ready(board))
+            self.assertTrue(policy._retire_actionless_equipment_failure(board))
+            self.assertIsNone(policy._equipment_optional_failure_departure)
+            self.assertEqual(policy._confirmed_loadout_path.stat().st_mtime_ns, before)
+            failed_ids = policy._equipment_optional_failure_pending["failed_item_ids"]
+            self.assertTrue(failed_ids)
+            policy._decision_input_snapshot = board
+            policy.last_reason = "descend"
+            policy.confirm_key_posted("5")
+            self.assertIsNone(policy._equipment_optional_failure_departure)
+            policy.confirm_key_posted(">")
+            record = policy._equipment_optional_failure_departure
+            self.assertEqual(record["reason"], "optional-optimization-failure-confirmed-loadout")
+            self.assertEqual(record["depth"], 1)
+            self.assertEqual(record["item_ids"], sorted(policy._validated_confirmed_loadout().item_ids))
+            self.assertEqual(record["failed_item_ids"], failed_ids)
+
+    def test_optional_failure_pure_check_never_creates_confirmation(self):
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory)
+            policy._confirmed_loadout_path.unlink()
+            policy._confirmed_loadout = None
+            policy._confirmed_loadout_loaded = False
+            self.assertTrue(policy._safe_optional_equipment_failure_departure(board, preparation))
             self.assertFalse(policy._confirmed_loadout_path.exists())
+            self.assertIsNone(policy._equipment_optional_failure_departure)
+            self.assertTrue(policy._equipment_departure_ready(board))
+            self.assertFalse(policy._confirmed_loadout_path.exists())
+            policy._decision_input_snapshot = board
+            policy.last_reason = "descend"
+            policy.confirm_key_posted(">")
+            self.assertTrue(policy._confirmed_loadout_path.is_file())
+            self.assertTrue(policy._current_worn_loadout_confirmed(board, preparation))
+
+    def test_optional_failure_uses_recall_snapshot_and_walk_in_min_depth(self):
+        from hengbot.dungeon_knowledge import DungeonInfo
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory)
+            policy._target_dungeon_id = 1
+            board = replace(board, angband_recall_unlocked=True,
+                            recall_dungeon_id=1, recall_depth=31, dungeon_recall_depths={})
+            self.assertFalse(policy._equipment_departure_ready(board))
+            self.assertFalse(policy._retire_actionless_equipment_failure(board))
+            policy._dungeon_knowledge[1] = DungeonInfo(1, "Constructed", 31, 100, 1)
+            board = replace(board, angband_recall_unlocked=False, recall_depth=0)
+            self.assertFalse(policy._equipment_departure_ready(board))
+
+    def test_optional_failure_fixed_quest_entry_ignores_unrelated_deep_recall(self):
+        from hengbot.quest_knowledge import QuestInfo
+        from policy_fixtures import grid
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory)
+            policy._target_dungeon_id = 1
+            policy._quest_knowledge[99] = QuestInfo(99, "Constructed", 0, 5, 0)
+            here = board.player.position
+            board = replace(board, angband_recall_unlocked=True, dungeon_recall_depths={1: 31},
+                            grids={**board.grids, here: grid(here.y, here.x,
+                                   has_quest_enter=True, quest_id=99)})
+            self.assertFalse(policy._equipment_departure_ready(board))
+            key = policy._fixed_quest_enter_key(board, 99)
+            self.assertEqual(key, ">")
+            self.assertIsNone(policy._equipment_optional_failure_departure)
+            # An unrelated shallow gate probe cannot change the posted quest's
+            # diagnostic depth; posting reads the actual entrance again.
+            self.assertTrue(policy._equipment_departure_ready(board, destination_depth=1))
+            policy._decision_input_snapshot = board
+            policy.confirm_key_posted(key)
+            self.assertEqual(policy._equipment_optional_failure_departure["depth"], 5)
+
+    def test_optional_failure_final_walk_in_gate_uses_its_own_depth(self):
+        from hengbot.model import TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL
+        recall = item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10, known=True)
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory, inventory=(recall,))
+            policy._target_dungeon_id = 1
+            board = replace(board, angband_recall_unlocked=True, dungeon_recall_depths={1: 31})
+            policy._map_predicate_snapshot = board
+            self.assertFalse(policy._equipment_departure_ready(board))
+            self.assertTrue(policy._dungeon_entry_allowed(board, via_recall=False, destination_depth=1))
+            self.assertFalse(policy._dungeon_entry_allowed(board, via_recall=True, destination_depth=31))
+
+    def test_optional_failure_posted_recall_records_selected_landing(self):
+        from hengbot.model import TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL
+        recall = item("a", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10, known=True)
+        with TemporaryDirectory() as directory:
+            policy, board, preparation = self.optional_policy(directory, inventory=(recall,))
+            policy._target_dungeon_id = 1
+            board = replace(board, angband_recall_unlocked=True,
+                            recall_dungeon_id=1, recall_depth=10)
+            self.assertTrue(policy._dungeon_entry_allowed(
+                board, via_recall=True, destination_depth=10))
+            policy._decision_input_snapshot = board
+            policy.last_reason = "town:repetition-depart:recall"
+            self.assertIsNone(policy._pending_recall_dungeon_id)
+            key = policy._read_key(board, recall)
+            policy.confirm_key_posted(key)
+            record = policy._equipment_optional_failure_departure
+            self.assertEqual(record["depth"], 10)
+            self.assertTrue(record["posted"])
+            self.assertTrue(record["failed_item_ids"])
+            landing = replace(board, town_flag=False,
+                              floor_key=(1, 10, 0), turn=board.turn + 1)
+            policy._observe(landing)
+            self.assertEqual(policy.equipment_optimization_state()["optional_failure_departure"], record)
+            policy._observe(replace(board, turn=board.turn + 2))
+            self.assertIsNone(policy._equipment_optional_failure_departure)
 
 
 if __name__ == "__main__":

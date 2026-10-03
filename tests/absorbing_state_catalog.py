@@ -568,9 +568,11 @@ def _captured_departure_unsatisfiable():
     if (
         false_leaves
         != {"home_candidate_resolved"}
-        or (getattr(policy, "_equipment_optional_failure_departure", None) or {}).get("reason")
+        or policy.equipment_optimization_state().get("optional_failure_departure", {}).get("reason")
         != "optional-optimization-failure-confirmed-loadout"
-        or not policy._current_worn_loadout_confirmed(outside, preparation)
+        # Admission now validates the observed kit without persisting it. The
+        # confirmation file is written when the departure command is posted.
+        or not policy._safe_optional_equipment_failure_departure(outside, preparation)
         or tuple(preparation.blockers) != ("equipment-transaction-failed",)
         or failed_items
         != {"identity:e4cc76ab18be2ac6", "pack:e4cc76ab18be2ac6:0"}

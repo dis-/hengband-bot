@@ -1028,7 +1028,10 @@ class QuestMixin:
                 reason = self._fixed_quest_readiness.get("reason", "unready")
                 self.last_reason = f"quest:readiness:{reason}"
             return ready
-        if self._equipment_departure_ready(snapshot):
+        info = self._quest_knowledge.get(quest_id)
+        quest = snapshot.quests.get(quest_id)
+        depth = max(1, info.level if info is not None else quest.level if quest is not None else 1)
+        if self._equipment_departure_ready(snapshot, destination_depth=depth):
             return True
         self._departure_block = self._departure_block_state(snapshot)
         self._departure_block_sequence = self._decision_sequence

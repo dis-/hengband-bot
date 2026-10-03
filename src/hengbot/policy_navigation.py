@@ -522,7 +522,8 @@ class NavigationMixin:
         if (
             snapshot.dungeon_level == 0
             and snapshot.in_town
-            and not self._equipment_departure_ready(snapshot)
+            and not self._equipment_departure_ready(
+                snapshot, destination_depth=destination_depth)
         ):
             self._departure_block = self._departure_block_state(snapshot)
             self._departure_block_sequence = self._decision_sequence

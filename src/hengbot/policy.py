@@ -1542,7 +1542,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._fixed_quest_head_cache: dict[
             int, tuple[Snapshot, QuestState | None]
         ] = {}
-        self._equipment_departure_cache_token: int | None = None
+        self._equipment_departure_cache_token: tuple[int, int] | None = None
         self._equipment_departure_cache_value = False
         self._hazard_cache: dict[Position, bool] = {}
         self._town_border_cache: dict[Position, bool] = {}
@@ -2420,6 +2420,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_transaction_posted_catalog_update = None
         self._equipment_transaction_home_pages = None
         self._equipment_optional_failure_departure = None
+        self._equipment_optional_failure_pending = None
         # Item ids readmitted to the optimizer view because a quarantine held
         # every owned source of a mandatory depth gate (strictly diagnostic).
         self._equipment_quarantine_readmitted_ids: tuple[str, ...] = ()
@@ -2578,7 +2579,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_bar_skips = None
         self._decision_errand_deferred = []
         self._decision_gate_final_count = 0
-        self._equipment_optional_failure_departure = None
         self._decision_rewrite_refused = []
         self._decision_no_step_release = False
         self._decision_cancelled_home_reservation = None
@@ -13144,8 +13144,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             state["transaction_last_failure"] = dict(
                 self._equipment_transaction_last_failure
             )
-        if self._equipment_optional_failure_departure is not None:
-            state["optional_failure_departure"] = dict(self._equipment_optional_failure_departure)
+        optional_failure = (self._equipment_optional_failure_departure
+                            or self._equipment_optional_failure_pending)
+        if optional_failure is not None:
+            state["optional_failure_departure"] = dict(optional_failure)
         if self._equipment_transaction_restore_remainder:
             state["transaction_restore_remainder"] = list(
                 self._equipment_transaction_restore_remainder
@@ -13258,6 +13260,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._q2_blue_recovery_perceived.clear()
         read_binding = self._read_binding
         board = self._decision_input_snapshot
+        self._confirm_optional_equipment_failure_departure(board, key)
         if (
             key.startswith(READ_KEY)
             and read_binding is not None
@@ -14620,6 +14623,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         preparation = self._equipment_optimization_preparation
         if not self._safe_optional_equipment_failure_departure(snapshot, preparation):
             return False
+        self._stage_optional_equipment_failure_departure(
+            snapshot, self._equipment_departure_destination_depth(snapshot))
         live_carried = OwnedEquipmentCatalog()
         live_carried.refresh_carried(snapshot.inventory, snapshot.equipment)
         self._equipment_retired_worn_item_ids = current_loadout(

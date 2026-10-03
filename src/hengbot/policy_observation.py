@@ -630,6 +630,7 @@ class ObservationMixin:
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
             self._equipment_retired_worn_item_ids = frozenset()
+            self._equipment_optional_failure_pending = None
             self._equipment_quarantine_second_chance_ids.clear()
             self._equipment_quarantine_burned_ids.clear()
 
@@ -685,6 +686,9 @@ class ObservationMixin:
                 # reach their retry limit instead of being resent forever.
                 self._undestroyable_sigs.clear()
                 self._destroy_watch = None
+                # Keep the posted abnormal departure visible on the landing
+                # board; retire its diagnostic at the next fresh town visit.
+                self._equipment_optional_failure_departure = None
                 self._destroy_fail_streak = 0
                 self._shopping_abandoned = False
                 self._town_store_attempted.clear()

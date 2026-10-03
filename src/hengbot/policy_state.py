@@ -194,6 +194,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_equipment_transaction_posted_catalog_update", None)
     restored.__dict__.setdefault("_equipment_transaction_home_pages", None)
     restored.__dict__.setdefault("_equipment_optional_failure_departure", None)
+    restored.__dict__.setdefault("_equipment_optional_failure_pending", None)
     restored.__dict__.setdefault("_decision_input_snapshot", None)
     restored.__dict__.setdefault("_town_fact_snapshot", None)
     restored.__dict__.setdefault("_equipment_mutation_counted_board", None)
