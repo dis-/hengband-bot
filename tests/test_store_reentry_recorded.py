@@ -64,6 +64,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.cli import (
+    _ExecutorInputPort,
+    _send_new_decision_key,
+    SendResult,
     _configure_in_store_shop_ops,
     _consume_response_sequence,
     _store_buy_continuations,
@@ -687,6 +690,87 @@ class StoreReentryRecordedTest(unittest.TestCase):
                         name: repr(getattr(policy, name)) for name in names}))
             runs.append(rows)
         self.assertEqual(runs[0], runs[1])
+
+    def test_a1_shadow_failures_preserve_recorded_decisions(self):
+        cases = (("_in_store_shadow", 38), ("_observe_shelf_evidence", 38),
+                 ("_in_store_shadow_visit_outcome", 38),
+                 ("_in_store_shadow_agreement", 40),
+                 ("_shelf_evidence_skips_need", 45),
+                 ("_note_shelf_trade", 41))
+        for name, index in cases:
+            with self.subTest(method=name):
+                # DECLARED replay continuation: each board follows the live key.
+                policy = self._resume(38 if index in {40, 41} else index)
+                if index in {40, 41}:
+                    for previous in range(38, index):
+                        key, _ = self._decide(policy, self._board(previous))
+                        self._post(policy, key)
+                def fail(*args, **kwargs):
+                    policy.last_reason = "shadow:corrupted-reason"
+                    raise RuntimeError("injected advisory failure")
+                with patch.object(policy, name, side_effect=fail) as mocked:
+                    actual = self._decide(policy, self._board(index))
+                self.assertTrue(mocked.called)
+                self.assertEqual(actual, self._live(index))
+                field = name.removeprefix("_in_store_").lstrip("_") + "_error"
+                self.assertEqual(policy.in_store_decision_telemetry()[field], {
+                    "type": "RuntimeError", "message": "injected advisory failure"})
+
+    def test_b1_first_page_mismatch_keeps_old_path_purchase_watch(self):
+        policy = self._resume(38)
+        board = self._board(38)
+        key, _ = self._decide(policy, board)
+        # DECLARED CONSTRUCTED: pure selection disagrees with the actual shop
+        # selection at the emission boundary; the cached old-path buy is real.
+        selection = dict(policy._in_store_selection(board), letter="j")
+        self.assertIsNone(policy._in_store_emit(board, selection, first=True))
+        watch = policy._store_buy_inflight
+        self.assertIsNotNone(watch)
+        self._post(policy, key)
+        for index in (39, 40):
+            key, reason = self._decide(policy, self._board(index))
+            self.assertEqual((key, reason), self._live(index))
+            self.assertIsNotNone(policy._store_buy_inflight)
+            self._post(policy, key)
+        policy._town_store_attempted[STORE_MAGIC] = board.turn
+        self._decide(policy, self._row(MAGIC_BUY_EXIT))
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertNotIn(STORE_MAGIC, policy._town_store_attempted)
+        self.assertFalse(policy._store_visit.operation_posted)
+        self.assertIn(watch[1], policy._town_visit_purchases)
+
+    def test_b5_breaker_disables_shelf_proven_skips(self):
+        with TemporaryDirectory() as raw:
+            policy = self._switch_on(self._resume(45), raw)
+            policy.trip_in_store_breaker("price-mismatch")
+            key, reason = self._decide(policy, self._board(45))
+            self.assertEqual((key, reason), self._live(45))
+            self.assertIn(STORE_BLACK, policy._town_errand_plan.stops)
+            self.assertFalse(policy.in_store_decision_telemetry().get("shelf_evidence_skips"))
+
+    def test_b4_unparseable_buy_clears_previous_executor_result(self):
+        executor = SimpleNamespace(client=None)
+        send = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=1)
+        send.last_result = SimpleNamespace(operation=SimpleNamespace(owner="shop:in-store-sell"))
+        result, _ = _send_new_decision_key(
+            send, "recorded-board", "pxINVALID", None, set(), in_store=True,
+            decision={"reason": "shop:in-store-buy"}, snapshot=self._board(38))
+        self.assertIs(result, SendResult.TERMINAL)
+        self.assertIsNone(send.last_result)
+
+    def test_b8_old_entry_cannot_confirm_on_new_entry_board(self):
+        policy = self._switch_on(self._resume(38))
+        board = self._board(38)
+        key, reason = self._decide(policy, board)
+        self._post(policy, key, reason, None)
+        policy._decision_sequence += 1
+        self.assertTrue(policy._in_store_post_op_board(board))
+        # DECLARED CONSTRUCTED: same shop, a fresh entry, stale pending ledger.
+        policy._store_visit.opened_sequence += 1
+        self.assertFalse(policy._in_store_post_op_board(board))
+        watch = policy._store_buy_inflight
+        self._decide(policy, self._row(MAGIC_BUY_ROW))
+        self.assertEqual(policy._store_buy_inflight, watch)
 
     # ------------------------------------------------------------ units
     def test_restored_policy_without_the_new_attributes_gets_defaults(self):

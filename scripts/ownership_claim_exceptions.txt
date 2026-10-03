@@ -87,4 +87,5 @@ policy_quest.py:_fixed_quest_building_candidate  # relays the candidate's own re
 policy_quest.py:_fixed_quest_building_unavailable_candidate  # relays the candidate's own reason
 policy_shop.py:_publish_purchase_home_block  # relays the home-first block reason it publishes
 policy_instore.py:_in_store_cached_shop  # relays the reason _shop gave the same page in the store
+policy_instore.py:_in_store_best_effort  # restores the existing producer reason after advisory work raises; emits no command
 policy_town.py:_town_travel_key  # relays the travel reason its caller composed

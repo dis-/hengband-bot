@@ -2293,6 +2293,8 @@ def _send_new_decision_key(
     store_buy = _store_buy_continuations(key, owner, snapshot)
     if store_buy is None and owner == IN_STORE_BUY_REASON:
         # An in-store purchase is posted only behind its observed prompts.
+        if isinstance(send, _ExecutorInputPort):
+            send.last_result = None
         return SendResult.TERMINAL, posted_line
     pile_pickup = _floor_pile_pickup_continuations(snapshot, key)
     if (posting_contract is not None and snapshot is not None

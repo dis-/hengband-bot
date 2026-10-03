@@ -2402,7 +2402,7 @@ class TownMixin:
             # Part B (SOL-DESIGN-store-reentry-20261003 3.3.3): an ordinary
             # shop's shelf observed while no restock can have happened proves
             # this stop fruitless (Phase 0 records the would-be skip only).
-            if self._shelf_evidence_skips_need(snapshot, store_type, category):
+            if self._in_store_best_effort("_shelf_evidence_skips_need", snapshot, store_type, category):
                 return
             needs.append(TownNeed(store_type, category, ordering_class))
 

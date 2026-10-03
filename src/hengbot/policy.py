@@ -7791,7 +7791,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
-                self._note_shelf_trade(
+                self._in_store_best_effort("_note_shelf_trade",
                     snapshot, watched_store, "buy", watched_signature, bought,
                     gold_spent=before_gold - snapshot.player.gold,
                 )
@@ -7848,7 +7848,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if confirmed:
                     for entry in entries:
-                        self._note_shelf_trade(
+                        self._in_store_best_effort("_note_shelf_trade",
                             snapshot, pending_store, "sell",
                             entry["signature"], int(entry.get("quantity", 0)),
                         )
@@ -7856,7 +7856,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         self._in_store_effect_confirmed(snapshot)
             elif not in_store_board:
                 pending["wait_count"] = wait_count + 1
-        self._in_store_shadow_visit_outcome(snapshot)
+        self._in_store_best_effort("_in_store_shadow_visit_outcome", snapshot)
         self._refresh_carried_equipment_catalog(snapshot)
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             fresh_home_entry = not self._last_snapshot_was_store
@@ -9746,7 +9746,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot.turn,
                 )
                 self._observe_restock_supplier_page(snapshot)
-                self._observe_shelf_evidence(snapshot)
+                self._in_store_best_effort("_observe_shelf_evidence", snapshot)
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
                     self.last_reason = "town:recall-stockout-mining"
                     self._offer_execution(
@@ -9777,7 +9777,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "shop:one-shot-sell"
                 )
                 if snapshot.store.store_type != STORE_HOME:
-                    self._in_store_shadow_agreement(snapshot, staged_operation)
+                    self._in_store_best_effort("_in_store_shadow_agreement", snapshot, staged_operation)
                 return staged_operation
             if (
                 (self._store_visit is not None
@@ -9796,7 +9796,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return ""
             if snapshot.store.store_type != STORE_HOME:
                 # Phase 0 shadow (pure), then Phase 1 when switched on.
-                self._in_store_shadow(snapshot)
+                self._in_store_best_effort("_in_store_shadow", snapshot)
                 in_store_key = self._in_store_try_start(snapshot)
                 if in_store_key is not None:
                     return in_store_key

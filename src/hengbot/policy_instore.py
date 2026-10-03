@@ -136,6 +136,24 @@ class InStoreMixin:
         """A dict attribute a restored older checkpoint may lack (design 3.2)."""
         return self.__dict__.setdefault(name, {})
 
+    def _in_store_best_effort(self, name: str, *args, **kwargs):
+        """Keep advisory IST work from interrupting the ordinary decision path."""
+        reason = self.last_reason
+        try:
+            return getattr(self, name)(*args, **kwargs)
+        except Exception as error:
+            self.last_reason = reason
+            # Do not depend on the failed shadow's telemetry helper to report it.
+            telemetry = getattr(self, "_in_store_telemetry", None)
+            if not isinstance(telemetry, dict) or telemetry.get(
+                    "decision_sequence") != self._decision_sequence:
+                telemetry = {"decision_sequence": self._decision_sequence}
+                self._in_store_telemetry = telemetry
+            telemetry[name.removeprefix("_in_store_").lstrip("_") + "_error"] = {
+                "type": type(error).__name__, "message": str(error),
+            }
+            return None
+
     # ------------------------------------------------------------ telemetry
     def _in_store_note(self, name: str, value) -> None:
         telemetry = getattr(self, "_in_store_telemetry", None)
@@ -435,7 +453,10 @@ class InStoreMixin:
             # Selection and ``_shop`` disagree on the row: never post it in
             # the store.  A first page hands ``_shop``'s own result to the
             # outside composition (today's path); a later page ends the entry.
-            self._store_buy_inflight = None
+            # The first-page fallback will post this buy through the old path;
+            # its purchase watch must survive until outside confirmation.
+            if not first:
+                self._store_buy_inflight = None
             self._in_store_note("fallback", {"shop_key": key, "identity": False})
             if first:
                 self._in_store_shop_fallback = {
@@ -517,9 +538,13 @@ class InStoreMixin:
         ledger = getattr(self, "_in_store_entry_ledger", None)
         if ledger is None or snapshot.store is None:
             return False
+        visit = getattr(self, "_store_visit", None)
         pending = ledger.get("pending")
         return bool(
-            pending is not None
+            visit is not None
+            and visit.opened_sequence == ledger["opened_sequence"]
+            and visit.store_type == ledger["store"]
+            and pending is not None
             and pending["kind"] in {"buy", "sell"}
             and snapshot.store.store_type == ledger["store"]
             and self._decision_sequence > pending["sequence"]
@@ -829,7 +854,7 @@ class InStoreMixin:
             self._in_store_attribute("_plan_shadow_pending").pop(
                 (self._effective_town_id(snapshot), store_type), None)
             return False
-        if getattr(self, "_in_store_ops_enabled", False):
+        if self._in_store_ops_active():
             skips = self._in_store_decision_list("shelf_evidence_skips")
             if entry not in skips:
                 skips.append(entry)
