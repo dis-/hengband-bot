@@ -159,6 +159,33 @@ class SupplyMixin:
             frozenset(self._deferred_home_items),
         )
 
+    def _supply_page_offers(
+        self, snapshot: Snapshot, kind: str, store_type: int, page
+    ) -> bool:
+        """Whether ``page`` of ``store_type`` evidences a ``kind`` supplier.
+
+        The ledger's one predicate for a known shelf, shared with the town
+        planner's supply needs: a ware that supplies ``kind`` (for a MANA
+        eater's food, a wand or staff with charges) that is either within
+        the carried gold or on a store not yet attempted this visit.
+        """
+        mana_food = (
+            kind == "food"
+            and snapshot.player.food_type == FOOD_TYPE_MANA
+        )
+        return any(
+            (
+                item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                if mana_food
+                else self._store_item_is_supply(item, kind)
+            )
+            and (
+                store_type not in self._town_store_attempted
+                or item.price <= snapshot.player.gold
+            )
+            for item in page.items
+        )
+
     def _compute_supply_ledger(
         self, snapshot: Snapshot, depth: int
     ) -> dict[str, SupplyStatus]:
@@ -205,17 +232,8 @@ class SupplyMixin:
                 supplier
                 for supplier in stores
                 if supplier in supplier_pages
-                and any(
-                    (
-                        item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
-                        if kind == "food" and mana_food
-                        else self._store_item_is_supply(item, kind)
-                    )
-                    and (
-                        supplier not in self._town_store_attempted
-                        or item.price <= snapshot.player.gold
-                    )
-                    for item in supplier_pages[supplier].items
+                and self._supply_page_offers(
+                    snapshot, kind, supplier, supplier_pages[supplier]
                 )
             ]
             home_has_supply = bool(

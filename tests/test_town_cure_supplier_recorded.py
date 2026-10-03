@@ -29,8 +29,13 @@ decisions; indices below are decision indices of that process):
 
 Fix (policy_town.py ``_town_need_candidates`` with
 ``_shortage_supplier_visit_page``): a shop whose page was observed in this
-town visit is a supplier of a departure shortage only when that page shows an
-affordable ware, as the supply ledger already reads a known page.  Board 1388
+town visit is a supplier of a departure shortage only when that page passes
+the supply ledger's own predicate (policy_supply.py ``_supply_page_offers``:
+a matching ware -- a charged device for a MANA eater's food -- within gold or
+on a store not yet attempted).  Without a page of this visit the earlier
+rule stands.  The two DECLARED CONSTRUCTED variants of board 1388 pin that
+parity (review F1/F2: MANA food at the Magic shop, an unaffordable ware on
+an unattempted store).  Board 1388
 then travels to the Temple (``$``).  That key differs from live, so no later
 board is the effect of the fixed key (R4); the pin stops at 1388.
 
@@ -71,10 +76,15 @@ from hengbot.model import (
     DUNGEON_YEEK_CAVE,
     STORE_ALCHEMIST,
     STORE_HOME,
+    STORE_MAGIC,
     STORE_TEMPLE,
     SV_POTION_CURE_CRITICAL,
+    StoreItem,
+    StoreState,
     TVAL_POTION,
+    TVAL_WAND,
 )
+from hengbot.policy_constants import FOOD_TYPE_MANA
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
@@ -108,6 +118,24 @@ PERIODIC_REQUESTS = {
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+@contextmanager
+def _no_wall():
+    yield
+
+
+@contextmanager
+def _mana_food_short():
+    """DECLARED CONSTRUCTED: the Zombie's carried MANA food charges are 0.
+
+    The live character is a MANA eater (food_type 4); with no carried
+    charges its food is a departure shortage supplied by the Magic shop.
+    """
+    with patch.object(
+        HengbotPolicy, "_count_mana_food_uses", lambda self, snapshot: 0,
+    ):
+        yield
 
 
 @contextmanager
@@ -159,12 +187,15 @@ class _RecordedProcess(unittest.TestCase):
         cls._tmp.cleanup()
 
     @classmethod
-    def _step(cls, policy, index, *, live_key=False, inspect=None):
+    def _step(cls, policy, index, *, live_key=False, inspect=None,
+              prepare=None):
         _decoded, snapshots = _consume_response_sequence(
             cls.segments[index], policy, lambda _key: True, cls.monrace,
             knowledge_ledger_path=cls.directory / "knowledge.jsonl",
         )
         board = snapshots[-1]
+        if prepare is not None:
+            prepare(index, policy, board)
         live = cls.recorded[index]
         request = PERIODIC_REQUESTS.get(live["reason"])
         if request is not None:
@@ -191,12 +222,56 @@ class _RecordedProcess(unittest.TestCase):
             path.write_bytes(data)
         return copy.deepcopy(self.checkpoint, {id(self.monrace): self.monrace})
 
-    def _continue(self, last, *, inspect=None):
+    def _continue(self, last, *, inspect=None, prepare=None):
         policy = self._resume()
         return [
-            self._step(policy, index, inspect=inspect)[:2]
+            self._step(policy, index, inspect=inspect, prepare=prepare)[:2]
             for index in range(CHECKPOINT + 1, last + 1)
         ]
+
+    @staticmethod
+    def _observe_page(policy, board, store_type, items):
+        """DECLARED CONSTRUCTED: a shelf of ``store_type`` seen this visit.
+
+        Recorded exactly as the in-store observation records a page
+        (policy.py ``_decide``: ``_town_supplier_stock`` and its
+        ``(town, turn)`` observation), one turn before the board.
+        """
+        policy._town_supplier_stock[store_type] = StoreState(store_type, items)
+        policy._town_supplier_stock_observations[store_type] = (
+            policy._effective_town_id(board), board.turn - 1,
+        )
+
+    def _planned_stops(self, prepare, *, wall=None):
+        """The real ``choose_key`` plan on board ``FIRST_CHANGED``."""
+        seen = {}
+
+        def inspect(index, policy, board):
+            if index == FIRST_CHANGED:
+                plan = policy._town_errand_plan
+                seen["stops"] = {
+                    category: sorted(
+                        store for store, categories in plan.need_categories.items()
+                        if category in categories)
+                    for category in ("cure-critical", "food")
+                }
+                ledger = policy._supply_ledger(board, policy._planned_depth())
+                seen["ledger"] = {
+                    kind: (status.obtainable, status.stores)
+                    for kind, status in ledger.items()
+                    if status.count < status.required_departure
+                }
+
+        def staged(index, policy, board):
+            if index == FIRST_CHANGED:
+                prepare(policy, board)
+
+        with (wall() if wall is not None else _no_wall()):
+            rows = self._continue(FIRST_CHANGED, inspect=inspect, prepare=staged)
+        self.assertEqual(
+            rows[:-1],
+            [self._live(index) for index in range(CHECKPOINT + 1, FIRST_CHANGED)])
+        return seen, rows[-1]
 
     def _live(self, index):
         row = self.recorded[index]
@@ -286,6 +361,51 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
         # First changed key versus live (Alchemist travel): stop here (R4).
         self.assertEqual(rows[-1], ("\x1b`n$.", "shop:travel"))
 
+
+    def test_visit_page_of_unattempted_store_counts_an_unaffordable_ware(self):
+        """DECLARED CONSTRUCTED board 1388 (review F2): ledger parity.
+
+        This visit's Alchemist page shows 致命傷の治療の薬 above the carried
+        gold on a store not yet attempted; the Temple is attempted with an
+        empty page of this visit.  The ledger names the Alchemist as the
+        supplier (``_supply_page_offers``: not attempted), so the planner keeps
+        its cure-critical stop there instead of dropping every cure stop.
+        """
+        def prepare(policy, board):
+            gold = board.player.gold
+            self._observe_page(policy, board, STORE_ALCHEMIST, [StoreItem(
+                letter="a", name="致命傷の治療の薬", count=5,
+                tval=TVAL_POTION, sval=SV_POTION_CURE_CRITICAL,
+                price=gold + 1,
+            )])
+            self._observe_page(policy, board, STORE_TEMPLE, [])
+            policy._town_store_attempted[STORE_TEMPLE] = board.turn - 1
+            self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
+
+        seen, row = self._planned_stops(prepare)
+        self.assertEqual(seen["ledger"]["cure"], (True, (STORE_TEMPLE, STORE_ALCHEMIST)))
+        self.assertEqual(seen["stops"]["cure-critical"], [STORE_ALCHEMIST])
+
+    def test_visit_magic_page_supplies_mana_food_with_a_charged_device(self):
+        """DECLARED CONSTRUCTED board 1388 (review F1): MANA food parity.
+
+        With no carried MANA food charges (``_mana_food_short``) the ledger's
+        food supplier is the Magic shop, and a charged wand on its page of
+        this visit is the ware (pval > 0).  The planner keeps the Magic food
+        stop; reading the page with the ordinary food predicate dropped it.
+        """
+        def prepare(policy, board):
+            self.assertEqual(board.player.food_type, FOOD_TYPE_MANA)
+            self._observe_page(policy, board, STORE_MAGIC, [StoreItem(
+                letter="a", name="マジック・ミサイルの魔法棒", count=1,
+                tval=TVAL_WAND, sval=15, price=443, pval=13,
+            )])
+            self.assertNotIn(STORE_MAGIC, policy._town_store_attempted)
+
+        seen, row = self._planned_stops(prepare, wall=_mana_food_short)
+        # Home holds charged devices too, so it leads the ledger's suppliers.
+        self.assertEqual(seen["ledger"]["food"], (True, (STORE_HOME, STORE_MAGIC)))
+        self.assertIn(STORE_MAGIC, seen["stops"]["food"])
 
     def test_detection_is_read_on_yeek_cave_one(self):
         """The reported 'detect treasure read in town': it was not.

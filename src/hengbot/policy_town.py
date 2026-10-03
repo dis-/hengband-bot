@@ -2793,37 +2793,42 @@ class TownMixin:
             for store_type in status.stores:
                 # A shelf observed in this town visit (the open page, or a
                 # remembered one younger than the restock turnover) answers
-                # whether this store supplies the shortage, as the supply
-                # ledger already reads a known page: a store whose page is
-                # known is a supplier only when it shows an affordable ware
-                # (``_compute_supply_ledger``: ``candidates``).  Without
-                # this the shortage stayed on a store the bot had just left
-                # with nothing to buy while it was "not attempted" (it had
+                # whether this store supplies the shortage with the supply
+                # ledger's own predicate (``_supply_page_offers``: a matching
+                # ware -- a charged device for a MANA eater's food -- either
+                # within gold or on a store not yet attempted).  Without it
+                # the shortage stayed on a store the bot had just left with
+                # none of the ware while it was "not attempted" (it had
                 # bought something else there), so the router walked back to
                 # the empty shelf and the arbiter retired it before it
                 # reached the stocked supplier (live 2026-10-03 12:04:21:
                 # Alchemist without 致命傷の治療の薬 ahead of the Temple's 18).
+                # Without a page of this visit the earlier rule stands (the
+                # ledger itself also reads older pages, without freshness).
+                # A multi-page shelf is judged by the page that was observed.
                 observed = self._shortage_supplier_visit_page(
                     snapshot, store_type
                 )
-                remembered = (
-                    observed if observed is not None
-                    else self._town_supplier_stock.get(store_type)
-                )
-                remembered_affordable = bool(
-                    remembered is not None
-                    and any(
-                        item.price <= snapshot.player.gold
-                        and self._store_item_is_supply(item, status.kind)
-                        for item in remembered.items
+                if observed is not None:
+                    supplies = self._supply_page_offers(
+                        snapshot, status.kind, store_type, observed
                     )
-                )
-                if (
-                    (store_type not in self._town_store_attempted
-                     and observed is None)
-                    or store_type == STORE_HOME
-                    or remembered_affordable
-                ):
+                else:
+                    remembered = self._town_supplier_stock.get(store_type)
+                    supplies = (
+                        store_type not in self._town_store_attempted
+                        or bool(
+                            remembered is not None
+                            and any(
+                                item.price <= snapshot.player.gold
+                                and self._store_item_is_supply(
+                                    item, status.kind
+                                )
+                                for item in remembered.items
+                            )
+                        )
+                    )
+                if store_type == STORE_HOME or supplies:
                     add(store_type, supply_categories[status.kind])
         if self._identification_need is not None:
             # Identification remains primary, while the supply ledger retains
