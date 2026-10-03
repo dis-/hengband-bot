@@ -258,6 +258,54 @@ class FundraisingMixin:
             needed += detection_price
         return needed
 
+    def _has_known_fundraising_detection(self, snapshot: Snapshot) -> bool:
+        # An open Home page does not erase detection known on its other pages.
+        return self._has_withdrawable_treasure_detection(snapshot) or any(
+            item.is_treasure_detection_scroll for item in self._home_knowledge_items
+        )
+
+    def _detectionless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
+        """The sole poverty exception: even one observed scroll is too dear.
+
+        Unknown prices and observed stock-out are not proof of unaffordability.
+        Carried or known Home detection always vetoes this exception.
+        """
+        if self._has_known_fundraising_detection(snapshot):
+            return False
+        pages = dict(self._town_supplier_stock)
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            pages[snapshot.store.store_type] = snapshot.store
+        prices = [
+            item.price for page in pages.values() for item in page.items
+            if item.is_treasure_detection_scroll and item.count > 0
+        ]
+        return bool(prices) and min(prices) > snapshot.player.gold
+
+    def _settle_fundraising_detection(self, snapshot: Snapshot) -> int | None:
+        """Select the poverty exception or retain the existing kit supplier."""
+        if self._detectionless_scavenge_allowed(snapshot):
+            self._fundraising_mode = "scavenge"
+            self._scavenge_entry_gold = snapshot.player.gold
+            return None
+        self._fundraising_mode = "prepare"
+        self._planned_mining_runs = None
+        if self._count_treasure_detection_scrolls(snapshot) > 0:
+            self._activate_partial_mining_plan(snapshot)
+            return None
+        supplier = (
+            STORE_HOME if self._has_known_fundraising_detection(snapshot)
+            else STORE_ALCHEMIST
+        )
+        self._town_restock_suppressed = False
+        page = self._current_town_supplier_page(snapshot, supplier)
+        if (page is not None and not any(
+                item.is_treasure_detection_scroll and item.count > 0
+                and item.price <= snapshot.player.gold for item in page.items)):
+            self._retry_after_store_restock(snapshot, (supplier,))
+        else:
+            self._rearm_town_store_for_new_work(supplier)
+        return supplier
+
     def _fundraising_food_ready(self, snapshot: Snapshot) -> bool:
         """Allow a shallow cash run when town cannot sell the preferred reserve."""
         if getattr(self, "_crossarea_fundraising_enforced", False):
@@ -1057,6 +1105,14 @@ class FundraisingMixin:
                 producer="fundraising", work_id="fundraise:run",
                 cause="fundraising-mode-inactive",
             )
+            return None
+        if (self._fundraising_mode == "scavenge"
+                and not self._detectionless_scavenge_allowed(snapshot)):
+            self._settle_fundraising_detection(snapshot)
+            if not snapshot.in_town:
+                self._note_return_start(None)
+                self._returning_to_town = True
+                return self._leave_fundraising_floor(snapshot)
             return None
         if (
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE

@@ -1430,11 +1430,63 @@ class ShopMixin(InStoreMixin):
             "target_town_id": expedition.target_town_id,
         }
 
+    def _observe_cross_town_shopping_arrival(self, snapshot: Snapshot) -> None:
+        expedition = self._cross_town_shopping
+        if expedition is None or not snapshot.in_town:
+            return
+        current = self._effective_town_id(snapshot)
+        if expedition.target_town_id != current:
+            return
+        if current not in expedition.tried_towns:
+            expedition.tried_towns.append(current)
+        expedition.target_town_id = None
+        # The transport child is finished; local shop owners may now execute.
+        register = self._claim_register
+        for claim in (register.current, *register.suspended):
+            execution = getattr(claim, "execution", None)
+            if (claim is not None and claim.closed is None
+                    and claim.owner.value == "cross-town"
+                    and execution is not None
+                    and execution.expected_effect == f"arrive-town:{current}"):
+                if claim is register.current:
+                    register.complete("cross-town-shopping:arrived")
+                else:
+                    register.close_suspended(
+                        claim.claim_id, "complete", "cross-town-shopping:arrived",
+                    )
+
+    def _cross_town_shopping_holds_quest_travel(self, snapshot: Snapshot) -> bool:
+        """Finish the admitted trip's local procurement before quest travel.
+
+        Arrival is an observation, independent of which producer wins this turn.
+        A remaining shortage releases the trip only after every local supplier
+        has actually shown stock-out (or an unaffordable offer).
+        """
+        self._observe_cross_town_shopping_arrival(snapshot)
+        expedition = self._cross_town_shopping
+        if expedition is None or not snapshot.in_town:
+            return False
+        current = self._effective_town_id(snapshot)
+        if expedition.target_town_id is not None:
+            return True
+        if current not in expedition.tried_towns:
+            return False
+        remaining = [
+            shortage for shortage in self._cross_town_shortages(snapshot)
+            if shortage[0] in expedition.blocking_categories
+        ]
+        unavailable = self._cross_town_unobtainable_categories(snapshot, remaining)
+        return any(category not in unavailable for category, _ in remaining)
+
     @claims(ClaimOwner.CROSS_TOWN)
     def _cross_town_shopping_key(self, snapshot: Snapshot) -> str | None:
         if (snapshot.in_town and self._defer_town_errand(
                 "cross-town", "shopping")):
             return None
+        if self._cross_town_shopping_holds_quest_travel(snapshot):
+            expedition = self._cross_town_shopping
+            if expedition.target_town_id is None:
+                return None
         shortages = self._cross_town_shortages(snapshot)
         unobtainable = self._cross_town_unobtainable_categories(
             snapshot, shortages

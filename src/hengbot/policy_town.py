@@ -122,6 +122,8 @@ class TownMixin:
             position=Position(0, 0),
             turn=0,
             decision_sequence=0,
+            # Spending is not work: inventory/shelf/goal changes prove procurement.
+            gold=0,
         )
         home_blocked = (
             STORE_HOME in self._town_visit_ledger.blocked_stores
@@ -978,7 +980,6 @@ class TownMixin:
         """Measured town progress fields used by the result arbitration seam."""
         return (
             snapshot.floor_key,
-            snapshot.player.gold,
             snapshot.player.food_state,
             snapshot.player.food_type,
             snapshot.player.exp,
@@ -4212,8 +4213,7 @@ class TownMixin:
                     self._activate_partial_mining_plan(snapshot)
                     self._fundraising_mode = "mine"
                     return
-                self._fundraising_mode = "scavenge"
-                self._scavenge_entry_gold = snapshot.player.gold
+                self._settle_fundraising_detection(snapshot)
             if not self._fundraising_light_ready(snapshot) and STORE_GENERAL in self._town_store_attempted:
                 self._retry_after_store_restock(snapshot, (STORE_GENERAL,))
             return
@@ -4974,22 +4974,23 @@ class TownMixin:
         # no selectable goal and can only WAIT forever.
         self._nav_ledger.reset()
         self._town_restock_wait_until = None
-        # The ordinary fundraising router changes prepare -> scavenge after
-        # the required shops are exhausted.  Suppression returns before that
-        # router can run, so preserve the same transition here; otherwise the
-        # departure gates keep hiding the entrance and the bot merely wanders.
+        # Cycle recovery must obey the same detection admission as exhaustion.
         if (
-            self._fundraising_mode is None
-            and snapshot.player.gold < FUNDRAISING_START_GOLD
+            (self._fundraising_mode is None
+             and snapshot.player.gold < FUNDRAISING_START_GOLD)
+            or self._fundraising_mode == "prepare"
+            or (self._fundraising_mode == "mine"
+                and not self._fundraising_departure_ready(snapshot))
+            or (self._fundraising_mode == "scavenge"
+                and not self._detectionless_scavenge_allowed(snapshot))
         ):
-            self._fundraising_mode = "scavenge"
-            self._scavenge_entry_gold = snapshot.player.gold
-        elif self._fundraising_mode == "prepare" or (
-            self._fundraising_mode == "mine"
-            and not self._fundraising_departure_ready(snapshot)
-        ):
-            self._fundraising_mode = "scavenge"
-            self._scavenge_entry_gold = snapshot.player.gold
+            detection_store = self._settle_fundraising_detection(snapshot)
+            if detection_store is not None:
+                preserved_stores.add(detection_store)
+                departure_needs = [
+                    need for need in self._departure_blocking_town_needs(snapshot)
+                    if self._town_need_supplier_reachable(snapshot, need)
+                ]
         # After a cycle the goal is DEPARTURE, not errands: without this, a
         # restock-retry path starts a fresh in-town wait, un-latches the very
         # stores above when it expires, and the cycle resumes.

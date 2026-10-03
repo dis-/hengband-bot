@@ -3945,6 +3945,8 @@ class QuestMixin:
                 }
                 and self.approved_quest_strategy(quest.id) is not None
             ]
+            if self._cross_town_shopping_holds_quest_travel(snapshot):
+                return None
             fixed_quest_head = self._fixed_quest_head(snapshot)
             travel_quest = fixed_quest_head
             if (
