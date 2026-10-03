@@ -245,6 +245,13 @@ def normalize_policy_state(restored, *, restart=False):
     if not token_was_present:
         restored.__dict__["_home_knowledge_scan_inflight"] = False
     restored.__dict__.setdefault("_equipment_fresh_search_target_ids", frozenset())
+    # Older captures predate the own-teleport landing record; None is "no
+    # Teleportation read in flight / no landing on this floor".
+    # A watch without its scroll count (b1e0e349) is dropped.
+    watch = restored.__dict__.setdefault("_teleport_read_watch", None)
+    if watch is not None and len(watch) != 4:
+        restored.__dict__["_teleport_read_watch"] = None
+    restored.__dict__.setdefault("_recent_since_teleport", None)
     # (floor, loss, deadline turn); a carry without its deadline is dropped.
     carry = restored.__dict__.setdefault("_blind_cure_escape_carry", None)
     if carry is not None and len(carry) != 3:
