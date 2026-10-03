@@ -7715,9 +7715,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._observe_home_atomic_withdrawal_outside(snapshot)
         # Shop one-shots complete (or become retryable) only from the following
         # outside inventory/gold observation.  No in-store confirmation phase
-        # owns a key.
+        # owns a key.  An in-store operation's own post-operation store board
+        # is state-bound by the executor and confirms it in place
+        # (SOL-DESIGN-store-reentry-20261003 3.1 "effect confirmation").
+        in_store_board = self._in_store_post_op_board(snapshot)
         if (
-            snapshot.store is None
+            (snapshot.store is None or in_store_board)
             and self._store_buy_inflight is not None
             and (
                 self._store_visit is None
@@ -7769,6 +7772,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, watched_store, "buy", watched_signature, bought,
                     gold_spent=before_gold - snapshot.player.gold,
                 )
+                if in_store_board:
+                    self._in_store_effect_confirmed(snapshot)
+            elif in_store_board:
+                # No effect on the state-bound page: no in-store retry and no
+                # outside wait is charged here; the entry ends.
+                pass
             elif wait_count + 1 >= STORE_STUCK_LIMIT:
                 self._store_buy_inflight = None
                 self._close_store_visit("one-shot-buy-unconfirmed")
@@ -7782,7 +7791,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     action_generation,
                 )
         if (
-            snapshot.store is None
+            (snapshot.store is None or in_store_board)
             and self._batch_sell_pending is not None
             and self._batch_sell_pending.get("phase") == "await-sale"
             and (
@@ -7809,7 +7818,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if survivor is None or survivor.count <= expected:
                     confirmed = True
             wait_count = int(pending.get("wait_count", 0))
-            if confirmed or wait_count + 1 >= STORE_STUCK_LIMIT:
+            if confirmed or (not in_store_board and wait_count + 1 >= STORE_STUCK_LIMIT):
                 pending_store = int(pending["store_type"])
                 self._batch_sell_key(
                     replace(snapshot, store=StoreState(pending_store, []))
@@ -7820,7 +7829,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             snapshot, pending_store, "sell",
                             entry["signature"], int(entry.get("quantity", 0)),
                         )
-            else:
+                    if in_store_board:
+                        self._in_store_effect_confirmed(snapshot)
+            elif not in_store_board:
                 pending["wait_count"] = wait_count + 1
         self._in_store_shadow_visit_outcome(snapshot)
         self._refresh_carried_equipment_catalog(snapshot)
@@ -9708,6 +9719,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         expected_effect="outside-store",
                     )
                     return LEAVE_STORE_KEY
+            if snapshot.store.store_type != STORE_HOME:
+                # An entry that already emitted an in-store operation continues
+                # in the store or leaves; it never mixes with the one-shot
+                # path (SOL-DESIGN-store-reentry-20261003 3.1).
+                in_store_key = self._in_store_entry_key(snapshot)
+                if in_store_key is not None:
+                    return in_store_key
             visit = self._store_visit
             staged_operation = self._release_staged_store_operation(snapshot)
             if staged_operation is not None:
@@ -9739,7 +9757,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "shop:one-shot-in-flight"
                 return ""
             if snapshot.store.store_type != STORE_HOME:
+                # Phase 0 shadow (pure), then Phase 1 when switched on.
                 self._in_store_shadow(snapshot)
+                in_store_key = self._in_store_try_start(snapshot)
+                if in_store_key is not None:
+                    return in_store_key
             # Observation visit: never select or answer an item prompt here.
             self._shop_observation = (snapshot.store, self._decision_sequence)
             self.last_reason = "shop:observe-and-leave"
@@ -13142,6 +13164,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if owner == "shop:one-shot-buy" and business_outcome == "failed:purchase-refused":
             self._store_buy_inflight = None
             self._close_store_visit("one-shot-buy-refused")
+        self._in_store_reconcile(owner, business_outcome)
 
     def peek_staged_prompt_chain(self) -> dict | None:
         """Return the current decision's prompt chain without consuming it."""

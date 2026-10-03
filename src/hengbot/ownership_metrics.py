@@ -1156,7 +1156,7 @@ def _rejudge(entry: Mapping, held_row: Mapping, row: Mapping) -> str:
     if (
         typing is not None and typing.content == STORE_ENTRY
         and str(row.get("reason") or "").startswith(
-            ("shop:observe", "shop:one-shot", "home:atomic")
+            ("shop:observe", "shop:one-shot", "shop:in-store", "home:atomic")
         )
     ):
         return VERDICT_COMPLETED

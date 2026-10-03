@@ -19,6 +19,7 @@ _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 
 from hengbot.model import (
     STORE_HOME,
+    TVAL_WAND,
     MissingMonraceKnowledgeError,
     _parse_items,
     parse_snapshot,
@@ -55,6 +56,9 @@ from hengbot.policy_constants import (
     ENTER_DUNGEON_MACRO,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
+    IN_STORE_BREAKER_REASON_PREFIX,
+    IN_STORE_BUY_REASON,
+    IN_STORE_OPERATION_REASONS,
     POLICY_FINAL_STOP_REASONS,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
@@ -2286,7 +2290,10 @@ def _send_new_decision_key(
         # A bare sender cannot observe the message/confirmation boundary.
         return SendResult.TERMINAL, posted_line
     home_modal = _home_modal_continuation(snapshot, key, owner)
-    store_buy = _store_buy_continuations(key, owner)
+    store_buy = _store_buy_continuations(key, owner, snapshot)
+    if store_buy is None and owner == IN_STORE_BUY_REASON:
+        # An in-store purchase is posted only behind its observed prompts.
+        return SendResult.TERMINAL, posted_line
     pile_pickup = _floor_pile_pickup_continuations(snapshot, key)
     if (posting_contract is not None and snapshot is not None
             and hasattr(posting_contract, "prepare")):
@@ -2492,6 +2499,49 @@ def _quest_leave_continuations(snapshot, key: str, owned: bool) -> list[Continua
     )]
 
 
+def _record_in_store_terminal(decision_log, snapshot, policy, send, reason, key) -> bool:
+    """An in-store operation ended at an unowned screen: trip the breaker.
+
+    SOL-DESIGN-store-reentry-20261003 3.1: the named reason goes to the
+    decision log and the sidecar keeps in-store operations off when the bot
+    is resumed with the same flags. Cancel under the failed operation's
+    ownership and continue only after its fresh barrier is established.
+    """
+    result = getattr(send, "last_result", None)
+    owner = getattr(getattr(result, "operation", None), "owner", None) or reason
+    if owner not in IN_STORE_OPERATION_REASONS:
+        return False
+    breaker = policy.trip_in_store_breaker("terminal")
+    if decision_log is not None:
+        try:
+            with decision_log.open("a", encoding="utf-8") as file:
+                json.dump({
+                    "time": datetime.now().astimezone().isoformat(),
+                    "turn": getattr(snapshot, "turn", None),
+                    "reason": IN_STORE_BREAKER_REASON_PREFIX + "terminal",
+                    "key": "",
+                    "in_store_breaker": {
+                        **breaker,
+                        "owner": owner,
+                        "key": key,
+                        "detail": getattr(result, "reason", None),
+                    },
+                }, file, ensure_ascii=False)
+                file.write("\n")
+        except OSError as exc:
+            print(f"failed to write decision log: {exc}", file=sys.stderr)
+    executor = getattr(send, "executor", None)
+    if executor is None or result is None:
+        return False
+    recovered = executor.cancel_in_store_terminal(
+        result, deadline=time.monotonic() + send.request_budget)
+    send.last_result = recovered
+    if recovered.outcome != "completed":
+        return False
+    policy.reconcile_input_operation(owner, "failed:terminal")
+    return True
+
+
 def _decision_store_screen_verified(executor, board) -> bool | None:
     """Design 3.1 condition 3 for the executor's ready board, else None."""
     screen = getattr(executor, "ready_screen", None)
@@ -2504,8 +2554,62 @@ def _decision_store_screen_verified(executor, board) -> bool | None:
     return _store_page_is_on_screen(screen_value, store)
 
 
-def _store_buy_continuations(key: str, owner: str) -> tuple[str, list[Continuation]] | None:
+# store/purchase-order.cpp prompt_to_buy + input_check_strict(DEFAULT_Y);
+# store/store.cpp input_stock prefix, shared by every store's chooser.
+_STORE_CHOOSER_PREFIX = (
+    r"\(Items .*ESC to exit\).*",
+    r"\((?:商品|アイテム):.-., ESCで中断\) .*",
+)
+
+
+def _in_store_buy_continuations(key: str, snapshot) -> tuple[str, list[Continuation]] | None:
+    """Gate an in-store purchase on its own observed prompts (design 3.1).
+
+    Chooser: the ``input_stock`` prefix (Black market 「どれ? 」 included).
+    Quantity: only for a shelf stack.  Confirmation: the exact total
+    ``price x amount`` of the observed row, except a wand bought from a
+    stack, whose copy's charges are rounded (generic price prompt).  No
+    trailing Escape: the entry's own exit is a separate decision.
+    """
+    store = getattr(snapshot, "store", None)
+    match = re.fullmatch(r"p([a-zA-Z])(?:(\d+)\r)?\r", key)
+    if store is None or match is None:
+        return None
+    letter, amount = match.group(1), match.group(2)
+    row = next((item for item in store.items if item.letter == letter), None)
+    if row is None:
+        return None
+    quantity = int(amount) if amount is not None else 1
+    if (amount is not None) != (row.count > 1):
+        return None
+    continuations: list[Continuation] = [Continuation(
+        frozenset({ScreenKind.ITEM_SOURCE}), letter, _STORE_CHOOSER_PREFIX,
+        feature_pattern=True,
+    )]
+    if amount is not None:
+        continuations.append(Continuation(
+            frozenset({ScreenKind.QUANTITY}), f"{amount}\r",
+            (r"\s*いくつですか \(1-\d+\):(?: .*)?",),
+            exact_feature=True, feature_pattern=True,
+        ))
+    if row.tval == TVAL_WAND and row.count > 1:
+        prices = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",
+                  r"\s*Do you buy for \$\d+\? \[Y/n\]")
+    else:
+        total = row.price * quantity
+        prices = (rf"\s*買値 \${total} で買いますか？\[Y/n\]",
+                  rf"\s*Do you buy for \${total}\? \[Y/n\]")
+    continuations.append(Continuation(
+        frozenset({ScreenKind.CONFIRM}), "\r", prices,
+        exact_feature=True, feature_pattern=True,
+    ))
+    return "p", continuations
+
+
+def _store_buy_continuations(key: str, owner: str, snapshot=None) -> tuple[str, list[Continuation]] | None:
     """Split the historical buy macro into prompt-owned executor segments."""
+    if owner == IN_STORE_BUY_REASON and key.startswith("p"):
+        return _in_store_buy_continuations(key, snapshot)
     if owner != "shop:one-shot-buy" or not key.startswith("p") or len(key) < 4:
         return None
     body = key[:-1] if key.endswith("\x1b") else key
@@ -3045,6 +3149,14 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         "--enforce-crossarea-fundraising", action="store_true",
         help="use the shared cross-area fundraising verdict and purpose (default: off)",
     )
+    parser.add_argument(
+        "--in-store-shop-ops", action="store_true",
+        help=(
+            "buy/sell on the observed page of an ordinary shop and skip shelf-"
+            "proven fruitless stops (SOL-DESIGN-store-reentry-20261003 "
+            "Phase 1; default: off, Phase 0 shadow only)"
+        ),
+    )
     parser.add_argument("--poll-interval", type=float, default=0.02)
     parser.add_argument("--send-to-window", action="store_true")
     parser.add_argument("--window-title")
@@ -3176,6 +3288,32 @@ def _make_jsonl_barrier_drain(path: Path):
     drain.last_timing = {"bytes": 0, "decode_ms": 0.0, "total_ms": 0.0}
 
     return drain
+
+
+def _configure_in_store_shop_ops(policy, args) -> None:
+    """Phase 1 switch and its restart-proof breaker (SOL-DESIGN-store-reentry 3.1).
+
+    The breaker file sits beside the decision log.  Auto-resume restarts the
+    bot with the same flags, so a tripped breaker is read back here and keeps
+    in-store operations off until a human removes the file.
+    """
+    from hengbot.policy_constants import IN_STORE_BREAKER_FILE_NAME
+
+    decision_log = getattr(args, "decision_log", None)
+    path = (
+        decision_log.with_name(IN_STORE_BREAKER_FILE_NAME)
+        if decision_log is not None
+        else runtime_path(IN_STORE_BREAKER_FILE_NAME)
+    )
+    enabled = bool(getattr(args, "in_store_shop_ops", False))
+    policy._in_store_ops_enabled = enabled
+    record = policy.load_in_store_breaker(path)
+    print(
+        f"hengbot startup in_store_shop_ops={enabled}"
+        + (f" in_store_breaker={record.get('cause')} (remove {path} to re-enable)"
+           if record is not None else ""),
+        file=sys.stderr, flush=True,
+    )
 
 
 def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
@@ -3310,6 +3448,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_japanese=prompt_japanese,
             enforce_town_claims=args.enforce_town_claims,
             enforce_crossarea_fundraising=args.enforce_crossarea_fundraising,
+            in_store_shop_ops=args.in_store_shop_ops,
         )
         # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6),
         # plus the S1 claim ledger it writes beside itself.  Their own files:
@@ -3447,6 +3586,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"hengbot startup enforce_town_claims={args.enforce_town_claims}"
           f" enforce_crossarea_fundraising={args.enforce_crossarea_fundraising}",
           file=sys.stderr, flush=True)
+    _configure_in_store_shop_ops(policy, args)
     policy._prompt_gated_posting = shadow_client is not None
     policy._recorder_log_rotate_bytes = args.recorder_log_rotate_bytes
     policy._recorder_log_generations = args.recorder_log_generations
@@ -3912,7 +4052,8 @@ def _run_follow(
                         file.seek(consumed_offset)
                         pending = ""
                     decision_board = executor.ready_board
-                    store_screen_verified = _decision_store_screen_verified(executor, decision_board)
+                    store_screen_verified = _decision_store_screen_verified(
+                        executor, decision_board)
                     phase_started_at = time.perf_counter()
                     try:
                         barrier_snapshot = parse_snapshot(decision_board, monrace_knowledge)
@@ -4496,6 +4637,11 @@ def _run_follow(
                                 "staged-chain-key-replaced", snapshot
                             )
                         if sent is SendResult.DESIGNED_WAIT:
+                            continue
+                        if sent is not SendResult.PLAYER_DEATH and _record_in_store_terminal(
+                            args.decision_log, snapshot, policy, send,
+                            policy.last_reason, key,
+                        ):
                             continue
                         return incident_stop(
                             "player-death" if sent is SendResult.PLAYER_DEATH

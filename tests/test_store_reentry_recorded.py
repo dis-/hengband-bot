@@ -61,6 +61,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.cli import (
+    _configure_in_store_shop_ops,
     _consume_response_sequence,
     _store_buy_continuations,
     _town_plan_state,
@@ -343,28 +344,294 @@ class StoreReentryRecordedTest(unittest.TestCase):
         self.assertTrue(agreement["same_identity"])
 
     # ------------------------------------------------------------ P1 / P11
+    def test_p1_in_store_operation_is_the_recorded_release_body(self):
+        for observe, release in P1_RELEASES.items():
+            with self.subTest(index=observe):
+                policy = self._switch_on(self._resume(observe))
+                board = self._board(observe)
+                key, reason = self._decide(policy, board)
+                body = self._live(release)[0][:-1]
+                self.assertEqual(key, body)
+                # P11: the progress invariant does not rewrite the operation.
+                self.assertEqual(reason, "shop:in-store-buy")
+                self.assertEqual(policy._town_progress_invariant_defect, {})
+                wanted = self.boundaries["facts"][str(observe)][
+                    "shop_selector"]["wanted_purchase"]
+                row = next(item for item in board.store.items
+                           if item.letter == key[1])
+                self.assertEqual((row.letter, row.name, row.price),
+                                 (wanted["letter"], wanted["name"], wanted["price"]))
+                # P4 (review change 2): no composable observation is left.
+                self.assertIsNone(policy._shop_observation)
 
     # ------------------------------------------------------------ P2
+    def test_p2_confirmation_gate_is_the_exact_total(self):
+        for index, total in ((38, 745), (209, 116), (826, 850), (844, 2555)):
+            with self.subTest(index=index):
+                policy = self._switch_on(self._resume(index))
+                board = self._board(index)
+                key, _reason = self._decide(policy, board)
+                prefix, steps = _store_buy_continuations(key, "shop:in-store-buy", board)
+                compiled = compile_observed_input(
+                    prefix, ScreenKind.STORE, {}, "shop:in-store-buy", steps)
+                self.assertEqual(compiled[0], "p")
+                confirm = steps[-1]
+                self.assertEqual(confirm.kinds, frozenset({ScreenKind.CONFIRM}))
+                self.assertEqual(confirm.keys, "\r")
+                import re
+                self.assertTrue(any(re.fullmatch(pattern, f"買値 ${total} で買いますか？[Y/n]")
+                                    for pattern in confirm.feature))
+                self.assertFalse(any(re.fullmatch(pattern, f"買値 ${total + 1} で買いますか？[Y/n]")
+                                     for pattern in confirm.feature))
+                # No trailing Escape continuation (design 3.1).
+                self.assertNotIn(ScreenKind.STORE, {kind for step in steps for kind in step.kinds})
 
+    def test_p2_wand_stack_keeps_the_generic_price_gate(self):
+        board = self._board(38)
+        row = next(item for item in board.store.items if item.letter == "i")
+        # DECLARED CONSTRUCTED: the recorded row as a 4-wand stack.
+        # DECLARED CONSTRUCTED: a mana eater without carried device food;
+        # the observed shop's sole food source is this wand stack.
+        wand = replace(board, player=replace(board.player, food_type=FOOD_TYPE_MANA),
+                       inventory=[item for item in board.inventory
+                                  if item.tval not in {TVAL_STAFF, TVAL_WAND}],
+                       store=replace(board.store, items=[
+                           replace(row, tval=TVAL_WAND, sval=1, pval=10,
+                                   name="マジック・ミサイルの魔法棒 (4x 10回分)")]))
+        policy = self._switch_on(self._resume(38))
+        # DECLARED CONSTRUCTED: this mana eater's observed Home catalog has
+        # no device food either; a catalogued reserve would remove the need.
+        policy._home_knowledge_items = [item for item in policy._home_knowledge_items
+                                       if item.tval not in {TVAL_STAFF, TVAL_WAND}]
+        key, reason = self._decide(policy, wand)
+        self.assertEqual(reason, "shop:in-store-buy")
+        self.assertTrue(key.startswith("pi"))
+        _prefix, steps = _store_buy_continuations(key, reason, wand)
+        import re
+        self.assertTrue(any(re.fullmatch(pattern, "買値 $743 で買いますか？[Y/n]")
+                            for pattern in steps[-1].feature))
+        _prefix, steps = _store_buy_continuations("pi1\r\r", "shop:in-store-buy", board)
+        self.assertFalse(any(re.fullmatch(pattern, "買値 $743 で買いますか？[Y/n]")
+                             for pattern in steps[-1].feature))
 
+    def test_p2_price_mismatch_declines_and_trips_the_breaker(self):
+        with TemporaryDirectory() as raw:
+            policy = self._switch_on(self._resume(38), raw)
+            board = self._board(38)
+            key, _reason = self._decide(policy, board)
+            # Executor-proven outcome of the confirmation showing another total.
+            self._post(policy, key, "shop:in-store-buy", "failed:price-mismatch")
+            self.assertIsNone(policy._store_buy_inflight)
+            sidecar = json.loads((Path(raw) / IN_STORE_BREAKER_FILE_NAME).read_text(
+                encoding="utf-8"))
+            self.assertEqual(sidecar["cause"], "price-mismatch")
+            # The next page of the same entry only leaves, by its named reason.
+            key, reason = self._decide(policy, self._board(38))
+            self.assertEqual((key, reason), ("\x1b", "store:in-store-breaker:price-mismatch"))
 
     # ------------------------------------------------------------ P3 / P9
+    def test_p3_sale_then_buy_are_addressed_from_each_observed_page(self):
+        """Magic seq 815-826: sale and the 20-charge staff in one entry.
 
+        DECLARED CONSTRUCTED: live inscribed outside (seq 816) and released
+        the sale on a re-entered page (state row 1064).  Here the inscription
+        is posted in the store on the seq-815 page; row 1064 (same shelf, the
+        staff tagged {@1}) stands in for its effect, and row 1065, written
+        right after the recorded 'd1y', is the sale's own effect.
+        """
+        policy = self._switch_on(self._resume(MAGIC_OBSERVE))
+        key, reason = self._decide(policy, self._board(MAGIC_OBSERVE))
+        self.assertEqual((key, reason), ("{j@1\r", "shop:in-store-inscribe"))
+        self._post(policy, key, reason, None)
+        page = self._row(MAGIC_RELEASE_PAGE)
+        key, reason = self._decide(policy, page)
+        self.assertEqual((key, reason), ("d1y", "shop:in-store-sell"))
+        self._post(policy, key, reason, None)
+        after = self._row(MAGIC_AFTER_SALE)
+        names = {item.letter: item.name for item in page.store.items}
+        moved = {item.letter: item.name for item in after.store.items}
+        self.assertEqual(moved["g"], names["g"])          # 鑑定の杖 (3x 20回分)
+        self.assertEqual(moved["j"], names["i"])          # 光の杖 i -> j
+        self.assertNotEqual(moved["i"], names["i"])       # the sold staff at i
+        key, reason = self._decide(policy, after)
+        self.assertEqual((key, reason), ("pg1\r\r", "shop:in-store-buy"))
+        self.assertEqual(policy._in_store_entry_ledger["ops"], 2)
+        visit = policy._store_visit
+        self.assertEqual((visit.store_type, visit.phase), (STORE_MAGIC, StoreVisitPhase.OPERATING))
+
+    def test_p9_visit_operates_in_store_and_closes_outside(self):
+        """Magic seq 38-41.
+
+        DECLARED CONSTRUCTED: state row 60 is the store record the same
+        'pi1\\r\\r' wrote at the recorded re-entry (seq 40, 13 game turns
+        later, same shelf); row 61 is the entrance board after its exit.
+        """
+        policy = self._switch_on(self._resume(38))
+        key, reason = self._decide(policy, self._board(38))
+        visit = policy._store_visit
+        self.assertEqual((visit.phase, visit.operation_posted, visit.operation_key),
+                         (StoreVisitPhase.OPERATING, True, key))
+        self._post(policy, key, reason, None)
+        key, reason = self._decide(policy, self._row(MAGIC_BUY_ROW))
+        self.assertEqual((key, reason), ("\x1b", "shop:in-store-done"))
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertEqual(policy._in_store_entry_ledger["ops"], 1)
+        self.assertIs(policy._store_visit, visit)
+        self.assertFalse(visit.operation_posted)
+        self._post(policy, key)
+        key, reason = self._decide(policy, self._row(MAGIC_BUY_EXIT))
+        # P4: no second one-shot is composed from the page IST acted on.
+        self.assertNotIn(reason, {"shop:one-shot-buy", "shop:one-shot-sell"})
+        self.assertIsNone(policy._shop_observation)
+        self.assertIsNot(policy._store_visit, visit)
+        self.assertEqual(visit.phase, StoreVisitPhase.CLOSED)
 
     # ------------------------------------------------------------ P4
+    def test_p4_unverified_page_falls_back_to_observe_and_leave(self):
+        board = self._board(38)
+        cases = {
+            "screen-check-false": (board, False),
+            # DECLARED CONSTRUCTED: the recorded page as a second page.
+            "page-not-one": (replace(board, store=replace(
+                board.store, page_top=board.store.page_size)), True),
+            # DECLARED CONSTRUCTED: page index was not emitted.
+            "page-unknown": (replace(board, store=replace(board.store, page_top=None)), True),
+        }
+        for name, (case, screen) in cases.items():
+            with self.subTest(case=name):
+                policy = self._switch_on(self._resume(38))
+                key, reason = self._decide(policy, case, screen=screen)
+                self.assertEqual((key, reason), self._live(38))
+                self.assertIsNotNone(policy._shop_observation)
+                self.assertIsNone(policy._in_store_entry_ledger)
+                self.assertIsNone(policy._store_buy_inflight)
 
+    def test_p4_in_store_operation_clears_an_earlier_observation_of_the_shelf(self):
+        """Review change 2: no second one-shot from a page IST acted on.
 
+        DECLARED CONSTRUCTED: a restored policy holds an older observation
+        of this shelf, with no outstanding leave or old-path transaction.
+        The current page is the recorded seq-38 board. Rows 60/61 as in P9.
+        """
+        policy = self._switch_on(self._resume(38))
+        board = self._board(38)
+        policy._shop_observation = (board.store, policy._decision_sequence - 1)
+        key, reason = self._decide(policy, board)
+        self.assertEqual((key, reason), ("pi1\r\r", "shop:in-store-buy"))
+        self.assertIsNone(policy._shop_observation)
+        self._post(policy, key, reason, None)
+        key, reason = self._decide(policy, self._row(MAGIC_BUY_ROW))
+        self._post(policy, key)
+        key, reason = self._decide(policy, self._row(MAGIC_BUY_EXIT))
+        self.assertNotIn(reason, {"shop:one-shot-buy", "shop:one-shot-sell"})
+        self.assertNotEqual(key, "5")
 
+    def test_p4_item_absent_from_shown_page_is_never_sent(self):
+        board = self._board(38)
+        # DECLARED CONSTRUCTED: the wanted 12-charge staff not on this page.
+        case = replace(board, store=replace(board.store, items=[
+            item for item in board.store.items if item.letter != "i"]))
+        policy = self._switch_on(self._resume(38))
+        key, _reason = self._decide(policy, case)
+        self.assertFalse(key.startswith(("p", "d", "{")))
 
+    def test_unconfirmed_operation_leaves_without_retry(self):
+        policy = self._switch_on(self._resume(38))
+        board = self._board(38)
+        key, reason = self._decide(policy, board)
+        self._post(policy, key, reason, None)
+        # DECLARED CONSTRUCTED: a fresh barrier with unchanged inventory/gold.
+        key, reason = self._decide(policy, replace(board, turn=board.turn + 1))
+        self.assertEqual((key, reason), ("\x1b", "shop:in-store-done"))
+        self.assertEqual(policy._in_store_entry_ledger["ops"], 0)
+
+    def test_home_first_keeps_the_existing_detour(self):
+        policy = self._switch_on(self._resume(786))
+        key, reason = self._decide(policy, self._board(786))
+        self.assertEqual((key, reason), self._live(786))
+        self.assertIsNone(policy._in_store_entry_ledger)
+        self.assertIsNone(policy._store_buy_inflight)
+        self._post(policy, key)
+        with _dump_wall():
+            for index in (787, 788, 789):
+                key, reason, _board = self._step(policy, index)
+                self.assertEqual((key, reason), self._live(index))
 
     # ------------------------------------------------------------ P5 / P6
 
+    def test_p6_stops_are_kept_when_the_shelf_can_supply_or_evidence_expired(self):
+        for index, store in P6_KEEPS.items():
+            with self.subTest(index=index):
+                policy = self._switch_on(self._resume(index))
+                key, reason = self._decide(policy, self._board(index))
+                self.assertEqual((key, reason), self._live(index))
+                telemetry = policy.in_store_decision_telemetry() or {}
+                self.assertNotIn(store, {entry["store"] for entry in
+                                         telemetry.get("shelf_evidence_skips", ())})
+                plan = policy._town_errand_plan
+                self.assertEqual(plan.stops[plan.index], store)
 
     # ------------------------------------------------------------ P7
+    def test_p7_restock_is_known_from_observations_only(self):
+        # Recorded: the Alchemist shelf of row 1021 (turn 6099617) restocked
+        # by the entry of row 1069 (turn 6104902): rule (a).
+        policy = self._resume(ALCHEMIST_RESTOCK)
+        self._decide(policy, self._board(ALCHEMIST_RESTOCK))
+        record = policy._shelf_evidence["pages"][(0, STORE_ALCHEMIST)]
+        self.assertEqual((record["restock"], record["window"]), ("changed", 6104902))
+        base = self._board(796)
+        self.assertEqual(base.store.store_type, STORE_ALCHEMIST)
+        # DECLARED CONSTRUCTED: the recorded seq-794 page again after the
+        # daily owner change ({売出中}, half price) -- not a restock.
+        shuffled = replace(base, turn=base.turn + 100, store=replace(base.store, items=[
+            replace(item, name=item.name + " {売出中}", price=max(1, item.price // 2))
+            for item in base.store.items]))
+        self.assertEqual(shelf_signature(shuffled.store), shelf_signature(base.store))
+        policy = self._resume(796)
+        self._decide(policy, base)
+        self._post(policy, "\x1b")
+        window = policy._shelf_evidence["pages"][(0, STORE_ALCHEMIST)]["window"]
+        self.assertEqual(window, 6091514)  # rule (a) at the stay-B entry
+        self._decide(policy, shuffled)
+        record = policy._shelf_evidence["pages"][(0, STORE_ALCHEMIST)]
+        self.assertIsNone(record["restock"])
+        self.assertEqual(record["window"], window)
+        # DECLARED CONSTRUCTED: the same page one maintenance interval later:
+        # the game must have restocked at that entry (rule (b)).
+        later = replace(base, turn=shuffled.turn + STORE_MAINTENANCE_INTERVAL_TURNS)
+        self._post(policy, "\x1b")
+        # DECLARED CONSTRUCTED: the observed exit between these entries.
+        self._decide(policy, replace(shuffled, store=None))
+        self._decide(policy, later)
+        record = policy._shelf_evidence["pages"][(0, STORE_ALCHEMIST)]
+        self.assertEqual((record["restock"], record["window"]), ("elapsed", later.turn))
 
     # ------------------------------------------------------------ P8
+    def test_p8_store_command_refusal_trips_a_breaker_that_survives_restart(self):
+        with TemporaryDirectory() as raw:
+            policy = self._switch_on(self._resume(38), raw)
+            key, reason = self._decide(policy, self._board(38))
+            self._post(policy, key, reason, "refused:store-command")
+            key, reason = self._decide(policy, self._board(38))
+            self.assertEqual((key, reason),
+                             ("\x1b", "store:in-store-breaker:store-command-refused"))
+            # Auto-resume restarts with the same flag: the sidecar keeps it off.
+            restarted = self._switch_on(self._resume(38), raw)
+            self.assertEqual(restarted._in_store_breaker[0], "store-command-refused")
+            key, reason = self._decide(restarted, self._board(38))
+            self.assertEqual((key, reason), self._live(38))
+            self.assertIsNone(restarted._in_store_entry_ledger)
 
     # ------------------------------------------------------------ P12
+    def test_p12_refused_purchase_closes_the_visit(self):
+        policy = self._switch_on(self._resume(42))
+        key, reason = self._decide(policy, self._board(42))
+        visit = policy._store_visit
+        self._post(policy, key, reason, "failed:purchase-refused")
+        self.assertIsNone(policy._store_buy_inflight)
+        self.assertIsNone(policy._in_store_entry_ledger)
+        self.assertEqual((visit.phase, visit.outcome),
+                         (StoreVisitPhase.CLOSED, "in-store-buy-refused"))
 
     # ------------------------------------------------------------ P13
     def test_p13_shadow_changes_no_policy_state(self):
@@ -402,6 +669,18 @@ class StoreReentryRecordedTest(unittest.TestCase):
         key, reason = self._decide(policy, self._board(38))
         self.assertEqual((key, reason), self._live(38))
 
+    def test_per_entry_bound_ends_the_entry(self):
+        policy = self._switch_on(self._resume(MAGIC_OBSERVE))
+        key, reason = self._decide(policy, self._board(MAGIC_OBSERVE))
+        self._post(policy, key, reason, None)
+        # DECLARED CONSTRUCTED: the entry has already confirmed the bound's
+        # number of operations (STORE_STUCK_LIMIT, design 3.1).
+        policy._in_store_entry_ledger["ops"] = STORE_STUCK_LIMIT - 1
+        # DECLARED CONSTRUCTED: the post-inscription page from P3. A sale
+        # is still wanted here, so the bound is what causes this exit.
+        key, reason = self._decide(policy, self._row(MAGIC_RELEASE_PAGE))
+        self.assertEqual((key, reason), ("\x1b", "shop:in-store-done"))
+        self.assertEqual(policy._in_store_entry_ledger["ops"], STORE_STUCK_LIMIT)
 
 
 @contextmanager
@@ -418,6 +697,121 @@ def _store_record(turn, gold, messages=(), items=None):
     }
 
 
+class InStoreExecutorTest(unittest.TestCase):
+    """Executor gates of an in-store purchase (design 3.1 prompt gates)."""
+
+    def _executor(self, screens, states):
+        game = FaithfulHookGame()
+        client = ControlClient(1, request_budget=2, retries=1, backoff=0,
+                               socket_factory=game.socket_factory)
+        self.addCleanup(client.close)
+        executor = OperationExecutor(client, drain=lambda: list(game.jsonl))
+        game.screen = store_screen()
+        game.state = _store_record(1, 9000)
+        game.jsonl.append(dict(game.state))
+        executor.observe_boundary(deadline=9999999999)
+        game.screens, game.states = screens, states
+        return game, executor
+
+    @staticmethod
+    def _board():
+        # DECLARED CONSTRUCTED: the Black-market rows of state rows 1102/1121
+        # (seq 832 体力回復の薬 $6143, seq 842 スピードの薬 x5 $511).
+        return SimpleNamespace(store=StoreState(STORE_BLACK, [
+            StoreItem("a", "体力回復の薬", 1, 75, 37, 6143),
+            StoreItem("b", "スピードの薬", 5, 75, 29, 511),
+        ]))
+
+    def _submit(self, executor, key):
+        prefix, steps = _store_buy_continuations(key, "shop:in-store-buy", self._board())
+        return executor.submit(Operation(
+            7, "shop:in-store-buy", prefix, executor.ready_board, steps,
+        ), deadline=9999999999)
+
+    def test_black_market_chooser_and_exact_total(self):
+        game, executor = self._executor(
+            [prompt_screen("(商品:a-b, ESCで中断) どれ? "),
+             prompt_screen("いくつですか (1-5): 1"),
+             prompt_screen("買値 $1533 で買いますか？[Y/n]"),
+             store_screen()],
+            [_store_record(1, 9000), _store_record(1, 9000),
+             _store_record(1, 9000), _store_record(2, 7467)])
+        result = self._submit(executor, "pb3\r\r")
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertIsNone(result.operation.business_outcome)
+        self.assertEqual(game.accepted, ["p", "b", "3\r", "\r"])
+
+    def test_price_mismatch_is_declined(self):
+        game, executor = self._executor(
+            [prompt_screen("(商品:a-b, ESCで中断) どれ? "),
+             prompt_screen("買値 $6200 で買いますか？[Y/n]"),
+             store_screen()],
+            [_store_record(1, 9000), _store_record(1, 9000), _store_record(2, 9000)])
+        result = self._submit(executor, "pa\r")
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(result.operation.business_outcome, "failed:price-mismatch")
+        self.assertEqual(game.accepted, ["p", "a", "n"])
+
+    def test_refusals_exit_without_the_tail(self):
+        for message in ("お金が足りません。", "現在商品の在庫を切らしています。"):
+            with self.subTest(message=message):
+                self.assertIn(message, _PURCHASE_REFUSAL_MESSAGES)
+                game, executor = self._executor(
+                    [store_screen(), command_screen(3)],
+                    [_store_record(2, 9000, [message]), {
+                        "turn": 3, "floor": {"dungeon_id": 0, "level": 0},
+                        "player": {"gold": 9000}, "inventory": [],
+                        "equipment": [], "grid_map": {"runs": []}}])
+                result = self._submit(executor, "pa\r")
+                self.assertEqual(result.operation.business_outcome,
+                                 "failed:purchase-refused")
+                self.assertEqual(game.accepted, ["p", "\x1b"])
+
+    def test_store_command_refusal_is_reported(self):
+        message = "そのコマンドは店の中では使えません。"
+        game, executor = self._executor(
+            [store_screen()], [_store_record(2, 9000, [message])])
+        result = executor.submit(Operation(
+            8, "shop:in-store-sell", "d01\ry", executor.ready_board,
+        ), deadline=9999999999)
+        self.assertEqual(result.operation.business_outcome, "refused:store-command")
+
+    def test_unowned_prompt_cancels_and_continues_at_a_fresh_barrier(self):
+        game, executor = self._executor(
+            [prompt_screen("(商品:a-b, ESCで中断) どれ? "),
+             prompt_screen("いくつですか (1-5): 1"), store_screen()],
+            [_store_record(1, 9000), _store_record(1, 9000), _store_record(2, 9000)])
+        result = self._submit(executor, "pa\r")
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(result.operation.business_outcome, "failed:unowned-screen")
+        self.assertEqual(game.accepted, ["p", "a", "\x1b"])
+
+    def test_terminal_operation_cancels_without_reposting_its_transaction(self):
+        game, executor = self._executor(
+            [prompt_screen("いくつですか (1-5): 1"),
+             prompt_screen("いくつですか (1-5): 1")],
+            [_store_record(1, 9000), _store_record(1, 9000)])
+        result = self._submit(executor, "pa\r")
+        self.assertEqual(result.outcome, "stuck-prompt")
+        game.screens, game.states = [command_screen(3)], [{
+            "turn": 3, "floor": {"dungeon_id": 0, "level": 0},
+            "player": {"gold": 9000}, "inventory": [], "equipment": [],
+            "grid_map": {"runs": []}}]
+        recovered = executor.cancel_in_store_terminal(result, deadline=9999999999)
+        self.assertEqual(recovered.outcome, "completed", recovered.reason)
+        self.assertEqual(game.accepted, ["p", "\x1b", "\x1b"])
+
+    def test_quantity_gate_only_for_a_stack_and_no_blind_macro(self):
+        board = self._board()
+        self.assertIsNone(_store_buy_continuations("pa1\r\r", "shop:in-store-buy", board))
+        self.assertIsNone(_store_buy_continuations("pb\r", "shop:in-store-buy", board))
+        _prefix, steps = _store_buy_continuations("pa\r", "shop:in-store-buy", board)
+        self.assertNotIn(ScreenKind.QUANTITY, {kind for step in steps for kind in step.kinds})
+        with self.assertRaises(ValueError):
+            compile_observed_input("pa\r", ScreenKind.STORE, {}, "shop:in-store-buy", [])
+        # The one-shot keeps its trailing Escape (old path unchanged).
+        _prefix, steps = _store_buy_continuations("pa\r\x1b", "shop:one-shot-buy")
+        self.assertEqual(steps[-1].kinds, frozenset({ScreenKind.STORE}))
 
 
 if __name__ == "__main__":

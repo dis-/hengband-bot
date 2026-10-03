@@ -220,6 +220,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("shop:batch-inscribe", T, EFFECT),
         ("shop:one-shot-sale", O, STORE_OPERATION),
         ("shop:one-shot-sell", O, STORE_OPERATION),
+        # SOL-DESIGN-store-reentry-20261003 3.2: one Observe goal per
+        # in-store operation, as the one-shot it replaces.
+        ("shop:in-store-sell", O, STORE_OPERATION),
+        ("shop:in-store-inscribe", O, STORE_OPERATION),
         ("shop:unsellable-", T, EFFECT),
         ("shop:defective-target-leave", T, EFFECT),
         ("shop:leave", O, STORE_OPERATION),
@@ -232,6 +236,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "shop-buy",
         ("shop:one-shot-buy", O, STORE_OPERATION),
+        ("shop:in-store-buy", O, STORE_OPERATION),
+        # The in-store entry's own exit: emits the leave key inside the store.
+        ("shop:in-store-done", T, EFFECT),
         ("shop:one-shot-in-flight", O, STORE_OPERATION),
         ("shop:one-shot-page-not-zero", T, EFFECT),
         ("shop:buy", O, STORE_OPERATION),

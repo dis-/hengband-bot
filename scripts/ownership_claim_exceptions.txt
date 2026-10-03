@@ -51,6 +51,8 @@ policy_home.py:_probe_unobserved_home_withdrawal  # home-visit probe that report
 policy_home.py:_home_quest_launcher_key  # home-scan lookup feeding a home-visit withdrawal
 policy_equipment.py:_home_rearm_key  # home-scan lookup feeding a home-visit rearm
 policy_shop.py:_atomic_shop_transaction_key  # one atomic transaction for both shop-buy and shop-sell
+policy_instore.py:_in_store_emit  # one in-store operation for both shop-buy and shop-sell (the in-store twin of the one-shot)
+policy_instore.py:_in_store_leave  # the in-store entry's exit: shop-buy done, or the store-router breaker reason
 policy_shop.py:_restore_mining_combat_hand_key  # relays the equipment-mutation report of whichever hand it restored
 policy_supply.py:_wilderness_survival_key  # wilderness ladder: departure, store-router and survival
 policy_supply.py:_mana_food_survival_override_key  # survival override that also writes the town-plan block it overrides
@@ -84,4 +86,5 @@ policy_quest.py:_fixed_quest_building_key  # relays the building-approach reason
 policy_quest.py:_fixed_quest_building_candidate  # relays the candidate's own reason
 policy_quest.py:_fixed_quest_building_unavailable_candidate  # relays the candidate's own reason
 policy_shop.py:_publish_purchase_home_block  # relays the home-first block reason it publishes
+policy_instore.py:_in_store_cached_shop  # relays the reason _shop gave the same page in the store
 policy_town.py:_town_travel_key  # relays the travel reason its caller composed

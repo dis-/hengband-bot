@@ -90,8 +90,47 @@ class InStoreMixin:
         """
         self._in_store_screen_verified = verified
 
+    def _in_store_ops_active(self) -> bool:
+        return bool(getattr(self, "_in_store_ops_enabled", False)) and (
+            getattr(self, "_in_store_breaker", None) is None
+        )
 
+    def load_in_store_breaker(self, path: Path | None) -> dict | None:
+        """CLI start: a tripped breaker stays off until a human removes the file."""
+        self._in_store_breaker_path = path
+        if path is None or not path.exists():
+            return None
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            record = {"cause": "unreadable-breaker-file"}
+        if not isinstance(record, dict):
+            record = {"cause": "unreadable-breaker-file"}
+        self._in_store_breaker = (
+            str(record.get("cause", "unknown")),
+            record.get("decision_sequence"),
+        )
+        return record
 
+    def trip_in_store_breaker(self, cause: str) -> dict:
+        """Disable IST for this process and every restart (design 3.1, Q4/Q5)."""
+        record = {
+            "cause": cause,
+            "decision_sequence": self._decision_sequence,
+            "time": datetime.now().astimezone().isoformat(),
+            "reason": IN_STORE_BREAKER_REASON_PREFIX + cause,
+        }
+        self._in_store_breaker = (cause, self._decision_sequence)
+        path = getattr(self, "_in_store_breaker_path", None)
+        if path is not None:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(record, ensure_ascii=False) + "\n",
+                                encoding="utf-8")
+            except OSError as error:
+                record["write_error"] = str(error)
+        self._in_store_note("breaker", record)
+        return record
 
     def _in_store_attribute(self, name: str) -> dict:
         """A dict attribute a restored older checkpoint may lack (design 3.2)."""
@@ -297,6 +336,268 @@ class InStoreMixin:
             "same_body": shadow["would_key"] == body,
             "same_identity": same_identity,
         })
+
+    # ------------------------------------------------------------ Phase 1
+    def _in_store_try_start(self, snapshot: Snapshot) -> str | None:
+        """The observe-and-leave page: start an IST entry, or fall back (None)."""
+        if not self._in_store_ops_active():
+            return None
+        selection = self._in_store_selection(snapshot)
+        if selection is None or not selection.get("would_key"):
+            return None
+        conditions = self._in_store_preconditions(snapshot, selection)
+        self._in_store_note("start", {"op": selection["op"], "preconditions": conditions})
+        if not all(conditions.values()):
+            return None
+        visit = self._store_visit
+        self._in_store_entry_ledger = {
+            "store": snapshot.store.store_type,
+            "opened_sequence": visit.opened_sequence,
+            "ops": 0,
+            "pending": None,
+            "ended": False,
+        }
+        key = self._in_store_emit(snapshot, selection, first=True)
+        if key is None:
+            self._in_store_entry_ledger = None
+        return key
+
+    def _in_store_entry_key(self, snapshot: Snapshot) -> str | None:
+        """An entry that emitted an IST operation continues IST or leaves."""
+        ledger = getattr(self, "_in_store_entry_ledger", None)
+        if ledger is None:
+            return None
+        visit = self._store_visit
+        if (
+            snapshot.store.store_type != ledger["store"]
+            or visit is None
+            or visit.opened_sequence != ledger["opened_sequence"]
+            or visit.store_type != ledger["store"]
+        ):
+            self._in_store_entry_ledger = None
+            return None
+        breaker = getattr(self, "_in_store_breaker", None)
+        if breaker is not None:
+            return self._in_store_leave(
+                snapshot, IN_STORE_BREAKER_REASON_PREFIX + str(breaker[0]))
+        pending = ledger["pending"]
+        if pending is not None and self._decision_sequence > pending["sequence"]:
+            if pending["kind"] == "inscribe" and self._in_store_inscription_observed(snapshot):
+                self._in_store_effect_confirmed(snapshot)
+            else:
+                # Buy/sell confirmation ran on this board already
+                # (policy.py one-shot confirmation); still pending means the
+                # state-bound post-operation board shows no effect: no
+                # in-store retry, the entry ends (design 3.1).
+                ledger["ended"] = True
+        if ledger["ended"] or ledger["ops"] >= STORE_STUCK_LIMIT:
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        selection = self._in_store_selection(snapshot)
+        if selection is None or not selection.get("would_key"):
+            # Pure end-of-visit selection: _shop is reserved for an actual
+            # operation, not run again merely to compute a leave command.
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        conditions = self._in_store_preconditions(snapshot, selection, continuing=True)
+        self._in_store_note("continue", {
+            "op": None if selection is None else selection.get("op"),
+            "ops": ledger["ops"], "preconditions": conditions,
+        })
+        if not all(conditions.values()):
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        key = self._in_store_emit(snapshot, selection, first=False)
+        if key is None:
+            return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+        return key
+
+    def _in_store_emit(self, snapshot: Snapshot, selection: dict | None, *,
+                       first: bool) -> str | None:
+        """Call ``_shop`` once for this page; emit only p/d/{ (design 3.1).
+
+        A first page whose ``_shop`` result is anything else falls back to
+        observe-and-leave; its result is kept for the outside composition so
+        ``_shop`` is not run twice for the same page (design 3.0).
+        """
+        store = snapshot.store
+        key = self._shop(snapshot)
+        if not key or not key.startswith((BUY_KEY, SELL_KEY, "{")):
+            if first:
+                self._in_store_shop_fallback = {
+                    "store": store.store_type,
+                    "generation": self._decision_sequence,
+                    "key": key,
+                    "reason": self.last_reason,
+                }
+            self._in_store_note("fallback", {"shop_key": key, "shop_reason": self.last_reason})
+            return None
+        if key.startswith(BUY_KEY) and (
+                selection is None or selection.get("op") != "buy"
+                or key[1:2] != selection.get("letter")):
+            # Selection and ``_shop`` disagree on the row: never post it in
+            # the store.  A first page hands ``_shop``'s own result to the
+            # outside composition (today's path); a later page ends the entry.
+            self._store_buy_inflight = None
+            self._in_store_note("fallback", {"shop_key": key, "identity": False})
+            if first:
+                self._in_store_shop_fallback = {
+                    "store": store.store_type,
+                    "generation": self._decision_sequence,
+                    "key": key,
+                    "reason": self.last_reason,
+                }
+            return None
+        reason = (
+            IN_STORE_BUY_REASON if key.startswith(BUY_KEY)
+            else IN_STORE_SELL_REASON if key.startswith(SELL_KEY)
+            else IN_STORE_INSCRIBE_REASON
+        )
+        family = "shop-buy" if key.startswith(BUY_KEY) else "shop-sell"
+        visit = self._store_visit
+        visit.transition(StoreVisitPhase.OPERATING)
+        visit.operation_posted = True
+        visit.operation_released = True
+        visit.operation_effect_observed = False
+        visit.operation_producer_family = family
+        visit.operation_key = key
+        visit.claim_operation_identity = (store.store_type, visit.opened_sequence, key)
+        visit.posted_sequence = self._decision_sequence
+        visit.posted_turn = snapshot.turn
+        self._open_execution_delegation(
+            family, family,
+            ("shop-operation", visit.opened_sequence, store.store_type, key),
+            ("plan-stop-operation", store.store_type,
+             tuple(sorted(getattr(visit, "requester_families", ())))),
+            "inventory/gold-effect", "shop-one-shot-existing-budget",
+        )
+        ledger = self._in_store_entry_ledger
+        ledger["pending"] = {
+            "kind": ("buy" if key.startswith(BUY_KEY)
+                     else "sell" if key.startswith(SELL_KEY) else "inscribe"),
+            "key": key,
+            "sequence": self._decision_sequence,
+            "turn": snapshot.turn,
+        }
+        # Observation ownership (design 3.1, review change 2): a page IST
+        # acted on never leaves a composable observation behind.
+        if (self._shop_observation is not None
+                and self._shop_observation[0].store_type == store.store_type):
+            self._shop_observation = None
+        self._in_store_shop_fallback = None
+        self.last_reason = reason
+        self._record_shop_selector_diagnostics(snapshot, key)
+        self._in_store_note("operation", {"key": key, "reason": reason,
+                                          "ops": ledger["ops"]})
+        return key
+
+    def _in_store_leave(self, snapshot: Snapshot, reason: str) -> str:
+        """End an IST entry with the operation's own exit (no observation)."""
+        ledger = self._in_store_entry_ledger
+        if ledger is not None:
+            ledger["ended"] = True
+        visit = self._store_visit
+        if visit is not None:
+            # The executor has completed this input operation, including
+            # when its fresh board shows no business effect. Its remaining
+            # buy/sell watch belongs to the outside confirmation budget;
+            # it must not advertise an input tail still owning this exit.
+            visit.operation_posted = False
+        self.last_reason = reason
+        self._offer_execution(
+            LEAVE_STORE_KEY,
+            producer="shop-buy" if reason == IN_STORE_DONE_REASON else "store-router",
+            work_id="shop:in-store-leave",
+            next_step="store.leave.send",
+            arguments=(snapshot.store.store_type,),
+            expected_effect="outside-store",
+        )
+        self._in_store_note("leave", {"reason": reason})
+        return LEAVE_STORE_KEY
+
+    def _in_store_post_op_board(self, snapshot: Snapshot) -> bool:
+        """The state-bound STORE board after this entry's posted buy/sell."""
+        ledger = getattr(self, "_in_store_entry_ledger", None)
+        if ledger is None or snapshot.store is None:
+            return False
+        pending = ledger.get("pending")
+        return bool(
+            pending is not None
+            and pending["kind"] in {"buy", "sell"}
+            and snapshot.store.store_type == ledger["store"]
+            and self._decision_sequence > pending["sequence"]
+        )
+
+    def _in_store_inscription_observed(self, snapshot: Snapshot) -> bool:
+        pending = self._batch_sell_pending
+        if pending is None or pending.get("phase") != "await-inscription":
+            return False
+        return all(
+            any(
+                self._sale_item_identity(current) == entry["signature"]
+                and self._item_has_sale_tag(current, str(entry["tag"]))
+                for current in snapshot.inventory
+            )
+            for entry in pending["entries"]
+        )
+
+    def _in_store_effect_confirmed(self, snapshot: Snapshot) -> None:
+        """Design 3.2: effect seen on the open page; the visit keeps operating."""
+        ledger = self._in_store_entry_ledger
+        ledger["ops"] += 1
+        ledger["pending"] = None
+        visit = self._store_visit
+        if visit is not None:
+            visit.transition(StoreVisitPhase.OPERATING)
+            visit.operation_posted = False
+            visit.operation_released = False
+            visit.operation_effect_observed = False
+            visit.operation_key = None
+            visit.claim_operation_identity = None
+
+    def _in_store_reconcile(self, owner: str, business_outcome: str | None) -> None:
+        """Executor-proven results of an IST operation (design 3.1 refusals)."""
+        if owner not in IN_STORE_OPERATION_REASONS or business_outcome is None:
+            return
+        ledger = getattr(self, "_in_store_entry_ledger", None)
+        if owner == IN_STORE_BUY_REASON and business_outcome == "failed:purchase-refused":
+            self._store_buy_inflight = None
+            self._in_store_entry_ledger = None
+            self._close_store_visit("in-store-buy-refused")
+            return
+        cause = {
+            "failed:price-mismatch": "price-mismatch",
+            "refused:store-command": "store-command-refused",
+            "failed:unowned-screen": "unowned-screen",
+            "failed:terminal": "terminal",
+        }.get(business_outcome)
+        if cause is None:
+            return
+        # The operation did not happen: its watches end with it.
+        if owner == IN_STORE_BUY_REASON:
+            self._store_buy_inflight = None
+        elif self._batch_sell_pending is not None:
+            self._batch_sell_pending = None
+        if ledger is not None:
+            ledger["pending"] = None
+        visit = self._store_visit
+        if visit is not None and visit.operation_posted:
+            visit.operation_posted = False
+            visit.operation_released = False
+            visit.operation_key = None
+            visit.claim_operation_identity = None
+        self.trip_in_store_breaker(cause)
+
+    def _in_store_cached_shop(self, observation) -> tuple[bool, str | None]:
+        """The in-store ``_shop`` result of this observed page, if IST ran it."""
+        cached = getattr(self, "_in_store_shop_fallback", None)
+        self._in_store_shop_fallback = None
+        if (
+            cached is None
+            or observation is None
+            or cached["store"] != observation[0].store_type
+            or cached["generation"] != observation[1]
+        ):
+            return False, None
+        self.last_reason = cached["reason"]
+        return True, cached["key"]
 
     # ------------------------------------------------------------ Part B
     def _observe_shelf_evidence(self, snapshot: Snapshot) -> None:

@@ -326,6 +326,7 @@ def append_session_marker(
     prompt_japanese: bool | None = None,
     enforce_town_claims: bool | None = None,
     enforce_crossarea_fundraising: bool | None = None,
+    in_store_shop_ops: bool | None = None,
 ) -> dict | None:
     """Write the session-start record and return it, so a second ledger of
     the same session records the same start rather than describing its own."""
@@ -338,6 +339,8 @@ def append_session_marker(
         record["enforce_town_claims"] = enforce_town_claims
     if enforce_crossarea_fundraising is not None:
         record["enforce_crossarea_fundraising"] = enforce_crossarea_fundraising
+    if in_store_shop_ops is not None:
+        record["in_store_shop_ops"] = in_store_shop_ops
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as file:
