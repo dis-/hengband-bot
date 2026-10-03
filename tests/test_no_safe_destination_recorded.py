@@ -42,6 +42,11 @@ the ordinary fundraising set (``prepare``) instead of the named stop, below the
 fundraising gold target; the gate is not relaxed.  The first changed key is
 pinned; the set's next owner is shown by re-deciding the SAME board (no later
 recorded board is the effect of the new key, R4).
+
+DECLARED WALL: these destination pins replay under the recorded five-staff
+Identify cap (tests/identify_staff_cap_walls.py).  At board 2 the four-staff
+cap instead releases one of l's three 4-charge staves and travels to Magic.
+IdentifyStaffCapDivergenceTest pins that first changed key without the wall.
 """
 
 from __future__ import annotations
@@ -51,6 +56,7 @@ import dataclasses
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import (
@@ -59,8 +65,8 @@ from hengbot.model import (
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
     SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
 )
-from hengbot.policy import staged_prompt_chain_matches
-from hengbot.model import STORE_HOME
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
+from hengbot.model import STORE_HOME, STORE_MAGIC
 from hengbot.policy_constants import (
     FUNDRAISING_GOLD_TARGET,
     TOWN_TRAVEL_STORE_SYMBOLS,
@@ -70,6 +76,7 @@ from hengbot.policy_constants import (
 from test_esp_threat_rest_recorded import _policy
 import test_town_blackmarket_stall_recorded as stall
 from test_town_blackmarket_stall_recorded import CALIBRATION, FIRST_NO_OWNER
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 CASTLE = 12
 RECORDED_GOLD = 12522
@@ -118,6 +125,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
                         {"outcome": "released", "posted": str(key)})
         raise AssertionError("unreachable")
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
     def test_board_facts(self):
         _key, _reason, policy, board = self._decide_board_4()
         self.assertEqual(board.player.gold, RECORDED_GOLD)
@@ -135,6 +143,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
             frozenset({"resist_conf"}))
 
     # ------------------------------------------------------------ item 9
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
     def test_unsafe_alternate_target_stops_like_angband_when_no_fallback(self):
         # Gold at the fundraising target: the fundraising fallback of item 4
         # does not apply, so the decided terminal is the named stop.
@@ -178,11 +187,56 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
             (f"`n{TOWN_TRAVEL_STORE_SYMBOLS[STORE_HOME]}.", "shop:travel"))
         self.assertNotEqual(WAIT_KEY, again)
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
     def test_no_safe_angband_landing_enters_fundraising(self):
         self._assert_fundraising_entered(None)
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
     def test_no_safe_alternate_landing_enters_fundraising(self):
         self._assert_fundraising_entered(CASTLE)
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """Pin the current cap on the same board, stopping at the first change."""
+
+    setUpClass = NoSafeDestinationRecordedTest.__dict__["setUpClass"]
+    _replay = stall.TownBlackMarketStallRecordedTest._replay
+    _live = stall.TownBlackMarketStallRecordedTest._live
+
+    def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
+        first_changed = 2
+        seen = {}
+        original = HengbotPolicy.choose_key
+
+        def choose_key(policy, board):
+            if len(seen.setdefault("keys", [])) == first_changed:
+                seen["staves"] = [
+                    (item.slot, item.count, item.charges)
+                    for item in policy._carried_identify_staves(board)]
+                seen["charges"] = policy._total_identify_staff_charges(board)
+                seen["release"] = policy._identify_staff_release_plan(board)
+                sale = policy._find_device_sale(board)
+                seen["sale"] = sale and (sale.slot, sale.count, sale.charges)
+            key = original(policy, board)
+            seen["keys"].append(key)
+            if len(seen["keys"]) == first_changed + 1:
+                seen["requesters"] = (policy.decision_claim or {}).get(
+                    "requester_families")
+            return key
+
+        with patch.object(HengbotPolicy, "choose_key", choose_key):
+            rows = self._replay(first_changed)
+        self.assertEqual(rows[:first_changed],
+                         [self._live(index) for index in range(first_changed)])
+        self.assertEqual(seen["staves"], [("j", 1, 18), ("k", 1, 5), ("l", 3, 4)])
+        self.assertEqual(seen["charges"], 35)
+        self.assertEqual(seen["release"], {"l": 1})
+        self.assertEqual(seen["sale"], ("l", 3, 4))
+        # First changed key versus live: do not consume a later recorded board.
+        self.assertEqual(self._live(first_changed), ("9", "shop:approach"))
+        self.assertEqual(rows[first_changed], ("\x1b`n&.", "shop:travel"))
+        self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_MAGIC], "&")
+        self.assertIn("shop-sell", seen["requesters"])
 
 
 if __name__ == "__main__":

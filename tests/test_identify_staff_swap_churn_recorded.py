@@ -28,7 +28,8 @@ plan) is not worth withdrawing.
 
 One replay of the process through ``CHECKPOINT`` is shared by every pin
 (setUpClass); each pin continues from a deep copy (R4: no board after a
-changed key is used).  Declared walls, all in ``_step``/``_dump_wall``:
+changed key is used).  Declared walls in ``_step``/``_dump_wall`` and the
+shared prefix replay:
 
 - DUMP WALL: the C-sheet dump file is not in the capture, so at each posted
   dump's completion the frozen record matching the board's printed stat key
@@ -43,6 +44,11 @@ changed key is used).  Declared walls, all in ``_step``/``_dump_wall``:
   replay '8' probe) where the live process kept it ('2' shop:approach); the
   cause was not found, so the live keys are posted there.  With the walls,
   0-2816 and 2846-2853 reproduce the recorded keys exactly.
+- COMBAT DECISION WALL: the pending emergency escape uses the recorded
+  escape-first rule, pre-teleport unseen-hit memory, pre-Speed-filter rule
+  and pre-unseen-scratch-bound rule
+  (tests/combat_decision_walls.py), preserving the teleport at 1785 and
+  ordinary healing at 1786 under unchanged recorded expectations.
 """
 
 from __future__ import annotations
@@ -65,6 +71,7 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.warrior_optimization import load_character_calibration
 
 from test_esp_threat_rest_recorded import EDIT, _policy
+from combat_decision_walls import pre_combat_decisions_rule
 
 FIXTURES = Path(__file__).parent / "fixtures"
 STEM = "identify-staff-swap-churn-20261003"
@@ -149,7 +156,7 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
         policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
         # The CLI sets the dump path; the dump wall supplies its contents.
         policy._character_dump_path = cls.directory / "character-dump.txt"
-        with _dump_wall():
+        with _dump_wall(), pre_combat_decisions_rule():
             cls.prefix = [cls._step(policy, index)[:2]
                           for index in range(CHECKPOINT + 1)]
         cls.files = {path: path.read_bytes()
