@@ -141,6 +141,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unseen_wait_remaining",
         "_unseen_wait_intercepted",
         "_unseen_attack_evidence",
+        "_unseen_hit_pending_floor",
+        "_teleport_read_watch",
+        "_recent_since_teleport",
         # The anticipatory detected-threat episode: its hold and the covered
         # cell a started retreat committed to.  Their omission is why the
         # 2026-09-23 loot/choke alternation had to be re-derived by replay

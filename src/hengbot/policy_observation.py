@@ -859,6 +859,8 @@ class ObservationMixin:
             ):
                 self._release_choke_plan("floor-change")
             self._clear_unseen_retreat()
+            self._teleport_read_watch = None
+            self._recent_since_teleport = None
             self._breeder_breakthrough_floor = None
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
@@ -964,6 +966,32 @@ class ObservationMixin:
             self._unseen_hit_pending_floor = snapshot.floor_key
         elif getattr(self, "_unseen_hit_pending_floor", None) != snapshot.floor_key:
             self._unseen_hit_pending_floor = None
+        # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
+        # an attack the player's own teleport already left behind is no reason
+        # for a retreat after the landing; only a new unseen hit observed from
+        # the landing board on starts one, from there.  Live Forest 32F
+        # 2026-10-03 11:11:13 and 11:28: the hit before the teleport armed the
+        # retreat on the landing board and its reverse direction, taken from
+        # the last pre-teleport cell, walked 100+ cells back to the attack.
+        teleport_watch = getattr(self, "_teleport_read_watch", None)
+        if teleport_watch is not None:
+            read_floor, read_position, read_turn = teleport_watch
+            if read_floor != snapshot.floor_key:
+                self._teleport_read_watch = None
+            elif snapshot.player.position != read_position:
+                self._teleport_read_watch = None
+                self._recent_since_teleport = (snapshot.floor_key, 0)
+                landing_hit = (
+                    self._unseen_attack_evidence is not None
+                    and not self._took_curse_damage
+                    and not self._took_trap_or_terrain_damage
+                )
+                if not landing_hit:
+                    self._unseen_hit_pending_floor = None
+                self._clear_unseen_retreat()
+            elif snapshot.turn > read_turn:
+                # The turn passed without the jump: the read did not teleport.
+                self._teleport_read_watch = None
         unexplained = (
             self._took_damage
             and not snapshot.in_town
@@ -987,6 +1015,9 @@ class ObservationMixin:
             self._visit_counts[position] += 1
             self._last_position = position
         self._recent.append(position)
+        landing = getattr(self, "_recent_since_teleport", None)
+        if landing is not None:
+            self._recent_since_teleport = (landing[0], landing[1] + 1)
         self._settle_shopping_approach(snapshot)
 
         if self._pending_loot_pickup is not None:
