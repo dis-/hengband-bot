@@ -1885,6 +1885,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
+        # (floor, position, game turn, Teleportation scrolls carried) of a
+        # posted Teleportation read whose landing has not been observed yet;
+        # read with getattr (restored checkpoints predate it).
+        self._teleport_read_watch: (
+            tuple[tuple[int, int, int], Position, int, int] | None
+        ) = None
+        # (floor, positions observed since) the player's own teleport landed
+        # on this floor: ``_recent`` entries older than these are the far
+        # side of the jump.  Read with getattr (restored checkpoints).
+        self._recent_since_teleport: tuple[tuple[int, int, int], int] | None = None
         # (floor, {(index, race_id)}) of status threats already fled from;
         # read with getattr (restored checkpoints predate it).
         self._status_threat_latch: tuple[
@@ -13006,6 +13016,30 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # since the last policy-composed launcher shot. It cannot prove
             # absence after every possible source of a bolt.
             self._q2_blue_recovery_perceived.clear()
+        read_binding = self._read_binding
+        board = self._decision_input_snapshot
+        if (
+            key.startswith(READ_KEY)
+            and read_binding is not None
+            and read_binding[0] == TVAL_SCROLL
+            and read_binding[1] == SV_SCROLL_TELEPORT
+            and board is not None
+            and not board.in_town
+        ):
+            # The player's own Teleportation read: its landing is observed on
+            # a later board as the stack one scroll smaller and the player two
+            # or more cells from here.
+            self._teleport_read_watch = (
+                board.floor_key,
+                board.player.position,
+                board.turn,
+                sum(
+                    item.count
+                    for item in board.inventory
+                    if item.tval == TVAL_SCROLL
+                    and item.sval == SV_SCROLL_TELEPORT
+                ),
+            )
         if (
             self._quest_strategy_recovery_pickup_prepared
             and key == getattr(
@@ -17753,7 +17787,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _recent_reverse_direction(self, origin: Position) -> tuple[int, int] | None:
-        for position in reversed(self._recent):
+        recent = list(self._recent)
+        # Movement from before the player's own teleport points back across
+        # the jump, at the place it teleported away from (Forest 32F
+        # 2026-10-03 11:11:13: (-1, 75), a 100+ cell walk back to the attack).
+        landing = getattr(self, "_recent_since_teleport", None)
+        if landing is not None and landing[0] == self._floor_key:
+            recent = recent[-landing[1]:] if landing[1] > 0 else []
+        for position in reversed(recent):
             if position != origin:
                 return (
                     position.y - origin.y,

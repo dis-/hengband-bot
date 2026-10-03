@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_DISK_BUDGET_BYTES = 3 * 1024**3
+# User 2026-10-03: 10 GB allowed until the ownership (S3.3) work is resolved;
+# then logs are tidied back to the 5 GB total.
+DEFAULT_DISK_BUDGET_BYTES = 10 * 1024**3
 DEFAULT_CHECKPOINT_INTERVAL = 100
 DEFAULT_LOG_ROTATE_BYTES = 128 * 1024**2
 DEFAULT_LOG_GENERATIONS = 8
@@ -141,6 +143,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unseen_wait_remaining",
         "_unseen_wait_intercepted",
         "_unseen_attack_evidence",
+        "_unseen_hit_pending_floor",
+        "_teleport_read_watch",
+        "_recent_since_teleport",
         # The anticipatory detected-threat episode: its hold and the covered
         # cell a started retreat committed to.  Their omission is why the
         # 2026-09-23 loot/choke alternation had to be re-derived by replay
