@@ -36,6 +36,10 @@ pre-fix vector) and reproduces every live key 0..18.  The Temple pin replays
 0..14 behind that wall (with the fix, 12 diverges and no later board is the
 effect of the fixed key, R4), then decides 15 and 16 with the fix.  Key 15
 is ``5`` both live and fixed, so board 16 is the effect of the same key.
+Every replay pin also runs under the recorded five-staff Identify cap
+(tests/identify_staff_cap_walls.py); the 2026-10-03 four-staff cap's first
+changed key on this board (index 9) is pinned unwalled in
+IdentifyStaffCapDivergenceTest.
 """
 
 from __future__ import annotations
@@ -50,7 +54,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import STORE_HOME, STORE_TEMPLE, STORE_WEAPON
+from hengbot.model import STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
@@ -59,6 +63,7 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay
+from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "oneshot-preempt-20261002.jsonl.gz"
@@ -200,12 +205,14 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
                              ["wanted_purchase"]["category"], "recall")
         self.assertEqual(self._live(STOP), ("5", "town:blocked:owner-retired"))
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_pre_fix_vector_reproduces_every_live_key(self):
         rows = self._replay(STOP, pre_fix_through=STOP)
         self.assertEqual(rows, [self._live(index) for index in range(STOP + 1)])
 
     # ------------------------------------------------------------ fix
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_weapon_smith_one_shot_keeps_its_tail_and_buys(self):
         seen = {}
@@ -237,6 +244,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         self.assertTrue(items["l"][0].startswith("鉄弾 (1d3)"))
         self.assertEqual(items["l"][1], 3)
 
+    @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap, 「鑑定の杖」 x5 (tests/identify_staff_cap_walls.py)
     @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
     def test_temple_entry_composes_and_releases_the_recall_purchase(self):
         seen = {}
@@ -267,6 +275,59 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
         self.assertEqual(rows[TEMPLE_REENTRY], (RECALL_TAIL, "shop:one-shot-buy"),
                          self._live(TEMPLE_REENTRY))
         self.assertEqual(execution, ("shop.one-shot.send", [STORE_TEMPLE, RECALL_TAIL]))
+
+
+class IdentifyStaffCapDivergenceTest(unittest.TestCase):
+    """The same recorded process, without the cap wall, under the 10-03 cap.
+
+    User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」 / 「4本を超えた分は回数の
+    少ない杖から売る（売れなければ自宅に預ける）」: the board carries five staves
+    「鑑定の杖 (9回分)」 (g), 「(2x 8回分)」 (h), 「(2x 3回分)」 (i), 31 charges.
+    One 3-charge staff of i is above the cap, so the first changed key is
+    index 9: travel to the Magic shop to sell it (shop-sell) instead of the
+    live Weapon Smith trip.
+    """
+
+    # The same frozen process and replay as the walled pins above.
+    setUpClass = OneShotPreemptRecordedTest.__dict__["setUpClass"]
+    _replay = OneShotPreemptRecordedTest._replay
+    _live = OneShotPreemptRecordedTest._live
+
+    @shelf_wall_on_replay  # declared wall: no 2026-10-02 crossbow swap (tests/xbow_pref_walls.py)
+    def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
+        first_changed = HOME_STEP_OFF + 1
+        seen = {}
+        original = HengbotPolicy.choose_key
+
+        def choose_key(policy, board):
+            if len(seen.setdefault("keys", [])) == first_changed:
+                staves = policy._carried_identify_staves(board)
+                seen["staves"] = [(item.slot, item.count, item.charges)
+                                  for item in staves]
+                seen["charges"] = policy._total_identify_staff_charges(board)
+                seen["release"] = policy._identify_staff_release_plan(board)
+                sale = policy._find_device_sale(board)
+                seen["sale"] = sale and (sale.slot, sale.count, sale.charges)
+            key = original(policy, board)
+            seen["keys"].append(key)
+            if len(seen["keys"]) == first_changed + 1:
+                seen["requesters"] = (policy.decision_claim or {}).get(
+                    "requester_families")
+            return key
+
+        with patch.object(HengbotPolicy, "choose_key", choose_key):
+            rows = self._replay(first_changed)
+        self.assertEqual(rows[:first_changed],
+                         [self._live(index) for index in range(first_changed)])
+        self.assertEqual(seen["staves"], [("g", 1, 9), ("h", 2, 8), ("i", 2, 3)])
+        self.assertEqual(seen["charges"], 31)
+        self.assertEqual(seen["release"], {"i": 1})
+        self.assertEqual(seen["sale"], ("i", 2, 3))
+        # First changed key versus live (Weapon Smith '#'): stop here (R4).
+        self.assertEqual(self._live(first_changed), ("`n#.", "shop:travel"))
+        self.assertEqual(rows[first_changed], ("`n&.", "shop:travel"))
+        self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS.index("&"), STORE_MAGIC)
+        self.assertIn("shop-sell", seen["requesters"])
 
 
 if __name__ == "__main__":
