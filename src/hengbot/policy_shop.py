@@ -3240,6 +3240,18 @@ class ShopMixin(InStoreMixin):
         store = snapshot.store
         if store is None:
             return []
+        relief = self._home_full_relief
+        if relief is not None and relief["sale"] is not None:
+            signature, store_type, _before = relief["sale"]
+            identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
+                        signature[1], signature[2])
+            return [item for item in snapshot.inventory
+                    if store.store_type == store_type
+                    and self._sale_item_identity(item) == identity
+                    and item.known
+                    and not self._disposal_protected_by_identification(item)
+                    and self._retention_reservation(snapshot, item) == 0
+                    and not self._equipment_transaction_owns_item(item)]
         remaining = list(snapshot.inventory)
         result: list[InventoryItem] = []
         while remaining:
@@ -3600,6 +3612,11 @@ class ShopMixin(InStoreMixin):
         return key
 
     def _shop_core(self, snapshot: Snapshot) -> str:
+        if (self._home_full_relief is not None and not snapshot.player.hungry
+                and self._home_atomic_withdraw_pending is None):
+            relief_key = self._home_full_relief_key(snapshot)
+            if relief_key is not None:
+                return relief_key
         store = snapshot.store
         self._observe_star_remove_curse_reserve_inflight(snapshot)
         if store is None:
@@ -4927,6 +4944,7 @@ class ShopMixin(InStoreMixin):
         if (
             self._equipment_transaction_owns_town_relocation(snapshot)
             and self._shopping_approach_store_type != STORE_HOME
+            and self._home_full_relief is None
         ):
             # Every store route, including candidate probes and one-step
             # fallbacks, converges here.  Refusal is deliberately pure: only

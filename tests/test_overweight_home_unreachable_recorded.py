@@ -65,6 +65,11 @@ Walls, each declared:
   the wall and stops at the first changed key.
 No wall touches the Home ledger, the equipment transaction or the terminal.
 
+Home-route handoff boundary (2026-10-04): the legacy replay now ends at
+index 3725, where earlier Home operation reconciliation changes the next
+shop route from native travel to an adjacent approach step;
+no historical board following that changed key is consumed.
+
 R4 boundary (USER DECISION 2026-10-01: the strip calibration is replaced by
 the equipped C-sheet read): the replay ends before index 3734 (sequence
 3733), the first recorded decision of the removed strip phases -- the base
@@ -154,6 +159,9 @@ def _choose_before_caster_fix(policy, snapshot, index):
     return key
 
 
+HOME_OBSERVATION_BOUNDARY = 3725
+
+
 class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
     replay = None
     live_prefix = None
@@ -212,7 +220,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 CALIBRATION.read_bytes()
             )
             install_extraction_calibration(policy)
-            for index in range(STRIP_START):
+            for index in range(HOME_OBSERVATION_BOUNDARY + 1):
                 _decoded, snapshots = _consume_response_sequence(
                     cls._board_lines(index), policy, lambda _key: True,
                     cls.monrace,
@@ -257,6 +265,10 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                         )
                     },
                 })
+                if index == HOME_OBSERVATION_BOUNDARY:
+                    # The new observation owner changes this key. Historical
+                    # boards after it are not responses to the current policy.
+                    break
                 policy.confirm_key_posted(key)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, key):
@@ -378,7 +390,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
     def test_replay_reproduces_every_recorded_decision_before_the_strip(self):
         replay = self._replay()
         # R4 (USER DECISION 2026-10-01): the replay ends before STRIP_START.
-        self.assertEqual(len(replay), STRIP_START)
+        self.assertEqual(len(replay), HOME_OBSERVATION_BOUNDARY + 1)
         self.assertEqual(
             (self.recorded[STRIP_START]["key"], self.recorded[STRIP_START]["reason"]),
             ("7", "town:blocked:equipment-calibration-required"),
@@ -398,12 +410,22 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
         self.assertEqual(
             [
                 index
-                for index in range(STRIP_START)
+                for index in range(HOME_OBSERVATION_BOUNDARY + 1)
                 if (self.recorded[index]["key"] if index in quantity_keys
                     else replay[index]["key"], replay[index]["reason"])
                 != (self.recorded[index]["key"], self.recorded[index]["reason"])
             ],
-            sorted({DUMP_REQUEST, *DIVERGENT}),
+            sorted({DUMP_REQUEST, *DIVERGENT, HOME_OBSERVATION_BOUNDARY}),
+        )
+        self.assertEqual(
+            (self.recorded[HOME_OBSERVATION_BOUNDARY]["key"],
+             self.recorded[HOME_OBSERVATION_BOUNDARY]["reason"]),
+            ("\x1b`n&.", "shop:travel"),
+        )
+        self.assertEqual(
+            (replay[HOME_OBSERVATION_BOUNDARY]["key"],
+             replay[HOME_OBSERVATION_BOUNDARY]["reason"]),
+            ("3", "shop:approach"),
         )
         # The declared rework divergence (see docstring).
         self.assertEqual(

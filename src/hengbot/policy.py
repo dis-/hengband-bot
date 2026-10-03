@@ -1361,6 +1361,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
         self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
+        self._home_capacity_observation = None
+        self._home_full_relief = None
+        self._home_full_refused = False
+        self._home_full_retry_deposits = None
         self._home_history_inflight: tuple[str, tuple[str, int, int], int, int] | None = None
         self._saw_dungeon_recall = False
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
@@ -2552,6 +2556,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        # Recorded checkpoints predating full-Home recovery lack these fields.
+        self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
+        self._home_full_relief = getattr(self, "_home_full_relief", None)
+        self._home_full_refused = getattr(self, "_home_full_refused", False)
+        self._home_full_retry_deposits = getattr(self, "_home_full_retry_deposits", None)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
         self._observe_cross_town_shopping_arrival(snapshot)
@@ -2582,6 +2591,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_rewrite_refused = []
         self._decision_no_step_release = False
         self._decision_cancelled_home_reservation = None
+        self._observe_home_atomic_deposit_outside(snapshot)
         # Round 4 (F3): an armed path-target capture never outlives the
         # decision that armed it (each arm/take pair is also try/finally).
         self.__dict__.pop("_claim_target_capture", None)
@@ -7382,6 +7392,99 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
             self._home_atomic_withdraw_index = None
 
+    @claims(ClaimOwner.HOME_VISIT)
+    def _observe_home_atomic_deposit_outside(self, snapshot: Snapshot) -> None:
+        """Consume the legacy deposit delta before any producer can take over."""
+        if self._home_atomic_deposit_pending is not None and any(
+                "我が家にはもう置く場所がない" in message
+                or "Your home is full" in message for message in snapshot.messages):
+            self._home_full_refused = True
+        pending_deposit = self._home_atomic_deposit_pending
+        if (
+            snapshot.store is None
+            and pending_deposit is not None
+            and (
+                self._store_visit is None
+                or not self._store_visit.operation_posted
+                or self._store_visit.operation_released
+            )
+        ):
+            entries, _unused, posted_turn, unchanged_pages = pending_deposit
+            if snapshot.turn > posted_turn:
+                landed = tuple(
+                    signature
+                    for signature, count_before, expected_count in entries
+                    if self._inventory_signature_count(snapshot, signature)
+                    <= count_before - expected_count
+                )
+                deposit_observed = len(landed) == len(entries)
+                if deposit_observed:
+                    self._home_full_refused = False
+                    if self._home_full_retry_deposits is not None:
+                        self._home_full_retry_deposits = tuple(
+                            entry for entry in self._home_full_retry_deposits
+                            if entry[0] not in landed) or None
+                    # Design rev 9 item 3: the posted Home deposit's effect is
+                    # confirmed, before ``_release_invalid_store_visit``.
+                    self._complete_observed_effect(
+                        "home-deposit-observed",
+                        owners=CLAIM_HOME_EFFECT_OWNERS,
+                        sources=CLAIM_HOME_EFFECT_SOURCES,
+                    )
+                    self._observe_home_operation_effect()
+                    if (
+                        self._store_visit is not None
+                        and self._store_visit.store_type == STORE_HOME
+                    ):
+                        self._store_visit.operation_effect_observed = True
+                        self._release_invalid_store_visit(snapshot)
+                    if getattr(self, "_home_visit", None) is not None:
+                        self._home_visit.observe_outside(effect_observed=True)
+                    self._home_entry_operation_posted = False
+                    self._home_atomic_deposit_pending = None
+                    self._invalidate_home_observation()
+                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
+                    # A11r2 discipline: never recompose against the page that
+                    # failed to show the mutation.  Terminate this visit
+                    # visibly and reject that identity for this visit.  It may
+                    # become eligible only in a later visit epoch, whose normal
+                    # Home scan supplies a new address space.
+                    if getattr(self, "_home_visit", None) is not None:
+                        self._home_visit.observe_outside(effect_observed=False)
+                        report = self._home_visit.consume_report()
+                        if report is not None:
+                            marker = report.defect or report.outcome
+                            self._pending_home_visit_report = (
+                                f"home-visit:{report.request.requester}:{marker}"
+                            )
+                    self._home_entry_operation_posted = False
+                    self._release_claim_goal(
+                        "target-unobserved", owners=("home-visit", "home-errand"),
+                        kinds=(CLAIM_GOAL_OBSERVE,),
+                        sources=(CLAIM_OBSERVE_STORE_OPERATION,),
+                    )
+                    self._home_atomic_deposit_pending = None
+                    blocked_entries = tuple(entry for entry in entries
+                                            if entry[0] not in landed)
+                    self._home_full_retry_deposits = None
+                    if self._home_full_refused:
+                        self._begin_home_full_relief(snapshot, blocked_entries, refused=True)
+                    elif self._home_is_full(snapshot):
+                        self._begin_home_full_relief(snapshot, blocked_entries)
+                    self._home_rejected_deposits.update(
+                        signature
+                        for signature, _count_before, _expected_count in entries
+                        if signature not in landed
+                    )
+                    if (self._store_visit is not None
+                            and self._store_visit.store_type == STORE_HOME):
+                        self._close_store_visit("home-deposit-unobserved")
+                    self.last_reason = "home:deposit-unobserved-rescan"
+                else:
+                    self._home_atomic_deposit_pending = (
+                        entries, None, posted_turn, unchanged_pages + 1
+                    )
+
     def _choose_key(self, snapshot: Snapshot) -> str | None:
         _decision_offers.pop(self, None)
         self._execution_pending_post = None
@@ -8206,75 +8309,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pending_deposit = self._home_atomic_deposit_pending
         if (
             snapshot.store is None
-            and pending_deposit is not None
-            and (
-                self._store_visit is None
-                or not self._store_visit.operation_posted
-                or self._store_visit.operation_released
-            )
-        ):
-            entries, _unused, posted_turn, unchanged_pages = pending_deposit
-            if snapshot.turn > posted_turn:
-                landed = tuple(
-                    signature
-                    for signature, count_before, expected_count in entries
-                    if self._inventory_signature_count(snapshot, signature)
-                    <= count_before - expected_count
-                )
-                deposit_observed = len(landed) == len(entries)
-                if deposit_observed:
-                    # Design rev 9 item 3: the posted Home deposit's effect is
-                    # confirmed, before ``_release_invalid_store_visit``.
-                    self._complete_observed_effect(
-                        "home-deposit-observed",
-                        owners=CLAIM_HOME_EFFECT_OWNERS,
-                        sources=CLAIM_HOME_EFFECT_SOURCES,
-                    )
-                    self._observe_home_operation_effect()
-                    if (
-                        self._store_visit is not None
-                        and self._store_visit.store_type == STORE_HOME
-                    ):
-                        self._store_visit.operation_effect_observed = True
-                        self._release_invalid_store_visit(snapshot)
-                    if getattr(self, "_home_visit", None) is not None:
-                        self._home_visit.observe_outside(effect_observed=True)
-                    self._home_entry_operation_posted = False
-                    self._home_atomic_deposit_pending = None
-                    self._invalidate_home_observation()
-                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
-                    # A11r2 discipline: never recompose against the page that
-                    # failed to show the mutation.  Terminate this visit
-                    # visibly and reject that identity for this visit.  It may
-                    # become eligible only in a later visit epoch, whose normal
-                    # Home scan supplies a new address space.
-                    if getattr(self, "_home_visit", None) is not None:
-                        self._home_visit.observe_outside(effect_observed=False)
-                        report = self._home_visit.consume_report()
-                        if report is not None:
-                            marker = report.defect or report.outcome
-                            self._pending_home_visit_report = (
-                                f"home-visit:{report.request.requester}:{marker}"
-                            )
-                    self._home_entry_operation_posted = False
-                    self._release_claim_goal(
-                        "target-unobserved", owners=("home-visit", "home-errand"),
-                        kinds=(CLAIM_GOAL_OBSERVE,),
-                        sources=(CLAIM_OBSERVE_STORE_OPERATION,),
-                    )
-                    self._home_atomic_deposit_pending = None
-                    self._home_rejected_deposits.update(
-                        signature
-                        for signature, _count_before, _expected_count in entries
-                        if signature not in landed
-                    )
-                    self.last_reason = "home:deposit-unobserved-rescan"
-                else:
-                    self._home_atomic_deposit_pending = (
-                        entries, None, posted_turn, unchanged_pages + 1
-                    )
-        if (
-            snapshot.store is None
             and leaving_home
             and self._home_atomic_deposit_pending is None
             and pending_deposit is None
@@ -8400,6 +8434,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "home:atomic-deposit"
                 )
             )
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and (self._home_full_relief is not None
+                 or self._home_full_retry_deposits is not None)
+            and not self._equipment_transaction_owned_items
+            and self._home_atomic_deposit_pending is None
+            and self._home_atomic_withdraw_pending is None
+        ):
+            # The suspended equipment continuation cannot deposit more items
+            # into this full Home while its prerequisite sale is still pending.
+            key = self._town_producer_entry(
+                "_home_full_relief_key", lambda: self._home_full_relief_key(snapshot),
+                family="home-visit")
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -9755,6 +9803,48 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
+        if (snapshot.in_town and snapshot.store is None
+                and self._home_atomic_deposit_pending is not None
+                and self._store_visit is not None
+                and self._store_visit.store_type == STORE_HOME
+                and self._store_visit.operation_posted
+                and self._store_visit.operation_released
+                and self._store_visit.operation_producer_family == "home-visit"
+                and snapshot.player.hp >= snapshot.player.max_hp
+                and not (snapshot.player.poisoned or snapshot.player.cut
+                         or snapshot.player.confused or snapshot.player.blind)
+                and snapshot.player.food_state in {"normal", "full", "gorged"}
+                and not any(monster.hostile for monster in
+                            (*snapshot.visible_monsters, *snapshot.detected_monsters))):
+            # A released legacy deposit still owns its outside observation
+            # budget. Do not enqueue an equipment Home visit before it ends.
+            self.last_reason = "home:atomic-deposit-await-confirmation"
+            self._offer_execution(
+                WAIT_KEY, producer="home-visit",
+                work_id=f"home-operation:{self._store_visit.opened_sequence}:{self._store_visit.operation_key}",
+                next_step="home.operation.observe",
+                expected_effect="home-inventory-effect",
+                continuation="home.operation.observe",
+                budget_ref="home-operation-existing-budget",
+            )
+            return WAIT_KEY
+        if (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
+                and not (snapshot.player.poisoned or snapshot.player.cut
+                         or snapshot.player.confused or snapshot.player.blind)
+                and snapshot.player.food_state in {"normal", "full", "gorged"}
+                and not any(monster.hostile for monster in
+                            (*snapshot.visible_monsters, *snapshot.detected_monsters))
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._store_buy_inflight is None
+                and self._batch_sell_pending is None
+                and (self._home_full_relief is not None
+                     or self._home_full_retry_deposits is not None
+                     or self._home_is_full(snapshot))):
+            relief_key = self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot))
+            if relief_key is not None:
+                return relief_key
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;
