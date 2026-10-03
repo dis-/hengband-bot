@@ -234,15 +234,26 @@ def collect_logs(patterns):
     }
 
 
-def git_sha():
+def git(*args):
     try:
-        out = subprocess.run(
-            ["git", "-C", ROOT, "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=20,
-        )
-        return out.stdout.strip() or "main"
+        out = subprocess.run(["git", "-C", ROOT, *args],
+                             capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+def git_sha():
+    """The commit the source links point at -- one the remote can serve.
+
+    A local HEAD that has not been pushed would give every link a 404, so
+    fall back to the branch name: the lines may drift, the link survives.
+    """
+    head = git("rev-parse", "HEAD")
+    if not head:
         return "main"
+    pushed = git("merge-base", "--is-ancestor", head, "origin/main")
+    return head if pushed is not None else "main"
 
 
 def top(counter, limit=8):

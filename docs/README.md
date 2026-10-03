@@ -2,8 +2,16 @@
 
 A static page that shows the rungs of `CLAIM_LADDER` in the order `_decide`
 consults them, with the number of times the live bot actually decided at each
-rung drawn over them.  Published through GitHub Pages (branch `main`, folder
-`/docs`).
+rung drawn over them.  Live at <https://dis-.github.io/hengband-bot/>.
+
+The sources live here, on `main`; GitHub Pages serves the `gh-pages` branch,
+which holds only `index.html`, `data/ladder.json` and `.nojekyll`.  Keeping
+the two apart means publishing the page never pushes unrelated work on
+`main`.  To rebuild and publish in one step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\publish_ladder_page.ps1
+```
 
 Nothing here is written by hand except `index.html`.  The data comes from the
 code and from the decision logs:

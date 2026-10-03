@@ -1,7 +1,7 @@
 {
- "generated": "2026-10-03T22:06:58Z",
- "commit": "2ab89e0da1eee9fd54d8a610452110b0897c6736",
- "blob_base": "https://github.com/dis-/hengband-bot/blob/2ab89e0da1eee9fd54d8a610452110b0897c6736/",
+ "generated": "2026-10-03T22:16:48Z",
+ "commit": "main",
+ "blob_base": "https://github.com/dis-/hengband-bot/blob/main/",
  "sections": [
   {
    "name": "rewrite",
@@ -29,13 +29,13 @@
    "name": "bookkeeping",
    "label": "記録と保存",
    "count": 3,
-   "hits": 374
+   "hits": 397
   },
   {
    "name": "combat",
    "label": "戦闘",
    "count": 4,
-   "hits": 2153
+   "hits": 2403
   },
   {
    "name": "cross-town",
@@ -53,13 +53,13 @@
    "name": "departure",
    "label": "出発と帰還",
    "count": 7,
-   "hits": 1103
+   "hits": 1210
   },
   {
    "name": "detectors",
    "label": "異常の検出",
    "count": 10,
-   "hits": 1023
+   "hits": 1051
   },
   {
    "name": "equipment-opt",
@@ -71,13 +71,13 @@
    "name": "equipment-txn",
    "label": "装備の取引",
    "count": 7,
-   "hits": 642
+   "hits": 671
   },
   {
    "name": "escape",
    "label": "脱出",
    "count": 8,
-   "hits": 3145
+   "hits": 3277
   },
   {
    "name": "esp-threat",
@@ -89,13 +89,13 @@
    "name": "explore",
    "label": "探索",
    "count": 2,
-   "hits": 14654
+   "hits": 15403
   },
   {
    "name": "floor-loot",
    "label": "床の戦利品",
    "count": 5,
-   "hits": 2338
+   "hits": 2913
   },
   {
    "name": "fundraising",
@@ -107,19 +107,19 @@
    "name": "home-errand",
    "label": "自宅の用事",
    "count": 1,
-   "hits": 32
+   "hits": 56
   },
   {
    "name": "home-scan",
    "label": "自宅の確認",
    "count": 1,
-   "hits": 236
+   "hits": 249
   },
   {
    "name": "home-visit",
    "label": "自宅の訪問",
    "count": 2,
-   "hits": 363
+   "hits": 423
   },
   {
    "name": "hunt",
@@ -131,13 +131,13 @@
    "name": "identification",
    "label": "鑑定",
    "count": 2,
-   "hits": 126
+   "hits": 146
   },
   {
    "name": "idle",
    "label": "手待ち",
    "count": 1,
-   "hits": 163
+   "hits": 166
   },
   {
    "name": "misc",
@@ -149,7 +149,7 @@
    "name": "positioning",
    "label": "位置取り",
    "count": 7,
-   "hits": 261
+   "hits": 283
   },
   {
    "name": "quest-request",
@@ -173,31 +173,31 @@
    "name": "shop-buy",
    "label": "店での購入",
    "count": 1,
-   "hits": 584
+   "hits": 620
   },
   {
    "name": "shop-sell",
    "label": "店での売却",
    "count": 1,
-   "hits": 74
+   "hits": 130
   },
   {
    "name": "store-router",
    "label": "店の出入り",
    "count": 3,
-   "hits": 1384
+   "hits": 1508
   },
   {
    "name": "survival",
    "label": "生存",
    "count": 9,
-   "hits": 416
+   "hits": 419
   },
   {
    "name": "town-plan",
    "label": "町の段取り",
    "count": 2,
-   "hits": 583
+   "hits": 590
   },
   {
    "name": "unregistered",
@@ -207,11 +207,11 @@
   }
  ],
  "log": {
-  "files": 109,
-  "decisions": 35088,
-  "unrunged": 101,
+  "files": 111,
+  "decisions": 37349,
+  "unrunged": 104,
   "first": "2026-10-01T21:57:17+0900",
-  "last": "2026-10-04T07:06:51+0900"
+  "last": "2026-10-04T07:16:39+0900"
  },
  "rungs": [
   {
@@ -231,11 +231,11 @@
    "line": 103,
    "doc": "Refuse a repeated transition after an equivalent-state cycle.",
    "doc_from": "docstring",
-   "hits": 373,
+   "hits": 398,
    "log_reasons": [
     [
      "town-progress-invariant:continue-observed-shop",
-     280
+     291
     ],
     [
      "town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach",
@@ -243,7 +243,7 @@
     ],
     [
      "town-progress-invariant:defect:shop:approach=>town:entrance-step-off:home:scan-step-off",
-     12
+     13
     ],
     [
      "town-progress-invariant:defect:town:unsafe-recall-fallback=>town-progress-invariant:approach",
@@ -258,18 +258,18 @@
      7
     ],
     [
-     "town-progress-invariant:defect:home:await-fresh-knowledge=>town-progress-invariant:approach",
-     5
+     "town-progress-invariant:defect:shop:travel:await-entry=>shop:travel:await-entry",
+     6
     ],
     [
-     "town-progress-invariant:defect:periodic:character-dump=>town-progress-invariant:approach",
-     5
+     "town-progress-invariant:defect:shop:observed-operation-uncomposable=>town-progress-invariant:approach",
+     6
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     366
+     391
     ],
     [
      "Explore and break out of dead ends",
@@ -283,27 +283,27 @@
    "log_keys": [
     [
      "\u001b",
-     280
+     291
     ],
     [
      "\u001b`n%.",
-     42
+     50
     ],
     [
      "5",
      15
     ],
     [
+     "9",
+     10
+    ],
+    [
      "\u001b`n$.",
      10
     ],
     [
-     "9",
-     9
-    ],
-    [
-     "3",
-     4
+     "7",
+     6
     ]
    ]
   },
@@ -326,7 +326,7 @@
    "line": 299,
    "doc": "Reject every bare no-op after an observed HP loss.",
    "doc_from": "docstring",
-   "hits": 93,
+   "hits": 95,
    "log_reasons": [
     [
      "no-wait:least-visited",
@@ -334,7 +334,7 @@
     ],
     [
      "no-wait:escape-scroll",
-     38
+     40
     ],
     [
      "no-wait:melee",
@@ -344,7 +344,7 @@
    "log_objectives": [
     [
      "Continue conservative progression",
-     93
+     95
     ]
    ],
    "log_keys": [
@@ -494,7 +494,7 @@
    "line": 1230,
    "doc": "Enforce composable progress at the one downstream town-result seam.",
    "doc_from": "docstring",
-   "hits": 577,
+   "hits": 584,
    "log_reasons": [
     [
      "town:blocked:no-actionable-claim-owner",
@@ -502,7 +502,7 @@
     ],
     [
      "town:blocked:owner-retired",
-     61
+     66
     ],
     [
      "town:blocked:route-nonprogress:quest-request",
@@ -532,17 +532,17 @@
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     577
+     584
     ]
    ],
    "log_keys": [
     [
      "5",
-     524
+     529
     ],
     [
      "9",
-     28
+     30
     ],
     [
      "7",
@@ -581,23 +581,23 @@
    "line": 9243,
    "doc": "Request ~f while a protocol-3 board lacks the skill list values.",
    "doc_from": "docstring",
-   "hits": 175,
+   "hits": 182,
    "log_reasons": [
     [
      "periodic:skill-exp-knowledge",
-     175
+     182
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     175
+     182
     ]
    ],
    "log_keys": [
     [
      "~f\u001b",
-     175
+     182
     ]
    ]
   },
@@ -618,23 +618,23 @@
    "line": 9330,
    "doc": "Replace a safe filler with Ctrl-S; saving consumes no game energy.",
    "doc_from": "docstring",
-   "hits": 89,
+   "hits": 95,
    "log_reasons": [
     [
      "periodic:game-save",
-     89
+     95
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     89
+     95
     ]
    ],
    "log_keys": [
     [
      "\u0013",
-     89
+     95
     ]
    ]
   },
@@ -658,31 +658,31 @@
    "line": 9347,
    "doc": "Replace a safe filler action without delaying combat or prompts.",
    "doc_from": "docstring",
-   "hits": 110,
+   "hits": 120,
    "log_reasons": [
     [
      "periodic:character-dump",
-     102
+     111
     ],
     [
      "town:character-dump",
-     8
+     9
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     102
+     111
     ],
     [
      "Town maintenance and resupply",
-     8
+     9
     ]
    ],
    "log_keys": [
     [
      "Cf\ry\u001b\u001b",
-     110
+     120
     ]
    ]
   },
@@ -860,23 +860,31 @@
    "line": 11888,
    "doc": "Finish a summoner in at most three shots before summoning-space flee.",
    "doc_from": "docstring",
-   "hits": 13,
+   "hits": 19,
    "log_reasons": [
     [
      "summoner:ranged-kill",
-     13
+     19
     ]
    ],
    "log_objectives": [
     [
      "Survive and disengage",
-     13
+     19
     ]
    ],
    "log_keys": [
     [
      "fm*t5\u001b",
      8
+    ],
+    [
+     "ft6",
+     4
+    ],
+    [
+     "ft*t5\u001b",
+     2
     ],
     [
      "ft*p96666666t5\u001b",
@@ -888,14 +896,6 @@
     ],
     [
      "fp*t5\u001b",
-     1
-    ],
-    [
-     "fq*t5\u001b",
-     1
-    ],
-    [
-     "fq1",
      1
     ]
    ]
@@ -921,15 +921,15 @@
    "line": 1580,
    "doc": "",
    "doc_from": "",
-   "hits": 125,
+   "hits": 129,
    "log_reasons": [
+    [
+     "emergency:teleport",
+     47
+    ],
     [
      "emergency:cure-critical",
      45
-    ],
-    [
-     "emergency:teleport",
-     43
     ],
     [
      "unseen-recall:move",
@@ -947,7 +947,7 @@
    "log_objectives": [
     [
      "Continue conservative progression",
-     125
+     129
     ]
    ],
    "log_keys": [
@@ -961,7 +961,7 @@
     ],
     [
      "rg",
-     11
+     14
     ],
     [
      "re",
@@ -1102,15 +1102,15 @@
    "line": 1576,
    "doc": "",
    "doc_from": "",
-   "hits": 1889,
+   "hits": 2014,
    "log_reasons": [
     [
      "unseen:reverse-choke",
-     1225
+     1315
     ],
     [
      "unseen:choke-wait",
-     660
+     695
     ],
     [
      "loop-detected",
@@ -1120,7 +1120,7 @@
    "log_objectives": [
     [
      "Survive and disengage",
-     1885
+     2010
     ],
     [
      "Stopped for loop investigation",
@@ -1130,7 +1130,7 @@
    "log_keys": [
     [
      "5",
-     660
+     695
     ],
     [
      "7",
@@ -1138,19 +1138,19 @@
     ],
     [
      "6",
-     241
+     248
     ],
     [
      "1",
-     188
+     236
     ],
     [
      "4",
-     186
+     201
     ],
     [
      "9",
-     136
+     146
     ]
    ]
   },
@@ -1173,7 +1173,7 @@
    "line": 17586,
    "doc": "Anticipate detected threats without treating them as attack targets.",
    "doc_from": "docstring",
-   "hits": 210,
+   "hits": 220,
    "log_reasons": [
     [
      "detected:prepare-choke",
@@ -1181,7 +1181,7 @@
     ],
     [
      "summoner:hold-choke",
-     68
+     78
     ],
     [
      "loop-detected",
@@ -1195,7 +1195,7 @@
     ],
     [
      "Survive and disengage",
-     68
+     78
     ],
     [
      "Stopped for loop investigation",
@@ -1205,7 +1205,7 @@
    "log_keys": [
     [
      "5",
-     68
+     78
     ],
     [
      "3",
@@ -1576,15 +1576,15 @@
    "line": 3340,
    "doc": "",
    "doc_from": "",
-   "hits": 46,
+   "hits": 58,
    "log_reasons": [
     [
      "melee:choke",
-     17
+     26
     ],
     [
      "melee:choke-hold",
-     15
+     18
     ],
     [
      "melee:choke-reposition",
@@ -1594,13 +1594,17 @@
    "log_objectives": [
     [
      "Fight visible threats",
-     46
+     58
     ]
    ],
    "log_keys": [
     [
      "5",
-     15
+     18
+    ],
+    [
+     "4",
+     13
     ],
     [
      "2",
@@ -1613,10 +1617,6 @@
     [
      "3",
      7
-    ],
-    [
-     "4",
-     5
     ],
     [
      "1",
@@ -1882,11 +1882,11 @@
    "line": 3895,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 300,
+   "hits": 303,
    "log_reasons": [
     [
      "summoner:retreat",
-     291
+     294
     ],
     [
      "loop-detected",
@@ -1896,7 +1896,7 @@
    "log_objectives": [
     [
      "Survive and disengage",
-     291
+     294
     ],
     [
      "Stopped for loop investigation",
@@ -1909,16 +1909,16 @@
      233
     ],
     [
+     "1",
+     21
+    ],
+    [
      "6",
      21
     ],
     [
-     "1",
-     19
-    ],
-    [
      "2",
-     10
+     11
     ],
     [
      "",
@@ -1973,11 +1973,11 @@
    "line": 18847,
    "doc": "Ordinary flee deliberately stays strategic: once weak-breeder extermination is impossible, their mere presence must not turn the approved walk-out into flight. Physical status and escape hazards are handled by the dedicated rungs above.",
    "doc_from": "call-site",
-   "hits": 980,
+   "hits": 1109,
    "log_reasons": [
     [
      "melee",
-     974
+     1103
     ],
     [
      "melee:restore-weapon",
@@ -1991,7 +1991,7 @@
    "log_objectives": [
     [
      "Fight visible threats",
-     978
+     1107
     ],
     [
      "Continue conservative progression",
@@ -2001,27 +2001,27 @@
    "log_keys": [
     [
      "9",
-     167
-    ],
-    [
-     "7",
-     139
+     175
     ],
     [
      "6",
-     135
+     165
     ],
     [
-     "8",
-     126
-    ],
-    [
-     "3",
-     124
+     "7",
+     145
     ],
     [
      "4",
-     124
+     142
+    ],
+    [
+     "3",
+     139
+    ],
+    [
+     "8",
+     138
     ]
    ]
   },
@@ -2044,25 +2044,25 @@
    "line": 1120,
    "doc": "Fire at (or throw oil at) a hostile before it closes.",
    "doc_from": "docstring",
-   "hits": 1160,
+   "hits": 1275,
    "log_reasons": [
     [
-     "ranged:fire-target",
-     530
+     "ranged:fire",
+     596
     ],
     [
-     "ranged:fire",
-     526
+     "ranged:fire-target",
+     571
     ],
     [
      "ranged:fire-offset",
-     104
+     108
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     1160
+     1275
     ]
    ],
    "log_keys": [
@@ -2072,7 +2072,7 @@
     ],
     [
      "fq*t5\u001b",
-     84
+     87
     ],
     [
      "fu*t5\u001b",
@@ -2087,8 +2087,8 @@
      55
     ],
     [
-     "fk*t5\u001b",
-     52
+     "fm*t5\u001b",
+     53
     ]
    ]
   },
@@ -2160,7 +2160,7 @@
    "line": 1224,
    "doc": "Starvation safety, independent of mode and objective (R1).",
    "doc_from": "docstring",
-   "hits": 54,
+   "hits": 56,
    "log_reasons": [
     [
      "town:recover",
@@ -2171,12 +2171,12 @@
      19
     ],
     [
-     "item:cure-status-healing",
+     "item:heal",
      5
     ],
     [
-     "item:heal",
-     4
+     "item:cure-status-healing",
+     5
     ],
     [
      "wilderness:flee",
@@ -2187,6 +2187,10 @@
      2
     ],
     [
+     "item:strong-fight-speed",
+     1
+    ],
+    [
      "town:seek-shelter",
      1
     ]
@@ -2194,7 +2198,7 @@
    "log_objectives": [
     [
      "Survive and disengage",
-     28
+     30
     ],
     [
      "Town maintenance and resupply",
@@ -2220,7 +2224,7 @@
     ],
     [
      "qc",
-     5
+     6
     ],
     [
      "1",
@@ -2231,7 +2235,7 @@
      3
     ],
     [
-     "6",
+     "qf",
      1
     ]
    ]
@@ -2303,27 +2307,27 @@
    "line": 2925,
    "doc": "",
    "doc_from": "",
-   "hits": 358,
+   "hits": 380,
    "log_reasons": [
     [
-     "home:route-claim-unfulfilled",
-     73
+     "home:weight-overload-deposit",
+     75
     ],
     [
-     "home:weight-overload-deposit",
-     69
+     "home:route-claim-unfulfilled",
+     74
     ],
     [
      "home:leave-for-pending-withdraw",
-     59
+     65
     ],
     [
      "home:atomic-withdraw",
-     59
+     62
     ],
     [
      "home:atomic-deposit",
-     50
+     53
     ],
     [
      "home:queue-catalogue-shortage",
@@ -2334,24 +2338,24 @@
      14
     ],
     [
-     "town:entrance-step-off:home:atomic-withdraw-complete",
-     4
+     "home:identify-staff-reserve-unavailable",
+     5
     ]
    ],
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     358
+     380
     ]
    ],
    "log_keys": [
     [
      "\u001b",
-     169
+     179
     ],
     [
      "5",
-     31
+     34
     ],
     [
      "dn28\rdk\u001b",
@@ -2362,11 +2366,11 @@
      10
     ],
     [
-     "dk\u001b",
-     8
+     "dm\u001b",
+     9
     ],
     [
-     "dn7\r\u001b",
+     "dk\u001b",
      8
     ]
    ]
@@ -2390,31 +2394,31 @@
    "line": 91,
    "doc": "",
    "doc_from": "",
-   "hits": 5,
+   "hits": 43,
    "log_reasons": [
     [
-     "home:full-queue-surplus-withdraw",
-     4
+     "home:full-await-knowledge",
+     24
     ],
     [
-     "home:full-await-knowledge",
-     1
+     "home:full-queue-surplus-withdraw",
+     19
     ]
    ],
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     5
+     43
     ]
    ],
    "log_keys": [
     [
      "\u001b",
-     4
+     32
     ],
     [
      "~9\u001b",
-     1
+     11
     ]
    ]
   },
@@ -2685,11 +2689,15 @@
    "line": 490,
    "doc": "",
    "doc_from": "",
-   "hits": 4,
+   "hits": 5,
    "log_reasons": [
     [
      "restore:quaff-str",
      3
+    ],
+    [
+     "restore:quaff-con",
+     1
     ],
     [
      "restore:quaff-dex",
@@ -2699,13 +2707,17 @@
    "log_objectives": [
     [
      "Continue conservative progression",
-     4
+     5
     ]
    ],
    "log_keys": [
     [
      "qd",
      2
+    ],
+    [
+     "qf",
+     1
     ],
     [
      "qb",
@@ -3005,35 +3017,35 @@
    "line": 1110,
    "doc": "Collect visible drops before shopping or ordinary exploration.",
    "doc_from": "docstring",
-   "hits": 121,
+   "hits": 175,
    "log_reasons": [
     [
      "return:seek-loot",
-     121
+     175
     ]
    ],
    "log_objectives": [
     [
      "Return to town",
-     121
+     175
     ]
    ],
    "log_keys": [
     [
      "6",
-     52
+     82
     ],
     [
      "3",
-     22
+     28
+    ],
+    [
+     "9",
+     27
     ],
     [
      "7",
      14
-    ],
-    [
-     "9",
-     9
     ],
     [
      "1",
@@ -3136,15 +3148,15 @@
    "line": 6457,
    "doc": "A fled breeder floor turns the ordinary return into a persistent walk-out, but it remains a navigation owner: survival/combat above and the livelock escape immediately above must retain priority.",
    "doc_from": "call-site",
-   "hits": 734,
+   "hits": 765,
    "log_reasons": [
     [
      "return:wait-recall",
-     697
+     724
     ],
     [
      "return:recall",
-     35
+     39
     ],
     [
      "descend",
@@ -3154,7 +3166,7 @@
    "log_objectives": [
     [
      "Return to town",
-     732
+     763
     ],
     [
      "Reach the next dungeon level",
@@ -3164,7 +3176,7 @@
    "log_keys": [
     [
      "5",
-     697
+     724
     ],
     [
      "rf",
@@ -3179,12 +3191,12 @@
      7
     ],
     [
-     "rk",
-     3
+     "rh",
+     5
     ],
     [
-     ">\ry",
-     2
+     "rk",
+     3
     ]
    ]
   },
@@ -3208,31 +3220,31 @@
    "line": 4923,
    "doc": "Ride native town travel toward the store, walking only as fallback.",
    "doc_from": "docstring",
-   "hits": 54,
+   "hits": 57,
    "log_reasons": [
     [
      "equipment-transaction:travel-home",
-     30
+     31
     ],
     [
      "equipment-transaction:travel-home:await-entry",
-     24
+     26
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     54
+     57
     ]
    ],
    "log_keys": [
     [
      "\u001b`n(.",
-     30
+     31
     ],
     [
      "5",
-     24
+     26
     ]
    ]
   },
@@ -3253,19 +3265,19 @@
    "line": 2738,
    "doc": "Identify worn gear that the equipment optimizer counts incomplete.",
    "doc_from": "docstring",
-   "hits": 117,
+   "hits": 137,
    "log_reasons": [
     [
      "identify:dungeon-equipment",
-     73
+     87
+    ],
+    [
+     "identify:full",
+     21
     ],
     [
      "identify:normal",
      19
-    ],
-    [
-     "identify:full",
-     15
     ],
     [
      "identify:pack-pressure",
@@ -3283,7 +3295,7 @@
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     117
+     137
     ]
    ],
    "log_keys": [
@@ -3296,6 +3308,10 @@
      11
     ],
     [
+     "ulo",
+     8
+    ],
+    [
      "ukm",
      7
     ],
@@ -3305,10 +3321,6 @@
     ],
     [
      "rhl\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
-     5
-    ],
-    [
-     "rhm\u001b\u001b\u001b\u001b\u001b\u001b\u001b\u001b",
      5
     ]
    ]
@@ -3516,15 +3528,15 @@
    "line": 2335,
    "doc": "Equipment changes have one owner: after Home identification and the complete-page scan, execute the globally optimized loadout transaction. Legacy per-item weapon trials and jewellery upgrades must not race this plan or repeatedly withdraw and re-deposit candidates.",
    "doc_from": "call-site",
-   "hits": 305,
+   "hits": 331,
    "log_reasons": [
+    [
+     "equipment-transaction:await-confirmation",
+     55
+    ],
     [
      "equipment-transaction:takeoff",
      53
-    ],
-    [
-     "equipment-transaction:await-confirmation",
-     45
     ],
     [
      "town:restore-combat-weapon",
@@ -3532,11 +3544,15 @@
     ],
     [
      "home:store-context-exit",
-     24
+     26
     ],
     [
      "equipment-transaction:deposit",
-     19
+     23
+    ],
+    [
+     "equipment-transaction:approach-home",
+     16
     ],
     [
      "equipment-transaction:seek-home-page",
@@ -3545,30 +3561,26 @@
     [
      "equipment-transaction:withdraw-missing",
      15
-    ],
-    [
-     "equipment-transaction:approach-home",
-     13
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     218
+     239
     ],
     [
      "Town maintenance and resupply",
-     87
+     92
     ]
    ],
    "log_keys": [
     [
      "5",
-     73
+     85
     ],
     [
      "\u001b",
-     63
+     68
     ],
     [
      "tb",
@@ -3583,7 +3595,7 @@
      12
     ],
     [
-     "wkb",
+     "dm",
      8
     ]
    ]
@@ -3608,19 +3620,19 @@
    "line": 1110,
    "doc": "Collect visible drops before shopping or ordinary exploration.",
    "doc_from": "docstring",
-   "hits": 2258,
+   "hits": 2833,
    "log_reasons": [
     [
      "seek-loot",
-     2114
+     2667
     ],
     [
      "pickup",
-     77
+     91
     ],
     [
      "trigger-autodestroy",
-     63
+     71
     ],
     [
      "loop-detected",
@@ -3630,11 +3642,11 @@
    "log_objectives": [
     [
      "Collect visible floor items",
-     2191
+     2758
     ],
     [
      "Continue conservative progression",
-     63
+     71
     ],
     [
      "Stopped for loop investigation",
@@ -3644,27 +3656,27 @@
    "log_keys": [
     [
      "7",
-     474
+     519
     ],
     [
      "6",
-     364
-    ],
-    [
-     "1",
-     279
+     507
     ],
     [
      "3",
-     258
-    ],
-    [
-     "4",
-     251
+     357
     ],
     [
      "9",
-     240
+     348
+    ],
+    [
+     "1",
+     302
+    ],
+    [
+     "4",
+     285
     ]
    ]
   },
@@ -3685,23 +3697,23 @@
    "line": 4923,
    "doc": "Ride native town travel toward the store, walking only as fallback.",
    "doc_from": "docstring",
-   "hits": 1384,
+   "hits": 1508,
    "log_reasons": [
     [
      "shop:approach",
-     638
+     694
     ],
     [
      "shop:travel",
-     558
+     613
+    ],
+    [
+     "shop:travel:await-entry",
+     76
     ],
     [
      "wilderness:enter-global",
      75
-    ],
-    [
-     "shop:travel:await-entry",
-     66
     ],
     [
      "wilderness:global-travel",
@@ -3709,7 +3721,7 @@
     ],
     [
      "store:entry-interrupted-replan",
-     10
+     13
     ],
     [
      "loop-detected",
@@ -3723,11 +3735,11 @@
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     1266
+     1387
     ],
     [
      "Continue conservative progression",
-     112
+     115
     ],
     [
      "Stopped for loop investigation",
@@ -3737,19 +3749,19 @@
    "log_keys": [
     [
      "1",
-     247
+     261
     ],
     [
      "9",
-     230
+     237
     ],
     [
      "\u001b`n(.",
-     204
+     228
     ],
     [
      "\u001b`n%.",
-     102
+     118
     ],
     [
      "\u001b`n#.",
@@ -4060,7 +4072,7 @@
    "line": 1367,
    "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
    "doc_from": "call-site",
-   "hits": 530,
+   "hits": 531,
    "log_reasons": [
     [
      "stuck:wander",
@@ -4068,7 +4080,7 @@
     ],
     [
      "breakout:seek-frontier",
-     47
+     48
     ],
     [
      "breakout:least-visited",
@@ -4078,13 +4090,13 @@
    "log_objectives": [
     [
      "Explore and break out of dead ends",
-     530
+     531
     ]
    ],
    "log_keys": [
     [
      "6",
-     185
+     186
     ],
     [
      "4",
@@ -4154,19 +4166,19 @@
    "line": 1367,
    "doc": "8. If we are circling the same few tiles (frontiers whose unknown side the pathfinder can't reach), break out by stepping directly into an adjacent unknown tile to reveal it. Only when actually oscillating, so normal directed exploration is unaffected. Wall bumps are harmless and bounded by PROBE_LIMIT.",
    "doc_from": "call-site",
-   "hits": 14654,
+   "hits": 15403,
    "log_reasons": [
     [
      "explore",
-     13962
+     14699
     ],
     [
      "probe",
-     363
+     367
     ],
     [
      "search",
-     328
+     336
     ],
     [
      "loop-detected",
@@ -4176,7 +4188,7 @@
    "log_objectives": [
     [
      "Explore and break out of dead ends",
-     14653
+     15402
     ],
     [
      "Stopped for loop investigation",
@@ -4186,27 +4198,27 @@
    "log_keys": [
     [
      "6",
-     4221
+     4419
     ],
     [
      "4",
-     3075
+     3294
     ],
     [
      "7",
-     1529
+     1615
     ],
     [
      "1",
-     1358
+     1412
     ],
     [
      "8",
-     1309
+     1371
     ],
     [
      "2",
-     1194
+     1254
     ]
    ]
   },
@@ -4251,11 +4263,15 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 32,
+   "hits": 56,
    "log_reasons": [
     [
+     "home-errand:atomic-withdraw:full-home-sale",
+     21
+    ],
+    [
      "home-errand:atomic-withdraw:identification-catalog",
-     10
+     13
     ],
     [
      "home-errand:atomic-withdraw:identification",
@@ -4266,16 +4282,12 @@
      6
     ],
     [
-     "home-errand:atomic-withdraw:full-home-sale",
-     4
+     "home-errand:request-knowledge:identification-catalog",
+     5
     ],
     [
      "home-errand:await-fresh-knowledge:identification-catalog",
-     2
-    ],
-    [
-     "home-errand:request-knowledge:identification-catalog",
-     2
+     3
     ],
     [
      "home-errand:await-fresh-knowledge:identification",
@@ -4285,13 +4297,17 @@
    "log_objectives": [
     [
      "Continue conservative progression",
-     32
+     56
     ]
    ],
    "log_keys": [
     [
      "~9\u001b\u001b",
-     8
+     11
+    ],
+    [
+     "9",
+     4
     ],
     [
      "5pD1\r\u001b",
@@ -4306,12 +4322,8 @@
      4
     ],
     [
-     "9",
+     "5pS\u001b",
      3
-    ],
-    [
-     "5pa\u001b",
-     1
     ]
    ]
   },
@@ -4332,35 +4344,35 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 236,
+   "hits": 249,
    "log_reasons": [
     [
      "home:request-knowledge-scan",
-     188
+     196
     ],
     [
      "home:scan-incomplete-open-page",
-     48
+     53
     ]
    ],
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     236
+     249
     ]
    ],
    "log_keys": [
     [
      "~9\u001b\u001b",
-     170
+     177
     ],
     [
      "\u001b",
-     48
+     53
     ],
     [
      "~9\u001b",
-     17
+     18
     ],
     [
      "1",
@@ -4385,23 +4397,23 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 584,
+   "hits": 620,
    "log_reasons": [
     [
      "shop:one-shot-buy",
-     356
+     358
     ],
     [
      "shop:observe-and-leave",
-     152
+     161
     ],
     [
      "shop:in-store-buy",
-     36
+     48
     ],
     [
      "shop:in-store-done",
-     23
+     36
     ],
     [
      "town:entrance-step-off:shop:observed-operation-uncomposable",
@@ -4415,17 +4427,17 @@
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     584
+     620
     ]
    ],
    "log_keys": [
     [
-     "5",
-     184
+     "\u001b",
+     197
     ],
     [
-     "\u001b",
-     175
+     "5",
+     185
     ],
     [
      "ph1\r\r\u001b",
@@ -4462,59 +4474,59 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 74,
+   "hits": 130,
    "log_reasons": [
     [
      "shop:one-shot-sell",
-     43
+     71
     ],
     [
      "shop:batch-inscribe",
-     25
+     39
+    ],
+    [
+     "shop:in-store-inscribe",
+     8
+    ],
+    [
+     "shop:in-store-sell",
+     8
     ],
     [
      "town:destroy-overflow",
      4
-    ],
-    [
-     "shop:in-store-inscribe",
-     1
-    ],
-    [
-     "shop:in-store-sell",
-     1
     ]
    ],
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     74
+     130
     ]
    ],
    "log_keys": [
     [
      "5",
-     18
+     32
     ],
     [
      "d0y\u001b",
-     9
+     16
+    ],
+    [
+     "{k@0\r",
+     13
     ],
     [
      "{i@1\r",
      8
     ],
     [
-     "d15\ry\u001b",
+     "{i@0\r",
      7
     ],
     [
-     "d1y\u001b",
-     6
-    ],
-    [
-     "{b@1\r",
-     5
+     "d15\ry\u001b",
+     7
     ]
    ]
   },
@@ -4633,19 +4645,19 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 248,
+   "hits": 270,
    "log_reasons": [
     [
      "town:wait-recall",
-     220
+     240
     ],
     [
      "town:entrance-step-off:town:unsafe-recall-fallback",
-     14
+     15
     ],
     [
      "town:recall-to-alt-dungeon",
-     6
+     7
     ],
     [
      "town:wait-recall-step-off",
@@ -4659,13 +4671,13 @@
    "log_objectives": [
     [
      "Town maintenance and resupply",
-     248
+     270
     ]
    ],
    "log_keys": [
     [
      "5",
-     220
+     240
     ],
     [
      "1",
@@ -4685,7 +4697,7 @@
     ],
     [
      "6",
-     2
+     3
     ]
    ]
   },
@@ -4709,7 +4721,7 @@
    "line": null,
    "doc": "",
    "doc_from": "",
-   "hits": 163,
+   "hits": 166,
    "log_reasons": [
     [
      "policy:none-store-exit",
@@ -4721,13 +4733,13 @@
     ],
     [
      "policy:none-wait",
-     5
+     8
     ]
    ],
    "log_objectives": [
     [
      "Continue conservative progression",
-     148
+     151
     ],
     [
      "Town maintenance and resupply",
@@ -4745,7 +4757,7 @@
     ],
     [
      "5",
-     5
+     8
     ],
     [
      "8",
