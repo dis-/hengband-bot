@@ -15,10 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def extract():
     pins = []
-    for source in sorted((ROOT / ".s33-plan/captures").glob("*decisions*.gz")):
+    for source in sorted((ROOT / ".s33-plan/captures").rglob("*decisions*.gz")):
         with gzip.open(source, "rt", encoding="utf8") as stream:
             rows = [json.loads(line) for line in stream]
         indices = {len(rows) - 1}
+        if source.parent.name == "extra-2341":
+            indices.update(range(max(0, len(rows)-5), len(rows)))
         focus = {"115941": (262, 271), "120434": (223, 226),
                  "170231": (229, 238), "182502": (200, 216),
                  "195851": (310, 328), "202849": (234, 279)}
@@ -26,6 +28,14 @@ def extract():
         for stamp, (first, last) in focus.items():
             if stamp in source.name:
                 focused.update(range(first - 1, min(last, len(rows))))
+        if source.parent.name == "extra-2341":
+            # Preserve the latest restart's scan, approach and actual Home
+            # weight-deposit onset, not just the equipment failure tail.
+            focused.update(range(max(0, len(rows) - 5), len(rows)))
+            starts = [i for i, row in enumerate(rows) if row.get("decision_sequence") == 1]
+            if starts:
+                focused.update(i for i in range(starts[-1], len(rows))
+                               if rows[i].get("decision_sequence") in {1, 2, 3})
         indices.update(focused)
         indices.update(i for i, row in enumerate(rows)
                        if (row.get("claim", {}).get("s33_shadow") or {}).get("would_stop"))
@@ -49,7 +59,7 @@ def extract():
                     raw = json.loads(line)
                     if "grid_map" in raw:
                         current_map = raw["grid_map"]
-                    if raw.get("type") != "player_turn":
+                    if raw.get("type") not in {"player_turn", "store"}:
                         continue
                     for i in selected:
                         row = rows[i]

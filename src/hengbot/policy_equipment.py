@@ -426,6 +426,17 @@ class EquipmentMixin:
             and self._decision_context.equipment_transaction_owned
         )
 
+    def _equipment_transaction_home_work(self) -> bool:
+        """A Home route is needed only for an executable, unposted Home action.
+
+        Posted actions own observation, and outside equip/takeoff owns the
+        character where it stands. Neither is another Home visit.
+        """
+        session = self._equipment_transaction_session
+        return bool(session is not None and session.executable
+                    and session.current_action is not None
+                    and session.required_context == "home")
+
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
         """Release transaction ownership freshly satisfied by worn observations."""
         had_owned_items = bool(self._equipment_transaction_owned_items)
@@ -2876,6 +2887,9 @@ class EquipmentMixin:
         count, and exhaustion at this bound remains terminal.
         """
         limit = self._town_store_visit_limit(STORE_HOME)
+        if self._equipment_transaction_session is not None:
+            if not self._equipment_transaction_home_work():
+                return False
         return (
             self._outstanding_equipment_work()
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME)

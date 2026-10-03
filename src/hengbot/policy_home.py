@@ -3091,8 +3091,7 @@ class HomeMixin:
         )
 
     def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
-        session = self._equipment_transaction_session
-        if session is not None and session.executable and session.required_context is not None:
+        if self._equipment_transaction_home_work():
             return True
         if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR

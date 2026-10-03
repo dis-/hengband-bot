@@ -5656,7 +5656,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             "token_would_admit": False, "token_work_identity": None,
                             "active_bar": True}
         holder = self._claim_errand_hold(
-            family, enforced=enforced, arrival_board=arrival_board)
+            family, enforced=enforced,
+            arrival_board=arrival_board if arrival_board is not None else snapshot)
         if holder is None:
             return None
         token = self._recorded_execution_token(
@@ -5763,7 +5764,28 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
+        session = self._equipment_transaction_session
+        holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())
+        if (session is not None and not session.complete
+                and holder is not None and holder.owner.value == "equipment-txn"
+                and rung.family == "equipment-txn"
+                and rung_name not in {
+                    "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
+                    "_equipment_transaction_town_owner_key", "_equipment_transaction_home_key",
+                    "home-atomic-withdraw", "home-atomic-deposit", "_shopping_approach_key#1",
+                }):
+            # The family also contains suppression, inscriptions and rearming.
+            # OFF records the same pre-call verdict that ON enforces.
+            if getattr(self, "_decision_errand_deferred", None) is None:
+                self._decision_errand_deferred = []
+            self._decision_errand_deferred.append({
+                "holder_family": "equipment-txn", "holder_claim_id": holder.claim_id,
+                "deferred_family": rung.family, "deferred_reason": f"entry:{rung_name}",
+                "token_would_admit": False, "token_work_identity": None,
+            })
+            if getattr(self, "_town_claim_bar_enforced", False):
+                return None
         if (not self._town_gate_exempt(rung.family)
                 and self._defer_town_errand(rung.family, f"entry:{rung_name}")):
             return None
@@ -6214,14 +6236,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # A posted native route can end short of its destination. The
             # declaration itself carries its next route step and destination.
             if declaration.continuation == "route.resume":
-                self._claim_register.declare_execution(
+                updated = self._claim_register.declare_execution(
                     holder.claim_id, work_id=declaration.work_id,
                     producer=family, state="acting", next_step="route.resume",
                     arguments=declaration.arguments,
                     expected_effect=declaration.expected_effect,
                     continuation="route.resume", budget_ref=declaration.budget_ref)
-                holder = self._claim_register.current
-                declaration = holder.execution
+                if updated is None:
+                    # Survival still owns current; dispatch the suspended
+                    # route locally. Recording resumes its original claim.
+                    declaration = replace(declaration, state="acting", next_step="route.resume")
+                    holder = replace(holder, execution=declaration)
+                else:
+                    holder = self._claim_register.current
+                    declaration = holder.execution
             elif family == "quest-request" and declaration.continuation == "bounty.resume":
                 since = self._decision_offer_buffer().sequence
                 key = self._town_order_step4_key(snapshot)
@@ -6236,15 +6264,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if session is None:
                     return self._town_declaration_stop(family, "stale")
                 if session.pending_action is None:
-                    self._claim_register.declare_execution(
+                    updated = self._claim_register.declare_execution(
                         holder.claim_id, work_id=declaration.work_id,
                         producer=family, state="acting",
                         next_step="equipment.next-action",
                         arguments=(), expected_effect=declaration.expected_effect,
                         continuation="equipment.next-action",
                         budget_ref=declaration.budget_ref)
-                    holder = self._claim_register.current
-                    declaration = holder.execution
+                    if updated is None:
+                        declaration = replace(declaration, state="acting",
+                                              next_step="equipment.next-action", arguments=())
+                        holder = replace(holder, execution=declaration)
+                    else:
+                        holder = self._claim_register.current
+                        declaration = holder.execution
                 else:
                     self.last_reason = "equipment-transaction:await-confirmation"
                     return WAIT_KEY if snapshot.store is None else LEAVE_STORE_KEY
@@ -6306,7 +6339,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                              snapshot, lambda grid: grid.position == goal))
             if next_cell is None:
                 return self._silent_holder_stop(family)
-            self.last_reason = "shop:approach"
+            self.last_reason = (
+                "equipment-transaction:travel-home" if family == "equipment-txn"
+                else "fixedquest:request:approach" if family == "quest-request"
+                else "shop:approach")
             self._declare_reach(goal, family=family)
             key = self._direction_key(snapshot.player.position, next_cell)
             self._offer_execution(
@@ -6645,7 +6681,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Resolve ON admission for the decided OFF board, without dispatch."""
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
-        holder = self._claim_errand_hold("__none__", enforced=True)
+        holder = self._claim_errand_hold("__none__", enforced=True,
+                                         arrival_board=snapshot)
         declaration = getattr(holder, "execution", None)
         skipped = set()
         # Census the families the ON entry helper would refuse on this board.
@@ -6668,7 +6705,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if (stop is None and not reason.startswith((
                         "ownership:holder-", "ownership:declaration-"))
                         and not self._town_gate_exempt(family, reason, snapshot)):
-                    foreign = self._claim_errand_hold(family, enforced=True)
+                    foreign = self._claim_errand_hold(family, enforced=True,
+                                                     arrival_board=snapshot)
                     if (foreign is not None and self._recorded_execution_token(
                             foreign, family, f"final:{reason}") is None):
                         entry_refused = any(
@@ -6773,6 +6811,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and offer[4] == declaration.arguments
                 for offer in own
             ):
+                session = self._equipment_transaction_session
+                action = session.current_action if session is not None else None
+                if (family == "equipment-txn" and session is not None
+                        and session.executable and action is not None
+                        and session.prepared_action == action
+                        and self._equipment_transaction_prepared_key == key
+                        and declaration.continuation == "equipment.next-action"
+                        and any(
+                            offer[2] == f"equipment:{session.target_loadout_id}:{session.index}"
+                            and offer[3] == "equipment.next-action"
+                            and offer[4] == (action.kind, action.target_slot, action.item_identity)
+                            for offer in own)):
+                    # The same physical session moved from its leave/travel
+                    # envelope to the next prepared action. This is an exact
+                    # observed session transition, not foreign admission.
+                    return None
                 return f"ownership:declaration-stale:{family}"
         if reason == "store:entry-await-observation" and key == "":
             # Check the entry declaration first.  An entry can be armed before
@@ -12679,12 +12733,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _outstanding_equipment_work(self) -> bool:
-        """Return whether equipment work still owns a route to Home.
+        """Return whether the equipment lifecycle retains its Home allowance.
 
         This scope describes work that remains, not why optimization is stuck.
         In particular, optimizer success can open the transaction that applies
         its result; that success must not revoke the Home allowance the new
         session needs to execute.
+        The allowance spans outside equip and posted observations; route and
+        store-need projections separately ask for the current Home action.
         """
         preparation = self._equipment_optimization_preparation
         # R1: an unavailable calibration skips optimization; it is not work
@@ -12695,7 +12751,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     or blocker.startswith("calibration-stale:"))
         )
         optimization_already_applied = self._optimization_already_applied(preparation)
-        return bool(blockers and (not optimization_already_applied) or self._equipment_transaction_session is not None or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None))
+        return bool(blockers and (not optimization_already_applied) or (self._equipment_transaction_session is not None and not self._equipment_transaction_session.complete) or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None))
 
     @staticmethod
     def _optimization_already_applied(preparation: object | None) -> bool:

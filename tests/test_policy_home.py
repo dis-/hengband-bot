@@ -4145,12 +4145,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         policy = HengbotPolicy()
         snapshot = self._entrance_snapshot(self._real_pack(), turn=2247201)
         home = self._snapshot(self._real_pack(), turn=2247202)
-        policy._equipment_transaction_session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-        )
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((policy_module.EquipmentTransaction(
+                policy_module.PHASE_HOME_PREPARE, "withdraw", "home-target"),), (), 1))
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         policy._equipment_transaction_session = None
         policy._equipment_catalog.home_scan_complete = True
