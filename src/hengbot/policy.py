@@ -1361,6 +1361,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
         self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
+        self._home_capacity_observation = None
+        self._home_full_relief = None
+        self._home_full_refused = False
         self._home_history_inflight: tuple[str, tuple[str, int, int], int, int] | None = None
         self._saw_dungeon_recall = False
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
@@ -2551,6 +2554,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._refresh_town_facts(snapshot)
 
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        # Recorded checkpoints predating full-Home recovery lack these fields.
+        self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
+        self._home_full_relief = getattr(self, "_home_full_relief", None)
+        self._home_full_refused = getattr(self, "_home_full_refused", False)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
         self._observe_cross_town_shopping_arrival(snapshot)
@@ -7378,6 +7385,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     @claims(ClaimOwner.HOME_VISIT)
     def _observe_home_atomic_deposit_outside(self, snapshot: Snapshot) -> None:
         """Consume the legacy deposit delta before any producer can take over."""
+        if self._home_atomic_deposit_pending is not None and any(
+                "我が家にはもう置く場所がない" in message
+                or "Your home is full" in message for message in snapshot.messages):
+            self._home_full_refused = True
         pending_deposit = self._home_atomic_deposit_pending
         if (
             snapshot.store is None
@@ -7398,6 +7409,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 deposit_observed = len(landed) == len(entries)
                 if deposit_observed:
+                    self._home_full_refused = False
                     # Design rev 9 item 3: the posted Home deposit's effect is
                     # confirmed, before ``_release_invalid_store_visit``.
                     self._complete_observed_effect(
@@ -7438,6 +7450,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         sources=(CLAIM_OBSERVE_STORE_OPERATION,),
                     )
                     self._home_atomic_deposit_pending = None
+                    blocked_entries = tuple(entry for entry in entries
+                                            if entry[0] not in landed)
+                    if self._home_full_refused:
+                        self._begin_home_full_relief(snapshot, blocked_entries, refused=True)
+                    elif self._home_is_full(snapshot):
+                        self._begin_home_full_relief(snapshot, blocked_entries)
                     self._home_rejected_deposits.update(
                         signature
                         for signature, _count_before, _expected_count in entries
@@ -9781,6 +9799,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 budget_ref="home-operation-existing-budget",
             )
             return WAIT_KEY
+        if (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
+                and not (snapshot.player.poisoned or snapshot.player.cut
+                         or snapshot.player.confused or snapshot.player.blind)
+                and snapshot.player.food_state in {"normal", "full", "gorged"}
+                and not any(monster.hostile for monster in
+                            (*snapshot.visible_monsters, *snapshot.detected_monsters))
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and self._store_buy_inflight is None
+                and self._batch_sell_pending is None
+                and (self._home_full_relief is not None or self._home_is_full(snapshot))):
+            relief_key = self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot))
+            if relief_key is not None:
+                return relief_key
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;

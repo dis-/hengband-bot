@@ -714,6 +714,7 @@ class StoreState:
     stock_num: int | None = None
     page_top: int | None = None
     page_size: int | None = None
+    capacity: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1627,6 +1628,7 @@ def _parse_store(store_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> "StoreS
         stock_num=(
             int(store_data["stock_num"]) if "stock_num" in store_data else None
         ),
+        capacity=(int(store_data["capacity"]) if "capacity" in store_data else None),
         page_top=(
             int(store_data["page_top"]) if "page_top" in store_data else None
         ),
