@@ -422,7 +422,8 @@ function boot(data) {
   render();
 }
 
-fetch('data/ladder.json')
+// no-cache: the page changes rarely, the counts change every run.
+fetch('data/ladder.json', { cache: 'no-cache' })
   .then(r => r.json())
   .then(boot)
   .catch(e => {
