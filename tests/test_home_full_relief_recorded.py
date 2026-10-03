@@ -132,6 +132,9 @@ class HomeFullReliefTest(unittest.TestCase):
                         inventory=tuple(item for item in board.inventory if item.slot != "s"),
                         player=replace(board.player, gold=board.player.gold + 20))
                 self.assertIsNone(policy._home_full_relief)
+                self.assertEqual(key, "~9\x1b")
+                self.assertEqual(policy.decision_claim["owner"], "home-scan")
+                self.assertTrue(policy._home_knowledge_scan_inflight)
                 self.assertIs(policy._equipment_transaction_session, session)
                 self.assertEqual(catalogue[0].name, "sale surplus 2")
                 self.assertTrue({entry[0] for entry in entries}.isdisjoint(
