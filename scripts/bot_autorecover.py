@@ -165,7 +165,8 @@ def resume() -> bool:
     flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     with (J / "autorecover-resume.log").open("a", encoding="utf-8") as out:
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps),
-                          "-Action", "resume", "-EnforceCrossareaFundraising"],
+                          "-Action", "resume", "-EnforceCrossareaFundraising",
+                          "-InStoreShopOps"],
                          stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
                          creationflags=flags, close_fds=True)
     deadline = time.time() + 120
