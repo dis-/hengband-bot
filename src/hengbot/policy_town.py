@@ -1714,6 +1714,12 @@ class TownMixin:
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
             self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
             producer = self._claim_family_of(prior_reason)
+            if producer != self._claim_family_of(self.last_reason):
+                # A physical entrance step is the current work's envelope.
+                # It does not admit a new departure producer.
+                self.last_reason = prior_reason
+                self._declare_reach(step, family=producer,
+                                    note=CLAIM_GOAL_NOTE_ONE_STEP)
             if key is not None:
                 self._offer_execution(
                     key, producer=producer,
@@ -2098,6 +2104,11 @@ class TownMixin:
         return key
 
     def _town_item_processing_key(self, snapshot: Snapshot) -> str | None:
+        return self._town_producer_entry(
+            "town-item-processing", lambda: self._town_item_processing_dispatch_key(snapshot),
+            family="identification")
+
+    def _town_item_processing_dispatch_key(self, snapshot: Snapshot) -> str | None:
         if not snapshot.in_town:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:town-item",
@@ -6100,7 +6111,18 @@ class TownMixin:
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _town_teleport_key(
-        self, snapshot: Snapshot, destination_town_id: int
+        self, snapshot: Snapshot, destination_town_id: int, *,
+        producer: str = "store-router", reason: str = "town:teleport",
+    ) -> str | None:
+        return self._town_producer_entry(
+            "town-teleport", lambda: self._town_teleport_dispatch_key(
+                snapshot, destination_town_id, producer=producer, reason=reason),
+            family=producer,
+        )
+
+    def _town_teleport_dispatch_key(
+        self, snapshot: Snapshot, destination_town_id: int, *,
+        producer: str, reason: str,
     ) -> str | None:
         current_town_id = self._effective_town_id(snapshot)
         required_gold = (
@@ -6119,13 +6141,19 @@ class TownMixin:
             return None
         result = self._town_teleport_route(snapshot, destination_town_id)
         if result.key is not None:
-            self.last_reason = (
-                "town:teleport" if result.route is not None
-                else "town:teleport-step-off"
-            )
+            self.last_reason = reason if result.route is not None else reason + "-step-off"
             if result.route is not None:
-                # marked, so only this walk can be adopted by the caller
-                self._declare_reach(result.route.target, note="teleport-walk")
+                self._declare_reach(
+                    result.route.target, family=producer,
+                    note="teleport-walk" if producer == "store-router" else None)
+            self._offer_execution(
+                result.key, producer=producer,
+                work_id=f"teleport:{destination_town_id}",
+                next_step="town.teleport.resume",
+                arguments=(destination_town_id, reason),
+                expected_effect=f"town:{destination_town_id}",
+                continuation="town.teleport.resume", budget_ref="town-travel",
+            )
             return result.key
         return None
 

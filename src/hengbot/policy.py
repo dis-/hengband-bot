@@ -5450,12 +5450,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         cross-area Home hold reads that evidence without closing the claim.
         """
         def town_errand(claim):
-            execution = getattr(claim, "execution", None)
-            return claim.owner.value in CLAIM_S3_FAMILIES or (
-                claim.owner.value == "quest-request"
-                and execution is not None
-                and execution.work_id == "normal-step4-bounty"
-            )
+            return claim.owner.value in CLAIM_S3_FAMILIES | {"quest-request"}
 
         register = getattr(self, "_claim_register", None)
         standing = getattr(register, "current", None)
@@ -5759,8 +5754,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         test precedes any reservation, visit mutation, or execution offer in
         the producer.  Survival and detectors remain outside the errand hold.
         """
-        if (not getattr(self, '_town_claim_bar_enforced', False) and (not self._home_sequence_has_holder())):
-            return call()
         board = getattr(self, "_map_predicate_snapshot", None)
         if (board is not None
                 and not (getattr(board, "in_town", False)
@@ -5770,13 +5763,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else claim_rung_of(family, None))
         if rung is None:
             raise ValueError(f"unknown town producer rung: {rung_name}")
+        before = len(getattr(self, "_decision_errand_deferred", ()) or ())
         if (not self._town_gate_exempt(rung.family)
-                and self._defer_town_errand(
-                    rung.family, f"entry:{rung_name}")):
+                and self._defer_town_errand(rung.family, f"entry:{rung_name}")):
             return None
-        if not getattr(self, "_town_claim_bar_enforced", False):
-            return call()
-        if self._town_plan_defers(rung.family):
+        if (getattr(self, "_town_claim_bar_enforced", False)
+                and self._town_plan_defers(rung.family)):
             plan = self._town_errand_plan
             if getattr(self, "_decision_errand_deferred", None) is None:
                 self._decision_errand_deferred = []
@@ -5787,7 +5779,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "token_would_admit": False, "token_work_identity": None,
             })
             return None
-        return call()
+        key = call()
+        # OFF runs the same admission probe, then runs the historical producer.
+        # Bind a refused entry to that producer's actual result. A later output
+        # of the same family cannot borrow this evidence.
+        for row in (getattr(self, "_decision_errand_deferred", ()) or ())[before:]:
+            if (row["deferred_reason"] == f"entry:{rung_name}"
+                    and row["deferred_family"] == rung.family
+                    and isinstance(key, str)
+                    and self._claim_family_of(self.last_reason) == rung.family):
+                row["producer_key"] = key
+        return key
 
     def _town_held_decision(self, key):
         """The selected key belongs to the live town holder's own family."""
@@ -6124,6 +6126,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step = "route.resume"
             elif family == "quest-request" and continuation == "bounty.resume":
                 step = "bounty.resume"
+            elif continuation == "town.teleport.resume":
+                step = "town.teleport.resume"
             elif continuation in {"home.knowledge.observe", "store.entry.observe",
                                   "home.operation.observe", "shop.one-shot.dispatch"}:
                 return None
@@ -6147,6 +6151,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             goal = Position(*cell)
             if (holder.goal.kind != CLAIM_GOAL_REACH
                     or holder.goal.cell != tuple(cell)):
+                return f"ownership:declaration-stale:{family}"
+        elif step == "town.teleport.resume":
+            if (len(declaration.arguments) != 2
+                    or not isinstance(declaration.arguments[0], int)):
                 return f"ownership:declaration-stale:{family}"
         elif step == "bounty.resume":
             if (family != "quest-request"
@@ -6271,6 +6279,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         holder, snapshot, "entrance-cell-cleared"
                     )
                 return self._town_declaration_stop(family, "stale")
+            elif declaration.continuation == "town.teleport.resume":
+                destination, reason = declaration.arguments
+                return self._town_teleport_key(
+                    snapshot, destination, producer=family, reason=reason)
             else:
                 return self._town_declaration_stop(family, "stale")
         if declaration.state != "acting" or not declaration.next_step:
@@ -6311,6 +6323,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                    else self._equipment_transaction_town_key(snapshot))
             return self._town_declared_producer_result(
                 holder, snapshot, key, since)
+        if step == "town.teleport.resume" or (
+                declaration.state == "awaiting"
+                and declaration.continuation == "town.teleport.resume"):
+            destination, reason = declaration.arguments
+            return self._town_teleport_key(
+                snapshot, destination, producer=family, reason=reason)
         if step == "stair.post":
             direction, floor, cell = declaration.arguments
             self.last_reason = "town:descend" if direction == ">" else "town:ascend"
@@ -11452,10 +11470,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "stuck:ascend"
             return UP_STAIRS_KEY
 
-        # 10. Last resort: keep moving so we never freeze forever. (A floor with
-        #     walled-off stairs is escaped by the stuck:recall-escape check above,
-        #     before the search/explore cluster; this only runs until the streak
-        #     builds up.)
+        return self._town_producer_entry(
+            "idle-fallback", lambda: self._town_idle_key(snapshot), family="idle")
+
+    def _town_idle_key(self, snapshot: Snapshot) -> str:
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "stuck:wander"
@@ -11889,6 +11907,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     @claims(ClaimOwner.IDENTIFICATION)
     def _verified_destroy_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
+        return self._town_producer_entry(
+            "verified-disposal", lambda: self._verified_destroy_dispatch_key(snapshot, finder, reason),
+            family="identification")
+
+    @claims(ClaimOwner.IDENTIFICATION)
+    def _verified_destroy_dispatch_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
         """Destroy a selected item while detecting refused or stalled attempts."""
         if snapshot.in_town:
             self._claim_errand_hold("identification")
@@ -15813,6 +15837,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
         """Use the inn service for the approved Q2 errand, never wilderness."""
+        if self._defer_town_errand("quest-request", "q2-travel"):
+            return None
         if self._cross_town_shopping_holds_quest_travel(snapshot):
             return None
         if snapshot.visited_town_ids is None or 1 not in snapshot.visited_town_ids:
@@ -15822,7 +15848,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._telmora_q2_errand
             and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
         ):
-            key = self._town_teleport_key(snapshot, 0)
+            key = self._town_teleport_key(snapshot, 0, producer="quest-request", reason="fixedquest:q2-teleport")
             if key is not None:
                 self.last_reason = "fixedquest:q2-teleport"
             return key
@@ -15840,7 +15866,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "fixedquest:q2-travel-needs-funds"
                 return WAIT_KEY
             self._telmora_q2_errand = True
-            key = self._town_teleport_key(snapshot, 1)
+            key = self._town_teleport_key(snapshot, 1, producer="quest-request", reason="fixedquest:q2-teleport")
             if key is not None:
                 self.last_reason = "fixedquest:q2-teleport"
             return key

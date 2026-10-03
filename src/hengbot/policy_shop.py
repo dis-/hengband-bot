@@ -1576,7 +1576,7 @@ class ShopMixin(InStoreMixin):
             if next_town in expedition.tried_towns or next_town == current:
                 continue
             expedition.target_town_id = next_town
-            key = self._town_teleport_key(snapshot, next_town)
+            key = self._town_teleport_key(snapshot, next_town, producer="cross-town", reason="town:cross-town-shopping")
             if key is not None:
                 self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
                 self._adopt_decision_goal()

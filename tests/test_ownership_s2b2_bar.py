@@ -450,7 +450,7 @@ class ErrandBarTest(unittest.TestCase):
         later = replace(board, turn=board.turn + 100 * HOLD)
         self.assertIsNone(run.decide("explore", cell=(1, 1), board=later)["bars_lifted"])
 
-    def test_it_lifts_on_a_gold_or_inventory_change(self):
+    def test_only_inventory_change_lifts_the_errand_bar(self):
         for name, change in (
             ("gold", lambda board: replace(
                 board, player=replace(board.player, gold=board.player.gold + 1)
@@ -467,6 +467,11 @@ class ErrandBarTest(unittest.TestCase):
                         "bars_lifted"]
                 )
                 row = run.decide("shop:approach", cell=cell, board=change(walked))
+                if name == "gold":
+                    # User decision already on main: gold is not progress.
+                    self.assertIsNone(row["bars_lifted"])
+                    self.assertEqual(row["bars_active"], 1)
+                    continue
                 (gone,) = row["bars_lifted"]
                 self.assertEqual((gone["owner"], gone["kind"]), (family, BAR_ERRAND))
                 self.assertEqual(row["bars_active"], 0)

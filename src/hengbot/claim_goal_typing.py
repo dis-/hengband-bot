@@ -444,6 +444,10 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "quest-request",
         ("fixedquest:", T, EFFECT),
+        ("fixedquest:q2-teleport", R, ENTRANCE),
+        ("fixedquest:q2-teleport-step-off", T, EFFECT),
+        ("fixedquest:q2-travel", R, ENTRANCE),
+        ("fixedquest:q2-travel-needs-funds", T, EFFECT),
         ("fixedquest:approach", R, ENTRANCE),
         ("fixedquest:reward-approach", R, ENTRANCE),
         ("fixedquest:reward-approach:route-unavailable", T, EFFECT),

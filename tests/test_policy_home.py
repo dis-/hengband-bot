@@ -1996,7 +1996,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             player=replace(entrance.player, gold=0),
         )
         policy.prime(fundraising_seed)
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        # Detection is obtainable and carried: main's established rule keeps
+        # preparation active instead of prematurely entering scavenging.
+        self.assertEqual(policy._fundraising_mode, "prepare")
         policy._home_pending_batch = [policy._item_signature(restore)]
         home_page = replace(
             self._snapshot([detection, food], turn=entrance.turn - 1),

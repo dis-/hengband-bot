@@ -1335,7 +1335,7 @@ class QuestMixin:
                 if expedition.returning
                 else MORIVANT_TOWN_ID
             )
-            key = self._town_teleport_key(snapshot, destination)
+            key = self._town_teleport_key(snapshot, destination, producer="cross-town", reason="town:morivant-full-identify")
             if key is not None:
                 self.last_reason = f"town:morivant-full-identify:travel-{destination}"
                 self._adopt_decision_goal()
@@ -1436,7 +1436,7 @@ class QuestMixin:
         # possible; otherwise resolve this optional attempt immediately.
         if current != expedition.origin_town_id:
             expedition.returning = True
-            key = self._town_teleport_key(snapshot, expedition.origin_town_id)
+            key = self._town_teleport_key(snapshot, expedition.origin_town_id, producer="cross-town", reason="town:morivant-full-identify")
             if key is not None:
                 self.last_reason = "town:morivant-full-identify:return"
                 self._adopt_decision_goal()
@@ -3971,7 +3971,7 @@ class QuestMixin:
                     return self._prepare_return_1_candidate(
                         snapshot, fixed_quest_head
                     )
-                key = self._town_teleport_key(snapshot, 0)
+                key = self._town_teleport_key(snapshot, 0, producer="quest-request", reason="fixedquest:prepare-return")
                 if key is not None:
                     self.last_reason = "fixedquest:q2-teleport"
                 return key
@@ -4012,7 +4012,7 @@ class QuestMixin:
                 if travel_quest is not None and travel_quest.id == 2:
                     self._telmora_q2_errand = True
                 if travel_quest.id != 22:
-                    key = self._town_teleport_key(snapshot, target_town)
+                    key = self._town_teleport_key(snapshot, target_town, producer="quest-request", reason="fixedquest:prepare-return")
                     if key is not None:
                         self.last_reason = f"fixedquest:q{travel_quest.id}-travel"
                     return key
@@ -4021,11 +4021,11 @@ class QuestMixin:
                     else 2 * TOWN_TELEPORT_COST
                 )
                 if snapshot.player.gold < required_gold:
-                    return self._town_teleport_key(snapshot, target_town)
+                    return self._town_teleport_key(snapshot, target_town, producer="quest-request", reason="fixedquest:prepare-return")
                 reason = "fixedquest:q22-travel"
                 context = self._decision_context
                 if context is None:
-                    key = self._town_teleport_key(snapshot, target_town)
+                    key = self._town_teleport_key(snapshot, target_town, producer="quest-request", reason="fixedquest:prepare-return")
                     if key is not None:
                         self.last_reason = reason
                     return key
@@ -4237,10 +4237,10 @@ class QuestMixin:
     ) -> str | None:
         """Publish one exact prepare-return proposal after its caller gates."""
         if snapshot.player.gold < TOWN_TELEPORT_COST:
-            return self._town_teleport_key(snapshot, 0)
+            return self._town_teleport_key(snapshot, 0, producer="quest-request", reason="fixedquest:prepare-return")
         context = self._decision_context
         if context is None:
-            key = self._town_teleport_key(snapshot, 0)
+            key = self._town_teleport_key(snapshot, 0, producer="quest-request", reason="fixedquest:prepare-return")
             if key is not None:
                 self.last_reason = "fixedquest:prepare-return"
                 self._adopt_decision_goal()

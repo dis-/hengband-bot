@@ -1411,6 +1411,17 @@ class HomeMixin:
     def _atomic_home_withdraw_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        family = ("equipment-txn" if action is not None and action.kind == "withdraw"
+                  else "home-errand" if self._home_errand.active else "home-visit")
+        return self._town_producer_entry(
+            "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
+                snapshot, step), family=family)
+
+    def _atomic_home_withdraw_dispatch_key(
+        self, snapshot: Snapshot, step: Position
+    ) -> str | None:
         """Bind one catalogued Home take to fresh entry, operation, and exit."""
         if (
             snapshot.store is not None
@@ -1911,6 +1922,8 @@ class HomeMixin:
         only ``_home_candidate_waiting`` leaves no operation for the atomic
         entry composer to post; opening Home cannot repair that omission.
         """
+        if self._defer_town_errand("home-errand", "bind-identification-catalog"):
+            return
         if (
             not self._home_candidate_waiting
             or self._home_errand.active
@@ -2085,6 +2098,17 @@ class HomeMixin:
         self._home_errand.observe_knowledge(False)
 
     def _atomic_home_deposit_key(
+        self, snapshot: Snapshot, step: Position,
+    ) -> str | None:
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        family = ("equipment-txn" if action is not None and action.kind == "deposit"
+                  else "home-visit")
+        return self._town_producer_entry(
+            "home-atomic-deposit", lambda: self._atomic_home_deposit_dispatch_key(
+                snapshot, step), family=family)
+
+    def _atomic_home_deposit_dispatch_key(
         self, snapshot: Snapshot, step: Position,
     ) -> str | None:
         """Bind one Home deposit to its stay-entry and exit."""
