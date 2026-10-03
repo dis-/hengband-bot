@@ -1746,7 +1746,17 @@ class CombatMixin:
             and (unseen_spell_hit or not (player.poisoned or player.cut))
             and (
                 self._last_damage_amount >= player.hp
-                or unseen_spell_hit
+                # USER DECISION 2026-10-03 (unseen spell, nothing in view):
+                # 「1回で最大HPの1割以上削られた時か、HPが低HPの閾値（最大HP×
+                # 50%と最大HP−300の大きい方）未満の時だけ読む。…かすり傷では
+                # 読まず潜行を続ける。」 -- the bounds of unseen_caster_in_combat.
+                or (
+                    unseen_spell_hit
+                    and (
+                        self._last_damage_amount >= player.max_hp * 0.10
+                        or player.hp < self._low_hp_walk_threshold(player.max_hp)
+                    )
+                )
                 or player.hp_ratio < HEAL_HP_RATIO
                 or getattr(self, "_unexplained_damage_streak", 0) >= 2
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO

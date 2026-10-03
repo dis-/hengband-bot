@@ -21,6 +21,7 @@ SHA256 = "ce1667110e02d5f979979d6c78e9d3beae32ba30ca6db7ba1fe901fdc32b1ae5"
 DECISIONS = CAPTURE.with_name(CAPTURE.name.replace(".state.", ".decisions."))
 DECISIONS_SHA256 = "033e88e2fc4224183d13ff4c7dfce1f443b08a1ebd1ad1fa11a9c21dccc8368e"
 FIRST_TURN = 7393814
+SECOND_TURN = 7393832
 
 
 class UnseenCasterDeathRecorded(unittest.TestCase):
@@ -29,11 +30,13 @@ class UnseenCasterDeathRecorded(unittest.TestCase):
         assert hashlib.sha256(CAPTURE.read_bytes()).hexdigest() == SHA256
         assert hashlib.sha256(DECISIONS.read_bytes()).hexdigest() == DECISIONS_SHA256
         with gzip.open(CAPTURE, "rt", encoding="utf-8") as stream:
-            cls.raw = next(
-                row
+            rows = {
+                row["turn"]: row
                 for line in stream
-                if (row := json.loads(line))["turn"] == FIRST_TURN
-            )
+                if (row := json.loads(line))["turn"] in (FIRST_TURN, SECOND_TURN)
+            }
+        cls.raw = rows[FIRST_TURN]
+        cls.second = parse_snapshot(rows[SECOND_TURN])
         with gzip.open(DECISIONS, "rt", encoding="utf-8") as stream:
             cls.decisions = {
                 row["decision_sequence"]: row
@@ -42,7 +45,7 @@ class UnseenCasterDeathRecorded(unittest.TestCase):
             }
         cls.board = parse_snapshot(cls.raw)
 
-    def test_first_captured_hit_escapes_with_teleport(self):
+    def test_first_captured_hit_is_a_scratch_and_the_second_escapes(self):
         board = self.board
         self.assertEqual(
             (
@@ -76,7 +79,22 @@ class UnseenCasterDeathRecorded(unittest.TestCase):
         policy = restore_checkpoint(HengbotPolicy, checkpoint(seed))
         policy._observe(board)
         self.assertEqual(policy._unseen_attack_evidence, board.messages[0])
-        self.assertEqual(policy._emergency_item(board, []), "re")
+        # USER DECISION 2026-10-03 (unseen spell, nothing in view): 「1回で
+        # 最大HPの1割以上削られた時か、HPが低HPの閾値…未満の時だけ読む。
+        # かすり傷では読まず潜行を続ける。」  17 of 841 (2%) at HP 824 > 541
+        # is a scratch: no read (it read before the decision).
+        self.assertEqual(policy._last_damage_amount, 17)
+        self.assertIsNone(policy._emergency_item(board, []))
+        # The next recorded board (824 -> 779, the live bot explored in
+        # between): the second consecutive unexplained loss reads it.
+        second = self.second
+        self.assertEqual(
+            (second.player.hp, second.visible_monsters), (779, [])
+        )
+        policy._observe(second)
+        self.assertEqual(policy._unexplained_damage_streak, 2)
+        self.assertLess(policy._last_damage_amount, second.player.max_hp * 0.10)
+        self.assertEqual(policy._emergency_item(second, []), "re")
         self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_message_families_and_failed_cast_are_presence_evidence(self):
