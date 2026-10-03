@@ -27,12 +27,24 @@ caster's 秘孔 / 「指さして恐ろしげに」 / 暗黒のブレス / ク�
     right, but the cured board 06036437 (HP 337, 21 visible) dropped the
     pending escape and meleed.  Single-board decision with the recorded
     policy state reconstructed by replay: a fresh process on 06036417 (warm
-    up) and 06036428 reproduces the recorded keys, then 06036437 must read
-    teleport.
+    up) and 06036428 reproduces the recorded keys, then 06036437 must engage
+    the lethal ladder (it read teleport until the heal-vs-teleport decision
+    below).
 (C) 06036459: HP 307 -> 295 with the unseen caster's 「指さして恐ろしげに」
     again among 28 visible hostiles.  Single-board decision: a fresh process
     on 06036445 (warm up, reproduces the recorded melee), then 06036459 must
-    read teleport.
+    engage the lethal ladder.
+
+USER DECISION 2026-10-03 06:0x (heal-vs-teleport, verbatim): 「次に受ける
+ダメージ予測で判断する。基本的には回復を優先するが、回復量を上回るなら
+テレポートを優先する。回復しても状況が悪化するだけだからである。」  Below the
+low-HP threshold (431 of 731) the ladder quaffs the Healing potion first when
+it heals at least the next turn's predicted damage -- clarified 08:5x as the
+one-turn operational (p95) projection of the visible and detected hostiles
+(「1ターン分の95%値 (Recommended)」) -- and the observed one-move loss: (B)
+06036437 HP 337, carried loss 290 <= 300; (C) 06036459 HP 295, next turn 101
+<= 300; the observed-loss board 06036472 HP 182, loss 113 <= 300.  So (B) and (C) now heal first; (A) at HP 629 is above
+the threshold and still teleports.
 """
 
 from __future__ import annotations
@@ -127,6 +139,55 @@ class _Replay(unittest.TestCase):
         self.assertEqual(len(messages), len(board["messages"]) - 1, turn)
         return self._constructed(turn, messages=messages)
 
+    def _warm_up_c(self):
+        """06036445 as the warm-up of the (C) boards, the Speed stack removed.
+
+        DECLARED CONSTRUCTED: only the inventory entry of the Speed potions
+        (slot a, 10 of SV 29) is dropped; every other field is recorded.
+        USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start)
+        makes the recorded board quaff Speed (StrongFightSpeedRecordedTest);
+        the recorded game meleed, so every later board would be
+        counterfactual.  Without the stack the board decides as live (melee)
+        and the strong fight's start is handled on this floor, so the later
+        recorded boards keep their own Speed stack and decide as before."""
+        board = json.loads(self.boards[C_WARMUP])
+        inventory = [
+            entry
+            for entry in board["inventory"]
+            if not (entry.get("tval") == 75 and entry.get("sval") == 29)
+        ]
+        self.assertEqual(len(inventory), len(board["inventory"]) - 1)
+        _board, key, reason = self._decide(
+            C_WARMUP, self._constructed(C_WARMUP, inventory=inventory)
+        )
+        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self.assertEqual(
+            self.policy._strong_fight_speed_floor, _board.floor_key
+        )
+
+    def _next_turn(self, board):
+        hostiles = self.policy._strategic_hostiles(board)
+        return self.policy._low_hp_next_turn_damage(board, hostiles)
+
+    def assertLethalLadder(self):
+        self.assertTrue(self.policy._emergency_escape_pending)
+        self.assertEqual(self.policy._last_return_trigger, "emergency-lethal-swarm")
+
+    def assertHealFirst(self, board, key, reason, *, next_turn=None, observed=None):
+        """USER DECISION 2026-10-03 06:0x: below the low-HP threshold heal
+        first unless the next turn's predicted damage exceeds the heal."""
+        self.assertLess(board.player.hp, self.policy._low_hp_walk_threshold(board.player.max_hp))
+        self.assertTrue([item for item in board.inventory if item.is_teleport_scroll])
+        healing = [item for item in board.inventory if item.is_potion and item.sval == 37]
+        self.assertEqual(len(healing), 1)
+        if observed is not None:
+            self.assertEqual(self.policy._attributable_observed_loss(board), observed)
+        self.assertGreaterEqual(
+            self.policy._healing_potion_effective_hp(board, healing[0]),
+            max(next_turn or 0, self._next_turn(board)),
+        )
+        self.assertEqual((key, reason), ("q" + healing[0].slot, "item:heal"))
+
     def assertTeleportRead(self, board, key, reason):
         scrolls = [item.slot for item in board.inventory if item.is_teleport_scroll]
         self.assertTrue(scrolls)
@@ -163,21 +224,32 @@ class LethalUnseenCasterRecordedTest(_Replay):
         self.assertEqual(turn, A_LATEST_DIVERGENCE)
         self.assertTeleportRead(board, key, reason)
 
-    def test_b_cured_board_keeps_the_owed_escape(self):
+    def test_b_cured_board_owes_the_escape_and_heals_first(self):
         for turn in (B_WARMUP, B_CURE):
             _board, key, reason = self._decide(turn)
             self.assertEqual((key, reason), self._live(turn), turn)
+        carry = self.policy._blind_cure_escape_carry
+        self.assertEqual(carry[1], 290)
         board, key, reason = self._decide(B_CURED)
         self.assertFalse(board.player.blind)
         self.assertGreater(len(board.visible_monsters), 20)
-        self.assertTeleportRead(board, key, reason)
+        # The carried escape still engages the lethal ladder ...
+        self.assertLethalLadder()
+        # ... and USER DECISION 2026-10-03 06:0x (heal-vs-teleport) heals
+        # first: HP 337 < 431, the next turn is the carried one-move loss
+        # 290 (600 -> 310 at 06036428; the 1-turn projection is lower), the
+        # Healing potion heals 300 (min(300, 731 - 337)).
+        self.assertHealFirst(board, key, reason, next_turn=290)
 
-    def test_c_unseen_cast_among_visible_hostiles_escapes(self):
-        _board, key, reason = self._decide(C_WARMUP)
-        self.assertEqual((key, reason), self._live(C_WARMUP))
+    def test_c_unseen_cast_among_visible_hostiles_heals_first(self):
+        self._warm_up_c()
         board, key, reason = self._decide(C_BOARD)
         self.assertGreater(len(board.visible_monsters), 20)
-        self.assertTeleportRead(board, key, reason)
+        self.assertLethalLadder()
+        # HP 295 < 431; the next turn is the 1-turn projection (the observed
+        # loss 307 -> 295 is 12), below the Healing potion's 300.
+        self.assertLessEqual(self._next_turn(board), 300)
+        self.assertHealFirst(board, key, reason)
 
 
 class ObservedLossAndCarryGatesConstructedTest(_Replay):
@@ -189,15 +261,14 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
     hostiles and past its deadline, which the recording never shows.
     """
 
-    def test_observed_loss_alone_escapes(self):
+    def test_observed_loss_alone_is_lethal_and_heals_first(self):
         # DECLARED CONSTRUCTED: on 06036459 and 06036472 only ``messages`` is
         # changed -- the unseen caster's 「指さして恐ろしげに」 line is
         # removed, so the unseen-caster emergency (A) cannot fire.  HP, the
         # 28-29 visible hostiles and every other field are recorded; the
         # observed loss on 06036472 (295 -> 182 = 113) comes from the real
         # observation pipeline over the recorded 06036459 HP.
-        _board, key, reason = self._decide(C_WARMUP)
-        self.assertEqual((key, reason), self._live(C_WARMUP))
+        self._warm_up_c()
         _board, key, reason = self._decide(
             C_BOARD, self._without_unseen_cast(C_BOARD)
         )
@@ -214,7 +285,11 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
             self.policy.threat_prediction(board, hostiles, 3)["operational_total"],
             board.player.hp,
         )
-        self.assertTeleportRead(board, key, reason)
+        # The observed loss alone engages the lethal ladder; the next turn
+        # (113) is below the Healing potion's 300, so the heal goes first
+        # (USER DECISION 2026-10-03 06:0x).
+        self.assertLethalLadder()
+        self.assertHealFirst(board, key, reason, next_turn=113, observed=113)
 
     def _cure_sets_the_carry(self):
         for turn in (B_WARMUP, B_CURE):
@@ -233,7 +308,15 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
         self.assertFalse(board.player.blind)
         self.assertEqual(board.visible_monsters, [])
         self.assertNotEqual(reason, "emergency:teleport")
-        self.assertFalse(key.startswith("r"), key)
+        # No escape scroll is read.  The one read this board may make is the
+        # low-HP town return's recall (HP 337/731): the unseen-hit retreat
+        # armed here has no step from this cell and now retires instead of
+        # holding the escape slot silently, which had kept that return from
+        # starting (the reverse-choke / seek-loot alternation, 2026-10-03).
+        if key.startswith("r"):
+            read = next(item for item in board.inventory if item.slot == key[1])
+            self.assertTrue(read.is_recall_scroll, (key, reason, read.name))
+            self.assertEqual(reason, "return:recall")
 
     def test_expired_carry_does_not_teleport(self):
         self._cure_sets_the_carry()

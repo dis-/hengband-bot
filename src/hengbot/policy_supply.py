@@ -159,6 +159,33 @@ class SupplyMixin:
             frozenset(self._deferred_home_items),
         )
 
+    def _supply_page_offers(
+        self, snapshot: Snapshot, kind: str, store_type: int, page
+    ) -> bool:
+        """Whether ``page`` of ``store_type`` evidences a ``kind`` supplier.
+
+        The ledger's one predicate for a known shelf, shared with the town
+        planner's supply needs: a ware that supplies ``kind`` (for a MANA
+        eater's food, a wand or staff with charges) that is either within
+        the carried gold or on a store not yet attempted this visit.
+        """
+        mana_food = (
+            kind == "food"
+            and snapshot.player.food_type == FOOD_TYPE_MANA
+        )
+        return any(
+            (
+                item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+                if mana_food
+                else self._store_item_is_supply(item, kind)
+            )
+            and (
+                store_type not in self._town_store_attempted
+                or item.price <= snapshot.player.gold
+            )
+            for item in page.items
+        )
+
     def _compute_supply_ledger(
         self, snapshot: Snapshot, depth: int
     ) -> dict[str, SupplyStatus]:
@@ -205,17 +232,8 @@ class SupplyMixin:
                 supplier
                 for supplier in stores
                 if supplier in supplier_pages
-                and any(
-                    (
-                        item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
-                        if kind == "food" and mana_food
-                        else self._store_item_is_supply(item, kind)
-                    )
-                    and (
-                        supplier not in self._town_store_attempted
-                        or item.price <= snapshot.player.gold
-                    )
-                    for item in supplier_pages[supplier].items
+                and self._supply_page_offers(
+                    snapshot, kind, supplier, supplier_pages[supplier]
                 )
             ]
             home_has_supply = bool(
@@ -1602,9 +1620,20 @@ class SupplyMixin:
 
         if not active:
             self._unseen_retreat_floor = snapshot.floor_key
-            self._unseen_retreat_direction = self._recent_reverse_direction(
-                player.position
-            )
+            direction = self._recent_reverse_direction(player.position)
+            if direction is None:
+                # Nothing walked to reverse yet (hit on the landing cell of
+                # the player's own teleport, or before the first step on a
+                # floor).  Fix one heading now: without one every board took
+                # an unaimed step, never set a choke target, and the retreat
+                # neither waited nor retired until the floor changed.
+                first_step = self._least_visited_neighbor(snapshot)
+                if first_step is not None:
+                    direction = (
+                        first_step.y - player.position.y,
+                        first_step.x - player.position.x,
+                    )
+            self._unseen_retreat_direction = direction
             self._unseen_retreat_target = None
             self._unseen_choke_position = None
             self._unseen_wait_remaining = 0
@@ -1655,6 +1684,12 @@ class SupplyMixin:
         if step is not None:
             self.last_reason = "unseen:reverse-choke"
             return self._step_toward(snapshot, step)
+        # The reverse route is exhausted without reaching a choke: the retreat
+        # retires here, as it does when its choke wait ends.  Left armed it
+        # takes back every board a lower owner moves it off this cell
+        # (Forest 32F 2026-10-03 11:11:23: dead end (1, 196), seek-loot '4'
+        # and unseen:reverse-choke '6' alternated until the loop detector).
+        self._clear_unseen_retreat()
         return None
 
     def _nearest_goal_step(self, snapshot: Snapshot, predicate) -> Position | None:

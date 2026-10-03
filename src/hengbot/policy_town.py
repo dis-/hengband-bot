@@ -2796,20 +2796,44 @@ class TownMixin:
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         for status in self._ledger_departure_shortages(ledger):
             for store_type in status.stores:
-                remembered = self._town_supplier_stock.get(store_type)
-                remembered_affordable = bool(
-                    remembered is not None
-                    and any(
-                        item.price <= snapshot.player.gold
-                        and self._store_item_is_supply(item, status.kind)
-                        for item in remembered.items
-                    )
+                # A shelf observed in this town visit (the open page, or a
+                # remembered one younger than the restock turnover) answers
+                # whether this store supplies the shortage with the supply
+                # ledger's own predicate (``_supply_page_offers``: a matching
+                # ware -- a charged device for a MANA eater's food -- either
+                # within gold or on a store not yet attempted).  Without it
+                # the shortage stayed on a store the bot had just left with
+                # none of the ware while it was "not attempted" (it had
+                # bought something else there), so the router walked back to
+                # the empty shelf and the arbiter retired it before it
+                # reached the stocked supplier (live 2026-10-03 12:04:21:
+                # Alchemist without 致命傷の治療の薬 ahead of the Temple's 18).
+                # Without a page of this visit the earlier rule stands (the
+                # ledger itself also reads older pages, without freshness).
+                # A multi-page shelf is judged by the page that was observed.
+                observed = self._shortage_supplier_visit_page(
+                    snapshot, store_type
                 )
-                if (
-                    store_type not in self._town_store_attempted
-                    or store_type == STORE_HOME
-                    or remembered_affordable
-                ):
+                if observed is not None:
+                    supplies = self._supply_page_offers(
+                        snapshot, status.kind, store_type, observed
+                    )
+                else:
+                    remembered = self._town_supplier_stock.get(store_type)
+                    supplies = (
+                        store_type not in self._town_store_attempted
+                        or bool(
+                            remembered is not None
+                            and any(
+                                item.price <= snapshot.player.gold
+                                and self._store_item_is_supply(
+                                    item, status.kind
+                                )
+                                for item in remembered.items
+                            )
+                        )
+                    )
+                if store_type == STORE_HOME or supplies:
                     add(store_type, supply_categories[status.kind])
         if self._identification_need is not None:
             # Identification remains primary, while the supply ledger retains
@@ -3236,6 +3260,20 @@ class TownMixin:
                 claims.append(need.category)
         self._town_claim_categories = claims
         return bool(claims)
+
+    def _shortage_supplier_visit_page(
+        self, snapshot: Snapshot, store_type: int
+    ):
+        """This town visit's shelf of a departure-supply store, or None.
+
+        Home is never answered by a shop page.  For a shop it is the open
+        page or the remembered one observed in this town before the restock
+        turnover (``_current_town_supplier_page``); an older or other-town
+        page is unknown stock, so the store stays a candidate supplier.
+        """
+        if store_type == STORE_HOME:
+            return None
+        return self._current_town_supplier_page(snapshot, store_type)
 
     def _observed_supplier_page_wants_nothing(
         self, snapshot: Snapshot, need: TownNeed

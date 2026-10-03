@@ -6,7 +6,7 @@ from hengbot.claim_goal_typing import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, Snapshot
+from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile
 from hengbot.policy_types import TownVisitLedger
@@ -859,6 +859,8 @@ class ObservationMixin:
             ):
                 self._release_choke_plan("floor-change")
             self._clear_unseen_retreat()
+            self._teleport_read_watch = None
+            self._recent_since_teleport = None
             self._breeder_breakthrough_floor = None
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
@@ -964,6 +966,50 @@ class ObservationMixin:
             self._unseen_hit_pending_floor = snapshot.floor_key
         elif getattr(self, "_unseen_hit_pending_floor", None) != snapshot.floor_key:
             self._unseen_hit_pending_floor = None
+        # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
+        # an attack the player's own teleport already left behind is no reason
+        # for a retreat after the landing; only a new unseen hit observed from
+        # the landing board on starts one, from there.  Live Forest 32F
+        # 2026-10-03 11:11:13 and 11:28: the hit before the teleport armed the
+        # retreat on the landing board and its reverse direction, taken from
+        # the last pre-teleport cell, walked 100+ cells back to the attack.
+        teleport_watch = getattr(self, "_teleport_read_watch", None)
+        if teleport_watch is not None:
+            read_floor, read_position, read_turn, read_count = teleport_watch
+            position = snapshot.player.position
+            # A landing is the read spent (one scroll fewer) AND a jump (two
+            # or more cells).  Either alone misleads: a refused read (cmd-
+            # read.cpp: no reading while confused/blind, no energy spent)
+            # followed by a step moves the player one cell with the stack
+            # intact; a read whose teleport was blocked spends the scroll and
+            # a later step moves one cell; a refused read followed by a
+            # monster's teleport-to jumps with the stack intact.
+            spent = sum(
+                item.count
+                for item in snapshot.inventory
+                if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_TELEPORT
+            ) < read_count
+            jumped = max(
+                abs(position.y - read_position.y),
+                abs(position.x - read_position.x),
+            ) >= 2
+            if read_floor != snapshot.floor_key:
+                self._teleport_read_watch = None
+            elif spent and jumped:
+                self._teleport_read_watch = None
+                self._recent_since_teleport = (snapshot.floor_key, 0)
+                landing_hit = (
+                    self._unseen_attack_evidence is not None
+                    and not self._took_curse_damage
+                    and not self._took_trap_or_terrain_damage
+                )
+                if not landing_hit:
+                    self._unseen_hit_pending_floor = None
+                self._clear_unseen_retreat()
+            elif snapshot.turn > read_turn or position != read_position:
+                # The game moved on without the landing: the read did not
+                # teleport the player.
+                self._teleport_read_watch = None
         unexplained = (
             self._took_damage
             and not snapshot.in_town
@@ -976,6 +1022,15 @@ class ObservationMixin:
         self._unexplained_damage_streak = (
             getattr(self, "_unexplained_damage_streak", 0) + 1 if unexplained else 0
         )
+        # The HP the current streak has cost in all (its first loss starts it).
+        self._unexplained_damage_streak_loss = (
+            0
+            if not unexplained
+            else self._last_damage_amount
+            if self._unexplained_damage_streak == 1
+            else getattr(self, "_unexplained_damage_streak_loss", 0)
+            + self._last_damage_amount
+        )
         self._last_hp = hp
 
         position = snapshot.player.position
@@ -987,6 +1042,9 @@ class ObservationMixin:
             self._visit_counts[position] += 1
             self._last_position = position
         self._recent.append(position)
+        landing = getattr(self, "_recent_since_teleport", None)
+        if landing is not None:
+            self._recent_since_teleport = (landing[0], landing[1] + 1)
         self._settle_shopping_approach(snapshot)
 
         if self._pending_loot_pickup is not None:
