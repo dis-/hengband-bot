@@ -9264,7 +9264,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "mine"
                 if main_hand_digger is not None
                 or (treasure_scrolls > 0 and self._has_digging_tool(snapshot))
-                else "scavenge"
+                else ("scavenge" if self._detectionless_scavenge_allowed(snapshot)
+                      else "prepare")
             )
             if main_hand_digger is not None:
                 # A fresh policy cannot remember that treasure detection was

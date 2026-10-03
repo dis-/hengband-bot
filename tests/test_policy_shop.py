@@ -505,7 +505,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             store=StoreState(STORE_HOME, [digger], page_size=52),
         )
         policy = HengbotPolicy()
-        policy._fundraising_mode = "scavenge"
+        policy._fundraising_mode = "prepare"
         policy._equipment_catalog.observe_home_page([digger])
         policy._shopping_approach_store_type = STORE_HOME
         policy._shopping_approach_goal = inside.player.position
@@ -518,7 +518,11 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(resumed._home_pending_item, resumed._item_signature(digger))
 
         outside = replace(inside, store=None, turn=inside.turn + 1)
-        self.assertEqual(resumed.choose_key(outside), "5")
+        # Detection is carried, so this is kit preparation, not poverty scavenge.
+        # With this sparse map the existing route probes the unknown town.
+        self.assertEqual(resumed.choose_key(outside), "8")
+        self.assertEqual(resumed.last_reason, "probe")
+        self.assertEqual(resumed._fundraising_mode, "prepare")
 
     def test_pending_observed_home_withdrawal_bounces_without_stop_pass(self):
         oil = store_item("a", 77, 0, name="Flask of oil")
@@ -2517,7 +2521,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertIsNone(policy._planned_mining_runs)
 
     def test_detection_stockout_with_sufficient_gold_stays_in_set(self):
-        """USER: no early exit from a set; scavenge only when not one detection scroll is obtainable."""
+        """Unknown supplier prices require observation, not the poverty exception."""
         snap = Snapshot(
             player(
                 10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
@@ -2545,7 +2549,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
 
         policy._next_required_store_type(snap)
 
-        self.assertEqual(policy._fundraising_mode, "scavenge")
+        self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertFalse(
             policy._ledger_departure_shortages(
                 policy._supply_ledger(snap, policy._planned_depth())
@@ -2553,7 +2557,7 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         )
 
     def test_detection_stockout_does_not_rearm_normal_departure(self):
-        """USER: no early exit from a set; scavenge only when not one detection scroll is obtainable."""
+        """Unknown supplier prices require observation, not the poverty exception."""
         snap = Snapshot(
             player(
                 10, 10, level=7, gold=FUNDRAISING_START_GOLD + 7000,
@@ -2579,9 +2583,9 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._town_store_attempted[STORE_HOME] = 0
         policy._town_store_attempted[STORE_ALCHEMIST] = 0
 
-        self.assertIsNone(policy._next_required_store_type(snap))
-        self.assertEqual(policy._fundraising_mode, "scavenge")
-        self.assertIn(STORE_ALCHEMIST, policy._town_store_attempted)
+        self.assertEqual(policy._next_required_store_type(snap), STORE_ALCHEMIST)
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
     def test_known_distant_store_uses_native_travel_without_bfs_memory(self):
         home = Position(45, 123)
