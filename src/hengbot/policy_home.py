@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -1247,6 +1247,23 @@ class HomeMixin:
             and (launcher := self._equipped_launcher(snapshot)) is not None
             and item.tval != launcher.ammo_tval
         )
+        # Preserve unreserved restore potions at Home when even the terminal
+        # pack reserve cannot be met. Four slots can already earn the existing
+        # departure certificate; medicine need not be shelved merely for five.
+        pack_space_restore_potion = (
+            snapshot is not None
+            and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
+            and item.known
+            and not item.is_cursed
+            and item.is_potion
+            and item.sval in RESTORE_POTION_SVAL_BY_STAT.values()
+            and not any(
+                item.sval == RESTORE_POTION_SVAL_BY_STAT[stat]
+                for stat in snapshot.player.drained_stats
+                if stat in RESTORE_POTION_SVAL_BY_STAT
+            )
+            and self._entire_stack_is_surplus(snapshot, item)
+        )
         return (
             spare_equipment
             or protected_unknown_consumable
@@ -1258,6 +1275,7 @@ class HomeMixin:
             or throwing_torches_replaced
             or obsolete_oil
             or incompatible_ammo
+            or pack_space_restore_potion
         )
 
     def _spare_equipment_deposit_shape(self, item: InventoryItem) -> bool:
