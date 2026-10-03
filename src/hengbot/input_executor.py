@@ -1259,6 +1259,14 @@ class OperationExecutor:
                                    if isinstance(item, Mapping) and old is not None
                                    and all(item.get(field) == old.get(field)
                                            for field in identity_fields)]
+                        if normal_carried and match.kind is ScreenKind.ITEM_TARGET:
+                            # Identical unidentified items can occupy separate
+                            # slots. Prefer the intended, still-matching slot;
+                            # only relocation requires a unique identity match.
+                            addressed = [item for item in sources
+                                         if item.get("slot") == continuation.keys]
+                            if len(addressed) == 1:
+                                sources = addressed
                         if len(sources) != 1:
                             break
                         if normal_carried and match.kind is ScreenKind.ITEM_SOURCE:

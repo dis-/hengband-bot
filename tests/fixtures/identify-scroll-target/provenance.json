@@ -1,0 +1,21 @@
+{
+  "capture_directory": "C:\\hengband-backups\\state-logs\\identify-scroll-target-20261003-1959",
+  "sources": {
+    "autorecover-20261003-195851-identify-staged-tail-dropped-executor-barrier.bot-state-fixed.jsonl.gz": "ad6ded5416e513dd22237c4edda7aeca4f937ee64915ecbcf1c6397098c64cd9",
+    "autorecover-20261003-195851-identify-staged-tail-dropped-executor-barrier.bot-stderr.log": "a896c37196efea475d6fdba0f25a37c50243236c279cb8652b7821b4262e18dd"
+  },
+  "boards": {
+    "before-rho.json": {
+      "line": 47,
+      "sha256": "6143002e0721f9739146e56ac8ce5c8d2d5f6f5c80f1b63197ae44b2c8245bec",
+      "turn": 7569652
+    },
+    "before-rhm.json": {
+      "line": 85,
+      "sha256": "0f90c1d2ecfa1f6e2e27d32b6dcd2b568e2dc6594ab499df036fa44ad6c4912f",
+      "turn": 7570389
+    }
+  },
+  "captured_target_prompt": "(持ち物:m-r,'(',')', ESC) どのアイテムを鑑定しますか?",
+  "screen_limitations": "Only the failed target prompt is captured in stderr. Source chooser and displayed item rows are derived from board inventory and production literals. Command wait is a constructed protocol control. No post-target effect is asserted. Successful rho inner chooser was not captured."
+}
