@@ -115,7 +115,9 @@ IDENTITY_MEMOS = frozenset({
     "_fixed_quest_offer_cache",
     "_threat_prediction_memo",
 })
-TIMING_FIELDS = frozenset({"elapsed_seconds"})
+# elapsed_seconds: the optimizer's wall clock; the in-store shadow and shelf
+# evidence telemetry (2026-10-03) also records its own wall-clock cost.
+TIMING_FIELDS = frozenset({"elapsed_seconds", "shelf_observe_ms", "dry_run_ms", "ms"})
 # Static game data loaded identically by both builders; shared so the state
 # comparison does not re-walk it every step.
 STATIC_KNOWLEDGE = (
