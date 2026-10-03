@@ -31,6 +31,7 @@ from hengbot.policy_constants import (
     ESP_THREAT_POTION_RESERVE,
     ESP_THREAT_STRONG_RATIO,
     ESP_THREAT_WEAK_RATIO,
+    STRONG_FIGHT_SPEED_HP_RATIO,
     FIRE_KEY,
     FIXED_QUEST_HEAL_HP_RATIO,
     FLEE_HP_RATIO,
@@ -233,7 +234,8 @@ from hengbot.model import (
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
-    NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, PLAYER_ACTION_ENERGY_MAX, RUBBLE_DIG_LIMIT,
+    MONSTER_SPELL_MAX_RANGE, NAV_ESCAPE_STEP_LIMIT, OPEN_KEY,
+    PLAYER_ACTION_ENERGY_MAX, RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT, STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW,
     VISIT_PENALTY, speed_energy,
 )
@@ -1683,6 +1685,17 @@ class CombatMixin:
                 or player.hp_ratio < 0.55
                 or self._last_damage_amount >= player.max_hp * 0.10
             )
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+            # low-HP threshold, heal before relocating unless the next turn
+            # (here the observed hit) outdamages the potion.
+            if (
+                (urgent_relocation or player.hp_ratio < HEAL_HP_RATIO)
+                and player.hp < self._low_hp_walk_threshold(player.max_hp)
+            ):
+                potion = self._low_hp_heal_first_potion(snapshot, hostiles)
+                if potion is not None:
+                    self.last_reason = "unseen-recall:heal"
+                    return QUAFF_KEY + potion.slot
             if urgent_relocation and not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
@@ -1733,9 +1746,27 @@ class CombatMixin:
             and (unseen_spell_hit or not (player.poisoned or player.cut))
             and (
                 self._last_damage_amount >= player.hp
-                or unseen_spell_hit
+                # USER DECISION 2026-10-03 (unseen spell, nothing in view):
+                # 「1回で最大HPの1割以上削られた時か、HPが低HPの閾値（最大HP×
+                # 50%と最大HP−300の大きい方）未満の時だけ読む。…かすり傷では
+                # 読まず潜行を続ける。」 -- the bounds of unseen_caster_in_combat.
+                or (
+                    unseen_spell_hit
+                    and self._unseen_loss_is_material(
+                        player, self._last_damage_amount
+                    )
+                )
                 or player.hp_ratio < HEAL_HP_RATIO
-                or getattr(self, "_unexplained_damage_streak", 0) >= 2
+                # USER DECISION 2026-10-03 (two scratches in a row): 「連続の
+                # 規則にも同じ基準を付ける。2回続いても、合計で最大HPの1割以上
+                # か低HP閾値未満でなければ読まず潜行を続ける。」
+                or (
+                    getattr(self, "_unexplained_damage_streak", 0) >= 2
+                    and self._unseen_loss_is_material(
+                        player,
+                        getattr(self, "_unexplained_damage_streak_loss", 0),
+                    )
+                )
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
             )
         )
@@ -1776,6 +1807,9 @@ class CombatMixin:
             and (unseen_caster_hit or not (player.poisoned or player.cut))
             and self._last_damage_amount * 3 >= player.hp
         )
+        # The next-turn evidence of the heal-vs-teleport decision, read before
+        # (3) consumes the carry.
+        observed_loss = self._attributable_observed_loss(snapshot)
         # (3) A lethal escape pre-empted by the blindness/confusion cure stays
         # owed on the next readable board unless HP now survives the same
         # observed-loss test.  Only the board right after the cure owes it:
@@ -1809,8 +1843,16 @@ class CombatMixin:
             and all(monster.race_id in immediate_races for monster in summoners)
             and len(hostiles) < SWARM_COUNT
         )
+        # USER DECISION 2026-10-03 06:1x: 「届かず、というのが「次のターン召喚を
+        # 受ける可能性がない」という意味であれば1」 -- a summoner that cannot
+        # summon at the player before the player's next action is no reason
+        # to read (nor a dive emergency); the ranged-kill / retreat rules
+        # below and elsewhere are unchanged.
         summoner_open = (
-            bool(summoners)
+            any(
+                self._summoner_may_summon_next_turn(snapshot, monster)
+                for monster in summoners
+            )
             and not committed_summoner_engagement
             and self._open_neighbor_count(snapshot, player.position)
             >= SUMMONER_EXPOSED_NEIGHBORS
@@ -1973,6 +2015,19 @@ class CombatMixin:
                     return QUAFF_KEY + potion.slot
 
             if lethal or summoner_open:
+                # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+                # low-HP threshold the escape waits for a heal unless the next
+                # turn's predicted damage exceeds the potion's heal.
+                if player.hp < self._low_hp_walk_threshold(player.max_hp):
+                    potion = self._low_hp_heal_first_potion(
+                        snapshot, hostiles, observed_loss=observed_loss
+                    )
+                    if potion is not None:
+                        # Not an escape action: the 09-18 escape-speed rule
+                        # (_flee_sustain_key) judges escapes, and none is
+                        # taken on this board.
+                        self.last_reason = "item:heal"
+                        return QUAFF_KEY + potion.slot
                 if not player.blind and not player.confused:
                     scroll = self._escape_scroll(snapshot)
                     if scroll is not None:
@@ -2092,6 +2147,24 @@ class CombatMixin:
             and not q22_reposition_active
             and player.hp_ratio < heal_ratio
         ):
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
+            # low-HP threshold heal first unless the next turn's predicted
+            # damage exceeds the potion's heal; then teleport/recall first.
+            # (Death 2026-10-03, 06036472: HP 182, 29 hostiles, a heal drunk
+            # with a teleport carried.)
+            if player.hp < self._low_hp_walk_threshold(player.max_hp):
+                potion = self._low_hp_heal_first_potion(
+                    snapshot, hostiles, observed_loss=observed_loss
+                )
+                if potion is not None:
+                    self.last_reason = "item:heal"
+                    return QUAFF_KEY + potion.slot
+                # Carried potions all heal less than the next turn takes
+                # (with none carried the decision does not arise).
+                if self._find_heal_potion(snapshot, expected_damage=1) is not None:
+                    escape = self._low_hp_escape_read(snapshot)
+                    if escape is not None:
+                        return escape
             expected_damage = self._predicted_damage(
                 snapshot, hostiles, turns=1, expected=True
             )
@@ -2326,6 +2399,292 @@ class CombatMixin:
     ) -> int:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
+
+    @staticmethod
+    def _player_hasted(snapshot: Snapshot) -> bool:
+        """The speed field shows haste: yellow while is_fast() and not slowed
+        (main-window-stat-poster.cpp:277-278 and 295-296; the bot board's
+        speed_display carries the same colour, bot-json-output.cpp:1471-1479).
+        At a displayed speed of exactly +0 the field is blank, so haste there
+        is not observable."""
+        display = snapshot.player.speed_display
+        return (
+            display is not None
+            and not display[3]
+            and display[2] == "yellow"
+        )
+
+    @claims(ClaimOwner.SURVIVAL)
+    def _strong_fight_speed_filter(self, snapshot: Snapshot, key):
+        """USER DECISION 2026-10-03 06:2x, applied to the decided action.
+
+        Speed is quaffed only in place of a fighting action (melee, ranged
+        fire, the summoner ranged kill, a hunt): every escape, relocation,
+        heal, cure or other producer that took the board keeps it, whichever
+        rung of the ladder it sits on (paralyzer prevention, status-threat
+        scroll/retreat, summoner retreat, threat reposition, the emergency
+        ladder) -- 「逃走時の判定はそのまま」.  The run is still tracked on
+        every dungeon board, so a board that is not strong ends it."""
+        if (
+            key is None
+            or not hasattr(snapshot, "visible_monsters")
+            or snapshot.in_town
+            or snapshot.store is not None
+        ):
+            return key
+        reason = self.last_reason or ""
+        fighting = (
+            reason == "melee"
+            or reason.startswith(("melee:", "ranged:", "hunt"))
+            or reason == "summoner:ranged-kill"
+        )
+        speed = self._strong_fight_speed_key(
+            snapshot,
+            self._strategic_hostiles(snapshot),
+            self._attributable_observed_loss(snapshot),
+            fighting=fighting,
+        )
+        return key if speed is None else speed
+
+    @claims(ClaimOwner.SURVIVAL)
+    def _strong_fight_speed_key(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        observed_loss: int,
+        *,
+        fighting: bool = True,
+    ) -> str | None:
+        """USER DECISION 2026-10-03 06:2x: 「強敵との戦闘開始時に飲む」 --
+        「予測被害が HP の一定割合を超える戦闘に入った時点で飲む。消費は増えるが
+        被害は減る。」 with the ratio 「HP の5割 (Recommended)」.
+
+        A fight (a hostile in view, or a hit from a monster out of sight) is
+        strong while its 3-turn predicted damage -- the operational
+        projection, at least three repeats of the observed one-move loss --
+        is at least half the current HP.  While poisoned or cut the loss
+        counts only with an unseen attacker's message (the lethal ladder's
+        observed-loss test): a poison or bleeding tick is no fight.  Entering
+        a strong fight is the first board of a run of strong boards on one
+        floor that the bot does not flee (on a fleeing board the 09-18 escape
+        rule alone judges Speed, 「逃走時の判定はそのまま」): then, unless the
+        speed field already shows haste, quaff a Speed potion once.  The run
+        ends on the first board that is not strong."""
+        player = snapshot.player
+        fight_loss = (
+            observed_loss
+            if (
+                self._unseen_attack_evidence is not None
+                or not (player.poisoned or player.cut)
+            )
+            else 0
+        )
+        strong = (
+            not snapshot.in_town
+            and (bool(hostiles) or fight_loss > 0)
+            and self._corrected_predicted_damage(
+                snapshot, hostiles, 3, observed_loss=fight_loss
+            )
+            >= player.hp * STRONG_FIGHT_SPEED_HP_RATIO
+        )
+        if not strong:
+            self._strong_fight_speed_floor = None
+            return None
+        if getattr(self, "_strong_fight_speed_floor", None) == snapshot.floor_key:
+            return None
+        # The fight starts on the first strong board the bot fights.
+        if not fighting:
+            return None
+        # 「逃走時の判定はそのまま」: on a board the bot flees, the 09-18
+        # escape rule (_flee_sustain_key: only when nothing else breaks
+        # contact) alone judges Speed; the fight starts when it fights.
+        if self._should_flee(
+            snapshot, hostiles, [m for m in hostiles if m.distance <= 1]
+        ):
+            return None
+        self._strong_fight_speed_floor = snapshot.floor_key
+        if self._player_hasted(snapshot):
+            return None
+        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+        if speed is None:
+            return None
+        self.last_reason = "item:strong-fight-speed"
+        return QUAFF_KEY + speed.slot
+
+    def _unseen_loss_is_material(self, player, loss: int) -> bool:
+        """USER DECISIONS 2026-10-03 (an unseen hit with nothing in view, and
+        two in a row): read only when the loss -- one move's, or the
+        streak's total -- is at least a tenth of max HP, or HP is below the
+        low-HP threshold max(max HP x 0.5, max HP - 300)."""
+        return (
+            loss >= player.max_hp * 0.10
+            or player.hp < self._low_hp_walk_threshold(player.max_hp)
+        )
+
+    def _attributable_observed_loss(self, snapshot: Snapshot) -> int:
+        """HP one move just cost when a monster plausibly caused it.
+
+        The projection weighs visible/detected hostiles only; the observed
+        loss is the fair-play correction for what it cannot weigh, such as
+        an unseen caster (death fix 2026-10-03).  A lethal escape the
+        blindness/confusion cure pre-empted on this floor carries its loss
+        until the cure's deadline turn."""
+        loss = (
+            self._last_damage_amount
+            if (
+                self._took_damage
+                and not self._took_curse_damage
+                and not self._took_trap_or_terrain_damage
+                and not snapshot.in_town
+            )
+            else 0
+        )
+        carried = getattr(self, "_blind_cure_escape_carry", None)
+        if (
+            carried is not None
+            and carried[0] == snapshot.floor_key
+            and snapshot.turn <= carried[2]
+        ):
+            loss = max(loss, carried[1])
+        return loss
+
+    def _corrected_predicted_damage(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        turns: int,
+        *,
+        observed_loss: int | None = None,
+    ) -> int:
+        """The ``turns``-turn operational (p95) projection, at least
+        ``turns`` repeats of the observed one-move loss."""
+        if observed_loss is None:
+            observed_loss = self._attributable_observed_loss(snapshot)
+        return max(
+            self._predicted_damage(snapshot, hostiles, turns=turns),
+            turns * observed_loss,
+        )
+
+    def _low_hp_heal_first_potion(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        observed_loss: int | None = None,
+    ) -> InventoryItem | None:
+        """The potion to quaff BEFORE any teleport/recall below the low-HP
+        threshold, or None when teleport goes first.
+
+        USER DECISION 2026-10-03 06:0x (verbatim): 「次に受けるダメージ予測で
+        判断する。基本的には回復を優先するが、回復量を上回るならテレポートを
+        優先する。回復しても状況が悪化するだけだからである。」
+        Clarified 2026-10-03 08:5x, 「1ターン分の95%値 (Recommended)」: 「見える
+        敵の1ターン分の運用値（95%）と、直近1手の実被害の大きい方を使う。」
+
+        The next turn is the operational (p95) projection with a one-turn
+        horizon -- threat_prediction(turns=1)["operational_total"], the value
+        _ranged_scroll_lock_escape_needed charges for its forced cure turn.
+        It is not the 3-turn value divided by three: the predictor takes the
+        95th percentile of the damage summed over the monster actions that
+        fit the horizon (_monster_actions(speed, player speed, turns);
+        melee_damage_percentile over that many attacks, the aggregate ranged
+        percentile over that many actions), so one turn is its own p95.  The
+        monsters are the hostiles in view plus the detected ones on the map
+        (ESP/detection, shown on screen; the two lists are disjoint,
+        bot-json-output.cpp:480 and 509-511).  At least the observed one-move
+        loss counts (a blindness-cure carry included).  The heal amount is
+        the potion's expected heal capped by the missing HP
+        (_healing_potion_effective_hp: Cure Serious 4d8, Healing 300,
+        *Healing* 1200, Life to full -- quaff-effects.cpp:124-133).  Heal
+        first with the smallest potion whose heal is at least that damage;
+        none -> teleport first."""
+        if self._find_heal_potion(snapshot, expected_damage=1) is None:
+            return None
+        if self._teleport_before_heal(snapshot, hostiles):
+            return None
+        next_turn = self._low_hp_next_turn_damage(
+            snapshot, hostiles, observed_loss=observed_loss
+        )
+        return self._find_heal_potion(snapshot, expected_damage=next_turn)
+
+    def _teleport_before_heal(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """USER DECISION 2026-10-03 (verbatim): 「耐性のない麻痺攻撃の敵が隣に
+        いる時と、巻物を読めなくする攻撃（盲目・混乱）を避けるための緊急脱出の
+        時は、回復量に関係なくテレポートを先に読む。それ以外は決定1どおり被害の
+        量で決める。」
+
+        True while a teleport/phase scroll can be read now and either an
+        awake adjacent monster has an unresisted paralysing or confusing blow
+        (_unresisted_melee_status_threats: no Free Action / no resist_conf,
+        the same blows the status-threat rung reads the scroll for), or the
+        ranged blind/confuse escape holds (_ranged_scroll_lock_escape_needed,
+        the lethal ladder's scroll-lock trigger)."""
+        player = snapshot.player
+        if (
+            player.blind
+            or player.confused
+            or self._escape_scroll(snapshot) is None
+        ):
+            return False
+        if any(
+            monster.distance <= 1
+            for monster in self._unresisted_melee_status_threats(
+                snapshot, hostiles, turns=1
+            )
+        ):
+            return True
+        return self._ranged_scroll_lock_escape_needed(
+            snapshot,
+            hostiles,
+            predicted=self._predicted_damage(snapshot, hostiles, turns=3),
+        )
+
+    def _low_hp_next_turn_damage(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        *,
+        observed_loss: int | None = None,
+    ) -> int:
+        """The heal-vs-teleport decision's next-turn damage: the one-turn
+        operational (p95) projection of the visible and detected hostiles,
+        at least the observed one-move loss."""
+        perceived = list(hostiles) + [
+            monster
+            for monster in self._strategic_subset(
+                snapshot, snapshot.detected_monsters
+            )
+            if monster not in hostiles
+        ]
+        return self._corrected_predicted_damage(
+            snapshot, perceived, 1, observed_loss=observed_loss
+        )
+
+    def _low_hp_escape_read(self, snapshot: Snapshot) -> str | None:
+        """Teleport (or phase), else Word of Recall: the low-HP ladder's
+        second rung."""
+        player = snapshot.player
+        if not player.blind and not player.confused:
+            scroll = self._escape_scroll(snapshot)
+            if scroll is not None:
+                return self._issue_emergency_consumable(
+                    snapshot, scroll,
+                    "emergency:teleport" if scroll.is_teleport_scroll
+                    else "emergency:phase",
+                )
+        if (
+            not player.recalling
+            and not self._quest_floor_exit_locked(snapshot)
+            and self._can_read_scrolls(snapshot)
+        ):
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                return self._issue_emergency_consumable(
+                    snapshot, recall, "emergency:recall"
+                )
+        return None
     def threat_prediction(
         self,
         snapshot: Snapshot,
@@ -3395,6 +3754,143 @@ class CombatMixin:
             if grid is None or not grid.allows_los:
                 return False
         return True
+    # -- summoner reach (USER DECISION 2026-10-03 06:1x) -----------------------
+    @staticmethod
+    def _monster_cast_distance(origin: Position, target: Position) -> int:
+        """The monster's ``cdis`` (monster-update.cpp:196-198)."""
+        dy, dx = abs(origin.y - target.y), abs(origin.x - target.x)
+        return dy + (dx >> 1) if dy > dx else dx + (dy >> 1)
+
+    @staticmethod
+    def _may_block_projection(snapshot: Snapshot, position: Position) -> bool:
+        """Only a known grid without PROJECTION can stop a bolt.  The board
+        carries LOS and MOVE; the only PROJECTION terrain without LOS is the
+        closed curtain, which has MOVE (TerrainDefinitions.jsonc), and LOS
+        without PROJECTION (glass) is read as open: an over-estimate of reach."""
+        grid = snapshot.grid_at(position)
+        return (
+            grid is not None
+            and grid.known
+            and not (grid.allows_los or grid.passable)
+        )
+
+    def _may_project(
+        self, snapshot: Snapshot, source: Position, target: Position
+    ) -> bool:
+        """projectable() (projection-path-calculator.cpp:254-270) over the
+        known map with unknown grids open: the ported bolt path, range
+        get_max_range() = 18 (angband-system.cpp:45-48), ends on the target."""
+        if source == target:
+            return True
+        path = projection_path(
+            source, target, MONSTER_SPELL_MAX_RANGE,
+            lambda position: self._may_block_projection(snapshot, position),
+        )
+        return bool(path) and path[-1] == target
+
+    def _summoner_may_summon_next_turn(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether ``monster`` may cast a summon at the player before the
+        player's next action (USER DECISION 2026-10-03 06:1x).
+
+        Game rules, read with the player's information only:
+        - a counter-attack target -- the player's grid when the player's shot
+          or projection damaged it (shoot.cpp:846, effect-monster.cpp:644) --
+          lets it cast the indirect spells, summons included, at that grid
+          from any range without projection (mspell-attack.cpp:318-321,
+          mspell-lite.cpp:176-186, race-ability-mask.cpp:101-105) until its
+          next spell attempt, which the player cannot see: a summoner fired
+          at on this floor stays able to summon;
+        - otherwise beyond get_max_range() (cdis, monster-update.cpp:196-198,
+          over 18) it does not cast (mspell-attack.cpp:318-321);
+        - it casts at the player when the player's grid, or a grid next to
+          it that has PROJECTION (adjacent_grid_check), is projectable from
+          it (decide_lite_projection and adjacent_grid_check,
+          mspell-lite.cpp:38-88 and 208-230); summons are
+          not among the spells refused at such an offset grid
+          (check_thrown_mspell, mspell-attack.cpp:211-262);
+        - asleep is no bar: a sleeping monster near or in view of the player
+          can wake during the player's turn (monster-status.cpp:116-170) and
+          act on its next move;
+        - before its cast it may move: within one player turn it takes up to
+          _monster_actions(speed, player speed, 1) actions, all but the last
+          spent walking (unknown grids and doors open; PASS_WALL / KILL_WALL
+          through anything; NEVER_MOVE not at all).
+        """
+        if (snapshot.floor_key, monster.index) in getattr(
+            self, "_summoner_counter_targets", frozenset()
+        ):
+            return True
+        player = snapshot.player.position
+        targets = [player] + [
+            cell
+            for dy, dx in NEIGHBOR_OFFSETS
+            if not self._may_block_projection(
+                snapshot, cell := Position(player.y + dy, player.x + dx)
+            )
+        ]
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        flags = knowledge.flags if knowledge is not None else frozenset()
+        steps = (
+            0
+            if "NEVER_MOVE" in flags
+            else self._monster_actions(monster.speed, snapshot.player.speed, 1) - 1
+        )
+        through_walls = bool({"PASS_WALL", "KILL_WALL"} & set(flags))
+        frontier = [monster.position]
+        seen = {monster.position}
+        for depth in range(steps + 1):
+            for origin in frontier:
+                if self._monster_cast_distance(
+                    origin, player
+                ) <= MONSTER_SPELL_MAX_RANGE and any(
+                    self._may_project(snapshot, origin, target)
+                    for target in targets
+                ):
+                    return True
+            if depth == steps:
+                break
+            following = []
+            for origin in frontier:
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    cell = Position(origin.y + dy, origin.x + dx)
+                    if cell in seen or cell == player:
+                        continue
+                    grid = snapshot.grid_at(cell)
+                    if (
+                        through_walls
+                        or grid is None
+                        or not grid.known
+                        or grid.passable
+                        or grid.is_door
+                    ):
+                        seen.add(cell)
+                        following.append(cell)
+            frontier = following
+        return False
+
+    def _note_summoner_counter_targets(
+        self, snapshot: Snapshot, key: object
+    ) -> None:
+        """A posted shot or throw may damage any summoner in its line: each
+        may hold a counter-attack target from then on (see above)."""
+        if not str(key or "").startswith((FIRE_KEY, THROW_KEY)):
+            return
+        player = snapshot.player.position
+        noted = {
+            entry
+            for entry in getattr(self, "_summoner_counter_targets", frozenset())
+            if entry[0] == snapshot.floor_key
+        }
+        noted.update(
+            (snapshot.floor_key, monster.index)
+            for monster in snapshot.visible_monsters
+            if monster.hostile
+            and monster.can_summon
+            and self._may_project(snapshot, player, monster.position)
+        )
+        self._summoner_counter_targets = frozenset(noted)
     @claims(ClaimOwner.ESCAPE)
     def _flee_step(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> Position | None:
         # Material-engagement retreat records each abandoned square so later

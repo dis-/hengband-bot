@@ -229,5 +229,79 @@ class LowHpNoKitUnseenHitTest(_Boards):
         ), (key, nearest))
 
 
+class LowHpHealVsTeleportTest(_Boards):
+    """USER DECISION 2026-10-03 06:0x (heal-vs-teleport, verbatim):
+    「次に受けるダメージ予測で判断する。基本的には回復を優先するが、回復量を
+    上回るならテレポートを優先する。回復しても状況が悪化するだけだからである。」
+
+    (1) Board 534 after an unseen bite at HP 420 (LowHpNoKitUnseenHitTest's
+    hit board) with the recorded teleport scroll kept and recall removed --
+    DECLARED CONSTRUCTED, and for the teleport pin the Healing stack turned
+    into Cure Serious Wounds (4d8, 18 expected).  Two unexplained hits make it
+    the unseen-lethal emergency, so the emergency ladder decides; the next turn
+    is the observed one-move loss of the bite.
+    (2) The walk gate itself: board 532 at HP 420 (LowHpExploreTest's low
+    board, nothing in view, rest refused), then HP 400 on the next board -- an
+    observed 20-HP hit, not an emergency -- with the Healing stack turned into
+    Cure Serious Wounds, recall removed and the teleport kept (DECLARED
+    CONSTRUCTED).  The explore walk is refused; 20 > 18: teleport first."""
+
+    def test_walk_gate_teleports_first_when_the_hit_outdamages_the_potion(self):
+        board = self._board_532_low()
+        board = replace(board, player=replace(board.player, hp=400))
+        board = replace(board, inventory=[
+            replace(i, sval=35) if i.is_potion and i.sval == 37 else i
+            for i in board.inventory
+        ])
+        board = _strip(board, heal=False, recall=True)
+        policy = copy.deepcopy(self.policy)
+        key = str(policy.choose_key(board))
+        self.assertFalse(policy._emergency_escape_pending)
+        self.assertEqual(policy._attributable_observed_loss(board), 20)
+        self.assertIsNone(policy._find_heal_potion(board, expected_damage=20))
+        scroll = next(i for i in board.inventory if i.is_teleport_scroll)
+        self.assertEqual((key, policy.last_reason), ("r" + scroll.slot, "emergency:teleport"))
+
+    def _kit_board(self, *, cure_serious):
+        _rows, _board = self._replay(532, 533)
+        from hengbot.cli import _consume_response_sequence
+        from pathlib import Path
+        _decoded, snapshots = _consume_response_sequence(
+            [self.boards[534]], self.policy, lambda _key: True, self.monrace,
+            knowledge_ledger_path=Path(self._tmp.name) / "knowledge.jsonl",
+        )
+        board = snapshots[-1]
+        board = replace(
+            board, player=replace(board.player, hp=JUST_BELOW),
+            messages=["何かに噛まれた。"],
+        )
+        if cure_serious:
+            board = replace(board, inventory=[
+                replace(i, sval=35) if i.is_potion and i.sval == 37 else i
+                for i in board.inventory
+            ])
+        return _strip(board, heal=False, recall=True)
+
+    def test_teleport_first_when_the_hit_outdamages_the_potion(self):
+        board = self._kit_board(cure_serious=True)
+        policy = copy.deepcopy(self.policy)
+        key = str(policy.choose_key(board))
+        self.assertGreater(policy._attributable_observed_loss(board), 18)
+        self.assertIsNone(policy._find_heal_potion(
+            board, expected_damage=policy._attributable_observed_loss(board)
+        ))
+        scroll = next(i for i in board.inventory if i.is_teleport_scroll)
+        self.assertEqual((key, policy.last_reason), ("r" + scroll.slot, "emergency:teleport"))
+
+    def test_heal_first_when_the_potion_outheals_the_hit(self):
+        board = self._kit_board(cure_serious=False)
+        policy = copy.deepcopy(self.policy)
+        key = str(policy.choose_key(board))
+        loss = policy._attributable_observed_loss(board)
+        potion = policy._find_heal_potion(board, expected_damage=loss)
+        self.assertIsNotNone(potion)
+        self.assertEqual((key, policy.last_reason), (QUAFF_KEY + potion.slot, "item:heal"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -113,14 +113,70 @@ class UnseenRetreatVisibleAttackerRecordedTest(_Replay):
 
 
 class LootBeforeRecallLowHpRecordedTest(_Replay):
-    """(b) loot-before-recall does not walk at critical HP."""
+    """(b) loot-before-recall does not walk at critical HP.
+
+    USER DECISION 2026-10-03 06:0x (heal-vs-teleport, verbatim):
+    「次に受けるダメージ予測で判断する。基本的には回復を優先するが、回復量を
+    上回るならテレポートを優先する。回復しても状況が悪化するだけだからである。」
+    Board 592 (HP 219 -> 197 under an unseen caster, recall counting down) now
+    heals first: the next turn is the observed 22-HP hit, below the Healing
+    potion's 300.  Live read teleport there, so 592 is the first divergence.
+    """
+
+    HEAL_FIRST = 592
+
+    def test_replay_reproduces_live_until_the_heal_first(self):
+        rows, board = self._replay(B_START, self.HEAL_FIRST)
+        self.assertEqual(
+            {n: rows[n] for n in range(B_START, self.HEAL_FIRST)},
+            {n: self._live(n) for n in range(B_START, self.HEAL_FIRST)},
+        )
+        self.assertEqual(self._live(self.HEAL_FIRST), ("rf", "emergency:teleport"))
+        self.assertTrue(board.player.recalling)
+        self.assertEqual((board.player.hp, board.player.max_hp), (197, 731))
+        self.assertLess(board.player.hp, self.policy._low_hp_walk_threshold(731))
+        self.assertEqual(self.policy._attributable_observed_loss(board), 22)
+        healing = [i for i in board.inventory if i.is_potion and i.sval == 37]
+        self.assertEqual(len(healing), 1)
+        self.assertEqual(self.policy._healing_potion_effective_hp(board, healing[0]), 300)
+        self.assertTrue([i for i in board.inventory if i.is_teleport_scroll])
+        self.assertEqual(rows[self.HEAL_FIRST], ("q" + healing[0].slot, "unseen-recall:heal"))
+
+    def _replay_live_teleports(self, last):
+        """Replay B_START..last with the Healing potions removed from boards
+        592-593 -- DECLARED CONSTRUCTED (2026-10-03 heal-vs-teleport): with no
+        potion out-healing the observed hit, the heal-first rule reads the
+        teleport as live did, so the later boards follow the live game."""
+        import json
+        from pathlib import Path
+        from hengbot.cli import _consume_response_sequence
+        rows, board = {}, None
+        for sequence in range(B_START, last + 1):
+            line = self.boards[sequence]
+            if sequence in (592, 593):
+                data = json.loads(line)
+                data["inventory"] = [
+                    entry for entry in data["inventory"]
+                    if not (entry.get("tval") == 75 and entry.get("sval") == 37)
+                ]
+                self.assertLess(len(data["inventory"]), len(json.loads(line)["inventory"]))
+                line = json.dumps(data, ensure_ascii=False)
+            _decoded, snapshots = _consume_response_sequence(
+                [line], self.policy, lambda _key: True, self.monrace,
+                knowledge_ledger_path=Path(self._tmp.name) / "knowledge.jsonl",
+            )
+            board = snapshots[-1]
+            key = self.policy.choose_key(board)
+            rows[sequence] = (str(key), self.policy.last_reason)
+            self.policy.confirm_key_posted(key)
+        return rows, board
 
     def test_replay_reproduces_live_through_the_teleports(self):
-        rows, _board = self._replay(B_START, B_DIVERGENCE - 1)
+        rows, _board = self._replay_live_teleports(B_DIVERGENCE - 1)
         self.assertEqual(rows, {n: self._live(n) for n in range(B_START, B_DIVERGENCE)})
 
     def test_critical_hp_waits_for_the_recall_instead_of_collecting(self):
-        rows, board = self._replay(B_START, B_DIVERGENCE)
+        rows, board = self._replay_live_teleports(B_DIVERGENCE)
         self.assertTrue(board.player.recalling)
         self.assertEqual((board.player.hp, board.player.max_hp), (108, 731))
         self.assertEqual(self._live(B_DIVERGENCE), ("7", "return:seek-loot"))

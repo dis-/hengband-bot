@@ -5539,7 +5539,12 @@ class ConsumableTest(unittest.TestCase):
 
         with patch.object(
             policy, "_predicted_damage",
-            side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
+            # The one-turn p95 is the expected 40 too: below the low-HP
+            # threshold the heal-vs-teleport decision (2026-10-03, clarified
+            # 08:5x) compares the potions with the one-turn operational value.
+            side_effect=lambda *_args, **kwargs: (
+                40 if kwargs.get("expected") or kwargs.get("turns") == 1 else 0
+            ),
         ):
             self.assertEqual(policy.choose_key(snap), "qh")
             self.assertEqual(policy.last_reason, "item:heal")
@@ -5555,9 +5560,66 @@ class ConsumableTest(unittest.TestCase):
 
         with patch.object(
             policy, "_predicted_damage",
-            side_effect=lambda *_args, **kwargs: 40 if kwargs.get("expected") else 0,
+            # The one-turn p95 is the expected 40 too: below the low-HP
+            # threshold the heal-vs-teleport decision (2026-10-03, clarified
+            # 08:5x) compares the potions with the one-turn operational value.
+            side_effect=lambda *_args, **kwargs: (
+                40 if kwargs.get("expected") or kwargs.get("turns") == 1 else 0
+            ),
         ):
             self.assertNotEqual(policy.choose_key(snap), "qc")
+
+    def test_low_hp_teleports_first_when_the_next_turn_outdamages_every_potion(self):
+        # USER DECISION 2026-10-03 06:0x (heal-vs-teleport, verbatim):
+        # 「次に受けるダメージ予測で判断する。基本的には回復を優先するが、
+        # 回復量を上回るならテレポートを優先する。」  DECLARED CONSTRUCTED: a
+        # non-lethal fight (3-turn 0 < HP 20) at HP 20 of 100 (threshold 50)
+        # where the next turn's expected damage (25) exceeds the only potion,
+        # Cure Serious Wounds (4d8, 18): read the teleport before any heal.
+        # (Clarified 08:5x: the next turn is the one-turn operational p95;
+        # both one-turn values are 25 here.)
+        grids = self._open_room()
+        weak = item("c", POTION, 35)
+        scroll = item("t", SCROLL, SV_SCROLL_TELEPORT)
+        threat = hostile(1, 10, 11, hp=30, max_hp=30, distance=1)
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=100), grids, [threat],
+            inventory=[weak, scroll],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage",
+            side_effect=lambda *_args, **kwargs: (
+                25 if kwargs.get("turns") == 1 else 0
+            ),
+        ):
+            self.assertEqual(policy.choose_key(snap), "rt")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_low_hp_heals_first_with_the_potion_that_outheals_the_next_turn(self):
+        # Same board, a Healing potion added: it outheals the next turn (25),
+        # so it is quaffed first and the teleport waits.
+        grids = self._open_room()
+        snap = Snapshot(
+            player(10, 10, hp=20, max_hp=100), grids,
+            [hostile(1, 10, 11, hp=30, max_hp=30, distance=1)],
+            inventory=[
+                item("c", POTION, 35),
+                item("h", POTION, 37),
+                item("t", SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy, "_predicted_damage",
+            side_effect=lambda *_args, **kwargs: (
+                25 if kwargs.get("turns") == 1 else 0
+            ),
+        ):
+            self.assertEqual(policy.choose_key(snap), "qh")
+        self.assertEqual(policy.last_reason, "item:heal")
 
     def test_rests_instead_of_quaffing_when_safe(self):
         # Hurt but no enemy in sight: rest heals for free, so don't burn a potion.
@@ -7707,7 +7769,8 @@ class EmergencyHealBeforeFleeTest(unittest.TestCase):
     def _predicted_damage(
         _snapshot, _hostiles, *, turns, expected=False
     ):
-        return 250 if expected and turns == 1 else 500
+        # One turn 250 (expected and operational p95 alike), three turns 500.
+        return 250 if turns == 1 else 500
 
     def test_quest_floor_lethal_emergency_heals_before_fleeing(self):
         snap = self._quest_emergency(
@@ -7721,9 +7784,15 @@ class EmergencyHealBeforeFleeTest(unittest.TestCase):
             self.assertEqual(
                 policy._emergency_item(snap, snap.visible_monsters), "qh"
             )
-        self.assertEqual(policy.last_reason, "emergency:heal")
+        # HP 100 of 500 is below the low-HP threshold (250) and the Healing
+        # potion (300) outheals the next turn (250): the heal-vs-teleport
+        # decision (2026-10-03 06:0x) quaffs it first, as item:heal.
+        self.assertEqual(policy.last_reason, "item:heal")
 
-    def test_instant_escape_still_wins_over_emergency_heal(self):
+    def test_heal_goes_before_the_escape_when_it_outheals_the_next_turn(self):
+        # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): 「基本的には回復を
+        # 優先するが、回復量を上回るならテレポートを優先する。」  Next turn 250
+        # (expected, turns=1) <= Healing 300 at HP 100 of 500 (threshold 250).
         snap = self._quest_emergency(
             inventory=[
                 item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
@@ -7734,6 +7803,94 @@ class EmergencyHealBeforeFleeTest(unittest.TestCase):
 
         with patch.object(
             policy, "_predicted_damage", side_effect=self._predicted_damage
+        ):
+            self.assertEqual(
+                policy._emergency_item(snap, snap.visible_monsters), "qh"
+            )
+        self.assertEqual(policy.last_reason, "item:heal")
+
+    def test_instant_escape_still_wins_over_emergency_heal(self):
+        # The next turn (350, expected and p95 alike) outdamages the Healing
+        # potion (300): teleport first.
+        snap = self._quest_emergency(
+            inventory=[
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ]
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, _hostiles, *, turns, expected=False:
+                350 if turns == 1 else 500,
+        ):
+            self.assertEqual(
+                policy._emergency_item(snap, snap.visible_monsters), "rt"
+            )
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_teleport_first_when_the_one_turn_p95_outdamages_the_heal(self):
+        # USER DECISION 2026-10-03 06:0x (heal-vs-teleport), clarified 08:5x
+        # with 「1ターン分の95%値 (Recommended)」: 「見える敵の1ターン分の運用値
+        # （95%）と、直近1手の実被害の大きい方を使う。期待値より慎重で、運の悪い
+        # 一撃も見込む。テレポートが先になる場面が少し増える。」  DECLARED
+        # CONSTRUCTED (patched predictor): the one-turn expected damage 250
+        # is below the Healing potion's 300 but the one-turn p95 350 exceeds
+        # it, at HP 100 of 500 (threshold 250): teleport first.  With the
+        # expected value as the next turn (d3533198) it healed first.
+        snap = self._quest_emergency(
+            inventory=[
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ]
+        )
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, _hostiles, *, turns, expected=False:
+                (250 if expected else 350) if turns == 1 else 500,
+        ):
+            self.assertEqual(
+                policy._emergency_item(snap, snap.visible_monsters), "rt"
+            )
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_detected_hostile_counts_in_the_next_turn(self):
+        # USER DECISION 2026-10-03 06:0x, clarified 08:5x (「見える敵の1ターン
+        # 分の運用値（95%）」): the hostiles on the map count, those in view and
+        # those shown by detection/ESP alike.  DECLARED CONSTRUCTED (patched
+        # predictor): the adjacent visible hostile's one turn is 250 (below
+        # the Healing potion's 300); with a detected hostile behind the wall
+        # the one turn is 350: teleport first.
+        snap = self._quest_emergency(
+            inventory=[
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+            ]
+        )
+        detected = MonsterState(
+            index=2,
+            position=Position(9, 11),
+            hp=200,
+            max_hp=200,
+            distance=1,
+            friendly=False,
+            pet=False,
+            speed=120,
+            max_melee_damage=400,
+        )
+        snap = replace(snap, detected_monsters=[detected])
+        policy = HengbotPolicy()
+
+        with patch.object(
+            policy,
+            "_predicted_damage",
+            side_effect=lambda _snapshot, hostiles, *, turns, expected=False:
+                (350 if detected in hostiles else 250) if turns == 1 else 500,
         ):
             self.assertEqual(
                 policy._emergency_item(snap, snap.visible_monsters), "rt"
@@ -8189,8 +8346,10 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         self.assertEqual(policy._unique_combat_consumable(snapshot, [monster]), "qs")
 
     def test_unwinnable_quest_target_still_teleports(self):
+        # HP 100 of 200 is the low-HP threshold itself (max(100, -100)), so
+        # the heal-vs-teleport decision (below it only) does not apply.
         snapshot, _, knowledge = self._snapshot(
-            hp=80,
+            hp=100,
             monster_hp=900,
             blow_sides=50,
             inventory=[
@@ -8204,6 +8363,34 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         self.assertEqual(policy.choose_key(snapshot), "rt")
         self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertIsNone(policy._unique_combat_committed_race_id)
+
+    def test_unwinnable_quest_target_below_low_hp_heals_first(self):
+        # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): at HP 80 (below
+        # the threshold 100) the Healing potion (min(300, 120) = 120) outheals
+        # the next turn's expected damage, so it goes before the teleport.
+        snapshot, _, knowledge = self._snapshot(
+            hp=80,
+            monster_hp=900,
+            blow_sides=50,
+            inventory=[
+                item("s", TVAL_POTION, SV_POTION_SPEED),
+                item("h", TVAL_POTION, SV_POTION_HEALING),
+                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT),
+            ],
+        )
+        snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+
+        self.assertEqual(policy.choose_key(snapshot), "qh")
+        self.assertEqual(policy.last_reason, "item:heal")
+        self.assertTrue(policy._emergency_escape_pending)
+        self.assertLessEqual(
+            policy._predicted_damage(
+                snapshot, snapshot.visible_monsters, 1, expected=True
+            ),
+            120,
+        )
         self.assertIsNone(policy._unique_combat_committed_race_id)
 
     def test_unviable_random_quest_latch_does_not_force_level_based_flee(self):

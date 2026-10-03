@@ -1877,11 +1877,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_wait_intercepted = False
         self._unseen_attack_evidence: str | None = None
         self._unexplained_damage_streak = 0
+        # Total HP lost over the current unexplained-damage streak.
+        self._unexplained_damage_streak_loss = 0
         # (floor, observed loss, deadline game turn) of a lethal escape the
         # blindness/confusion cure pre-empted; the next readable board owes it.
         self._blind_cure_escape_carry: (
             tuple[tuple[int, int, int], int, int] | None
         ) = None
+        # (floor, monster index) of summoners a posted shot or throw may have
+        # damaged on this floor: they may hold a counter-attack target.
+        self._summoner_counter_targets: frozenset[
+            tuple[tuple[int, int, int], int]
+        ] = frozenset()
+        # Floor of the strong-fight run whose start was handled (a Speed
+        # potion quaffed, or haste already shown); None between runs.
+        self._strong_fight_speed_floor: tuple[int, int, int] | None = None
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
@@ -2833,6 +2843,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # USER DECISION 2026-10-03: the last word on a walking move at low HP
         # or right after a hit, after every producer and the no-wait rewrite.
         key = self._low_hp_walk_gate(snapshot, key)
+        # A shot or throw may leave a summoner a counter-attack target (the
+        # summoner emergency's reach, USER DECISION 2026-10-03 06:1x).
+        self._note_summoner_counter_targets(snapshot, key)
         if (
             unresolved_quest_candidate is not None
             and key is not unresolved_quest_candidate
@@ -8681,6 +8694,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None and self._warning_prompt_stops_decision:
             return None
         key = self._flee_sustain_key(snapshot, key)
+        # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
+        # place of the fighting action only.
+        key = self._strong_fight_speed_filter(snapshot, key)
         # Bookkeeping is a separate, higher rung: save and dump may replace
         # the selected key under their safe-filler predicates. The result
         # detector excludes their family from town errand judgement.
@@ -9494,13 +9510,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return key
         if low:
-            potion = self._find_heal_potion(snapshot, expected_damage=1)
-            if potion is not None:
-                self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot
             threatened = bool(hostiles) or bool(
                 [m for m in snapshot.detected_monsters if m.hostile]
             ) or getattr(self, "_took_damage", False)
+            # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): with an enemy
+            # about, heal first only with a potion whose heal is at least the
+            # next turn's predicted damage; otherwise teleport/recall first.
+            potion = (
+                self._low_hp_heal_first_potion(snapshot, hostiles)
+                if threatened
+                else self._find_heal_potion(snapshot, expected_damage=1)
+            )
+            if potion is not None:
+                self.last_reason = "item:heal"
+                return QUAFF_KEY + potion.slot
             scroll = self._escape_scroll(snapshot) if threatened else None
             if scroll is not None:
                 return self._issue_emergency_consumable(
@@ -9518,6 +9541,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return self._issue_emergency_consumable(
                         snapshot, recall, "emergency:recall"
                     )
+            # No escape: the heal that loses to the next turn still beats a walk.
+            potion = self._find_heal_potion(snapshot, expected_damage=1)
+            if potion is not None:
+                self.last_reason = "item:heal"
+                return QUAFF_KEY + potion.slot
         if adjacent and not player.afraid:
             self.last_reason = "melee"
             return self._direction_key(

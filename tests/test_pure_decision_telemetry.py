@@ -102,6 +102,13 @@ CHOKE_ALTERNATION_FIXED = {
     2013: ["5", "summoner:hold-choke"],
     2014: ["s", "search"],
 }
+# USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start): the tour
+# replay quaffs Speed on these dungeon boards where the recorded bot meleed
+# (test_experience_potion.STRONG_FIGHT_SPEED_STARTS).
+STRONG_FIGHT_SPEED_STARTS = {
+    1843: ["qb", "item:strong-fight-speed"],
+    2548: ["qb", "item:strong-fight-speed"],
+}
 MORIVANT_WINDOW = 120
 IDENTITY_MEMOS = frozenset({
     "_fixed_quest_head_cache",
@@ -512,16 +519,23 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             self.assertEqual(recorded[index], ["db\x1b", "home:atomic-deposit"])
             self.assertEqual(replayed[index], ["db1\r\x1b", "home:atomic-deposit"])
         # Substrate fidelity: every other capture-free replay decision is the
-        # recording, apart from the pinned choke-alternation decisions.
+        # recording, apart from the pinned choke-alternation decisions and
+        # the strong-fight starts.
         self.assertEqual(
             [
                 pair for index, pair in enumerate(replayed)
                 if index not in CHOKE_ALTERNATION_FIXED and index not in quantity_indices
+                and index not in STRONG_FIGHT_SPEED_STARTS
             ],
             [
                 pair for index, pair in enumerate(recorded[:RECALL_WAIT])
                 if index not in CHOKE_ALTERNATION_FIXED and index not in quantity_indices
+                and index not in STRONG_FIGHT_SPEED_STARTS
             ],
+        )
+        self.assertEqual(
+            {index: replayed[index] for index in STRONG_FIGHT_SPEED_STARTS},
+            STRONG_FIGHT_SPEED_STARTS,
         )
         self.assertEqual(
             {index: replayed[index] for index in CHOKE_ALTERNATION_FIXED},
@@ -609,9 +623,14 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             morivant.FIXTURE, morivant.FIXTURE_SHA256, _esp_build, None,
             MORIVANT_WINDOW,
         )
+        expected = [list(pair) for pair in boundaries["recorded"][:MORIVANT_WINDOW]]
+        # USER DECISION 2026-10-03 06:2x (Speed at a strong fight's start):
+        # sequence 61 quaffs Speed where the recorded bot meleed
+        # (test_morivant_travel_retired_recorded).
+        self.assertEqual(expected[60], ["4", "melee"])
+        expected[60] = ["qb", "item:strong-fight-speed"]
         self.assertEqual(
-            [list(pair) for pair, _silent in lockstep.decisions],
-            boundaries["recorded"][:MORIVANT_WINDOW],
+            [list(pair) for pair, _silent in lockstep.decisions], expected,
         )
         lockstep.assert_pure()
 
