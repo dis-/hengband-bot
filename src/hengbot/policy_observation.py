@@ -975,6 +975,15 @@ class ObservationMixin:
         self._unexplained_damage_streak = (
             getattr(self, "_unexplained_damage_streak", 0) + 1 if unexplained else 0
         )
+        # The HP the current streak has cost in all (its first loss starts it).
+        self._unexplained_damage_streak_loss = (
+            0
+            if not unexplained
+            else self._last_damage_amount
+            if self._unexplained_damage_streak == 1
+            else getattr(self, "_unexplained_damage_streak_loss", 0)
+            + self._last_damage_amount
+        )
         self._last_hp = hp
 
         position = snapshot.player.position

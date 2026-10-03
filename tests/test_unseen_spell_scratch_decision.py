@@ -14,6 +14,14 @@ least 10% of max HP or HP is below the low-HP threshold; the other clauses
 (the loss at least HP, HP under 40%, two consecutive unexplained losses, the
 loss at least 40% of max HP) are unchanged.
 
+Second answer (2026-10-03): 「見える敵がいない時、見えない攻撃のかすり傷が2回
+続いた場合もテレポートを読みますか？」 -- 「2回続いても1割か低HP時だけ
+(Recommended)」: 「連続の規則にも同じ基準を付ける。2回続いても、合計で最大HPの
+1割以上か低HP閾値未満でなければ読まず潜行を続ける。9月28日の死亡の型（マジック・
+ミサイル連打）は合計が1割を超えた時点で読む。」  So the two-consecutive-losses
+clause also needs the streak's total loss >= 10% of max HP or HP below the
+low-HP threshold.
+
 Substrate: the 2026-09-28 death capture of test_unseen_caster_death_recorded
 (Mine 23F, max HP 841, magic missiles from an unseen caster, 841 -> 17 over
 about 100 boards, every single loss below 84).  The protocol-3 boards carry
@@ -40,6 +48,8 @@ from test_unseen_caster_death_recorded import CAPTURE, SHA256
 PREVIOUS = 7393801  # HP 841, the last board before the first missile
 FIRST_HIT = 7393814  # HP 824: 「何かがマジック・ミサイルの呪文を唱えた。 <x2>」
 SECOND_HIT = 7393832  # HP 779: <x4>
+THIRD_HIT = 7393839  # HP 767
+FOURTH_HIT = 7393843  # HP 756: the streak's total 841 -> 756 = 85 >= 84.1
 TELEPORT_SLOT = "e"
 
 
@@ -52,7 +62,7 @@ class UnseenSpellScratchTest(unittest.TestCase):
                 row["turn"]: row
                 for line in stream
                 if (row := json.loads(line))["turn"]
-                in (PREVIOUS, FIRST_HIT, SECOND_HIT)
+                in (PREVIOUS, FIRST_HIT, SECOND_HIT, THIRD_HIT, FOURTH_HIT)
             }
 
     def _board(self, turn, **player):
@@ -99,18 +109,67 @@ class UnseenSpellScratchTest(unittest.TestCase):
         self.assertFalse(decided[0].startswith("r"), decided)
         self.assertFalse(policy._emergency_escape_pending)
 
-    def test_recorded_second_hit_escapes_on_the_streak(self):
-        # Recorded: the next board, 824 -> 779 (45, 5%): two consecutive
-        # unexplained losses -- the unchanged streak clause -- read the
-        # teleport.  (Conformance: the pre-decision bot read it here too.)
+    def test_recorded_missile_streak_reads_when_its_total_reaches_a_tenth(self):
+        # Recorded boards 7393814-7393843 in order (live: explore each time):
+        # 841 -> 824 -> 779 -> 767 -> 756, every loss an unseen magic
+        # missile below 10% of 841, HP above 541.  The streak totals 17, 62,
+        # 74: keep exploring; 85 >= 84.1 on 7393843: read the teleport.
+        # (The pre-decision bot read on 7393814; before the second answer
+        # the streak clause read on 7393832.)
         first = self._board(FIRST_HIT)
         policy = self._policy(first, 841)
-        self._decide(policy, first)
-        board = self._board(SECOND_HIT)
-        decided = self._decide(policy, board)
-        self.assertEqual(policy._last_damage_amount, 45)
-        self.assertEqual(policy._unexplained_damage_streak, 2)
+        expected_totals = {
+            FIRST_HIT: 17, SECOND_HIT: 62, THIRD_HIT: 74, FOURTH_HIT: 85,
+        }
+        for turn, total in expected_totals.items():
+            board = self._board(turn)
+            decided = self._decide(policy, board)
+            self.assertFalse(board.visible_monsters, turn)
+            self.assertEqual(policy._unexplained_damage_streak_loss, total, turn)
+            self.assertLess(policy._last_damage_amount, 84, turn)
+            self.assertGreater(board.player.hp, policy._low_hp_walk_threshold(841))
+            if turn != FOURTH_HIT:
+                self.assertNotEqual(decided[1], "emergency:teleport", turn)
+                self.assertFalse(policy._emergency_escape_pending, turn)
+        self.assertEqual(policy._unexplained_damage_streak, 4)
         self.assertTeleport(policy, board, decided)
+
+    def test_two_unattributed_scratches_below_the_low_hp_threshold_read(self):
+        # DECLARED CONSTRUCTED: the first two hit boards with no messages
+        # (no unseen-spell evidence: only the streak clause can read) and
+        # HP 540 -> 530 -> 520: total 20 < 84.1, but HP 520 is below the
+        # low-HP threshold 541 (and above 40%).  The Healing stack is removed
+        # too, so the ladder reads (with it, heal-vs-teleport heals first).
+        policy = None
+        for turn, hp in ((FIRST_HIT, 530), (SECOND_HIT, 520)):
+            board = replace(self._board(turn, hp=hp), messages=())
+            board = replace(board, inventory=[
+                item for item in board.inventory
+                if not (item.is_potion and item.sval == 37)
+            ])
+            if policy is None:
+                policy = self._policy(board, 540)
+            decided = self._decide(policy, board)
+        self.assertIsNone(policy._unseen_attack_evidence)
+        self.assertEqual(policy._unexplained_damage_streak, 2)
+        self.assertEqual(policy._unexplained_damage_streak_loss, 20)
+        self.assertGreater(board.player.hp_ratio, HEAL_HP_RATIO)
+        self.assertLess(board.player.hp, policy._low_hp_walk_threshold(841))
+        self.assertTeleport(policy, board, decided)
+
+    def test_two_unattributed_scratches_above_the_threshold_keep_going(self):
+        # DECLARED CONSTRUCTED: as above at HP 841 -> 830 -> 820 (total 21,
+        # HP above 541): no read.
+        policy = None
+        for turn, hp in ((FIRST_HIT, 830), (SECOND_HIT, 820)):
+            board = replace(self._board(turn, hp=hp), messages=())
+            if policy is None:
+                policy = self._policy(board, 841)
+            decided = self._decide(policy, board)
+        self.assertEqual(policy._unexplained_damage_streak, 2)
+        self.assertEqual(policy._unexplained_damage_streak_loss, 21)
+        self.assertNotEqual(decided[1], "emergency:teleport")
+        self.assertFalse(policy._emergency_escape_pending)
 
     def test_tenth_of_max_hp_hit_reads_the_teleport(self):
         # DECLARED CONSTRUCTED: the first-hit board with HP 756 (one move

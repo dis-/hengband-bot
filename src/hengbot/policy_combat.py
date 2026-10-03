@@ -1758,7 +1758,17 @@ class CombatMixin:
                     )
                 )
                 or player.hp_ratio < HEAL_HP_RATIO
-                or getattr(self, "_unexplained_damage_streak", 0) >= 2
+                # USER DECISION 2026-10-03 (two scratches in a row): 「連続の
+                # 規則にも同じ基準を付ける。2回続いても、合計で最大HPの1割以上
+                # か低HP閾値未満でなければ読まず潜行を続ける。」
+                or (
+                    getattr(self, "_unexplained_damage_streak", 0) >= 2
+                    and (
+                        getattr(self, "_unexplained_damage_streak_loss", 0)
+                        >= player.max_hp * 0.10
+                        or player.hp < self._low_hp_walk_threshold(player.max_hp)
+                    )
+                )
                 or self._last_damage_amount >= player.max_hp * HEAL_HP_RATIO
             )
         )
