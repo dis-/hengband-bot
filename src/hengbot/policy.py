@@ -1364,6 +1364,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_capacity_observation = None
         self._home_full_relief = None
         self._home_full_refused = False
+        self._home_full_retry_deposits = None
         self._home_history_inflight: tuple[str, tuple[str, int, int], int, int] | None = None
         self._saw_dungeon_recall = False
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
@@ -2558,6 +2559,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
         self._home_full_refused = getattr(self, "_home_full_refused", False)
+        self._home_full_retry_deposits = getattr(self, "_home_full_retry_deposits", None)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
         self._observe_cross_town_shopping_arrival(snapshot)
@@ -7410,6 +7412,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 deposit_observed = len(landed) == len(entries)
                 if deposit_observed:
                     self._home_full_refused = False
+                    if self._home_full_retry_deposits is not None:
+                        self._home_full_retry_deposits = tuple(
+                            entry for entry in self._home_full_retry_deposits
+                            if entry[0] not in landed) or None
                     # Design rev 9 item 3: the posted Home deposit's effect is
                     # confirmed, before ``_release_invalid_store_visit``.
                     self._complete_observed_effect(
@@ -7452,6 +7458,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._home_atomic_deposit_pending = None
                     blocked_entries = tuple(entry for entry in entries
                                             if entry[0] not in landed)
+                    self._home_full_retry_deposits = None
                     if self._home_full_refused:
                         self._begin_home_full_relief(snapshot, blocked_entries, refused=True)
                     elif self._home_is_full(snapshot):
@@ -8419,6 +8426,20 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "home:atomic-deposit"
                 )
             )
+        elif (
+            snapshot.store is not None
+            and snapshot.store.store_type == STORE_HOME
+            and (self._home_full_relief is not None
+                 or self._home_full_retry_deposits is not None)
+            and not self._equipment_transaction_owned_items
+            and self._home_atomic_deposit_pending is None
+            and self._home_atomic_withdraw_pending is None
+        ):
+            # The suspended equipment continuation cannot deposit more items
+            # into this full Home while its prerequisite sale is still pending.
+            key = self._town_producer_entry(
+                "_home_full_relief_key", lambda: self._home_full_relief_key(snapshot),
+                family="home-visit")
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
@@ -9809,7 +9830,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and self._home_atomic_withdraw_pending is None
                 and self._store_buy_inflight is None
                 and self._batch_sell_pending is None
-                and (self._home_full_relief is not None or self._home_is_full(snapshot))):
+                and (self._home_full_relief is not None
+                     or self._home_full_retry_deposits is not None
+                     or self._home_is_full(snapshot))):
             relief_key = self._town_producer_entry("_home_full_relief_key",
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:

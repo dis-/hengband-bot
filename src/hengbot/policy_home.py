@@ -95,6 +95,25 @@ class HomeMixin:
         # errand only after it releases the character; do not freeze restoration.
         if self._equipment_transaction_owned_items:
             return None
+        retry = getattr(self, "_home_full_retry_deposits", None)
+        if retry is not None:
+            if self._home_is_full(snapshot):
+                self._home_full_retry_deposits = None
+                self._begin_home_full_relief(snapshot, retry)
+                return self._home_full_relief_key(snapshot)
+            if self._find_home_deposit(snapshot) is None:
+                self._home_full_retry_deposits = None
+                return None
+            if snapshot.store is not None:
+                if snapshot.store.store_type == STORE_HOME:
+                    return self._open_home_deposit_key(snapshot)
+                return self._home_full_leave_key("home:full-space-ready")
+            self._rearm_town_store_for_new_work(STORE_HOME)
+            step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
+            if step is None:
+                self._town_blocked_reason = "home-full-deposit-retry-unreachable"
+                return self._town_blocked_key(snapshot)
+            return self._shopping_approach_key(snapshot, step, "shop:travel")
         if self._home_full_relief is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
             if first is not None:
@@ -152,6 +171,7 @@ class HomeMixin:
                     self._home_deposit_abandoned = False
                     self._home_capacity_observation = None
                     self._home_full_refused = False
+                    self._home_full_retry_deposits = relief["deposits"]
                     self._home_full_relief = None
                     self._invalidate_home_observation()
                     self._rearm_town_store_for_new_work(STORE_HOME,
@@ -159,7 +179,7 @@ class HomeMixin:
                     self.last_reason = "home:full-space-ready"
                     if snapshot.store is not None:
                         return self._home_full_leave_key("home:full-space-ready")
-                    return None
+                    return self._home_full_relief_key(snapshot)
                 sale = None
             elif self._home_errand.state.value in {"failed", "stopped"}:
                 self._town_blocked_reason = "home-full-surplus-withdraw-failed"
@@ -1637,7 +1657,8 @@ class HomeMixin:
         taken = getattr(self, "_home_pending_take_confirmed", None)
         if taken is not None and taken != self._home_pending_item:
             taken = self._home_pending_take_confirmed = None
-        session = (None if self._home_full_relief is not None
+        session = (None if (self._home_full_relief is not None
+                           or getattr(self, "_home_full_retry_deposits", None) is not None)
                    else self._equipment_transaction_session)
         action = session.current_action if session is not None else None
         withdrawal_requested = bool(self._home_errand.active or self._home_pending_item is not None or self._home_pending_batch or (action is not None and action.kind == 'withdraw'))
@@ -2327,7 +2348,8 @@ class HomeMixin:
         if entrance is None or entrance.store_number != STORE_HOME:
             self._offer_home_atomic_no_step("deposit", "not-at-home-entrance")
             return None
-        session = self._equipment_transaction_session
+        session = (None if getattr(self, "_home_full_retry_deposits", None) is not None
+                   else self._equipment_transaction_session)
         if session is not None:
             action = session.current_action
             if action is None or action.kind != "deposit":
@@ -2545,7 +2567,8 @@ class HomeMixin:
             or visit.store_type != STORE_HOME
             or visit.operation_posted
             or self._home_atomic_deposit_pending is not None
-            or self._equipment_transaction_session is not None
+            or (self._equipment_transaction_session is not None
+                and getattr(self, "_home_full_retry_deposits", None) is None)
         ):
             self._offer_home_atomic_no_step("deposit", "open-page-not-composable")
             return None
@@ -2722,6 +2745,12 @@ class HomeMixin:
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
         if self._home_full_relief is not None:
             return None
+        retry = getattr(self, "_home_full_retry_deposits", None)
+        if retry is not None:
+            signatures = {entry[0] for entry in retry}
+            return self._first_item(snapshot, lambda item:
+                self._item_signature(item) in signatures
+                and self._retention_surplus(snapshot, item) > 0)
         if self._home_deposit_abandoned:
             return None
         overweight = self._overweight_home_deposit(snapshot)

@@ -22,6 +22,7 @@ from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
 from test_home_route_release_recorded import reconstructed
+from test_s33_batch_context import captured_session
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
 
@@ -86,6 +87,10 @@ class HomeFullReliefTest(unittest.TestCase):
         for enforced in (False, True):
             with self.subTest(enforced=enforced):
                 policy, board, catalogue, entries = relief_scene(self.pins[0], enforced)
+                # DECLARED CONSTRUCTED: restore the capture's real equipment
+                # continuation alongside the reconstructed deposit ledger.
+                _state, session = captured_session("234018", 224)
+                policy._equipment_transaction_session = session
                 board, key = self.refuse(policy, board)
                 self.assertIsNotNone(policy._home_errand.request)
                 self.assertEqual(policy._home_errand.request.purpose, "full-home-sale")
@@ -127,6 +132,7 @@ class HomeFullReliefTest(unittest.TestCase):
                         inventory=tuple(item for item in board.inventory if item.slot != "s"),
                         player=replace(board.player, gold=board.player.gold + 20))
                 self.assertIsNone(policy._home_full_relief)
+                self.assertIs(policy._equipment_transaction_session, session)
                 self.assertEqual(catalogue[0].name, "sale surplus 2")
                 self.assertTrue({entry[0] for entry in entries}.isdisjoint(
                     policy._home_rejected_deposits))
@@ -142,6 +148,12 @@ class HomeFullReliefTest(unittest.TestCase):
                 self.assertTrue(key.startswith("d"), (key, policy.last_reason))
                 self.assertTrue({entry[0] for entry in entries} <= {
                     entry[0] for entry in policy._home_atomic_deposit_pending[0]})
+                original = {entry[0] for entry in entries}
+                board, key = self.decide(policy, board, store=None,
+                    inventory=tuple(item for item in board.inventory
+                        if policy._item_signature(item) not in original))
+                self.assertIsNone(policy._home_full_retry_deposits)
+                self.assertIs(policy._equipment_transaction_session, session)
 
     def test_unidentified_excellent_and_special_are_not_selected_for_sale(self):
         for enforced in (False, True):
