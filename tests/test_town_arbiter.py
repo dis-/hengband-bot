@@ -1031,6 +1031,47 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         )
         self.assertFalse(row["progress"])
         self.assertEqual(row["budget_remaining_estimate"], 7)
+        self.assertEqual(row["producer_owner"], "departure")
+        self.assertEqual(row["retirement_set"], [])
+
+    def test_exempt_wait_does_not_split_counted_recurrence(self):
+        for exemption in ("recall", "observation"):
+            with self.subTest(exemption=exemption):
+                arbiter = HengbotPolicy()._town_turn_arbiter
+                arbiter.note_snapshot(turn=100, recalling=False)
+                arbiter.observe(
+                    in_town=True, reason="town:recall-to-angband",
+                    progress_vector="ready",
+                )
+                arbiter.note_snapshot(turn=110, recalling=exemption == "recall")
+                arbiter.observe(
+                    in_town=True, reason="town:wait-recall",
+                    progress_vector="waiting",
+                    observation_wait=exemption == "observation",
+                )
+                arbiter.note_snapshot(turn=120, recalling=False)
+                arbiter.observe(
+                    in_town=True, reason="town:wait-recall",
+                    progress_vector="ready",
+                )
+                row = arbiter.observe(
+                    in_town=True, reason="town:wait-recall",
+                    progress_vector="ready",
+                )
+                self.assertFalse(row["progress"])
+                self.assertEqual(row["budget_remaining_estimate"], 7)
+                self.assertEqual(row["retirement_set"], [])
+                # An ordinary reversal still enters recurrence accounting.
+                arbiter.observe(
+                    in_town=True, reason="town:wait-recall",
+                    progress_vector="other",
+                )
+                row = arbiter.observe(
+                    in_town=True, reason="town:wait-recall",
+                    progress_vector="ready",
+                )
+                self.assertFalse(row["progress"])
+                self.assertEqual(row["retirement_set"], ["departure"])
 
 
 if __name__ == "__main__":
