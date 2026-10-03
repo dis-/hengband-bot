@@ -5673,10 +5673,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _defer_town_errand(
         self, family: str, reason: str, *, work_identity: tuple | None = None,
+        preserve_home_hold: bool = True,
     ) -> bool:
         """Apply the S3.3 hold to the requested town producer."""
         enforced = (getattr(self, "_town_claim_bar_enforced", False)
-                    or self._home_sequence_has_holder())
+                    or (preserve_home_hold and self._home_sequence_has_holder()))
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
             work_identity=work_identity, enforced=enforced,
@@ -5791,7 +5792,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if getattr(self, "_town_claim_bar_enforced", False):
                 return None
         if (not self._town_gate_exempt(rung.family)
-                and self._defer_town_errand(rung.family, f"entry:{rung_name}")):
+                and self._defer_town_errand(
+                    rung.family, f"entry:{rung_name}",
+                    # These entries were added by S3.3. OFF must only observe
+                    # them; historical rungs retain their cross-area Home hold.
+                    preserve_home_hold=rung_name not in {
+                        "verified-disposal", "town-item-processing", "idle-fallback",
+                        "home-atomic-withdraw", "home-atomic-deposit", "town-teleport",
+                    })):
             return None
         if (getattr(self, "_town_claim_bar_enforced", False)
                 and self._town_plan_defers(rung.family)):
@@ -15959,7 +15967,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self, snapshot: Snapshot, quest: QuestState
     ) -> str | None:
         """Use the inn service for the approved Q2 errand, never wilderness."""
-        if self._defer_town_errand("quest-request", "q2-travel"):
+        if self._defer_town_errand(
+                "quest-request", "q2-travel", preserve_home_hold=False):
             return None
         if self._cross_town_shopping_holds_quest_travel(snapshot):
             return None

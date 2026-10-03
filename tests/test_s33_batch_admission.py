@@ -141,6 +141,42 @@ class AdmissionTest(unittest.TestCase):
         self.assertIn("ownership:gate-missing:home-errand", kinds)
         self.assertTrue(any(pin["board"] is not None for pin in pins))
 
+    def test_live_off_crossarea_home_holder_allows_recorded_disposal(self):
+        from hengbot.model import parse_snapshot, STORE_HOME
+        pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+        pin = next(p for p in pins if "170231" in p["source"] and p["line"] == 232)
+        recorded = parse_snapshot(pin["board"])
+        board = replace(corridor(), inventory=recorded.inventory, equipment=recorded.equipment)
+        for family in ("store-router", "home-visit", "equipment-txn"):
+            with self.subTest(family=family):
+                policy = route_policy(board, family=family, enforced=False)
+                policy._crossarea_fundraising_enforced = True
+                policy._map_predicate_snapshot = board
+                policy._request_store_trip(STORE_HOME, "home-visit")
+                self.assertTrue(policy._home_sequence_has_holder())
+                self.assertEqual(policy._full_pack_destroy_key(board), "01kb")
+                self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+                row = next(r for r in policy._decision_errand_deferred
+                           if r["deferred_reason"] == "entry:verified-disposal")
+                self.assertFalse(row["token_would_admit"])
+                self.assertEqual(row["producer_key"], "01kb")
+                # A pre-existing entry still honors the cross-area Home hold.
+                self.assertTrue(policy._defer_town_errand("identification", "equipped-identification"))
+
+    def test_deferred_approved_home_disposal_retains_pending_work(self):
+        from hengbot.model import parse_snapshot
+        pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+        pin = next(p for p in pins if "170231" in p["source"] and p["line"] == 232)
+        recorded = parse_snapshot(pin["board"])
+        board = replace(corridor(), inventory=recorded.inventory, equipment=recorded.equipment)
+        policy = route_policy(board, family="equipment-txn")
+        policy._map_predicate_snapshot = board
+        target = next(it for it in board.inventory if it.slot == "b")
+        pending = (policy._item_signature(target), "destroy")
+        policy._home_disposal_pending = pending
+        self.assertIsNone(policy._home_disposal_processing_key(board))
+        self.assertEqual(policy._home_disposal_pending, pending)
+
 
 if __name__ == "__main__":
     unittest.main()

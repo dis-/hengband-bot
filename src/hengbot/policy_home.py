@@ -1922,7 +1922,8 @@ class HomeMixin:
         only ``_home_candidate_waiting`` leaves no operation for the atomic
         entry composer to post; opening Home cannot repair that omission.
         """
-        if self._defer_town_errand("home-errand", "bind-identification-catalog"):
+        if self._defer_town_errand(
+                "home-errand", "bind-identification-catalog", preserve_home_hold=False):
             return
         if (
             not self._home_candidate_waiting
@@ -2706,7 +2707,10 @@ class HomeMixin:
                 lambda current: target if self._home_disposal_inventory_item(current) is not None else None,
                 "home-disposal:destroy-approved",
             )
-            self._home_disposal_pending = None
+            # Admission can postpone an approved disposal. Retain it until a
+            # command is produced or the item is explicitly rejected.
+            if key is not None or self.last_reason == "inventory:destroy-refused-superior-item":
+                self._home_disposal_pending = None
             if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
                 self.last_reason = "home-disposal:destroy-refused-superior-item"
             return key
