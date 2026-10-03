@@ -28,7 +28,8 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from hengbot.model import Position, Snapshot, SV_POTION_SPEED
+from hengbot.model import Position, Snapshot, SV_POTION_SPEED, SV_SCROLL_TELEPORT
+from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STRONG_FIGHT_SPEED_HP_RATIO
 from policy_fixtures import grid, hostile, item, player
@@ -39,7 +40,8 @@ from test_lethal_unseen_caster_recorded import (
     B_WARMUP,
     C_WARMUP,
 )
-from test_policy import POTION
+from test_policy import POTION, SCROLL
+import test_policy_combat as combat
 
 SPEED_SLOT = "a"
 
@@ -179,6 +181,46 @@ class StrongFightSpeedConstructedTest(unittest.TestCase):
         # 09-18 escape rule (「逃走時の判定はそのまま」) alone judges Speed.
         policy, key = self._key(self._snap(afraid=True))
         self.assertIsNone(key)
+        self.assertIsNone(policy._strong_fight_speed_floor)
+
+
+class StrongFightSpeedLeavesEscapesTest(unittest.TestCase):
+    """Review 2026-10-03 (F1): the Speed quaff takes only a fighting action's
+    place; 「逃走時の判定はそのまま」 for every escape/relocation producer.
+
+    DECLARED CONSTRUCTED: test_policy_combat.PredictiveEscapeTest's line
+    board, HP 100 of 100, one adjacent unresisted TOUCH:PARALYZE 3d10 (no
+    Free Action), a Teleportation scroll and a Speed potion; 3-turn p95 81 >=
+    50 makes the fight strong.  The status-threat rung reads the scroll.
+    (Before this, the quaff in _emergency_item pre-empted it: 'qs'.)"""
+
+    def _board(self, inventory):
+        monster = replace(
+            hostile(1, 10, 11, distance=1, max_melee_damage=30), race_id=6002
+        )
+        knowledge = MonraceKnowledge(
+            max_hp=20, average_hp=20, speed=110, can_summon=False,
+            friendly=False, level=10, max_melee_damage=30,
+            blows=(MonsterBlow("TOUCH", "PARALYZE", 3, 10),),
+        )
+        snapshot = combat.PredictiveEscapeTest()._line_snapshot(
+            monster, hp=100, inventory=inventory
+        )
+        return snapshot, HengbotPolicy(monrace_knowledge={6002: knowledge})
+
+    def test_paralyzer_scroll_read_is_not_replaced_by_speed(self):
+        snapshot, policy = self._board([
+            item("t", SCROLL, SV_SCROLL_TELEPORT),
+            item("s", POTION, SV_POTION_SPEED),
+        ])
+        key = policy.choose_key(snapshot)
+        self.assertGreaterEqual(
+            policy.threat_prediction(snapshot, snapshot.visible_monsters, 3)[
+                "operational_total"
+            ],
+            snapshot.player.hp * STRONG_FIGHT_SPEED_HP_RATIO,
+        )
+        self.assertEqual((key, policy.last_reason), ("rt", "status-threat:scroll"))
         self.assertIsNone(policy._strong_fight_speed_floor)
 
 

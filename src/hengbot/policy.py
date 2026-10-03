@@ -8694,6 +8694,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if key is None and self._warning_prompt_stops_decision:
             return None
         key = self._flee_sustain_key(snapshot, key)
+        # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
+        # place of the fighting action only.
+        key = self._strong_fight_speed_filter(snapshot, key)
         # Bookkeeping is a separate, higher rung: save and dump may replace
         # the selected key under their safe-filler predicates. The result
         # detector excludes their family from town errand judgement.

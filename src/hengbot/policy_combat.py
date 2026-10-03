@@ -2174,14 +2174,6 @@ class CombatMixin:
             if potion is not None:
                 self.last_reason = "item:heal"
                 return QUAFF_KEY + potion.slot
-        # USER DECISION 2026-10-03 06:2x: a Speed potion when a strong fight
-        # starts.  A lethal board is the emergency ladder's above (an escape
-        # is never delayed for it), and a low-HP heal goes first.
-        strong_fight_speed = self._strong_fight_speed_key(
-            snapshot, hostiles, observed_loss
-        )
-        if strong_fight_speed is not None:
-            return strong_fight_speed
         # Eat before we faint from hunger.
         if player.fainting:
             food = self._find_edible(snapshot)
@@ -2423,11 +2415,44 @@ class CombatMixin:
         )
 
     @claims(ClaimOwner.SURVIVAL)
+    def _strong_fight_speed_filter(self, snapshot: Snapshot, key):
+        """USER DECISION 2026-10-03 06:2x, applied to the decided action.
+
+        Speed is quaffed only in place of a fighting action (melee, ranged
+        fire, the summoner ranged kill, a hunt): every escape, relocation,
+        heal, cure or other producer that took the board keeps it, whichever
+        rung of the ladder it sits on (paralyzer prevention, status-threat
+        scroll/retreat, summoner retreat, threat reposition, the emergency
+        ladder) -- 「逃走時の判定はそのまま」.  The run is still tracked on
+        every dungeon board, so a board that is not strong ends it."""
+        if (
+            key is None
+            or not hasattr(snapshot, "visible_monsters")
+            or snapshot.in_town
+            or snapshot.store is not None
+        ):
+            return key
+        reason = self.last_reason or ""
+        fighting = (
+            reason == "melee"
+            or reason.startswith(("melee:", "ranged:", "hunt"))
+            or reason == "summoner:ranged-kill"
+        )
+        speed = self._strong_fight_speed_key(
+            snapshot,
+            self._strategic_hostiles(snapshot),
+            self._attributable_observed_loss(snapshot),
+            fighting=fighting,
+        )
+        return key if speed is None else speed
+
     def _strong_fight_speed_key(
         self,
         snapshot: Snapshot,
         hostiles: list[MonsterState],
         observed_loss: int,
+        *,
+        fighting: bool = True,
     ) -> str | None:
         """USER DECISION 2026-10-03 06:2x: 「強敵との戦闘開始時に飲む」 --
         「予測被害が HP の一定割合を超える戦闘に入った時点で飲む。消費は増えるが
@@ -2465,6 +2490,9 @@ class CombatMixin:
             self._strong_fight_speed_floor = None
             return None
         if getattr(self, "_strong_fight_speed_floor", None) == snapshot.floor_key:
+            return None
+        # The fight starts on the first strong board the bot fights.
+        if not fighting:
             return None
         # 「逃走時の判定はそのまま」: on a board the bot flees, the 09-18
         # escape rule (_flee_sustain_key: only when nothing else breaks
