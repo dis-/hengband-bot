@@ -402,7 +402,10 @@ function boot(data) {
   document.getElementById('src').innerHTML =
     `claim_ladder.py と実機の bot-decisions.jsonl から生成（` +
     `<code>scripts/build_ladder_page.py</code>）。` +
-    `commit <code>${esc(data.commit.slice(0, 8))}</code>・${esc(data.generated)}`;
+    (/^[0-9a-f]{40}$/.test(data.commit)
+      ? `commit <code>${esc(data.commit.slice(0, 8))}</code>`
+      : `ソースの参照先 <code>${esc(data.commit)}</code>（この時点の commit は未 push）`) +
+    `・${esc(data.generated)}`;
 
   ['q', 'fam', 'hot'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
