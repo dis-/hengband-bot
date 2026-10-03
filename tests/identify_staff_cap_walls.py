@@ -50,6 +50,13 @@ to the Magic shop to sell it instead of the recorded Black Market approach.
 That pin's subject is the router/departure-seam verdict at index 4, so its
 replay runs under the same five-staff wall.  The new choice is pinned in
 tests/test_town_blackmarket_stall_recorded.py::IdentifyStaffCapDivergenceTest.
+
+The no-safe-destination pins use that same town-blackmarket-stall capture.
+Their destination gate and fundraising assertions require the recorded
+Black Market approach at index 2 before reaching board 4, so they use the
+same five-staff wall.  The new cap's release plan and first changed key are
+pinned unwalled in
+tests/test_no_safe_destination_recorded.py::IdentifyStaffCapDivergenceTest.
 """
 from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
