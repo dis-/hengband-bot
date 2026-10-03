@@ -1942,9 +1942,13 @@ class EquipmentMixin:
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _equipment_transaction_home_key(self, snapshot: Snapshot) -> str | None:
         if self._release_stalled_equipment_transaction(snapshot):
-            return self._equipment_home_outcome(
-                LEAVE_STORE_KEY, label="release-stalled",
+            self._offer_execution(
+                LEAVE_STORE_KEY, producer="equipment-txn",
+                work_id="equipment:home:release-stalled",
+                next_step="store.leave.send", arguments=(STORE_HOME,),
+                expected_effect="outside-store",
             )
+            return LEAVE_STORE_KEY
         session = self._equipment_transaction_session
         if (
             session is not None
@@ -2342,9 +2346,16 @@ class EquipmentMixin:
                 None, label="deferred-by-town-holder",
             )
         if self._release_stalled_equipment_transaction(snapshot):
-            return self._equipment_town_outcome(
-                WAIT_KEY, label="release-stalled",
+            # The abandoned operation has no next-action continuation. Any
+            # restoration plan is separate work, derived from observed gear.
+            self._offer_execution(
+                WAIT_KEY, producer="equipment-txn",
+                work_id="equipment:town:release-stalled",
+                next_step="equipment.confirmation-stall-stop",
+                expected_effect="transaction-abandoned",
+                cause="confirmation-stall-bound", post_on_emit=False,
             )
+            return WAIT_KEY
         self._prepare_equipment_optimization(snapshot)
         session = self._equipment_transaction_session
         if session is None:

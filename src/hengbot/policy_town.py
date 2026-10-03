@@ -240,6 +240,13 @@ class TownMixin:
                 # itself, never a previous supplier's destination.
                 goal = next((position for position, grid in snapshot.grids.items()
                              if grid.building_type == 13), None)
+            if goal is not None:
+                route = self._town_map_goal_route(snapshot, goal)
+                if route is not None:
+                    return durable + ((
+                        "locomotion", owner, snapshot.floor_key, route.target,
+                        route.remaining_edges,
+                    ),)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -916,6 +923,18 @@ class TownMixin:
             # The producer's declared destination is authoritative.  A shop
             # route left by an earlier errand cannot judge this owner's walk.
             goal = Position(*slot[1].cell)
+            if direction is not None:
+                route = self._town_map_goal_route(snapshot, goal)
+                next_position = Position(
+                    snapshot.player.position.y + direction[0],
+                    snapshot.player.position.x + direction[1],
+                )
+                if route is not None and next_position == route.first_step:
+                    # A detour can increase straight-line distance while
+                    # closing the walk's BFS distance. The arbiter observes
+                    # that same distance on subsequent boards; an ineffective
+                    # posted step still consumes the existing owner budget.
+                    return True
         if direction is not None:
             if goal is not None:
                 before = snapshot.player.position.distance_to(goal)
@@ -1917,6 +1936,19 @@ class TownMixin:
 
         self._town_order_operation = "normal-step4-bounty"
         self._town_order_expected_observation = "bounty-removed"
+        if snapshot.store is None:
+            arbiter = self._town_turn_arbiter
+            reason = "bounty:approach"
+            if not arbiter.may_select(
+                reason, self._town_arbiter_progress_vector(snapshot, reason),
+                retirement_key=self._town_retirement_clearance_key(
+                    snapshot, "quest-request", reason),
+            ):
+                self._offer_execution_no_step(
+                    producer="quest-request", work_id="normal-step4-bounty",
+                    cause="bounty-route-nonprogress",
+                )
+                return None
         if snapshot.store is not None:
             # An ordinary supplier observation is not an in-flight operation:
             # no item command has been selected or posted yet.  Close that UI
