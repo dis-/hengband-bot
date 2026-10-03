@@ -40,13 +40,15 @@ policy_quest.py:_opening_q34_town_key  # Q34 opening: detectors, quest-request a
 policy_combat.py:_emergency_item  # consumable ladder shared by escape, survival and quest-sweep
 policy_town.py:_town_special_key  # town special-case ladder: bookkeeping, departure, detectors, fundraising, rumor, survival
 policy_town.py:_town_procurement_decision  # procurement rewrite of design 3.3.1: cross-town, detectors and town-plan
-policy_town.py:_town_item_processing_key  # item triage: home-visit disposal and identification share the pack scan
+policy_town.py:_town_item_processing_dispatch_key  # same item-triage body, called only behind the shared identification admission gate; Home completion outcomes share this scan
 policy_town.py:_town_blocked_key  # the blocked-reason overwrite: names the family it blocked
 policy_town.py:_town_cancel_unsafe_recall_key  # cancels a departure claim on behalf of town-plan
 policy_town.py:_town_destroy_key  # destruction gate: equipment-txn holdings and town-plan overflow
 policy_town.py:_town_entrance_step_off_key  # departure leg wrapped by a detectors step-off
-policy_home.py:_atomic_home_withdraw_key  # the atomic Home withdraw serves home-visit and equipment-txn callers
-policy_home.py:_atomic_home_deposit_key  # the atomic Home deposit serves home-visit and equipment-txn callers
+policy_home.py:_atomic_home_withdraw_dispatch_key  # admitted atomic Home withdraw body serves home-visit and equipment-txn callers
+policy_home.py:_atomic_home_deposit_dispatch_key  # admitted atomic Home deposit body serves home-visit and equipment-txn callers
+policy.py:_town_idle_key  # extracted ladder fallback: idle wait and detector stuck:wander, admitted before dispatch
+policy_town.py:_town_teleport_dispatch_key  # admitted travel serves explicit store-router, cross-town and quest-request producers
 policy_home.py:_probe_unobserved_home_withdrawal  # home-visit probe that reports through a town-plan block
 policy_home.py:_home_quest_launcher_key  # home-scan lookup feeding a home-visit withdrawal
 policy_equipment.py:_home_rearm_key  # home-scan lookup feeding a home-visit rearm

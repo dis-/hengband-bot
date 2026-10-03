@@ -162,6 +162,7 @@ from hengbot.policy_constants import (
     CHEST_SEARCH_KEY,
     DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
+    ENTER_DUNGEON_MACRO,
     EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
     EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS,
     EAT_KEY,
@@ -425,6 +426,17 @@ class EquipmentMixin:
             and getattr(self, "_decision_context", None) is not None
             and self._decision_context.equipment_transaction_owned
         )
+
+    def _equipment_transaction_home_work(self) -> bool:
+        """A Home route is needed only for an executable, unposted Home action.
+
+        Posted actions own observation, and outside equip/takeoff owns the
+        character where it stands. Neither is another Home visit.
+        """
+        session = self._equipment_transaction_session
+        return bool(session is not None and session.executable
+                    and session.current_action is not None
+                    and session.required_context == "home")
 
     def _equipment_ownership_release_due(self, snapshot: Snapshot) -> None:
         """Release transaction ownership freshly satisfied by worn observations."""
@@ -1889,6 +1901,31 @@ class EquipmentMixin:
         """Name a Home transaction exit that has no prepared action offer."""
         work_id = f"equipment:home:{label}"
         producer = 'equipment-txn'
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        if key is not None and session is not None and not session.executable:
+            held = self._claim_register.current
+            declaration = getattr(held, "execution", None)
+            if held is not None and held.owner.value == producer and declaration is not None:
+                # The item-specific failure belongs to this work's exit.
+                # The blocked session and any restoration debt remain intact
+                # for the existing abandonment/restoration path outside Home.
+                self._offer_execution(
+                    key, producer=producer, work_id=declaration.work_id,
+                    next_step=declaration.next_step, arguments=declaration.arguments,
+                    state="acting", cause=";".join(session.blockers),
+                    expected_effect="store-exited", continuation="equipment.next-action",
+                    budget_ref=declaration.budget_ref, post_on_emit=False)
+                return key
+        if (label == "seek-home-page" and key == " " and action is not None
+                and action.kind == "withdraw" and session.required_context == "home"):
+            self._offer_execution(
+                key, producer=producer,
+                work_id=f"equipment:{session.target_loadout_id}:{session.index}",
+                next_step="equipment.next-action",
+                arguments=(action.kind, action.target_slot, action.item_identity),
+                expected_effect="home-page-changed", continuation="equipment.next-action")
+            return key
         if key is None:
             self._offer_execution_no_step(
                 producer=producer, work_id=work_id, cause=label,
@@ -1949,6 +1986,7 @@ class EquipmentMixin:
             return self._equipment_home_outcome(
                 None, label="home-action-context-unavailable",
             )
+        self._observe_equipment_home_pages(snapshot, session)
         observation = observe_equipment_transactions(snapshot)
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
@@ -2026,7 +2064,9 @@ class EquipmentMixin:
                     item
                     for item in snapshot.inventory
                     if item.is_equipment
-                    and equipment_identity(item) == action.item_identity
+                    and (equipment_identity(item) == action.item_identity
+                         or (action.move_identity is not None
+                             and equipment_move_identity(item) == action.move_identity))
                 ),
                 None,
             )
@@ -2179,8 +2219,15 @@ class EquipmentMixin:
                 matches_withdrawal(item)
                 for index, item in enumerate(self._home_knowledge_items)
                 if index < self._home_knowledge_valid_before
-            )
+            ) or any(owned.origin == "home" and matches_withdrawal(owned.item)
+                     for owned in self._equipment_catalog.items)
             if not target_observed:
+                if not (self._open_home_page_is_complete(snapshot)
+                        or self._equipment_catalog.home_scan_complete):
+                    # Absence on one page does not establish missing stock.
+                    self.last_reason = "equipment-transaction:seek-home-page"
+                    return self._equipment_home_outcome(
+                        " ", label="seek-home-page", effect="home-page-changed")
                 if (
                     self._open_home_page_is_complete(snapshot)
                     and any(
@@ -2235,6 +2282,38 @@ class EquipmentMixin:
         return self._equipment_home_outcome(
             LEAVE_STORE_KEY, label="invalid-home-action",
         )
+
+    def _observe_equipment_home_pages(self, snapshot, session) -> None:
+        """Prove completeness by observed stock positions, not repeated content.
+
+        The cache holds actual pages for this immutable plan and stock shape.
+        Its bound comes from stock_num/page_size, not a new retry allowance.
+        """
+        # Existing complete knowledge and legacy atomic Home operations own
+        # their mutation reconciliation. Do not replace that catalogue while
+        # seeking an address, or resurrect contents they invalidate.
+        if (session.current_action is None
+                or session.current_action.kind != "withdraw"
+                or self._equipment_catalog.home_scan_complete):
+            return
+        store = snapshot.store
+        stock, size, top = store.stock_num, store.page_size, store.page_top
+        if (stock is None or size is None or size <= 0 or top is None
+                or top < 0 or top % size or top > stock
+                or len(store.items) != min(size, stock - top)):
+            return
+        identity = (session.target_loadout_id, stock, size)
+        cached = self._equipment_transaction_home_pages
+        if cached is None or cached[0] != identity:
+            cached = (identity, {})
+            self._equipment_transaction_home_pages = cached
+        pages = cached[1]
+        pages[top] = tuple(store.items)
+        positions = tuple(range(0, stock, size)) or (0,)
+        if all(position in pages for position in positions):
+            self._adopt_home_catalogue(tuple(
+                self._inventory_item_from_store_item(item)
+                for position in positions for item in pages[position]))
 
     def _equipment_town_outcome(self, key: str | None, *, label: str,
                                 effect: str = "transaction-progress") -> str | None:
@@ -2387,7 +2466,9 @@ class EquipmentMixin:
                     item
                     for item in snapshot.inventory
                     if item.is_equipment
-                    and equipment_identity(item) == action.item_identity
+                    and (equipment_identity(item) == action.item_identity
+                         or (action.move_identity is not None
+                             and equipment_move_identity(item) == action.move_identity))
                 ),
                 None,
             )
@@ -2431,16 +2512,29 @@ class EquipmentMixin:
             WAIT_KEY, label="invalid-equip-action",
         )
 
-    def _equipment_departure_ready(self, snapshot: Snapshot) -> bool:
+    def _equipment_departure_destination_depth(self, snapshot: Snapshot) -> int:
+        """Use the planned departure's landing, not the optimizer's ceiling."""
+        destination, dungeon_id = self._town_recall_destination(
+            snapshot, safety_gate=False)
+        return self._dungeon_entry_depth(
+            snapshot, dungeon_id if destination is not None else self._active_dungeon_target(),
+            via_recall=destination is not None)
+
+    def _equipment_departure_ready(
+        self, snapshot: Snapshot, *, destination_depth: int | None = None,
+    ) -> bool:
         """Permit completion now or a recorded loadout with no visit-local work."""
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return True
         # Calibration controls optimization, never ordinary movement. Depth
         # abilities are checked separately from the current ability_sources.
         cacheable = snapshot is self._map_predicate_snapshot
+        depth = (self._equipment_departure_destination_depth(snapshot)
+                 if destination_depth is None else destination_depth)
+        cache_token = (self._decision_sequence, depth)
         if (
             cacheable
-            and self._equipment_departure_cache_token == self._decision_sequence
+            and self._equipment_departure_cache_token == cache_token
         ):
             return self._equipment_departure_cache_value
         preparation = self._prepare_equipment_optimization(snapshot)
@@ -2465,7 +2559,11 @@ class EquipmentMixin:
             and getattr(preparation, "result", None) is not None
             and self._current_worn_loadout_confirmed(snapshot, preparation)
         )
-        ready = complete_now or False
+        optional_ready = self._safe_optional_equipment_failure_departure(
+            snapshot, preparation, destination_depth=depth)
+        if optional_ready:
+            self._stage_optional_equipment_failure_departure(snapshot, depth)
+        ready = complete_now or optional_ready
         if not ready and premise and preparation is not None:
             if (
                 preparation.blockers
@@ -2510,14 +2608,109 @@ class EquipmentMixin:
                     )
                     for owned in incomplete
                 )
-            elif self._equipment_failure_unexecutable_this_visit(
-                snapshot, preparation
-            ):
-                ready = True
         if cacheable:
-            self._equipment_departure_cache_token = self._decision_sequence
+            self._equipment_departure_cache_token = cache_token
             self._equipment_departure_cache_value = ready
         return ready
+
+    def _safe_optional_equipment_failure_departure(
+        self, snapshot, preparation, *, destination_depth=None,
+    ) -> bool:
+        """Check the confirmed current kit without writing a confirmation."""
+        if (self._equipment_transaction_owned_items
+                or self._equipment_transaction_restoring
+                or self._equipment_transaction_restore_remainder
+                or self._equipment_transaction_restore_terminal
+                or self._equipment_transaction_posted_catalog_update is not None
+                or self._home_atomic_withdraw_pending is not None
+                or self._home_atomic_deposit_pending is not None
+                or preparation is None
+                or getattr(getattr(preparation, "transaction", None), "actions", ())
+                or not self._equipment_failure_unexecutable_this_visit(
+                    snapshot, preparation, require_confirmed=False)):
+            return False
+        depth = (self._equipment_departure_destination_depth(snapshot)
+                 if destination_depth is None else destination_depth)
+        if self._missing_required_abilities(snapshot, depth):
+            return False
+        return bool(self._optional_failure_current_loadout(snapshot, preparation))
+
+    def _optional_failure_current_loadout(self, snapshot, preparation):
+        """Validate the observed kit that departure will persist, without I/O."""
+        best = getattr(getattr(preparation, "result", None), "best", None)
+        if (self._equipment_optimizer_input_key is None
+                or self._confirmed_loadout_path is None
+                or (best is not None
+                    and not isinstance(getattr(best, "loadout", None), Loadout))):
+            return frozenset()
+        carried = OwnedEquipmentCatalog()
+        carried.refresh_carried(snapshot.inventory, snapshot.equipment)
+        return current_loadout(carried.items).item_ids
+
+    def _stage_optional_equipment_failure_departure(self, snapshot, depth):
+        """Keep abnormal failure evidence through latch retirement until posting."""
+        record = {
+            "reason": "optional-optimization-failure-confirmed-loadout",
+            "posted": False,
+            "depth": depth,
+            "item_ids": sorted(self._optional_failure_current_loadout(
+                snapshot, self._equipment_optimization_preparation)),
+            "failed_item_ids": sorted(self._equipment_transaction_failed_items),
+        }
+        self._equipment_optional_failure_pending = record
+
+    def _confirm_optional_equipment_failure_departure(self, snapshot, key):
+        """Persist the named outcome only for a posted entry or recall command."""
+        pending = self._equipment_optional_failure_pending
+        if pending is None or snapshot is None or not snapshot.in_town:
+            return
+        if (key.startswith(READ_KEY) and self._read_binding is not None
+                and self._read_binding[:2] == (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)):
+            dungeon_id = self._pending_recall_dungeon_id
+            if dungeon_id is None:
+                # Repetition departure uses the same selector without opening
+                # the ordinary recall watch.
+                destination, dungeon_id = self._town_recall_destination(snapshot)
+                if destination is None:
+                    return
+            depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
+        elif self.last_reason in {"quest:enter", "fixedquest:enter", "quest:enter:approach"}:
+            target = (snapshot.player.position if key == DOWN_STAIRS_KEY
+                      else self._walk_step_target(snapshot, key))
+            if target is None:
+                return
+            grid = snapshot.grid_at(target)
+            if (self.last_reason == "quest:enter:approach"
+                    and (grid is None or not grid.has_quest_enter)):
+                return
+            depth = pending["depth"]
+            if grid is not None and grid.has_quest_enter:
+                info = self._quest_knowledge.get(grid.quest_id)
+                quest = snapshot.quests.get(grid.quest_id)
+                depth = max(1, info.level if info is not None
+                            else quest.level if quest is not None else depth)
+        elif key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
+            depth = self._dungeon_entry_depth(
+                snapshot, self._active_dungeon_target(), via_recall=False)
+        else:
+            return
+        if (self._missing_required_abilities(snapshot, depth)
+                or self._equipment_transaction_owned_items
+                or self._equipment_transaction_restoring
+                or self._equipment_transaction_restore_remainder
+                or self._equipment_transaction_restore_terminal
+                or self._equipment_transaction_posted_catalog_update is not None
+                or self._home_atomic_withdraw_pending is not None
+                or self._home_atomic_deposit_pending is not None
+                or self._equipment_transaction_session is not None):
+            return
+        current_ids = self._optional_failure_current_loadout(
+            snapshot, self._equipment_optimization_preparation)
+        if not current_ids or sorted(current_ids) != pending["item_ids"]:
+            return
+        self._record_confirmed_loadout(snapshot)
+        self._equipment_optional_failure_departure = {**pending, "depth": depth, "posted": True}
+        self._equipment_optional_failure_pending = None
 
     @staticmethod
     def _retained_ammo_slots(snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:
@@ -2876,6 +3069,9 @@ class EquipmentMixin:
         count, and exhaustion at this bound remains terminal.
         """
         limit = self._town_store_visit_limit(STORE_HOME)
+        if self._equipment_transaction_session is not None:
+            if not self._equipment_transaction_home_work():
+                return False
         return (
             self._outstanding_equipment_work()
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME)

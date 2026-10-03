@@ -1411,6 +1411,17 @@ class HomeMixin:
     def _atomic_home_withdraw_key(
         self, snapshot: Snapshot, step: Position
     ) -> str | None:
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        family = ("equipment-txn" if action is not None and action.kind == "withdraw"
+                  else "home-errand" if self._home_errand.active else "home-visit")
+        return self._town_producer_entry(
+            "home-atomic-withdraw", lambda: self._atomic_home_withdraw_dispatch_key(
+                snapshot, step), family=family)
+
+    def _atomic_home_withdraw_dispatch_key(
+        self, snapshot: Snapshot, step: Position
+    ) -> str | None:
         """Bind one catalogued Home take to fresh entry, operation, and exit."""
         if (
             snapshot.store is not None
@@ -1911,6 +1922,9 @@ class HomeMixin:
         only ``_home_candidate_waiting`` leaves no operation for the atomic
         entry composer to post; opening Home cannot repair that omission.
         """
+        if self._defer_town_errand(
+                "home-errand", "bind-identification-catalog", preserve_home_hold=False):
+            return
         if (
             not self._home_candidate_waiting
             or self._home_errand.active
@@ -2085,6 +2099,17 @@ class HomeMixin:
         self._home_errand.observe_knowledge(False)
 
     def _atomic_home_deposit_key(
+        self, snapshot: Snapshot, step: Position,
+    ) -> str | None:
+        session = self._equipment_transaction_session
+        action = session.current_action if session is not None else None
+        family = ("equipment-txn" if action is not None and action.kind == "deposit"
+                  else "home-visit")
+        return self._town_producer_entry(
+            "home-atomic-deposit", lambda: self._atomic_home_deposit_dispatch_key(
+                snapshot, step), family=family)
+
+    def _atomic_home_deposit_dispatch_key(
         self, snapshot: Snapshot, step: Position,
     ) -> str | None:
         """Bind one Home deposit to its stay-entry and exit."""
@@ -2682,7 +2707,10 @@ class HomeMixin:
                 lambda current: target if self._home_disposal_inventory_item(current) is not None else None,
                 "home-disposal:destroy-approved",
             )
-            self._home_disposal_pending = None
+            # Admission can postpone an approved disposal. Retain it until a
+            # command is produced or the item is explicitly rejected.
+            if key is not None or self.last_reason == "inventory:destroy-refused-superior-item":
+                self._home_disposal_pending = None
             if key is None and self.last_reason == "inventory:destroy-refused-superior-item":
                 self.last_reason = "home-disposal:destroy-refused-superior-item"
             return key
@@ -3067,8 +3095,7 @@ class HomeMixin:
         )
 
     def _home_owner_goal_pending(self, snapshot: Snapshot) -> bool:
-        session = self._equipment_transaction_session
-        if session is not None and session.executable and session.required_context is not None:
+        if self._equipment_transaction_home_work():
             return True
         if (
             snapshot.player.class_id == PLAYER_CLASS_WARRIOR

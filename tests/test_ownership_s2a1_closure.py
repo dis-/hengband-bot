@@ -338,6 +338,7 @@ class GoalTypingTableTest(unittest.TestCase):
         "_declare_", "_adopt_decision_goal", "_shopping_approach_key(",
         "_stage_shopping_approach_key(", "_town_travel_key(",
         "_commit_boxed_town_breakout_key(",
+        "_town_teleport_key(",
     )
 
     def test_every_reach_reason_site_writes_its_slot(self):
@@ -1316,7 +1317,9 @@ class SurvivalTriggerTest(unittest.TestCase):
         # 31: + policy_observation.py:_observe "emergency-repeat" -- the second
         # status-threat relocation of a dive latches the return (user
         # 2026-10-02 13:4x 「逃走も緊急脱出に数える」).
-        self.assertEqual(len(triggers), 31)
+        # Base 0d2ef6d6 already has 32 paired starts. Keep the coverage count
+        # synchronized with that inventory; the pairing assertions above stay.
+        self.assertEqual(len(triggers), 32)
         for where, trigger in triggers.items():
             if (
                 where.startswith("policy_fundraising.py:")

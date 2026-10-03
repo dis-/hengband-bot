@@ -172,7 +172,7 @@ def normalize_policy_state(restored, *, restart=False):
     calibration phase.  Physical strip debt is a startup question answered
     once from the persisted calibration file (``cli``), never here.
     """
-    if not restart and restored.__dict__.get("_policy_state_version") == 3:
+    if not restart and restored.__dict__.get("_policy_state_version") == 4:
         return restored
     retire_strip_calibration_state(restored)
     if restart:
@@ -191,6 +191,10 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_remembered_grid_signatures", {})
     restored.__dict__.setdefault("_threat_prediction_memo", {})
     restored.__dict__.setdefault("_map_predicate_snapshot", None)
+    restored.__dict__.setdefault("_equipment_transaction_posted_catalog_update", None)
+    restored.__dict__.setdefault("_equipment_transaction_home_pages", None)
+    restored.__dict__.setdefault("_equipment_optional_failure_departure", None)
+    restored.__dict__.setdefault("_equipment_optional_failure_pending", None)
     restored.__dict__.setdefault("_decision_input_snapshot", None)
     restored.__dict__.setdefault("_town_fact_snapshot", None)
     restored.__dict__.setdefault("_equipment_mutation_counted_board", None)
@@ -412,5 +416,5 @@ def normalize_policy_state(restored, *, restart=False):
     for name, value in defaults.__dict__.items():
         if name not in restored.__dict__:
             restored.__dict__[name] = deepcopy(value)
-    restored._policy_state_version = 3
+    restored._policy_state_version = 4
     return restored

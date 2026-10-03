@@ -29,7 +29,9 @@ plan) is not worth withdrawing.
 One replay of the process through ``CHECKPOINT`` is shared by every pin
 (setUpClass); each pin continues from a deep copy (R4: no board after a
 changed key is used).  Declared walls in ``_step``/``_dump_wall`` and the
-shared prefix replay:
+shared prefix replay (S3.3: current continuation stops at 2870; the Home
+staff site is a DECLARED CONSTRUCTED fresh observer of frozen shelves, not
+its later effect):
 
 - DUMP WALL: the C-sheet dump file is not in the capture, so at each posted
   dump's completion the frozen record matching the board's printed stat key
@@ -90,6 +92,7 @@ LIVE_KEY_WALL = range(2817, 2846)
 CHECKPOINT = 2853
 BUY = 2854
 HOME_WITHDRAW = 2874
+S33_FIRST_CHANGED = 2870
 PERIODIC_REQUESTS = {
     "periodic:character-dump": "request_character_dump",
     "periodic:game-save": "request_game_save",
@@ -279,16 +282,44 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
     def test_home_staff_the_swap_would_release_is_not_withdrawn(self):
         policy = self._resume()
         rows = []
-        # DECLARED WALL (churn fix off): the bot follows the recorded path to
-        # Home (it does not buy at 2854), so the Home board 2874 is recorded.
+        # DECLARED WALL (churn fix off): follow the recorded refusal of the
+        # purchase, only until the first changed approach key at 2870.
         with _dump_wall(), patch.object(
                 HengbotPolicy, "_identify_staff_swap_purchase",
                 lambda _self, _item: False):
-            for index in range(BUY, HOME_WITHDRAW + 1):
+            for index in range(BUY, S33_FIRST_CHANGED + 1):
                 key, reason, board = self._step(policy, index)
                 rows.append((key, reason))
         for offset, row in enumerate(rows[:-1]):
             self.assertEqual(row, self._live(BUY + offset), BUY + offset)
+        # Current and baseline both wait on the existing travel work at
+        # 2870. Stop here: old Home boards are not its observed effects.
+        self.assertEqual(rows[-1], ("5", "shop:travel:await-entry"))
+        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
+        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
+        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
+        # DECLARED CONSTRUCTED fresh observer: independent Magic/Home shelf
+        # facts, no inferred route or command effects from the stopped prefix.
+        # This also avoids the baseline's pre-existing first difference at
+        # 2870 (verified on 0d2ef6d6), which is not a new S3.3 regression.
+        with TemporaryDirectory() as raw:
+            independent_directory = Path(raw)
+            policy = _policy(independent_directory, self.monrace)
+            policy._character_calibration_path.write_bytes(CALIBRATION.read_bytes())
+            for observed_index in (HOME_WITHDRAW,):
+                _decoded, snapshots = _consume_response_sequence(
+                    self.segments[observed_index], policy, lambda _key: True, self.monrace,
+                    knowledge_ledger_path=independent_directory / "knowledge.jsonl")
+                board = snapshots[-1]
+                policy.prime(board)
+            # Prime first: arrival correctly clears previous-town observations.
+            # Then supply only the same-town observed pages from the faithful
+            # prefix, never an owner or substituted readiness result.
+            policy._town_supplier_stock = copy.deepcopy(self.checkpoint._town_supplier_stock)
+            policy._town_supplier_stock_observations = copy.deepcopy(
+                self.checkpoint._town_supplier_stock_observations)
+            with _dump_wall():
+                key = str(policy.choose_key(board))
         self.assertEqual(board.store.store_type, STORE_HOME)
         self.assertIn(3, [item.charges for item in board.store.items
                           if (item.tval, item.sval) == (TVAL_STAFF, SV_STAFF_IDENTIFY)])
@@ -297,11 +328,12 @@ class IdentifyStaffSwapChurnRecordedTest(unittest.TestCase):
              for item in policy._carried_identify_staves(board)],
             [("i", 2, 6), ("j", 1, 3)])
         # First changed key versus live (queue the withdraw): stop here (R4).
-        self.assertNotEqual(rows[-1][1], "home:queue-withdraw-identify-staff-reserve")
-        self.assertEqual(rows[-1], ("\x1b", "home:route-claim-unfulfilled"))
+        self.assertNotEqual(policy.last_reason, "home:queue-withdraw-identify-staff-reserve")
+        self.assertNotEqual(policy.last_reason, "home:atomic-withdraw")
         self.assertIsNone(policy._home_pending_item)
         # A fourth staff of 3 charges fills the cap below 20, so the swap
         # would release it (emptiest) for the 12-charge shelf staff at once.
+        self.assertEqual(policy._identify_staff_store_offer_charges(board), 12)
         self.assertFalse(policy._identify_staff_acquisition_worthwhile(board, 3))
 
 

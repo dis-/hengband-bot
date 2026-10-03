@@ -25,6 +25,7 @@ class EquipmentTransactionObservation:
     operation_outcome: str | None = None
     pack_moves: tuple[tuple[str, int], ...] = ()
     home_moves: tuple[tuple[str, int], ...] = ()
+    equipped_moves: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def create(
@@ -38,6 +39,7 @@ class EquipmentTransactionObservation:
         operation_outcome: str | None = None,
         pack_move_identities: tuple[str, ...] = (),
         home_move_identities: tuple[str, ...] = (),
+        equipped_move_identities: tuple[tuple[str, str], ...] = (),
     ) -> "EquipmentTransactionObservation":
         return cls(
             in_home,
@@ -52,6 +54,7 @@ class EquipmentTransactionObservation:
             tuple(sorted(Counter(
                 home_move_identities or home_identities
             ).items())),
+            tuple(sorted(equipped_move_identities)),
         )
 
     def pack_count(self, identity: str) -> int:
@@ -161,6 +164,62 @@ class EquipmentTransactionSession:
     def discard_prepared(self) -> None:
         self._prepared = None
 
+    def reconcile_carried(self, snapshot: Snapshot) -> bool:
+        """Reconcile an unposted target from the observed pack and worn slots.
+
+        A withdrawal is redundant only when every remaining equip of that
+        physical item is already worn or has a distinct available pack copy.
+        This keeps a second identical ring from borrowing the first copy.
+        Deposits and posted operations still require their own observed effect.
+        """
+        if not self.executable or self.pending_action or self.prepared_action:
+            return False
+        action = self.current_action
+        if action is None or action.kind != "withdraw":
+            return False
+
+        def matches(item):
+            return item.is_equipment and (
+                equipment_move_identity(item) == action.move_identity
+                if action.move_identity else equipment_identity(item) == action.item_identity
+            )
+
+        def worn(target):
+            return any(item.slot == target.target_slot and matches(item)
+                       for item in snapshot.equipment)
+
+        if action.kind == "withdraw":
+            targets = [target for target in self.plan.actions[self.index + 1:]
+                       if target.kind in {"equip", "reposition"}
+                       and ((action.move_identity and target.move_identity == action.move_identity)
+                            or (not action.move_identity and target.item_identity == action.item_identity))]
+            if not targets:
+                return False
+            if any((target.kind == "takeoff" and any(
+                    equip.target_slot == target.target_slot for equip in targets))
+                   or (target.kind == "deposit" and (
+                       target.move_identity == action.move_identity if action.move_identity
+                       else target.item_identity == action.item_identity))
+                   for target in self.plan.actions[self.index + 1:]):
+                return False
+            needed = sum(not worn(target) for target in targets)
+            available = sum(max(1, item.count) for item in snapshot.inventory if matches(item))
+            if available < needed:
+                return False
+        self.index += 1
+        # Only the equips made redundant by this already-satisfied withdrawal
+        # are reconciled. Unrelated planned equip operations retain their own
+        # prepare/post/observation protocol, including Home's existing phases.
+        while (next_action := self.current_action) is not None:
+            if (next_action.kind not in {"equip", "reposition"}
+                    or ((next_action.move_identity != action.move_identity)
+                        if action.move_identity
+                        else (next_action.item_identity != action.item_identity))
+                    or not worn(next_action)):
+                break
+            self.index += 1
+        return True
+
     def prepare(
         self,
         action: EquipmentTransaction,
@@ -269,6 +328,10 @@ class EquipmentTransactionSession:
             )
             return slot_cleared and (reached_pack or shelved_by_home)
         if action.kind in {"equip", "reposition"}:
+            if action.move_identity and getattr(after, "equipped_moves", ()):
+                return (dict(after.equipped_moves).get(action.target_slot) == action.move_identity
+                        and dict(getattr(before, "equipped_moves", ())).get(action.target_slot)
+                        != action.move_identity)
             return (
                 after.equipped_identity(action.target_slot) == action.item_identity
                 and before.equipped_identity(action.target_slot) != action.item_identity
@@ -307,6 +370,9 @@ def observe_equipment_transactions(
         ),
         pack_identities=tuple(pack),
         equipped_identities=equipped,
+        equipped_move_identities=tuple(
+            (item.slot, equipment_move_identity(item)) for item in snapshot.equipment
+            if item.is_equipment),
         home_identities=tuple(home),
         barrier_generation=barrier_generation,
         operation_outcome=operation_outcome,

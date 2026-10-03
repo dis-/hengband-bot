@@ -22,7 +22,15 @@ decision 2026-09-23 (ownership contract): progress is distance plus the
 expected observation, and a strictly falling distance to the claimed goal is
 progress.
 
-Substrate: every recorded decision of the process, replayed through the
+S3.3 migration: the current prefix stops at 1183, where the partial Home
+page must be searched instead of asserting absence. Later guardian sites
+and the walk from 2026 use DECLARED CONSTRUCTED independent baseline-policy
+checkpoints from group 2 (90fca3b7), frozen by
+extract_s33_town_checkpoints.py. They are independent operation substrates,
+not a current continuation or recovered live checkpoints. Every changed-key
+site ends before any following historical effect board is consumed.
+
+Original substrate: every recorded decision of the process, replayed through the
 public response path on one policy (tests/extract_town_approach_retired_
 fixture.py; the calibration file is the one the process loaded).
 Walls, each declared:
@@ -77,6 +85,8 @@ from __future__ import annotations
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 from hengbot.policy import staged_prompt_chain_matches
 import copy
+import base64
+import io
 import gzip
 import hashlib
 import json
@@ -93,6 +103,8 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
 from extraction_calibration import install_extraction_calibration
+from test_store_reentry_recorded import _Unpickler
+from hengbot.policy_state import normalize_policy_state
 
 # overweight-home review P2 (USER DECISION 2026-09-20 「帰還の巻物は目標＋出発で
 # 読む1枚を買う」): the departure recall scroll is now counted, and bought with
@@ -145,6 +157,11 @@ BOUNCE = 1991  # sequence 1988, 06:22:50: 'rh' return:recall from (3, 23)
 PATH = (LATCH - 1, LATCH, KIT_CHANGED - 1, KIT_CHANGED, RECALL, BOUNCE)
 
 
+S33_FIRST_CHANGED = 1183
+S33_CHECKPOINTS = FIXTURES / "town-approach.s33-independent-checkpoints.json.gz"
+S33_CHECKPOINTS_SHA256 = "fe64591abd5fc6ecfd7e74f2170d655741544f3673fe2ba470baa4cb6fd6051a"
+S33_WALK_BEGIN = WALK_START - 10
+
 P2_FIRST = 52  # first decision changed by the P2 departure recall count
 
 
@@ -168,39 +185,11 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             if isinstance(v := claim.get("violation"), dict)
             and v.get("scope") == "S3"
         ]
+        # Only the valid current prefix is a continuous replay. The later
+        # old S3 rows belong to the original baseline construction.
         self.assertEqual(actual, [
             (1177, "owner-change", "equipment-txn", "home-errand"),
-            (1916, "purpose-duplicate", "home-errand", "equipment-txn"),
-            (1922, "owner-change", "home-visit", "home-errand"),
-            # Main's quantity answer keeps this earlier store approach live
-            # when the filed Home knowledge request takes the decision.
-            (1941, "owner-change", "store-router", "home-errand"),
-            (1947, "leave-confirmation-interruption", "shop-buy", "home-errand"),
-            (1948, "plan-handoff", "home-errand", "store-router"),
-            (1957, "leave-confirmation-interruption", "shop-buy", "home-errand"),
-            (1958, "owner-change", "home-errand", "unregistered"),
         ])
-        leave_1958 = next(
-            row["claim"] for row in replay
-            if row["claim"]["decision_sequence"] == 1958
-        )
-        self.assertEqual(
-            leave_1958["barrier_provenance"], "barrier-provenance-missing"
-        )
-        operation = [
-            row["claim"] for row in replay
-            if 1960 <= row["claim"]["decision_sequence"] <= 1962
-        ]
-        self.assertEqual(len({row["claim_id"] for row in operation}), 1)
-        self.assertEqual([row["owner"] for row in operation], ["home-errand"] * 3)
-        observed_shop = next(
-            row["claim"] for row in replay
-            if row["claim"]["decision_sequence"] == 1942
-        )
-        self.assertEqual(
-            observed_shop["closed_claim"]["closed_reason"],
-            "preempted-by:detectors",
-        )
 
     @classmethod
     def setUpClass(cls):
@@ -223,6 +212,12 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         for count in boundaries["input_rows"]:
             cls.starts.append(cls.starts[-1] + count)
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        assert hashlib.sha256(S33_CHECKPOINTS.read_bytes()).hexdigest() == S33_CHECKPOINTS_SHA256
+        independent = json.loads(gzip.decompress(S33_CHECKPOINTS.read_bytes()))
+        assert independent["source_revision"] == "90fca3b7"
+        assert independent["input_sha256"] == FIXTURE_SHA256
+        cls.independent = {int(index): base64.b64decode(data)
+                           for index, data in independent["checkpoints"].items()}
 
     @classmethod
     def _new_policy(cls, directory: Path):
@@ -306,47 +301,78 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     # consume capture-time equipment choices, not unconfirmed new loadouts.
     @frozen_equipment_replay("town")
     def _replay(cls):
-        """Replay the whole recorded process on one policy."""
+        """Current prefix plus explicitly independent later operation sites."""
         if cls.replay is not None:
             return cls.replay
         cls.path = {}
-        # DECLARED WALL (P2, above): pre-P2 departure recall count.
         with TemporaryDirectory() as raw_directory, _pre_p2_departure_count():
             directory = Path(raw_directory)
             policy = cls._new_policy(directory)
             replay = []
-            for index in range(STOP + 1):
+            first = None
+            for index in range(S33_FIRST_CHANGED + 1):
+                snapshot = cls._consume(policy, index, directory)
+                row = cls._decide(policy, snapshot)
+                replay.append(row)
+                live = cls.recorded[index]
+                equivalent_quantity = (index == 1178 and row["key"] == "dm"
+                                       and live["key"] == "dm\r" and row["reason"] == live["reason"])
+                if not equivalent_quantity and (row["key"], row["reason"]) != (live["key"], live["reason"]):
+                    first = index
+                    cls.first_diagnostics = dict(
+                        would_stop=policy._s33_shadow_verdict(snapshot, row["key"])["would_stop"],
+                        declaration_mismatch=row["claim"].get("declaration_mismatch"),
+                        claim_verdict_conflict=row["claim"].get("claim_verdict_conflict"))
+                    break  # No old effect board follows a changed key.
+            assert first == S33_FIRST_CHANGED, first
+
+            def independent(index):
+                policy = _Unpickler(io.BytesIO(cls.independent[index]), cls.monrace).load()
+                old_directory = policy._character_calibration_path.parent
+                for name, value in tuple(vars(policy).items()):
+                    if isinstance(value, Path) and value.is_relative_to(old_directory):
+                        setattr(policy, name, directory / value.relative_to(old_directory))
+                normalize_policy_state(policy)
+                return policy
+
+            for index in PATH:
+                policy = independent(index)
                 snapshot = cls._consume(policy, index, directory)
                 if index == RECALL:
-                    # B1: the fixed town router on the live state and board
-                    # of the 06:22:31 recall, deciding twice on that board.
                     fixed = copy.deepcopy(policy)
                     cls.fixed_recall = []
                     for _decision in range(3):
                         row = cls._decide(fixed, snapshot, live_gate=False)
-                        row.update(
-                            alternate=fixed._alternate_dungeon,
-                            target=fixed._target_dungeon_id,
-                            conquest=fixed._conquest_committed,
-                            forest_selection=fixed._recall_selection_key(
-                                snapshot, FOREST
-                            ),
-                        )
+                        row.update(alternate=fixed._alternate_dungeon,
+                                   target=fixed._target_dungeon_id,
+                                   conquest=fixed._conquest_committed,
+                                   forest_selection=fixed._recall_selection_key(snapshot, FOREST))
                         cls.fixed_recall.append(row)
-                replay.append(cls._decide(policy, snapshot))
-                if index in PATH:
-                    cls.path[index] = (
-                        policy._conquest_committed,
-                        policy._target_dungeon_id,
-                        policy._alternate_dungeon,
-                        policy._guardian_floor_blocked(
-                            snapshot, ORC_CAVE,
-                            snapshot.dungeon_recall_depths[ORC_CAVE],
-                        ),
-                        (snapshot.floor_key[0], snapshot.floor_key[1]),
-                    )
+                cls._decide(policy, snapshot)
+                cls.path[index] = (
+                    policy._conquest_committed, policy._target_dungeon_id,
+                    policy._alternate_dungeon,
+                    policy._guardian_floor_blocked(snapshot, ORC_CAVE,
+                                                  snapshot.dungeon_recall_depths[ORC_CAVE]),
+                    (snapshot.floor_key[0], snapshot.floor_key[1]))
+
+            policy = independent(S33_WALK_BEGIN)
+            cls.walk_replay = {}
+            for index in range(S33_WALK_BEGIN, STOP + 1):
+                snapshot = cls._consume(policy, index, directory)
+                row = cls._decide(policy, snapshot)
+                cls.walk_replay[index] = row
+                if index < STOP:
+                    live = cls.recorded[index]
+                    assert (row["key"], row["reason"]) == (live["key"], live["reason"]), index
             cls.replay = replay
         return cls.replay
+
+    def test_current_missing_item_prefix_ends_with_zero_diagnostics(self):
+        replay = self._replay()
+        self.assertEqual(len(replay), S33_FIRST_CHANGED + 1)
+        self.assertEqual(self.first_diagnostics, dict(
+            would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
 
     # ------------------------------------------------------------ recorded
     def test_recorded_walk_closes_its_claimed_distance_and_is_retired(self):
@@ -412,39 +438,16 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ A1
     def test_replay_reproduces_every_recorded_decision_before_the_stop(self):
         replay = self._replay()
-        # R4: the selected deposits at 1178 (m) and 1906 (n) are singleton
-        # items. The old keys had an unused Return; compare the later frozen
-        # boards modulo only those exact quantity answers. The 1944-1966
-        # stale-gate window and 2051 terminal were already declared below;
-        # in particular 1964-1966 are not new quantity divergences.
-        quantity_keys = {1178: ("dm\r", "dm"), 1906: ("dn\r", "dn")}
-        for index, (old, new) in quantity_keys.items():
-            self.assertEqual(self.recorded[index]["key"], old)
-            self.assertEqual(replay[index]["key"], new)
-            self.assertEqual(replay[index]["reason"], self.recorded[index]["reason"])
-        self.assertEqual(
-            [
-                index
-                for index in range(STOP + 1)
-                if (self.recorded[index]["key"] if index in quantity_keys
-                    else replay[index]["key"], replay[index]["reason"])
-                != (self.recorded[index]["key"], self.recorded[index]["reason"])
-            ],
-            [*STALE_GATE_WINDOW, STOP],
-        )
-        # The declared divergence starts where the stale gate held the
-        # combat-weapon knowledge request back (live: one more approach step).
-        self.assertEqual(
-            (replay[STALE_GATE_FIRST]["key"], replay[STALE_GATE_FIRST]["reason"]),
-            ("~9\x1b\x1b", "home-errand:request-knowledge:combat-weapon"),
-        )
-        self.assertEqual(
-            (
-                self.recorded[STALE_GATE_FIRST]["key"],
-                self.recorded[STALE_GATE_FIRST]["reason"],
-            ),
-            ("9", "shop:approach"),
-        )
+        self.assertEqual(len(replay), S33_FIRST_CHANGED + 1)
+        for index, row in enumerate(replay[:-1]):
+            live = self.recorded[index]
+            expected_key = "dm" if index == 1178 else live["key"]
+            self.assertEqual((row["key"], row["reason"]), (expected_key, live["reason"]), index)
+        self.assertEqual((replay[-1]["key"], replay[-1]["reason"]),
+                         (" ", "equipment-transaction:seek-home-page"))
+        self.assertEqual((self.recorded[S33_FIRST_CHANGED]["key"],
+                          self.recorded[S33_FIRST_CHANGED]["reason"]),
+                         ("\x1b", "equipment-transaction:withdraw-missing"))
 
     def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
         # S2b.2 (record-only): with the switch off every decision above is
@@ -466,7 +469,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
 
     def test_a1_walk_whose_claimed_distance_falls_is_not_retired(self):
         replay = self._replay()
-        walk = replay[WALK_START : STOP + 1]
+        walk = [self.walk_replay[index] for index in range(WALK_START, STOP + 1)]
         # The recorded walk is decided step for step ...
         self.assertEqual(
             [(row["key"], row["reason"]) for row in walk[:-1]],
@@ -485,14 +488,15 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # resumes here under its own id -- where live, before the ladder,
         # opened 924.
         self.assertTrue(walk[0]["claim_resumed"])
+        # Allocation counts before the walk change when observed equipment
+        # reconciliation removes redundant work. Identity is the route held
+        # immediately before the recorded fight, not a fixed global serial.
+        before_fight = self.walk_replay[WALK_START - 8]
+        self.assertEqual(before_fight["producer_owner"], "store-router")
+        self.assertEqual(walk[0]["claim"]["resumed"]["claim_id"], before_fight["claim_id"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
-            # R4's transaction Home steps (1179, 1885, 1893, 1899), the
-            # step-off wrapper (1906), continuation (1907), and resumed
-            # transaction claims (1887, 1895, 1901) account for 902 -> 893.
-            # The explicit shop-observation release keeps the subsequent
-            # resumed walk on the same recorded id as round 6.
-            {(893, "active")},
+            {(before_fight["claim_id"], "active")},
         )
         self.assertEqual(
             [row["claim_distance"] for row in walk], list(range(34, 18, -1))

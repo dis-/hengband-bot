@@ -481,7 +481,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
-        policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
+        policy._town_teleport_key = lambda _snapshot, town_id, **_ownership: f"teleport:{town_id}"
         with patch.object(
             policy_module, "EXECUTABLE_QUEST_STRATEGY_IDS", frozenset({1, 2, 14, 34})
         ):
@@ -529,7 +529,7 @@ class FixedQuestTest(unittest.TestCase):
         with patch.object(policy, "_town_teleport_key", return_value="TO-TELMORA") as travel:
             self.assertEqual(policy._fixed_quest_key(snapshot, []), "TO-TELMORA")
 
-        travel.assert_called_once_with(snapshot, 1)
+        travel.assert_called_once_with(snapshot, 1, producer="quest-request", reason="fixedquest:prepare-return")
         self.assertIsNone(policy._town_travel_rumor_pending)
 
     def test_unknown_fixed_quest_destination_drives_real_rumor_batch(self):
@@ -718,7 +718,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready = lambda _snapshot, _quest_id: True
-        policy._town_teleport_key = lambda _snapshot, town_id: f"teleport:{town_id}"
+        policy._town_teleport_key = lambda _snapshot, town_id, **_ownership: f"teleport:{town_id}"
 
         self.assertEqual(
             policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]),
@@ -730,7 +730,7 @@ class FixedQuestTest(unittest.TestCase):
         snapshot = replace(self._telmora_q2_snapshot(QUEST_STATUS_UNTAKEN), quests={})
         policy = HengbotPolicy(self._town_map())
         policy._town_teleport_key = (
-            lambda _snapshot, town_id: "home" if town_id == 0 else None
+            lambda _snapshot, town_id, **_ownership: "home" if town_id == 0 else None
         )
 
         self.assertEqual(policy._fixed_quest_key(snapshot, []), "home")
@@ -745,7 +745,7 @@ class FixedQuestTest(unittest.TestCase):
         policy.approved_quest_strategy = lambda _quest_id: object()
         policy._fixed_quest_ready_for_travel = lambda _snapshot, _quest_id: True
         policy._town_teleport_key = (
-            lambda _snapshot, town_id: f"teleport:{town_id}"
+            lambda _snapshot, town_id, **_ownership: f"teleport:{town_id}"
         )
 
         self.assertEqual(policy._fixed_quest_key(snapshot, []), "teleport:1")
@@ -908,7 +908,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy._telmora_q2_errand = True
         policy.approved_quest_strategy = lambda _quest_id: None
-        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+        policy._town_teleport_key = lambda _snapshot, town_id, **_ownership: "a" if town_id == 0 else None
 
         self.assertEqual(policy._telmora_q2_travel_key(snapshot, snapshot.quests[2]), "a")
 
@@ -917,7 +917,7 @@ class FixedQuestTest(unittest.TestCase):
         policy = HengbotPolicy(self._town_map())
         policy._telmora_q2_errand = True
         policy.approved_quest_strategy = lambda _quest_id: None
-        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+        policy._town_teleport_key = lambda _snapshot, town_id, **_ownership: "a" if town_id == 0 else None
 
         self.assertEqual(policy._fixed_quest_key(snapshot, []), "a")
 
@@ -925,7 +925,7 @@ class FixedQuestTest(unittest.TestCase):
         snapshot = self._telmora_q2_snapshot(5)
         policy = HengbotPolicy(self._town_map())
         policy.approved_quest_strategy = lambda _quest_id: object()
-        policy._town_teleport_key = lambda _snapshot, town_id: "a" if town_id == 0 else None
+        policy._town_teleport_key = lambda _snapshot, town_id, **_ownership: "a" if town_id == 0 else None
 
         self.assertEqual(policy._fixed_quest_key(snapshot, []), "a")
 
@@ -2181,7 +2181,7 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
             self.assertTrue(policy._fixed_quest_ready_for_travel(snapshot, 22))
             self.assertEqual(policy._fixed_quest_key(snapshot, []), "TO-ANGWIL")
 
-        travel.assert_called_once_with(snapshot, 3)
+        travel.assert_called_once_with(snapshot, 3, producer="quest-request", reason="fixedquest:prepare-return")
 
     def test_q22_and_q31_reward_tiles_are_dedicated(self):
         policy = HengbotPolicy()
@@ -5417,7 +5417,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ) as travel:
             self.assertEqual(policy._fixed_quest_key(snapshot, []), "TRAVEL")
 
-        travel.assert_called_once_with(snapshot, 0)
+        travel.assert_called_once_with(snapshot, 0, producer="quest-request", reason="fixedquest:prepare-return")
         self.assertEqual(policy.last_reason, "fixedquest:prepare-return")
 
     def test_unready_q22_does_not_leave_base_town(self):
@@ -5563,7 +5563,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ) as travel:
             self.assertEqual(policy._fixed_quest_key(snapshot, []), "HOME")
 
-        travel.assert_called_once_with(snapshot, 0)
+        travel.assert_called_once_with(snapshot, 0, producer="quest-request", reason="fixedquest:prepare-return")
         self.assertEqual(policy.last_reason, "fixedquest:prepare-return")
 
     def test_ready_q22_travels_to_quest_town(self):
@@ -5596,7 +5596,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ) as travel:
             self.assertEqual(policy._fixed_quest_key(snapshot, []), "TRAVEL")
 
-        travel.assert_called_once_with(snapshot, 3)
+        travel.assert_called_once_with(snapshot, 3, producer="quest-request", reason="fixedquest:prepare-return")
         self.assertEqual(policy.last_reason, "fixedquest:q22-travel")
 
     def test_q2_lights_route_after_opening_fight_before_gremlin_is_visible(self):

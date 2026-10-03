@@ -893,11 +893,8 @@ class ShopMixin(InStoreMixin):
                 "equipment-work",
                 "post-alchemist-home" if post_alchemist_home else "home-first",
             ))
-        session = self._equipment_transaction_session
         if (
-            session is not None
-            and session.executable
-            and session.required_context is not None
+            self._equipment_transaction_home_work()
             and not any(claim.category == "equipment-transaction" for claim in claims)
         ):
             claims.append(TownNeed(
@@ -1145,9 +1142,7 @@ class ShopMixin(InStoreMixin):
                 self._town_visit_ledger.drift_warnings.append(warning)
                 warned.add(warning)
         if (
-            self._equipment_transaction_session is not None
-            and self._equipment_transaction_session.executable
-            and self._equipment_transaction_session.required_context is not None
+            self._equipment_transaction_home_work()
             and STORE_HOME not in self._town_store_attempted
         ):
             needs.append(TownNeed(STORE_HOME, "equipment-transaction", "home-first"))
@@ -1576,7 +1571,7 @@ class ShopMixin(InStoreMixin):
             if next_town in expedition.tried_towns or next_town == current:
                 continue
             expedition.target_town_id = next_town
-            key = self._town_teleport_key(snapshot, next_town)
+            key = self._town_teleport_key(snapshot, next_town, producer="cross-town", reason="town:cross-town-shopping")
             if key is not None:
                 self.last_reason = f"town:cross-town-shopping:travel-{next_town}"
                 self._adopt_decision_goal()

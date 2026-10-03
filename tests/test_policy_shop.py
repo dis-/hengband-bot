@@ -55,6 +55,7 @@ except ModuleNotFoundError:
 import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
+from hengbot.equipment_transaction_session import EquipmentTransactionObservation
 
 from hengbot.home_errand import HomeErrandRequest
 
@@ -6164,7 +6165,9 @@ class TownErrandPlanTest(unittest.TestCase):
         policy._equipment_optimization_preparation = SimpleNamespace(
             blockers=(), result=object(),
         )
-        policy._equipment_transaction_session = SimpleNamespace(complete=False)
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((policy_module.EquipmentTransaction(
+                policy_module.PHASE_HOME_PREPARE, "withdraw", "home-target"),), (), 1))
 
         self.assertTrue(policy._outstanding_equipment_work())
         self.assertEqual(
@@ -6765,12 +6768,9 @@ class TownErrandPlanTest(unittest.TestCase):
         needs = [TownNeed(STORE_GENERAL, "food", "normal")]
         policy = self._policy(needs)
         snapshot = self._snapshot(turn=512170)
-        policy._equipment_transaction_session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-        )
+        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
+            policy_module.EquipmentTransactionPlan((policy_module.EquipmentTransaction(
+                policy_module.PHASE_HOME_PREPARE, "withdraw", "home-target"),), (), 1))
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         for _ in range(CALIBRATION_HOME_VISIT_LIMIT):
@@ -6789,18 +6789,30 @@ class TownErrandPlanTest(unittest.TestCase):
     def test_transaction_deposit_then_withdraw_keeps_home_owner_between_visits(self):
         policy = self._policy([])
         snapshot = self._snapshot(turn=512170)
-        session = SimpleNamespace(
-            executable=True,
-            required_context="home",
-            pending_action=None,
-            current_action=None,
-        )
+        # DECLARED CONSTRUCTED physical deposit/equip/withdraw sequence; the
+        # subject is the router's projection of its actual current action.
+        session = policy_module.EquipmentTransactionSession(policy_module.EquipmentTransactionPlan((
+            policy_module.EquipmentTransaction(policy_module.PHASE_HOME_PREPARE,
+                "deposit", "pack-old", item_identity="old"),
+            policy_module.EquipmentTransaction(policy_module.PHASE_EQUIP,
+                "equip", "pack-new", "body", "new"),
+            policy_module.EquipmentTransaction(policy_module.PHASE_HOME_PREPARE,
+                "withdraw", "home-next", item_identity="next"),
+        ), (), 1))
         policy._equipment_transaction_session = session
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
-        session.required_context = "outside_home"  # deposit confirmed; equip next
+        self.assertTrue(session.dispatch(session.current_action,
+            EquipmentTransactionObservation.create(in_home=True, pack_identities=("old", "new"))))
+        self.assertTrue(session.observe(EquipmentTransactionObservation.create(
+            in_home=True, pack_identities=("new",), home_identities=("old",))))
+        self.assertEqual(session.required_context, "outside_home")
         policy._report_town_stop_pass(snapshot, STORE_HOME, goal_satisfied=False)
-        session.required_context = "home"  # later withdrawal in the same transaction
+        self.assertTrue(session.dispatch(session.current_action,
+            EquipmentTransactionObservation.create(in_home=False, pack_identities=("new",))))
+        self.assertTrue(session.observe(EquipmentTransactionObservation.create(
+            in_home=False, equipped_identities=(("body", "new"),))))
+        self.assertEqual(session.required_context, "home")
 
         self.assertEqual(policy._next_required_store_type(snapshot), STORE_HOME)
         self.assertEqual(

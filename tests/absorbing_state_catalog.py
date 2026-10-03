@@ -567,7 +567,12 @@ def _captured_departure_unsatisfiable():
     )
     if (
         false_leaves
-        != {"equipment_departure_ready", "home_candidate_resolved"}
+        != {"home_candidate_resolved"}
+        or policy.equipment_optimization_state().get("optional_failure_departure", {}).get("reason")
+        != "optional-optimization-failure-confirmed-loadout"
+        # Admission now validates the observed kit without persisting it. The
+        # confirmation file is written when the departure command is posted.
+        or not policy._safe_optional_equipment_failure_departure(outside, preparation)
         or tuple(preparation.blockers) != ("equipment-transaction-failed",)
         or failed_items
         != {"identity:e4cc76ab18be2ac6", "pack:e4cc76ab18be2ac6:0"}
@@ -575,7 +580,7 @@ def _captured_departure_unsatisfiable():
         or policy._town_visit_ledger.unsatisfied_passes[STORE_HOME] != 20
         or policy._town_visit_ledger.approach_fails[STORE_HOME] != 0
     ):
-        raise AssertionError("captured departure seal no longer reproduces")
+        raise AssertionError(f"captured current-loadout outcome changed: {false_leaves}")
 
     producer_key = policy.choose_key(inside)
     policy.confirm_key_posted(producer_key)
@@ -585,7 +590,12 @@ def _captured_departure_unsatisfiable():
     ):
         raise AssertionError("captured final Home decision no longer replays")
     world = CapturedDepartureWorld(outside)
-    world.captured_false_leaves = false_leaves
+    # Historical gate inventory verified by replay on base 0d2ef6d6. The
+    # October 3 user decision now permits the recorded optional-failure kit;
+    # the real current gate above must prove that outcome, not reproduce the
+    # obsolete equipment_departure_ready=false verdict.
+    world.captured_false_leaves = {"equipment_departure_ready", "home_candidate_resolved"}
+    world.current_false_leaves = false_leaves
     world.captured_failed_items = failed_items
     world.legacy_clause_five = legacy_clause_five
     world.producer_key = producer_key
