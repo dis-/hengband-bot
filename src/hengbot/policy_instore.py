@@ -466,6 +466,17 @@ class InStoreMixin:
                     "reason": self.last_reason,
                 }
             return None
+        return self._in_store_commit_operation(snapshot, key)
+
+    def _in_store_commit_operation(self, snapshot: Snapshot, key: str) -> str:
+        """Bind every direct store-page operation, including Home surplus sales."""
+        store = snapshot.store
+        visit = self._store_visit
+        if self._in_store_entry_ledger is None:
+            self._in_store_entry_ledger = {
+                "store": store.store_type, "opened_sequence": visit.opened_sequence,
+                "ops": 0, "pending": None, "ended": False,
+            }
         reason = (
             IN_STORE_BUY_REASON if key.startswith(BUY_KEY)
             else IN_STORE_SELL_REASON if key.startswith(SELL_KEY)
@@ -504,6 +515,14 @@ class InStoreMixin:
             self._shop_observation = None
         self._in_store_shop_fallback = None
         self.last_reason = reason
+        self._offer_execution(
+            key, producer=family,
+            work_id=f"store-page:{store.store_type}:{self._decision_sequence}:{reason}",
+            next_step=("shop.purchase.send" if key.startswith(BUY_KEY)
+                       else "shop.sale.send" if key.startswith(SELL_KEY) else "shop.page.send"),
+            arguments=(store.store_type,),
+            expected_effect="store-page-effect" if key.startswith("{") else "inventory/gold-effect",
+            continuation="shop.page.observe", budget_ref="store-visit-existing-budget")
         self._record_shop_selector_diagnostics(snapshot, key)
         self._in_store_note("operation", {"key": key, "reason": reason,
                                           "ops": ledger["ops"]})
@@ -522,9 +541,13 @@ class InStoreMixin:
             # it must not advertise an input tail still owning this exit.
             visit.operation_posted = False
         self.last_reason = reason
+        family = (visit.operation_producer_family
+                  if reason == IN_STORE_DONE_REASON and visit is not None
+                  and visit.operation_producer_family in {"shop-buy", "shop-sell"}
+                  else "shop-buy" if reason == IN_STORE_DONE_REASON else "store-router")
         self._offer_execution(
             LEAVE_STORE_KEY,
-            producer="shop-buy" if reason == IN_STORE_DONE_REASON else "store-router",
+            producer=family,
             work_id="shop:in-store-leave",
             next_step="store.leave.send",
             arguments=(snapshot.store.store_type,),
