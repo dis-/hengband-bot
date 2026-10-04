@@ -1,0 +1,70 @@
+test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) ... 
+  test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) (cooldown=False) ... FAIL
+  test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) (cooldown=True) ... FAIL
+test_cancels_deep_recall_when_loadout_is_not_confirmed (test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cancels_deep_recall_when_loadout_is_not_confirmed) ... FAIL
+test_active_recall_is_not_cancelled_only_because_scroll_was_consumed (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_only_because_scroll_was_consumed) ... FAIL
+test_active_recall_is_not_cancelled_to_strand_uncompared_weapon (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_to_strand_uncompared_weapon) ... FAIL
+
+======================================================================
+FAIL: test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) (cooldown=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_equipment.py", line 1441, in test_mining_walk_in_ignores_prior_floor_descent_cooldown
+    self.assertEqual(pol.choose_key(snap), "\x1b`n>.")
+AssertionError: '6' != '\x1b`n>.'
+- 6
++ `n>.
+
+
+======================================================================
+FAIL: test_mining_walk_in_ignores_prior_floor_descent_cooldown (test_policy_equipment.EntranceTravelTest.test_mining_walk_in_ignores_prior_floor_descent_cooldown) (cooldown=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_equipment.py", line 1441, in test_mining_walk_in_ignores_prior_floor_descent_cooldown
+    self.assertEqual(pol.choose_key(snap), "\x1b`n>.")
+AssertionError: '6' != '\x1b`n>.'
+- 6
++ `n>.
+
+
+======================================================================
+FAIL: test_cancels_deep_recall_when_loadout_is_not_confirmed (test_policy_equipment.GlobalEquipmentOptimizationOwnershipTest.test_cancels_deep_recall_when_loadout_is_not_confirmed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_equipment.py", line 3645, in test_cancels_deep_recall_when_loadout_is_not_confirmed
+    self.assertEqual(blockers, ["deep-loadout-unconfirmed"])
+AssertionError: Lists differ: ['food-shortage', 'deep-loadout-unconfirmed'] != ['deep-loadout-unconfirmed']
+
+First differing element 0:
+'food-shortage'
+'deep-loadout-unconfirmed'
+
+First list contains 1 additional elements.
+First extra element 1:
+'deep-loadout-unconfirmed'
+
+- ['food-shortage', 'deep-loadout-unconfirmed']
+?  -----------------
+
++ ['deep-loadout-unconfirmed']
+
+======================================================================
+FAIL: test_active_recall_is_not_cancelled_only_because_scroll_was_consumed (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_only_because_scroll_was_consumed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_equipment.py", line 1150, in test_active_recall_is_not_cancelled_only_because_scroll_was_consumed
+    self.assertIsNone(pol._town_cancel_unsafe_recall_key(snap))
+AssertionError: 'rr' is not None
+
+======================================================================
+FAIL: test_active_recall_is_not_cancelled_to_strand_uncompared_weapon (test_policy_equipment.WeaponSaleTest.test_active_recall_is_not_cancelled_to_strand_uncompared_weapon)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-suitefix3\validation\suitefix3\source-52b76a0d\tests\test_policy_equipment.py", line 1139, in test_active_recall_is_not_cancelled_to_strand_uncompared_weapon
+    self.assertIsNone(pol._town_cancel_unsafe_recall_key(snap))
+AssertionError: 'rr' is not None
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.030s
+
+FAILED (failures=5)

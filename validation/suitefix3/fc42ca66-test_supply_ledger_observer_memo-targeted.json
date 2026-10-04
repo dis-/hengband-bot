@@ -1,0 +1,12 @@
+{
+  "revision": "fc42ca66",
+  "module": "test_supply_ledger_observer_memo",
+  "tests": 1,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "elapsed": 3.078,
+  "identities": {
+    "test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes": "PASS"
+  }
+}

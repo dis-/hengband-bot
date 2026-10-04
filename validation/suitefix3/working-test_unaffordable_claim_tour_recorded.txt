@@ -1,0 +1,14 @@
+test_root_cause_claims_on_the_post_purchase_board (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_root_cause_claims_on_the_post_purchase_board) ... ok
+test_s0_replay_stops_at_first_changed_equipment_choice (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_s0_replay_stops_at_first_changed_equipment_choice)
+Recorded boards are authoritative only until the first changed key. ... ok
+test_s2a1_observe_goals_complete_on_their_confirmed_effect (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_s2a1_observe_goals_complete_on_their_confirmed_effect)
+S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime. ... ok
+test_s3_new_code_replay_names_remaining_violations (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_s3_new_code_replay_names_remaining_violations) ... ok
+test_u1_after_the_healing_purchase_the_bot_departs (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u1_after_the_healing_purchase_the_bot_departs) ... ok
+test_u2_affordable_optional_purchases_still_happen (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u2_affordable_optional_purchases_still_happen) ... ok
+test_u3_required_supply_claims_are_not_released (test_unaffordable_claim_tour_recorded.UnaffordableClaimTourRecordedTest.test_u3_required_supply_claims_are_not_released) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 662.490s
+
+OK

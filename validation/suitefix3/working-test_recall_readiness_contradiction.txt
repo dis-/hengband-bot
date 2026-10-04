@@ -1,0 +1,12 @@
+test_p4a_four_slot_certificate_has_no_pack_blocker (test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4a_four_slot_certificate_has_no_pack_blocker)
+Incident-shaped differential: HEAD pack-too-full; patch none; E1 revert HEAD. ... ok
+test_p4b_future_contradiction_stops_before_read (test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4b_future_contradiction_stops_before_read)
+SEAM supplies a future blocker and true conjunct map; E1 makes old incident blocker dormant. ... ok
+test_p4c_contradiction_terminal_is_registered_with_exact_banner (test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p4c_contradiction_terminal_is_registered_with_exact_banner) ... ok
+test_p6_self_restore_refusal_preserves_shortage (test_recall_readiness_contradiction.RecallReadinessContradictionTest.test_p6_self_restore_refusal_preserves_shortage)
+SEAM supplies binding and typed selection because E2 makes this proposal dormant. ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.007s
+
+OK

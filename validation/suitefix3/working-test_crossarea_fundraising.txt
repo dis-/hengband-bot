@@ -1,0 +1,18 @@
+test_captured_29_30_pair_has_unchanged_normal_food_premise (test_crossarea_fundraising.CrossAreaFundraisingTest.test_captured_29_30_pair_has_unchanged_normal_food_premise) ... ok
+test_captured_floor_does_not_immediately_ascend_with_active_purpose (test_crossarea_fundraising.CrossAreaFundraisingTest.test_captured_floor_does_not_immediately_ascend_with_active_purpose) ... ok
+test_checkpoint_keeps_waiver_and_legacy_checkpoint_gets_defaults (test_crossarea_fundraising.CrossAreaFundraisingTest.test_checkpoint_keeps_waiver_and_legacy_checkpoint_gets_defaults) ... ok
+test_fresh_attachment_needs_save_backed_first_run_evidence (test_crossarea_fundraising.CrossAreaFundraisingTest.test_fresh_attachment_needs_save_backed_first_run_evidence) ... ok
+test_home_copy_and_affordable_shop_prevent_first_run_waiver (test_crossarea_fundraising.CrossAreaFundraisingTest.test_home_copy_and_affordable_shop_prevent_first_run_waiver) ... ok
+test_live_1710_to_1712_posts_departure_only_after_final_arbitration (test_crossarea_fundraising.CrossAreaFundraisingTest.test_live_1710_to_1712_posts_departure_only_after_final_arbitration) ... ok
+test_magic_shop_uses_home_device_before_affordable_ware (test_crossarea_fundraising.CrossAreaFundraisingTest.test_magic_shop_uses_home_device_before_affordable_ware) ... ok
+test_missing_transport_grant_stops_before_dungeon_work (test_crossarea_fundraising.CrossAreaFundraisingTest.test_missing_transport_grant_stops_before_dungeon_work) ... ok
+test_restart_without_purpose_leaves_the_floor (test_crossarea_fundraising.CrossAreaFundraisingTest.test_restart_without_purpose_leaves_the_floor) ... ok
+test_suppressed_restock_still_checks_shared_admission (test_crossarea_fundraising.CrossAreaFundraisingTest.test_suppressed_restock_still_checks_shared_admission) ... ok
+test_transport_completion_keeps_economic_purpose_open (test_crossarea_fundraising.CrossAreaFundraisingTest.test_transport_completion_keeps_economic_purpose_open) ... ok
+test_waiver_is_first_run_only_and_hunger_still_returns (test_crossarea_fundraising.CrossAreaFundraisingTest.test_waiver_is_first_run_only_and_hunger_still_returns) ... ok
+test_wrong_destination_fails_purpose_and_bars_readmission (test_crossarea_fundraising.CrossAreaFundraisingTest.test_wrong_destination_fails_purpose_and_bars_readmission) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 10.994s
+
+OK

@@ -1,0 +1,18 @@
+test_assert_equal_scope_is_withdrawn_honestly (test_test_fakery_lint.TestEvasionRewrites.test_assert_equal_scope_is_withdrawn_honestly) ... ok
+test_policy_subclass_path_override_is_caught (test_test_fakery_lint.TestEvasionRewrites.test_policy_subclass_path_override_is_caught) ... ok
+test_repository_idiom_evasions_are_caught (test_test_fakery_lint.TestEvasionRewrites.test_repository_idiom_evasions_are_caught) ... ok
+test_seven_rewrites_remain_caught (test_test_fakery_lint.TestEvasionRewrites.test_seven_rewrites_remain_caught) ... ok
+test_source_text_check_does_not_taint_behavioural_assertions (test_test_fakery_lint.TestEvasionRewrites.test_source_text_check_does_not_taint_behavioural_assertions) ... ok
+test_source_text_only_assertions_are_caught (test_test_fakery_lint.TestEvasionRewrites.test_source_text_only_assertions_are_caught) ... ok
+test_real_historical_sites_fire_undeclared (test_test_fakery_lint.TestHistoricalFakerySites.test_real_historical_sites_fire_undeclared) ... ok
+test_capture_dependency_lint_rejects_real_directory_not_fixture (test_test_fakery_lint.TestTreeFakeryLint.test_capture_dependency_lint_rejects_real_directory_not_fixture) ... ok
+test_inline_exception_count_is_ratcheted (test_test_fakery_lint.TestTreeFakeryLint.test_inline_exception_count_is_ratcheted) ... ok
+test_lost_substrate_skip_count_is_pinned (test_test_fakery_lint.TestTreeFakeryLint.test_lost_substrate_skip_count_is_pinned) ... ok
+test_tree_has_no_recorder_owned_capture_reads (test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_no_recorder_owned_capture_reads) ... ok
+test_tree_has_only_catalogued_undeclared_shapes (test_test_fakery_lint.TestTreeFakeryLint.test_tree_has_only_catalogued_undeclared_shapes) ... ok
+test_two_invalid_declarations_were_fixed_not_moved (test_test_fakery_lint.TestTreeFakeryLint.test_two_invalid_declarations_were_fixed_not_moved) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 78.587s
+
+OK

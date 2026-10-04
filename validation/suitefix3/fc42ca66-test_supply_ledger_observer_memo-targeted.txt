@@ -1,0 +1,7 @@
+test_memo_inputs_cover_every_ledger_input_the_capture_writes (test_supply_ledger_observer_memo.SupplyLedgerObserverMemoTest.test_memo_inputs_cover_every_ledger_input_the_capture_writes)
+Static scan: what the facts evaluators can write vs what the ledger ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.064s
+
+OK

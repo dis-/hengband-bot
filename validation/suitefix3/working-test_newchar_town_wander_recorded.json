@@ -1,0 +1,18 @@
+{
+  "revision": "working",
+  "module": "test_newchar_town_wander_recorded",
+  "tests": 5,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "unexpected_successes": 0,
+  "elapsed": 3.047,
+  "identities": {
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback": "PASS",
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_purchase_was_affordable_and_completed_before_wander": "PASS",
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_recorded_wander_entered_the_building": "PASS",
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_restored_exhausted_plan_keeps_the_fallback_owner": "PASS",
+    "test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_wander_skips_recorded_building_and_store_entrances": "PASS"
+  }
+}

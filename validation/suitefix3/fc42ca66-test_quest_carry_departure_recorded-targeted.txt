@@ -1,0 +1,6 @@
+test_recorded_stockout_releases_ordinary_departure_at_blocked_board (test_quest_carry_departure_recorded.QuestCarryDepartureRecordedTest.test_recorded_stockout_releases_ordinary_departure_at_blocked_board) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.433s
+
+OK

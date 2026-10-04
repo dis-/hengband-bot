@@ -1,0 +1,6 @@
+test_exhausted_partial_kit_resolves_to_fundraising_fallback (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.208s
+
+OK

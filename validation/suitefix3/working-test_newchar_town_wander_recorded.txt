@@ -1,0 +1,10 @@
+test_exhausted_partial_kit_resolves_to_fundraising_fallback (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_exhausted_partial_kit_resolves_to_fundraising_fallback) ... ok
+test_purchase_was_affordable_and_completed_before_wander (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_purchase_was_affordable_and_completed_before_wander) ... ok
+test_recorded_wander_entered_the_building (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_recorded_wander_entered_the_building) ... ok
+test_restored_exhausted_plan_keeps_the_fallback_owner (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_restored_exhausted_plan_keeps_the_fallback_owner) ... ok
+test_wander_skips_recorded_building_and_store_entrances (test_newchar_town_wander_recorded.NewCharacterTownWanderRecorded.test_wander_skips_recorded_building_and_store_entrances) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 3.039s
+
+OK
