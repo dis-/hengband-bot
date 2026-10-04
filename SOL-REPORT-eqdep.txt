@@ -1,0 +1,136 @@
+S3.3 equipment deposit ownership — 2026-10-04
+
+Result: fixed both ownership defects in equipment-deposit-owner-1004, based
+on fc42ca66. Implementation commit:
+80059a30bb843f4b334c80eadf96190eb93f0987
+Preserve equipment deposit ownership through full Home relief
+This report and the verification transcripts are committed separately under
+"Record equipment deposit ownership incident evidence".
+No push. All writes were confined to this worktree. No game/bot start or stop,
+and no changes to other worktrees or the live jsonlog directory.
+
+First divergences and causes (line numbers are 1-based JSONL rows)
+
+1. The hypothesis that the initial equipment deposit and later Home deposit
+were the same item is false. In decisions-1.upto-1441.jsonl.gz:13212, turn
+8404500, dl deposits pack:2af14dff48ab3c0c:0. Row 13213 records advancement to
+pack:c981fe7d3be0b0ad:0 in the same target session 979a8be714ff9a5f. The first
+deposit therefore succeeded; the queued second deposit retained its owner.
+The first overlapping deposit command is row 13223, turn 8405077: Home emits
+dl ESC for that queued c981 item, under home-visit, while the equipment session
+still names it as transaction_next. Row 13225 then reports deposit-missing;
+13226 visibly blocks on deposit-item-missing:pack:c981fe7d3be0b0ad:0.
+Rows 13215–13222 are the prerequisite shelf withdrawal, sale, census and route.
+
+The second incident is the same ownership defect with a new session, not an
+unobserved first deposit. In decisions-1436-1447.jsonl:2587, turn 8440873, dq
+deposits pack:6b70b256b875a935:0. Row 2588 records successful deposit messages
+and a completed session. state-upto-1447.jsonl.gz:744–745 independently shows
+pack size 19 -> 18 and Home stock 239 -> 240. Decision row 2591 already has a
+different queued deposit, pack:10a5a853ae65a169:0, session 3095d6510b26260b.
+The first overlapping command is row 2600, turn 8441267: Home emits dp ESC
+while that equipment deposit remains queued. State rows 774–775 show the
+actual pack and Home effect (17 -> 16; 238 -> 239). Decision rows 2602–2603
+then report the missing item and visible blocked condition.
+
+Code cause: the full-Home retry selector admitted a queued equipment deposit;
+the atomic composer explicitly replaced the session with None when retry
+entries existed, and the open-page composer exempted retries from its session
+exclusion. Home consequently consumed the pack effect without ever posting
+that action in the equipment session's prepare/post/observe ledger.
+
+2. The first declaration divergence is decision row 13213: the equipment
+owner's Home exit replaces equipment.next-action with store.leave.send and
+no continuation. Posting ESC leaves an awaiting declaration with nowhere to
+resume. Row 13214, turn 8404505, then reports
+ownership:declaration-stale:equipment-txn on home:request-knowledge-scan.
+The same loss occurs at row 13274, with the stale verdict at row 13275,
+turn 8406506, on home-errand:request-knowledge:identification-catalog.
+For that latter seam the archived
+autorecover-20261004-143915-stuck-prompt-town-recall-to-alt-dungeon.bot-state-fixed.jsonl.gz
+rows 48–50 show the full Home and unchanged pack after the attempted deposit;
+the pending equipment action must remain owned until an observed effect or
+the existing explicit terminal outcome.
+
+Row 13238, turn 8405171, is a separate terminal declaration divergence:
+confirmation-stall-bound abandons the session before releasing its previous
+Observe goal. Final validation/shadow still sees claim 27's acting observation
+declaration, whereas the terminal producer offers different work. The row
+records both declaration-stale and an equipment-txn -> equipment-txn retarget
+violation. Recomputing shadow after claim recording would hide this failure;
+the regression asserts the saved decision_claim.s33_shadow verdict itself.
+Confirmed session actions also previously refreshed declarations only for
+reconciled withdrawals, not ordinary observed action advancement.
+
+Fixes
+
+- Retry selection excludes all remaining equipment-session deposit identities,
+  using physical move identity when available. Existing capacity-relief
+  selection still sees the complete pack and retains sell-surplus-first rules.
+- After relief/census, remove those identities from Home's retry ledger and
+  dispatch the original equipment owner. Preserve unrelated Home retry entries
+  until equipment work finishes. Atomic/open-page paths cannot bypass a session.
+- Refresh the equipment owner's continuation after observed advancement;
+  preserve equipment.next-action across its posted Home context exit.
+- At the existing confirmation-stall termination, explicitly release the old
+  equipment Observe goal before abandoning the session and declaring terminal
+  work. The existing stop remains visible. No new attempt/time guards, no
+  relaxed validators, no new optional-departure exception, and no resistance,
+  speed, loadout scoring or disposal preference changes.
+
+Pins and evidence limits
+
+tests/fixtures/equipment-deposit-owner-20261004.json.gz preserves cited decision
+rows, boards and the real 8441081 Home census; embedded provenance records
+each source filename/row. SHA256:
+4b52ed1f601bc6cd04ee07968518cd4b1b83baeba085126f615ac0c7de2e092b
+
+No onset policy checkpoint exists. Session/declaration ledgers are explicitly
+reconstructed. The supplied state copies have a gap at 8404500–8405171:
+state-upto-1344 ends at 8403902; state-upto-1447 starts at 8433923; the nearby
+14:39 archive starts at 8405363. First-incident tests therefore use the actual
+8403902 item board with explicitly constructed effects, not invented captured
+boards. Neutral residents are omitted where their monster catalogue is absent;
+protocol 2 suppresses unrelated startup knowledge. The second deposit uses
+the exact before/after boards and census and confirms the same dp effect.
+Tests stop at the asserted action/effect seam; they do not replay later
+historical effects after changed commands.
+
+Verification
+
+Codex bundled Python 3.12.14:
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+PYTHONPATH=src;tests, python -m unittest <module/class>, sequential execution.
+Final results (SOL-TESTS-eqdep.txt contains the complete transcript):
+  test_equipment_deposit_owner_recorded                         7 passed
+  test_home_full_relief_recorded                                4 passed
+  test_home_route_release_recorded                             5 passed
+  test_s33_phase2_equipment                                    1 passed
+  test_policy_home.HomeOneOperationPerEntryTest                83 passed
+  test_policy_equipment.EquipmentTransactionOwnershipRegressionTest
+                                                              19 passed
+Total: 119 passed. New pins exercise both town-claims OFF and ON, including
+in-store operation mode. The mixed Home recovery test now verifies owner
+posting/observation and retained unrelated arrows, rather than Home taking
+every pending equipment item. git diff --check passed.
+No full suite was run. test_policy_town was not run, respecting its restriction
+to after 16:10 and alone; verification completed before that time.
+
+Revert-proof (SOL-REVERT-eqdep.txt)
+
+Temporarily restored exactly the three production files from fc42ca66 in this
+worktree, leaving the pins/tests unchanged, and restored fixed bytes in finally.
+Baseline: 7 methods executed, 10 failing subcases, exit 1:
+  retry reservation: both incidents x OFF/ON = 4 failures;
+  second recorded deposit: Home emits dp ESC instead of equipment dp, OFF/ON;
+  refused-deposit exit: continuation None instead of equipment.next-action,
+    OFF/ON;
+  successful first-deposit exit: lost continuation, OFF;
+  stall terminal: saved ownership:declaration-stale:equipment-txn, OFF.
+The remaining configurations are passing controls on the baseline, including
+ON stall/ON successful-exit dispatch and ordinary confirmed-action refresh.
+After restoring the fix: all 7 methods pass, exit 0. The subsequent independent
+final sequential verification above also passed. No production checkpoint,
+live process, or other worktree was used for reverting.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

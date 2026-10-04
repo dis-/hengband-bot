@@ -1,0 +1,103 @@
+BASE fc42ca66 (three production files temporarily restored, tests unchanged)
+exit=1
+..FFFFFFFFFF
+======================================================================
+FAIL: test_open_page_retry_is_posted_and_observed_by_equipment_owner (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_open_page_retry_is_posted_and_observed_by_equipment_owner) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 131, in test_open_page_retry_is_posted_and_observed_by_equipment_owner
+    self.assertEqual(key, 'dp')
+AssertionError: 'dp\x1b' != 'dp'
+- dp
+?   -
++ dp
+
+
+======================================================================
+FAIL: test_open_page_retry_is_posted_and_observed_by_equipment_owner (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_open_page_retry_is_posted_and_observed_by_equipment_owner) (enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 131, in test_open_page_retry_is_posted_and_observed_by_equipment_owner
+    self.assertEqual(key, 'dp')
+AssertionError: 'dp\x1b' != 'dp'
+- dp
+?   -
++ dp
+
+
+======================================================================
+FAIL: test_refused_deposit_exit_preserves_the_owner_continuation (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_refused_deposit_exit_preserves_the_owner_continuation) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 187, in test_refused_deposit_exit_preserves_the_owner_continuation
+    self.assertEqual(policy._claim_register.current.execution.continuation,
+AssertionError: None != 'equipment.next-action'
+
+======================================================================
+FAIL: test_refused_deposit_exit_preserves_the_owner_continuation (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_refused_deposit_exit_preserves_the_owner_continuation) (enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 187, in test_refused_deposit_exit_preserves_the_owner_continuation
+    self.assertEqual(policy._claim_register.current.execution.continuation,
+AssertionError: None != 'equipment.next-action'
+
+======================================================================
+FAIL: test_retry_selection_never_takes_the_equipment_owners_item (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item) (first=False, enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 115, in test_retry_selection_never_takes_the_equipment_owners_item
+    self.assertIsNone(policy._find_home_deposit(board))
+AssertionError: InventoryItem(slot='p', name='�����x�̃����O�E�{�E (x3) (0.56turn) (+21,+7)', count=1, tval=19, sval=13, aware=True, known=True, fully_known=True, charges=0, pval=0, fuel=0, timeout=None, is_equipment=True, is_ego=True, is_artifact=False, is_cursed=False, inscription='', is_broken=False, is_bounty=False, to_h=21, to_d=7, to_a=0, ac=0, damage_dice_num=0, damage_dice_sides=0, known_flags=frozenset({74}), pseudo_feeling='', weight=40, weapon_proficiency=6000, charging=False, charging_count=None, light_turns=None, weapon_proficiency_rank=2) is not None
+
+======================================================================
+FAIL: test_retry_selection_never_takes_the_equipment_owners_item (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item) (first=False, enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 115, in test_retry_selection_never_takes_the_equipment_owners_item
+    self.assertIsNone(policy._find_home_deposit(board))
+AssertionError: InventoryItem(slot='p', name='�����x�̃����O�E�{�E (x3) (0.56turn) (+21,+7)', count=1, tval=19, sval=13, aware=True, known=True, fully_known=True, charges=0, pval=0, fuel=0, timeout=None, is_equipment=True, is_ego=True, is_artifact=False, is_cursed=False, inscription='', is_broken=False, is_bounty=False, to_h=21, to_d=7, to_a=0, ac=0, damage_dice_num=0, damage_dice_sides=0, known_flags=frozenset({74}), pseudo_feeling='', weight=40, weapon_proficiency=6000, charging=False, charging_count=None, light_turns=None, weapon_proficiency_rank=2) is not None
+
+======================================================================
+FAIL: test_retry_selection_never_takes_the_equipment_owners_item (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item) (first=True, enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 115, in test_retry_selection_never_takes_the_equipment_owners_item
+    self.assertIsNone(policy._find_home_deposit(board))
+AssertionError: InventoryItem(slot='m', name='�h���[�t�̃X�v�����g�E���C�� (-2) [24,+7] (+2) {+��r��}', count=1, tval=37, sval=10, aware=True, known=True, fully_known=True, charges=2, pval=2, fuel=0, timeout=None, is_equipment=True, is_ego=True, is_artifact=False, is_cursed=False, inscription='', is_broken=False, is_bounty=False, to_h=-2, to_d=0, to_a=7, ac=24, damage_dice_num=1, damage_dice_sides=4, known_flags=frozenset({4, 50, 84, 85, 86, 87}), pseudo_feeling='', weight=166, weapon_proficiency=0, charging=False, charging_count=None, light_turns=None, weapon_proficiency_rank=None) is not None
+
+======================================================================
+FAIL: test_retry_selection_never_takes_the_equipment_owners_item (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_retry_selection_never_takes_the_equipment_owners_item) (first=True, enforced=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 115, in test_retry_selection_never_takes_the_equipment_owners_item
+    self.assertIsNone(policy._find_home_deposit(board))
+AssertionError: InventoryItem(slot='m', name='�h���[�t�̃X�v�����g�E���C�� (-2) [24,+7] (+2) {+��r��}', count=1, tval=37, sval=10, aware=True, known=True, fully_known=True, charges=2, pval=2, fuel=0, timeout=None, is_equipment=True, is_ego=True, is_artifact=False, is_cursed=False, inscription='', is_broken=False, is_bounty=False, to_h=-2, to_d=0, to_a=7, ac=24, damage_dice_num=1, damage_dice_sides=4, known_flags=frozenset({4, 50, 84, 85, 86, 87}), pseudo_feeling='', weight=166, weapon_proficiency=0, charging=False, charging_count=None, light_turns=None, weapon_proficiency_rank=None) is not None
+
+======================================================================
+FAIL: test_stall_termination_releases_old_goal_before_final_validation (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_stall_termination_releases_old_goal_before_final_validation) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 243, in test_stall_termination_releases_old_goal_before_final_validation
+    self.assertIsNone(policy.decision_claim['s33_shadow']['would_stop'])
+AssertionError: 'ownership:declaration-stale:equipment-txn' is not None
+
+======================================================================
+FAIL: test_successful_deposit_exit_keeps_the_next_item_goal_registered (tests.test_equipment_deposit_owner_recorded.DepositOwnerRecordedTest.test_successful_deposit_exit_keeps_the_next_item_goal_registered) (enforced=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-eqdep\tests\test_equipment_deposit_owner_recorded.py", line 216, in test_successful_deposit_exit_keeps_the_next_item_goal_registered
+    self.assertEqual(policy._claim_register.current.execution.continuation,
+AssertionError: None != 'equipment.next-action'
+
+----------------------------------------------------------------------
+Ran 7 tests in 7.076s
+
+FAILED (failures=10)
+
+FIX RESTORED
+exit=0
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 5.928s
+
+OK
