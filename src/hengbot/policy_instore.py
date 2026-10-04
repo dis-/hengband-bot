@@ -482,7 +482,12 @@ class InStoreMixin:
         """Bind every direct store-page operation, including Home surplus sales."""
         store = snapshot.store
         visit = self._store_visit
-        if self._in_store_entry_ledger is None:
+        ledger = self._in_store_entry_ledger
+        # A direct Home-relief operation can start a new visit before the
+        # ordinary entry handler has discarded the previous visit's ledger.
+        # Bind the inscription and its sale continuation to this exact visit.
+        if (ledger is None or ledger["store"] != store.store_type
+                or ledger["opened_sequence"] != visit.opened_sequence):
             self._in_store_entry_ledger = {
                 "store": store.store_type, "opened_sequence": visit.opened_sequence,
                 "ops": 0, "pending": None, "ended": False,

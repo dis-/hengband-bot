@@ -171,6 +171,7 @@
   },
   "policy_fundraising.py:_fundraising_key": {
     "self._explore_step(snapshot) @ If:body:self._fundraising_mode == 'scavenge'": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:any((item.slot == 'main_hand' and item.is_cursed for item in snapshot.equipment))": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:wield is None": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:wield is None / If:body:report is not None / If:body:report != 'goal-already-superseded' and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:getattr(self, '_crossarea_fundraising_enforced', False) / If:body:purpose is None or record is None or record.purpose != purpose or (record.status == 'failed') or (child is None) or (child.purpose_id != purpose.identity) or (not (child.direction == 'depart' and child.state == 'complete' or (child.direction == 'return' and child.state == 'posted'))) / If:body:restarted_without_purpose or (snapshot.player.hungry and self._find_edible(snapshot) is None)": 1,
@@ -182,6 +183,7 @@
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:not self._has_digging_tool(snapshot) and self._count_treasure_detection_scrolls(snapshot) > 0 and bool(self._known_treasure)": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:self._is_oscillating()": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' and (not self._detectionless_scavenge_allowed(snapshot)) / If:body:not snapshot.in_town": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town and snapshot.dungeon_level > 0": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town or self._should_start_town_return(snapshot)": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:snapshot.player.gold >= FUNDRAISING_GOLD_TARGET and (self._fundraising_mode == 'scavenge' or not self._known_treasure)": 1,
     "self._mining_closure_key(snapshot) @ ": 1,
