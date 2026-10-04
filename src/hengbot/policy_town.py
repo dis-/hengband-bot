@@ -1281,9 +1281,9 @@ class TownMixin:
             # The downstream seam sees the actual winning optional errand.
             # Keep an admitted town-loot walk until pickup or until the loot
             # producer names a safety/defer release; never alternate owners.
-            committed_loot = self._town_producer_entry(
-                "town-progress-committed-loot", lambda: self._normal_loot_key(
-                    snapshot, self._strategic_hostiles(snapshot)), family="floor-loot")
+            committed_loot = self._normal_loot_key(
+                snapshot, self._strategic_hostiles(snapshot)
+            )
             if committed_loot is not None:
                 self._town_begin_progress_decision(snapshot)
                 return committed_loot
@@ -4885,9 +4885,8 @@ class TownMixin:
                     key, producer="equipment-txn",
                     work_id="suppress-random-teleport",
                     next_step="equipment.inscribe-teleport-suppression",
-                    arguments=(equipment_identity(pack_owned.item),),
+                    arguments=(self._item_signature(pack_owned.item),),
                     expected_effect="random-teleport-suppressed",
-                    continuation="equipment.suppression.observe",
                 )
                 return key
             slot_key = EQUIPMENT_SLOT_KEY.get(equipped_owned.equipped_slot)
@@ -4898,9 +4897,8 @@ class TownMixin:
                     key, producer="equipment-txn",
                     work_id="suppress-random-teleport",
                     next_step="equipment.inscribe-teleport-suppression",
-                    arguments=(equipment_identity(equipped_owned.item),),
+                    arguments=(self._item_signature(equipped_owned.item),),
                     expected_effect="random-teleport-suppressed",
-                    continuation="equipment.suppression.observe",
                 )
                 return key
 
@@ -4934,37 +4932,6 @@ class TownMixin:
             cause="no-suppression-target",
         )
         return None
-
-    def _observe_town_equipment_work(self, snapshot: Snapshot) -> None:
-        """The inscription owner closes only its named item's observed effect."""
-        register = self._claim_register
-        if register is None:
-            return
-        for claim in (register.current, *register.suspended):
-            declaration = getattr(claim, "execution", None)
-            if (claim is None or not claim.is_open
-                    or claim.owner.value != "equipment-txn"
-                    or declaration is None or declaration.state != "awaiting"
-                    or declaration.work_id != "suppress-random-teleport"
-                    or declaration.expected_effect != "random-teleport-suppressed"
-                    or len(declaration.arguments) != 1):
-                continue
-            identity = declaration.arguments[0]
-            if any(self._suppression_target_matches(item, identity)
-                   and "." in item.inscription
-                   for item in (*snapshot.inventory, *snapshot.equipment)):
-                if claim is register.current:
-                    register.complete("random-teleport-suppressed")
-                else:
-                    register.close_suspended(claim.claim_id, "complete",
-                        "random-teleport-suppressed")
-
-    def _suppression_target_matches(self, item, identity) -> bool:
-        if isinstance(identity, str):
-            return equipment_identity(item) == identity
-        # Compatibility with already posted pre-batch-3 declarations: the
-        # emitter decorates the name when the inscription is observed.
-        return self._sale_item_identity(item) == tuple(identity)
 
     def _town_cycle_detected(self) -> bool:
         """A full window of town decisions collapsing to a handful of distinct
