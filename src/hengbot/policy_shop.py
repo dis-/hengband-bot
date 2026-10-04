@@ -300,6 +300,11 @@ class ShopMixin(InStoreMixin):
 
     @staticmethod
     def _store_item_is_supply(item: StoreItem, kind: str) -> bool:
+        if kind in {"remove-curse", "star-remove-curse"}:
+            return item.tval == TVAL_SCROLL and (
+                item.sval == SV_SCROLL_STAR_REMOVE_CURSE
+                or (kind == "remove-curse" and item.sval == SV_SCROLL_REMOVE_CURSE)
+            )
         if kind == "recall":
             return item.is_recall_scroll
         if kind == "teleport":
@@ -1978,6 +1983,12 @@ class ShopMixin(InStoreMixin):
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        if curse_kind is not None and self._store_item_is_supply(item, curse_kind):
+            if (self._usable_remove_curse_scroll(snapshot) is not None
+                    or self._home_remove_curse_scroll(snapshot) is not None):
+                return None
+            return item
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
                 and self._find_edible(snapshot) is None
@@ -2256,6 +2267,8 @@ class ShopMixin(InStoreMixin):
         store = snapshot.store
         if store is None or store.store_type != STORE_BLACK:
             return None
+        if self._required_remove_curse_kind(snapshot) is not None:
+            return None
         reserve = self._required_departure_supply_reserve(snapshot)
         if reserve is None:
             return None
@@ -2291,6 +2304,17 @@ class ShopMixin(InStoreMixin):
             return int(item.sval != SV_POTION_SPEED)
 
         return min(optional, key=lambda item: (held(item), kind_rank(item)))
+
+    def _required_remove_curse_purchase(self, snapshot: Snapshot) -> StoreItem | None:
+        store = snapshot.store
+        kind = self._required_remove_curse_kind(snapshot)
+        if (store is None or store.store_type == STORE_HOME or kind is None
+                or self._usable_remove_curse_scroll(snapshot) is not None
+                or self._home_remove_curse_scroll(snapshot) is not None):
+            return None
+        return next((item for item in store.items
+                     if self._store_item_is_supply(item, kind)
+                     and item.price <= snapshot.player.gold), None)
 
     def _live_purchase_need(
         self, snapshot: Snapshot, category: str,
@@ -2331,6 +2355,14 @@ class ShopMixin(InStoreMixin):
 
         rungs = []
         add = rungs.append
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        add(rung("curse:required", "required-star-remove-curse"
+                 if curse_kind == "star-remove-curse" else "remove-curse",
+                 lambda: curse_kind is not None
+                 and self._usable_remove_curse_scroll(snapshot) is None
+                 and self._home_remove_curse_scroll(snapshot) is None,
+                 lambda i: self._store_item_is_supply(i, curse_kind),
+                 current=lambda: 0, target=lambda: 1))
         add(rung("legacy:lantern", "lantern", lambda: not self._owns_lantern(snapshot), lambda i: i.is_lantern))
         add(rung("legacy:oil", "oil", lambda: self._oil_below_departure_target(snapshot), lambda i: i.is_oil))
         add(rung("legacy:ration", "food", lambda: snapshot.player.food_type == FOOD_TYPE_RATION and self._needs_food_restock(snapshot), lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL))
@@ -2621,6 +2653,10 @@ class ShopMixin(InStoreMixin):
                     return None
             return self._mana_food_purchase(snapshot)
         gold = snapshot.player.gold
+        if self._identification_need is None:
+            curse_scroll = self._required_remove_curse_purchase(snapshot)
+            if curse_scroll is not None:
+                return curse_scroll
         if snapshot.player.class_id < 0:
             if not self._owns_lantern(snapshot):
                 lantern = next(
@@ -2818,6 +2854,9 @@ class ShopMixin(InStoreMixin):
             # 'attempted' after an identify errand, so the bot never bought the
             # teleport scrolls it also sells and stranded itself wandering town.
 
+        curse_scroll = self._required_remove_curse_purchase(snapshot)
+        if curse_scroll is not None:
+            return curse_scroll
         restore = self._restore_potion_purchase(snapshot)
         if restore is not None:
             return restore
@@ -2967,8 +3006,9 @@ class ShopMixin(InStoreMixin):
         if black_market_optional is not None:
             return black_market_optional
         if (
-            self._has_normal_remove_curse_target(snapshot)
-            and self._find_remove_curse_scroll(snapshot) is None
+            self._required_remove_curse_kind(snapshot) == "remove-curse"
+            and self._usable_remove_curse_scroll(snapshot) is None
+            and self._home_remove_curse_scroll(snapshot) is None
         ):
             remove_curse = next(
                 (
@@ -4464,7 +4504,7 @@ class ShopMixin(InStoreMixin):
                 self.last_reason = "shop:buy-remove-curse"
             elif item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_REMOVE_CURSE:
                 if (
-                    not self._has_unremovable_curse_target(snapshot)
+                    self._required_remove_curse_kind(snapshot) is None
                     and self._star_remove_curse_reserve_purchase_needed(snapshot)
                 ):
                     self._star_remove_curse_reserve_deposit_pending = True

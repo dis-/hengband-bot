@@ -1203,7 +1203,10 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertEqual(keys[:-1], [None] * (DIGGER_WIELD_LIMIT - 2))
         self.assertIsNotNone(keys[-1])
         self.assertEqual(pol.last_reason, "fundraise:abandon-unwieldable-digger")
-        self.assertIsNone(pol._fundraising_mode)
+        self.assertEqual(pol._fundraising_mode, "mine")
+        self.assertTrue(pol._returning_to_town)
+        self.assertIsNotNone(pol._fundraising_key(snap, []))
+        self.assertNotIn(pol.last_reason, {"descend", "explore"})
 
     def test_lagged_successful_two_digger_assembly_never_hits_unwieldable_exit(self):
         sword = item("main_hand", 23, 1, is_equipment=True, name="Sword")

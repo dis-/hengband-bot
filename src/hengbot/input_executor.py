@@ -946,7 +946,8 @@ class OperationExecutor:
     def _is_recall_depth_confirm(owner: str, feature: str) -> bool:
         from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
 
-        return owner == "return:recall" and feature.startswith(
+        return owner in {"return:recall", "stuck:recall-escape",
+                         "fundraise:recall", "fundraise:recall-stuck"} and feature.startswith(
             RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
         )
 

@@ -7,7 +7,7 @@ from dataclasses import replace
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.model import (
-    STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_WEAPON,
+    STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE,
     SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY,
@@ -61,6 +61,53 @@ def supply_ledger_observer_memo():
 
 
 class SupplyMixin:
+
+    def _required_remove_curse_kind(self, snapshot: Snapshot) -> str | None:
+        """Choose a cure for worn gear; failed strong removal proves permanence."""
+        targets = [item for item in snapshot.equipment if item.is_cursed
+                   and self._item_signature(item) not in
+                   getattr(self, "_permanent_cursed_items", set())]
+        if not targets:
+            return None
+        return ("star-remove-curse" if any(self._curse_unremovable(item)
+                                          for item in targets)
+                else "remove-curse")
+
+    def _usable_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+        kind = self._required_remove_curse_kind(snapshot)
+        if kind is None:
+            return None
+        compatible = [item for item in snapshot.inventory
+                      if item.aware and self._store_item_is_supply(item, kind)]
+        # Preserve the existing carried-scroll preference when both kinds are
+        # present; heavy curses still admit only the stronger kind.
+        return next((item for item in compatible
+                     if item.sval == SV_SCROLL_STAR_REMOVE_CURSE),
+                    next(iter(compatible), None))
+
+    def _home_remove_curse_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+        kind = self._required_remove_curse_kind(snapshot)
+        if kind is None or not self._home_knowledge_current:
+            return None
+        return next((item for item in self._home_knowledge_items[
+                        :self._home_knowledge_valid_before]
+                     if item.count > 0 and self._store_item_is_supply(item, kind)
+                     and self._item_signature(item) not in self._deferred_home_items), None)
+
+    def _remove_curse_service_available(self, snapshot: Snapshot) -> bool:
+        """A concrete cure takes priority over starting an income trip."""
+        kind = self._required_remove_curse_kind(snapshot)
+        if kind is None:
+            return False
+        if (self._usable_remove_curse_scroll(snapshot) is not None
+                or self._home_remove_curse_scroll(snapshot) is not None):
+            return True
+        pages = dict(self._town_supplier_stock)
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            pages[snapshot.store.store_type] = snapshot.store
+        return any(self._store_item_is_supply(item, kind)
+                   and item.count > 0 and item.price <= snapshot.player.gold
+                   for page in pages.values() for item in page.items)
 
     def _owns_usable_permanent_light(self, snapshot: Snapshot) -> bool:
         """Return whether carried gear or the known Home catalog has permanent light."""
@@ -295,6 +342,23 @@ class SupplyMixin:
                 kind, count_value, required_return, required_departure,
                 obtainable, status_stores,
             )
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        if curse_kind is not None:
+            # Temple can sell the stronger scroll; ordinary Remove Curse is
+            # supplied by the Alchemist.
+            stores = (STORE_ALCHEMIST, STORE_TEMPLE, STORE_MAGIC, STORE_BLACK)
+            home = self._home_remove_curse_scroll(snapshot)
+            obtainable = home is not None or any(
+                self._supply_page_offers(snapshot, curse_kind, store, supplier_pages[store])
+                if store in supplier_pages else store not in self._town_store_attempted
+                for store in stores
+            )
+            count = sum(item.count for item in snapshot.inventory
+                        if item.aware and self._store_item_is_supply(item, curse_kind))
+            statuses[curse_kind] = SupplyStatus(
+                curse_kind, count, 0, 1, obtainable,
+                (STORE_HOME,) if home is not None else stores,
+            )
         return statuses
 
     def _count_mana_food_uses(self, snapshot: Snapshot) -> int:
@@ -489,6 +553,12 @@ class SupplyMixin:
                 ledger["cure"].required_departure,
             )
 
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        if curse_kind is not None:
+            status = ledger[curse_kind]
+            require("*Remove Curse* scrolls" if curse_kind == "star-remove-curse"
+                    else "Remove Curse scrolls", status.count, status.required_departure)
+
         mining_requirements = self._fundraising_mining_requirements(snapshot)
         if mining_requirements is not None:
             detection_target, digger_target = mining_requirements
@@ -563,6 +633,8 @@ class SupplyMixin:
             "Flasks of oil": "oil",
             "Teleport scrolls": "teleport",
             "Cure Critical Wounds potions": "cure",
+            "Remove Curse scrolls": "remove-curse",
+            "*Remove Curse* scrolls": "star-remove-curse",
         }
         for requirement in requirements:
             kind = supply_labels.get(str(requirement["item"]))
@@ -959,6 +1031,10 @@ class SupplyMixin:
     ) -> int:
         """Return the unmet amount from the same ledgers that drive procurement."""
         item_class = self._procurement_class(item)
+        curse_kind = self._required_remove_curse_kind(snapshot)
+        if curse_kind is not None and self._store_item_is_supply(item, curse_kind):
+            status = self._supply_ledger(snapshot, self._planned_depth())[curse_kind]
+            return max(0, status.required_departure - status.count)
         launcher = self._equipped_launcher(snapshot)
         if item.is_ammo and launcher is not None and item.tval == launcher.ammo_tval:
             return max(0, self._ammo_procurement_target(snapshot, item)

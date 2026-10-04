@@ -1319,7 +1319,9 @@ class SurvivalTriggerTest(unittest.TestCase):
         # 2026-10-02 13:4x 「逃走も緊急脱出に数える」).
         # Base 0d2ef6d6 already has 32 paired starts. Keep the coverage count
         # synchronized with that inventory; the pairing assertions above stay.
-        self.assertEqual(len(triggers), 32)
+        # Curse priority adds the preemptive cursed-weapon return and both
+        # unwieldable-digger exits, each with its record-only None note.
+        self.assertEqual(len(triggers), 35)
         for where, trigger in triggers.items():
             if (
                 where.startswith("policy_fundraising.py:")

@@ -2469,18 +2469,10 @@ class HomeMixin:
             # Finish the already-routed store stop before filing a Home take.
             return
         if (
-            not snapshot.in_town or not self._has_unremovable_curse_target(snapshot) or self._carried_star_remove_curse_count(snapshot) or self._recall_departure_shortage(snapshot) or (self._home_pending_item is not None) or self._home_pending_batch or self._home_errand.active or (not self._home_knowledge_current) or any((item.is_equipment and self._identification_flow_candidate(item) and (self._item_signature(item) not in self._deferred_home_items) and (self._item_signature(item) not in self._unidentifiable_sigs) and (self._item_signature(item) not in self._town_unidentifiable_carried_sigs) for item in (*snapshot.inventory, *snapshot.equipment)))
+            not snapshot.in_town or self._required_remove_curse_kind(snapshot) is None or self._usable_remove_curse_scroll(snapshot) is not None or self._recall_departure_shortage(snapshot) or (self._home_pending_item is not None) or self._home_pending_batch or self._home_errand.active or (not self._home_knowledge_current) or any((item.is_equipment and self._identification_flow_candidate(item) and (self._item_signature(item) not in self._deferred_home_items) and (self._item_signature(item) not in self._unidentifiable_sigs) and (self._item_signature(item) not in self._town_unidentifiable_carried_sigs) for item in (*snapshot.inventory, *snapshot.equipment)))
         ):
             return
-        reserve = next((
-            item for item in self._home_knowledge_items[
-                :self._home_knowledge_valid_before
-            ]
-            if item.tval == TVAL_SCROLL
-            and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
-            and item.count > 0
-            and self._item_signature(item) not in self._deferred_home_items
-        ), None)
+        reserve = self._home_remove_curse_scroll(snapshot)
         if reserve is None:
             return
         signature = self._item_signature(reserve)

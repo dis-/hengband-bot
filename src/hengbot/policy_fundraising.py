@@ -407,6 +407,7 @@ class FundraisingMixin:
         player = snapshot.player
         base_ready = (
             self._fundraising_food_ready(snapshot)
+            and not self._remove_curse_service_available(snapshot)
             and not player.hungry
             and self._fundraising_light_ready(snapshot)
             and player.hp >= player.max_hp
@@ -416,6 +417,9 @@ class FundraisingMixin:
         if not base_ready:
             return False
         if self._fundraising_mode == "mine":
+            if any(item.slot == "main_hand" and item.is_cursed
+                   for item in snapshot.equipment):
+                return False
             detection_count = self._count_treasure_detection_scrolls(snapshot)
             detection_ready = (
                 detection_count >= self._mining_detection_scroll_target(snapshot)
@@ -1086,6 +1090,8 @@ class FundraisingMixin:
                 cause="fundraising-mode-inactive",
             )
             return None
+        if self._returning_to_town and snapshot.dungeon_level > 0:
+            return self._leave_fundraising_floor(snapshot)
         if (self._fundraising_mode == "scavenge"
                 and not self._detectionless_scavenge_allowed(snapshot)):
             self._settle_fundraising_detection(snapshot)
@@ -1409,6 +1415,20 @@ class FundraisingMixin:
                     expected_effect="digging-tool-restored",
                 )
                 return WAIT_KEY
+            if any(item.slot == "main_hand" and item.is_cursed
+                   for item in snapshot.equipment):
+                self._note_return_start(None)
+                self._returning_to_town = True
+                leave = self._leave_fundraising_floor(snapshot)
+                if not self.last_reason.startswith("fundraise:recall"):
+                    self.last_reason = "fundraise:return-cursed-weapon"
+                self._offer_execution(
+                    leave, producer="fundraising",
+                    work_id="fundraise:return-cursed-weapon",
+                    next_step="fundraising.return-for-remove-curse",
+                    expected_effect="town-arrival",
+                )
+                return leave
             # Backstop: the wield below normally takes on the first try (answering the
             # hand prompt when needed). If it still keeps not taking — a genuinely stuck
             # or cursed main weapon that cannot be removed — mining is impossible, so
@@ -1429,9 +1449,11 @@ class FundraisingMixin:
                         and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT
                     ):
                         self._digger_wield_attempts = 0
-                        self._fundraising_mode = None
+                        self._note_return_start(None)
+                        self._returning_to_town = True
                         leave = self._leave_fundraising_floor(snapshot)
-                        self.last_reason = "fundraise:abandon-unwieldable-digger"
+                        if not self.last_reason.startswith("fundraise:recall"):
+                            self.last_reason = "fundraise:abandon-unwieldable-digger"
                         self._offer_execution(
                             leave, producer="fundraising",
                             work_id="fundraise:abandon-unwieldable-digger",
@@ -1444,7 +1466,8 @@ class FundraisingMixin:
                         cause=f"wield-deferred:{report}",
                     )
                     return None
-                self._fundraising_mode = None
+                self._note_return_start(None)
+                self._returning_to_town = True
                 return self._leave_fundraising_floor(snapshot)
             self._offer_execution(
                 wield, producer="fundraising", work_id="fundraise:wield-digger",
