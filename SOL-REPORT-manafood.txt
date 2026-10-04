@@ -1,0 +1,148 @@
+MANA-food departure and dungeon recovery report — 2026-10-04
+
+Worktree: C:\hengband\bot-client-manafood
+Branch: mana-food-departure-1004
+Base: 96c20795b25099a8a2f5ab19d178b2278b56f1b8
+Result: both defects fixed and committed locally. No push. No game/BOT
+start, stop, resume, or maintenance.hold operation. No writes to other
+worktrees or C:\hengband\bot-client\jsonlog. No full test suite.
+
+Recorded evidence (1-based physical JSONL rows)
+
+Source directory: C:\hengband-backups\state-logs\s33-phase2b-shadow-20261004
+decisions-1441-1637.jsonl.gz:
+  row 576, 15:59:20, turn 8666498, equipment-transaction:deposit:
+    Device charges for food current=3, target=15, missing=12.
+  rows 577-578 repeat the shortage; rows 583-584 repeat it at 15:59:28-29.
+  row 584, turn 8666542, home:leave-after-one-operation: food remains 3/15.
+  row 662, 16:00:46, turn 8671244, town:recall-to-alt-dungeon, key rec:
+    procurement_requirements=[], fundraising.mode=null, Home ~9 catalog=238.
+  row 4140, 16:11:14, turn 8707016, town:recall-to-alt-dungeon:
+    procurement_requirements=[], fundraising.mode=null, Home ~9 catalog=239.
+  rows 13923/13926/13929, 16:36:11/30/52, turn 8795606:
+    town:blocked:survival-mana-no-charges, Orc cave 23F, Hungry.
+decisions-1.upto-1441.jsonl.gz:
+  row 13296, 14:38:01, turn 8407195:
+    town:entrance-step-off:town:unsafe-recall-fallback, Home catalog=240.
+  row 13298, 14:38:35, turn 8407206: town:recall-to-alt-dungeon.
+
+Causes
+
+1. The observed ordinary recall did not omit its food leaf syntactically.
+   It made that leaf true using food that was still at Home. At the base,
+   policy_supply.py:300-326 adds current, withdrawable Home wand/staff charges
+   to carried charges; :328-344 also adds Home devices to the device count.
+   _compute_supply_ledger -> policy.py:12776 _food_ready ->
+   policy_town.py:1795 food_ready -> :1981 recall conjuncts ->
+   :5737 all(conjuncts) -> :5941 town:recall-to-alt-dungeon consumed that
+   incorrect count. Both recorded departures have fundraising.mode=null;
+   neither is evidence of a first-run fundraising waiver. Refreshing ~9
+   could erase the shortage without physically withdrawing the devices.
+   Safe-target selection/fallback feeds the same departure gate.
+
+   Additional departure holes found and closed: the legacy fundraising
+   supplier-attempt waiver applied beyond the first run; suppressed restock
+   could bypass walking departure readiness; _town_blocked_key's repetition
+   recall bypassed the food leaf and sanctioned its armed countdown.
+
+2. Base policy_supply.py:1304 _mana_food_survival_override_key is called for
+   Hungry MANA players outside town too. With no edible inventory it enters
+   the Home/shop acquisition code, then reaches its town-only terminal
+   (:1368/:1377/:1421) instead of the existing return owner. The recorded
+   board reproduces that terminal exactly on the actual base implementation.
+
+Fixes
+
+* policy_supply.py:300/320 now counts carried device charges/devices only.
+  Existing Identify-charge reservation and the normal 15-charge/two-device
+  departure targets remain. Home is a procurement supplier, not carried food.
+* policy_town.py's shared walking food gate allows the existing shallow
+  fundraising exception only for mine/scavenge, using the existing verdict:
+  carry edible food, or prove the first run AND Home/shop exhaustion. Hungry
+  departures are refused. Prepare latches cannot relax ordinary departure;
+  recall conjuncts always require the full carried reserve.
+* policy_navigation.py enforces food even with suppressed restock. A town
+  walking entry requires a carried recall scroll, including the first run.
+* Repetition recall requires carried food and at least two recall scrolls
+  before reading, leaving a return scroll. Food shortage also blocks an
+  already armed town recall; startup/emergency sanctions cannot waive it.
+  The existing one-cancel/no-re-read protection is retained and tested.
+* Outside town, Hungry MANA players absorb carried charges first, recover
+  safely reachable device loot through the existing loot owner, then take
+  the existing return/recall/stairs route. Existing wilderness and severe
+  quest-starvation escape routes are preserved. Found/picked-up charges
+  are absorbed on subsequent decisions, including during recall countdown.
+  Outside-town final stop remains when the existing return owner has no
+  usable step. Town acquisition remains Home -> Magic shop -> sale to afford.
+  No TVAL_FOOD purchasing route, hidden-state access, or time guard was added.
+
+Pins, provenance, and limitations
+
+tests/fixtures/manafood-20261004.json.gz SHA256:
+  efc038dc6a9851951742ff004e992be1b569b878a935c1e67f01e79041cfaa3d
+The extractor copies the verbatim turn-8795606 board from row 71 of
+autorecover-20261004-163617-town-blocked-survival-mana-no-charges.bot-state-fixed.jsonl.gz.
+Its source SHA256 is 736a2bae7a704bfb978ae2eebbd826dee929e90ef120a98ef0bbba02c81f3f95.
+All source hashes and selected original decision rows are stored in the fixture.
+After the fix the recovery board selects return:recall, key rg (slot g).
+The public choose_key pin uses the observed ~f response at the same parked
+turn (state-upto-1637 row 5185) to finish restart bookkeeping.
+
+IMPORTANT LIMITATION: state-upto-1637 begins at turn 8750123; raw town boards
+for 15:59-16:11 are absent. Departure pins explicitly reconstruct the recorded
+3/15 requirement and declare constructed Home stock/other board facts. They
+are decision-derived mechanism pins, not a faithful replay of the live town
+trajectory. No unrecorded exact Home charge total or live in-memory policy
+state is claimed. The recovery board itself is recorded, not constructed.
+
+Revert-proof
+
+PYTHONPATH=src;tests <runtime-python> -m tests.revert_manafood_pins
+loads the actual three defective SupplyMixin methods from git show 96c20795
+into the test process, without reverting files or using another worktree.
+All three selected pins fail, with no errors; the checker exits 0 because
+these failures are required:
+  recorded private recovery: town:blocked:survival-mana-no-charges, not return:recall;
+  recorded public recovery: same original terminal;
+  decision-derived departure: 33 counted charges, not 3 (constructed Home=30).
+Normal implementation: all 13 new pins pass, covering carry-only departure,
+prepare/mine/scavenge recall leaves, suppressed walking, first-run exhaustion,
+no hungry waiver, recall stock, armed/repetition recall, withdrawal, Identify
+reserve, countdown absorption, stairs without recall, and no-route stop.
+
+Validation
+
+Python: C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+Commands: $env:PYTHONPATH='src;tests'; & <python> -m unittest <module>
+Modules were validated individually; test_policy_town ran alone. Final results:
+  test_manafood_departure_recorded           13 OK
+  test_policy_supply                      205 OK
+  test_policy_shop                        273 OK, 1 skipped
+  test_policy_home                        171 OK, 4 skipped
+  test_policy_town                        589 OK
+  test_policy_fundraising                  50 OK
+  test_crossarea_fundraising               13 OK
+  test_hungry_mana_purchase_trajectory       1 OK
+  test_unsafe_recall_fallback_recorded       5 OK
+  test_recall_read_cancel_pingpong           3 OK
+  test_recall_read_cancel_pingpong_recorded  5 OK
+Total: 1328 tests, 1323 passed, 5 skipped. Intentional mutant failures excluded.
+git diff --check: clean.
+
+Existing assertions that allowed later no-food departures were updated to
+the stated rule. Entrance/recall routing tests now explicitly carry food to
+isolate their routing contract; the recall cancellation class includes the
+food leaf and verifies no read/cancel/read cycle. Initial failing runs were
+followed by successful reruns after these changes. One early launcher call
+accidentally overlapped two non-town modules after a process-yield result;
+the affected modules and the intervening trajectory test were rerun serially.
+The town module was never overlapped with another test module.
+
+Commits
+
+f1974c97 — Fix carried mana-food departure gates and starvation return
+The report is committed separately; identify it with:
+  git log -1 --format="%h %s" -- SOL-REPORT-manafood.txt
+SOL-TASK-manafood.txt is the supplied task input and is left untracked.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
