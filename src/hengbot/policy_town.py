@@ -1779,6 +1779,15 @@ class TownMixin:
             ).values()
         )
 
+    def _departure_food_ready(self, snapshot: Snapshot) -> bool:
+        # The first-run relaxation belongs only to a shallow income run.
+        # A prepare latch or a safe recall fallback cannot relax a deep dive.
+        if (self._fundraising_mode in {"mine", "scavenge"}
+                and self._active_dungeon_target() == DUNGEON_YEEK_CAVE):
+            return (not snapshot.player.hungry
+                    and self._fundraising_food_ready(snapshot))
+        return self._food_ready(snapshot)
+
     def _town_departure_conjuncts(
         self, snapshot: Snapshot, *, ignore_free_slots: bool = False
     ) -> dict[str, bool]:
@@ -1792,11 +1801,7 @@ class TownMixin:
         home_required = self._home_available(snapshot)
         return {
             "recall_departure_ready": self._recall_departure_ready(snapshot),
-            "food_ready": (
-                self._fundraising_food_ready(snapshot)
-                if self._fundraising_mode in {"prepare", "mine", "scavenge"}
-                else self._food_ready(snapshot)
-            ),
+            "food_ready": self._departure_food_ready(snapshot),
             "light_ready": self._light_ready(snapshot),
             # Fixed-quest carry belongs to the quest-entry contract, not the
             # ordinary dungeon departure contract.  Procurement still owns an
@@ -1983,6 +1988,8 @@ class TownMixin:
         values = self._town_departure_conjuncts(snapshot)
         values.update(
             {
+                # Recall lands deep even if an income-mode latch survives.
+                "food_ready": self._food_ready(snapshot),
                 "combat_weapon_ready": self._combat_weapon_ready(snapshot),
                 "departure_home_pending_item_clear": self._home_pending_item is None,
                 "departure_home_pending_batch_clear": not self._home_pending_batch,
@@ -4701,6 +4708,7 @@ class TownMixin:
             self._startup_town_recall
             and not destination_changed
             and not blocks_teleport
+            and "food-shortage" not in unready_blockers
         ):
             # On attach, catalog/deposit/pack readiness is reconstructed over
             # subsequent observations and is not grounds to cancel a recall
@@ -4711,6 +4719,7 @@ class TownMixin:
             self._emergency_recall_sanctioned
             and not destination_changed
             and not blocks_teleport
+            and "food-shortage" not in unready_blockers
         ):
             return None
         if not destination_changed and not blocks_teleport and not unready_blockers:
@@ -5245,6 +5254,14 @@ class TownMixin:
                         )
                     return walk
             if not snapshot.player.recalling:
+                if snapshot.in_town and (
+                    not self._food_ready(snapshot)
+                    or self._count_recall_scrolls(snapshot) < 2
+                ):
+                    # A repetition remedy may defer optional readiness, but
+                    # it cannot recall into a dungeon without carried food
+                    # and a scroll left to return with.
+                    return WAIT_KEY
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
                     selection = ""

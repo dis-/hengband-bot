@@ -960,6 +960,13 @@ class NavigationMixin:
             return True
         if (
             snapshot.in_town
+            and self._count_recall_scrolls(snapshot) == 0
+        ):
+            # The first-run exception waives food only, never the return ticket.
+            self._descent_refusal_reason = "recall-departure-shortage"
+            return True
+        if (
+            snapshot.in_town
             and
             self._recall_departure_shortage(snapshot)
             and not self._recall_shortage_opening_exempt(snapshot)
@@ -974,6 +981,9 @@ class NavigationMixin:
             self._descent_refusal_reason = "next-depth-supply-shortage"
             return True
         if snapshot.in_town:
+            if not self._departure_food_ready(snapshot):
+                self._descent_refusal_reason = "food-departure-shortage"
+                return True
             if self._fundraising_mode in {"mine", "scavenge"}:
                 if (getattr(self, "_crossarea_fundraising_enforced", False)
                         and not self._fundraising_departure_ready(snapshot)):

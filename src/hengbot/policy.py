@@ -15276,6 +15276,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._recall_departure_board(snapshot)
         )
         blockers: list[str] = []
+        if not leaves["food_ready"]:
+            blockers.append("food-shortage")
         if not leaves["free_pack_slots_ready"]:
             blockers.append("pack-too-full")
         if (

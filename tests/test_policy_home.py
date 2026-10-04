@@ -3593,7 +3593,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "home:scan-complete-from-open-page")
         self.assertIsInstance(policy._home_knowledge_items[0], InventoryItem)
-        self.assertEqual(policy._count_mana_food_uses(snapshot), 14)
+        # Catalogue charges remain a withdrawal source, not carried food.
+        self.assertEqual(policy._count_mana_food_uses(snapshot), 0)
 
     @staticmethod
     def _apply_home_route_claim_key(current, previous, posted):

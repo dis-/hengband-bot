@@ -286,7 +286,7 @@ class CrossAreaFundraisingTest(unittest.TestCase):
                            return_value=False)):
             self.assertTrue(policy._descent_is_blocked(snapshot))
         self.assertEqual(policy._descent_refusal_reason,
-                         "fundraising-departure-not-ready")
+                         "recall-departure-shortage")
 
     def test_transport_completion_keeps_economic_purpose_open(self):
         policy = HengbotPolicy()
