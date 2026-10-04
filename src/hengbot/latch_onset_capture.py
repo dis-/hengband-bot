@@ -40,6 +40,7 @@ _CAPTURE_STATE_NAMES = frozenset(
         # never become restorable decision state.
         "_fixed_quest_offer_cache",
         "_fixed_quest_head_cache",
+        "_disposable_armour_cache",
         # Static game data is reloaded at restore time.  The two grid maps are
         # identity/signature accelerators over the retained _remembered_grids
         # and rebuild lazily on the next map-bearing observation.

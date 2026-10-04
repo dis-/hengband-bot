@@ -2610,6 +2610,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # boundary, even when a caller reuses and mutates a Snapshot object.
         self._fixed_quest_offer_cache = {}
         self._fixed_quest_head_cache = {}
+        self._disposable_armour_cache = None
         # The public boundary is also the diagnostic boundary: capture hooks
         # checkpoint policy state before delegating to ``_choose_key``.  Keep
         # the carried catalogue authoritative here so a freshly observed
@@ -14363,13 +14364,21 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or self._equipment_disposal_reserved(snapshot, owned.item)
         )
         candidate_identity = equipment_identity(candidate)
-        disposable = disposable_dominated_item_ids(catalog, protected)
-        return any(
-            owned.id in disposable
-            and owned.origin == "home"
-            and equipment_identity(owned.item) == candidate_identity
-            for owned in catalog
-        )
+        # Full-Home relief asks this for every shelf item. Dominance depends
+        # only on the immutable catalog and protected IDs, not the candidate.
+        # Recheck both inputs so catalog/ownership changes within a decision
+        # also invalidate the result (including direct helper callers).
+        cached = getattr(self, "_disposable_armour_cache", None)
+        if cached is None or cached[:2] != (catalog, protected):
+            disposable = disposable_dominated_item_ids(catalog, protected)
+            identities = frozenset(
+                equipment_identity(owned.item)
+                for owned in catalog
+                if owned.id in disposable and owned.origin == "home"
+            )
+            cached = (catalog, protected, identities)
+            self._disposable_armour_cache = cached
+        return candidate_identity in cached[2]
 
 
     def _begin_pack_dominated_launcher_disposal(

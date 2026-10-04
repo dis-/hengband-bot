@@ -16,10 +16,34 @@ from hengbot.model import (
     StoreState,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from tests.test_policy import Position, Snapshot, grid, item, player, store_item
 
 
 class HomeEquipmentDisposalTest(unittest.TestCase):
+    def test_armour_dominance_reuses_catalog_but_rechecks_changed_inputs(self):
+        strong = store_item(
+            "a", 37, 1, name="strong", known=True, fully_known=True,
+            is_equipment=True, ac=5, to_a=5)
+        weak = replace(strong, letter="b", name="weak", ac=1, to_a=0)
+        snap = self.snapshot([strong, weak])
+        policy = HengbotPolicy()
+        policy.consume_home_knowledge((strong, weak))
+        with patch('hengbot.policy.disposable_dominated_item_ids',
+                   wraps=disposable_dominated_item_ids) as prune:
+            self.assertTrue(policy._is_disposable_dominated_armour(snap, weak))
+            self.assertFalse(policy._is_disposable_dominated_armour(snap, strong))
+            self.assertTrue(policy._is_disposable_dominated_armour(snap, weak))
+            self.assertEqual(prune.call_count, 1)
+            # Ownership can change while the catalog itself stays identical.
+            policy._town_visit_purchases.add(policy._item_signature(strong))
+            self.assertTrue(policy._is_disposable_dominated_armour(snap, weak))
+            self.assertEqual(prune.call_count, 2)
+            # Removing the dominator must immediately change the answer.
+            policy.consume_home_knowledge((weak,))
+            self.assertFalse(policy._is_disposable_dominated_armour(snap, weak))
+            self.assertEqual(prune.call_count, 3)
+
     @staticmethod
     def sword(letter, name, to_d):
         return store_item(
