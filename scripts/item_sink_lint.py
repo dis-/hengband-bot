@@ -14,10 +14,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_ROOT = ROOT / 'src' / 'hengbot'
 ADAPTER_PATH = Path(__file__).with_name('item_sink_adapters.json')
-PREFIXES = {'d', 'p', 'k', 'w', 't', '{', '}'}
+# These are building-menu actions, not aim-wand/quaff prefixes. Pin exact
+# expressions so adding an item command at either site still fails closed.
+NON_ITEM_COMPOSITIONS = {
+    ('policy_quest.py', '_morivant_full_identify_key'):
+        ("'a' + (item.slot if item in snapshot.inventory else '/' + EQUIPMENT_SLOT_KEY[item.slot])",
+         "'a' + (item.slot if item in snapshot.inventory else '/' + EQUIPMENT_SLOT_KEY[item.slot]) + FULL_IDENTIFY_DISMISS_SUFFIX"),
+    ('policy_quest.py', '_fixed_quest_building_key'): ("'q' + LEAVE_STORE_KEY",),
+    ('policy_constants.py', '<module>'): ("RUMOR_KEY + '\\r'",),
+}
+PREFIXES = {'d', 'p', 'k', 'w', 't', '{', '}', 'r', 'q', 'E', 'u',
+            'a', 'z', 'f', 'v', '\\F'}
 CONSTANTS = {'SELL_KEY', 'BUY_KEY', 'DEPOSIT_KEY', 'WITHDRAW_KEY',
              'DESTROY_COMMAND', 'DESTROY_KEY', 'WIELD_KEY', 'TAKEOFF_KEY',
-             'INSCRIBE_KEY', 'UNINSCRIBE_KEY'}
+             'INSCRIBE_KEY', 'UNINSCRIBE_KEY', 'READ_KEY', 'QUAFF_KEY',
+             'EAT_KEY', 'USE_STAFF_KEY', 'AIM_WAND_KEY', 'ZAP_ROD_KEY',
+             'FIRE_KEY', 'THROW_KEY', 'REFILL_KEY'}
 STANDALONE_ADAPTERS = {
     ('equipment_mutation.py', 'request_wield'),
     ('equipment_mutation.py', 'request_takeoff'),
@@ -41,7 +53,7 @@ def _producers(tree):
 
 def producer_names():
     return set().union(*(_producers(ast.parse(path.read_text(encoding='utf8')))
-                        for path in POLICY_ROOT.glob('*.py')))
+                        for path in POLICY_ROOT.rglob('*.py')))
 
 
 def _ancestors(node, parents):
@@ -117,10 +129,36 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
     findings = []
     names = (producer_names() if names is None else names) | _producers(tree)
     adapters = {} if adapters is None else adapters
+    module_pins = NON_ITEM_COMPOSITIONS.get((filename, '<module>'), ())
+    if module_pins:
+        current = Counter(ast.unparse(node) for node in ast.walk(tree)
+                          if isinstance(node, (ast.BinOp, ast.JoinedStr)))
+        for expression in module_pins:
+            if current[expression] != 1:
+                findings.append('line 1: pinned building-menu composition changed or duplicated')
+    for function in _functions(tree):
+        pinned = NON_ITEM_COMPOSITIONS.get((filename, function.name), ())
+        if pinned:
+            current = Counter(ast.unparse(node) for node in ast.walk(function)
+                              if isinstance(node, (ast.BinOp, ast.JoinedStr)))
+            for expression in pinned:
+                if current[expression] != 1:
+                    findings.append(f'line {function.lineno}: pinned building-menu composition changed or duplicated')
     protected_names = {'ReservationVerdict', 'standalone_verdict', 'item_command',
                        'checked_item_command', '_historical_item_command',
                        'request_wield', 'request_takeoff', '_destroy_item_key'}
     call_aliases = {}
+    prefix_aliases = {}
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            prefix_aliases.update({alias.asname: alias.name for alias in node.names
+                                   if alias.asname and alias.name in CONSTANTS})
+        elif isinstance(node, ast.Assign):
+            prefix = _name(node.value)
+            if isinstance(node.value, ast.Constant) and node.value.value in PREFIXES:
+                prefix = node.value.value
+            if prefix in CONSTANTS | PREFIXES:
+                prefix_aliases.update({target.id: prefix for target in node.targets if isinstance(target, ast.Name)})
     for assignment in ast.walk(tree):
         if isinstance(assignment, ast.Assign) and _name(assignment.value) in protected_names:
             for target in assignment.targets:
@@ -179,8 +217,9 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                   and isinstance(node.args[0], (ast.List, ast.Tuple))):
                 terms = node.args[0].elts
                 composition = True
-        if composition and not serializer:
-            aliases = {}
+        non_item = composition and ast.unparse(node) in NON_ITEM_COMPOSITIONS.get((filename, function_name), ())
+        if composition and not serializer and not non_item:
+            aliases = dict(prefix_aliases)
             if function is not None:
                 for assignment in ast.walk(function):
                     if isinstance(assignment, ast.Assign) and isinstance(assignment.value, ast.Name):
@@ -200,8 +239,9 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                     seen.add(name)
                     name = aliases[name]
                 literal = term.value if isinstance(term, ast.Constant) else None
-                format_prefix = (isinstance(literal, str) and len(literal) > 1
-                                 and literal[0] in PREFIXES and literal[1] in '{%')
+                format_prefix = isinstance(literal, str) and any(
+                    literal.startswith(prefix) and len(literal) > len(prefix)
+                    and literal[len(prefix)] in '{%' for prefix in PREFIXES)
                 if name in CONSTANTS | PREFIXES or literal in PREFIXES or format_prefix:
                     findings.append(f'line {node.lineno}: {function_name} composes a raw item command')
                     break
@@ -241,16 +281,19 @@ def analyze_repository(*, check_exit=True):
     adapters = json.loads(ADAPTER_PATH.read_text(encoding='utf8'))
     findings = []
     current = {}
-    for path in sorted(POLICY_ROOT.glob('*.py')):
+    for path in sorted(POLICY_ROOT.rglob('*.py')):
+        filename = path.relative_to(POLICY_ROOT).as_posix()
         source = path.read_text(encoding='utf8')
-        findings.extend(f'{path.name}: {finding}' for finding in analyze_source(
-            source, path.name, names=names, adapters=adapters, check_exit=check_exit))
+        findings.extend(f'{filename}: {finding}' for finding in analyze_source(
+            source, filename, names=names, adapters=adapters, check_exit=check_exit))
         for function, expression, _line in direct_calls(source, names):
-            site = f'{path.name}:{function}'
+            site = f'{filename}:{function}'
             current.setdefault(site, Counter())[expression] += 1
     for site, expressions in adapters.items():
         if current.get(site) != Counter(expressions):
             findings.append(f'{site}: pinned adapter call site changed or disappeared')
+    from town_structure_lint import analyze_repository as analyze_structure
+    findings.extend(analyze_structure())
     return findings
 
 

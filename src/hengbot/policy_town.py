@@ -2135,7 +2135,7 @@ class TownMixin:
         if command == READ_KEY:
             key = self._read_key(snapshot, item, target.slot)
         else:
-            key = command + item.slot + target.slot
+            key = reserved_item_command(self, snapshot, command, item, suffix=target.slot)
         self._offer_execution(
             key, producer="identification",
             work_id=f"identify:device:{self._item_signature(target)}",
@@ -2337,7 +2337,7 @@ class TownMixin:
                     snapshot, item, target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
                 )
             else:
-                key = command + item.slot + target.slot + FULL_IDENTIFY_DISMISS_SUFFIX
+                key = reserved_item_command(self, snapshot, command, item, suffix=target.slot + FULL_IDENTIFY_DISMISS_SUFFIX)
             self._offer_execution(
                 key, producer="identification",
                 work_id=f"identify:home-item:{self._item_signature(target)}",

@@ -3235,7 +3235,7 @@ class HomeMixin:
             self.last_reason = "home-disposal:identify-before-sale"
             if command == READ_KEY:
                 return self._read_key(snapshot, source_item, target.slot)
-            return command + source_item.slot + target.slot
+            return reserved_item_command(self, snapshot, command, source_item, suffix=target.slot)
         return None
 
     def _find_home_candidate(self, snapshot: Snapshot) -> StoreItem | None:

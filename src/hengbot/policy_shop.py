@@ -506,7 +506,7 @@ class ShopMixin(InStoreMixin):
             potion = self._carried_restore_potion(snapshot, stat)
             if potion is not None:
                 self.last_reason = f"restore:quaff-{stat}"
-                key = QUAFF_KEY + potion.slot
+                key = reserved_item_command(self, snapshot, "quaff", potion)
                 self._offer_execution(
                     key, producer="survival", work_id=f"restore:{stat}",
                     next_step="survival.quaff-stat-restore",
@@ -687,7 +687,7 @@ class ShopMixin(InStoreMixin):
             if restore is None:
                 return None
             self.last_reason = "experience:quaff-restore-life-levels"
-            key = QUAFF_KEY + restore.slot
+            key = reserved_item_command(self, snapshot, "quaff", restore)
             self._offer_execution(
                 key, producer="survival", work_id="experience:restore-levels",
                 next_step="survival.quaff-experience-restore",
@@ -696,7 +696,7 @@ class ShopMixin(InStoreMixin):
             )
             return key
         self.last_reason = "experience:quaff"
-        key = QUAFF_KEY + experience.slot
+        key = reserved_item_command(self, snapshot, "quaff", experience)
         self._offer_execution(
             key, producer="survival", work_id="experience:quaff",
             next_step="survival.quaff-experience",

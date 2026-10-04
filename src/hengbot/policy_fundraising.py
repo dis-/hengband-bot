@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
 from dataclasses import dataclass, replace
@@ -1233,7 +1234,7 @@ class FundraisingMixin:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "fundraise:eat"
-                key = EAT_KEY + food.slot
+                key = reserved_item_command(self, snapshot, "eat", food)
                 self._offer_execution(
                     key, producer="fundraising", work_id="fundraise:eat",
                     next_step="fundraising.eat",
@@ -1244,7 +1245,7 @@ class FundraisingMixin:
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "fundraise:refill-light"
-            key = REFILL_KEY + refill.slot
+            key = reserved_item_command(self, snapshot, "refill", refill)
             self._offer_execution(
                 key, producer="fundraising", work_id="fundraise:refill-light",
                 next_step="fundraising.refill-light",

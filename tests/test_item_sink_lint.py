@@ -17,6 +17,35 @@ class ItemSinkLintTest(unittest.TestCase):
     def test_raw_deposit_mutant_fails(self):
         self.assertTrue(analyze_source("def new_selector(item):\n return 'd' + item.slot\n", names=set()))
 
+    def test_raw_consumption_command_mutations_fail(self):
+        for prefix in ('q', 'r', 'E', 'u', 'a', 'z', 'f', 'v', '\\F'):
+            with self.subTest(prefix=prefix):
+                source = f'def new_selector(item):\n return {prefix!r} + item.slot\n'
+                self.assertTrue(any('raw item command' in f for f in analyze_source(source, names=set())))
+        for constant in ('QUAFF_KEY', 'READ_KEY', 'EAT_KEY', 'USE_STAFF_KEY',
+                         'AIM_WAND_KEY', 'ZAP_ROD_KEY', 'FIRE_KEY', 'THROW_KEY', 'REFILL_KEY'):
+            source = f'def new_selector(item):\n return {constant} + item.slot\n'
+            self.assertTrue(analyze_source(source, names=set()))
+        for source in (
+            'from hengbot.policy_constants import QUAFF_KEY as Q\ndef consume(item):\n return Q + item.slot',
+            'Q = QUAFF_KEY\ndef consume(item):\n return Q + item.slot',
+            'Q = "q"\ndef consume(item):\n return Q + item.slot',
+            'def consume(item):\n return "\\\\F{}".format(item.slot)',
+        ):
+            self.assertTrue(analyze_source(source, names=set()))
+
+    def test_building_menu_pin_does_not_exempt_item_command_in_same_function(self):
+        source = 'def _fixed_quest_building_key(item):\n return "q" + item.slot\n'
+        self.assertTrue(analyze_source(source, 'policy_quest.py', names=set()))
+
+    def test_rumor_menu_macro_pin_is_exact(self):
+        source = 'RUMOR_KEY = "r"\nRUMOR_READ_KEY = RUMOR_KEY + "\\r"\n'
+        self.assertEqual(analyze_source(source, 'policy_constants.py', names=set()), [])
+        self.assertTrue(analyze_source(source + 'RAW = RUMOR_KEY + slot\n',
+                                       'policy_constants.py', names=set()))
+        self.assertTrue(analyze_source(source + 'OTHER = RUMOR_KEY + "\\r"\n',
+                                       'policy_constants.py', names=set()))
+
     def test_new_selector_cannot_serialize_reserved_item_without_verdict(self):
         for expression in ('item_command("deposit", reserved)',
                            'item_command("deposit", reserved, None)',
