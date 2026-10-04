@@ -2166,6 +2166,12 @@ class ShopMixin(InStoreMixin):
         purchase_provenance = self._shop_selector_diagnostics.get(
             "purchase_provenance"
         )
+        home_deposit_refusal = self._shop_selector_diagnostics.get(
+            "home_deposit_batch_refusal"
+        )
+        home_deposit_refusal_sequence = self._shop_selector_diagnostics.get(
+            "home_deposit_batch_refusal_sequence"
+        )
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -2186,6 +2192,16 @@ class ShopMixin(InStoreMixin):
         if purchase_provenance is not None:
             self._shop_selector_diagnostics["purchase_provenance"] = (
                 purchase_provenance
+            )
+        if (
+            home_deposit_refusal is not None
+            and home_deposit_refusal_sequence == self._decision_sequence
+        ):
+            self._shop_selector_diagnostics["home_deposit_batch_refusal"] = (
+                home_deposit_refusal
+            )
+            self._shop_selector_diagnostics["home_deposit_batch_refusal_sequence"] = (
+                home_deposit_refusal_sequence
             )
         invariant_defect = getattr(
             self, "_town_progress_invariant_defect", {}
