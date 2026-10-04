@@ -3051,7 +3051,11 @@ class QuestMixin:
                 return False
             if cell.in_view:
                 return True
-            # Protocol 3 sends the displayed lighting variant, not CAVE_VIEW.
+            # New protocol-3 symbols can merge dark and lit variants. They
+            # cannot certify that this empty fixed cell is currently visible.
+            if snapshot.player.melee_displayed_totals:
+                return False
+            # Older protocol 3 sends the lighting variant, not CAVE_VIEW.
             # At the reviewed Q34 stand a lit target down an open line is
             # observable with the opening lantern.  Checking each intervening
             # square prevents an occluded cell from certifying a kill.

@@ -165,6 +165,17 @@ def hit_chance(reliability: int, ac: int = AC_REFERENCE, *, lazy: bool = False) 
     return max(5, chance) / 100.0
 
 
+def displayed_melee_hit_chance(melee_skill: int, total_to_h: int, ac: int = AC_REFERENCE) -> float:
+    """Use the visible total once, retaining the visible skill's rounding remainder.
+
+    calc_displayed_melee_bonus includes skill_thn / 3 (C truncation) and
+    the known weapon bonus. Neither component may be added a second time.
+    melee_skill is already derived from the numeric visible fighting rating.
+    """
+    quotient = abs(melee_skill) // 3 * (-1 if melee_skill < 0 else 1)
+    return hit_chance(total_to_h * 3 + melee_skill - quotient * 3, ac)
+
+
 def melee_hit_chance(
     melee_skill: int,
     hand_to_h: int,

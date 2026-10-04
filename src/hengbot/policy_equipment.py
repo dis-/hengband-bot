@@ -2906,6 +2906,15 @@ class EquipmentMixin:
 
     @staticmethod
     def _main_hand_dps(snapshot: Snapshot, weapon: InventoryItem) -> float:
+        if snapshot.player.melee_displayed_totals:
+            from hengbot.warrior_equipment_evaluator import displayed_melee_hit_chance
+            player = snapshot.player
+            if player.main_hand_to_h is None or player.main_hand_to_d is None:
+                return 0.0
+            dice_average = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
+            damage = max(1.0, dice_average + player.main_hand_to_d)
+            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.main_hand_to_h)
+            return player.main_hand_blows * damage * hit_rate
         dice_average = (
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
         )
@@ -2919,6 +2928,15 @@ class EquipmentMixin:
 
     @staticmethod
     def _sub_hand_dps(snapshot: Snapshot, weapon: InventoryItem) -> float:
+        if snapshot.player.melee_displayed_totals:
+            from hengbot.warrior_equipment_evaluator import displayed_melee_hit_chance
+            player = snapshot.player
+            if player.sub_hand_to_h is None or player.sub_hand_to_d is None:
+                return 0.0
+            dice_average = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
+            damage = max(1.0, dice_average + player.sub_hand_to_d)
+            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.sub_hand_to_h)
+            return player.sub_hand_blows * damage * hit_rate
         dice_average = (
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
         )

@@ -29,9 +29,9 @@ NON_BOARD_SNAPSHOT_TYPES = frozenset(
     {"knowledge", "look", "character", "spell_list", "power_list", "lore"}
 )
 
-# grid_map.palette[][1] under protocol 3 (README 圧縮地図): the lighting variant
-# the map draws the terrain symbol with.
-GRID_LIGHTING_VALUES = frozenset({0, 1, 2})  # 0 normal, 1 lit, 2 dark
+# grid_map.palette[][1] is a displayed lighting symbol index. New emitters
+# canonicalize identical colour/character pairs; this is not illumination.
+GRID_LIGHTING_VALUES = frozenset({0, 1, 2})
 
 # Flask of oil: apply-magic-others.cpp:45-47 moves the base item's
 # parameter_value into ``fuel`` at creation and nothing ever burns a flask, so

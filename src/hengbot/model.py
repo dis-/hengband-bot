@@ -78,8 +78,9 @@ def _decode_grid_map(
             int(palette_index_value)
         ]
         if protocol >= PROTOCOL_SCREEN_PARITY:
-            # Protocol 3: slot 1 is the lighting variant (0 normal, 1 lit,
-            # 2 dark), never CAVE bits; decoding it as bits would read a lit
+            # Protocol 3: slot 1 is a display symbol index (0/1/2). Newer
+            # emitters merge identical symbols; it is not actual lighting.
+            # Never decode as CAVE bits; that would read a lit
             # tile as ``mark`` and a dark one as ``cave_known``.  Protocol 2
             # always sent 0 here, so every CAVE flag stays false as before.
             lighting: int | None = grid_lighting(flag_bits)
@@ -372,10 +373,13 @@ class PlayerState:
     ac: int = 0
     main_hand_blows: int = 0
     sub_hand_blows: int = 0
-    main_hand_to_h: int = 0
-    sub_hand_to_h: int = 0
-    main_hand_to_d: int = 0
-    sub_hand_to_d: int = 0
+    main_hand_to_h: int | None = 0
+    sub_hand_to_h: int | None = 0
+    main_hand_to_d: int | None = 0
+    sub_hand_to_d: int | None = 0
+    # Inferred independently on every board from the emitter's new key.
+    melee_displayed_totals: bool = False
+    mutation_blows: int | None = None  # old emitter does not display this count
     drained_stats: tuple[str, ...] = ()  # ability names below their max (e.g. "str", "con")
     abilities: frozenset[str] = frozenset()  # resistances / telepathy / free_action the char HAS
     # Present only for the per-source emitter format.  Keys with no active
@@ -754,7 +758,7 @@ class GridState:
     mnlt: bool = False
     mndk: bool = False
     visibility_flags_present: bool = False
-    # Protocol 3 map lighting variant (0 normal, 1 lit, 2 dark); None before.
+    # Protocol 3 lighting symbol index; cannot recover actual illumination.
     map_lighting: int | None = None
     allows_los: bool = True
     # Player memory, distinct from the emitter's authoritative terrain truth.
@@ -1038,6 +1042,35 @@ def parse_snapshot(
             "two_weapon_skill": int(skills.get("two_weapon", 0)),
             "shield_skill": int(skills.get("shield", 0)),
         }
+    displayed_totals = "mutation_blows" in melee or any(
+        key in melee and melee[key] is None
+        for key in ("main_hand_to_h", "sub_hand_to_h", "main_hand_to_d", "sub_hand_to_d")
+    )
+    melee_values = {}
+    if displayed_totals:
+        melee_values["mutation_blows"] = require_int(melee, "mutation_blows", "player.melee")
+        if melee_values["mutation_blows"] < 0:
+            raise ProtocolSchemaError("player.melee.mutation_blows is negative")
+        for hand in ("main", "sub"):
+            blows_key = f"{hand}_hand_blows"
+            blows = require_int(melee, blows_key, "player.melee")
+            bonuses = [
+                require(melee, f"{hand}_hand_to_{kind}", "player.melee")
+                for kind in ("h", "d")
+            ]
+            inactive = any(value is None for value in bonuses)
+            if blows < 0 or (inactive and (blows != 0 or bonuses != [None, None])):
+                raise ProtocolSchemaError(f"player.melee inconsistent inactive {hand} hand")
+            melee_values[blows_key] = blows
+            for kind, value in zip(("h", "d"), bonuses):
+                key = f"{hand}_hand_to_{kind}"
+                melee_values[key] = None if value is None else require_int(melee, key, "player.melee")
+    else:
+        # Preserve legacy parsing and decisions exactly.
+        for hand in ("main", "sub"):
+            for suffix in ("blows", "to_h", "to_d"):
+                key = f"{hand}_hand_{suffix}"
+                melee_values[key] = int(melee.get(key, 0))
     raw_speed_display = player_data.get("speed_display")
     status_bar_data = player_data.get("status_bar")
     player = PlayerState(
@@ -1066,12 +1099,8 @@ def parse_snapshot(
         personality_id=int(player_data.get("personality_id", -1)),
         mimic_form=int(player_data.get("mimic_form", 0)),
         ac=int(player_data.get("ac", 0)),
-        main_hand_blows=int(melee.get("main_hand_blows", 0)),
-        sub_hand_blows=int(melee.get("sub_hand_blows", 0)),
-        main_hand_to_h=int(melee.get("main_hand_to_h", 0)),
-        sub_hand_to_h=int(melee.get("sub_hand_to_h", 0)),
-        main_hand_to_d=int(melee.get("main_hand_to_d", 0)),
-        sub_hand_to_d=int(melee.get("sub_hand_to_d", 0)),
+        melee_displayed_totals=displayed_totals,
+        **melee_values,
         drained_stats=drained_stats,
         abilities=abilities,
         ability_sources=AbilitySources(ability_sources),

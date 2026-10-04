@@ -16005,17 +16005,24 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # conservative unbranded score instead of calling a real weapon 0 DPS.
         if dps is None and weapon is not None:
             blows = max(0, snapshot.player.main_hand_blows)
-            hand_to_h = snapshot.player.main_hand_to_h - weapon.to_h
-            chance = melee_hit_chance(
-                snapshot.player.melee_skill,
-                hand_to_h,
-                weapon.to_h,
-                reference_ac,
-            )
+            if snapshot.player.melee_displayed_totals:
+                from hengbot.warrior_equipment_evaluator import displayed_melee_hit_chance
+                chance = (displayed_melee_hit_chance(
+                    snapshot.player.melee_skill, snapshot.player.main_hand_to_h, reference_ac
+                ) if snapshot.player.main_hand_to_h is not None else 0.0)
+            else:
+                hand_to_h = snapshot.player.main_hand_to_h - weapon.to_h
+                chance = melee_hit_chance(
+                    snapshot.player.melee_skill,
+                    hand_to_h,
+                    weapon.to_h,
+                    reference_ac,
+                )
             average_dice = (
                 weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2.0
             )
-            damage = max(0.0, average_dice + snapshot.player.main_hand_to_d)
+            damage = (max(0.0, average_dice + snapshot.player.main_hand_to_d)
+                      if snapshot.player.main_hand_to_d is not None else 0.0)
             dps = blows * chance * damage
         dps = float(dps or 0.0)
         carry_status = self._quest_carry_status(snapshot, force)
