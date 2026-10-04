@@ -65,7 +65,7 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         self.assertEqual(policy._departure_block_state(board)['failed'], ['cure_critical_ready'])
         self.assertEqual(policy.procurement_requirements(board), recorded['procurement_requirements'])
         self.assertEqual(policy._town_special_key(board), '5')
-        self.assertEqual(policy.last_reason, 'town:supply-stockout-mining')
+        self.assertEqual(policy.last_reason, 'fundraise:supply-stockout-mining')
         self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs), ('prepare', 1))
         self.assertEqual(policy._fundraising_gold_target(), 27_783)
         self.assertFalse(policy._town_restock_suppressed)
@@ -85,7 +85,7 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         for cycle in range(3):
             self.exhaust_suppliers(policy, board)
             self.assertEqual(policy._town_special_key(board), '5')
-            self.assertEqual(policy.last_reason, 'town:supply-stockout-mining')
+            self.assertEqual(policy.last_reason, 'fundraise:supply-stockout-mining')
             policy._fundraising_mode = 'mine'
             mining = replace(board, floor_key=(DUNGEON_YEEK_CAVE, 1, 0),
                              turn=board.turn + 1)
@@ -121,7 +121,7 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         self.assertEqual(set(policy._departure_block_state(board)['failed']),
                          {'recall_departure_ready', 'cure_critical_ready'})
         self.assertEqual(policy._town_special_key(board), '5')
-        self.assertEqual(policy.last_reason, 'town:supply-stockout-mining')
+        self.assertEqual(policy.last_reason, 'fundraise:supply-stockout-mining')
         policy._fundraising_mode = 'mine'
         self.assertFalse(policy._dungeon_entry_allowed(
             board, via_recall=True, destination_depth=23))

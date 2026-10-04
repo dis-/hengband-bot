@@ -6192,6 +6192,7 @@ class TownMixin:
             family="fundraising",
         )
 
+    @claims(ClaimOwner.FUNDRAISING)
     def _supply_stockout_mining_dispatch_key(self, snapshot: Snapshot) -> str | None:
         """One normal mining run per exhausted supply retry, at most three.
 
@@ -6254,7 +6255,7 @@ class TownMixin:
         self._town_store_attempted.clear()
         self._cross_town_shopping = None
         self._retire_town_errand_plan_for_rebuild()
-        self.last_reason = "town:supply-stockout-mining"
+        self.last_reason = "fundraise:supply-stockout-mining"
         self._offer_execution(
             WAIT_KEY, producer="fundraising", work_id="fundraise:supply-stockout",
             next_step="fundraising.prepare-one-mining-run",
