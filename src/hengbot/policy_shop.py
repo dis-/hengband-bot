@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import item_available
 
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -3163,6 +3164,8 @@ class ShopMixin(InStoreMixin):
             self.last_reason = rejected_reason
             return LEAVE_STORE_KEY
         item = current
+        if not item_available(self, snapshot, item, "shop-sell", "sell"):
+            return LEAVE_STORE_KEY
         if self._sale_retains_digging_tool(snapshot, item):
             self._batch_sell_pending = None
             self.last_reason = "shop:retain-standing-digging-tool"

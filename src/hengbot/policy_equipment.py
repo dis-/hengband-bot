@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import item_available
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
@@ -1827,7 +1828,7 @@ class EquipmentMixin:
     def _equipment_transaction_deposit_owns_item(self, item: InventoryItem) -> bool:
         """Reserve every remaining deposit for its registered session owner."""
         session = self._equipment_transaction_session
-        if session is None or not item.is_equipment:
+        if session is None:
             return False
         return any(
             action.kind == "deposit" and (
@@ -3526,6 +3527,8 @@ class EquipmentMixin:
         target_slot: str | None, *, quest_contract_exempt: bool = False,
     ) -> str | None:
         if target_slot is None:
+            return None
+        if not item_available(self, snapshot, item, "equipment-txn", "wield"):
             return None
         if (
             not quest_contract_exempt

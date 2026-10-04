@@ -218,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     weights = selection.weights if selection else None
     weights_line = weights_summary(selection, len(parallel_modules))
-    shards = partition(parallel_modules, worker_count, weights)
+    shards = [shard for shard in partition(parallel_modules, worker_count, weights) if shard]
     serial_selected = sorted(SERIAL_MODULES.intersection(modules))
     if serial_selected:
         shards.append(serial_selected)
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="hengbot-parallel-") as directory:
         temp_root = Path(directory)
-        with ThreadPoolExecutor(max_workers=len(shards)) as pool:
+        with ThreadPoolExecutor(max_workers=max(1, len(shards))) as pool:
             futures = {pool.submit(run_shard, i, shard, temp_root, streams): i
                        for i, shard in enumerate(shards)}
             for future in as_completed(futures):

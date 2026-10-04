@@ -1,0 +1,245 @@
+def _home_full_relief_key(self, snapshot: Snapshot) -> str | None:
+        if not snapshot.in_town:
+            return None
+        # Physical restoration remains the admitted owner's work. Resume this
+        # errand only after it releases the character; do not freeze restoration.
+        if self._equipment_transaction_owned_items:
+            return None
+        retry = getattr(self, "_home_full_retry_deposits", None)
+        if retry is not None:
+            if self._home_is_full(snapshot):
+                self._home_full_retry_deposits = None
+                self._begin_home_full_relief(snapshot, retry)
+                return self._home_full_relief_key(snapshot)
+            holder = self._claim_register.current
+            if (not self._home_knowledge_current
+                    and not (self._equipment_transaction_session is not None
+                             and holder is not None and holder.is_open
+                             and holder.owner.value == "equipment-txn"
+                             and holder.goal.source == "transaction")):
+                return self._town_producer_entry(
+                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                    family="home-scan")
+            if self._equipment_transaction_session is not None:
+                # Space relief owns surplus stock, not this session's item
+                # effects. Return the relieved deposit to its original owner;
+                # keep any unrelated Home batch entries for after the session.
+                reserved = {self._item_signature(item) for item in snapshot.inventory
+                            if self._equipment_transaction_deposit_owns_item(item)}
+                self._home_full_retry_deposits = tuple(
+                    entry for entry in retry if entry[0] not in reserved) or None
+                return self._town_producer_entry(
+                    "_equipment_transaction_home_key" if snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME
+                    else "_equipment_transaction_town_key",
+                    lambda: (self._equipment_transaction_home_key(snapshot)
+                             if snapshot.store is not None
+                             and snapshot.store.store_type == STORE_HOME
+                             else self._equipment_transaction_town_key(snapshot)),
+                    family="equipment-txn")
+            if self._find_home_deposit(snapshot) is None:
+                self._home_full_retry_deposits = None
+                return None
+            if snapshot.store is not None:
+                if snapshot.store.store_type == STORE_HOME:
+                    return self._open_home_deposit_key(snapshot)
+                return self._home_full_leave_key("home:full-space-ready")
+            self._rearm_town_store_for_new_work(STORE_HOME)
+            if not self._ensure_home_visit_request(snapshot):
+                return None
+            step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
+            if step is None:
+                self._town_blocked_reason = "home-full-deposit-retry-unreachable"
+                return self._town_blocked_key(snapshot)
+            return self._shopping_approach_key(snapshot, step, "shop:travel")
+        if self._home_full_relief is None and self._home_is_full(snapshot):
+            first = self._find_home_deposit(snapshot)
+            if first is not None:
+                self._begin_home_full_relief(snapshot, tuple(
+                    (self._item_signature(item), item.count, count)
+                    for item, count in self._home_deposit_batch(snapshot, first)))
+        relief = self._home_full_relief
+        if relief is None:
+            return None
+        if relief["town"] != self._effective_town_id(snapshot):
+            self._town_blocked_reason = "home-full-town-changed"
+            return self._town_blocked_key(snapshot)
+        sale = relief["sale"]
+        if sale is not None:
+            signature, store_type, before_count = sale
+            sale_identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
+                             signature[1], signature[2])
+            target = self._first_item(snapshot, lambda item:
+                                     self._sale_item_identity(item) == sale_identity)
+            count = sum(item.count for item in snapshot.inventory
+                        if self._sale_item_identity(item) == sale_identity)
+            identifying = relief.get("identifying")
+            if identifying is not None and count <= before_count:
+                self._town_blocked_reason = "home-full-identification-effect-unresolved"
+                return self._town_blocked_key(snapshot)
+            if count > before_count:
+                relief["withdrawn"] = True
+                if self._home_pending_item == signature:
+                    self._home_pending_item = None
+                    self._home_pending_slot = None
+                    self._home_pending_quantity = None
+                    self._home_pending_take_confirmed = None
+                if relief.get("mode") in {"destroy", "identify"}:
+                    if snapshot.store is not None:
+                        return self._home_full_leave_key("home:full-leave-with-surplus")
+                    if not target.known or self._disposal_protected_by_identification(target):
+                        # Identification retains its normal source, full-ID,
+                        # and verification rules; relief resumes from the
+                        # observed item, never a guessed identification result.
+                        key = self._town_producer_entry(
+                            "home-full-identification",
+                            lambda: self._home_full_identify_carried_key(snapshot, target),
+                            family="identification")
+                        if key is None:
+                            self._town_blocked_reason = "home-full-identification-source-unavailable"
+                            return self._town_blocked_key(snapshot)
+                        relief["identifying"] = (target.tval, target.count,
+                            frozenset(self._item_signature(item) for item in snapshot.inventory),
+                            target.known, target.fully_known)
+                        return key
+                    if relief.get("mode") == "identify":
+                        candidate = self._home_full_sale_candidate(
+                            replace(snapshot, inventory=tuple(
+                                carried for carried in snapshot.inventory
+                                if self._sale_item_identity(carried) != sale_identity)), target)
+                        if candidate is not None:
+                            relief["sale"] = (signature, candidate[1], before_count)
+                            relief["mode"] = "sale"
+                            return self._home_full_relief_key(snapshot)
+                        relief["mode"] = "destroy"
+                    probe = replace(snapshot, inventory=tuple(
+                        carried for carried in snapshot.inventory
+                        if self._sale_item_identity(carried) != sale_identity))
+                    if self._home_full_discard_candidate(probe, target) is None:
+                        # Identification can reveal an artifact or departure
+                        # candidate. Retain it and choose other shelf stock;
+                        # neither its take nor its identification is disposal.
+                        relief["sale"] = None
+                        relief["withdrawn"] = False
+                        relief.pop("mode", None)
+                        self._home_errand.finish()
+                        return self._home_full_relief_key(snapshot)
+                    posted = relief.get("destroy_posted", False)
+                    key = WAIT_KEY if posted else self._destroy_item_key(target)
+                    self.last_reason = ("home:full-destroy-await-effect" if posted
+                                        else "home:full-destroy-surplus")
+                    self._offer_execution(
+                        key, producer="home-visit", work_id=f"home-full-destroy:{sale_identity}",
+                        next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
+                        arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
+                        continuation="home.full-destroy.observe",
+                        budget_ref="home-visit-existing-budget")
+                    relief["destroy_posted"] = True
+                    return key
+                if (signature in self._unsellable_items
+                        or store_type in self._store_sale_refused):
+                    self._town_blocked_reason = "home-full-surplus-sale-refused"
+                    return self._town_blocked_key(snapshot)
+                if (not target.known or self._disposal_protected_by_identification(target)
+                        or self._retention_reservation(snapshot, target) > 0
+                        or self._equipment_transaction_owns_item(target)):
+                    self._town_blocked_reason = "home-full-surplus-now-reserved"
+                    return self._town_blocked_key(snapshot)
+                if snapshot.store is not None:
+                    if snapshot.store.store_type != store_type:
+                        return self._home_full_leave_key("home:full-leave-with-surplus")
+                    key = self._store_sell_key(snapshot, target,
+                        "shop:sell-home-full-surplus",
+                        rejected_reason="shop:home-full-surplus-sale-refused")
+                    if (key and key.startswith(("d", "{"))
+                            and self._in_store_ops_active()
+                            and self._store_visit is not None):
+                        return self._in_store_commit_operation(snapshot, key)
+                    return key
+            elif relief["withdrawn"]:
+                if relief.get("mode") == "destroy":
+                    self._complete_claim_goal(
+                        "home-full-destroy-observed", owners=("home-visit",),
+                        kinds=("Observe",), sources=("effect",))
+                # Stock space is earned by the take, but the next take/deposit
+                # starts only after the sale's inventory effect is observed.
+                relief["remaining"] -= 1
+                relief["sale"] = None
+                relief["withdrawn"] = False
+                relief.pop("destroy_posted", None)
+                relief.pop("mode", None)
+                self._home_errand.finish()
+                self._invalidate_home_observation()
+                if relief["remaining"] == 0:
+                    self._home_rejected_deposits.difference_update(
+                        entry[0] for entry in relief["deposits"])
+                    self._home_deposit_abandoned = False
+                    self._home_capacity_observation = None
+                    self._home_full_refused = False
+                    self._home_full_retry_deposits = relief["deposits"]
+                    self._home_full_relief = None
+                    self._invalidate_home_observation()
+                    self._rearm_town_store_for_new_work(STORE_HOME,
+                                                       release_visit_bound=True)
+                    return self._home_full_relief_key(snapshot)
+                sale = None
+            elif self._home_errand.state.value in {"failed", "stopped"}:
+                self._town_blocked_reason = "home-full-surplus-withdraw-failed"
+                return self._town_blocked_key(snapshot)
+        if sale is None:
+            if not self._home_knowledge_current:
+                return self._town_producer_entry(
+                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                    family="home-scan")
+            candidates = [result for item in self._home_knowledge_items
+                          if not item.is_equipment
+                          and (result := self._home_full_sale_candidate(snapshot, item))]
+            if not candidates:
+                candidates = [result for item in self._home_knowledge_items
+                              if item.is_equipment
+                              and (result := self._home_full_sale_candidate(snapshot, item))]
+            if len(snapshot.inventory) >= PACK_CAPACITY:
+                candidates = []
+            if not candidates:
+                discard = [candidate for stock in self._home_knowledge_items
+                           if (candidate := self._home_full_discard_candidate(snapshot, stock))]
+                unidentified = [candidate for stock in self._home_knowledge_items
+                                if (candidate := self._home_full_discard_candidate(
+                                    snapshot, stock, identify=True))]
+                if len(snapshot.inventory) >= PACK_CAPACITY:
+                    discard = unidentified = []
+                if discard:
+                    item = min(discard, key=lambda candidate:
+                               self._home_full_discard_rank(snapshot, candidate))
+                    relief["mode"] = "destroy"
+                elif unidentified:
+                    item = min(unidentified, key=self._item_signature)
+                    relief["mode"] = "identify"
+                else:
+                    self._town_blocked_reason = "home-full-no-sellable-surplus"
+                    return self._town_blocked_key(snapshot)
+                store_type = STORE_HOME
+            else:
+                item, store_type, _value = max(candidates, key=lambda result: result[2])
+                relief["mode"] = "sale"
+            signature = self._item_signature(item)
+            if not self._file_home_errand(snapshot, HomeErrandRequest(
+                    signature, item.count, "home-catalog",
+                    "full-home-sale" if relief["mode"] == "sale" else "full-home-discard"),
+                    knowledge_current=True):
+                return None
+            relief["sale"] = (signature, store_type,
+                self._inventory_signature_count(snapshot, signature))
+            self._home_pending_item = signature
+            self._home_pending_quantity = item.count
+            self._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
+            sale = relief["sale"]
+        store_type = sale[1] if relief["withdrawn"] else STORE_HOME
+        if snapshot.store is not None:
+            return self._home_full_leave_key("home:full-queue-surplus-withdraw")
+        self._rearm_town_store_for_new_work(store_type)
+        step = self._shopping_approach_step(snapshot, store_type, requester="home-visit")
+        if step is None:
+            self._town_blocked_reason = "home-full-surplus-store-unreachable"
+            return self._town_blocked_key(snapshot)
+        return self._shopping_approach_key(snapshot, step, "shop:travel")

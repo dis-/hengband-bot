@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import item_available
 
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
@@ -60,7 +61,8 @@ class HomeMixin:
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
-        if (item.is_empty_bottle or not item.known or self._disposal_protected_by_identification(item)
+        if (not item_available(self, snapshot, item, "home-visit", "home-full-sale")
+                or item.is_empty_bottle or not item.known or self._disposal_protected_by_identification(item)
                 or signature in self._unsellable_items
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
@@ -89,7 +91,8 @@ class HomeMixin:
         item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
-        if (item.is_artifact or item.is_bounty
+        if (not item_available(self, snapshot, item, "home-visit", "destroy")
+                or item.is_artifact or item.is_bounty
                 or signature in self._undestroyable_sigs
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
@@ -324,9 +327,17 @@ class HomeMixin:
                         or store_type in self._store_sale_refused):
                     self._town_blocked_reason = "home-full-surplus-sale-refused"
                     return self._town_blocked_key(snapshot)
+                if not item_available(self, snapshot, target, "home-visit", "home-full-sale"):
+                    if getattr(self, "_town_claim_bar_enforced", False):
+                        return None
+                    relief["sale"] = None
+                    relief["withdrawn"] = False
+                    relief.pop("mode", None)
+                    self._home_errand.finish()
+                    return self._home_full_relief_key(snapshot)
                 if (not target.known or self._disposal_protected_by_identification(target)
                         or self._retention_reservation(snapshot, target) > 0
-                        or self._equipment_transaction_owns_item(target)):
+                        ):
                     self._town_blocked_reason = "home-full-surplus-now-reserved"
                     return self._town_blocked_key(snapshot)
                 if snapshot.store is not None:
@@ -1561,6 +1572,8 @@ class HomeMixin:
             )
             return category, -item.weight * self._retention_surplus(snapshot, item), item.slot
 
+        candidates = [item for item in candidates
+                      if item_available(self, snapshot, item, "home-visit", "weight-deposit")]
         return sorted(candidates, key=priority)
 
     def _overweight_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -1776,6 +1789,8 @@ class HomeMixin:
         *,
         forced_count: int | None = None,
     ) -> str:
+        if not item_available(self, snapshot, deposit, "home-visit", "deposit"):
+            return LEAVE_STORE_KEY
         sig = (
             deposit.slot,
             self._item_signature(deposit),
@@ -2177,6 +2192,9 @@ class HomeMixin:
             if self._home_pending_quantity is not None
             else 1
         )
+        owner = "equipment-txn" if transaction_withdraw_pending else "home-errand"
+        if not item_available(self, snapshot, item, owner, "withdraw"):
+            return None
         take_count = max(1, min(item.count, requested_quantity))
         self._home_atomic_withdraw_telemetry = {
             "decision_sequence": self._decision_sequence,
@@ -2617,6 +2635,8 @@ class HomeMixin:
             if current is None:
                 self._offer_home_atomic_no_step("deposit", "transaction-item-absent")
                 return None
+            if not item_available(self, snapshot, current, "equipment-txn", "deposit"):
+                return None
             if self._retention_reservation(snapshot, current) > 0:
                 self._offer_home_atomic_no_step("deposit", "item-reserved")
                 return None
@@ -2830,6 +2850,8 @@ class HomeMixin:
             self._offer_home_atomic_no_step("deposit", "open-page-not-composable")
             return None
         first = self._find_home_deposit(snapshot)
+        if first is not None and not item_available(self, snapshot, first, "home-visit", "deposit"):
+            return None
         if first is None or not self._prepare_home_visit_operation(
             "put", self._item_signature(first),
             (self._item_signature(first), first.slot, snapshot.turn),

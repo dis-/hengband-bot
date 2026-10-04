@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
 
 from collections import Counter, deque
 import random
@@ -2555,6 +2556,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_border_cache.clear()
         self._refresh_town_facts(snapshot)
 
+    @reservation_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
@@ -2745,7 +2747,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             while (key is None and not self._decision_gate_final_count
                    and not (self.last_reason or "").startswith((
                 "ownership:holder-silent:", "ownership:declaration-",
-                "ownership:gate-missing:",
+                "ownership:gate-missing:", "ownership:item-reserved:",
             ))):
                 holder = self._claim_errand_hold("__none__")
                 if holder is not None:
@@ -2783,7 +2785,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = WAIT_KEY
             if (self.last_reason or "").startswith((
                 "ownership:holder-silent:", "ownership:declaration-",
-                "ownership:gate-missing:",
+                "ownership:gate-missing:", "ownership:item-reserved:",
             )):
                 self._record_decision_claim(snapshot, None)
                 return None
@@ -3163,7 +3165,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "ownership:declaration-missing:store-router"
             self._record_decision_claim(snapshot, None)
             return None
+        shadows = reservation_shadow(self)
+        if getattr(self, "_town_claim_bar_enforced", False):
+            denied = self._town_final_declaration_stop(snapshot, key, self._claim_errand_hold("__none__")) if shadows else None
+            if denied:
+                self.last_reason = denied
+                key = None
         self._record_decision_claim(snapshot, key)
+        if self.decision_claim is not None and shadows:
+            self.decision_claim["item_reservation_shadow"] = shadows
         return key
 
     # -- S1 attribution (SOL-DESIGN-ownership-contract.md 3.1, 4, 6/S1) ----
@@ -4720,6 +4730,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             claim_declaration_mismatch(finished, 'awaiting', reason) if finished is not None and finished.execution is not None and (finished.execution.state == 'done') and (claim.claim_id == finished.claim_id or claim.execution is None) and (finished.owner.value in {'home-visit', 'equipment-txn'}) and (visit is not None) and visit.operation_posted and (not visit.operation_released) else None
         )
         self.decision_claim = {
+            **({"item_reservation_shadow": reservation_shadow(self)}
+               if reservation_shadow(self) else {}),
             **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
             "reason": reason,
@@ -6792,6 +6804,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _town_final_declaration_stop(self, snapshot, key, route):
         """Pure validity checks shared by enforcement and OFF shadow."""
+        reserved = next((row["would_stop"] for row in reservation_shadow(self)
+                         if row.get("would_stop")), None)
+        if reserved is not None:
+            return reserved
         reason = self.last_reason or ""
         family = self._claim_family_of(reason)
         if key == "" and reason == "shop:one-shot-in-flight":
@@ -6904,6 +6920,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Detect a producer that escaped the town entry gate."""
         if not (snapshot.in_town or snapshot.store is not None):
             return key
+        if getattr(self, "_town_claim_bar_enforced", False) and reservation_shadow(self):
+            stop = self._town_final_declaration_stop(snapshot, key, None)
+            if stop is not None:
+                self.last_reason = stop
+                return None
         if key is None:
             return key
         enforced = getattr(self, "_town_claim_bar_enforced", False)
@@ -12203,6 +12224,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         disposable = finder(candidate_snapshot)
         refused_superior = False
         while disposable is not None:
+            owner = "equipment-txn" if reason.startswith("equipment:") else "identification"
+            if not item_available(self, snapshot, disposable, owner, "destroy"):
+                if getattr(self, "_town_claim_bar_enforced", False):
+                    return None
+                candidate_snapshot = replace(candidate_snapshot, inventory=[
+                    item for item in candidate_snapshot.inventory if item is not disposable])
+                skipped = disposable
+                disposable = finder(candidate_snapshot)
+                if disposable is skipped:
+                    disposable = None
+                continue
             if not self._entire_stack_is_surplus(candidate_snapshot, disposable):
                 self._offer_execution_no_step(
                     producer="identification", work_id="verified-destroy",
