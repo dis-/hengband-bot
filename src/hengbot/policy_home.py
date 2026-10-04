@@ -72,6 +72,10 @@ class HomeMixin:
                 or any(self._sale_item_identity(carried) == self._sale_item_identity(item)
                        for carried in snapshot.inventory)
                 or item.is_bounty
+                # The store-side sale guard keeps the standing digging tool;
+                # selecting it here would withdraw an item no store sale may
+                # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
+                or self._sale_retains_digging_tool(probe, item)
                 or (item.is_equipment
                     and not self._is_disposable_dominated_armour(snapshot, item))
                 or store_type is None):

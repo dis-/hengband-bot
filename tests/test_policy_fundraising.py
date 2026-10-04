@@ -433,6 +433,18 @@ class IdleItemDepositTest(unittest.TestCase):
         self.assertEqual(pol.last_reason, "shop:retain-standing-digging-tool")
         self.assertIsNone(pol._batch_sell_pending)
 
+    def test_full_home_sale_never_selects_the_retained_second_digger(self):
+        # Live 2026-10-05 05:14: full-Home relief withdrew a digger that the
+        # store-side guard then refused (retain-standing-digging-tool loop).
+        pol = HengbotPolicy()
+        best = item("a", TVAL_DIGGING, 3, name="best shovel", pval=3)
+        home_second = item("b", TVAL_DIGGING, 1, name="second shovel", pval=1)
+        snap = self._town([best])
+        self.assertTrue(pol._sale_retains_digging_tool(
+            replace(snap, inventory=(*snap.inventory, replace(home_second, slot="home-surplus"))),
+            replace(home_second, slot="home-surplus")))
+        self.assertIsNone(pol._home_full_sale_candidate(snap, home_second))
+
     def test_gate1_five_diggers_compose_sales_for_only_the_three_worst(self):
         diggers = [
             item(chr(ord("a") + rank), TVAL_DIGGING, rank + 1,
