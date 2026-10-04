@@ -1,0 +1,23 @@
+Exact HEAD production-file reversion; exit=1
+E
+======================================================================
+ERROR: test_post_purchase_decision_returns_under_hard_timeout (tests.test_home_deposit_hang_recorded.HomeDepositHangRecordedTest.test_post_purchase_decision_returns_under_hard_timeout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-hang\tests\test_home_deposit_hang_recorded.py", line 56, in test_post_purchase_decision_returns_under_hard_timeout
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--worker'],
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py", line 1630, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['C:\\Users\\user\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe', 'C:\\hengband\\bot-client-hang\\tests\\test_home_deposit_hang_recorded.py', '--worker']' timed out after 8 seconds
+
+----------------------------------------------------------------------
+Ran 1 test in 8.032s
+
+FAILED (errors=1)

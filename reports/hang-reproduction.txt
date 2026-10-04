@@ -1,0 +1,353 @@
+context False 0 False
+0 8142024 choose
+0 'Cf\ry\x1b\x1b' periodic:character-dump 0.28469280000717845 facts
+context False 14 False
+1 8142024 choose
+1 'Cf\ry\x1b\x1b' periodic:character-dump 1.376890799991088 facts
+context False 14 False
+2 8142024 choose
+2 '\x1b' home:scan-incomplete-open-page 0.32271910000417847 facts
+context False 14 False
+3 8142024 choose
+3 '\r' shop:await-leave-confirmation 0.06108909999602474 facts
+context False 14 False
+4 8142036 choose
+4 'Cf\ry\x1b\x1b' periodic:character-dump 1.3643095000006724 facts
+context False 14 False
+5 8142036 choose
+5 'Cf\ry\x1b\x1b' periodic:character-dump 1.5150836999964667 facts
+context False 14 False
+6 8142209 choose
+6 'Cf\ry\x1b\x1b' periodic:character-dump 1.5714317000092706 facts
+context False 14 False
+7 8142209 choose
+7 '\x1b' town-progress-invariant:continue-observed-shop 0.988132400001632 facts
+context False 14 False
+8 8142209 choose
+8 '\x1b' shop:await-leave-confirmation 0.7150121000013314 facts
+context False 14 False
+9 8142218 choose
+9 'Cf\ry\x1b\x1b' periodic:character-dump 2.6363726999989012 facts
+context False 14 False
+10 8142218 choose
+10 'rgm\x1b\x1b\x1b\x1b\x1b\x1b\x1b\x1b' identify:full 2.0142456000030506 facts
+context False 14 False
+11 8142218 choose
+11 'pn1\r\r' shop:in-store-buy 0.5718507999990834 facts
+context False 14 False
+12 8142218 choose
+12 '\x1b' shop:in-store-done 0.6619629000051646 facts
+context False 14 False
+13 8142228 choose
+13 'Cf\ry\x1b\x1b' periodic:character-dump 1.977947999999742 facts
+context True 172 False
+15 8142228 choose
+15 '' shop:one-shot-in-flight 3.544605800008867 facts
+context True 172 False
+16 8142228 choose
+16 '' shop:one-shot-in-flight 3.7457772999914596 facts
+context True 172 False
+17 8142392 choose
+17 '\x1b`n&.' town-progress-invariant:defect:shop:one-shot-in-flight=>town-progress-invariant:approach 3.9787868999992497 facts
+context True 172 False
+18 8142392 choose
+18 'dj\x1b' home:weight-overload-deposit 0.40439389999664854 facts
+context False 173 False
+19 8142392 choose
+19 '\x1b' home:leave-after-one-operation 0.3729712000058498 facts
+context False 172 False
+20 8142401 choose
+20 'Cf\ry\x1b\x1b' periodic:character-dump 0.6877914000069723 facts
+context False 172 False
+21 8142401 choose
+21 'Cf\ry\x1b\x1b' periodic:character-dump 0.7627896999911172 facts
+context False 172 False
+22 8142401 choose
+22 '\x1b' home:store-context-exit 0.6188919999985956 facts
+context False 172 False
+23 8142401 choose
+23 '\r' shop:await-leave-confirmation 0.0784330000024056 facts
+context False 171 False
+24 8142413 choose
+24 'Cf\ry\x1b\x1b' periodic:character-dump 0.7722232999949483 facts
+context False 171 False
+25 8142427 choose
+25 '\x1b`n&.' shop:travel 1.193506100011291 facts
+context False 171 False
+26 8142427 choose
+26 '' store:entry-await-observation 2.1148431999899913 facts
+context False 171 False
+27 8142427 choose
+27 '\x1b' home:scan-incomplete-open-page 0.3595640999992611 facts
+context False 171 False
+28 8142427 choose
+28 '\r' shop:await-leave-confirmation 0.19089729999541305 facts
+context False 171 False
+29 8142437 choose
+29 'Cf\ry\x1b\x1b' periodic:character-dump 2.978674400001182 facts
+context False 171 False
+30 8142447 choose
+30 '~9\x1b\x1b' home:request-knowledge-scan 0.6770797000062885 facts
+context False 171 False
+31 8142457 choose
+31 '1' town-progress-invariant:defect:periodic:character-dump=>periodic:character-dump 2.675901700000395 facts
+context False 171 False
+32 8142469 choose
+32 '1' town-progress-invariant:defect:periodic:character-dump=>periodic:character-dump 2.802277299997513 facts
+context False 171 False
+33 8142479 choose
+33 '1' town-progress-invariant:defect:periodic:character-dump=>periodic:character-dump 2.6609176000056323 facts
+context False 171 False
+34 8142486 choose
+34 '5' town:blocked:owner-retired 2.8298386999958893 facts
+context False 171 False
+35 8142494 choose
+35 '5' town:blocked:owner-retired 3.1411453999899095 facts
+context False 171 False
+36 8142505 choose
+36 '5' town:blocked:owner-retired 3.165473799992469 facts
+context True 172 False
+38 8142505 choose
+38 'Cf\ry\x1b\x1b' periodic:character-dump 3.0332235999958357 facts
+context True 172 False
+39 8142505 choose
+39 'Cf\ry\x1b\x1b' periodic:character-dump 5.5994878000055905 facts
+context True 172 False
+40 8142505 choose
+40 '\x1b' home:scan-complete-from-open-page 0.7354169999889564 facts
+context True 172 False
+41 8142512 choose
+41 'Cf\ry\x1b\x1b' periodic:character-dump 5.362159800002701 facts
+context True 172 False
+42 8142512 choose
+42 '\x1b`n$.' shop:travel 6.054071299993666 facts
+context True 172 False
+43 8142512 choose
+43 '\x1b' home:identify-staff-reserve-unavailable 1.4039140999957453 facts
+context True 172 False
+44 8142512 choose
+44 '\r' shop:await-leave-confirmation 0.05873190000420436 facts
+context False 172 False
+45 8142522 choose
+45 'Cf\ry\x1b\x1b' periodic:character-dump 2.5582213000016054 facts
+context False 172 False
+46 8142522 choose
+46 'Cf\ry\x1b\x1b' periodic:character-dump 2.492697399997269 facts
+context False 172 False
+47 8142709 choose
+47 '5' shop:travel:await-entry 1.9128200000122888 facts
+context False 172 False
+48 8142709 choose
+48 'po1\r\r' shop:in-store-buy 0.2984074999985751 facts
+context False 172 False
+49 8142709 choose
+49 '\x1b' shop:in-store-done 0.3068946999992477 facts
+context False 172 False
+50 8142721 choose
+50 'Cf\ry\x1b\x1b' periodic:character-dump 1.7323710000055144 facts
+context False 172 False
+51 8142721 choose
+51 '' shop:one-shot-in-flight 1.7789432999998098 facts
+context False 172 False
+52 8142721 choose
+52 '' shop:one-shot-in-flight 0.29095340000640135 facts
+context False 172 False
+53 8142721 choose
+53 '' shop:one-shot-in-flight 0.34886749999714084 facts
+context False 172 False
+54 8142729 choose
+54 '' shop:one-shot-in-flight 1.9951750000036554 facts
+context True 172 False
+56 8142729 choose
+56 '' shop:one-shot-in-flight 2.203022100002272 facts
+context True 172 False
+57 8142729 choose
+57 '' shop:one-shot-in-flight 2.444911400001729 facts
+context True 172 False
+58 8142886 choose
+58 '' shop:one-shot-in-flight 2.6246817000064766 facts
+context True 172 False
+59 8142886 choose
+59 '\x1b' home:scan-complete-from-open-page 0.49847430000954773 facts
+context True 172 False
+60 8142886 choose
+60 '' shop:one-shot-in-flight 0.14563110000744928 facts
+context False 171 False
+61 8142901 choose
+61 'Cf\ry\x1b\x1b' periodic:character-dump 2.2053610000002664 facts
+context False 171 False
+62 8142901 choose
+62 'Cf\ry\x1b\x1b' periodic:character-dump 2.758362599997781 facts
+context False 171 False
+63 8143384 choose
+63 '3' town-progress-invariant:defect:shop:travel:await-entry=>shop:travel:await-entry 2.53127819999645 facts
+context False 171 False
+64 8143384 choose
+64 '\x1b' town-progress-invariant:continue-observed-shop 0.43877760000759736 facts
+context False 171 False
+65 8143384 choose
+65 '\x1b' town-progress-invariant:continue-observed-shop 0.4468421999918064 facts
+context False 171 False
+66 8143392 choose
+66 '\x1b`n(.' shop:travel 2.8086079000058817 facts
+context False 171 False
+67 8143392 choose
+67 '' store:entry-await-observation 1.9810216999903787 facts
+context False 171 False
+68 8143868 choose
+68 '\x1b`n&.' town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach 3.120626200005063 facts
+context False 171 False
+69 8143868 choose
+69 '~9\x1b' home:request-knowledge-scan 0.026417400003992952 facts
+context True 172 False
+71 8143868 choose
+71 '\x1b' home:queue-catalogue-shortage 1.9834167000080924 facts
+context True 172 False
+72 8143874 choose
+72 '5pl2\r\x1b' home:atomic-withdraw 2.5338148000009824 facts
+context True 172 False
+73 8143874 choose
+73 'Cf\ry\x1b\x1b' periodic:character-dump 3.0052471999952104 facts
+context True 172 False
+74 8143874 choose
+74 '\x1b' home:leave-after-one-operation 0.8602312000002712 facts
+context True 172 False
+75 8143874 choose
+75 '\x1b' home:leave-after-one-operation 0.8745049999997718 facts
+context True 172 False
+76 8143884 choose
+76 '\x1b`n$.' shop:travel 3.55833430000348 facts
+context True 172 False
+77 8143884 choose
+77 '' store:entry-await-observation 2.4384743999980856 facts
+context True 172 False
+78 8144392 choose
+78 '\x1b`n&.' town-progress-invariant:defect:shop:travel:await-entry=>town-progress-invariant:approach 5.136874199990416 facts
+context True 172 False
+79 8144392 choose
+79 'pm1\r\r' shop:in-store-buy 0.8109208999958355 facts
+context True 172 False
+80 8144392 choose
+80 'po1\r\r' shop:in-store-buy 0.7227298000070732 facts
+context True 172 False
+81 8144392 choose
+TIME BUDGET [('_fixed_quest_is_offered', 5973), ('offer-caller:_uncached_fixed_quest_head', 5973), ('_fixed_quest_order', 1991)]
+python.exe :   File "C:\hengband\bot-client-hang\tests\replay_decision_hang.py", line 120, in <module>
+発生場所 行:2 文字:32
++ ... src;tests'; & 'C:\Users\user\.cache\codex-runtimes\codex-primary-runt ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  File "C:\heng...20, in <module>:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    sys.setprofile(sample)
+  File "C:\hengband\bot-client-hang\tests\replay_decision_hang.py", line 108, in main
+    name = frame.f_code.co_name
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 2738, in choose_key
+    key = choose_ladder()
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 2735, in choose_ladder
+    else self._choose_key_with_latch_capture(snapshot))
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 7116, in _choose_key_with_latch_capture
+    return self._choose_key(snapshot)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 8897, in _choose_key
+    key = self._decide(snapshot)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 9860, in _decide
+    relief_key = self._town_producer_entry("_home_full_relief_key",
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 5826, in _town_producer_entry
+    key = call()
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 9861, in <lambda>
+    lambda: self._home_full_relief_key(snapshot))
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 128, in _home_full_relief_key
+    for item, count in self._home_deposit_batch(snapshot, first)))
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2568, in _home_deposit_batch
+    current = self._find_home_deposit(
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2780, in _find_home_deposit
+    deposit = self._first_item(
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_helpers.py", line 224, in _first_item
+    if item.slot and predicate(item):
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2783, in <lambda>
+    self._home_deposit_candidate(item, snapshot)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 1380, in _home_deposit_candidate
+    if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 1152, in _retention_surplus
+    return max(0, item.count - self._retention_reservation(snapshot, item))
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 818, in _retention_reservation
+    return self._retention_reservation_detail(snapshot, item)[0]
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 824, in _retention_reservation_detail
+    baseline = self._retention_reservation_baseline_detail(snapshot, item)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 886, in _retention_reservation_baseline_detail
+    ledger = self._supply_ledger(snapshot, self._planned_depth())
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 136, in _supply_ledger
+    return self._compute_supply_ledger(snapshot, depth)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 241, in _compute_supply_ledger
+    and any(
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 243, in <genexpr>
+    item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-hang\tests\replay_decision_hang.py", line 120, in <module>
+    sys.setprofile(sample)
+
+  File "C:\hengband\bot-client-hang\tests\replay_decision_hang.py", line 108, in main
+    name = frame.f_code.co_name
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 2738, in choose_key
+    key = choose_ladder()
+          ^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 2735, in choose_ladder
+    else self._choose_key_with_latch_capture(snapshot))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 7116, in _choose_key_with_latch_capture
+    return self._choose_key(snapshot)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 8897, in _choose_key
+    key = self._decide(snapshot)
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 9860, in _decide
+    relief_key = self._town_producer_entry("_home_full_relief_key",
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 5826, in _town_producer_entry
+    key = call()
+          ^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy.py", line 9861, in <lambda>
+    lambda: self._home_full_relief_key(snapshot))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 128, in _home_full_relief_key
+    for item, count in self._home_deposit_batch(snapshot, first)))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2568, in _home_deposit_batch
+    current = self._find_home_deposit(
+              ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2780, in _find_home_deposit
+    deposit = self._first_item(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_helpers.py", line 224, in _first_item
+    if item.slot and predicate(item):
+                     ^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 2783, in <lambda>
+    self._home_deposit_candidate(item, snapshot)
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 1380, in _home_deposit_candidate
+    if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 1152, in _retention_surplus
+    return max(0, item.count - self._retention_reservation(snapshot, item))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 818, in _retention_reservation
+    return self._retention_reservation_detail(snapshot, item)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 824, in _retention_reservation_detail
+    baseline = self._retention_reservation_baseline_detail(snapshot, item)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_home.py", line 886, in _retention_reservation_baseline_detail
+    ledger = self._supply_ledger(snapshot, self._planned_depth())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 136, in _supply_ledger
+    return self._compute_supply_ledger(snapshot, depth)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 241, in _compute_supply_ledger
+    and any(
+        ^^^^
+  File "C:\hengband\bot-client-hang\src\hengbot\policy_supply.py", line 243, in <genexpr>
+    item.tval in {TVAL_WAND, TVAL_STAFF} and item.pval > 0
+  File "C:\hengband\bot-client-hang\tests\replay_decision_hang.py", line 104, in sample
+    def sample(frame, event, arg):
+                ^^^^^^^^^^^^^^^^^^^
+TimeoutError: offline per-decision ten-second budget

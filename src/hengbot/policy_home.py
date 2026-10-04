@@ -1355,16 +1355,27 @@ class HomeMixin:
         ]
         return next(iter(clears or candidates), None)
 
-    def _home_deposit_candidate(
-        self, item: InventoryItem, snapshot: Snapshot | None = None
-    ) -> bool:
-        if (
+    def _home_reserve_deposit_item(self, item: InventoryItem) -> bool:
+        return (
             item.tval == TVAL_SCROLL
             and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
             and self._star_remove_curse_reserve_deposit_pending
             and self._star_remove_curse_reserve_deposit_inflight is None
             and not self._star_remove_curse_reserve_withdraw_pending
-        ):
+        )
+
+    def _home_deposit_quantity(self, snapshot: Snapshot, item: InventoryItem) -> int:
+        # This purchase belongs in Home's one-scroll reserve. Ordinary pack
+        # retention protects recent purchases from sale/disposal, but must not
+        # block the explicitly owned reserve transfer that selected this item.
+        if self._home_reserve_deposit_item(item):
+            return min(item.count, 1)
+        return min(item.count, self._retention_surplus(snapshot, item))
+
+    def _home_deposit_candidate(
+        self, item: InventoryItem, snapshot: Snapshot | None = None
+    ) -> bool:
+        if self._home_reserve_deposit_item(item):
             return True
         full = bool(
             item.known
@@ -1577,7 +1588,7 @@ class HomeMixin:
             return LEAVE_STORE_KEY
         self.last_reason = "home:deposit"
         deposit_count = (
-            forced_count if forced_count is not None else self._retention_surplus(snapshot, deposit)
+            forced_count if forced_count is not None else self._home_deposit_quantity(snapshot, deposit)
         )
         if (
             deposit.tval == TVAL_SCROLL
@@ -2553,12 +2564,20 @@ class HomeMixin:
         while current is not None and len(selected) < limit:
             if current.slot in selected_slots:
                 break
-            deposit_count = (
-                min(current.count, self._retention_surplus(snapshot, current))
-            )
-            if deposit_count > 0:
-                selected.append((current, deposit_count))
-                selected_slots.add(current.slot)
+            # Selection and quantity must use the same simulated inventory
+            # and the same reserve-transfer exception.
+            view = replace(snapshot, inventory=remaining)
+            deposit_count = self._home_deposit_quantity(view, current)
+            if deposit_count <= 0:
+                self._shop_selector_diagnostics["home_deposit_batch_refusal"] = {
+                    "slot": current.slot, "reason": "no-simulated-surplus",
+                }
+                self._shop_selector_diagnostics["home_deposit_batch_refusal_sequence"] = (
+                    self._decision_sequence
+                )
+                break
+            selected.append((current, deposit_count))
+            selected_slots.add(current.slot)
             remaining = tuple(
                 replace(item, count=item.count - deposit_count)
                 if item.slot == current.slot else item
@@ -2768,7 +2787,7 @@ class HomeMixin:
             signatures = {entry[0] for entry in retry}
             return self._first_item(snapshot, lambda item:
                 self._item_signature(item) in signatures
-                and self._retention_surplus(snapshot, item) > 0)
+                and self._home_deposit_quantity(snapshot, item) > 0)
         if self._home_deposit_abandoned:
             return None
         overweight = self._overweight_home_deposit(snapshot)
