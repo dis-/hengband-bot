@@ -4708,7 +4708,6 @@ class TownMixin:
             self._startup_town_recall
             and not destination_changed
             and not blocks_teleport
-            and "food-shortage" not in unready_blockers
         ):
             # On attach, catalog/deposit/pack readiness is reconstructed over
             # subsequent observations and is not grounds to cancel a recall
@@ -4719,7 +4718,6 @@ class TownMixin:
             self._emergency_recall_sanctioned
             and not destination_changed
             and not blocks_teleport
-            and "food-shortage" not in unready_blockers
         ):
             return None
         if not destination_changed and not blocks_teleport and not unready_blockers:

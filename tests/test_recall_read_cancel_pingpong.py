@@ -61,7 +61,8 @@ from policy_fixtures import grid, item, player
 RECALL_STOCK = 6
 READ_TURN = 1000
 CANCEL_LEAVES = {
-    "food_ready": "food-shortage",
+    # Food gates the initial read, not cancellation of an armed recall.
+    # The all-leaf loop below still covers food and asserts no cancellation.
     "free_pack_slots_ready": "pack-too-full",
     "combat_weapon_ready": "weapon-not-ready",
     "equipment_departure_ready": "deep-loadout-unconfirmed",

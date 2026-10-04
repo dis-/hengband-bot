@@ -95,6 +95,17 @@ class QuestCarryDepartureRecordedTest(unittest.TestCase):
         policy, rows, decisions = self.drive_recorded_stockout()
         final = parse_snapshot(rows[-1], self.monrace)
 
+        # Scenario transfer, carried-only decision (2026-09-17): the Zombie
+        # recording carries only one device, so Home cannot make food ready.
+        # Keep the byte-faithful capture; exercise ammunition stockout on a
+        # declared variant carrying two of its already charged light staves.
+        self.assertFalse(policy._food_ready(final))
+        final = replace(final, inventory=[
+            replace(item, count=2) if item.is_wand_staff else item
+            for item in final.inventory
+        ])
+        self.assertTrue(policy._food_ready(final))
+
         # The capture starts after unrelated calibration/equipment state was
         # created.  Wall those owners only after the real store/Home observers
         # above have produced the ammunition stockout on this policy instance.

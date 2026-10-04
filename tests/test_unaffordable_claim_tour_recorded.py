@@ -38,6 +38,11 @@ is not under test:
   456 -> 440.  This supplier-ownership lifetime walls only that earlier
   caster decision and its new HP-loss streak; otherwise the streak arms an
   escape on 2813. The death capture pins the new emergency escape.
+- carried-only food (2026-09-17): the final town arrival at indices 4229-4237
+  carries two Identify staves with only 11 absorbable charges after reserving
+  five for Identify. The optional-claim replay declares a supplied variant
+  with ten charges per staff (15 absorbable); the byte-faithful live-key replay
+  and fixture hashes stay unchanged. From 4238 the capture carries 23 uses.
 
 The production speed-adjusted optimizer first changes the key at list index 2.
 The live-key check ends there. Ownership tests use ``recorded_loadout_replay``
@@ -436,6 +441,15 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 policy._experience_drain_known = _drain_unknown
                 if index == AFTER_PURCHASES:
                     break
+                if 4229 <= index < 4238:
+                    # Declared food precondition for optional claims; never
+                    # bypass the production food gate or count Home as food.
+                    assert policy._count_mana_food_uses(snapshot) == 11
+                    snapshot = replace(snapshot, inventory=[
+                        replace(item, charges=10, pval=10) if item.is_wand_staff else item
+                        for item in snapshot.inventory
+                    ])
+                    assert policy._count_mana_food_uses(snapshot) == 15
                 recorded_reason = cls.boundaries["recorded"][index][1]
                 if recorded_reason == "periodic:game-save":
                     policy.request_game_save()

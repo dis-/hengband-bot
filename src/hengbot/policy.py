@@ -15276,8 +15276,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._recall_departure_board(snapshot)
         )
         blockers: list[str] = []
-        if not leaves["food_ready"]:
-            blockers.append("food-shortage")
+        # Food gates a new town departure. An already armed recall belongs
+        # to Hengband; the carried-only decision does not authorise cancelling
+        # it for food alone (suitefix3 task, 2026-10-04).
         if not leaves["free_pack_slots_ready"]:
             blockers.append("pack-too-full")
         if (

@@ -75,7 +75,13 @@ class NewCharacterTownWanderRecorded(unittest.TestCase):
         # Authoritative detection poverty decision: the five carried scrolls
         # veto detection-less scavenging even when the digging kit is partial.
         self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertTrue(policy._fundraising_departure_ready(snapshot))
+        # This Zombie has neither carried device food nor recall stock. An
+        # exhausted errand plan alone does not prove the first-run food waiver
+        # (Home and the food supplier must both have been exhausted).
+        self.assertFalse(policy._fundraising_departure_ready(snapshot))
+        self.assertFalse(policy._fundraising_food_ready(snapshot))
+        self.assertTrue(policy._descent_is_blocked(snapshot))
+        self.assertEqual(policy._descent_refusal_reason, "recall-departure-shortage")
         entrance = policy._town_walk_in_entrance(snapshot)
         self.assertEqual(entrance, Position(31, 150))
         self.assertTrue(policy._is_descent_target(snapshot, snapshot.grid_at(entrance)))
