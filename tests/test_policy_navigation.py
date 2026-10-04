@@ -299,6 +299,11 @@ class UnseenAttackerTest(unittest.TestCase):
         return grids
 
     def _start_reverse_choke_wait(self, pol, grids, floor):
+        # CONSTRUCTED threat: these ownership/clock pins need >=10% damage.
+        # The recorded zero-damage release is pinned separately.
+        damage = patch.object(pol, "_choke_predicted_damage", return_value=50)
+        damage.start()
+        self.addCleanup(damage.stop)
         pol.choose_key(
             Snapshot(
                 player(10, 10, hp=227, max_hp=227),
@@ -495,7 +500,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
                 self.assertIsNone(pol._unseen_retreat_floor)
                 self.assertIsNone(pol._unseen_choke_position)
-                self.assertEqual(pol._unseen_wait_remaining, 0)
+                self.assertIsNone(pol._unseen_choke_started_turn)
                 self.assertFalse(pol._emergency_escape_pending)
                 self.assertFalse(pol._emergency_return_active)
                 # USER DECISION 2026-10-03 (low-hp-no-unchecked-walk): HP 100
@@ -543,7 +548,7 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
         self.assertIsNone(pol._unseen_retreat_floor)
         self.assertIsNone(pol._unseen_choke_position)
-        self.assertEqual(pol._unseen_wait_remaining, 0)
+        self.assertIsNone(pol._unseen_choke_started_turn)
         self.assertFalse(pol._emergency_escape_pending)
         self.assertFalse(pol._emergency_return_active)
         self.assertNotEqual(key, WAIT_KEY)
@@ -645,7 +650,7 @@ class UnseenAttackerTest(unittest.TestCase):
         pol = HengbotPolicy()
         with patch.object(
             pol, "_explore_step", return_value=Position(10, 12)
-        ):
+        ), patch.object(pol, "_choke_predicted_damage", return_value=50):
             pol.choose_key(
                 Snapshot(
                     player(10, 10, hp=303, max_hp=303),
@@ -766,16 +771,16 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
         self.assertIsNone(pol._unseen_retreat_floor)
         self.assertIsNone(pol._unseen_choke_position)
-        self.assertEqual(pol._unseen_wait_remaining, 0)
+        self.assertIsNone(pol._unseen_choke_started_turn)
         self.assertNotEqual(key, WAIT_KEY)
 
-    def test_reverse_choke_waits_sixty_decisions_then_resumes_floor(self):
+    def test_reverse_choke_waits_500_game_turns_then_resumes_floor(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
         pol = HengbotPolicy()
 
         self._start_reverse_choke_wait(pol, grids, floor)
-        for turn in range(5, 64):
+        for turn in range(14, 504, 10):
             self.assertEqual(
                 pol.choose_key(
                     Snapshot(
@@ -794,7 +799,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=213, max_hp=227),
                 grids,
                 [],
-                turn=64,
+                turn=504,
                 floor_key=floor,
             )
         )
@@ -802,7 +807,7 @@ class UnseenAttackerTest(unittest.TestCase):
         self.assertFalse(pol._returning_to_town)
         self.assertFalse(pol.last_reason.startswith("unseen:"), pol.last_reason)
 
-    def test_interception_fights_at_choke_then_restarts_sixty_wait(self):
+    def test_interception_fights_without_restarting_hold_clock(self):
         grids = self._reverse_choke_grids()
         floor = (1, 4, 0)
         pol = HengbotPolicy()
@@ -822,7 +827,7 @@ class UnseenAttackerTest(unittest.TestCase):
             "6",
         )
         self.assertEqual(pol.last_reason, "melee:choke")
-        for turn in range(6, 66):
+        for turn in range(15, 504, 10):
             self.assertEqual(
                 pol.choose_key(
                     Snapshot(
@@ -842,7 +847,7 @@ class UnseenAttackerTest(unittest.TestCase):
                     player(10, 10, hp=213, max_hp=227),
                     grids,
                     [],
-                    turn=66,
+                    turn=504,
                     floor_key=floor,
                 )
             ),
@@ -855,7 +860,7 @@ class UnseenAttackerTest(unittest.TestCase):
         pol = HengbotPolicy()
 
         self._start_reverse_choke_wait(pol, grids, floor)
-        for turn in range(5, 63):
+        for turn in range(14, 494, 10):
             self.assertEqual(
                 pol.choose_key(
                     Snapshot(
@@ -877,7 +882,7 @@ class UnseenAttackerTest(unittest.TestCase):
                     player(10, 10, hp=213, max_hp=227),
                     grids,
                     [attacker],
-                    turn=63,
+                    turn=493,
                     floor_key=floor,
                 )
             ),

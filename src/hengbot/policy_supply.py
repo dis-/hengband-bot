@@ -17,7 +17,8 @@ from hengbot.model import (
     InventoryItem, MonsterState, Position, Snapshot, StoreItem,
 )
 from hengbot.policy_constants import (
-    BREEDER_CONTAINMENT_WINDOW, CURE_CRITICAL_REQUIRED_DEPTH,
+    CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO, CURE_CRITICAL_REQUIRED_DEPTH,
+    DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
     DOWN_STAIRS_KEY, EAT_KEY, FOOD_MIN_SVAL, FOOD_STOCK_TARGET,
     FOOD_TYPE_MANA, IDENTIFY_CHARGE_FLOOR, IDENTIFY_STAFF_LEVEL,
     EMERGENCY_POTION_CARRY_TARGET, LANTERN_DIM_WARNING_FUEL,
@@ -1626,6 +1627,32 @@ class SupplyMixin:
         self._unseen_retreat_target = None
         return first_steps[0] if first_steps else None
 
+    def _unseen_choke_hold_active(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """Both wait producers spend one episode, never a producer's counter.
+
+        A nonempty hostile list can be a remote monster with zero
+        reachable damage. Judge the same open-ground damage as other choke
+        holds, including while blind. A sighting may authorize combat but
+        never gives the unseen producer a new 50-turn budget.
+        """
+        start = self._unseen_choke_started_turn
+        if start is None:
+            self._unseen_choke_started_turn = start = snapshot.turn
+        if (
+            self._choke_predicted_damage(snapshot, hostiles)
+            < snapshot.player.hp * CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO
+            or (
+                not any(not m.pet and not m.friendly
+                        for m in snapshot.visible_monsters)
+                and snapshot.turn - start >= DETECTED_THREAT_HOLD_MAX_GAME_TURNS
+            )
+        ):
+            self._clear_unseen_retreat()
+            return False
+        return True
+
     @claims(ClaimOwner.POSITIONING)
     def _unseen_retreat_intercept_key(
         self,
@@ -1636,11 +1663,11 @@ class SupplyMixin:
         if (
             self._unseen_retreat_floor != snapshot.floor_key
             or self._unseen_choke_position != snapshot.player.position
-            or self._unseen_wait_remaining <= 0
             or not hostiles
         ):
             return None
-        self._unseen_wait_intercepted = True
+        if not self._unseen_choke_hold_active(snapshot, hostiles):
+            return None
         if adjacent and not snapshot.player.afraid:
             self.last_reason = "melee:choke"
             return self._direction_key(
@@ -1713,25 +1740,18 @@ class SupplyMixin:
             self._unseen_retreat_direction = direction
             self._unseen_retreat_target = None
             self._unseen_choke_position = None
-            self._unseen_wait_remaining = 0
-            self._unseen_wait_intercepted = False
+            self._unseen_choke_started_turn = None
             self._escape_state.enter("unseen", "unseen:reverse-choke")
-
-        if self._unseen_wait_intercepted and not hostiles:
-            self._unseen_wait_intercepted = False
-            self._unseen_wait_remaining = BREEDER_CONTAINMENT_WINDOW
 
         if self._unseen_choke_position is not None:
             if eligible_hit:
                 self._unseen_choke_position = None
-                self._unseen_wait_remaining = 0
+                self._unseen_choke_started_turn = None
                 self._unseen_retreat_target = None
             elif player.position == self._unseen_choke_position:
-                if self._unseen_wait_remaining > 0:
-                    self._unseen_wait_remaining -= 1
+                if self._unseen_choke_hold_active(snapshot, hostiles):
                     self.last_reason = "unseen:choke-wait"
                     return WAIT_KEY
-                self._clear_unseen_retreat()
                 return None
             else:
                 self._clear_unseen_retreat()
@@ -1744,7 +1764,9 @@ class SupplyMixin:
         )
         if at_target and not self._took_damage:
             self._unseen_choke_position = player.position
-            self._unseen_wait_remaining = BREEDER_CONTAINMENT_WINDOW - 1
+            self._unseen_choke_started_turn = snapshot.turn
+            if not self._unseen_choke_hold_active(snapshot, hostiles):
+                return None
             self.last_reason = "unseen:choke-wait"
             return WAIT_KEY
         if at_target:

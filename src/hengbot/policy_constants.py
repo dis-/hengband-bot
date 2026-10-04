@@ -371,6 +371,9 @@ MINING_DETECTION_RADIUS = 30
 
 QUEST_STATUS_UNTAKEN = 0
 BREEDER_CONTAINMENT_WINDOW = 60
+# User decision 2026-09-20: blind choke holds end after 50 player turns,
+# measured in the snapshot's game-turn clock from the start of the hold.
+DETECTED_THREAT_HOLD_MAX_GAME_TURNS = 50 * 10
 SUMMONER_CHOKE_NEIGHBORS = 3
 LANTERN_REFILL_FUEL = 1000
 LANTERN_DIM_WARNING_FUEL = 100

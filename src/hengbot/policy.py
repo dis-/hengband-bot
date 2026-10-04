@@ -262,6 +262,7 @@ from hengbot.policy_constants import (
     ZUL_TOWN_ID,
     BARREN_FLOOR_SKIP_THRESHOLD,
     BREEDER_CONTAINMENT_WINDOW,
+    DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
     CURE_CRITICAL_REQUIRED_DEPTH,
     FOOD_STOCK_TARGET,
     IDENTIFY_CHARGE_FLOOR,
@@ -962,11 +963,6 @@ AGGREGATE_RANGED_CACHE_LIMIT = 4096
 DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
 REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
 REST_CAP = 25  # bound consecutive rest commands as a safety valve
-
-# A detected melee pack may justify waiting at a defensible choke, but lower-
-# certainty detection must not suppress ordinary looting/exploration forever.
-# Hengband's snapshot clock advances by 10 game turns per normal player turn.
-DETECTED_THREAT_HOLD_MAX_GAME_TURNS = 50 * 10
 
 # Hunting (opportunistic XP while no downstairs is known)
 
@@ -1895,8 +1891,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_retreat_direction: tuple[int, int] | None = None
         self._unseen_retreat_target: Position | None = None
         self._unseen_choke_position: Position | None = None
-        self._unseen_wait_remaining = 0
-        self._unseen_wait_intercepted = False
+        self._unseen_choke_started_turn: int | None = None
         self._unseen_attack_evidence: str | None = None
         self._unexplained_damage_streak = 0
         # Total HP lost over the current unexplained-damage streak.
@@ -18140,8 +18135,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._unseen_retreat_direction = None
         self._unseen_retreat_target = None
         self._unseen_choke_position = None
-        self._unseen_wait_remaining = 0
-        self._unseen_wait_intercepted = False
+        self._unseen_choke_started_turn = None
 
     @staticmethod
     def _is_unseen_spell_message(message: str) -> bool:
