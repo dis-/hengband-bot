@@ -1,0 +1,144 @@
+SOL REPORT guard1 - 2026-10-05
+
+Worktree: C:\hengband\bot-client-guard1; branch: ownership-guard-1005.
+Base: f055f07f478d7c1bdef411778ecaa8290dbc99c2
+Implementation commit: f8bbec505fbe9d901318563bf80b921aaf8315b2
+Report/evidence commit subject: Record guard1 structural-check validation (subsequent local commit).
+
+RULES
+1. Import-directed AST reachability starts at HengbotPolicy.choose_key, follows calls,
+   callbacks, return dependencies and aliases, and requires both @claims and
+   claim_ladder registration for every new key/string-returning producer.
+   Exact file:qualified-function exceptions are reviewed inputs, never auto-refreshed.
+   Missing, unreachable or newly registered baseline entries fail. No module/family exemptions.
+2. Policy/mixin item identity, signature, selector and pending/retry/reserve/deferred/
+   inflight state is scanned, including local propagation, container writes and literal setattr.
+   Every source requires a reason and a registered component of the composed predicate;
+   otherwise an exact reasoned non-intent exclusion is required. New/stale entries fail.
+3. Consumption uses reserved_item_command -> ReservationVerdict -> checked_item_command
+   -> item_command. Kinds/actual keys: read r; quaff q; eat E; staff u; wand a;
+   rod z; fire f; throw v; refill \F. Prefix lint covers literal/constants/aliases/
+   compositions/formatting. Identification source commands are normalized.
+   Verdicts bind sink and physical item; stale last_reason cannot borrow transfer ownership.
+
+BASELINES AND SEMANTICS
+Producer exceptions: 651; pure helper 497; delegated adapter 44;
+town producer to migrate 99; dungeon-only 11. Every entry has an individual reason.
+All 651 definitions were verified in 50 source files at the starting base;
+no new helper was grandfathered (reports/guard1/baseline-origin.json).
+Item census: 179 attributes = 51 registered sources + 128 non-intent exclusions.
+Source components: selection 25; equipment-txn 6; home-visit 2; home-errand 11;
+home-full-retry 1; home-reserve 4; retention 2.
+Exclusion reasons: observed catalogues/candidate caches; negative eligibility histories;
+completed-operation reports/diagnostics; scalar observations; navigation/claim/UI state.
+The registry preserves existing exclusive reservation predicates and their owner order.
+Selection/watch sources remain non-exclusive; retention remains a quantity, not an owner.
+Unreserved command spelling, aiming tails and read rebinding are unchanged.
+Three exact existing non-item menu sites (four AST expressions) are pinned with multiplicity:
+library identify menu, quest-building request, rumor menu. New compositions there still fail.
+Static analysis is conservative: data helpers/dungeon branches are explicit exceptions;
+computed reflection or generated Python still requires manual review (see baseline documentation).
+
+MUTATIONS
+PASS: actual repository AST mutation adding an undecorated town producer returning "5" is rejected.
+PASS: actual repository AST mutation self._foo_pending = signature is rejected.
+PASS: actual repository AST mutation raw "q" + item.slot is rejected.
+Additional tests cover missing marker/ladder entry, function/method/import aliases, stale entries,
+identity/slot/container/setattr writes, prefix constants/aliases and exact menu exceptions.
+
+VALIDATION
+Interpreter: C:\Users\user\AppData\Local\Programs\Python\Python313\python.exe.
+Modules selected mechanically by changed production function names in tests/, plus required modules.
+Selection: 38 changed functions; 73 unique modules (reports/guard1/selection.json).
+Command: PYTHONPATH=src python scripts/test_parallel_runner.py --workers 1 --modules MODULE
+(explicit output/summary/stream paths; --purity never where used). One module at a time; no full suite.
+Early affected modules were renewed after the consumption bridge change; the final alias/owner
+regression changes were validated by repeating structure/sink/reservation/serialization/fakery modules.
+test_policy_town ran alone after 06:40 JST; approximate runner start: 2026-10-05T06:54:44.430978+09:00
+Final lint: item-sink-lint: 0 violation(s). git diff --cached --check: passed.
+Final unique receipts: 73 modules; 3210 tests; 1 failures; 0 errors.
+Known baseline failure: tests.test_ownership_s2a1_closure.GoalTypingTableTest.
+test_every_reason_the_package_can_emit_is_typed: town:supply-stockout-mining is untyped.
+The reason exists at f055f07f; claim_goal_typing.py, town_arbiter.py and the assertion file
+are unchanged from that base (blob evidence: reports/guard1/preexisting-failure.json).
+This unrelated gameplay/ownership classification was left unchanged.
+
+MODULE COUNTS (final receipt per module)
+test_classA_observed_input: 30 tests; PASS
+test_control_client: 33 tests; PASS
+test_crossarea_fundraising: 13 tests; PASS
+test_curse_priority_recorded: 10 tests; PASS
+test_decision_return_boundary: 3 tests; PASS
+test_declarations_r10: 7 tests; PASS
+test_declarations_r11: 10 tests; PASS
+test_declarations_r12: 6 tests; PASS
+test_declarations_r3b: 14 tests; PASS
+test_declarations_r5: 9 tests; PASS
+test_destroy_procurement_guard: 7 tests; PASS
+test_emit_ownership: 11 tests; PASS
+test_esp_threat_rest_recorded: 16 tests; PASS
+test_experience_potion: 14 tests; PASS
+test_exploration_commitment_observation: 7 tests; PASS
+test_fundraising_set_end_counter_recorded: 3 tests; PASS
+test_heal_vs_teleport_decision: 2 tests; PASS
+test_home_disposal: 15 tests; PASS
+test_home_knowledge_scan: 38 tests; PASS
+test_home_light_alternation: 36 tests; PASS
+test_input_executor: 72 tests; PASS
+test_item_reservation: 17 tests; PASS
+test_item_serialization: 8 tests; PASS
+test_item_sink_lint: 18 tests; PASS
+test_latch_ownership: 7 tests; PASS
+test_lethal_unseen_caster_recorded: 7 tests; PASS
+test_loot_before_recall_recorded: 8 tests; PASS
+test_loot_suppression_returning_recorded: 3 tests; PASS
+test_low_hp_no_unchecked_walk: 11 tests; PASS
+test_manafood_departure_recorded: 13 tests; PASS
+test_margin_ratio_tour_divergence_recorded: 2 tests; PASS
+test_morivant_return_walks_away_recorded: 7 tests; PASS
+test_navigation: 91 tests; PASS
+test_newchar_light_loop_recorded: 4 tests; PASS
+test_ownership_claims: 24 tests; PASS
+test_ownership_metrics: 15 tests; PASS
+test_ownership_s2a1_closure: 80 tests; FAIL (pre-existing as above)
+test_ownership_s2b1_ladder: 52 tests; PASS
+test_ownership_s2b1b_close_pairs: 35 tests; PASS
+test_ownership_s2b2_bar: 30 tests; PASS
+test_ownership_s3_3_delegation_record: 14 tests; PASS
+test_policy: 57 tests; PASS
+test_policy_combat: 302 tests; PASS
+test_policy_equipment: 191 tests; PASS
+test_policy_fundraising: 50 tests; PASS
+test_policy_home: 171 tests; PASS
+test_policy_quest: 334 tests; PASS
+test_policy_shop: 273 tests; PASS
+test_policy_supply: 205 tests; PASS
+test_policy_town: 589 tests; PASS
+test_protocol3_client: 29 tests; PASS
+test_pure_decision_telemetry: 6 tests; PASS
+test_quest_navigator: 17 tests; PASS
+test_recall_read_cancel_pingpong_recorded: 5 tests; PASS
+test_recall_readiness_contradiction: 4 tests; PASS
+test_s33_batch_admission: 9 tests; PASS
+test_s33_batch_reconciliation: 18 tests; PASS
+test_s33_phase2_idle: 2 tests; PASS
+test_staged_prompt_chain_rewrite: 5 tests; PASS
+test_store_reentry_recorded: 34 tests; PASS
+test_strong_fight_speed_decision: 11 tests; PASS
+test_stuck_prompt_staged_tail_recorded: 4 tests; PASS
+test_summoner_reach_decision: 6 tests; PASS
+test_teleport_before_heal_decision: 3 tests; PASS
+test_test_fakery_lint: 13 tests; PASS
+test_town_approach_retired_recorded: 10 tests; PASS
+test_town_blackmarket_stall_recorded: 3 tests; PASS
+test_town_cure_supplier_recorded: 7 tests; PASS
+test_town_plan_exhausted_wander: 12 tests; PASS
+test_town_structure_lint: 19 tests; PASS
+test_unaffordable_claim_tour_recorded: 7 tests; PASS
+test_unseen_caster_death_recorded: 5 tests; PASS
+test_unseen_spell_scratch_decision: 7 tests; PASS
+
+All changes and commits are local. No push; no game/bot start or stop;
+no other worktree or C:\hengband\bot-client\jsonlog was touched.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
