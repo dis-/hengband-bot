@@ -3216,6 +3216,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _claim_family_of(self, reason: str | None) -> str:
         """The census family of a reason, answered by the live arbiter."""
+        if reason == "shop:in-store-done":
+            # A sale's no-effect exit is still that seller's operation. The
+            # acting owner declares it; the generic reason cannot turn it into
+            # a competing buyer while the sale observation is outstanding.
+            for offer in reversed(self._execution_offers_for()):
+                if offer[0] == LEAVE_STORE_KEY and offer[2] == "shop:in-store-leave":
+                    return offer[1]
         if reason == "home:request-knowledge-scan":
             # The scan can be a step of registered equipment catalogue work,
             # rather than a new errand. Require the producer's explicit offer.
@@ -5701,7 +5708,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     or (preserve_home_hold and self._home_sequence_has_holder()))
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
-            work_identity=work_identity, enforced=enforced,
+            work_identity=work_identity, enforced=True,
             arrival_board=self._home_hold_board() if enforced else None)
         if row is None:
             return False
@@ -6141,6 +6148,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
         if declaration.state == "awaiting":
             continuation = declaration.continuation
+            if continuation == "equipment.suppression.observe":
+                if (family == "equipment-txn"
+                        and declaration.work_id == "suppress-random-teleport"
+                        and len(declaration.arguments) == 1
+                        and any(self._suppression_target_matches(item, declaration.arguments[0])
+                                and "." in item.inscription
+                                for item in (*snapshot.inventory, *snapshot.equipment))):
+                    return None
+                return f"ownership:declaration-stale:{family}"
             if continuation == "equipment.restore-observe":
                 if family != "equipment-txn" or len(declaration.arguments) != 2:
                     return f"ownership:declaration-stale:{family}"
@@ -6268,6 +6284,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if declaration.state == "awaiting":
             # A posted native route can end short of its destination. The
             # declaration itself carries its next route step and destination.
+            if declaration.continuation == "equipment.suppression.observe":
+                self._observe_town_equipment_work(snapshot)
+                self._decision_no_step_release = True
+                self.last_reason = "ownership:holder-released:equipment-txn"
+                return None
             if declaration.continuation == "route.resume":
                 updated = self._claim_register.declare_execution(
                     holder.claim_id, work_id=declaration.work_id,
@@ -7545,6 +7566,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if (released or discarded) is not None:
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
+        self._observe_town_equipment_work(snapshot)
         if snapshot.store is not None and snapshot.player.recalling:
             # A lagged or externally observed store page cannot revive shopping
             # after departure is armed.  Leave under the departure owner so the

@@ -345,9 +345,14 @@ class HomeMixin:
                 if snapshot.store is not None:
                     if snapshot.store.store_type != store_type:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
-                    return self._store_sell_key(snapshot, target,
+                    key = self._store_sell_key(snapshot, target,
                         "shop:sell-home-full-surplus",
                         rejected_reason="shop:home-full-surplus-sale-refused")
+                    if (key and key.startswith(("d", "{"))
+                            and self._in_store_ops_active()
+                            and self._store_visit is not None):
+                        return self._in_store_commit_operation(snapshot, key)
+                    return key
             elif relief["withdrawn"]:
                 if relief.get("mode") == "destroy":
                     self._complete_claim_goal(
