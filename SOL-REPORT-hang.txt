@@ -1,0 +1,106 @@
+2026-10-04 decision-loop hang investigation
+
+Result: reproduced and fixed a non-terminating Home deposit batch on base
+f3e9135a in branch quest-offer-hang-1004. No push. The live game and bot were
+never started or stopped; other worktrees and live jsonlog were not modified.
+All capture reads used C:\hengband-backups\state-logs\s33-phase2b-shadow-20261004.
+
+Code, tests, fixture and evidence commit:
+95784438ad2f7e0e9821dee5b94de9cc02c22fa9
+The report is committed separately after this code commit.
+
+Reproduction
+------------
+Use the Codex runtime Python in PowerShell:
+$env:PYTHONPATH='.;src;tests'
+$env:PYTHONPYCACHEPREFIX='C:\hengband\bot-client-hang\.hang-pycache'
+$hangPython='C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+$hangCapture='C:\hengband-backups\state-logs\s33-phase2b-shadow-20261004\autorecover-20261004-121956-exit-no-marker.bot-state-fixed.jsonl.gz'
+& $hangPython tests/replay_decision_hang.py $hangCapture --calibrated
+
+The replay uses existing recorded-response and policy-construction helpers,
+isolated runtime paths, captured skill knowledge, and captured Home knowledge
+with its request state armed. It checks the paired decision log's final two
+purchase keys. At zero-based rows 79 and 80 (turn 8144392), public choose_key
+reproduced pm1\r\r and po1\r\r. Row 81, immediately after the last purchase,
+did not return on the original production code. sys.setprofile interrupted
+that decision at its ten-second diagnostic budget. The complete initial
+reproduction output is reports/hang-reproduction.txt.
+
+This is a reconstructed offline suffix, not the original live process's
+checkpoint. The archived character-calibration template was adjusted using
+visible captured stats; calibration validation rejects it at the pin, so the
+equipment optimizer is inactive there. The committed fixture freezes that
+reconstruction before row 81's public decision and contains the actual parsed
+captured board. It does not claim that every preceding replay decision matched.
+Optional --freeze PATH exports a new pre-decision fixture without overwriting
+an existing file. Fixture SHA256 of decompressed JSON:
+3ff41369456241666dfe1ab9a858f64a5b1c9f997755001e95c8d6b2437b3024
+
+Loop
+----
+choose_key -> _decide -> _home_full_relief_key -> _home_deposit_batch.
+The recently purchased *Remove Curse* scroll in slot h is explicitly selected
+for Home's reserve. Ordinary _retention_surplus is zero because visit-purchase
+retention protects it. The old batch consequently appended nothing, never
+marked the slot selected, and left simulated inventory unchanged. Its next
+_find_home_deposit selected the same slot. The selected-count limit could never
+advance, so the loop was infinite rather than a slow quest-offer scan.
+
+Other candidates' retention evaluations repeatedly call
+_carry_procurement_strategy(cache_fixed_quest_head=False), which calls
+_uncached_fixed_quest_head and _fixed_quest_is_offered. The ten-second sample
+counted 5,973 offer calls, all from _uncached_fixed_quest_head, and 1,991 quest
+order calls. This explains watchdog samples in quest/supply functions while
+the actual non-progress loop is in Home batching.
+
+Fix
+---
+Share the explicit reserve-transfer predicate and quantity across selection,
+batch simulation, actual deposit command and retries. A pending reserve moves
+one scroll into Home even when ordinary pack retention protects that purchase;
+pending withdrawal/inflight ownership still disables the exception. Ordinary
+items retain their usual retention rules. Compute batch quantities using the
+same simulated inventory used by selection.
+
+A zero-quantity stale candidate now stops visibly with
+shop_selector.home_deposit_batch_refusal = {slot, reason: no-simulated-surplus}.
+The final diagnostics pass preserves that marker only for its decision, and
+the existing JSONL writer logs shop_selector. This is an additional diagnostic
+stop; the real fix supplies the missing reserve-transfer quantity. No time
+guard, resistance/depth-rule change, or extra game knowledge was introduced.
+
+Recorded pin and revert proof
+----------------------------
+& $hangPython -m unittest tests.test_home_deposit_hang_recorded
+The public decision runs in a child process with an eight-second hard timeout
+and an assertion that choose_key itself takes under three seconds. With the
+fix it returned in 0.491 seconds: ESC, home:full-queue-surplus-withdraw, with
+no refusal. Other pins cover the protected recorded reserve, one-scroll
+transfer from a constructed stack, withdrawal ownership, and refusal logging.
+
+Temporarily replaced policy_home.py with its exact original HEAD contents,
+ran only the hard-timeout test, and restored the fixed bytes in finally.
+The original implementation failed with subprocess.TimeoutExpired after
+eight seconds (one test, 8.032 seconds). The fixed module subsequently passed.
+Evidence: reports/hang-revert-proof.txt. No revert was committed.
+
+Validation (modules run individually, never the full suite or test_policy_town)
+---------------------------------------------------------------------------
+tests.test_home_deposit_hang_recorded: 5 tests, OK
+tests.test_home_full_relief_recorded: 4 tests, OK
+tests.test_star_remove_curse_unused_recorded: 2 tests, OK
+tests.test_policy_home: 171 tests, OK, 4 skipped
+tests.test_policy_supply: 205 tests, OK
+tests.test_policy_shop: 273 tests, OK, 1 skipped
+Total: 660 tests run, 655 passed, 5 skipped. git diff --check passed.
+
+Limits
+------
+The second (12:23:59) copied capture was inspected and replayed under several
+offline reconstructions, but its exact live hang was not independently
+reproduced. Its final Home entry is consistent with the repaired path; that
+is not proof of identical cause. The older October 2 exit was not reproduced.
+No deployment or live-run validation was performed or authorized.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
