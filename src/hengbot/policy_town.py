@@ -2859,6 +2859,19 @@ class TownMixin:
                 "post-alchemist-home",
             )
 
+        if (
+            self._identification_need is None
+            and self._full_identification_purchase_wanted()
+            and STORE_ALCHEMIST not in self._town_store_attempted
+            and self._find_identification_source(snapshot, full=True) is None
+            and self._identification_source_obtainability(snapshot, full=True)
+            != "unavailable"
+        ):
+            # Retry excluded candidates on a later visit's fresh shelf. An
+            # observed stockout ends this check without recreating the need or
+            # the Home departure latch.
+            add(STORE_ALCHEMIST, "identification-source", "before-withdrawal")
+
         supply_categories = {
             "recall": "recall", "food": "food", "oil": "oil",
             "teleport": "teleport", "cure": "cure-critical",
@@ -4269,6 +4282,7 @@ class TownMixin:
         """Apply ordered state changes only after the plan walk is exhausted."""
         if self._town_restock_suppressed or snapshot.player.class_id < 0:
             return
+        self._defer_unavailable_equipment_full_identification(snapshot)
         self._end_fundraising_set_at_gold_target(snapshot)
         if self._pending_disposal_item is not None:
             target = self._pending_disposal(snapshot)

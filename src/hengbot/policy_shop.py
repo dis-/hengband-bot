@@ -1031,6 +1031,7 @@ class ShopMixin(InStoreMixin):
             if store == STORE_HOME
             and failures >= self._town_store_visit_limit(store)
         }
+        self._defer_unavailable_equipment_full_identification(snapshot)
         identification_home_target = any(
             owned.origin == "home"
             and self._item_signature(owned.item) == self._identification_candidate
@@ -2404,7 +2405,7 @@ class ShopMixin(InStoreMixin):
             rationale="destruction-gate",
         ))
         add(rung("identify:normal", "identify", lambda: self._identification_need == "normal" and self._find_identification_source(snapshot, full=False, reliable_only=self._identification_requires_reliable_source(snapshot)) is None, lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_IDENTIFY))
-        add(rung("identify:full", "star-identify", lambda: self._identification_need == "full" and self._find_identification_source(snapshot, full=True, reliable_only=self._identification_requires_reliable_source(snapshot)) is None, lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_IDENTIFY))
+        add(rung("identify:full", "star-identify", lambda: self._full_identification_purchase_wanted() and self._find_identification_source(snapshot, full=True, reliable_only=self._identification_requires_reliable_source(snapshot)) is None, lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_IDENTIFY))
         for stat in snapshot.player.drained_stats:
             sval = RESTORE_POTION_SVAL_BY_STAT.get(stat)
             if sval is not None:
@@ -2826,8 +2827,11 @@ class ShopMixin(InStoreMixin):
         if mandatory is not None:
             return mandatory
 
-        if self._identification_need is not None:
-            full = self._identification_need == "full"
+        if self._identification_need is not None or self._full_identification_purchase_wanted():
+            full = self._identification_need == "full" or (
+                self._identification_need is None
+                and self._full_identification_purchase_wanted()
+            )
             if self._find_identification_source(
                 snapshot,
                 full=full,
