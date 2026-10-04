@@ -41,7 +41,7 @@ class OwnerMapTest(unittest.TestCase):
             site["function"] for site in fact["writes"] if site["truthiness"] is True
         }
         self.assertEqual(truthy_producers, {"_adopt_home_catalogue"})
-        self.assertIn("_atomic_home_withdraw_key", fact["consumer_functions"])
+        self.assertIn("_atomic_home_withdraw_dispatch_key", fact["consumer_functions"])
         self.assertIn("_resolve_observed_uncomposable_stop", fact["consumer_functions"])
 
     def test_named_watch_and_queue_facts_have_producers_and_consumers(self):

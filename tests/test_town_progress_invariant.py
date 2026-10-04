@@ -465,6 +465,11 @@ class TownProgressInvariantTest(unittest.TestCase):
         policy._town_supplier_stock = {STORE_MAGIC: store}
         policy._shop_observation = None
         policy._shopping_approach_goal = None
+        # Home observations now run before arbitration (fad4701f). Consume
+        # this checkpoint's real posted deposit effect before defining a
+        # repeated state: an observed inventory effect is legitimate progress
+        # under S3.3, whereas the injected subsequent walk still has none.
+        policy._observe_home_atomic_deposit_outside(snapshot)
         policy._town_progress_history().append(
             policy._town_progress_fingerprint(snapshot)
         )
@@ -709,11 +714,15 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertEqual(key, WAIT_KEY)
         self.assertNotEqual(policy.last_reason, "stuck:wander")
         self.assertTrue(policy.last_reason.startswith("town:blocked:"))
-        self.assertEqual(policy._equipment_transaction_failed_items, set())
-        self.assertNotIn(
-            "equipment-transaction-failed",
-            policy._equipment_optimization_preparation.blockers,
-        )
+        # Authoritative optional-failure rule: lack of an actionable route
+        # alone cannot erase failure evidence. Departure must also prove all
+        # mandatory destination abilities and no physical restoration debt.
+        self.assertEqual(policy._equipment_transaction_failed_items,
+                         set(equipment["failed_transaction_item_ids"]))
+        # Recomputed preparation reports missing calibration while retaining
+        # the failed-item evidence; neither permits an unverified departure.
+        self.assertEqual(policy._equipment_optimization_preparation.blockers,
+                         ("calibration-required",))
         self.assertEqual(
             policy._town_liveness_invariant_defect["marker"],
             "TOWN_LIVENESS_INVARIANT_DEFECT",

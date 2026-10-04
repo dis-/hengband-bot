@@ -294,8 +294,9 @@ class LadderOrderTest(unittest.TestCase):
 
     def test_the_decide_rungs_are_the_marked_calls_in_order(self):
         self.assertEqual(_order_mismatch(CLAIM_LADDER), [])
-        # 76 before the calibration rung was retired with the strip phases.
-        self.assertEqual(len(decide_rungs()), 75)
+        # The full-Home recovery producer adds one ordinary call site after
+        # retirement of the strip-calibration rung: 75 + 1.
+        self.assertEqual(len(decide_rungs()), 76)
 
     def test_revert_proof_swapping_two_rungs(self):
         rungs = list(CLAIM_LADDER)

@@ -293,14 +293,22 @@ class HomeLightAlternationPins(unittest.TestCase):
             self.records, recorded_keys, self.snapshots
         )
         self.assertEqual(clean, [])
-        wields = [
-            sequence for sequence in TAIL
-            if self.records[sequence][0] == "wield-light"
-        ]
-        self.assertEqual(wields, [512, 518])
+        # The Home observation owner (fad4701f; S3.3 observation contract)
+        # changed the already-diverged replay's tail. Do not require obsolete
+        # counterfactual wield counts. Construct only the checker's input:
+        # neutral rows plus two wields on real empty-light boards. Do not mix
+        # current Home-owner commands into that independent negative-control
+        # scenario or claim the policy reached either historical row.
+        checker_records = {
+            sequence: ("checker:no-operation", "") for sequence in TAIL
+        }
+        checker_records[512] = ("wield-light", "wk")
+        checker_records[518] = ("wield-light", "wk")
+        self.assertEqual(_tail_alternation_violations(
+            checker_records, recorded_keys, self.snapshots), [])
         # (1) The original alternation: the replay itself deposits at Home
         # between two wield-light rows.
-        altered = dict(self.records)
+        altered = dict(checker_records)
         altered[515] = ("home:atomic-deposit", "dk\r\x1b")
         self.assertTrue(any(
             "own 'home:atomic-deposit'" in violation
@@ -309,7 +317,7 @@ class HomeLightAlternationPins(unittest.TestCase):
             )
         ))
         # ... or takes the light off itself.
-        altered = dict(self.records)
+        altered = dict(checker_records)
         altered[517] = ("equipment-transaction:takeoff", "tg")
         self.assertTrue(any(
             "own 'equipment-transaction:takeoff'" in violation
@@ -318,7 +326,7 @@ class HomeLightAlternationPins(unittest.TestCase):
             )
         ))
         # (2) A wield-light not answering a recorded live takeoff.
-        altered = dict(self.records)
+        altered = dict(checker_records)
         altered[514] = ("wield-light", "wk")
         self.assertTrue(any(
             "at 514" in violation
@@ -331,7 +339,7 @@ class HomeLightAlternationPins(unittest.TestCase):
             sequence + 1 for sequence in TAIL
             if (recorded_keys.get(sequence) or "").startswith("t")
         ]
-        altered = dict(self.records)
+        altered = dict(checker_records)
         for sequence in live_takeoff_boards:
             altered[sequence] = ("wield-light", "wk")
         altered[488] = ("wield-light", "wk")

@@ -30,7 +30,10 @@ OFF_SHA = {
     # (3782 rows); base prefix [:3734] bc4e5224.  The one differing prefix row
     # is the declared rework divergence 3701 (stuck:wander -> the equipped
     # periodic:character-dump request); see the overweight module docstring.
-    "overweight": "98c719059781554b49d0cc82b0e9995980bb4e589e4b279b3e037788115b8909",
+    # Home observation (fad4701f) stops the fixture at its changed Home route,
+    # index 3725. Register that existing boundary without changing the designed
+    # ON first difference at 3715 or replaying later historical responses.
+    "overweight": "0bccc6f1344cb0a4473c446c2ff8258e70f8d03890f3b22ec93a6cc19cecad6b",
     "withdraw": "a9b344206bbbfda56f3f0a7797d6a9156ee029d2118163ef44e9f57fc9cc8fa9",
     "recall": "b21c0b3b423c886674960f5f3640424b8a51fc3d1f8215e31b3f61a5299bcef4",
     "stuck": "c63d582c734f396b4b44a8bee67270c6a4df393e48455461a35622a872fff5c5",
