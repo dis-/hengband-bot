@@ -1,3 +1,4 @@
+import tests  # isolate runtime writes, including in subprocesses
 import ast
 import json
 from pathlib import Path
