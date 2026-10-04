@@ -8159,7 +8159,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         self._release_equipment_transaction_owned_item(
                             reconciled.move_identity or reconciled.item_identity)
                 reconciled_index = session.index
-            if reconciled_any and not session.complete:
+            if (advanced or reconciled_any) and not session.complete:
                 held = self._claim_register.current
                 declaration = getattr(held, "execution", None)
                 if (held is not None and held.owner.value == "equipment-txn"
@@ -8893,6 +8893,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     work_id=self.last_reason,
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
+                    continuation=("equipment.next-action"
+                        if self._claim_family_of(self.last_reason) == "equipment-txn"
+                        and self._equipment_transaction_session is not None else None),
                 )
         else:
             key = self._decide(snapshot)
@@ -13664,6 +13667,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "target_loadout_id": session.target_loadout_id,
         }
         self._equipment_mutation.release()
+        self._release_claim_goal(
+            "confirmation-stall-bound", owners=("equipment-txn",),
+            kinds=(CLAIM_GOAL_OBSERVE,),
+            sources=("transaction", CLAIM_OBSERVE_STORE_OPERATION),
+        )
         self._abandon_blocked_equipment_transaction(snapshot)
         self.last_reason = "equipment-transaction:confirmation-stall-bound"
         return True

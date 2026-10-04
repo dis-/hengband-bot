@@ -1824,6 +1824,18 @@ class EquipmentMixin:
             )
             self._town_visit_ledger.blocked_stores.add(STORE_HOME)
 
+    def _equipment_transaction_deposit_owns_item(self, item: InventoryItem) -> bool:
+        """Reserve every remaining deposit for its registered session owner."""
+        session = self._equipment_transaction_session
+        if session is None or not item.is_equipment:
+            return False
+        return any(
+            action.kind == "deposit" and (
+                equipment_move_identity(item) == action.move_identity
+                if action.move_identity else
+                equipment_identity(item) == action.item_identity)
+            for action in session.plan.actions[session.index:])
+
     def _equipment_transaction_owns_item(
         self, item: InventoryItem | StoreItem
     ) -> bool:

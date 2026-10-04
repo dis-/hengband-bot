@@ -195,13 +195,35 @@ class HomeMixin:
                 self._home_full_retry_deposits = None
                 self._begin_home_full_relief(snapshot, retry)
                 return self._home_full_relief_key(snapshot)
-            if self._find_home_deposit(snapshot) is None:
-                self._home_full_retry_deposits = None
-                return None
-            if not self._home_knowledge_current:
+            holder = self._claim_register.current
+            if (not self._home_knowledge_current
+                    and not (self._equipment_transaction_session is not None
+                             and holder is not None and holder.is_open
+                             and holder.owner.value == "equipment-txn"
+                             and holder.goal.source == "transaction")):
                 return self._town_producer_entry(
                     "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
                     family="home-scan")
+            if self._equipment_transaction_session is not None:
+                # Space relief owns surplus stock, not this session's item
+                # effects. Return the relieved deposit to its original owner;
+                # keep any unrelated Home batch entries for after the session.
+                reserved = {self._item_signature(item) for item in snapshot.inventory
+                            if self._equipment_transaction_deposit_owns_item(item)}
+                self._home_full_retry_deposits = tuple(
+                    entry for entry in retry if entry[0] not in reserved) or None
+                return self._town_producer_entry(
+                    "_equipment_transaction_home_key" if snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME
+                    else "_equipment_transaction_town_key",
+                    lambda: (self._equipment_transaction_home_key(snapshot)
+                             if snapshot.store is not None
+                             and snapshot.store.store_type == STORE_HOME
+                             else self._equipment_transaction_town_key(snapshot)),
+                    family="equipment-txn")
+            if self._find_home_deposit(snapshot) is None:
+                self._home_full_retry_deposits = None
+                return None
             if snapshot.store is not None:
                 if snapshot.store.store_type == STORE_HOME:
                     return self._open_home_deposit_key(snapshot)
@@ -2572,8 +2594,7 @@ class HomeMixin:
         if entrance is None or entrance.store_number != STORE_HOME:
             self._offer_home_atomic_no_step("deposit", "not-at-home-entrance")
             return None
-        session = (None if getattr(self, "_home_full_retry_deposits", None) is not None
-                   else self._equipment_transaction_session)
+        session = self._equipment_transaction_session
         if session is not None:
             action = session.current_action
             if action is None or action.kind != "deposit":
@@ -2799,8 +2820,7 @@ class HomeMixin:
             or visit.store_type != STORE_HOME
             or visit.operation_posted
             or self._home_atomic_deposit_pending is not None
-            or (self._equipment_transaction_session is not None
-                and getattr(self, "_home_full_retry_deposits", None) is None)
+            or self._equipment_transaction_session is not None
         ):
             self._offer_home_atomic_no_step("deposit", "open-page-not-composable")
             return None
@@ -2982,6 +3002,9 @@ class HomeMixin:
             signatures = {entry[0] for entry in retry}
             return self._first_item(snapshot, lambda item:
                 self._item_signature(item) in signatures
+                # Relief may reclaim space for equipment work, but its retry
+                # cannot take over the item's deposit or its observed effect.
+                and not self._equipment_transaction_deposit_owns_item(item)
                 and self._home_deposit_quantity(snapshot, item) > 0)
         if self._home_deposit_abandoned:
             return None

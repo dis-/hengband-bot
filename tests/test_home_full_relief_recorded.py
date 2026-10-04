@@ -143,19 +143,26 @@ class HomeFullReliefTest(unittest.TestCase):
                 board, key = self.decide(policy, board,
                     player=replace(board.player, position=Position(10, 14)),
                     store=self.home_page(catalogue))
-                # Fresh page reauthorizes the original recorded deposit batch.
+                # Fresh page gives the registered equipment session priority.
+                # Home's unrelated retry batch waits for that owner's effect.
                 if key == "\x1b":
                     board, key = self.decide(policy, board, store=None)
                     self.assertEqual(key, "5")
                     board, key = self.decide(policy, board, store=self.home_page(catalogue))
                 self.assertTrue(key.startswith("d"), (key, policy.last_reason))
-                self.assertTrue({entry[0] for entry in entries} <= {
-                    entry[0] for entry in policy._home_atomic_deposit_pending[0]})
-                original = {entry[0] for entry in entries}
+                self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
+                self.assertIsNone(policy._home_atomic_deposit_pending)
+                action = session.pending_action
+                self.assertIsNotNone(action)
+                from hengbot.equipment_optimizer import equipment_move_identity
+                before_index = session.index
                 board, key = self.decide(policy, board, store=None,
                     inventory=tuple(item for item in board.inventory
-                        if policy._item_signature(item) not in original))
-                self.assertIsNone(policy._home_full_retry_deposits)
+                        if equipment_move_identity(item) != action.move_identity))
+                self.assertEqual(session.index, before_index + 1)
+                self.assertNotEqual(session.pending_action, action)
+                self.assertEqual(policy._home_full_retry_deposits, (entries[0],))
                 self.assertIs(policy._equipment_transaction_session, session)
 
     def test_unidentified_excellent_and_special_are_not_selected_for_sale(self):
