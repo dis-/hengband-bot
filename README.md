@@ -21,6 +21,10 @@ override relocates the entire `HomeDisposalState.in_repo()` root, including
 the decisions file and the `jsonlog/` queue and sol-event paths, not only the
 transaction history.
 
+Town ownership structural checks run with `PYTHONPATH=src python
+scripts/item_sink_lint.py`. See [the reviewed baseline rules](scripts/town_structure_baselines.md)
+for producer registration, item-intent sources and command serialization.
+
 The first milestone is intentionally small:
 
 - read JSON Lines snapshots emitted before player input

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -1760,16 +1761,10 @@ class QuestMixin:
                 return None
             self._ranged_target_signatures[target.index] = target.hp
             return (
-                FIRE_KEY
-                + ammo.slot
-                + "*p"
-                + self._cursor_delta_keys(snapshot.player.position, aim)
-                + "t5\x1b"
+                reserved_item_command(self, snapshot, "fire", ammo, suffix='*p' + self._cursor_delta_keys(snapshot.player.position, aim) + 't5\x1b')
             )
         return (
-            FIRE_KEY
-            + ammo.slot
-            + self._direction_key(snapshot.player.position, target.position)
+            reserved_item_command(self, snapshot, "fire", ammo, suffix=self._direction_key(snapshot.player.position, target.position))
         )
 
     @claims(ClaimOwner.QUEST_SWEEP)
@@ -1807,7 +1802,7 @@ class QuestMixin:
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
                     self.last_reason = "quest-strategy:q2-quaff-speed"
-                    return QUAFF_KEY + speed.slot
+                    return reserved_item_command(self, snapshot, "quaff", speed)
         return None
 
     def _q2_breach_key(
@@ -1866,7 +1861,7 @@ class QuestMixin:
         if wand is not None:
             self._q2_breach_attempts += 1
             self.last_reason = "quest-strategy:q2-breach-wand"
-            return AIM_WAND_KEY + wand.slot + direction
+            return reserved_item_command(self, snapshot, "wand", wand, suffix=direction)
 
         equipped = self._equipped_digging_tool(snapshot)
         if equipped is None or equipped.pval < Q2_BREACH_MIN_DIGGING:
@@ -2778,7 +2773,7 @@ class QuestMixin:
                         if profile.quest_id == 22
                         else "quest-strategy:opening-speed"
                     )
-                    return QUAFF_KEY + speed.slot
+                    return reserved_item_command(self, snapshot, "quaff", speed)
                 phase = 1
             if phase == 1:
                 self._quest_strategy_opening_phase[profile.quest_id] = 2
@@ -2964,7 +2959,7 @@ class QuestMixin:
                 speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
                 if speed is not None:
                     self.last_reason = "quest-strategy:quaff-speed"
-                    return QUAFF_KEY + speed.slot
+                    return reserved_item_command(self, snapshot, "quaff", speed)
 
         hold_value = profile.engagement_plan.get("hold_position")
         hold = self._quest_strategy_hold_positions.get(profile.quest_id)
@@ -3478,10 +3473,7 @@ class QuestMixin:
                 if torch is not None:
                     self.last_reason = "quest-strategy:throw-torch"
                     return (
-                        THROW_KEY + torch.slot
-                        + self._direction_key(
-                            snapshot.player.position, target_monster.position
-                        )
+                        reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target_monster.position))
                     )
             if (
                 profile.quest_id == 34
@@ -3497,8 +3489,7 @@ class QuestMixin:
                 if target is not None:
                     self.last_reason = "quest-strategy:throw-torch"
                     return (
-                        THROW_KEY + torch.slot
-                        + self._direction_key(snapshot.player.position, target.position)
+                        reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, target.position))
                     )
 
         # Once the opening hold/light phase is complete, the placement sweep
@@ -3849,8 +3840,7 @@ class QuestMixin:
                     if torch is not None:
                         self.last_reason = "quest-strategy:throw-never-move-blocker"
                         return (
-                            THROW_KEY + torch.slot
-                            + self._direction_key(snapshot.player.position, blocker.position)
+                            reserved_item_command(self, snapshot, "throw", torch, suffix=self._direction_key(snapshot.player.position, blocker.position))
                         )
                     self.last_reason = "quest-strategy:avoid-never-move"
                     return WAIT_KEY
@@ -5568,13 +5558,13 @@ class QuestMixin:
                     if healing.sval == SV_POTION_HEALING
                     else "unique:quaff-cure-critical"
                 )
-                return QUAFF_KEY + healing.slot
+                return reserved_item_command(self, snapshot, "quaff", healing)
 
         if speed_is_material and speed_potion is not None:
             self._unique_speed_attempted = True
             self._unique_combat_committed_race_id = target.race_id
             self.last_reason = "unique:quaff-speed"
-            return QUAFF_KEY + speed_potion.slot
+            return reserved_item_command(self, snapshot, "quaff", speed_potion)
         return None
 
     def _q31_opening_hold_is_controlled(

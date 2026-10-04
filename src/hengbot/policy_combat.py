@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command
 
 from collections import Counter, deque
 from heapq import heappop, heappush
@@ -487,7 +488,7 @@ class CombatMixin:
                 )
             if potion is not None:
                 self.last_reason = "emergency:heal"
-                return QUAFF_KEY + potion.slot
+                return reserved_item_command(self, snapshot, "quaff", potion)
 
         faster_melee = any(
             monster.max_melee_damage > 0
@@ -508,7 +509,7 @@ class CombatMixin:
             if speed is not None:
                 self._escape_speed_attempted = True
                 self.last_reason = "emergency:quaff-speed"
-                return QUAFF_KEY + speed.slot
+                return reserved_item_command(self, snapshot, "quaff", speed)
         return key
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         return self._strategic_subset(snapshot, snapshot.visible_monsters)
@@ -864,7 +865,7 @@ class CombatMixin:
                 and HEALING_POTION_HP >= turn_damage
             ):
                 self.last_reason = "esp-threat:hunt-heal"
-                return QUAFF_KEY + healing.slot
+                return reserved_item_command(self, snapshot, "quaff", healing)
             return self._esp_threat_end_hunt("reserve", snapshot, strategic_hostiles)
         estimate = self._esp_threat_kill_feasibility(
             snapshot,
@@ -894,7 +895,7 @@ class CombatMixin:
             ):
                 hunt["speed_drunk"] = True
                 self.last_reason = "esp-threat:hunt-speed"
-                return QUAFF_KEY + speed.slot
+                return reserved_item_command(self, snapshot, "quaff", speed)
         adjacent = [
             monster for monster in strategic_hostiles
             if monster.distance <= 1
@@ -1143,21 +1144,21 @@ class CombatMixin:
             snapshot, lambda it: it.is_torch and it.fuel > 0
         )
         if ammo is not None:
-            prefix, slot, reason = FIRE_KEY, ammo.slot, "ranged:fire"
+            kind, projectile, reason = "fire", ammo, "ranged:fire"
         elif (
             torch is not None
             and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
         ):
             # Early floors: spam thrown torches (user directive) — ~1g each
             # and half of them survive on the floor for pickup.
-            prefix, slot, reason = THROW_KEY, torch.slot, "ranged:throw-torch"
+            kind, projectile, reason = "throw", torch, "ranged:throw-torch"
         else:
             # Deeper with no ammo: throw a spare flask of oil while keeping
             # the lantern-fuel reserve intact. Potions are NEVER thrown.
             flask = self._first_item(snapshot, lambda it: it.is_oil)
             if flask is None or self._supply_ledger(snapshot, snapshot.dungeon_level)["oil"].count <= OIL_TARGET:
                 return None
-            prefix, slot, reason = THROW_KEY, flask.slot, "ranged:throw-oil"
+            kind, projectile, reason = "throw", flask, "ranged:throw-oil"
 
         if self._ranged_target_macro_signature is not None:
             (
@@ -1186,7 +1187,8 @@ class CombatMixin:
             self.last_reason = reason
             # No leading ESC: at 00:31:55 it produced a same-turn pre-action
             # snapshot that the posting contract consumed as post-action.
-            return prefix + slot + self._direction_key(player.position, target.position)
+            return reserved_item_command(self, snapshot, kind, projectile,
+                                          suffix=self._direction_key(player.position, target.position))
 
         eligible = [
             monster
@@ -1241,7 +1243,7 @@ class CombatMixin:
             self.last_reason = "ranged:fire-offset"
             # No leading ESC: at 00:31:55 its same-turn pre-action snapshot was
             # consumed as the post-action observation.
-            return FIRE_KEY + ammo.slot + "*p" + keys + "t5\x1b"
+            return reserved_item_command(self, snapshot, "fire", ammo, suffix='*p' + keys + 't5\x1b')
 
         # Hengband's TARGET_KILL list is stably distance-sorted, so `*` initially
         # offers its nearest visible projectable non-pet monster; `t` accepts it.
@@ -1272,7 +1274,7 @@ class CombatMixin:
         self.last_reason = "ranged:fire-target"
         # No leading ESC: at 00:31:55 its same-turn pre-action snapshot was
         # consumed as the post-action observation.
-        return FIRE_KEY + ammo.slot + "*t5\x1b"
+        return reserved_item_command(self, snapshot, "fire", ammo, suffix='*t5\x1b')
     def _offset_fire_aim(
         self,
         snapshot: Snapshot,
@@ -1695,7 +1697,7 @@ class CombatMixin:
                 potion = self._low_hp_heal_first_potion(snapshot, hostiles)
                 if potion is not None:
                     self.last_reason = "unseen-recall:heal"
-                    return QUAFF_KEY + potion.slot
+                    return reserved_item_command(self, snapshot, "quaff", potion)
             if urgent_relocation and not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
@@ -1711,7 +1713,7 @@ class CombatMixin:
                 potion = self._find_heal_potion(snapshot, expected_damage=1)
                 if potion is not None:
                     self.last_reason = "unseen-recall:heal"
-                    return QUAFF_KEY + potion.slot
+                    return reserved_item_command(self, snapshot, "quaff", potion)
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)
@@ -1880,7 +1882,7 @@ class CombatMixin:
         )
         if q22_healing is not None:
             self.last_reason = "quest-strategy:q22-reposition-heal"
-            return QUAFF_KEY + q22_healing.slot
+            return reserved_item_command(self, snapshot, "quaff", q22_healing)
         if not summoner_open and not q22_reposition_active:
             unique_consumable = self._unique_combat_consumable(snapshot, hostiles)
             if unique_consumable is not None:
@@ -1902,13 +1904,13 @@ class CombatMixin:
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
                     self.last_reason = "quest-strategy:quaff-speed"
-                    return QUAFF_KEY + speed.slot
+                    return reserved_item_command(self, snapshot, "quaff", speed)
         q31_healing = self._q31_opening_heal_before_escape(
             snapshot, profile, hostiles
         )
         if q31_healing is not None:
             self.last_reason = "quest-strategy:opening-heal"
-            return QUAFF_KEY + q31_healing.slot
+            return reserved_item_command(self, snapshot, "quaff", q31_healing)
         protected_q31_hold = self._q31_opening_hold_absorbs_threat(
             snapshot, profile, hostiles
         )
@@ -2012,7 +2014,7 @@ class CombatMixin:
                         self._blind_cure_escape_carry = (
                             snapshot.floor_key, loss, deadline,
                         )
-                    return QUAFF_KEY + potion.slot
+                    return reserved_item_command(self, snapshot, "quaff", potion)
 
             if lethal or summoner_open:
                 # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
@@ -2027,7 +2029,7 @@ class CombatMixin:
                         # (_flee_sustain_key) judges escapes, and none is
                         # taken on this board.
                         self.last_reason = "item:heal"
-                        return QUAFF_KEY + potion.slot
+                        return reserved_item_command(self, snapshot, "quaff", potion)
                 if not player.blind and not player.confused:
                     scroll = self._escape_scroll(snapshot)
                     if scroll is not None:
@@ -2076,7 +2078,7 @@ class CombatMixin:
                     )
                     if potion is not None:
                         self.last_reason = "emergency:heal"
-                        return QUAFF_KEY + potion.slot
+                        return reserved_item_command(self, snapshot, "quaff", potion)
                 self._claim_target_capture = []
                 try:
                     route_step = self._nearest_goal_step(
@@ -2139,7 +2141,7 @@ class CombatMixin:
                     if potion.sval == SV_POTION_CURE_CRITICAL
                     else "item:cure-status-healing"
                 )
-                return QUAFF_KEY + potion.slot
+                return reserved_item_command(self, snapshot, "quaff", potion)
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (
@@ -2158,7 +2160,7 @@ class CombatMixin:
                 )
                 if potion is not None:
                     self.last_reason = "item:heal"
-                    return QUAFF_KEY + potion.slot
+                    return reserved_item_command(self, snapshot, "quaff", potion)
                 # Carried potions all heal less than the next turn takes
                 # (with none carried the decision does not arise).
                 if self._find_heal_potion(snapshot, expected_damage=1) is not None:
@@ -2173,13 +2175,13 @@ class CombatMixin:
             )
             if potion is not None:
                 self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot
+                return reserved_item_command(self, snapshot, "quaff", potion)
         # Eat before we faint from hunger.
         if player.fainting:
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "item:eat"
-                return EAT_KEY + food.slot
+                return reserved_item_command(self, snapshot, "eat", food)
         return None
     def _has_state_based_free_action(self, snapshot: Snapshot) -> bool:
         """Trust only an explicitly active per-source free-action grant."""
@@ -2509,7 +2511,7 @@ class CombatMixin:
         if speed is None:
             return None
         self.last_reason = "item:strong-fight-speed"
-        return QUAFF_KEY + speed.slot
+        return reserved_item_command(self, snapshot, "quaff", speed)
 
     def _unseen_loss_is_material(self, player, loss: int) -> bool:
         """USER DECISIONS 2026-10-03 (an unseen hit with nothing in view, and

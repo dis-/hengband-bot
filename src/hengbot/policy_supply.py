@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
 from contextlib import contextmanager
@@ -1307,7 +1308,7 @@ class SupplyMixin:
         if snapshot.in_town:
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
-                key = EAT_KEY + food.slot
+                key = reserved_item_command(self, snapshot, "eat", food)
                 self._offer_execution(
                     key, producer="survival", work_id="town:eat",
                     next_step="survival.eat",
@@ -1330,7 +1331,7 @@ class SupplyMixin:
             if near_hostiles and not player.fainting:
                 return None
             self.last_reason = "survival:eat"
-            return EAT_KEY + food.slot
+            return reserved_item_command(self, snapshot, "eat", food)
         if near_hostiles:
             return None  # fight/flee first; re-fires on the next quiet decision
         key = self._return_to_town_key(snapshot, hostiles)
@@ -1382,7 +1383,7 @@ class SupplyMixin:
         if edible is not None:
             self._home_procurement_probe = None
             self.last_reason = "survival:mana-absorb"
-            key = EAT_KEY + edible.slot
+            key = reserved_item_command(self, snapshot, "eat", edible)
             self._offer_execution(
                 key, producer="survival", work_id="survival:mana-absorb",
                 next_step="survival.absorb-mana-food",

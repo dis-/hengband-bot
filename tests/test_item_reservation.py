@@ -19,6 +19,7 @@ from hengbot.equipment_transaction_planner import EquipmentTransaction, Equipmen
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.item_reservation import (
     item_reserved_by_other, item_available, reservation_decision, reservation_shadow,
+    reserved_item_command,
 )
 
 
@@ -99,9 +100,46 @@ class ItemReservationTest(unittest.TestCase):
         self.assertTrue(item_available(policy, board, board.inventory[0], 'home-visit', 'deposit'))
 
     def test_all_named_sinks_consult_same_predicate(self):
-        for sink in ('sell', 'deposit', 'withdraw', 'destroy', 'wield', 'weight-deposit', 'home-full-sale'):
+        for sink in ('sell', 'deposit', 'withdraw', 'destroy', 'wield', 'weight-deposit', 'home-full-sale',
+                     'read', 'quaff', 'eat', 'staff', 'wand', 'rod', 'fire', 'throw', 'refill'):
             policy, board, target = self.scene()
             self.assertFalse(item_available(policy, board, target, 'foreign', sink))
+
+    def test_consumption_serializer_preserves_actual_key_constants_and_tails(self):
+        from hengbot import policy_constants as keys
+        from hengbot.item_reservation import item_command, reservation_verdict
+        policy, board, target = self.scene()
+        policy._equipment_transaction_session = None
+        for kind, constant in (('read', keys.READ_KEY), ('quaff', keys.QUAFF_KEY),
+                               ('eat', keys.EAT_KEY), ('staff', keys.USE_STAFF_KEY),
+                               ('wand', keys.AIM_WAND_KEY), ('rod', keys.ZAP_ROD_KEY),
+                               ('fire', keys.FIRE_KEY), ('throw', keys.THROW_KEY),
+                               ('refill', keys.REFILL_KEY)):
+            with self.subTest(kind=kind):
+                verdict = reservation_verdict(policy, board, target, 'survival', kind)
+                self.assertEqual(item_command(kind, target, verdict), constant + target.slot)
+                self.assertEqual(reserved_item_command(policy, board, kind, target, suffix= '*t5\x1b'),
+                                 constant + target.slot + '*t5\x1b')
+
+    def test_town_consumption_cannot_steal_planned_deposit(self):
+        for kind in ('read', 'quaff', 'eat', 'staff', 'wand', 'rod', 'fire', 'throw', 'refill'):
+            for enforced in (False, True):
+                policy, board, target = self.scene(enforced)
+                policy.last_reason = 'survival:hunger'
+                self.assertIsNone(reserved_item_command(policy, board, kind, target))
+
+    def test_dungeon_consumption_preserves_keys_for_unreserved_item(self):
+        policy, board, target = self.scene(True)
+        policy._equipment_transaction_session = None
+        board = replace(board, store=None, floor_key=(1, 5, 0), town_flag=False)
+        self.assertFalse(board.in_town)
+        policy.last_reason = 'combat:heal'
+        self.assertEqual(reserved_item_command(policy, board, 'quaff', target), 'q' + target.slot)
+
+    def test_consumption_cannot_borrow_a_stale_transaction_owner_reason(self):
+        policy, board, staff = self.scene(True, 'm')
+        policy.last_reason = 'equipment-transaction:home-prepare'
+        self.assertIsNone(reserved_item_command(policy, board, 'staff', staff))
 
     def test_public_decision_is_terminal_on_and_shadow_skip_off(self):
         for enforced in (False, True):

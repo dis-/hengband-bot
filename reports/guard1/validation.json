@@ -1,0 +1,620 @@
+{
+  "implementation_commit": "f8bbec505fbe9d901318563bf80b921aaf8315b2",
+  "base": "f055f07f478d7c1bdef411778ecaa8290dbc99c2",
+  "modules": [
+    {
+      "module": "test_classA_observed_input",
+      "tests": 30,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:10:50.677538+09:00",
+      "seconds": 12.911307100002887
+    },
+    {
+      "module": "test_control_client",
+      "tests": 33,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:11:10.647002+09:00",
+      "seconds": 17.038865100010298
+    },
+    {
+      "module": "test_crossarea_fundraising",
+      "tests": 13,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:11:24.584534+09:00",
+      "seconds": 11.035012200009078
+    },
+    {
+      "module": "test_curse_priority_recorded",
+      "tests": 10,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:11:34.060005+09:00",
+      "seconds": 6.671957500017015
+    },
+    {
+      "module": "test_decision_return_boundary",
+      "tests": 3,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:06:16.510005+09:00",
+      "seconds": 4.315670199983288
+    },
+    {
+      "module": "test_declarations_r10",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:11:54.336215+09:00",
+      "seconds": 17.413385899999412
+    },
+    {
+      "module": "test_declarations_r11",
+      "tests": 10,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:03.875696+09:00",
+      "seconds": 6.68287080002483
+    },
+    {
+      "module": "test_declarations_r12",
+      "tests": 6,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:12.803057+09:00",
+      "seconds": 6.084479100012686
+    },
+    {
+      "module": "test_declarations_r3b",
+      "tests": 14,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:17.433945+09:00",
+      "seconds": 1.7359657999768388
+    },
+    {
+      "module": "test_declarations_r5",
+      "tests": 9,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:21.867142+09:00",
+      "seconds": 1.6269135000184178
+    },
+    {
+      "module": "test_destroy_procurement_guard",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:27.283923+09:00",
+      "seconds": 2.5632143999973778
+    },
+    {
+      "module": "test_emit_ownership",
+      "tests": 11,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:12:34.578968+09:00",
+      "seconds": 4.450924000004306
+    },
+    {
+      "module": "test_esp_threat_rest_recorded",
+      "tests": 16,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:13:52.475582+09:00",
+      "seconds": 74.96560299998964
+    },
+    {
+      "module": "test_experience_potion",
+      "tests": 14,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:21:09.161983+09:00",
+      "seconds": 433.78542800000287
+    },
+    {
+      "module": "test_exploration_commitment_observation",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:46:28.428741+09:00",
+      "seconds": 3.796247799997218
+    },
+    {
+      "module": "test_fundraising_set_end_counter_recorded",
+      "tests": 3,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:46:46.528590+09:00",
+      "seconds": 15.348758500011172
+    },
+    {
+      "module": "test_heal_vs_teleport_decision",
+      "tests": 2,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:46:58.674973+09:00",
+      "seconds": 9.304107700008899
+    },
+    {
+      "module": "test_home_disposal",
+      "tests": 15,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:47:05.652057+09:00",
+      "seconds": 3.831216399994446
+    },
+    {
+      "module": "test_home_knowledge_scan",
+      "tests": 38,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:47:13.422544+09:00",
+      "seconds": 4.856198099994799
+    },
+    {
+      "module": "test_home_light_alternation",
+      "tests": 36,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:51:40.348094+09:00",
+      "seconds": 263.8445127000159
+    },
+    {
+      "module": "test_input_executor",
+      "tests": 72,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:51:47.333042+09:00",
+      "seconds": 3.967470700008562
+    },
+    {
+      "module": "test_item_reservation",
+      "tests": 17,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T07:00:55.006459+09:00",
+      "seconds": 27.5884636999981
+    },
+    {
+      "module": "test_item_serialization",
+      "tests": 8,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T07:01:04.341941+09:00",
+      "seconds": 6.67811380000785
+    },
+    {
+      "module": "test_item_sink_lint",
+      "tests": 18,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T07:00:24.730514+09:00",
+      "seconds": 32.61921830000938
+    },
+    {
+      "module": "test_latch_ownership",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:52:05.284390+09:00",
+      "seconds": 4.344794100004947
+    },
+    {
+      "module": "test_lethal_unseen_caster_recorded",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:52:35.199892+09:00",
+      "seconds": 27.06746760001988
+    },
+    {
+      "module": "test_loot_before_recall_recorded",
+      "tests": 8,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:53:09.641684+09:00",
+      "seconds": 31.6757101000112
+    },
+    {
+      "module": "test_loot_suppression_returning_recorded",
+      "tests": 3,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:53:24.355260+09:00",
+      "seconds": 11.96307169998181
+    },
+    {
+      "module": "test_low_hp_no_unchecked_walk",
+      "tests": 11,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:54:14.798278+09:00",
+      "seconds": 47.74067999998806
+    },
+    {
+      "module": "test_manafood_departure_recorded",
+      "tests": 13,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:54:19.602405+09:00",
+      "seconds": 1.9828383999993093
+    },
+    {
+      "module": "test_margin_ratio_tour_divergence_recorded",
+      "tests": 2,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:54:32.775090+09:00",
+      "seconds": 10.065473199996632
+    },
+    {
+      "module": "test_morivant_return_walks_away_recorded",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:56:17.970022+09:00",
+      "seconds": 102.00517359998776
+    },
+    {
+      "module": "test_navigation",
+      "tests": 91,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:56:24.561948+09:00",
+      "seconds": 3.677831299981335
+    },
+    {
+      "module": "test_newchar_light_loop_recorded",
+      "tests": 4,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:56:30.334480+09:00",
+      "seconds": 2.8874776999873575
+    },
+    {
+      "module": "test_ownership_claims",
+      "tests": 24,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:57:26.428421+09:00",
+      "seconds": 53.14784610000788
+    },
+    {
+      "module": "test_ownership_metrics",
+      "tests": 15,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T05:57:51.702555+09:00",
+      "seconds": 22.453115699987393
+    },
+    {
+      "module": "test_ownership_s2a1_closure",
+      "tests": 80,
+      "failures": [
+        "tests.test_ownership_s2a1_closure.GoalTypingTableTest.test_every_reason_the_package_can_emit_is_typed"
+      ],
+      "errors": [],
+      "generated_at": "2026-10-05T06:00:31.048362+09:00",
+      "seconds": 156.47714740000083
+    },
+    {
+      "module": "test_ownership_s2b1_ladder",
+      "tests": 52,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:21:41.518495+09:00",
+      "seconds": 29.499956899991957
+    },
+    {
+      "module": "test_ownership_s2b1b_close_pairs",
+      "tests": 35,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:22:00.432766+09:00",
+      "seconds": 16.03284630001872
+    },
+    {
+      "module": "test_ownership_s2b2_bar",
+      "tests": 30,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:22:20.089286+09:00",
+      "seconds": 16.82195569999749
+    },
+    {
+      "module": "test_ownership_s3_3_delegation_record",
+      "tests": 14,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:22:33.881314+09:00",
+      "seconds": 10.851047000003746
+    },
+    {
+      "module": "test_policy",
+      "tests": 57,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:22:41.505756+09:00",
+      "seconds": 4.7950890000211075
+    },
+    {
+      "module": "test_policy_combat",
+      "tests": 302,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:08:14.409661+09:00",
+      "seconds": 37.732033100008266
+    },
+    {
+      "module": "test_policy_equipment",
+      "tests": 191,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:23:04.049912+09:00",
+      "seconds": 19.59734579999349
+    },
+    {
+      "module": "test_policy_fundraising",
+      "tests": 50,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:23:08.870473+09:00",
+      "seconds": 1.912976499996148
+    },
+    {
+      "module": "test_policy_home",
+      "tests": 171,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:08:53.084102+09:00",
+      "seconds": 35.864973899995675
+    },
+    {
+      "module": "test_policy_quest",
+      "tests": 334,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:25:50.016348+09:00",
+      "seconds": 158.290336999984
+    },
+    {
+      "module": "test_policy_shop",
+      "tests": 273,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:09:20.988468+09:00",
+      "seconds": 25.054565400001593
+    },
+    {
+      "module": "test_policy_supply",
+      "tests": 205,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:10:34.920940+09:00",
+      "seconds": 70.99689929999295
+    },
+    {
+      "module": "test_policy_town",
+      "tests": 589,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:58:54.176477+09:00",
+      "seconds": 249.74549910001224
+    },
+    {
+      "module": "test_protocol3_client",
+      "tests": 29,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:27:42.023306+09:00",
+      "seconds": 109.20187799999258
+    },
+    {
+      "module": "test_pure_decision_telemetry",
+      "tests": 6,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:33:11.861797+09:00",
+      "seconds": 327.1147723000031
+    },
+    {
+      "module": "test_quest_navigator",
+      "tests": 17,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:33:30.796798+09:00",
+      "seconds": 16.113896900002146
+    },
+    {
+      "module": "test_recall_read_cancel_pingpong_recorded",
+      "tests": 5,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:34:16.232392+09:00",
+      "seconds": 42.7096254999924
+    },
+    {
+      "module": "test_recall_readiness_contradiction",
+      "tests": 4,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:34:20.716289+09:00",
+      "seconds": 1.7304533999995328
+    },
+    {
+      "module": "test_s33_batch_admission",
+      "tests": 9,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:34:26.824966+09:00",
+      "seconds": 3.38796310001635
+    },
+    {
+      "module": "test_s33_batch_reconciliation",
+      "tests": 18,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:34:31.286634+09:00",
+      "seconds": 1.6773370999726467
+    },
+    {
+      "module": "test_s33_phase2_idle",
+      "tests": 2,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:34:35.650805+09:00",
+      "seconds": 1.617477299994789
+    },
+    {
+      "module": "test_staged_prompt_chain_rewrite",
+      "tests": 5,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:35:00.673668+09:00",
+      "seconds": 22.148949900001753
+    },
+    {
+      "module": "test_store_reentry_recorded",
+      "tests": 34,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:38:42.273921+09:00",
+      "seconds": 218.7739137999888
+    },
+    {
+      "module": "test_strong_fight_speed_decision",
+      "tests": 11,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:39:00.874503+09:00",
+      "seconds": 15.753828299988527
+    },
+    {
+      "module": "test_stuck_prompt_staged_tail_recorded",
+      "tests": 4,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:39:10.708712+09:00",
+      "seconds": 7.023732500005281
+    },
+    {
+      "module": "test_summoner_reach_decision",
+      "tests": 6,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:39:19.239954+09:00",
+      "seconds": 5.683408400014741
+    },
+    {
+      "module": "test_teleport_before_heal_decision",
+      "tests": 3,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:39:23.919736+09:00",
+      "seconds": 1.937948700011475
+    },
+    {
+      "module": "test_test_fakery_lint",
+      "tests": 13,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T07:02:14.867831+09:00",
+      "seconds": 67.960454199987
+    },
+    {
+      "module": "test_town_approach_retired_recorded",
+      "tests": 10,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:40:59.702903+09:00",
+      "seconds": 93.09982860001037
+    },
+    {
+      "module": "test_town_blackmarket_stall_recorded",
+      "tests": 3,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:41:16.379760+09:00",
+      "seconds": 14.011311600013869
+    },
+    {
+      "module": "test_town_cure_supplier_recorded",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:43:47.838561+09:00",
+      "seconds": 148.7971097000118
+    },
+    {
+      "module": "test_town_plan_exhausted_wander",
+      "tests": 12,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:45:20.791472+09:00",
+      "seconds": 86.40491430001566
+    },
+    {
+      "module": "test_town_structure_lint",
+      "tests": 19,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:59:49.508709+09:00",
+      "seconds": 45.258532799984096
+    },
+    {
+      "module": "test_unaffordable_claim_tour_recorded",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:54:20.090282+09:00",
+      "seconds": 536.3683655999776
+    },
+    {
+      "module": "test_unseen_caster_death_recorded",
+      "tests": 5,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:54:29.137621+09:00",
+      "seconds": 6.316162900009658
+    },
+    {
+      "module": "test_unseen_spell_scratch_decision",
+      "tests": 7,
+      "failures": [],
+      "errors": [],
+      "generated_at": "2026-10-05T06:54:41.817379+09:00",
+      "seconds": 9.984994200000074
+    }
+  ],
+  "total_tests": 3210,
+  "failures": 1,
+  "errors": 0,
+  "town_start_approx": "2026-10-05T06:54:44.430978+09:00",
+  "lint_violations": 0,
+  "producer_baseline_count": 651,
+  "producer_categories": {
+    "pure helper": 497,
+    "delegated adapter": 44,
+    "town producer to migrate": 99,
+    "dungeon-only": 11
+  },
+  "reservation_sources": 51,
+  "reservation_components": {
+    "selection": 25,
+    "equipment-txn": 6,
+    "home-visit": 2,
+    "home-errand": 11,
+    "home-full-retry": 1,
+    "home-reserve": 4,
+    "retention": 2
+  },
+  "intent_exclusions": 128,
+  "mutations": {
+    "undecorated_town_producer": "PASS (rejected)",
+    "new_pending_signature": "PASS (rejected)",
+    "raw_quaff_slot": "PASS (rejected)"
+  }
+}

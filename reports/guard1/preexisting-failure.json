@@ -1,0 +1,19 @@
+{
+  "src/hengbot/claim_goal_typing.py": {
+    "unchanged_from_base": true,
+    "base_blob": "c44d9fff19f78290e990c12c274c6a7b6df31d04"
+  },
+  "src/hengbot/town_arbiter.py": {
+    "unchanged_from_base": true,
+    "base_blob": "e4dfa0c2f1ffd01a5ddc254ff800679e460c7a28"
+  },
+  "tests/test_ownership_s2a1_closure.py": {
+    "unchanged_from_base": true,
+    "base_blob": "84d5f824224e3578ab5cacb1f01974a7177740ad"
+  },
+  "reason": "town:supply-stockout-mining",
+  "present_in_base_policy_town": true,
+  "family": "unregistered",
+  "goal_typing": null,
+  "conclusion": "pre-existing failure; unchanged assertion inputs and source reason"
+}

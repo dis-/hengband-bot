@@ -9815,7 +9815,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if potion is not None:
                 self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot
+                return reserved_item_command(self, snapshot, "quaff", potion)
             scroll = self._escape_scroll(snapshot) if threatened else None
             if scroll is not None:
                 return self._issue_emergency_consumable(
@@ -9837,7 +9837,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             potion = self._find_heal_potion(snapshot, expected_damage=1)
             if potion is not None:
                 self.last_reason = "item:heal"
-                return QUAFF_KEY + potion.slot
+                return reserved_item_command(self, snapshot, "quaff", potion)
         if adjacent and not player.afraid:
             self.last_reason = "melee"
             return self._direction_key(
@@ -10288,7 +10288,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 refill = self._light_refill_item(snapshot)
                 if refill is not None:
                     self.last_reason = "refill-light"
-                    return REFILL_KEY + refill.slot
+                    return reserved_item_command(self, snapshot, "refill", refill)
             info = self._quest_knowledge.get(profile.quest_id)
             if info is None or info.battlefield is None:
                 self.last_reason = "quest:blocked:enter"
@@ -10334,7 +10334,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
             if speed is not None:
                 self.last_reason = "quest:quaff-speed"
-                return QUAFF_KEY + speed.slot
+                return reserved_item_command(self, snapshot, "quaff", speed)
 
         # 0a. Open wilderness = a non-town surface tile the town routine strayed
         #     onto by crossing a map border. It spawns out-of-depth monsters (a
@@ -10825,7 +10825,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "town:eat-before-travel"
-                return EAT_KEY + food.slot
+                return reserved_item_command(self, snapshot, "eat", food)
 
         # Wilderness monsters can enter town, so shopping is not safe while
         # injured. After an unseen hit, head for the nearest store entrance;
@@ -11176,12 +11176,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             refill = self._light_refill_item(snapshot)
             if refill is not None:
                 self.last_reason = "refill-light"
-                return REFILL_KEY + refill.slot
+                return reserved_item_command(self, snapshot, "refill", refill)
             departure_refill = self._unknown_lantern_departure_refill_item(snapshot)
             if departure_refill is not None:
                 self._unknown_lantern_departure_refilled = True
                 self.last_reason = "refill-light"
-                return REFILL_KEY + departure_refill.slot
+                return reserved_item_command(self, snapshot, "refill", departure_refill)
 
         # _observe schedules the town circuit breaker before _decide runs.  It
         # must preempt the shopping approach below: that router otherwise
@@ -11533,7 +11533,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             food = self._find_edible(snapshot)
             if food is not None:
                 self.last_reason = "eat"
-                return EAT_KEY + food.slot
+                return reserved_item_command(self, snapshot, "eat", food)
 
         # 7. Opportunistic hunt for easy XP while no downstairs is in sight.
         step = self._town_producer_entry("_hunt_step#3", lambda: self._hunt_step(snapshot, strategic_hostiles))
@@ -12399,7 +12399,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # option `carry_query_flag` remains off (its current default).
         if command == READ_KEY:
             return self._read_key(snapshot, src, "-")
-        return command + src.slot + "-"
+        return reserved_item_command(self, snapshot, command, src, suffix="-")
 
 
 
@@ -12624,7 +12624,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         refill = self._light_refill_item(snapshot)
         if refill is not None:
             self.last_reason = "refill-light"
-            return REFILL_KEY + refill.slot
+            return reserved_item_command(self, snapshot, "refill", refill)
         torch = self._darkness_torch(snapshot)
         if torch is not None:
             self.last_reason = "wield-light"
@@ -14068,7 +14068,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 else None
             ),
         )
-        return self.validate_read_key(snapshot, READ_KEY + item.slot + suffix)
+        return self.validate_read_key(snapshot, reserved_item_command(self, snapshot, "read", item, suffix=suffix))
 
     def validate_read_key(self, snapshot: Snapshot, key: str | None) -> str | None:
         """Rebind a composed read to its intended scroll in the acting snapshot."""
@@ -14100,7 +14100,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ),
                 None,
             )
-        posted_key = READ_KEY + selected.slot + suffix if selected is not None else WAIT_KEY
+        posted_key = reserved_item_command(self, snapshot, "read", selected, suffix=suffix) if selected is not None else WAIT_KEY
         self.read_telemetry = {
             "key": posted_key,
             "letter": selected.slot if selected is not None else None,
@@ -14378,7 +14378,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
         if potion is not None:
             self.last_reason = "stat-gain:quaff"
-            key = QUAFF_KEY + potion.slot
+            key = reserved_item_command(self, snapshot, "quaff", potion)
             self._offer_execution(
                 key, producer="survival", work_id="stat-gain:quaff",
                 next_step="survival.quaff-stat-gain",
@@ -17259,7 +17259,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if speed is not None:
                 self._quest_strategy_opening_phase[profile.quest_id] = 1
                 self.last_reason = "quest-strategy:q22-opening-speed"
-                return QUAFF_KEY + speed.slot
+                return reserved_item_command(self, snapshot, "quaff", speed)
         if phase == 1 and bool(reposition.get("teleport_once", False)):
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None:

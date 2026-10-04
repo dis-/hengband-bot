@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
 
@@ -433,9 +434,9 @@ class IdentificationMixin:
         key = (
             self._read_key(snapshot, src, target.slot)
             if command == READ_KEY
-            else command + src.slot + target.slot
+            else reserved_item_command(self, snapshot, command, src, suffix=target.slot)
         )
-        if len(key) != 3:
+        if key is None or len(key) != 3:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:carried",
                 cause="source-command-shape-invalid",
