@@ -1,0 +1,8 @@
+{
+  "base": "f7dfbcb1",
+  "file": "tests\\replay_decision_hang.py",
+  "current_matches_base": true,
+  "baseline_findings": [
+    "tests/replay_decision_hang.py:55: private-state-injected: main assigns derived state _home_knowledge_scan_inflight before its effect is asserted"
+  ]
+}

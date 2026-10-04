@@ -13,3 +13,6 @@ jsonlog/
 *.jsonl
 home-withdraw-history.jsonc
 home-disposal-decisions.jsonc
+
+# Disposable source copies used by the offline Home regression revert proof.
+validation/homefull3/source-*/

@@ -60,7 +60,7 @@ class HomeMixin:
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
-        if (not item.known or self._disposal_protected_by_identification(item)
+        if (item.is_empty_bottle or not item.known or self._disposal_protected_by_identification(item)
                 or signature in self._unsellable_items
                 or self._home_disposal.decision(signature) == "keep"
                 or self._retention_reservation(probe, item) > 0
@@ -78,6 +78,100 @@ class HomeMixin:
         if value is not None and value <= 0:
             return None
         return item, store_type, value or 0
+
+    def _home_full_discard_candidate(
+        self, snapshot: Snapshot, item: InventoryItem | StoreItem,
+        *, identify: bool = False,
+    ) -> InventoryItem | None:
+        """Apply retention before reclaiming a shelf slot by destruction."""
+        if not isinstance(item, InventoryItem):
+            item = self._inventory_item_from_store_item(item)
+        item = replace(item, slot="home-surplus")
+        signature = self._item_signature(item)
+        probe = replace(snapshot, inventory=(*snapshot.inventory, item))
+        if (item.is_artifact or item.is_bounty
+                or signature in self._undestroyable_sigs
+                or self._home_disposal.decision(signature) == "keep"
+                or self._retention_reservation(probe, item) > 0
+                or self._equipment_disposal_reserved(snapshot, item)
+                or self._item_matches_purchase_rung(probe, item)
+                or signature == self._home_pending_item
+                or signature in self._home_pending_batch
+                or any(self._sale_item_identity(carried) == self._sale_item_identity(item)
+                       for carried in snapshot.inventory)):
+            return None
+        needs_id = not item.known or self._disposal_protected_by_identification(item)
+        if needs_id:
+            return item if identify else None
+        if identify:
+            return None
+        if (item.is_equipment
+                and not self._is_disposable_dominated_armour(snapshot, item)):
+            return None
+        if self._destroy_would_discard_superior_item(probe, item):
+            return None
+        return item
+
+    def _home_full_discard_rank(self, snapshot: Snapshot, item: InventoryItem) -> tuple:
+        # At this seam no eligible stock is sellable. A kind no shop buys,
+        # or an observed refused sale, has zero realizable store buy value.
+        stores = (STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL,
+                  STORE_TEMPLE, STORE_ALCHEMIST)
+        value = (item_base_cost(item, self._baseitem_costs) or 0
+                 if not item.is_empty_bottle
+                 and any(self._store_accepts_sale(store, item)
+                         and store not in self._store_sale_refused for store in stores)
+                 and self._item_signature(item) not in self._unsellable_items else 0)
+        # The recorded pickup editor's unconditional destruction rules include
+        # bones/corpses, junk, statues and worthless items. Keep those kinds
+        # ahead of other surplus, along with the bot's existing junk predicate.
+        autodestroy = (
+            item.tval in {1, 3, 9, 10}
+            or (not item.is_equipment
+                and item_base_cost(item, self._baseitem_costs) is not None
+                and item_base_cost(item, self._baseitem_costs) <= 0)
+            or self._is_disposable_item(item, food_type=snapshot.player.food_type))
+        return (not autodestroy,
+                max(0, value), self._item_signature(item))
+
+    @claims(ClaimOwner.IDENTIFICATION)
+    def _home_full_identify_carried_key(self, snapshot: Snapshot, target: InventoryItem) -> str | None:
+        key = self._carried_identify_command(snapshot, target, full=target.known)
+        if key is not None:
+            self.last_reason = "identify:full" if target.known else "identify:normal"
+            self._offer_execution(
+                key, producer="identification", work_id=f"home-full-identify:{target.slot}",
+                next_step="inventory.identify.send", arguments=(self._item_signature(target),),
+                expected_effect="item-identified", continuation="inventory.identify.observe",
+                budget_ref="home-errand-existing-budget")
+        return key
+
+    def _observe_home_full_identification(self, snapshot: Snapshot) -> None:
+        """Settle the ID owner from item evidence before declaration dispatch."""
+        relief = self._home_full_relief
+        identifying = relief.get("identifying") if relief is not None else None
+        if identifying is None or relief["sale"] is None:
+            return
+        tval, quantity, previous, known, fully_known = identifying
+        signature, store_type, before_count = relief["sale"]
+        target = next((item for item in snapshot.inventory
+                       if self._item_signature(item) == signature), None)
+        if target is None:
+            candidates = [item for item in snapshot.inventory
+                          if item.tval == tval and item.count == quantity
+                          and self._item_signature(item) not in previous
+                          and item.known]
+            if len(candidates) != 1:
+                return
+            target = candidates[0]
+            before_count = 0
+        if ((target.known and not known)
+                or (target.fully_known and not fully_known)):
+            self._complete_claim_goal(
+                "home-full-identification-observed", owners=("identification",),
+                kinds=("Observe",), sources=("store-operation",))
+            relief["sale"] = (self._item_signature(target), store_type, before_count)
+            relief.pop("identifying", None)
 
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
@@ -141,6 +235,10 @@ class HomeMixin:
                                      self._sale_item_identity(item) == sale_identity)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == sale_identity)
+            identifying = relief.get("identifying")
+            if identifying is not None and count <= before_count:
+                self._town_blocked_reason = "home-full-identification-effect-unresolved"
+                return self._town_blocked_key(snapshot)
             if count > before_count:
                 relief["withdrawn"] = True
                 if self._home_pending_item == signature:
@@ -148,6 +246,58 @@ class HomeMixin:
                     self._home_pending_slot = None
                     self._home_pending_quantity = None
                     self._home_pending_take_confirmed = None
+                if relief.get("mode") in {"destroy", "identify"}:
+                    if snapshot.store is not None:
+                        return self._home_full_leave_key("home:full-leave-with-surplus")
+                    if not target.known or self._disposal_protected_by_identification(target):
+                        # Identification retains its normal source, full-ID,
+                        # and verification rules; relief resumes from the
+                        # observed item, never a guessed identification result.
+                        key = self._town_producer_entry(
+                            "home-full-identification",
+                            lambda: self._home_full_identify_carried_key(snapshot, target),
+                            family="identification")
+                        if key is None:
+                            self._town_blocked_reason = "home-full-identification-source-unavailable"
+                            return self._town_blocked_key(snapshot)
+                        relief["identifying"] = (target.tval, target.count,
+                            frozenset(self._item_signature(item) for item in snapshot.inventory),
+                            target.known, target.fully_known)
+                        return key
+                    if relief.get("mode") == "identify":
+                        candidate = self._home_full_sale_candidate(
+                            replace(snapshot, inventory=tuple(
+                                carried for carried in snapshot.inventory
+                                if self._sale_item_identity(carried) != sale_identity)), target)
+                        if candidate is not None:
+                            relief["sale"] = (signature, candidate[1], before_count)
+                            relief["mode"] = "sale"
+                            return self._home_full_relief_key(snapshot)
+                        relief["mode"] = "destroy"
+                    probe = replace(snapshot, inventory=tuple(
+                        carried for carried in snapshot.inventory
+                        if self._sale_item_identity(carried) != sale_identity))
+                    if self._home_full_discard_candidate(probe, target) is None:
+                        # Identification can reveal an artifact or departure
+                        # candidate. Retain it and choose other shelf stock;
+                        # neither its take nor its identification is disposal.
+                        relief["sale"] = None
+                        relief["withdrawn"] = False
+                        relief.pop("mode", None)
+                        self._home_errand.finish()
+                        return self._home_full_relief_key(snapshot)
+                    posted = relief.get("destroy_posted", False)
+                    key = WAIT_KEY if posted else self._destroy_item_key(target)
+                    self.last_reason = ("home:full-destroy-await-effect" if posted
+                                        else "home:full-destroy-surplus")
+                    self._offer_execution(
+                        key, producer="home-visit", work_id=f"home-full-destroy:{sale_identity}",
+                        next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
+                        arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
+                        continuation="home.full-destroy.observe",
+                        budget_ref="home-visit-existing-budget")
+                    relief["destroy_posted"] = True
+                    return key
                 if (signature in self._unsellable_items
                         or store_type in self._store_sale_refused):
                     self._town_blocked_reason = "home-full-surplus-sale-refused"
@@ -164,11 +314,17 @@ class HomeMixin:
                         "shop:sell-home-full-surplus",
                         rejected_reason="shop:home-full-surplus-sale-refused")
             elif relief["withdrawn"]:
+                if relief.get("mode") == "destroy":
+                    self._complete_claim_goal(
+                        "home-full-destroy-observed", owners=("home-visit",),
+                        kinds=("Observe",), sources=("effect",))
                 # Stock space is earned by the take, but the next take/deposit
                 # starts only after the sale's inventory effect is observed.
                 relief["remaining"] -= 1
                 relief["sale"] = None
                 relief["withdrawn"] = False
+                relief.pop("destroy_posted", None)
+                relief.pop("mode", None)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
                 if relief["remaining"] == 0:
@@ -202,12 +358,31 @@ class HomeMixin:
             if len(snapshot.inventory) >= PACK_CAPACITY:
                 candidates = []
             if not candidates:
-                self._town_blocked_reason = "home-full-no-sellable-surplus"
-                return self._town_blocked_key(snapshot)
-            item, store_type, _value = max(candidates, key=lambda result: result[2])
+                discard = [candidate for stock in self._home_knowledge_items
+                           if (candidate := self._home_full_discard_candidate(snapshot, stock))]
+                unidentified = [candidate for stock in self._home_knowledge_items
+                                if (candidate := self._home_full_discard_candidate(
+                                    snapshot, stock, identify=True))]
+                if len(snapshot.inventory) >= PACK_CAPACITY:
+                    discard = unidentified = []
+                if discard:
+                    item = min(discard, key=lambda candidate:
+                               self._home_full_discard_rank(snapshot, candidate))
+                    relief["mode"] = "destroy"
+                elif unidentified:
+                    item = min(unidentified, key=self._item_signature)
+                    relief["mode"] = "identify"
+                else:
+                    self._town_blocked_reason = "home-full-no-sellable-surplus"
+                    return self._town_blocked_key(snapshot)
+                store_type = STORE_HOME
+            else:
+                item, store_type, _value = max(candidates, key=lambda result: result[2])
+                relief["mode"] = "sale"
             signature = self._item_signature(item)
             if not self._file_home_errand(snapshot, HomeErrandRequest(
-                    signature, item.count, "home-catalog", "full-home-sale"),
+                    signature, item.count, "home-catalog",
+                    "full-home-sale" if relief["mode"] == "sale" else "full-home-discard"),
                     knowledge_current=True):
                 return None
             relief["sale"] = (signature, store_type,
@@ -241,6 +416,24 @@ class HomeMixin:
         self.last_reason = "home:request-knowledge-scan"
         self._offer_home_knowledge_request(producer="home-scan")
         return HOME_KNOWLEDGE_MACRO
+
+    @claims(ClaimOwner.HOME_ERRAND)
+    def _home_errand_knowledge_key(self, snapshot: Snapshot) -> str:
+        """Keep a filed take's knowledge request and wait with its owner."""
+        waiting = self._home_knowledge_scan_inflight
+        key = WAIT_KEY if waiting else HOME_KNOWLEDGE_MACRO
+        self.last_reason = self._home_errand.reason(
+            "await-fresh-knowledge" if waiting else "request-knowledge")
+        if waiting:
+            self._offer_execution(
+                key, producer="home-errand",
+                work_id=f"home-knowledge:{self._home_knowledge_scan_epoch}",
+                next_step="home.knowledge.observe", expected_effect="catalogue-adopted",
+                continuation="home.knowledge.observe",
+                budget_ref="home-knowledge-existing-epoch")
+        else:
+            self._offer_home_knowledge_request(producer="home-errand")
+        return key
 
 
 
@@ -1694,6 +1887,8 @@ class HomeMixin:
             self._offer_home_atomic_no_step("withdraw", "no-withdrawal-request")
             return None
         if not self._home_knowledge_current:
+            if self._home_errand.active:
+                return self._home_errand_knowledge_key(snapshot)
             self.last_reason = (
                 self._home_errand.reason("await-fresh-knowledge")
                 if self._home_errand.active

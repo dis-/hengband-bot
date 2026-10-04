@@ -3144,8 +3144,8 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         )
         decisions = [policy.choose_key(approach)]
         reasons = [policy.last_reason]
-        self.assertEqual(decisions, ["~9\x1b\x1b"])
-        policy.confirm_key_posted("~9\x1b\x1b")
+        self.assertEqual(decisions, [policy_module.HOME_KNOWLEDGE_MACRO])
+        policy.confirm_key_posted(decisions[0])
         response = json.dumps({
             "type": "knowledge",
             "knowledge": {
@@ -3185,7 +3185,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         reasons.append(policy.last_reason)
 
         self.assertEqual(
-            decisions[:5], ["~9\x1b\x1b", "1", "5pa\x1b", "\x1b", "wf"],
+            decisions[:5], [policy_module.HOME_KNOWLEDGE_MACRO, "1", "5pa\x1b", "\x1b", "wf"],
         )
         self.assertNotIn("home:queue-combat-weapon-withdraw", reasons)
         self.assertLessEqual(len(decisions), 6)

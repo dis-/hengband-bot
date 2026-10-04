@@ -1,0 +1,184 @@
+[
+  {
+    "module": "test_policy_home",
+    "exit_code": 1,
+    "tests": 171,
+    "seconds": 35.53,
+    "summary": ".................F....................................................................................ssss.................................................................\n======================================================================\nFAIL: test_captured_q34_home_errand_requests_knowledge_and_rearms (test_policy_home.HomeOneOperationPerEntryTest.test_captured_q34_home_errand_requests_knowledge_and_rearms)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_policy_home.py\", line 3147, in test_captured_q34_home_errand_requests_knowledge_and_rearms\n    self.assertEqual(decisions, [\"~9\\x1b\\x1b\"])\nAssertionError: Lists differ: ['~9\\x1b'] != ['~9\\x1b\\x1b']\n\nFirst differing element 0:\n'~9\\x1b'\n'~9\\x1b\\x1b'\n\n- ['~9\\x1b']\n+ ['~9\\x1b\\x1b']\n?         ++++\n\n\n----------------------------------------------------------------------\nRan 171 tests in 33.873s\n\nFAILED (failures=1, skipped=4)\n"
+  },
+  {
+    "module": "test_policy_shop",
+    "exit_code": 0,
+    "tests": 273,
+    "seconds": 26.25,
+    "summary": "OK (skipped=1)"
+  },
+  {
+    "module": "test_home_full_relief_recorded",
+    "exit_code": 1,
+    "tests": 4,
+    "seconds": 8.89,
+    "summary": "F...\n======================================================================\nFAIL: test_no_sellable_surplus_stops_with_named_reason_and_never_destroys (test_home_full_relief_recorded.HomeFullReliefTest.test_no_sellable_surplus_stops_with_named_reason_and_never_destroys)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_home_full_relief_recorded.py\", line 191, in test_no_sellable_surplus_stops_with_named_reason_and_never_destroys\n    self.assertEqual(policy.last_reason, \"town:blocked:home-full-no-sellable-surplus\")\nAssertionError: 'shop:travel' != 'town:blocked:home-full-no-sellable-surplus'\n- shop:travel\n+ town:blocked:home-full-no-sellable-surplus\n\n\n----------------------------------------------------------------------\nRan 4 tests in 7.466s\n\nFAILED (failures=1)\n"
+  },
+  {
+    "module": "test_home_deposit_hang_recorded",
+    "exit_code": 1,
+    "tests": 5,
+    "seconds": 7.39,
+    "summary": ".F...\n======================================================================\nFAIL: test_post_purchase_decision_returns_under_hard_timeout (test_home_deposit_hang_recorded.HomeDepositHangRecordedTest.test_post_purchase_decision_returns_under_hard_timeout)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_home_deposit_hang_recorded.py\", line 61, in test_post_purchase_decision_returns_under_hard_timeout\n    self.assertEqual(result.returncode, 0, result.stderr)\nAssertionError: 1 != 0 : Traceback (most recent call last):\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_home_deposit_hang_recorded.py\", line 6, in <module>\n    import tests  # isolate runtime writes, including in subprocesses\n    ^^^^^^^^^^^^\nModuleNotFoundError: No module named 'tests'\n\n\n----------------------------------------------------------------------\nRan 5 tests in 5.986s\n\nFAILED (failures=1)\n"
+  },
+  {
+    "module": "test_homefull3_recorded",
+    "exit_code": 0,
+    "tests": 8,
+    "seconds": 24.06,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_full_await_knowledge_recorded",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 6.62,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_route_release_recorded",
+    "exit_code": 0,
+    "tests": 5,
+    "seconds": 6.09,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_errand",
+    "exit_code": 0,
+    "tests": 6,
+    "seconds": 0.17,
+    "summary": "OK (skipped=3)"
+  },
+  {
+    "module": "test_home_disposal",
+    "exit_code": 0,
+    "tests": 15,
+    "seconds": 3.27,
+    "summary": "OK"
+  },
+  {
+    "module": "test_home_equipment_disposal",
+    "exit_code": 0,
+    "tests": 6,
+    "seconds": 1.64,
+    "summary": "OK"
+  },
+  {
+    "module": "test_ownership_s3_3_delegation_record",
+    "exit_code": 1,
+    "tests": 1,
+    "seconds": 1.58,
+    "summary": "E\n======================================================================\nERROR: test_ownership_s3_3_delegation_record (unittest.loader._FailedTest.test_ownership_s3_3_delegation_record)\n----------------------------------------------------------------------\nImportError: Failed to import test module: test_ownership_s3_3_delegation_record\nTraceback (most recent call last):\n  File \"C:\\Users\\user\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\unittest\\loader.py\", line 137, in loadTestsFromName\n    module = __import__(module_name)\n             ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_ownership_s3_3_delegation_record.py\", line 19, in <module>\n    from test_ownership_s2b1_ladder import _Decisions\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_ownership_s2b1_ladder.py\", line 125, in <module>\n    from test_ownership_claims import LEGACY_CHECKPOINT, _Replay\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_ownership_claims.py\", line 69, in <module>\n    import ownership_claim_lint\nModuleNotFoundError: No module named 'ownership_claim_lint'\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (errors=1)\n"
+  },
+  {
+    "module": "test_ownership_s3_3_first_divergence",
+    "exit_code": 0,
+    "tests": 3,
+    "seconds": 0.19,
+    "summary": "OK"
+  },
+  {
+    "module": "test_ownership_s3_3_live_short_route",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 4.58,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_admission",
+    "exit_code": 0,
+    "tests": 9,
+    "seconds": 3.34,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_context",
+    "exit_code": 0,
+    "tests": 8,
+    "seconds": 7.55,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_reconciliation",
+    "exit_code": 0,
+    "tests": 18,
+    "seconds": 1.53,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_batch_replay",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 1.95,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_equipment",
+    "exit_code": 0,
+    "tests": 1,
+    "seconds": 1.92,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_idle",
+    "exit_code": 0,
+    "tests": 2,
+    "seconds": 1.47,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_phase2_quest",
+    "exit_code": 0,
+    "tests": 4,
+    "seconds": 10.97,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow",
+    "exit_code": 0,
+    "tests": 7,
+    "seconds": 12.92,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow_recorded",
+    "exit_code": 0,
+    "tests": 5,
+    "seconds": 16.77,
+    "summary": "OK"
+  },
+  {
+    "module": "test_s33_shadow_report",
+    "exit_code": 1,
+    "tests": 1,
+    "seconds": 0.19,
+    "summary": "E\n======================================================================\nERROR: test_s33_shadow_report (unittest.loader._FailedTest.test_s33_shadow_report)\n----------------------------------------------------------------------\nImportError: Failed to import test module: test_s33_shadow_report\nTraceback (most recent call last):\n  File \"C:\\Users\\user\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\unittest\\loader.py\", line 137, in loadTestsFromName\n    module = __import__(module_name)\n             ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\hengband\\bot-client-homefull3\\tests\\test_s33_shadow_report.py\", line 8, in <module>\n    from s33_shadow_report import render, summarize, timestamp\nModuleNotFoundError: No module named 's33_shadow_report'\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (errors=1)\n"
+  },
+  {
+    "module": "test_execution_declaration",
+    "exit_code": 0,
+    "tests": 27,
+    "seconds": 17.49,
+    "summary": "OK"
+  },
+  {
+    "module": "test_test_fakery_lint",
+    "exit_code": 1,
+    "tests": 13,
+    "seconds": 33.58,
+    "summary": "named invariant | CAUGHT | invariant-input-overwritten\nMock collaborator wall | CAUGHT | collaborator-wall\n\nSeven-rewrite evasion matrix:\nsetattr replacement | CAUGHT | public-path-replaced\nstring patch target | CAUGHT | public-path-replaced\ninjection moved to helper | CAUGHT | private-state-injected\nassert delegated to helper | CAUGHT | public-path-replaced\nwall split patch plus assignment | CAUGHT | collaborator-wall\nsuccess literal hoisted | CAUGHT | literal-success-predicate\nhistorical test renamed | CAUGHT | subject-precompleted\n\nHistorical acceptance table (real git blobs):\nshape | revision | real site | fires | declared\noptimizer precompletion | 594053f | tests/test_policy.py:test_mining_walk_in_is_the_only_zero_recall_entry | YES | NO\nfundraising premise overwrite | 0de8159 | tests/test_policy.py:test_incomplete_optimizer_blocks_normal_direct_entrance | YES | NO\nbest/loadout fabrication | 43726bb | tests/test_policy.py:test_unactionable_suppression_keeps_confirmed_loadout | YES | NO\nliteral success predicate | b57957f | tests/test_policy.py:test_alchemist_interleaved_unconfirmed_purchase_keeps_bounded_window | YES | NO\nfrozen 105-decision drive | HEAD | tests/test_policy_town.py:test_live_home_door_block_replay_never_posts_stay_publicly | YES | NO\nhelper state injection | 5f49d7a | tests/test_policy.py:_catalogued_withdrawal_policy | YES | NO\nall collaborators mocked | 534b4be^ | tests/test_policy.py:test_live_block_replay_continues_alchemist_plan_publicly | YES | NO\n"
+  },
+  {
+    "module": "test_policy_town",
+    "exit_code": 0,
+    "tests": 589,
+    "seconds": 243.95,
+    "summary": "OK"
+  }
+]

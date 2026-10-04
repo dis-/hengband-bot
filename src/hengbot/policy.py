@@ -2592,6 +2592,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_no_step_release = False
         self._decision_cancelled_home_reservation = None
         self._observe_home_atomic_deposit_outside(snapshot)
+        self._observe_home_full_identification(snapshot)
         # Round 4 (F3): an armed path-target capture never outlives the
         # decision that armed it (each arm/take pair is also try/finally).
         self.__dict__.pop("_claim_target_capture", None)
@@ -8299,7 +8300,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._town_visit_ledger.pending_store_transaction = None
                 self._intentional_entrance_activation = False
             if self._home_errand.needs_knowledge:
-                self.last_reason = self._home_errand.reason("request-knowledge")
+                return self._home_errand_knowledge_key(snapshot)
             else:
                 self.last_reason = "home:request-knowledge-scan"
             self._offer_execution(
@@ -9819,6 +9820,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._evaluate_cross_decision_latches(snapshot)
         # Diagnostic: describes this decision's rest check only.
         self._esp_threat_assessment = None
+        if (snapshot.in_town and self._home_errand.needs_knowledge
+                and self._home_atomic_deposit_pending is None
+                and self._home_atomic_withdraw_pending is None
+                and snapshot.player.hp >= snapshot.player.max_hp
+                and not (snapshot.player.poisoned or snapshot.player.cut
+                         or snapshot.player.confused or snapshot.player.blind)
+                and snapshot.player.food_state in {"normal", "full", "gorged"}
+                and not self._physical_hostiles(snapshot)):
+            knowledge_key = self._town_producer_entry(
+                "home-errand-knowledge", lambda: self._home_errand_knowledge_key(snapshot),
+                family="home-errand")
+            if knowledge_key is not None:
+                return knowledge_key
         if (snapshot.in_town and snapshot.store is None
                 and self._home_atomic_deposit_pending is not None
                 and self._store_visit is not None
@@ -9830,8 +9844,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
-                and not any(monster.hostile for monster in
-                            (*snapshot.visible_monsters, *snapshot.detected_monsters))):
+                and not self._physical_hostiles(snapshot)):
             # A released legacy deposit still owns its outside observation
             # budget. Do not enqueue an equipment Home visit before it ends.
             self.last_reason = "home:atomic-deposit-await-confirmation"
@@ -9848,8 +9861,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
-                and not any(monster.hostile for monster in
-                            (*snapshot.visible_monsters, *snapshot.detected_monsters))
+                and not self._physical_hostiles(snapshot)
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
                 and self._store_buy_inflight is None

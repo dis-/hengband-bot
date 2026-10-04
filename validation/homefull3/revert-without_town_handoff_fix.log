@@ -1,0 +1,21 @@
+FF
+======================================================================
+FAIL: test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople (test_homefull3_recorded.RecordedHomeFull3Test.test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 77, in test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople
+    self.assertIn('home:atomic-deposit-await-confirmation', p.last_reason)
+AssertionError: 'home:atomic-deposit-await-confirmation' not found in 'identify:full'
+
+======================================================================
+FAIL: test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist (test_homefull3_recorded.RecordedHomeFull3Test.test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hengband\bot-client-homefull3\tests\test_homefull3_recorded.py", line 96, in test_B_first_outside_home_withdraws_instead_of_routing_to_alchemist
+    self.assertTrue(key.startswith('5p'), (key, p.last_reason, p.home_route_refusal_state()))
+AssertionError: False is not true : ('\x1b`n%.', 'shop:travel', None)
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.726s
+
+FAILED (failures=2)
